@@ -7,6 +7,7 @@ import {
   IconAdjustmentsHorizontal,
   IconCheck,
   IconLayoutGrid,
+  IconLayoutList,
   IconPlus,
   IconRotateClockwise,
   IconSearch,
@@ -24,7 +25,10 @@ import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 
-import { CampaignsTable } from "@/features/campaigns/campaigns-table";
+import { CampaignCards } from "@/features/campaigns/campaign-cards";
+import { CampaignDetailDrawer } from "@/features/campaigns/campaign-detail-drawer";
+import { CampaignRow } from "@/features/campaigns/campaign-row";
+import { CampaignsMiniDash } from "@/features/campaigns/mini-dash";
 import { useCampaigns, useDeleteCampaign } from "@/features/campaigns/hooks";
 import { MOCK_CAMPAIGNS_PAGE, mockCampaignsPage } from "@/features/campaigns/mock-campaigns";
 import { CAMPAIGN_STATUS_FILTERS } from "@/features/campaigns/constants";
@@ -32,8 +36,11 @@ import type { CampaignListItem, CampaignStatus } from "@/features/campaigns/type
 import { SORT_KEYS, SORT_LABEL, sortCampaigns, type CampaignSortKey } from "@/features/campaigns/viz";
 import { isPageMockMode, shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
 
+type ViewMode = "cards" | "lista";
+
+const CARD_PER_PAGE = [6, 12, 24] as const;
 const LIST_PER_PAGE = [25, 50, 100] as const;
-const DEFAULT_PER_PAGE = 25;
+const DEFAULT_PER_PAGE = 6;
 
 export default function CampaignsClientPage() {
   const router = useRouter();
@@ -44,6 +51,8 @@ export default function CampaignsClientPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE);
+  const [view, setView] = useState<ViewMode>("cards");
+  const [selected, setSelected] = useState<CampaignListItem | null>(null);
   const [sortKey, setSortKey] = useState<CampaignSortKey>("readRate");
   const deleteMutation = useDeleteCampaign();
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -180,42 +189,83 @@ export default function CampaignsClientPage() {
                   if (v === "automations") router.push("/automations");
                 }}
               />
+              <PageSegmentedControl
+                size="compact"
+                aria-label="Visualização das campanhas"
+                items={[
+                  {
+                    value: "cards",
+                    label: (
+                      <span className="flex items-center gap-1.5">
+                        <IconLayoutGrid size={13} aria-hidden />
+                        Cards
+                      </span>
+                    ),
+                  },
+                  {
+                    value: "lista",
+                    label: (
+                      <span className="flex items-center gap-1.5">
+                        <IconLayoutList size={13} aria-hidden />
+                        Lista
+                      </span>
+                    ),
+                  },
+                ]}
+                value={view}
+                onChange={(v) => {
+                  const next = v as ViewMode;
+                  setView(next);
+                  setPerPage(next === "cards" ? CARD_PER_PAGE[0] : LIST_PER_PAGE[0]);
+                  setPage(1);
+                }}
+              />
               <CampaignsActionsMenu />
             </div>
           }
         />
 
+        <CampaignsMiniDash items={dashSource} />
+
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-          {isLoading && allItems.length === 0 ? (
-            <AppLoading variant="inline" className="min-h-[320px]" />
-          ) : error ? (
-            <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
-              {error instanceof Error ? error.message : "Erro ao carregar."}
-            </div>
-          ) : visibleItems.length === 0 ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)]">
-              <EmptyState
-                icon={<IconSpeakerphone size={28} />}
-                title={debouncedSearch || statusFilter ? "Nada com esses filtros" : "Nenhuma campanha ainda"}
-                description={
-                  debouncedSearch
-                    ? `Sem resultados para "${debouncedSearch}".`
-                    : statusFilter
-                      ? "Tente outro termo ou remova o filtro ativo."
-                      : "Crie um disparo claro para conversar com a base certa."
-                }
-                action={
-                  debouncedSearch || statusFilter ? undefined : (
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch]">
+            {isLoading && allItems.length === 0 ? (
+              <AppLoading variant="inline" className="min-h-[320px]" />
+            ) : error ? (
+              <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
+                {error instanceof Error ? error.message : "Erro ao carregar."}
+              </div>
+            ) : visibleItems.length === 0 ? (
+              <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-[var(--glass-shadow)] backdrop-blur-md">
+                <EmptyState
+                  icon={<IconSpeakerphone size={28} />}
+                  title="Nenhuma campanha"
+                  description={
+                    debouncedSearch
+                      ? `Sem resultados para "${debouncedSearch}".`
+                      : statusFilter
+                        ? "Nenhuma campanha com esse status."
+                        : "Crie sua primeira campanha para disparar mensagens em massa."
+                  }
+                  action={
                     <PagePrimaryButton href="/campaigns/new">
                       <IconPlus size={15} stroke={2.4} /> Nova campanha
                     </PagePrimaryButton>
-                  )
-                }
-              />
-            </div>
-          ) : (
-            <CampaignsTable items={visibleItems} onDelete={handleDelete} />
-          )}
+                  }
+                />
+              </div>
+            ) : view === "cards" ? (
+              <div className="pb-3">
+                <CampaignCards items={visibleItems} onSelect={setSelected} />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5 pb-3">
+                {visibleItems.map((c) => (
+                  <CampaignRow key={c.id} campaign={c} onDelete={handleDelete} />
+                ))}
+              </div>
+            )}
+          </div>
 
           <PaginationGlass
             className="shrink-0"
@@ -228,7 +278,7 @@ export default function CampaignsClientPage() {
             onPrev={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() => setPage((p) => Math.min(lastPage, p + 1))}
             perPage={perPage}
-            perPageOptions={LIST_PER_PAGE}
+            perPageOptions={view === "cards" ? CARD_PER_PAGE : LIST_PER_PAGE}
             onPerPageChange={(value) => {
               setPerPage(value);
               setPage(1);
@@ -236,6 +286,7 @@ export default function CampaignsClientPage() {
           />
         </div>
       </main>
+      <CampaignDetailDrawer campaign={selected} onClose={() => setSelected(null)} />
       {confirmDialog}
     </div>
   );

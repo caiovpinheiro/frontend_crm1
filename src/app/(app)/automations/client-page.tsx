@@ -1,11 +1,16 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
+  IconActivity,
   IconAdjustmentsHorizontal,
+  IconBolt,
   IconCheck,
+  IconCircleCheck,
+  IconClock,
   IconLoader2,
   IconPlus,
   IconRobot,
@@ -24,6 +29,7 @@ import { PageDemoBanner } from "@/components/crm/page-demo-banner"
 import { AutomationsGallery } from "@/components/crm/automations-gallery"
 import { EmptyState } from "@/components/crm/empty-state"
 import { PaginationGlass } from "@/components/crm/pagination-glass"
+import { KpiCard, type KpiTone } from "@/components/crm/kpi-card"
 import { cn } from "@/lib/utils"
 import {
   useAutomations,
@@ -34,7 +40,6 @@ import {
   useToggleAutomation,
 } from "@/features/automations-v2/hooks"
 import { dtoToAutomation } from "@/features/automations-v2/automation-adapter"
-import { NewAutomationModal } from "@/features/automations-v2/new-automation-modal"
 import { isPageMockMode } from "@/lib/page-mock-mode"
 import { AUTOMATION_TRIGGER_TYPES } from "@/lib/automation-workflow"
 import { useConfirm } from "@/components/ui/confirm-dialog"
@@ -53,7 +58,6 @@ export default function V2AutomationsClientPage() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
   const [isImporting, setIsImporting] = useState(false)
-  const [newOpen, setNewOpen] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -316,7 +320,7 @@ export default function V2AutomationsClientPage() {
     <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
       <NavRailSpacer />
 
-      <main className="flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
+      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
         <input
           ref={importInputRef}
           type="file"
@@ -362,7 +366,7 @@ export default function V2AutomationsClientPage() {
                 }}
               />
               <AutomationsActionsMenu
-                onNew={() => setNewOpen(true)}
+                onNew={() => router.push("/automations/new")}
                 onImport={handleImportClick}
                 importing={isImporting}
               />
@@ -370,15 +374,20 @@ export default function V2AutomationsClientPage() {
           }
         />
 
+        <AutomationsKpis
+          summary={summary}
+          filter={filter}
+          onFilterChange={(v) => setFilter(v)}
+        />
+
         {isDemo && (
           <PageDemoBanner>
-            Dados de exemplo — explore a lista e teste busca, filtros e ações.
+            Dados de exemplo — fluxos ilustrativos com métricas e mini-fluxo para visualizar a lista.
           </PageDemoBanner>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col">
         {isLoading ? (
-          <AppLoading variant="inline" className="min-h-[320px]" />
+          <AppLoading variant="inline" className="min-h-[400px]" />
         ) : isError ? (
           <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {listQuery.error instanceof Error
@@ -386,31 +395,30 @@ export default function V2AutomationsClientPage() {
               : "Erro ao carregar automações."}
           </div>
         ) : isEmpty ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)]">
+          <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
             <EmptyState
               icon={<IconRobot size={28} />}
               title="Nenhuma automação ainda"
-              description="O primeiro fluxo tira o time do copia-e-cola."
+              description="Crie sua primeira automação ou importe um fluxo em .json."
               action={
-                <button
-                  type="button"
-                  onClick={() => setNewOpen(true)}
+                <Link
+                  href="/automations/new"
                   className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 py-2 font-display text-[13px] font-bold text-white transition-colors hover:bg-[var(--brand-primary-dark)]"
                 >
                   <IconPlus size={16} /> Nova automação
-                </button>
+                </Link>
               }
             />
           </div>
         ) : isEmptyFiltered ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)]">
+          <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
             <EmptyState
               icon={<IconRobot size={28} />}
-              title="Nada com esses filtros"
+              title="Nenhum resultado"
               description={
                 debounced
                   ? `Sem resultados para "${debounced}".`
-                  : "Tente outro termo ou remova o filtro ativo."
+                  : "Nenhuma automação corresponde ao filtro selecionado."
               }
             />
           </div>
@@ -421,7 +429,6 @@ export default function V2AutomationsClientPage() {
             onDelete={handleDelete}
           />
         )}
-        </div>
 
         <PaginationGlass
           className="shrink-0"
@@ -442,8 +449,92 @@ export default function V2AutomationsClientPage() {
       </main>
 
       {confirmDialog}
-      <NewAutomationModal open={newOpen} onOpenChange={setNewOpen} />
     </div>
+  )
+}
+
+// ── KPIs (mesmo KpiCard de Contatos/Empresas) ────────────────────────────
+
+function AutomationsKpis({
+  summary,
+  filter,
+  onFilterChange,
+}: {
+  summary: {
+    total: number
+    active: number
+    paused: number
+    runsToday: number
+    avgSuccess: number
+  }
+  filter: StatusFilter
+  onFilterChange: (v: StatusFilter) => void
+}) {
+  const cards: {
+    key: string
+    label: string
+    value: string
+    hint?: string
+    tone: KpiTone
+    icon: React.ReactNode
+    segment?: StatusFilter
+  }[] = [
+    {
+      key: "active",
+      label: "Ativas",
+      value: summary.active.toLocaleString("pt-BR"),
+      hint: `de ${summary.total.toLocaleString("pt-BR")}`,
+      tone: "violet",
+      icon: <IconBolt size={20} stroke={2.2} />,
+      segment: 1,
+    },
+    {
+      key: "runs",
+      label: "Execuções hoje",
+      value: summary.runsToday.toLocaleString("pt-BR"),
+      tone: "brand",
+      icon: <IconActivity size={20} stroke={2.2} />,
+    },
+    {
+      key: "success",
+      label: "Taxa média de sucesso",
+      value: `${summary.avgSuccess}%`,
+      tone: "success",
+      icon: <IconCircleCheck size={20} stroke={2.2} />,
+    },
+    {
+      key: "paused",
+      label: "Pausadas",
+      value: summary.paused.toLocaleString("pt-BR"),
+      tone: "neutral",
+      icon: <IconClock size={20} stroke={2.2} />,
+      segment: 2,
+    },
+  ]
+
+  return (
+    <section
+      className="grid shrink-0 grid-cols-2 gap-2.5 sm:gap-3.5 lg:grid-cols-4"
+      aria-label="Indicadores"
+    >
+      {cards.map((c) => (
+        <KpiCard
+          key={c.key}
+          label={c.label}
+          value={c.value}
+          hint={c.hint}
+          icon={c.icon}
+          tone={c.tone}
+          active={c.segment !== undefined && filter === c.segment}
+          onClick={
+            c.segment !== undefined
+              ? () =>
+                  onFilterChange(filter === c.segment ? 0 : (c.segment as StatusFilter))
+              : undefined
+          }
+        />
+      ))}
+    </section>
   )
 }
 
