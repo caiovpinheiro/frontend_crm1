@@ -5,7 +5,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconArrowLeft as ArrowLeft, IconLoader2 as Loader2, IconPlus as Plus, IconRefresh as RefreshCw, IconDeviceFloppy as Save, IconSend as Send, IconTrash as Trash2 } from "@tabler/icons-react";
+import { IconArrowLeft as ArrowLeft, IconLoader2 as Loader2, IconPlus as Plus, IconRefresh as RefreshCw, IconDeviceFloppy as Save, IconSend as Send, IconTrash as Trash2, IconX } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -13,7 +13,6 @@ import { GlassCard } from "@/components/crm/glass-card";
 import { InputGlass } from "@/components/crm/input-glass";
 import { CheckboxGlass } from "@/components/crm/checkbox-glass";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { DropdownGlass, type DropdownOption } from "@/components/crm/dropdown-glass";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { FlowDefinitionUpsertInput } from "@/services/whatsapp-flow-definitions";
@@ -90,11 +89,80 @@ function fieldTypeNeedsOptions(fieldType: string): boolean {
   return FIELD_TYPES_WITH_OPTIONS.has(fieldType.toUpperCase());
 }
 
-function parseOptionsText(text: string): string[] {
-  return text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
+function FlowFieldOptionsEditor({
+  options,
+  onChange,
+}: {
+  options: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = React.useState("");
+
+  function addOption() {
+    const value = draft.trim();
+    if (!value || options.includes(value)) {
+      setDraft("");
+      return;
+    }
+    onChange([...options, value]);
+    setDraft("");
+  }
+
+  function removeOption(index: number) {
+    onChange(options.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div className="grid gap-1.5 sm:col-span-2">
+      <Label className="text-xs text-[var(--text-secondary)]">Alternativas</Label>
+      <p className="-mt-0.5 font-body text-[11.5px] text-[var(--text-muted)]">
+        Opções exibidas na lista de seleção
+      </p>
+
+      {options.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {options.map((opt, i) => (
+            <span
+              key={`${opt}-${i}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-3 pr-1.5 py-1 font-body text-[12.5px] text-[var(--text-primary)]"
+            >
+              {opt}
+              <button
+                type="button"
+                onClick={() => removeOption(i)}
+                className="flex h-4.5 w-4.5 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500"
+                title={`Remover "${opt}"`}
+              >
+                <IconX size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="font-body text-[12px] text-[var(--text-muted)]/80">
+          Adicione pelo menos uma alternativa
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <InputGlass
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addOption();
+            }
+          }}
+          placeholder="Nova alternativa"
+          className="flex-1"
+        />
+        <ButtonGlass type="button" variant="glass" size="sm" onClick={addOption}>
+          Adicionar
+        </ButtonGlass>
+      </div>
+    </div>
+  );
 }
 
 /** Link "voltar" em pill glass — reusado nos três estados do editor. */
@@ -805,28 +873,21 @@ export default function FlowDefinitionEditorPage({
                           Obrigatório
                         </label>
                         {fieldTypeNeedsOptions(f.fieldType) ? (
-                          <div className="grid gap-1.5 sm:col-span-2">
-                            <Label className="text-xs text-[var(--text-secondary)]">Opções (uma por linha)</Label>
-                            <Textarea
-                              value={(f.options ?? []).join("\n")}
-                              onChange={(e) => {
-                                const options = parseOptionsText(e.target.value);
-                                updateDraft((d) => {
-                                  const screens = d.screens.map((s, i) => {
-                                    if (i !== selectedScreenIdx) return s;
-                                    const fields = s.fields.map((x) =>
-                                      x.id === f.id ? { ...x, options } : x,
-                                    );
-                                    return { ...s, fields };
-                                  });
-                                  return { ...d, screens };
+                          <FlowFieldOptionsEditor
+                            options={f.options ?? []}
+                            onChange={(options) => {
+                              updateDraft((d) => {
+                                const screens = d.screens.map((s, i) => {
+                                  if (i !== selectedScreenIdx) return s;
+                                  const fields = s.fields.map((x) =>
+                                    x.id === f.id ? { ...x, options } : x,
+                                  );
+                                  return { ...s, fields };
                                 });
-                              }}
-                              rows={3}
-                              className="resize-none rounded-[var(--radius-md)] text-xs placeholder:text-[var(--text-muted)]"
-                              placeholder={"Opção 1\nOpção 2\nOpção 3"}
-                            />
-                          </div>
+                                return { ...d, screens };
+                              });
+                            }}
+                          />
                         ) : null}
                       </div>
                     </div>
