@@ -10,7 +10,9 @@
 import { apiUrl, parseApiResponse } from "@/lib/api";
 
 import type {
+  AcademicCaseKey,
   AcademicCockpit,
+  AcademicCockpitCase,
   AgentCockpitResponse,
   NamedCount,
 } from "./types";
@@ -100,4 +102,30 @@ export async function fetchAcademicCockpit(): Promise<AcademicCockpit> {
     );
   }
   return normalizeAcademic(data.academic);
+}
+
+export async function fetchAcademicCockpitCases(
+  key: AcademicCaseKey,
+): Promise<AcademicCockpitCase[]> {
+  const res = await fetch(
+    apiUrl(`/api/public/agent-cockpit/cases?key=${encodeURIComponent(key)}`),
+    { cache: "no-store", credentials: "include" },
+  );
+  const data = await parseApiResponse<{ cases?: AcademicCockpitCase[] }>(
+    res,
+    "Não foi possível carregar os casos.",
+  );
+  if (!Array.isArray(data?.cases)) return [];
+  return data.cases
+    .filter((c) => c && typeof c.conversationId === "string")
+    .map((c) => ({
+      conversationId: c.conversationId,
+      conversationNumber:
+        typeof c.conversationNumber === "number" ? c.conversationNumber : null,
+      contactName:
+        typeof c.contactName === "string" && c.contactName.trim()
+          ? c.contactName
+          : "Sem nome",
+      phone: typeof c.phone === "string" && c.phone.trim() ? c.phone : null,
+    }));
 }

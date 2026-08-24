@@ -56,3 +56,27 @@ export interface AgentCockpitResponse {
 
 /** Abas nativas do agente acadêmico dentro de "Agentes de IA". */
 export type AcademicTabId = "saude" | "resolucao" | "handoff" | "funil";
+
+export type AcademicCaseKey =
+  | "spoke_today"
+  | "attending_now"
+  | "resolved_solo"
+  | "closed_by_ai"
+  | "closed_by_idle"
+  | "closed_by_student"
+  | "idle_nudges"
+  | "returned_after_close"
+  | "send_failed"
+  | "handoff_today"
+  | "handoff_assigned"
+  | "channel_academic"
+  | "channel_other"
+  | "lead_entrada_open"
+  | "lead_entrada_ai";
+
+export interface AcademicCockpitCase {
+  conversationId: string;
+  conversationNumber: number | null;
+  contactName: string;
+  phone: string | null;
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { CockpitCasesDialog, useCockpitCases } from "./cases-dialog";
 import { useAcademicCockpit } from "./hooks";
 import {
   FunilPanel,
@@ -33,6 +34,7 @@ export function AcademicCockpitTab({
   active: boolean;
 }) {
   const query = useAcademicCockpit(active);
+  const cases = useCockpitCases();
 
   if (query.isPending) {
     return <CockpitSkeleton bars />;
@@ -54,8 +56,17 @@ export function AcademicCockpitTab({
 
   const data = query.data;
 
-  if (tab === "saude") return <SaudePanel data={data.saude} />;
-  if (tab === "resolucao") return <ResolucaoPanel data={data.resolucao} />;
-  if (tab === "handoff") return <HandoffPanel data={data.handoff} />;
-  return <FunilPanel data={data.funil} />;
+  return (
+    <>
+      {tab === "saude" && <SaudePanel data={data.saude} onOpenCases={cases.show} />}
+      {tab === "resolucao" && (
+        <ResolucaoPanel data={data.resolucao} onOpenCases={cases.show} />
+      )}
+      {tab === "handoff" && (
+        <HandoffPanel data={data.handoff} onOpenCases={cases.show} />
+      )}
+      {tab === "funil" && <FunilPanel data={data.funil} onOpenCases={cases.show} />}
+      <CockpitCasesDialog open={cases.open} onClose={cases.close} />
+    </>
+  );
 }
