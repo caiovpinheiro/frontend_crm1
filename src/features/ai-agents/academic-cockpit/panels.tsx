@@ -21,12 +21,15 @@ import {
 import { KpiCard } from "@/components/crm/kpi-card";
 
 import type {
+  AcademicCaseKey,
   AcademicFunil,
   AcademicHandoff,
   AcademicResolucao,
   AcademicSaude,
   NamedCount,
 } from "./types";
+
+type OpenCases = (key: AcademicCaseKey, title: string) => void;
 import { CockpitZeroNote, formatSeconds, KpiGrid, MetricBars } from "./ui";
 
 /** Mensagem padrão das listas sem linhas — igual em todas as abas. */
@@ -37,7 +40,13 @@ function withoutZeros(items: NamedCount[]): NamedCount[] {
   return items.filter((i) => i.n > 0);
 }
 
-export function SaudePanel({ data }: { data: AcademicSaude }) {
+export function SaudePanel({
+  data,
+  onOpenCases,
+}: {
+  data: AcademicSaude;
+  onOpenCases: OpenCases;
+}) {
   const desfecho = withoutZeros([
     { name: "Resolveu sozinha", n: data.resolvedSoloToday },
     { name: "Passou a humano", n: data.handoffToday },
@@ -72,6 +81,7 @@ export function SaudePanel({ data }: { data: AcademicSaude }) {
           value={data.spokeToday}
           hint="conversas"
           icon={<IconMessages size={20} />}
+          onClick={() => onOpenCases("spoke_today", "Falou hoje")}
         />
         <KpiCard
           label="Resolveu sozinha"
@@ -79,6 +89,7 @@ export function SaudePanel({ data }: { data: AcademicSaude }) {
           hint="sem humano"
           icon={<IconCircleCheck size={20} />}
           tone="success"
+          onClick={() => onOpenCases("resolved_solo", "Resolveu sozinha")}
         />
         <KpiCard
           label="Passou a humano"
@@ -86,18 +97,21 @@ export function SaudePanel({ data }: { data: AcademicSaude }) {
           hint="handoff IA"
           icon={<IconArrowUpRight size={20} />}
           tone="violet"
+          onClick={() => onOpenCases("handoff_today", "Passou a humano")}
         />
         <KpiCard
           label="Ainda com a IA"
           value={data.attendingNow}
           hint="em atendimento"
           icon={<IconRobot size={20} />}
+          onClick={() => onOpenCases("attending_now", "Ainda com a IA")}
         />
         <KpiCard
           label="Falhas de envio"
           value={data.sendFailedToday}
           icon={<IconSend size={20} />}
           tone={data.sendFailedToday > 0 ? "warning" : "neutral"}
+          onClick={() => onOpenCases("send_failed", "Falhas de envio")}
         />
         <KpiCard
           label="1ª resposta (mediana)"
@@ -117,7 +131,13 @@ export function SaudePanel({ data }: { data: AcademicSaude }) {
   );
 }
 
-export function ResolucaoPanel({ data }: { data: AcademicResolucao }) {
+export function ResolucaoPanel({
+  data,
+  onOpenCases,
+}: {
+  data: AcademicResolucao;
+  onOpenCases: OpenCases;
+}) {
   const motivos = withoutZeros([
     { name: "Por silêncio / 30 min", n: data.closedByIdle },
     { name: "Pedido do aluno", n: data.closedByStudentAsk },
@@ -147,12 +167,14 @@ export function ResolucaoPanel({ data }: { data: AcademicResolucao }) {
           hint="hoje"
           icon={<IconCircleCheck size={20} />}
           tone="success"
+          onClick={() => onOpenCases("closed_by_ai", "Encerradas pela IA")}
         />
         <KpiCard
           label="Por silêncio / 30 min"
           value={data.closedByIdle}
           hint="check-in sem retorno"
           icon={<IconClockPlay size={20} />}
+          onClick={() => onOpenCases("closed_by_idle", "Por silêncio / 30 min")}
         />
         <KpiCard
           label="Pedido do aluno"
@@ -160,12 +182,14 @@ export function ResolucaoPanel({ data }: { data: AcademicResolucao }) {
           hint="“encerrar” / “só isso”"
           icon={<IconHandStop size={20} />}
           tone="violet"
+          onClick={() => onOpenCases("closed_by_student", "Pedido do aluno")}
         />
         <KpiCard
           label="Check-ins enviados"
           value={data.idleNudgesToday}
           hint="“faz uns 30 minutos…”"
           icon={<IconBellRinging size={20} />}
+          onClick={() => onOpenCases("idle_nudges", "Check-ins enviados")}
         />
         <KpiCard
           label="Voltaram depois"
@@ -173,6 +197,7 @@ export function ResolucaoPanel({ data }: { data: AcademicResolucao }) {
           hint="novo ticket após close"
           icon={<IconArrowBackUp size={20} />}
           tone={data.returnedAfterAiClose > 0 ? "warning" : "neutral"}
+          onClick={() => onOpenCases("returned_after_close", "Voltaram depois")}
         />
       </KpiGrid>
 
@@ -186,7 +211,13 @@ export function ResolucaoPanel({ data }: { data: AcademicResolucao }) {
   );
 }
 
-export function HandoffPanel({ data }: { data: AcademicHandoff }) {
+export function HandoffPanel({
+  data,
+  onOpenCases,
+}: {
+  data: AcademicHandoff;
+  onOpenCases: OpenCases;
+}) {
   const zerado =
     data.totalToday === 0 && !data.byDepartment.length && !data.byKind.length;
 
@@ -205,6 +236,7 @@ export function HandoffPanel({ data }: { data: AcademicHandoff }) {
           hint="origem IA"
           icon={<IconArrowUpRight size={20} />}
           tone="violet"
+          onClick={() => onOpenCases("handoff_today", "Handoffs hoje")}
         />
         <KpiCard
           label="Departamentos acionados"
@@ -218,6 +250,7 @@ export function HandoffPanel({ data }: { data: AcademicHandoff }) {
           hint="com consultor"
           icon={<IconUserCheck size={20} />}
           tone="success"
+          onClick={() => onOpenCases("handoff_assigned", "Atribuídos")}
         />
       </KpiGrid>
 
@@ -239,7 +272,13 @@ export function HandoffPanel({ data }: { data: AcademicHandoff }) {
   );
 }
 
-export function FunilPanel({ data }: { data: AcademicFunil }) {
+export function FunilPanel({
+  data,
+  onOpenCases,
+}: {
+  data: AcademicFunil;
+  onOpenCases: OpenCases;
+}) {
   const zerado =
     data.academicChannelSpoke === 0 &&
     data.otherChannelSpoke === 0 &&
@@ -260,6 +299,7 @@ export function FunilPanel({ data }: { data: AcademicFunil }) {
           value={data.academicChannelSpoke}
           hint="conversas com IA"
           icon={<IconSchool size={20} />}
+          onClick={() => onOpenCases("channel_academic", "Canal Acadêmico")}
         />
         <KpiCard
           label="Outros canais"
@@ -267,6 +307,7 @@ export function FunilPanel({ data }: { data: AcademicFunil }) {
           hint="IA fora do Acadêmico"
           icon={<IconInbox size={20} />}
           tone="neutral"
+          onClick={() => onOpenCases("channel_other", "Outros canais")}
         />
         <KpiCard
           label="Lead de Entrada abertos"
@@ -274,6 +315,7 @@ export function FunilPanel({ data }: { data: AcademicFunil }) {
           hint={`com a IA: ${data.leadDeEntradaWithAi}`}
           icon={<IconChartBar size={20} />}
           tone="violet"
+          onClick={() => onOpenCases("lead_entrada_open", "Lead de Entrada abertos")}
         />
       </KpiGrid>
 
