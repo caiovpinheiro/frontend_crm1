@@ -18,7 +18,8 @@ import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { cn } from "@/lib/utils";
 
 import {
-  isConversationLifecycleText,
+  eventActorIsSubject,
+  isConversationActorAsAuthorText,
   normalizeConversationEventText,
 } from "./classify";
 import {
@@ -29,6 +30,7 @@ import type { ConversationEventAction } from "./types";
 
 const ACTION_ICON: Record<ConversationEventAction, LucideIcon> = {
   distribuicao: UserPlus,
+  atribuicao: UserPlus,
   transferencia: ArrowRightLeft,
   status: CircleCheck,
   tabulacao: ListChecks,
@@ -41,6 +43,7 @@ const ACTION_ICON: Record<ConversationEventAction, LucideIcon> = {
 
 const ACTION_ICON_CLASS: Record<ConversationEventAction, string> = {
   distribuicao: "text-[var(--color-info)]",
+  atribuicao: "text-[var(--color-info)]",
   transferencia: "text-[var(--color-warning)]",
   status: "text-[var(--color-success)]",
   tabulacao: "text-[var(--color-primary)]",
@@ -90,7 +93,9 @@ export function EventRow({
   }, [actor, actorId, hasActor, teamUsers]);
   const Icon = icon ?? (action ? ACTION_ICON[action] : undefined) ?? Sparkles;
   const displayText = normalizeConversationEventText(text, displayActor);
-  const actorSep = isConversationLifecycleText(displayText) ? "por" : "·";
+  const showActor =
+    Boolean(displayActor) && !eventActorIsSubject(displayText, displayActor);
+  const actorSep = isConversationActorAsAuthorText(displayText) ? "por" : "·";
   const iconTone =
     iconClassName ??
     (action ? ACTION_ICON_CLASS[action] : undefined) ??
@@ -107,7 +112,7 @@ export function EventRow({
       <p
         className="flex min-w-0 max-w-[min(100%,36rem)] flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-center text-[10px] leading-snug text-muted-foreground"
         aria-label={
-          displayActor ? `${displayText} ${actorSep} ${displayActor}` : displayText
+          showActor ? `${displayText} ${actorSep} ${displayActor}` : displayText
         }
       >
         <Icon
@@ -116,7 +121,7 @@ export function EventRow({
           aria-hidden
         />
         <span className="text-foreground/80">{displayText}</span>
-        {displayActor ? (
+        {showActor ? (
           <span className="text-muted-foreground">
             {actorSep} {displayActor}
           </span>

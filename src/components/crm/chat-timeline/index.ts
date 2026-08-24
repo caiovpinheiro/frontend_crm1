@@ -6,7 +6,9 @@ export type {
 } from "./types";
 export {
   classifyTimelineItem,
+  eventActorIsSubject,
   inferEventActionFromText,
+  isConversationActorAsAuthorText,
   isConversationCloseEventText,
   isConversationLifecycleText,
   isConversationOpenEventText,

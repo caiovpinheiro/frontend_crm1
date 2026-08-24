@@ -42,6 +42,7 @@ export function isConversationEventAction(
 ): value is ConversationEventAction {
   return (
     value === "distribuicao" ||
+    value === "atribuicao" ||
     value === "transferencia" ||
     value === "status" ||
     value === "tabulacao" ||
@@ -118,6 +119,33 @@ export function isConversationLifecycleText(
   return LIFECYCLE_OPEN_RE.test(t) || LIFECYCLE_CLOSE_RE.test(t);
 }
 
+/** Atribuição / transferência / remoção: o ator é quem fez, não o sujeito. */
+export function isConversationActorAsAuthorText(
+  text: string | null | undefined,
+): boolean {
+  const t = (text ?? "").trim();
+  if (isConversationLifecycleText(t)) return true;
+  if (/^Atribuída a /i.test(t)) return true;
+  if (/^Transferida /i.test(t)) return true;
+  if (/removida da conversa$/i.test(t)) return true;
+  return false;
+}
+
+/** Esconde "· Joyce" quando o texto já é "Joyce entrou/saiu da conversa". */
+export function eventActorIsSubject(
+  text: string,
+  actor?: string | null,
+): boolean {
+  if (!actor?.trim()) return false;
+  const m = text.trim().match(LEAVE_EVENT_RE);
+  if (!m) return false;
+  const verb = m[2].toLowerCase();
+  if (verb === "removida") return false;
+  const who = formatHumanEventActorName(m[1]) || m[1].trim();
+  const actorShort = formatHumanEventActorName(actor) || actor.trim();
+  return who.toLowerCase() === actorShort.toLowerCase();
+}
+
 /**
  * Encurta o nome no texto e, se o ator não for a pessoa do texto,
  * troca "saiu" por "removida" (A removeu B).
@@ -157,8 +185,9 @@ export function inferEventActionFromText(
   ) {
     return "saida";
   }
+  if (/^atribu[ií]d/.test(t)) return "atribuicao";
   if (
-    /distribu[ií]d|enfileirad|atribu[ií]d/.test(t)
+    /distribu[ií]d|enfileirad/.test(t)
   ) {
     return "distribuicao";
   }
