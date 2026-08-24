@@ -98,6 +98,8 @@ export interface UpdateDealPayload {
   title?: string;
   value?: number | null;
   ownerId?: string | null;
+  /** `false` = muda só o negócio, sem herdar o responsável no chat. */
+  propagateToChat?: boolean;
   contactId?: string | null;
   source?: string | null;
   expectedCloseAt?: string | null;

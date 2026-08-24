@@ -39,6 +39,7 @@ import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
 import { FavoritesPanel } from "@/components/crm/favorites-panel";
 import { ContactAside } from "@/components/crm/contact-aside";
+import { UserAvatar } from "@/components/crm/user-avatar";
 import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
 import { PageHeader } from "@/components/crm/page-header";
 import {
@@ -98,6 +99,7 @@ import {
   SESSION_CLOSED_TOAST,
 } from "@/features/inbox-v2/extras/channel-switch-confirm";
 import type { ConversationListRow, InboxTab } from "@/features/inbox-v2/api";
+import { postConversationAction } from "@/features/inbox-v2/api";
 import { inboxQueueTabFor, pickVisibleInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
 import {
   DEFAULT_INBOX_TAB,
@@ -109,6 +111,7 @@ import {
   usePipelines,
 } from "@/features/pipeline-v2/hooks";
 import { StagePicker } from "@/features/pipeline-v2/extras/stage-picker";
+import { AssigneePopover as DealOwnerPopover } from "@/features/pipeline-v2/extras/assignee-popover";
 import { MoveToStageMenu } from "@/features/pipeline-v2/extras/move-to-stage-menu";
 import { DealTagsPopover } from "@/features/pipeline-v2/extras/deal-tags-popover";
 import { ContactTagsPopover } from "@/features/inbox-v2/extras/contact-tags-popover";
@@ -1369,55 +1372,94 @@ export default function InboxV2ClientPage({
 
   // Injeta funnelSegments + stageDropdownSlot + assigneeSlot apenas no primeiro deal.
   const dealsWithSlots = (contactAsideView?.deals ?? []).map((d, idx) => {
-    if (idx !== 0 || !boardStages.length) return d;
+    if (idx !== 0) return d;
+    const dealOwnerSlot = firstDealId ? (
+        <DealOwnerPopover
+          dealId={firstDealId}
+          currentOwnerId={firstDealDetail?.owner?.id ?? null}
+          currentOwnerName={firstDealDetail?.owner?.name ?? null}
+          pipelineId={firstDealPipelineId}
+          conversationId={activeId}
+          conversationAssigneeId={activeRow?.assignedTo?.id ?? null}
+          askTransferConversation={async ({ newOwnerId, newOwnerName }) => {
+            const name = newOwnerName.trim() || "este responsável";
+            if (newOwnerId) {
+              return confirmDialog({
+                title: "Transferir a conversa também?",
+                description: `O responsável do negócio será ${name}. Transferir também a conversa para ${name}?`,
+                confirmLabel: "Sim, transferir conversa",
+                cancelLabel: "Só o negócio",
+              });
+            }
+            return confirmDialog({
+              title: "Remover da conversa também?",
+              description:
+                "O negócio ficará sem responsável. Remover também o responsável da conversa?",
+              confirmLabel: "Sim, remover da conversa",
+              cancelLabel: "Só o negócio",
+            });
+          }}
+          onTransferConversation={async (assignedToId) => {
+            if (!activeId) return;
+            await postConversationAction(activeId, {
+              action: "assign",
+              assignedToId,
+            });
+          }}
+          trigger={
+            firstDealDetail?.owner?.name ? (
+              <span
+                className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] py-px pl-px pr-2 transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[var(--glass-bg-base)]"
+                title={firstDealDetail.owner.name}
+              >
+                <UserAvatar
+                  name={firstDealDetail.owner.name}
+                  imageUrl={firstDealDetail.owner.avatarUrl ?? null}
+                  size={20}
+                />
+                <span className="min-w-0 truncate font-display text-[10.5px] font-semibold text-[var(--text-secondary)]">
+                  {firstDealDetail.owner.name}
+                </span>
+              </span>
+            ) : (
+              <span className="inline-flex cursor-pointer items-center rounded-full bg-white px-2.5 py-1 font-display text-[10.5px] font-semibold text-[#2e3b6e] shadow-sm">
+                +Responsável
+              </span>
+            )
+          }
+        />
+      ) : undefined;
+
     return {
       ...d,
-      stageId: firstDealStageId ?? d.stageId,
-      stageName: firstDealStageName ?? d.stageName,
-      pipelineName: firstDealPipelineName ?? d.pipelineName,
-      funnelSegments: firstDealFunnelSegments,
-      stageDropdownSlot: firstDealId && firstDealStageId ? (
-        <StagePicker
-          dealId={firstDealId}
-          currentStageId={firstDealStageId}
-          pipelineId={firstDealPipelineId}
-        >
-          {({ onSelectStage, isPending, canMove }) => (
-            <InboxStageDropdown
-              stages={boardStages}
-              currentStageId={firstDealStageId}
-              currentPipelineId={firstDealPipelineId}
-              isPending={isPending}
-              canMove={canMove}
-              onSelect={onSelectStage}
-            />
-          )}
-        </StagePicker>
-      ) : undefined,
-      // Responsável da conversa — injetado aqui para aparecer abaixo
-      // das informações do deal, não no header flutuante do aside.
-      assigneeSlot: activeRow ? (
-        <RequirePermission
-          permission="conversation:transfer"
-          fallback={
-            <AssigneePopover
-              conversationId={activeId}
-              currentAssigneeName={activeRow.assignedTo?.name}
-              currentAssigneeId={activeRow.assignedTo?.id ?? null}
-              currentAssigneeImageUrl={activeRow.assignedTo?.avatarUrl ?? null}
-              disabled
-            />
+      ...(boardStages.length
+        ? {
+            stageId: firstDealStageId ?? d.stageId,
+            stageName: firstDealStageName ?? d.stageName,
+            pipelineName: firstDealPipelineName ?? d.pipelineName,
+            funnelSegments: firstDealFunnelSegments,
+            stageDropdownSlot:
+              firstDealId && firstDealStageId ? (
+                <StagePicker
+                  dealId={firstDealId}
+                  currentStageId={firstDealStageId}
+                  pipelineId={firstDealPipelineId}
+                >
+                  {({ onSelectStage, isPending, canMove }) => (
+                    <InboxStageDropdown
+                      stages={boardStages}
+                      currentStageId={firstDealStageId}
+                      currentPipelineId={firstDealPipelineId}
+                      isPending={isPending}
+                      canMove={canMove}
+                      onSelect={onSelectStage}
+                    />
+                  )}
+                </StagePicker>
+              ) : undefined,
           }
-        >
-          <AssigneePopover
-            conversationId={activeId}
-            currentAssigneeName={activeRow.assignedTo?.name}
-            currentAssigneeId={activeRow.assignedTo?.id ?? null}
-            currentAssigneeImageUrl={activeRow.assignedTo?.avatarUrl ?? null}
-          />
-        </RequirePermission>
-      ) : undefined,
-      // Tags do negócio — chips existentes + popover para adicionar/remover.
+        : {}),
+      assigneeSlot: dealOwnerSlot,
       dealTagsNode: (
         <DealTagsTray
           dealId={d.id}
