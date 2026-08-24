@@ -10,6 +10,7 @@ import {
   postConversationAction,
   type BulkAction,
 } from "../api";
+import { messagesKey } from "./use-messages";
 
 /** Atribuir conversa (assign) — comportamento otimista. */
 export function useAssignConversation() {
@@ -24,8 +25,12 @@ export function useAssignConversation() {
         action: "assign",
         assignedToId: vars.assignedToId,
       }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
+      qc.invalidateQueries({
+        queryKey: ["conversation-timeline", vars.conversationId],
+      });
     },
     onError: (err) => toast.error(err.message || "Falha ao atribuir"),
   });
@@ -73,6 +78,7 @@ export function useTransferConversation() {
 
       qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
       });
@@ -334,6 +340,7 @@ export function useBulkAssignConversations() {
       qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
       qc.invalidateQueries({ queryKey: ["activity-feed"] });
       for (const id of vars.ids) {
+        qc.invalidateQueries({ queryKey: messagesKey(id) });
         qc.invalidateQueries({ queryKey: ["conversation-timeline", id] });
       }
 

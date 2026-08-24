@@ -1,5 +1,6 @@
 export type ConversationEventAction =
   | "distribuicao"
+  | "atribuicao"
   | "transferencia"
   | "status"
   | "tabulacao"
