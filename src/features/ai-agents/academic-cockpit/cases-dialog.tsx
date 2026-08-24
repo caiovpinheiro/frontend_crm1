@@ -40,13 +40,22 @@ export function CockpitCasesDialog({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const [page, setPage] = React.useState(1);
+  React.useEffect(() => {
+    setPage(1);
+  }, [open?.key]);
+
   const query = useQuery({
-    queryKey: ["academic-cockpit-cases", open?.key],
-    queryFn: () => fetchAcademicCockpitCases(open!.key),
+    queryKey: ["academic-cockpit-cases", open?.key, page],
+    queryFn: () => fetchAcademicCockpitCases(open!.key, page),
     enabled: Boolean(open),
     staleTime: 15 * 1000,
     retry: 1,
   });
+  const total = query.data?.total ?? 0;
+  const pageSize = query.data?.pageSize ?? 50;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const cases = query.data?.cases ?? [];
 
   return (
     <Dialog open={Boolean(open)} onOpenChange={(v) => !v && onClose()}>
@@ -66,14 +75,14 @@ export function CockpitCasesDialog({
               : "Não foi possível carregar os casos."}
           </p>
         )}
-        {query.isSuccess && query.data.length === 0 && (
+        {query.isSuccess && cases.length === 0 && (
           <p className="font-body text-[13px] text-[var(--text-muted)]">
             Nenhum caso neste KPI hoje.
           </p>
         )}
-        {query.isSuccess && query.data.length > 0 && (
+        {query.isSuccess && cases.length > 0 && (
           <ul className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
-            {query.data.map((c) => (
+            {cases.map((c) => (
               <li
                 key={c.conversationId}
                 className="flex min-w-0 items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 py-2.5"
@@ -102,6 +111,27 @@ export function CockpitCasesDialog({
               </li>
             ))}
           </ul>
+        )}
+        {query.isSuccess && total > pageSize && (
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <ButtonGlass
+              size="sm"
+              disabled={page <= 1 || query.isFetching}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Anterior
+            </ButtonGlass>
+            <p className="font-body text-[12.5px] text-[var(--text-muted)]">
+              Página {page} de {pageCount} · {total} pessoas
+            </p>
+            <ButtonGlass
+              size="sm"
+              disabled={page >= pageCount || query.isFetching}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            >
+              Próxima
+            </ButtonGlass>
+          </div>
         )}
       </DialogContent>
     </Dialog>

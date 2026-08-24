@@ -104,28 +104,45 @@ export async function fetchAcademicCockpit(): Promise<AcademicCockpit> {
   return normalizeAcademic(data.academic);
 }
 
+export type AcademicCasesPage = {
+  cases: AcademicCockpitCase[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
 export async function fetchAcademicCockpitCases(
   key: AcademicCaseKey,
-): Promise<AcademicCockpitCase[]> {
+  page = 1,
+): Promise<AcademicCasesPage> {
   const res = await fetch(
-    apiUrl(`/api/public/agent-cockpit/cases?key=${encodeURIComponent(key)}`),
+    apiUrl(
+      `/api/public/agent-cockpit/cases?key=${encodeURIComponent(key)}&page=${page}`,
+    ),
     { cache: "no-store", credentials: "include" },
   );
-  const data = await parseApiResponse<{ cases?: AcademicCockpitCase[] }>(
+  const data = await parseApiResponse<Partial<AcademicCasesPage>>(
     res,
     "Não foi possível carregar os casos.",
   );
-  if (!Array.isArray(data?.cases)) return [];
-  return data.cases
-    .filter((c) => c && typeof c.conversationId === "string")
-    .map((c) => ({
-      conversationId: c.conversationId,
-      conversationNumber:
-        typeof c.conversationNumber === "number" ? c.conversationNumber : null,
-      contactName:
-        typeof c.contactName === "string" && c.contactName.trim()
-          ? c.contactName
-          : "Sem nome",
-      phone: typeof c.phone === "string" && c.phone.trim() ? c.phone : null,
-    }));
+  const cases = Array.isArray(data?.cases)
+    ? data.cases
+        .filter((c) => c && typeof c.conversationId === "string")
+        .map((c) => ({
+          conversationId: c.conversationId,
+          conversationNumber:
+            typeof c.conversationNumber === "number" ? c.conversationNumber : null,
+          contactName:
+            typeof c.contactName === "string" && c.contactName.trim()
+              ? c.contactName
+              : "Sem nome",
+          phone: typeof c.phone === "string" && c.phone.trim() ? c.phone : null,
+        }))
+    : [];
+  return {
+    cases,
+    page: Number(data?.page) || page,
+    pageSize: Number(data?.pageSize) || 50,
+    total: Number(data?.total) || 0,
+  };
 }
