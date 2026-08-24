@@ -44,7 +44,10 @@ const serwist = new Serwist({
         (pathname.startsWith("/api/storage/") ||
           pathname.startsWith("/api/media/") ||
           pathname === "/wa-call-permission" ||
-          pathname.startsWith("/api/wa-call-permission")),
+          pathname.startsWith("/api/wa-call-permission") ||
+          pathname === "/wa-whatsapp-call" ||
+          pathname.startsWith("/api/wa-whatsapp-call") ||
+          pathname.includes("/whatsapp-calls")),
       method: "POST",
       handler: new NetworkOnly(),
     },
