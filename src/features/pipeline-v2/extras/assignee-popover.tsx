@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import {
   SystemPresenceIndicator,
@@ -35,6 +36,18 @@ interface AssigneePopoverProps {
   statusFilter?: StatusFilter;
   disabled?: boolean;
   trigger: ReactNode;
+  /**
+   * Conversa aberta no inbox: se o responsável do chat for outro,
+   * `askTransferConversation` decide se o chat também muda.
+   */
+  conversationId?: string | null;
+  conversationAssigneeId?: string | null;
+  askTransferConversation?: (args: {
+    newOwnerId: string | null;
+    newOwnerName: string;
+  }) => Promise<boolean>;
+  /** Atribui o ticket aberto (loga no chat mesmo se a conversa estiver encerrada). */
+  onTransferConversation?: (assignedToId: string | null) => Promise<void>;
 }
 
 export function AssigneePopover({
@@ -45,7 +58,12 @@ export function AssigneePopover({
   statusFilter = "OPEN",
   disabled,
   trigger,
+  conversationId,
+  conversationAssigneeId,
+  askTransferConversation,
+  onTransferConversation,
 }: AssigneePopoverProps) {
+  const qc = useQueryClient();
   const { open, rect, triggerRef, popoverRef, toggle, close } = usePortalPopover();
   const [filter, setFilter] = useState("");
 
@@ -72,17 +90,59 @@ export function AssigneePopover({
   // preventDefault do pointerdown cancela o evento seguinte.
   const lastSelectAtRef = useRef(0);
 
-  function handleSelect(userId: string | null) {
+  async function handleSelect(userId: string | null) {
     if (!dealId || update.isPending || readOnly) return;
     const now = Date.now();
     if (now - lastSelectAtRef.current < 500) return;
     lastSelectAtRef.current = now;
+
+    const newOwnerName =
+      (userId
+        ? users.find((u) => u.id === userId)?.name
+        : undefined) ??
+      (userId ? "este responsável" : "");
+
+    close();
+    setFilter("");
+
+    let propagateToChat: boolean | undefined;
+    const chatDiffers = (conversationAssigneeId ?? null) !== userId;
+    if (askTransferConversation && chatDiffers) {
+      propagateToChat = await askTransferConversation({
+        newOwnerId: userId,
+        newOwnerName,
+      });
+    }
+
+    if (
+      propagateToChat !== false &&
+      onTransferConversation &&
+      chatDiffers
+    ) {
+      try {
+        await onTransferConversation(userId);
+      } catch {
+        /* segue o PUT do negócio mesmo se o assign do chat falhar */
+      }
+    }
+
     update.mutate(
-      { dealId, payload: { ownerId: userId } },
+      {
+        dealId,
+        payload: {
+          ownerId: userId,
+          ...(propagateToChat !== undefined ? { propagateToChat } : {}),
+        },
+      },
       {
         onSuccess: () => {
-          close();
-          setFilter("");
+          if (conversationId && propagateToChat !== false) {
+            qc.invalidateQueries({ queryKey: ["messages", conversationId] });
+            qc.invalidateQueries({
+              queryKey: ["conversation-timeline", conversationId],
+            });
+            qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+          }
         },
       },
     );
@@ -92,12 +152,12 @@ export function AssigneePopover({
     return {
       onPointerDown: (e: ReactPointerEvent) => {
         e.stopPropagation();
-        handleSelect(userId);
+        void handleSelect(userId);
       },
       onClick: (e: ReactMouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        handleSelect(userId);
+        void handleSelect(userId);
       },
     };
   }
