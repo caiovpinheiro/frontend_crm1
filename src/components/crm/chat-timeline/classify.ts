@@ -127,6 +127,10 @@ export function isConversationActorAsAuthorText(
   if (isConversationLifecycleText(t)) return true;
   if (/^Atribuída a /i.test(t)) return true;
   if (/^Transferida /i.test(t)) return true;
+  // "Conversa distribuída para Atendimento → Larissa · Agente IA" era lido
+  // como se o destino fosse a IA. Com "por" fica claro que o Agente IA é
+  // quem distribuiu, e o destino continua sendo o consultor.
+  if (/^Conversa distribuída/i.test(t)) return true;
   if (/removida da conversa$/i.test(t)) return true;
   return false;
 }
