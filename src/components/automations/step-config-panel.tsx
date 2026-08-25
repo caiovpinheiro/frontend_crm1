@@ -44,6 +44,18 @@ import {
   validateEntries as validateWebhookEntries,
   type WebhookBodyEntry,
 } from "@/lib/webhook-body-builder";
+import {
+  buildTemplateComponents,
+  countMissingTemplateVariables,
+  sameTemplateComponents,
+  setTemplateVariableValue,
+  templateVariableLabel,
+  templateVariableSlots,
+  templateVariableValue,
+  templateVariablesFromConfig,
+  templateVariablesOf,
+} from "@/components/automations/template-variables";
+import { renderTemplatePreview } from "@/lib/meta-whatsapp/build-template-components";
 
 type PipelineStage = { id: string; name: string };
 type Pipeline = { id: string; name: string; stages: PipelineStage[] };
@@ -141,6 +153,8 @@ type VariableShortcutTextareaProps = {
   options: VariableShortcutOption[];
   rows?: number;
   placeholder?: string;
+  /** Campo de uma linha (ex.: valor de variável de template), mesmo atalho. */
+  singleLine?: boolean;
 };
 
 function VariableShortcutTextarea({
@@ -150,11 +164,12 @@ function VariableShortcutTextarea({
   options,
   rows = 3,
   placeholder,
+  singleLine,
 }: VariableShortcutTextareaProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [startPos, setStartPos] = useState<number | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -164,7 +179,7 @@ function VariableShortcutTextarea({
       .slice(0, 20);
   }, [options, query]);
 
-  const refreshShortcutState = (el: HTMLTextAreaElement) => {
+  const refreshShortcutState = (el: HTMLTextAreaElement | HTMLInputElement) => {
     const close = () => {
       setOpen(false);
       setQuery("");
@@ -209,24 +224,42 @@ function VariableShortcutTextarea({
     });
   };
 
+  const shortcutHandlers = {
+    value,
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      onChange(e.target.value);
+      refreshShortcutState(e.target);
+    },
+    onKeyUp: (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) =>
+      refreshShortcutState(e.currentTarget),
+    onClick: (e: React.MouseEvent<HTMLTextAreaElement | HTMLInputElement>) =>
+      refreshShortcutState(e.currentTarget),
+    onBlur: () => {
+      setTimeout(() => setOpen(false), 120);
+    },
+    placeholder,
+  };
+
   return (
     <div className="relative">
-      <Textarea
-        id={id}
-        ref={inputRef}
-        rows={rows}
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          refreshShortcutState(e.target);
-        }}
-        onKeyUp={(e) => refreshShortcutState(e.currentTarget)}
-        onClick={(e) => refreshShortcutState(e.currentTarget)}
-        onBlur={() => {
-          setTimeout(() => setOpen(false), 120);
-        }}
-        placeholder={placeholder}
-      />
+      {singleLine ? (
+        <Input
+          id={id}
+          ref={(el) => {
+            inputRef.current = el;
+          }}
+          {...shortcutHandlers}
+        />
+      ) : (
+        <Textarea
+          id={id}
+          ref={(el) => {
+            inputRef.current = el;
+          }}
+          rows={rows}
+          {...shortcutHandlers}
+        />
+      )}
       {open && filtered.length > 0 && (
         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-[var(--color-bg-card)] p-1 shadow-[var(--shadow-lg)]">
           {filtered.map((opt) => (
@@ -1010,6 +1043,7 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
               draft={draft}
               setDraft={setDraft}
               otherSteps={allSteps.filter((s) => s.id !== step.id)}
+              variableOptions={variableShortcutOptions}
             />
           )}
 
@@ -3539,6 +3573,8 @@ type TemplateOption = {
   language: string;
   category: string | null;
   bodyPreview: string;
+  /** Texto do HEADER quando ele é do tipo TEXT — pode ter placeholders. */
+  headerPreview?: string;
   hasButtons?: boolean;
   hasVariables?: boolean;
   buttonTypes?: string[];
@@ -3728,10 +3764,12 @@ function TemplateStepConfig({
   draft,
   setDraft,
   otherSteps,
+  variableOptions,
 }: {
   draft: Record<string, unknown>;
   setDraft: Dispatch<SetStateAction<Record<string, unknown>>>;
   otherSteps: AutomationStep[];
+  variableOptions: VariableShortcutOption[];
 }) {
   const { data: metaChannels = [] } = useQuery({
     queryKey: ["meta-cloud-whatsapp-channels"],
@@ -3781,9 +3819,22 @@ function TemplateStepConfig({
     ? (draft.buttons as TemplateRouteButton[])
     : [];
 
+  const varSlots = useMemo(
+    () => templateVariableSlots(selected?.bodyPreview, selected?.headerPreview),
+    [selected],
+  );
+  const vars = useMemo(
+    () => templateVariablesFromConfig(varSlots, draft.components),
+    [varSlots, draft.components],
+  );
+  const missingVars = countMissingTemplateVariables(vars);
+
   // Sincroniza `draft.buttons` com os QUICK_REPLY do template selecionado
-  // (preservando gotoStepId já escolhido por título). Roda quando os
-  // templates carregam / o template muda. Só grava se houve mudança real.
+  // (preservando gotoStepId já escolhido por título) e reescreve
+  // `draft.components` a partir dos placeholders do template atual — um
+  // parâmetro órfão do template anterior faria a Meta rejeitar o envio.
+  // Roda quando os templates carregam / o template muda. Só grava se houve
+  // mudança real.
   useEffect(() => {
     if (!selected) return;
     const qr = quickReplyButtons(selected);
@@ -3800,9 +3851,23 @@ function TemplateStepConfig({
         (m, i) =>
           m.title === (prev[i]?.title ?? "") && (m.gotoStepId ?? "") === (prev[i]?.gotoStepId ?? ""),
       );
-    if (!same) setDraft((d) => ({ ...d, buttons: merged }));
+    const desiredComponents = buildTemplateComponents(vars);
+    const sameComponents = sameTemplateComponents(draft.components, desiredComponents);
+    if (same && sameComponents) return;
+    setDraft((d) => ({
+      ...d,
+      ...(same ? {} : { buttons: merged }),
+      ...(sameComponents ? {} : { components: desiredComponents }),
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedName, templates.length, channelId]);
+
+  const setVar = (slot: (typeof varSlots)[number], value: string) => {
+    setDraft((d) => ({
+      ...d,
+      components: buildTemplateComponents(setTemplateVariableValue(vars, slot, value)),
+    }));
+  };
 
   return (
     <>
@@ -3898,7 +3963,7 @@ function TemplateStepConfig({
           )}
           {selected.bodyPreview && (
             <p className="whitespace-pre-wrap text-xs text-foreground/80">
-              {selected.bodyPreview}
+              {renderTemplatePreview(selected.bodyPreview, templateVariablesOf(vars, "body"))}
             </p>
           )}
           {selected.buttons && selected.buttons.length > 0 && (
@@ -3922,6 +3987,44 @@ function TemplateStepConfig({
                 ))}
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {selected && varSlots.length > 0 && (
+        <div className="space-y-2">
+          <Label>Variáveis do template</Label>
+          <p className="text-[11px] text-muted-foreground">
+            O template aprovado na Meta só entende os placeholders abaixo. Preencha cada um
+            com texto fixo ou com um campo do CRM — o token é resolvido no envio.
+          </p>
+          <div className="space-y-2.5">
+            {varSlots.map((slot) => (
+              <div className="space-y-1" key={`${slot.component}-${slot.key}`}>
+                <Label
+                  htmlFor={`sc-tpl-var-${slot.component}-${slot.key}`}
+                  className="text-[11px] font-semibold text-muted-foreground"
+                >
+                  {templateVariableLabel(slot)}
+                </Label>
+                <VariableShortcutTextarea
+                  singleLine
+                  id={`sc-tpl-var-${slot.component}-${slot.key}`}
+                  value={templateVariableValue(vars, slot)}
+                  onChange={(v) => setVar(slot, v)}
+                  options={variableOptions}
+                  placeholder="Texto fixo ou { para variáveis"
+                />
+              </div>
+            ))}
+          </div>
+          <VariableShortcutHint />
+          {missingVars > 0 && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-[11px] text-destructive">
+              {missingVars === 1
+                ? "1 variável sem valor — a Meta rejeita o envio com parâmetro faltando."
+                : `${missingVars} variáveis sem valor — a Meta rejeita o envio com parâmetro faltando.`}
+            </p>
           )}
         </div>
       )}

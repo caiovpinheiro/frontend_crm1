@@ -48,6 +48,18 @@ import {
   optionsWithSaved,
   type Opt,
 } from "./editor-data"
+import {
+  buildTemplateComponents,
+  countMissingTemplateVariables,
+  sameTemplateComponents,
+  setTemplateVariableValue,
+  templateVariableLabel,
+  templateVariableSlots,
+  templateVariableValue,
+  templateVariablesFromConfig,
+  templateVariablesOf,
+} from "./template-variables"
+import { renderTemplatePreview } from "@/lib/meta-whatsapp/build-template-components"
 import { WebhookStepConfig } from "./webhook-step-config"
 import { SendProductInlineConfig } from "./send-product-config"
 import { TabulationStepConfig } from "./tabulation-step-config"
@@ -1327,6 +1339,15 @@ function TemplatePreview({
   })
   const detail = getTemplateDetail(detailsMap, templateName, str(config.languageCode))
 
+  const varSlots = useMemo(
+    () => templateVariableSlots(detail?.bodyPreview, detail?.headerPreview),
+    [detail],
+  )
+  const vars = useMemo(
+    () => templateVariablesFromConfig(varSlots, config.components),
+    [varSlots, config.components],
+  )
+
   useEffect(() => {
     if (!detail) return
     const prev = asArr(config.buttons) as BtnItem[]
@@ -1345,11 +1366,17 @@ function TemplatePreview({
       (str(config.headerMediaUrl) !== "" ||
         str(config.headerMediaType) !== "" ||
         str(config.headerUploadedFileName) !== "")
-    if (sameBtns && sameBody && sameLang && !clearHeader) return
+    // Reconciliação na troca de template: parâmetro órfão do template anterior
+    // faz a Meta rejeitar o envio, então o array é sempre reescrito a partir
+    // dos placeholders do template atual.
+    const desiredComponents = buildTemplateComponents(vars)
+    const sameComponents = sameTemplateComponents(config.components, desiredComponents)
+    if (sameBtns && sameBody && sameLang && !clearHeader && sameComponents) return
     onChange({
       ...config,
       buttons: desired,
       bodyPreview: detail.bodyPreview,
+      components: desiredComponents,
       ...(detail.language ? { languageCode: detail.language } : {}),
       ...(clearHeader
         ? { headerMediaUrl: "", headerMediaType: "", headerUploadedFileName: "" }
@@ -1357,6 +1384,13 @@ function TemplatePreview({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateName, detail])
+
+  const setVar = (slot: (typeof varSlots)[number], value: string) => {
+    onChange({
+      ...config,
+      components: buildTemplateComponents(setTemplateVariableValue(vars, slot, value)),
+    })
+  }
 
   if (!templateName) return null
   if (isLoading && !detail) return <p className="cfg-info">Carregando preview…</p>
@@ -1366,9 +1400,10 @@ function TemplatePreview({
   const needsHeaderMedia = headerFormat === "IMAGE" || headerFormat === "VIDEO" || headerFormat === "DOCUMENT"
   const hasBody = detail.bodyPreview.trim() !== ""
 
-  if (!hasBody && !needsHeaderMedia) return null
+  if (!hasBody && !needsHeaderMedia && varSlots.length === 0) return null
 
   const headerMediaMissing = needsHeaderMedia && str(config.headerMediaUrl) === ""
+  const missingVars = countMissingTemplateVariables(vars)
 
   return (
     <>
@@ -1384,11 +1419,41 @@ function TemplatePreview({
           Este template exige {HEADER_MEDIA_LABEL[headerFormat] ?? "mídia"} no cabeçalho — configure acima antes de ativar a automação.
         </p>
       )}
+      {varSlots.length > 0 && (
+        <div className="cfg-field">
+          <span className="cfg-label">Variáveis do template</span>
+          <p className="cfg-hint">
+            A Meta só entende os placeholders do template aprovado. Escreva texto fixo ou
+            digite <code>{"{"}</code> para inserir um campo do CRM.
+          </p>
+          <div className="cfg-list">
+            {varSlots.map((slot) => (
+              <div className="cfg-field" key={`${slot.component}-${slot.key}`}>
+                <span className="cfg-sublabel">{templateVariableLabel(slot)}</span>
+                <VariableInput
+                  value={templateVariableValue(vars, slot)}
+                  placeholder="Texto ou { para variáveis"
+                  onChange={(v) => setVar(slot, v)}
+                />
+              </div>
+            ))}
+          </div>
+          {missingVars > 0 && (
+            <p className="cfg-warning">
+              {missingVars === 1
+                ? "1 variável sem valor — a Meta rejeita o envio com parâmetro faltando."
+                : `${missingVars} variáveis sem valor — a Meta rejeita o envio com parâmetro faltando.`}
+            </p>
+          )}
+        </div>
+      )}
       {hasBody && (
         <div className="cfg-field">
           <span className="cfg-label">Pré-visualização</span>
           <div className="cfg-tpl-preview nodrag nowheel">
-            <p className="cfg-tpl-body">{detail.bodyPreview}</p>
+            <p className="cfg-tpl-body">
+              {renderTemplatePreview(detail.bodyPreview, templateVariablesOf(vars, "body"))}
+            </p>
           </div>
           {detail.quickReplies.length > 0 && (
             <p className="cfg-hint">
