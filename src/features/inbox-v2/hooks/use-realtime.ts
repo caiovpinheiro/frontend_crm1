@@ -208,18 +208,20 @@ export function useInboxRealtime(options: {
         refreshTimerRef.current = null;
         qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
         qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+        qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
+        qc.invalidateQueries({ queryKey: ["distribution-pending"] });
       }, 1000);
     }
 
-    // Counts com debounce maior (P0-1): o patch in-place já atualiza o
-    // card; os badges das abas podem ficar até 5s defasados em rajada
-    // (o GET de counts é barato — cache Redis de 45s no backend).
+    // Badges das abas: 1s (antes 5s). Cache Redis do backend acompanha.
     function scheduleCountsRefresh() {
       if (countsTimerRef.current) return;
       countsTimerRef.current = setTimeout(() => {
         countsTimerRef.current = null;
         qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
-      }, 5000);
+        qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
+        qc.invalidateQueries({ queryKey: ["distribution-pending"] });
+      }, 1000);
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a

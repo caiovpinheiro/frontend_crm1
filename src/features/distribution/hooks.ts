@@ -1,11 +1,14 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+
+import { subscribeSSEEvents } from "@/hooks/use-sse";
 
 import {
   executeDistribution,
@@ -43,6 +46,10 @@ export const DISTRIBUTION_LOGS_KEY = ["distribution-logs"] as const;
 export const DISTRIBUTION_DEPT_STATS_KEY = [
   "distribution-department-stats",
 ] as const;
+
+/** Poll de segurança da Fila (SSE cobre o instante; isto cobre gap/reconnect). */
+const QUEUE_POLL_MS = 3_000;
+const QUEUE_SSE_DEBOUNCE_MS = 400;
 
 export function useDistributionLogs(enabled = true) {
   return useInfiniteQuery<DistributionLogsPage>({
@@ -91,9 +98,49 @@ export function useDistributionResponsibles(enabled = true) {
     queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
     queryFn: fetchResponsibles,
     enabled,
-    staleTime: 5_000,
+    staleTime: 1_000,
+    refetchInterval: enabled ? QUEUE_POLL_MS : false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
+}
+
+/** Invalida Fila geral + por consultor quando o inbox muda (msg / atribuição). */
+export function useDistributionQueueRealtime(enabled = true) {
+  const qc = useQueryClient();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const bump = () => {
+      if (timerRef.current) return;
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        void qc.invalidateQueries({
+          queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
+          refetchType: "active",
+        });
+        void qc.invalidateQueries({
+          queryKey: DISTRIBUTION_PENDING_KEY,
+          refetchType: "active",
+        });
+      }, QUEUE_SSE_DEBOUNCE_MS);
+    };
+
+    const unsubscribe = subscribeSSEEvents("/api/sse/messages", {
+      new_message: bump,
+      conversation_updated: bump,
+    });
+
+    return () => {
+      unsubscribe();
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [enabled, qc]);
 }
 
 export function useUpdateResponsible() {
@@ -254,13 +301,10 @@ export function usePendingDistributions(enabled = true) {
     queryKey: DISTRIBUTION_PENDING_KEY,
     queryFn: fetchPending,
     enabled,
-    staleTime: 10_000,
-    // Enquanto houver fila, refresca para refletir drenagem automática
-    // (online / elegível / cron) sem depender só do botão manual.
-    refetchInterval: (q) => {
-      const n = q.state.data?.pending?.length ?? 0;
-      return n > 0 ? 15_000 : false;
-    },
+    staleTime: 1_000,
+    refetchInterval: enabled ? QUEUE_POLL_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 }
 

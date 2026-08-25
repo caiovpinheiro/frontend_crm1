@@ -254,13 +254,10 @@ export function useTabCounts(
   return useQuery<TabCounts>({
     queryKey: ["conversations", "tab-counts", filterKey, searchKey],
     queryFn: () => fetchTabCounts(filters, searchKey),
-    // Contadores das abas: SSE invalida em tempo real; 60s cobre gaps.
-    // staleTime alinhado ao cache Redis do backend (45s) pra não
-    // re-disparar counts×N no mount/StrictMode/prefs hydrate.
-    refetchInterval: 60_000,
-    staleTime: 45_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchInterval: 8_000,
+    staleTime: 2_000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     enabled: isPreviewMode() ? true : enabled,
   });
 }
