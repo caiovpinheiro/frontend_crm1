@@ -59,6 +59,7 @@ type AsyncBulkResult = {
   operationId: string;
   total: number;
   action: string;
+  capped?: boolean;
 };
 type BulkResult = SyncBulkResult | AsyncBulkResult;
 
@@ -80,6 +81,7 @@ async function bulkAction(body: Record<string, unknown>): Promise<BulkResult> {
         operationId: (data as { operationId: string }).operationId,
         total: typeof (data as { total?: unknown }).total === "number" ? (data as { total: number }).total : 0,
         action: typeof (data as { action?: unknown }).action === "string" ? (data as { action: string }).action : "",
+        capped: (data as { capped?: unknown }).capped === true,
       };
     }
     throw new Error((data as { message?: string }).message ?? "Erro na ação em massa");
@@ -92,6 +94,7 @@ async function bulkAction(body: Record<string, unknown>): Promise<BulkResult> {
       operationId: (data as { operationId: string }).operationId,
       total: typeof (data as { total?: unknown }).total === "number" ? (data as { total: number }).total : 0,
       action: typeof (data as { action?: unknown }).action === "string" ? (data as { action: string }).action : "",
+      capped: (data as { capped?: unknown }).capped === true,
     };
   }
 
@@ -175,6 +178,15 @@ export function BulkActionsBar({
   // guarda o stage alvo até o usuário confirmar no dialog.
   const [pendingLostMoveStage, setPendingLostMoveStage] =
     React.useState<StageOption | null>(null);
+  /** Confirmação de escopo (selecionados vs todos do filtro) antes de mover. */
+  const [pendingMove, setPendingMove] = React.useState<{
+    stageId: string;
+    stageName: string;
+    lostReason?: string | null;
+  } | null>(null);
+  const [moveScopeMode, setMoveScopeMode] = React.useState<"selected" | "stage" | "pipeline">(
+    "selected",
+  );
 
   const { data: lossMeta } = usePipelineLossReasons(pipelineId);
   const lossReasonsActive = Boolean(lossMeta?.lossReasonRequired);
@@ -233,6 +245,9 @@ export function BulkActionsBar({
         if (data.status === 503) {
           toast.error("Fila de jobs indisponível — a operação foi marcada como falha.");
         } else {
+          if (data.capped) {
+            toast.warning("Seleção excedeu 5000 negócios — apenas os primeiros 5000 serão movidos.");
+          }
           toast.success(`Operação enfileirada — ${data.total} negócio(s) em segundo plano.`);
         }
         startTracking(data.operationId, data.total);
@@ -250,6 +265,50 @@ export function BulkActionsBar({
 
   const dealIds = React.useMemo(() => Array.from(selectedIds), [selectedIds]);
 
+  const canExpandMoveScope = Boolean(
+    scopeContext &&
+      (scopeContext.pipelineTotal > selectedCount ||
+        (scopeContext.stage != null && scopeContext.stage.total > selectedCount)),
+  );
+
+  const enqueueMove = React.useCallback(
+    (stageId: string, lostReason?: string | null, toPipelineId?: string | null) => {
+      const local = stages.find((x) => x.id === stageId);
+      if (
+        local?.isLost &&
+        lossReasonsActive &&
+        (!toPipelineId || toPipelineId === pipelineId) &&
+        lostReason == null
+      ) {
+        setPendingLostMoveStage(local);
+        return;
+      }
+      if (canExpandMoveScope) {
+        setMoveScopeMode("selected");
+        setPendingMove({
+          stageId,
+          stageName: local?.name ?? "a etapa",
+          lostReason,
+        });
+        return;
+      }
+      mutation.mutate({
+        dealIds,
+        action: "move_stage",
+        stageId,
+        ...(lostReason ? { lostReason } : {}),
+      });
+    },
+    [
+      canExpandMoveScope,
+      dealIds,
+      lossReasonsActive,
+      mutation,
+      pipelineId,
+      stages,
+    ],
+  );
+
   // Mantém o componente montado enquanto:
   //  - há seleção ativa (renderiza a barra)
   //  - OU há operação async em curso (renderiza apenas o Dialog de progresso)
@@ -261,7 +320,7 @@ export function BulkActionsBar({
   // progresso visual. A barra fica oculta quando `selectedCount === 0`
   // mas os Dialogs (em particular o de progresso) seguem no DOM.
   const showBar = selectedCount > 0;
-  if (!showBar && !progressOperationId && !lostOpen && !deleteOpen && !pendingLostMoveStage && !editFieldsOpen) return null;
+  if (!showBar && !progressOperationId && !lostOpen && !deleteOpen && !pendingLostMoveStage && !editFieldsOpen && !pendingMove) return null;
 
   return (
     <>
@@ -309,21 +368,7 @@ export function BulkActionsBar({
                   currentPipelineId={pipelineId}
                   isPending={mutation.isPending}
                   onSelect={(stageId, toPipelineId) => {
-                    // Cross-pipeline bulk: quando o estágio destino é de
-                    // outro funil, a validação de lostReason acontece no
-                    // backend (lossReasonRequired do funil DESTINO).
-                    // Para o funil ATUAL usamos a meta já carregada e
-                    // abrimos o diálogo local pra manter UX consistente.
-                    const local = stages.find((x) => x.id === stageId);
-                    if (
-                      local?.isLost &&
-                      lossReasonsActive &&
-                      (!toPipelineId || toPipelineId === pipelineId)
-                    ) {
-                      setPendingLostMoveStage(local);
-                    } else {
-                      mutation.mutate({ dealIds, action: "move_stage", stageId });
-                    }
+                    enqueueMove(stageId, undefined, toPipelineId);
                     setMoveOpen(false);
                   }}
                 />
@@ -466,18 +511,101 @@ export function BulkActionsBar({
         pipelineId={pipelineId}
         onConfirm={(reason) => {
           if (!pendingLostMoveStage) return;
-          mutation.mutate({
-            dealIds,
-            action: "move_stage",
-            stageId: pendingLostMoveStage.id,
-            lostReason: reason,
-          });
+          const stageId = pendingLostMoveStage.id;
           setPendingLostMoveStage(null);
+          enqueueMove(stageId, reason);
         }}
         isPending={mutation.isPending}
         title={`Mover ${selectedCount} negócio(s) para Perdido`}
         description="Informe o motivo da perda para concluir a movimentação."
       />
+
+      {/* Escopo do move: cards carregados vs todos que batem no filtro. */}
+      <AlertDialog
+        open={!!pendingMove}
+        onOpenChange={(o) => {
+          if (!o) setPendingMove(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Mover para {pendingMove?.stageName ?? "a etapa"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              O quadro e a lista só carregam parte dos negócios (por isso aparece
+              200). Escolha se a movimentação vale só para os marcados ou para
+              todos que batem no filtro atual — o servidor resolve os IDs, até
+              5000, no worker de leads.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5 py-1">
+            <MoveScopeOption
+              checked={moveScopeMode === "selected"}
+              onSelect={() => setMoveScopeMode("selected")}
+              label={`Apenas os selecionados (${selectedCount})`}
+            />
+            {scopeContext?.stage ? (
+              <MoveScopeOption
+                checked={moveScopeMode === "stage"}
+                onSelect={() => setMoveScopeMode("stage")}
+                label={`Todos da etapa "${scopeContext.stage.name}" (${scopeContext.stage.total})`}
+              />
+            ) : null}
+            {scopeContext ? (
+              <MoveScopeOption
+                checked={moveScopeMode === "pipeline"}
+                onSelect={() => setMoveScopeMode("pipeline")}
+                label={`Todos do funil no filtro atual (${scopeContext.pipelineTotal})`}
+              />
+            ) : null}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mutation.isPending || !pendingMove}
+              onClick={() => {
+                if (!pendingMove) return;
+                const lost =
+                  pendingMove.lostReason != null && pendingMove.lostReason !== ""
+                    ? { lostReason: pendingMove.lostReason }
+                    : {};
+                if (moveScopeMode !== "selected" && scopeContext) {
+                  mutation.mutate({
+                    action: "move_stage",
+                    stageId: pendingMove.stageId,
+                    async: true,
+                    scope: {
+                      pipelineId: scopeContext.pipelineId,
+                      status: scopeContext.status,
+                      filters: scopeContext.filters,
+                      ...(moveScopeMode === "stage" && scopeContext.stage
+                        ? { stageId: scopeContext.stage.id }
+                        : {}),
+                    },
+                    ...lost,
+                  });
+                } else {
+                  mutation.mutate({
+                    dealIds,
+                    action: "move_stage",
+                    stageId: pendingMove.stageId,
+                    ...lost,
+                  });
+                }
+                setPendingMove(null);
+              }}
+            >
+              Mover{" "}
+              {moveScopeMode === "pipeline"
+                ? scopeContext?.pipelineTotal ?? selectedCount
+                : moveScopeMode === "stage"
+                  ? scopeContext?.stage?.total ?? selectedCount
+                  : selectedCount}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirm */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -564,5 +692,31 @@ export function BulkActionsBar({
         }}
       />
     </>
+  );
+}
+
+function MoveScopeOption({
+  checked,
+  onSelect,
+  label,
+}: {
+  checked: boolean;
+  onSelect: () => void;
+  label: string;
+}) {
+  return (
+    <button type="button" onClick={onSelect} className="flex w-full items-center gap-2.5 text-left">
+      <span
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center rounded-full border",
+          checked ? "border-[var(--brand-primary)]" : "border-muted-foreground/40",
+        )}
+      >
+        {checked && <span className="size-2 rounded-full bg-[var(--brand-primary)]" />}
+      </span>
+      <span className={cn("text-[13px]", checked ? "font-medium text-foreground" : "text-muted-foreground")}>
+        {label}
+      </span>
+    </button>
   );
 }
