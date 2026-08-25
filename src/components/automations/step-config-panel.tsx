@@ -54,6 +54,7 @@ import {
   templateVariableValue,
   templateVariablesFromConfig,
   templateVariablesOf,
+  unsupportedTemplateTokens,
 } from "@/components/automations/template-variables";
 import { renderTemplatePreview } from "@/lib/meta-whatsapp/build-template-components";
 
@@ -3828,6 +3829,10 @@ function TemplateStepConfig({
     [varSlots, draft.components],
   );
   const missingVars = countMissingTemplateVariables(vars);
+  const badTokens = useMemo(
+    () => unsupportedTemplateTokens(selected?.bodyPreview, selected?.headerPreview),
+    [selected],
+  );
 
   // Sincroniza `draft.buttons` com os QUICK_REPLY do template selecionado
   // (preservando gotoStepId já escolhido por título) e reescreve
@@ -4027,6 +4032,15 @@ function TemplateStepConfig({
             </p>
           )}
         </div>
+      )}
+
+      {selected && badTokens.length > 0 && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-[11px] text-destructive">
+          O corpo aprovado usa {badTokens.map((t) => `{{${t}}}`).join(", ")}, que a Meta
+          não reconhece como variável — o texto vai literal para o contato. Para
+          preencher esses trechos, recadastre o template na Meta usando{" "}
+          <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>… no lugar.
+        </p>
       )}
 
       {selected &&

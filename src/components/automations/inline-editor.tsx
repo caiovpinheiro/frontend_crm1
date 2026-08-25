@@ -58,6 +58,7 @@ import {
   templateVariableValue,
   templateVariablesFromConfig,
   templateVariablesOf,
+  unsupportedTemplateTokens,
 } from "./template-variables"
 import { renderTemplatePreview } from "@/lib/meta-whatsapp/build-template-components"
 import { WebhookStepConfig } from "./webhook-step-config"
@@ -1347,6 +1348,10 @@ function TemplatePreview({
     () => templateVariablesFromConfig(varSlots, config.components),
     [varSlots, config.components],
   )
+  const badTokens = useMemo(
+    () => unsupportedTemplateTokens(detail?.bodyPreview, detail?.headerPreview),
+    [detail],
+  )
 
   useEffect(() => {
     if (!detail) return
@@ -1400,7 +1405,7 @@ function TemplatePreview({
   const needsHeaderMedia = headerFormat === "IMAGE" || headerFormat === "VIDEO" || headerFormat === "DOCUMENT"
   const hasBody = detail.bodyPreview.trim() !== ""
 
-  if (!hasBody && !needsHeaderMedia && varSlots.length === 0) return null
+  if (!hasBody && !needsHeaderMedia && varSlots.length === 0 && badTokens.length === 0) return null
 
   const headerMediaMissing = needsHeaderMedia && str(config.headerMediaUrl) === ""
   const missingVars = countMissingTemplateVariables(vars)
@@ -1446,6 +1451,13 @@ function TemplatePreview({
             </p>
           )}
         </div>
+      )}
+      {badTokens.length > 0 && (
+        <p className="cfg-warning">
+          O corpo aprovado usa {badTokens.map((t) => `{{${t}}}`).join(", ")}, que a Meta não
+          reconhece como variável — o texto vai literal para o contato. Recadastre o template
+          na Meta com <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>… para poder preencher.
+        </p>
       )}
       {hasBody && (
         <div className="cfg-field">

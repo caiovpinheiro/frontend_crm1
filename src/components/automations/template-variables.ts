@@ -15,7 +15,8 @@
 
 import {
   buildTemplateComponents,
-  extractPlaceholderKeysFromBodyText,
+  extractMetaPlaceholderKeys,
+  extractUnsupportedPlaceholderTokens,
   templateVariablesFromSendComponents,
   type TemplateVariableInput,
 } from "@/lib/meta-whatsapp/build-template-components";
@@ -33,19 +34,44 @@ function slotId(component: string, key: string): string {
 /**
  * Slots na ordem em que o contato lê a mensagem (cabeçalho antes do corpo),
  * que é também a ordem dos componentes gerados por `buildTemplateComponents`.
+ *
+ * Só entram os marcadores que a Meta promove a parâmetro. Token como
+ * `{{dealCustomFields.x}}` escrito dentro do corpo aprovado é texto literal
+ * para ela: oferecer campo para ele faria o passo gravar parâmetro num
+ * template que, do lado da Meta, não tem nenhum — e o envio voltaria 132000.
  */
 export function templateVariableSlots(
   bodyText: string | null | undefined,
   headerText?: string | null,
 ): TemplateVariableSlot[] {
   const slots: TemplateVariableSlot[] = [];
-  for (const key of extractPlaceholderKeysFromBodyText(headerText ?? "")) {
+  for (const key of extractMetaPlaceholderKeys(headerText ?? "")) {
     slots.push({ component: "header", key });
   }
-  for (const key of extractPlaceholderKeysFromBodyText(bodyText ?? "")) {
+  for (const key of extractMetaPlaceholderKeys(bodyText ?? "")) {
     slots.push({ component: "body", key });
   }
   return slots;
+}
+
+/**
+ * Tokens entre chaves que a Meta ignora, na ordem em que aparecem. Não geram
+ * campo; servem para explicar ao operador por que a tela não pede nada.
+ */
+export function unsupportedTemplateTokens(
+  bodyText: string | null | undefined,
+  headerText?: string | null,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const text of [headerText ?? "", bodyText ?? ""]) {
+    for (const token of extractUnsupportedPlaceholderTokens(text)) {
+      if (seen.has(token)) continue;
+      seen.add(token);
+      out.push(token);
+    }
+  }
+  return out;
 }
 
 /**
