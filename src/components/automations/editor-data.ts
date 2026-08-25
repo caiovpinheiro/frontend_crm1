@@ -732,6 +732,34 @@ export function useProductOptions() {
   return { options: q.data ?? [], isLoading: q.isLoading, isError: q.isError }
 }
 
+export function usePublishedFlowOptions() {
+  const q = useQuery({
+    queryKey: ["whatsapp-flow-definitions"],
+    staleTime: STALE,
+    queryFn: async (): Promise<Opt[]> => {
+      const list = asArray(await getJson("/api/whatsapp-flow-definitions")) as Array<{
+        id?: string
+        shortId?: string
+        name?: string
+        status?: string
+        metaFlowId?: string | null
+      }>
+      return list
+        .filter(
+          (f) =>
+            (f.status ?? "").toUpperCase() === "PUBLISHED" &&
+            Boolean((f.metaFlowId ?? "").trim()) &&
+            Boolean((f.id ?? f.shortId ?? "").trim()),
+        )
+        .map((f) => ({
+          value: (f.id || f.shortId || "").trim(),
+          label: (f.name || f.id || "Flow").trim(),
+        }))
+    },
+  })
+  return { options: q.data ?? [], isLoading: q.isLoading, isError: q.isError }
+}
+
 export function useCustomFieldMetaBySlug(entity: "contact" | "deal") {
   const q = useQuery({
     queryKey: ["editor-custom-fields-raw", entity],

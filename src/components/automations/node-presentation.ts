@@ -1,7 +1,35 @@
 import { normalizeConditionConfig } from "@/lib/automation-condition"
 import type { FlowNodeData } from "./nodes"
 
-type Btn = { id?: string; title?: string; text?: string; gotoStepId?: string }
+type Btn = {
+  id?: string
+  title?: string
+  text?: string
+  gotoStepId?: string
+  kind?: string
+  flowDefinitionId?: string
+}
+
+function isFlowBtn(btn: Btn): boolean {
+  if ((btn.kind ?? "").toLowerCase() === "flow") return true
+  if ((btn.kind ?? "").toLowerCase() === "action") return false
+  return Boolean((btn.flowDefinitionId ?? "").trim())
+}
+
+function interactiveOutputs(config: Record<string, unknown>, withElse: boolean): NonNullable<FlowNodeData["outputs"]> {
+  const buttons = Array.isArray(config.buttons) ? (config.buttons as Btn[]) : []
+  const outputs: NonNullable<FlowNodeData["outputs"]> = buttons.map((btn, idx) => {
+    const title = (btn.title || btn.text || `Botão ${idx + 1}`).trim() || `Botão ${idx + 1}`
+    return {
+      id: `btn_${idx}`,
+      label: isFlowBtn(btn) ? `Flow: ${title}` : title,
+    }
+  })
+  if (withElse) {
+    outputs.push({ id: "else", label: "Outra resposta", icon: "list", err: true })
+  }
+  return outputs
+}
 
 /** Formata ms → rótulo legível (ex.: "8 min"). */
 function formatDuration(ms: number): string {
@@ -31,18 +59,6 @@ const FAILURE_OUTPUT = {
 const SUCCESS_SEND_OUTPUT = {
   id: "next",
   label: "Enviado",
-}
-
-function interactiveOutputs(config: Record<string, unknown>, withElse: boolean): NonNullable<FlowNodeData["outputs"]> {
-  const buttons = Array.isArray(config.buttons) ? (config.buttons as Btn[]) : []
-  const outputs: NonNullable<FlowNodeData["outputs"]> = buttons.map((btn, idx) => ({
-    id: `btn_${idx}`,
-    label: (btn.title || btn.text || `Botão ${idx + 1}`).trim() || `Botão ${idx + 1}`,
-  }))
-  if (withElse) {
-    outputs.push({ id: "else", label: "Outra resposta", icon: "list", err: true })
-  }
-  return outputs
 }
 
 function withFailureOutput(

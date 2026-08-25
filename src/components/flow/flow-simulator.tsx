@@ -103,6 +103,46 @@ export function FlowSimulator({
     : []
 
   const pickChoice = (c: WaChoice, index: number) => {
+    if (c.kind === "flow") {
+      if (!current) return
+      if (lastBot?.preview === "WhatsApp Flow") {
+        const target = resolveSimTarget(current, c.id, edges)
+        const next = continueFlowSimulation(target, nodes, edges, [
+          ...sim.events,
+          { id: `u_${Date.now()}`, kind: "user", text: c.title, time: nowWaLabel() },
+        ])
+        setSim(next)
+        setListOpen(false)
+        onStepChange?.(next.currentId)
+        return
+      }
+      const handle = choiceHandle(c.id, index, current.data.outputs)
+      const cta = clipWa(c.title, WA_META.replyBtn) || "Continuar"
+      setSim({
+        ...sim,
+        wait: "choice",
+        currentId: current.id,
+        events: [
+          ...sim.events,
+          { id: `u_${Date.now()}`, kind: "user", text: c.title, time: nowWaLabel() },
+          {
+            id: `flow_${Date.now()}`,
+            kind: "bot",
+            nodeId: current.id,
+            stepType: "send_whatsapp_interactive",
+            config: {
+              body: "Abra o formulário para continuar.",
+              buttons: [{ id: handle, title: cta, kind: "flow" }],
+            },
+            outputs: [{ key: handle, label: cta, kind: "response" as const }],
+            preview: "WhatsApp Flow",
+            time: nowWaLabel(),
+          },
+        ],
+      })
+      setListOpen(false)
+      return
+    }
     const hint = waActionHint(c.kind)
     if (hint) {
       setSim((prev) => ({
