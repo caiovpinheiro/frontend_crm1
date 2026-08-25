@@ -58,6 +58,7 @@ import { useWidgets } from "@/features/widgets/hooks";
 import {
   useDistributionDepartmentStats,
   useDistributionLogs,
+  useDistributionQueueRealtime,
   useDistributionResponsibles,
   useDistributionSettings,
   usePendingDistributions,
@@ -156,12 +157,11 @@ export default function DistributionClientPage({
     widgetsQuery.data?.items.find((w) => w.slug === SMART_DISTRIBUTION_SLUG)?.installed ??
     false;
 
-  const respQuery = useDistributionResponsibles(
-    isAuthenticated && (isPageMockMode() || widgetInstalled),
-  );
-  const pendingQuery = usePendingDistributions(
-    isAuthenticated && (isPageMockMode() || widgetInstalled),
-  );
+  const queueLive =
+    isAuthenticated && (isPageMockMode() || widgetInstalled);
+  const respQuery = useDistributionResponsibles(queueLive);
+  const pendingQuery = usePendingDistributions(queueLive);
+  useDistributionQueueRealtime(queueLive);
   const simulateMut = useSimulateDistribution();
   const retryMut = useRetryPending();
 
@@ -921,13 +921,9 @@ function ResponsibleCard({
 
       {/* Volume */}
       <div className="text-center font-body text-[18px] leading-none text-[var(--text-muted)]">
-        {r.queueLimit > 0 ? (
-          <span className="font-display text-[15px] font-extrabold text-[var(--text-primary)]">
-            {r.queueLimit}
-          </span>
-        ) : (
-          "∞"
-        )}
+        <span className="font-display text-[15px] font-extrabold text-[var(--text-primary)]">
+          {r.queueLimit}
+        </span>
       </div>
 
       {/* Elegibilidade */}
@@ -1147,7 +1143,7 @@ function ResponsibleMobileCard({
             Volume
           </p>
           <p className="font-display text-[12px] font-extrabold leading-none text-[var(--text-primary)]">
-            {r.queueLimit > 0 ? r.queueLimit : "∞"}
+            {r.queueLimit}
           </p>
         </div>
         <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
@@ -3228,7 +3224,7 @@ function RedistributeDialog({
                                   ? "Inativo"
                                   : "Offline"}
                             {" · "}
-                            fila {c.queueCount}/{c.queueLimit || "∞"}
+                            fila {c.queueCount}/{c.queueLimit}
                           </span>
                         </span>
                       </label>
@@ -3531,9 +3527,8 @@ function EditResponsibleDialog({
               className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
             />
             <span className="text-[11px] text-[var(--text-muted)]">
-              Máximo de conversas aguardando a resposta do consultor (fila de não
-              iniciados). Ao atingir, ele para de receber novos até responder. 0 =
-              sem limite.
+              Máximo de cards Entrada + Aguardando. Ao atingir, para de receber
+              até a fila cair. 0 = não recebe.
             </span>
           </label>
 
