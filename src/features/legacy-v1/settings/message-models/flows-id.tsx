@@ -5,7 +5,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconArrowLeft as ArrowLeft, IconLoader2 as Loader2, IconPlus as Plus, IconRefresh as RefreshCw, IconDeviceFloppy as Save, IconSend as Send, IconTrash as Trash2 } from "@tabler/icons-react";
+import { IconArrowLeft as ArrowLeft, IconLoader2 as Loader2, IconPlus as Plus, IconRefresh as RefreshCw, IconDeviceFloppy as Save, IconSend as Send, IconTrash as Trash2, IconX } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -13,7 +13,6 @@ import { GlassCard } from "@/components/crm/glass-card";
 import { InputGlass } from "@/components/crm/input-glass";
 import { CheckboxGlass } from "@/components/crm/checkbox-glass";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { DropdownGlass, type DropdownOption } from "@/components/crm/dropdown-glass";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { FlowDefinitionUpsertInput } from "@/services/whatsapp-flow-definitions";
@@ -78,6 +77,75 @@ const FLOW_CATEGORY_OPTIONS = [
 
 const FIELD_TYPES_WITH_OPTIONS = new Set(["DROPDOWN", "RADIO", "MULTI_SELECT", "SELECT"]);
 
+const RESERVED_FIELD_KEYS = new Set([
+  "none",
+  "form",
+  "data",
+  "success",
+  "error",
+  "error_message",
+  "payload",
+  "screen",
+  "footer",
+]);
+
+function sanitizeFlowFieldKey(raw: string, fallbackIndex = 1): string {
+  let s = raw
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9_]/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (/^[0-9]/.test(s)) s = `c_${s}`;
+  s = s.slice(0, 80);
+  if (!s || RESERVED_FIELD_KEYS.has(s.toLowerCase())) return `campo_${fallbackIndex}`;
+  return s;
+}
+
+function resolveFlowFieldKey(fieldKey: string, label: string, fallbackIndex = 1): string {
+  const raw = fieldKey.trim();
+  const source = raw && !RESERVED_FIELD_KEYS.has(raw.toLowerCase()) ? raw : label;
+  return sanitizeFlowFieldKey(source, fallbackIndex);
+}
+
+function fieldTypeNeedsOptions(fieldType: string): boolean {
+  return FIELD_TYPES_WITH_OPTIONS.has(fieldType.toUpperCase());
+}
+
+function prepareDraftForPublish(d: FlowDefDetail): FlowDefDetail {
+  let i = 0;
+  return {
+    ...d,
+    screens: d.screens.map((s) => ({
+      ...s,
+      fields: s.fields.map((f) => {
+        i += 1;
+        return { ...f, fieldKey: resolveFlowFieldKey(f.fieldKey, f.label, i) };
+      }),
+    })),
+  };
+}
+
+function publishBlocker(d: FlowDefDetail): string | null {
+  const keys = new Set<string>();
+  let i = 0;
+  for (const s of d.screens) {
+    for (const f of s.fields) {
+      i += 1;
+      const key = resolveFlowFieldKey(f.fieldKey, f.label, i);
+      if (keys.has(key.toLowerCase())) {
+        return `Chave duplicada «${key}». Cada campo precisa de um slug único.`;
+      }
+      keys.add(key.toLowerCase());
+      if (fieldTypeNeedsOptions(f.fieldType) && (f.options ?? []).filter((o) => o.trim()).length < 1) {
+        return `O campo «${f.label || key}» precisa de pelo menos uma opção.`;
+      }
+    }
+  }
+  if (keys.size === 0) return "Adicione pelo menos um campo antes de publicar.";
+  return null;
+}
+
 type MappingNativeOpt = { key: string; label: string };
 
 const DEFAULT_DEAL_NATIVE_FIELDS: MappingNativeOpt[] = [
@@ -86,15 +154,88 @@ const DEFAULT_DEAL_NATIVE_FIELDS: MappingNativeOpt[] = [
   { key: "expectedClose", label: "Previsão de fechamento" },
 ];
 
-function fieldTypeNeedsOptions(fieldType: string): boolean {
-  return FIELD_TYPES_WITH_OPTIONS.has(fieldType.toUpperCase());
+function coerceOptions(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.flatMap((item) => coerceOptions(item));
+  }
+  if (typeof raw !== "string") return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      return coerceOptions(JSON.parse(trimmed) as unknown);
+    } catch {
+      /* texto comum */
+    }
+  }
+  return trimmed.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 }
 
-function parseOptionsText(text: string): string[] {
-  return text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
+function FlowFieldOptionsEditor({
+  options,
+  onChange,
+}: {
+  options: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const rows = options.length > 0 ? options : [""];
+
+  function setRow(index: number, value: string) {
+    const next = rows.map((row, i) => (i === index ? value : row));
+    onChange(next);
+  }
+
+  function addRow() {
+    onChange([...rows, ""]);
+  }
+
+  function removeRow(index: number) {
+    const next = rows.filter((_, i) => i !== index);
+    onChange(next.length > 0 ? next : [""]);
+  }
+
+  return (
+    <div className="grid gap-1.5 sm:col-span-2">
+      <Label className="text-xs text-[var(--text-secondary)]">Opções da lista</Label>
+      <p className="-mt-0.5 font-body text-[11.5px] text-[var(--text-muted)]">
+        Cada campo abaixo vira uma alternativa no WhatsApp. Use «Adicionar opção» para incluir outra.
+      </p>
+      <div className="space-y-2">
+        {rows.map((opt, i) => (
+          <div key={`opt-row-${i}`} className="flex items-center gap-2">
+            <span className="w-5 shrink-0 text-right font-mono text-[11px] text-[var(--text-muted)]">
+              {i + 1}.
+            </span>
+            <InputGlass
+              value={opt}
+              placeholder={`Opção ${i + 1}`}
+              maxLength={80}
+              onChange={(e) => setRow(i, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                e.stopPropagation();
+                addRow();
+              }}
+              className="flex-1"
+            />
+            <button
+              type="button"
+              title="Remover opção"
+              disabled={rows.length <= 1}
+              onClick={() => removeRow(i)}
+              className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger-bg)] disabled:opacity-30"
+            >
+              <IconX size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <ButtonGlass type="button" variant="glass" size="sm" onClick={addRow}>
+        <Plus className="size-3.5" /> Adicionar opção
+      </ButtonGlass>
+    </div>
+  );
 }
 
 /** Link "voltar" em pill glass — reusado nos três estados do editor. */
@@ -158,7 +299,7 @@ function toUpsertInput(d: FlowDefDetail): FlowDefinitionUpsertInput {
         fieldKey: f.fieldKey,
         label: f.label,
         fieldType: f.fieldType,
-        options: f.options ?? [],
+        options: coerceOptions(f.options),
         required: f.required,
         sortOrder: fi,
         mapping: f.mapping
@@ -280,7 +421,7 @@ export default function FlowDefinitionEditorPage({
           ...s,
           fields: s.fields.map((f) => ({
             ...f,
-            options: Array.isArray(f.options) ? f.options : [],
+            options: coerceOptions(f.options),
           })),
         })),
       });
@@ -315,11 +456,19 @@ export default function FlowDefinitionEditorPage({
       const r = await fetch(apiUrl(`/api/whatsapp-flow-definitions/${encodeURIComponent(id)}/publish`), {
         method: "POST",
       });
-      const j = await r.json().catch(() => ({}));
+      const text = await r.text();
+      let j: { message?: unknown; validationErrors?: unknown } = {};
+      try {
+        j = text ? (JSON.parse(text) as typeof j) : {};
+      } catch {
+        throw new Error(
+          `Erro ao publicar (HTTP ${r.status}). O servidor não devolveu JSON — timeout ou proxy.`,
+        );
+      }
       if (!r.ok) {
         const ve = Array.isArray(j.validationErrors) ? j.validationErrors : [];
         const extra = ve.length ? ` (${JSON.stringify(ve).slice(0, 400)})` : "";
-        throw new Error((typeof j?.message === "string" ? j.message : "Erro ao publicar.") + extra);
+        throw new Error((typeof j?.message === "string" ? j.message : `Erro ao publicar (HTTP ${r.status}).`) + extra);
       }
       return j as { metaFlowId: string };
     },
@@ -559,8 +708,15 @@ export default function FlowDefinitionEditorPage({
             size="sm"
             disabled={publishMutation.isPending || saveMutation.isPending || !canPublish}
             onClick={async () => {
+              const blocker = publishBlocker(draft);
+              if (blocker) {
+                toast.error(blocker);
+                return;
+              }
+              const prepared = prepareDraftForPublish(draft);
+              setDraft(prepared);
               try {
-                await saveMutation.mutateAsync(toUpsertInput(draft));
+                await saveMutation.mutateAsync(toUpsertInput(prepared));
                 await publishMutation.mutateAsync();
               } catch {
                 /* toasts handled by mutations */
@@ -741,8 +897,23 @@ export default function FlowDefinitionEditorPage({
                                 return { ...d, screens };
                               });
                             }}
+                            onBlur={() => {
+                              const next = resolveFlowFieldKey(f.fieldKey, f.label, fi + 1);
+                              if (next === f.fieldKey) return;
+                              updateDraft((d) => {
+                                const screens = d.screens.map((s, i) => {
+                                  if (i !== selectedScreenIdx) return s;
+                                  const fields = s.fields.map((x) => (x.id === f.id ? { ...x, fieldKey: next } : x));
+                                  return { ...s, fields };
+                                });
+                                return { ...d, screens };
+                              });
+                            }}
                             className="font-mono text-xs"
                           />
+                          <p className="text-[10px] text-[var(--text-muted)]">
+                            Letras, números e _. Evite palavras reservadas como none ou form.
+                          </p>
                         </div>
                         <div className="grid gap-1.5">
                           <Label className="text-xs text-[var(--text-secondary)]">Rótulo</Label>
@@ -775,6 +946,7 @@ export default function FlowDefinitionEditorPage({
                                     if (x.id !== f.id) return x;
                                     const next = { ...x, fieldType: v };
                                     if (!fieldTypeNeedsOptions(v)) next.options = [];
+                                    else if (coerceOptions(next.options).length === 0) next.options = ["", ""];
                                     return next;
                                   });
                                   return { ...s, fields };
@@ -805,28 +977,21 @@ export default function FlowDefinitionEditorPage({
                           Obrigatório
                         </label>
                         {fieldTypeNeedsOptions(f.fieldType) ? (
-                          <div className="grid gap-1.5 sm:col-span-2">
-                            <Label className="text-xs text-[var(--text-secondary)]">Opções (uma por linha)</Label>
-                            <Textarea
-                              value={(f.options ?? []).join("\n")}
-                              onChange={(e) => {
-                                const options = parseOptionsText(e.target.value);
-                                updateDraft((d) => {
-                                  const screens = d.screens.map((s, i) => {
-                                    if (i !== selectedScreenIdx) return s;
-                                    const fields = s.fields.map((x) =>
-                                      x.id === f.id ? { ...x, options } : x,
-                                    );
-                                    return { ...s, fields };
-                                  });
-                                  return { ...d, screens };
+                          <FlowFieldOptionsEditor
+                            options={f.options ?? []}
+                            onChange={(options) => {
+                              updateDraft((d) => {
+                                const screens = d.screens.map((s, i) => {
+                                  if (i !== selectedScreenIdx) return s;
+                                  const fields = s.fields.map((x) =>
+                                    x.id === f.id ? { ...x, options } : x,
+                                  );
+                                  return { ...s, fields };
                                 });
-                              }}
-                              rows={3}
-                              className="resize-none rounded-[var(--radius-md)] text-xs placeholder:text-[var(--text-muted)]"
-                              placeholder={"Opção 1\nOpção 2\nOpção 3"}
-                            />
-                          </div>
+                                return { ...d, screens };
+                              });
+                            }}
+                          />
                         ) : null}
                       </div>
                     </div>
@@ -865,10 +1030,29 @@ export default function FlowDefinitionEditorPage({
                       style={{ background: "var(--wa-bubble)", border: "1px solid var(--wa-field-border)" }}
                     >
                       <span className="text-[10px]" style={{ color: "var(--wa-text-muted)" }}>{f.label}</span>
-                      <div
-                        className="mt-0.5 h-6 rounded-md"
-                        style={{ background: "var(--wa-field-bg)", border: "1px solid var(--wa-field-border)" }}
-                      />
+                      {fieldTypeNeedsOptions(f.fieldType) ? (
+                        <ul className="mt-1 space-y-1">
+                          {coerceOptions(f.options).length > 0 ? (
+                            coerceOptions(f.options).map((opt, oi) => (
+                              <li
+                                key={`${f.id}-opt-${oi}`}
+                                className="flex items-center gap-1.5 rounded-md px-1.5 py-1"
+                                style={{ background: "var(--wa-field-bg)", border: "1px solid var(--wa-field-border)", color: "var(--wa-text)" }}
+                              >
+                                <span className="inline-block size-2.5 shrink-0 rounded-full border" style={{ borderColor: "var(--wa-accent-strong)" }} />
+                                {opt}
+                              </li>
+                            ))
+                          ) : (
+                            <li className="text-[10px]" style={{ color: "var(--wa-text-muted)" }}>Sem opções ainda</li>
+                          )}
+                        </ul>
+                      ) : (
+                        <div
+                          className="mt-0.5 h-6 rounded-md"
+                          style={{ background: "var(--wa-field-bg)", border: "1px solid var(--wa-field-border)" }}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

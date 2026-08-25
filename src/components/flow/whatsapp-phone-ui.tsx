@@ -61,11 +61,15 @@ export function asWaChoices(cfg: NodeConfig, outputs: Output[]): WaChoice[] {
         const rec = b && typeof b === "object" ? (b as Record<string, unknown>) : {}
         const title = String(rec.title ?? rec.text ?? `Opção ${i + 1}`).trim() || `Opção ${i + 1}`
         const description = String(rec.description ?? "").trim()
+        const kindRaw = String(rec.kind ?? "").toLowerCase()
+        const isFlow =
+          kindRaw === "flow" ||
+          (kindRaw !== "action" && Boolean(String(rec.flowDefinitionId ?? "").trim()))
         return {
           id: String(rec.id ?? `btn_${i}`),
           title,
           description: description || undefined,
-          kind: "reply" as const,
+          kind: isFlow ? ("flow" as const) : ("reply" as const),
         }
       })
     : []

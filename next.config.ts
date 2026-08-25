@@ -117,6 +117,10 @@ const nextConfig: NextConfig = {
           source: "/api/wa-call-permission",
           destination: "/wa-call-permission",
         },
+        {
+          source: "/api/wa-whatsapp-call",
+          destination: "/wa-whatsapp-call",
+        },
         { source: "/api/:path*", destination: `${base}/api/:path*` },
         { source: "/uploads/:path*", destination: `${base}/api/uploads/:path*` },
         { source: "/cockpit-agente.html", destination: `${base}/cockpit-agente.html` },

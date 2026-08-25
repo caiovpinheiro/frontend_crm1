@@ -44,8 +44,23 @@ import {
   mergeTemplateQuickReplies,
   useStepTemplateCatalog,
   useUserOptions,
+  usePublishedFlowOptions,
+  optionsWithSaved,
   type Opt,
 } from "./editor-data"
+import {
+  buildTemplateComponents,
+  countMissingTemplateVariables,
+  sameTemplateComponents,
+  setTemplateVariableValue,
+  templateVariableLabel,
+  templateVariableSlots,
+  templateVariableValue,
+  templateVariablesFromConfig,
+  templateVariablesOf,
+  unsupportedTemplateTokens,
+} from "./template-variables"
+import { renderTemplatePreview } from "@/lib/meta-whatsapp/build-template-components"
 import { WebhookStepConfig } from "./webhook-step-config"
 import { SendProductInlineConfig } from "./send-product-config"
 import { TabulationStepConfig } from "./tabulation-step-config"
@@ -1325,6 +1340,19 @@ function TemplatePreview({
   })
   const detail = getTemplateDetail(detailsMap, templateName, str(config.languageCode))
 
+  const varSlots = useMemo(
+    () => templateVariableSlots(detail?.bodyPreview, detail?.headerPreview),
+    [detail],
+  )
+  const vars = useMemo(
+    () => templateVariablesFromConfig(varSlots, config.components),
+    [varSlots, config.components],
+  )
+  const badTokens = useMemo(
+    () => unsupportedTemplateTokens(detail?.bodyPreview, detail?.headerPreview),
+    [detail],
+  )
+
   useEffect(() => {
     if (!detail) return
     const prev = asArr(config.buttons) as BtnItem[]
@@ -1343,11 +1371,17 @@ function TemplatePreview({
       (str(config.headerMediaUrl) !== "" ||
         str(config.headerMediaType) !== "" ||
         str(config.headerUploadedFileName) !== "")
-    if (sameBtns && sameBody && sameLang && !clearHeader) return
+    // Reconciliação na troca de template: parâmetro órfão do template anterior
+    // faz a Meta rejeitar o envio, então o array é sempre reescrito a partir
+    // dos placeholders do template atual.
+    const desiredComponents = buildTemplateComponents(vars)
+    const sameComponents = sameTemplateComponents(config.components, desiredComponents)
+    if (sameBtns && sameBody && sameLang && !clearHeader && sameComponents) return
     onChange({
       ...config,
       buttons: desired,
       bodyPreview: detail.bodyPreview,
+      components: desiredComponents,
       ...(detail.language ? { languageCode: detail.language } : {}),
       ...(clearHeader
         ? { headerMediaUrl: "", headerMediaType: "", headerUploadedFileName: "" }
@@ -1355,6 +1389,13 @@ function TemplatePreview({
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateName, detail])
+
+  const setVar = (slot: (typeof varSlots)[number], value: string) => {
+    onChange({
+      ...config,
+      components: buildTemplateComponents(setTemplateVariableValue(vars, slot, value)),
+    })
+  }
 
   if (!templateName) return null
   if (isLoading && !detail) return <p className="cfg-info">Carregando preview…</p>
@@ -1364,9 +1405,10 @@ function TemplatePreview({
   const needsHeaderMedia = headerFormat === "IMAGE" || headerFormat === "VIDEO" || headerFormat === "DOCUMENT"
   const hasBody = detail.bodyPreview.trim() !== ""
 
-  if (!hasBody && !needsHeaderMedia) return null
+  if (!hasBody && !needsHeaderMedia && varSlots.length === 0 && badTokens.length === 0) return null
 
   const headerMediaMissing = needsHeaderMedia && str(config.headerMediaUrl) === ""
+  const missingVars = countMissingTemplateVariables(vars)
 
   return (
     <>
@@ -1382,11 +1424,48 @@ function TemplatePreview({
           Este template exige {HEADER_MEDIA_LABEL[headerFormat] ?? "mídia"} no cabeçalho — configure acima antes de ativar a automação.
         </p>
       )}
+      {varSlots.length > 0 && (
+        <div className="cfg-field">
+          <span className="cfg-label">Variáveis do template</span>
+          <p className="cfg-hint">
+            A Meta só entende os placeholders do template aprovado. Escreva texto fixo ou
+            digite <code>{"{"}</code> para inserir um campo do CRM.
+          </p>
+          <div className="cfg-list">
+            {varSlots.map((slot) => (
+              <div className="cfg-field" key={`${slot.component}-${slot.key}`}>
+                <span className="cfg-sublabel">{templateVariableLabel(slot)}</span>
+                <VariableInput
+                  value={templateVariableValue(vars, slot)}
+                  placeholder="Texto ou { para variáveis"
+                  onChange={(v) => setVar(slot, v)}
+                />
+              </div>
+            ))}
+          </div>
+          {missingVars > 0 && (
+            <p className="cfg-warning">
+              {missingVars === 1
+                ? "1 variável sem valor — a Meta rejeita o envio com parâmetro faltando."
+                : `${missingVars} variáveis sem valor — a Meta rejeita o envio com parâmetro faltando.`}
+            </p>
+          )}
+        </div>
+      )}
+      {badTokens.length > 0 && (
+        <p className="cfg-warning">
+          O corpo aprovado usa {badTokens.map((t) => `{{${t}}}`).join(", ")}, que a Meta não
+          reconhece como variável — o texto vai literal para o contato. Recadastre o template
+          na Meta com <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>… para poder preencher.
+        </p>
+      )}
       {hasBody && (
         <div className="cfg-field">
           <span className="cfg-label">Pré-visualização</span>
           <div className="cfg-tpl-preview nodrag nowheel">
-            <p className="cfg-tpl-body">{detail.bodyPreview}</p>
+            <p className="cfg-tpl-body">
+              {renderTemplatePreview(detail.bodyPreview, templateVariablesOf(vars, "body"))}
+            </p>
           </div>
           {detail.quickReplies.length > 0 && (
             <p className="cfg-hint">
@@ -1575,7 +1654,15 @@ function HeaderMediaField({
 
 // ───────────────────────────── Builders ─────────────────────────────
 
-type BtnItem = { id?: string; text?: string; title?: string; gotoStepId?: string }
+type BtnItem = {
+  id?: string
+  text?: string
+  title?: string
+  gotoStepId?: string
+  kind?: string
+  flowDefinitionId?: string
+  flowCta?: string
+}
 
 function ButtonsBuilder({
   label,
@@ -1603,10 +1690,14 @@ function ButtonsBuilder({
   const key = variant
   const asList = items.length > 3
   const titleMax = asList ? 24 : 20
+  const allowFlow = variant === "title"
+  const flows = usePublishedFlowOptions()
   const update = (i: number, patch: Partial<BtnItem>) => onChange(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)))
-  const add = () => onChange([...items, { id: rid("btn"), [key]: "" }])
+  const add = () => onChange([...items, { id: rid("btn"), [key]: "", kind: "action" }])
   const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i))
   const full = max != null && items.length >= max
+  const isFlowItem = (it: BtnItem) =>
+    (it.kind ?? "").toLowerCase() === "flow" || Boolean((it.flowDefinitionId ?? "").trim() && (it.kind ?? "").toLowerCase() !== "action")
   return (
     <div className="cfg-field">
       <span className="cfg-label">{asList ? "Itens da lista (máx. 10)" : label}</span>
@@ -1614,6 +1705,7 @@ function ButtonsBuilder({
         {asList
           ? "4+ opções: o WhatsApp envia como lista (Meta: 10 itens, título 24 caracteres)."
           : "Até 3 opções aparecem como botões (20 caracteres). A 4ª vira lista."}
+        {allowFlow ? " Cada botão pode ser Ação (resposta) ou Flow (abre um formulário publicado)." : ""}
       </span>
       {asList && listMeta && (
         <div className="mt-2 flex flex-col gap-2">
@@ -1648,6 +1740,46 @@ function ButtonsBuilder({
                 ×
               </button>
             </div>
+            {allowFlow && (
+              <ConfigSelect
+                value={isFlowItem(it) ? "flow" : "action"}
+                allowEmpty={false}
+                options={[
+                  { value: "action", label: "Botão de ação" },
+                  { value: "flow", label: "Botão de Flow" },
+                ]}
+                placeholder="Tipo"
+                onChange={(v) =>
+                  update(i, {
+                    kind: v,
+                    ...(v === "action" ? { flowDefinitionId: "", flowCta: "" } : {}),
+                  })
+                }
+              />
+            )}
+            {allowFlow && isFlowItem(it) && (
+              <>
+                <ConfigSelect
+                  value={str(it.flowDefinitionId)}
+                  options={optionsWithSaved(flows.options, str(it.flowDefinitionId))}
+                  loading={flows.isLoading}
+                  placeholder="Flow publicado…"
+                  onChange={(v) => update(i, { flowDefinitionId: v, kind: "flow" })}
+                />
+                {!flows.isLoading && flows.options.length === 0 && (
+                  <span className="cfg-hint">
+                    Nenhum Flow publicado. Crie em Configurações → Modelos de mensagem.
+                  </span>
+                )}
+                <InputGlass
+                  className="cfg-input nodrag"
+                  placeholder="CTA do Flow (máx. 20)"
+                  value={str(it.flowCta)}
+                  maxLength={20}
+                  onChange={(e) => update(i, { flowCta: e.target.value, kind: "flow" })}
+                />
+              </>
+            )}
             {!hideStepTargets && (
               <ConfigSelect value={str(it.gotoStepId)} options={steps} placeholder="Ir para passo…" onChange={(v) => update(i, { gotoStepId: v })} />
             )}

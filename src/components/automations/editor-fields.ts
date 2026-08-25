@@ -203,7 +203,7 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "textarea", key: "body", label: "Texto da mensagem" },
     { kind: "text", key: "header", label: "Cabeçalho", optional: true, placeholder: "Título acima da mensagem" },
     { kind: "text", key: "footer", label: "Rodapé", optional: true, placeholder: "Texto abaixo da mensagem" },
-    { kind: "builder", builder: "buttonsTitle", key: "buttons", label: "Opções (até 3 = botões; 4–10 = lista)" },
+    { kind: "builder", builder: "buttonsTitle", key: "buttons", label: "Opções (ação ou Flow; até 3 = botões, 4–10 = lista)" },
     { kind: "step", key: "elseGotoStepId", label: "Se resposta não bater → ir para", optional: true },
     { kind: "text", key: "saveToVariable", label: "Salvar resposta em variável", optional: true, placeholder: "ex.: resposta" },
     { kind: "duration", key: "timeoutMs", label: "Sem resposta em" },

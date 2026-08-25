@@ -1,6 +1,7 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
+import { postWhatsappCall } from "@/lib/wa-whatsapp-call";
 import * as React from "react";
 
 import {
@@ -130,11 +131,9 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
   const terminateSilently = React.useCallback(
     (callId: string) => {
       if (!conversationId || !callId) return;
-      void fetch(apiUrl(`/api/conversations/${conversationId}/whatsapp-calls`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "terminate", call_id: callId }),
-      });
+      void postWhatsappCall(conversationId, { action: "terminate", call_id: callId }).catch(
+        () => {},
+      );
     },
     [conversationId],
   );
@@ -267,18 +266,10 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
       const sdp = pc.localDescription?.sdp;
       if (!sdp?.trim()) throw new Error("SDP offer vazio após recolha ICE.");
 
-      const res = await fetch(apiUrl(`/api/conversations/${conversationId}/whatsapp-calls`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "initiate",
-          session: { sdp_type: "offer", sdp },
-        }),
+      const data = await postWhatsappCall<{ calls?: { id: string }[] }>(conversationId, {
+        action: "initiate",
+        session: { sdp_type: "offer", sdp },
       });
-      const data = (await res.json().catch(() => ({}))) as { message?: string; calls?: { id: string }[] };
-      if (!res.ok) {
-        throw new Error(typeof data.message === "string" ? data.message : `Erro ${res.status}`);
-      }
       const callId = data.calls?.[0]?.id;
       if (!callId) throw new Error("Meta não devolveu o ID da chamada.");
 
@@ -423,11 +414,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
         return;
       }
       try {
-        await fetch(apiUrl(`/api/conversations/${conversationId}/whatsapp-calls`), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "terminate", call_id: cid }),
-        });
+        await postWhatsappCall(conversationId, { action: "terminate", call_id: cid });
       } catch {
         /* ignore */
       } finally {

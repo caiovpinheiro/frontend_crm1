@@ -1,6 +1,7 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
+import { postWhatsappCall } from "@/lib/wa-whatsapp-call";
 /**
  * WhatsappCallChip
  * ─────────────────
@@ -498,20 +499,7 @@ export function WhatsappCallChip({
 
   const terminateCall = useMutation({
     mutationFn: async (callId: string) => {
-      const r = await fetch(apiUrl(`/api/conversations/${conversationId}/whatsapp-calls`),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "terminate", call_id: callId }),
-        },
-      );
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        throw new Error(
-          typeof j?.message === "string" ? j.message : "Erro ao encerrar",
-        );
-      }
-      return j;
+      return postWhatsappCall(conversationId, { action: "terminate", call_id: callId });
     },
     onSuccess: () => {
       toast.success("Chamada encerrada");
