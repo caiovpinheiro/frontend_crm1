@@ -758,10 +758,17 @@ export default function KanbanV2ClientPage({
   );
 
   // ── Conversa real ligada ao deal ────────────────────────────────
-  // Pega a conversa mais recente do contato (o backend ja ordena por
-  // updatedAt desc em getDealById). Quando o deal nao tem contato
-  // vinculado ou nao ha conversa, o binding retorna nodes de "vazio".
-  const dealConversation =
+  // Escolhe o ticket ATIVO do contato; so cai na primeira da lista (a mais
+  // recente por updatedAt, ja ordenada pelo backend em getDealById) quando
+  // todos estao encerrados. A preferencia explicita e necessaria porque
+  // `updatedAt` nao mede atividade de mensagem: o `updateMany` que propaga o
+  // dono do negocio carimba o mesmo timestamp em todos os tickets, entao a
+  // ordem sozinha ja abriu ticket encerrado enquanto o cliente respondia no
+  // aberto. O banco garante no maximo um nao-RESOLVED por (org, contato,
+  // canal) — indice unico parcial `conversations_active_contact_channel`.
+  // Quando o deal nao tem contato vinculado ou nao ha conversa, o binding
+  // retorna nodes de "vazio".
+  const dealConversations =
     (dealDetail?.contact as
       | {
           conversations?: {
@@ -779,7 +786,11 @@ export default function KanbanV2ClientPage({
         }
       | null
       | undefined
-    )?.conversations?.[0] ?? null;
+    )?.conversations ?? [];
+  const dealConversation =
+    dealConversations.find((c) => c.status !== "RESOLVED") ??
+    dealConversations[0] ??
+    null;
   const dealConversationId = dealConversation?.id ?? null;
   const dealConversationDepartmentId =
     dealConversation?.departmentId ??

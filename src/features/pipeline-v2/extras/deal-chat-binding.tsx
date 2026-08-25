@@ -19,6 +19,7 @@ import { IconChevronDown, IconLoader2, IconMessageCirclePlus, IconPinFilled, Ico
 import { apiUrl } from "@/lib/api";
 import { avatarInitials } from "@/lib/avatar";
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions";
+import { useDealDetail } from "@/features/pipeline-v2/hooks/use-deal-detail";
 
 import { ConnectionDivider, ConversationClosedMarker, DaySeparator, formatChatDayLabel, MessageBubble, StickyDayPill, TicketDivider, useStickyDayLabel, type Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
@@ -153,6 +154,27 @@ export function useDealChatBinding(params: {
   const qc = useQueryClient();
   const [ensuredId, setEnsuredId] = useState<string | null>(null);
   const autoEnsuredRef = useRef(false);
+  // Contato do POST em voo. O painel é reusado entre cards (o hook não
+  // desmonta ao trocar de deal), então uma resposta atrasada podia vincular
+  // a conversa do deal anterior ao card aberto agora.
+  const ensureTargetRef = useRef<string | null>(null);
+
+  // `contactId` chega pelo seed do board ANTES do GET /api/deals/:id
+  // responder. Nesse intervalo `conversationId` ainda é null mesmo quando o
+  // contato já tem ticket, e o auto-ensure abria um ticket vazio só por
+  // abrir o card. Assinamos a MESMA query do detail (mesma queryKey → sem
+  // request extra) só para esperar a confirmação de que não há conversa.
+  const dealDetailQuery = useDealDetail(dealId ?? null);
+  const dealDetailContact = dealDetailQuery.data?.contact ?? null;
+  const dealDetailSettled =
+    !dealId || dealDetailQuery.isSuccess || dealDetailQuery.isError;
+  // Sem `dealId` o hook não tem como esperar o detail — mantém o
+  // comportamento antigo para quem usa o binding fora do pipeline.
+  const canAutoEnsure =
+    !dealId ||
+    (!!contactId &&
+      dealDetailContact?.id === contactId &&
+      (dealDetailContact.conversations?.length ?? 0) === 0);
 
   const ensureMutation = useMutation({
     mutationFn: async (cid: string) => {
@@ -169,11 +191,12 @@ export function useDealChatBinding(params: {
       if (!res.ok) throw new Error(data?.message ?? "Erro ao iniciar conversa");
       return data.conversation as { id: string };
     },
-    onSuccess: (conv) => {
-      setEnsuredId(conv.id);
-      if (contactId) qc.invalidateQueries({ queryKey: ["contact", contactId] });
+    onSuccess: (conv, cid) => {
+      qc.invalidateQueries({ queryKey: ["contact", cid] });
       qc.invalidateQueries({ queryKey: ["conversation-timeline", conv.id] });
       qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      if (ensureTargetRef.current !== cid) return;
+      setEnsuredId(conv.id);
     },
     onError: (err: Error) => toast.error(err.message || "Falha ao iniciar conversa"),
   });
@@ -181,21 +204,28 @@ export function useDealChatBinding(params: {
   // Reseta o controle de auto-ensure ao trocar de deal/contato.
   useEffect(() => {
     autoEnsuredRef.current = false;
+    ensureTargetRef.current = null;
     setEnsuredId(null);
     setReplyTo(null);
   }, [contactId]);
 
   useEffect(() => {
-    if (!conversationId && contactId && !ensuredId && !autoEnsuredRef.current && !ensureMutation.isPending) {
-      autoEnsuredRef.current = true;
-      ensureMutation.mutate(contactId);
-    }
+    if (!canAutoEnsure) return;
+    if (conversationId || !contactId) return;
+    if (ensuredId || autoEnsuredRef.current || ensureMutation.isPending) return;
+    autoEnsuredRef.current = true;
+    ensureTargetRef.current = contactId;
+    ensureMutation.mutate(contactId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, contactId, ensuredId]);
+  }, [conversationId, contactId, ensuredId, canAutoEnsure]);
 
   // Id efetivo: o do deal (quando já vinculado) ou o recém-garantido.
   const effectiveConversationId = conversationId ?? ensuredId;
-  const ensuring = !effectiveConversationId && !!contactId && (ensureMutation.isPending || !ensureMutation.isError);
+  const ensuring =
+    !effectiveConversationId &&
+    !!contactId &&
+    !ensureMutation.isError &&
+    (ensureMutation.isPending || !dealDetailSettled || canAutoEnsure);
 
   const { data: messagesResp } = useMessages(effectiveConversationId);
   const sendMutation = useSendMessage(effectiveConversationId);
