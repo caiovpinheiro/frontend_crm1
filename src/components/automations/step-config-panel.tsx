@@ -44,7 +44,9 @@ import {
   validateEntries as validateWebhookEntries,
   type WebhookBodyEntry,
 } from "@/lib/webhook-body-builder";
+import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
 import {
+  applyOperatorVariableDefaults,
   buildTemplateComponents,
   countMissingTemplateVariables,
   sameTemplateComponents,
@@ -3584,6 +3586,12 @@ type TemplateOption = {
   flowId?: string | null;
   /** `format` do componente HEADER (Graph) — NONE | TEXT | IMAGE | VIDEO | DOCUMENT. */
   headerFormat?: string | null;
+  /**
+   * Mapeamento variável → campo do CRM definido na criação do template
+   * (Configurações → Modelos de mensagem). Serve de valor padrão dos
+   * parâmetros; o operador pode sobrescrever.
+   */
+  operatorVariables?: OperatorVariableMeta[] | null;
 };
 
 const HEADER_MEDIA_LABEL_PT: Record<string, string> = {
@@ -3856,7 +3864,11 @@ function TemplateStepConfig({
         (m, i) =>
           m.title === (prev[i]?.title ?? "") && (m.gotoStepId ?? "") === (prev[i]?.gotoStepId ?? ""),
       );
-    const desiredComponents = buildTemplateComponents(vars);
+    // Pré-preenche os slots vazios com o mapeamento gravado na criação do
+    // template; o operador ainda pode trocar campo por campo.
+    const desiredComponents = buildTemplateComponents(
+      applyOperatorVariableDefaults(vars, selected.operatorVariables),
+    );
     const sameComponents = sameTemplateComponents(draft.components, desiredComponents);
     if (same && sameComponents) return;
     setDraft((d) => ({

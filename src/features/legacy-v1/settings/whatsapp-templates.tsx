@@ -1,6 +1,6 @@
 "use client";
 
-import { apiUrl } from "@/lib/api";
+import { apiUrl, parseApiResponse } from "@/lib/api";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -24,7 +24,17 @@ import {
   fetchMetaCloudWhatsAppChannels,
   formatMetaChannelLabel,
 } from "@/lib/meta-whatsapp/meta-cloud-channels";
-import { mergeOperatorVariables, type OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
+import {
+  extractMetaPlaceholderKeys,
+  extractUnsupportedPlaceholderTokens,
+  mergeOperatorVariables,
+  type OperatorVariableMeta,
+} from "@/lib/meta-whatsapp/operator-template-variables";
+import {
+  useCrmVariableOptions,
+  VariableShortcutHint,
+  VariableShortcutInput,
+} from "@/components/crm/variable-shortcut-input";
 import { cn } from "@/lib/utils";
 import { ListHScroll } from "@/components/crm/list-hscroll";
 import { ListColumnLabel, listTableHeadRowClass } from "@/components/crm/sortable-header";
@@ -226,6 +236,21 @@ function componentPreviewBlocks(components: unknown[] | undefined): { title: str
   return blocks;
 }
 
+/**
+ * Um marcador do texto em edição no assistente de criação. Cabeçalho e corpo
+ * têm numeração independente na Meta (os dois podem ter `{{1}}`), por isso o
+ * componente entra na identidade do slot.
+ */
+type CreateVarSlot = { component: "header" | "body"; key: string };
+
+function createVarSlotId(slot: CreateVarSlot): string {
+  return `${slot.component}::${slot.key}`;
+}
+
+function createVarSlotLabel(slot: CreateVarSlot): string {
+  return `${slot.component === "header" ? "Cabeçalho" : "Corpo"} {{${slot.key}}}`;
+}
+
 class TemplateBoundary extends React.Component<
   { children: React.ReactNode },
   { error: Error | null }
@@ -377,6 +402,65 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     '{\n  "name": "meu_template",\n  "language": "pt_BR",\n  "category": "MARKETING",\n  "parameter_format": "POSITIONAL",\n  "components": [\n    { "type": "BODY", "text": "Olá {{1}}" }\n  ]\n}',
   );
 
+  // Um valor por marcador, indexado por `createVarSlotId`. `varExamples` vai
+  // para a Meta (`example` do componente, obrigatório quando há variável);
+  // `varCrmFields` fica só no CRM, como preenchimento padrão no envio.
+  const [varExamples, setVarExamples] = React.useState<Record<string, string>>({});
+  const [varCrmFields, setVarCrmFields] = React.useState<Record<string, string>>({});
+
+  const crmVariableOptions = useCrmVariableOptions(createOpen && createMode === "assisted");
+
+  /**
+   * Marcadores que a Meta promove a parâmetro, na ordem em que o contato lê a
+   * mensagem. AUTHENTICATION fica fora: o corpo é fixo da Meta e o `{{1}}` é o
+   * próprio código OTP, que não aceita exemplo.
+   */
+  const createVarSlots = React.useMemo<CreateVarSlot[]>(() => {
+    if (category === "AUTHENTICATION") return [];
+    const slots: CreateVarSlot[] = [];
+    if (headerFormat === "TEXT") {
+      for (const key of extractMetaPlaceholderKeys(headerText)) {
+        slots.push({ component: "header", key });
+      }
+    }
+    for (const key of extractMetaPlaceholderKeys(body)) {
+      slots.push({ component: "body", key });
+    }
+    return slots;
+  }, [category, headerFormat, headerText, body]);
+
+  /**
+   * Tokens entre chaves que a Meta NÃO reconhece (ponto, maiúscula, hífen).
+   * É exatamente o erro que originou o bug do `ativacao_perdidos`: escrever
+   * `{{dealCustomFields.x}}` no corpo faz a Meta aprovar o texto literal.
+   */
+  const unsupportedTokens = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const text of [headerFormat === "TEXT" ? headerText : "", body]) {
+      for (const token of extractUnsupportedPlaceholderTokens(text)) {
+        if (seen.has(token)) continue;
+        seen.add(token);
+        out.push(token);
+      }
+    }
+    return out;
+  }, [body, headerText, headerFormat]);
+
+  /** POSITIONAL exige `{{1}}`; NAMED exige nomes. Misturar = rejeição na Meta. */
+  const parameterFormatMismatch = React.useMemo(() => {
+    const keys = createVarSlots.map((s) => s.key);
+    if (keys.length === 0) return null;
+    const numeric = keys.filter((k) => /^\d+$/.test(k));
+    if (parameterFormat === "POSITIONAL" && numeric.length !== keys.length) {
+      return "POSITIONAL aceita apenas marcadores numéricos ({{1}}, {{2}}…). Troque para NAMED ou renumere o texto.";
+    }
+    if (parameterFormat === "NAMED" && numeric.length > 0) {
+      return "NAMED aceita apenas marcadores com nome ({{nome_curso}}). Troque para POSITIONAL ou renomeie os marcadores.";
+    }
+    return null;
+  }, [createVarSlots, parameterFormat]);
+
   const { data: flowDefsList = [] } = useQuery({
     queryKey: ["whatsapp-flow-definitions"],
     queryFn: async () => {
@@ -419,9 +503,10 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof j?.message === "string" ? j.message : "Erro ao criar");
-      return j;
+      // `parseApiResponse` preserva a mensagem de validação da Meta (exemplo
+      // faltando, formato de parâmetro trocado) em vez de trocá-la por um
+      // texto fixo quando o proxy devolve HTML.
+      return parseApiResponse<{ id?: string }>(res, "Erro ao criar template na Meta.");
     },
     onSuccess: () => {
       toast.success("Template enviado à Meta para análise.");
@@ -433,15 +518,19 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const q = channelId ? `?channelId=${encodeURIComponent(channelId)}` : "";
+    // A Graph exige `name` junto do `hsm_id` para excluir — só o id devolve
+    // "Unsupported delete request".
+    mutationFn: async (vars: { id: string; name: string }) => {
+      const q = new URLSearchParams();
+      q.set("name", vars.name);
+      if (channelId) q.set("channelId", channelId);
       const res = await fetch(
-        apiUrl(`/api/meta/whatsapp/message-templates/${encodeURIComponent(id)}${q}`),
+        apiUrl(
+          `/api/meta/whatsapp/message-templates/${encodeURIComponent(vars.id)}?${q.toString()}`,
+        ),
         { method: "DELETE" },
       );
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof j?.message === "string" ? j.message : "Erro ao excluir");
-      return j;
+      return parseApiResponse<unknown>(res, "Erro ao excluir template na Meta.");
     },
     onSuccess: () => {
       toast.success("Template removido na Meta.");
@@ -499,6 +588,8 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     setHeaderMediaFileName("");
     setQuickTexts([""]);
     setUrlRows([{ text: "", url: "" }]);
+    setVarExamples({});
+    setVarCrmFields({});
     setCreateMode("assisted");
     setFlowAssistEnabled(false);
     setFlowPickId("");
@@ -506,7 +597,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     setFlowActionMeta("NAVIGATE");
   }
 
-  function submitAssisted() {
+  async function submitAssisted() {
     const buttons: Record<string, unknown>[] = [];
     for (const t of quickTexts) {
       const x = t.trim();
@@ -525,21 +616,81 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
         flow_action: flowActionMeta,
       });
     }
-    createMutation.mutate({
-      name,
+
+    // A Meta rejeita template que tem variável e não tem `example`. Bloquear
+    // aqui poupa uma ida à Graph que voltaria erro de qualquer forma.
+    const missing = createVarSlots.filter(
+      (slot) => !(varExamples[createVarSlotId(slot)] ?? "").trim(),
+    );
+    if (missing.length > 0) {
+      toast.error(
+        `Informe o exemplo de ${missing.map(createVarSlotLabel).join(", ")} — a Meta rejeita template com variável sem exemplo.`,
+      );
+      return;
+    }
+
+    const exampleMapOf = (component: "header" | "body") => {
+      const out: Record<string, string> = {};
+      for (const slot of createVarSlots) {
+        if (slot.component !== component) continue;
+        out[slot.key] = (varExamples[createVarSlotId(slot)] ?? "").trim();
+      }
+      return Object.keys(out).length > 0 ? out : undefined;
+    };
+
+    const created = await createMutation
+      .mutateAsync({
+        name,
+        language,
+        category,
+        parameterFormat,
+        body,
+        headerFormat,
+        headerText: headerFormat === "TEXT" ? headerText : undefined,
+        headerMediaUrl: isHeaderMedia ? headerMediaUrl.trim() : undefined,
+        footer: category !== "AUTHENTICATION" ? footer : undefined,
+        buttons: category !== "AUTHENTICATION" && buttons.length ? buttons : undefined,
+        bodyExamples: exampleMapOf("body"),
+        headerExamples: exampleMapOf("header"),
+        addSecurityRecommendation,
+        codeExpirationMinutes,
+        otpType,
+        otpButtonText,
+      })
+      .catch(() => null);
+    if (!created) return;
+
+    // Mapeamento variável → campo do CRM: fica no CRM (não vai para a Meta) e
+    // serve de padrão quando o template for usado numa automação.
+    const metaTemplateId = typeof created.id === "string" ? created.id.trim() : "";
+    const operatorVariables: OperatorVariableMeta[] = createVarSlots
+      .filter((slot) => slot.component === "body")
+      .map((slot) => {
+        const id = createVarSlotId(slot);
+        const example = (varExamples[id] ?? "").trim();
+        const crmField = (varCrmFields[id] ?? "").trim();
+        return {
+          key: slot.key,
+          label: slot.key,
+          ...(example ? { example } : {}),
+          ...(crmField ? { crmField } : {}),
+        };
+      });
+    if (!metaTemplateId || operatorVariables.length === 0) return;
+    configMutation.mutate({
+      metaTemplateId,
+      metaTemplateName: name.trim().toLowerCase().replace(/-/g, "_"),
+      label: "",
+      agentEnabled: false,
       language,
       category,
-      parameterFormat,
-      body,
-      headerFormat,
-      headerText: headerFormat === "TEXT" ? headerText : undefined,
-      headerMediaUrl: isHeaderMedia ? headerMediaUrl.trim() : undefined,
-      footer: category !== "AUTHENTICATION" ? footer : undefined,
-      buttons: category !== "AUTHENTICATION" && buttons.length ? buttons : undefined,
-      addSecurityRecommendation,
-      codeExpirationMinutes,
-      otpType,
-      otpButtonText,
+      bodyPreview: body,
+      hasButtons: buttons.length > 0,
+      buttonTypes: [...new Set(buttons.map((b) => String(b.type)))],
+      hasVariables: createVarSlots.length > 0,
+      flowAction: null,
+      flowId: null,
+      operatorVariables,
     });
   }
 
@@ -966,7 +1117,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                               confirmLabel: "Excluir",
                               variant: "destructive",
                             });
-                            if (ok) deleteMutation.mutate(row.id);
+                            if (ok) deleteMutation.mutate({ id: row.id, name: row.name });
                           }}
                           disabled={deleteMutation.isPending}
                         >
@@ -994,7 +1145,15 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
         footer={
           <>
             <ButtonGlass type="button" variant="glass" onClick={() => setCreateOpen(false)}>Cancelar</ButtonGlass>
-            <ButtonGlass type="button" variant="primary" disabled={createMutation.isPending} onClick={() => (createMode === "json" ? submitJson() : submitAssisted())}>
+            <ButtonGlass
+              type="button"
+              variant="primary"
+              disabled={createMutation.isPending}
+              onClick={() => {
+                if (createMode === "json") submitJson();
+                else void submitAssisted();
+              }}
+            >
               {createMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               <span className={cn(createMutation.isPending && "ml-2")}>Criar na Meta</span>
             </ButtonGlass>
@@ -1152,7 +1311,104 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
               <div>
                 <label className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Corpo {category === "AUTHENTICATION" ? "(ex.: {{1}} é seu código)" : ""}</label>
                 <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="w-full resize-none rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3.5 py-2.5 font-body text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/10 text-sm" />
+                {category !== "AUTHENTICATION" ? (
+                  <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                    Use <code className="font-mono">{"{{1}}"}</code>,{" "}
+                    <code className="font-mono">{"{{2}}"}</code>… onde o texto muda a cada envio.
+                    Cada marcador vira um campo abaixo.
+                  </p>
+                ) : null}
               </div>
+
+              {unsupportedTokens.length > 0 ? (
+                <div className="rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--color-danger)_30%,transparent)] bg-[var(--color-danger-bg)] p-3 text-[12px] text-[var(--color-danger-text)]">
+                  <p className="font-bold">
+                    {unsupportedTokens.map((t) => `{{${t}}}`).join(", ")} não é variável para a
+                    Meta.
+                  </p>
+                  <p className="mt-1">
+                    Marcador com ponto, maiúscula ou hífen é aprovado como <strong>texto
+                    literal</strong> — o contato recebe exatamente{" "}
+                    <code className="font-mono">{`{{${unsupportedTokens[0]}}}`}</code>. Escreva{" "}
+                    <code className="font-mono">{"{{1}}"}</code> no texto e escolha o campo do CRM
+                    no bloco de variáveis, abaixo.
+                  </p>
+                </div>
+              ) : null}
+
+              {createVarSlots.length > 0 ? (
+                <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--glass-border-subtle)] bg-[color-mix(in_srgb,var(--text-primary)_4%,transparent)] p-3">
+                  <div>
+                    <p className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                      Variáveis do template ({createVarSlots.length})
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                      O <strong className="text-[var(--text-secondary)]">exemplo</strong> vai para a
+                      Meta na análise e é obrigatório. O{" "}
+                      <strong className="text-[var(--text-secondary)]">campo do CRM</strong> fica só
+                      aqui: é o valor padrão que o CRM usa ao enviar o template.
+                    </p>
+                  </div>
+                  {parameterFormatMismatch ? (
+                    <p className="rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--color-warn)_35%,transparent)] bg-[var(--color-warn-bg)] px-2.5 py-1.5 text-[11px] text-[var(--color-warn)]">
+                      {parameterFormatMismatch}
+                    </p>
+                  ) : null}
+                  {createVarSlots.map((slot) => {
+                    const slotId = createVarSlotId(slot);
+                    return (
+                      <div key={slotId} className="space-y-1.5">
+                        <p className="font-mono text-[12px] font-bold text-[var(--text-primary)]">
+                          {createVarSlotLabel(slot)}
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <label
+                              htmlFor={`tpl-example-${slotId}`}
+                              className="block text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+                            >
+                              Exemplo (vai para a Meta)
+                            </label>
+                            <InputGlass
+                              id={`tpl-example-${slotId}`}
+                              value={varExamples[slotId] ?? ""}
+                              onChange={(e) =>
+                                setVarExamples((prev) => ({ ...prev, [slotId]: e.target.value }))
+                              }
+                              placeholder="ex.: Auxiliar de Logística"
+                            />
+                          </div>
+                          {slot.component === "body" ? (
+                            <div className="space-y-1">
+                              <label
+                                htmlFor={`tpl-crm-${slotId}`}
+                                className="block text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+                              >
+                                Campo do CRM (fica no CRM)
+                              </label>
+                              <VariableShortcutInput
+                                id={`tpl-crm-${slotId}`}
+                                value={varCrmFields[slotId] ?? ""}
+                                onChange={(next) =>
+                                  setVarCrmFields((prev) => ({ ...prev, [slotId]: next }))
+                                }
+                                options={crmVariableOptions}
+                                placeholder="{ para escolher o campo"
+                              />
+                            </div>
+                          ) : (
+                            <p className="self-end pb-2.5 text-[11px] text-[var(--text-muted)]">
+                              Variável de cabeçalho é preenchida no envio; o mapeamento padrão só
+                              existe para o corpo.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <VariableShortcutHint />
+                </div>
+              ) : null}
 
               {category === "AUTHENTICATION" ? (
                 <div className="space-y-2 rounded-[var(--radius-lg)] border border-[var(--glass-border-subtle)] bg-[color-mix(in_srgb,var(--text-primary)_4%,transparent)] p-3 text-sm">

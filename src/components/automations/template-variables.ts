@@ -20,6 +20,10 @@ import {
   templateVariablesFromSendComponents,
   type TemplateVariableInput,
 } from "@/lib/meta-whatsapp/build-template-components";
+import {
+  operatorVariableCrmField,
+  type OperatorVariableMeta,
+} from "@/lib/meta-whatsapp/operator-template-variables";
 
 /** Um campo da tela: o placeholder `key` dentro de `component`. */
 export type TemplateVariableSlot = {
@@ -95,6 +99,28 @@ export function reconcileTemplateVariables(
     key: s.key,
     value: byId.get(slotId(s.component, s.key)) ?? "",
   }));
+}
+
+/**
+ * Aplica o mapeamento padrão definido na criação do template
+ * (`WhatsAppTemplateConfig.operatorVariables[].crmField`) aos slots ainda
+ * vazios. O operador continua livre para sobrescrever: valor já preenchido
+ * nunca é tocado.
+ *
+ * Só vale para o corpo — `operatorVariables` indexa por chave, sem componente,
+ * e cabeçalho e corpo podem ter a mesma chave (`{{1}}`).
+ */
+export function applyOperatorVariableDefaults(
+  vars: TemplateVariableInput[],
+  operatorVariables: OperatorVariableMeta[] | null | undefined,
+): TemplateVariableInput[] {
+  if (!operatorVariables?.length) return vars;
+  return vars.map((v) => {
+    if ((v.component ?? "body") !== "body") return v;
+    if ((v.value ?? "").trim()) return v;
+    const crmField = operatorVariableCrmField(operatorVariables, String(v.key ?? "").trim());
+    return crmField ? { ...v, value: crmField } : v;
+  });
 }
 
 /** Estado da UI a partir do passo salvo, já reconciliado com o template atual. */
