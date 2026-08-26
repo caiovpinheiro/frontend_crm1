@@ -807,6 +807,73 @@ function ResponsiblesCardList({
   );
 }
 
+function InlineQueueLimit({
+  userId,
+  value,
+  canEdit,
+}: {
+  userId: string;
+  value: number;
+  canEdit: boolean;
+}) {
+  const updateMut = useUpdateResponsible();
+  const [draft, setDraft] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setDraft(String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    setFocused(false);
+    const next = Math.max(0, Math.floor(Number(draft) || 0));
+    setDraft(String(next));
+    if (next === value) return;
+    updateMut.mutate(
+      { userId, input: { queueLimit: next } },
+      {
+        onSuccess: () => toast.success("Volume atualizado."),
+        onError: (err) => toast.error(err.message || "Erro ao salvar volume."),
+      },
+    );
+  };
+
+  if (!canEdit) {
+    return (
+      <span className="font-display text-[15px] font-extrabold text-[var(--text-primary)]">
+        {value}
+      </span>
+    );
+  }
+
+  return (
+    <input
+      type="number"
+      min={0}
+      inputMode="numeric"
+      value={draft}
+      disabled={updateMut.isPending}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={(e) => {
+        setFocused(true);
+        e.currentTarget.select();
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setDraft(String(value));
+          setFocused(false);
+          e.currentTarget.blur();
+        }
+      }}
+      aria-label="Volume (limite de fila)"
+      title="Editar volume"
+      className="mx-auto w-14 rounded-[var(--radius-md)] border border-transparent bg-transparent px-1 py-0.5 text-center font-display text-[15px] font-extrabold tabular-nums text-[var(--text-primary)] outline-none transition-colors hover:border-[var(--glass-border)] hover:bg-[var(--glass-bg-overlay)] focus:border-[var(--brand-primary)] focus:bg-[var(--glass-bg-overlay)] disabled:opacity-60"
+    />
+  );
+}
+
 function ResponsibleCard({
   r,
   isCurrentUser,
@@ -921,9 +988,7 @@ function ResponsibleCard({
 
       {/* Volume */}
       <div className="text-center font-body text-[18px] leading-none text-[var(--text-muted)]">
-        <span className="font-display text-[15px] font-extrabold text-[var(--text-primary)]">
-          {r.queueLimit}
-        </span>
+        <InlineQueueLimit userId={r.userId} value={r.queueLimit} canEdit={canManage} />
       </div>
 
       {/* Elegibilidade */}
@@ -1142,9 +1207,7 @@ function ResponsibleMobileCard({
           <p className="text-[8px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
             Volume
           </p>
-          <p className="font-display text-[12px] font-extrabold leading-none text-[var(--text-primary)]">
-            {r.queueLimit}
-          </p>
+          <InlineQueueLimit userId={r.userId} value={r.queueLimit} canEdit={canManage} />
         </div>
         <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
           <p className="text-[8px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
