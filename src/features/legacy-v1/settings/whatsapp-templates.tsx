@@ -1,11 +1,11 @@
 "use client";
 
-import { apiUrl, parseApiResponse } from "@/lib/api";
+import { ApiError, apiUrl, parseApiResponse } from "@/lib/api";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconAlertTriangle as AlertTriangle, IconArrowLeft as ArrowLeft, IconBook2 as BookOpen, IconCheck as Check, IconCircleCheck as CheckCircle2, IconClipboard as ClipboardCopy, IconClock as Clock, IconCopy as Copy, IconEye as Eye, IconStack as Layers, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPencil as Pencil, IconPhone as Phone, IconPlus as Plus, IconRefresh as RefreshCw, IconSearch as Search, IconTrash as Trash2, IconUserCheck as UserCheck } from "@tabler/icons-react";
+import { IconAlertTriangle as AlertTriangle, IconArrowLeft as ArrowLeft, IconBook2 as BookOpen, IconCheck as Check, IconCircleCheck as CheckCircle2, IconClipboard as ClipboardCopy, IconClock as Clock, IconCopy as Copy, IconEye as Eye, IconEyeOff as EyeOff, IconStack as Layers, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPencil as Pencil, IconPhone as Phone, IconPlus as Plus, IconRefresh as RefreshCw, IconSearch as Search, IconTrash as Trash2, IconUserCheck as UserCheck } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import type { ApiChannel } from "@/components/channels/types";
@@ -69,6 +69,8 @@ type MetaTemplateRow = {
   components?: unknown[];
   quality_score?: { score?: string };
   rejected_reason?: string;
+  /** Ocultado no CRM (marcação local, não existe na Meta). */
+  hiddenInCrm?: boolean;
 };
 
 type TemplateConfig = {
@@ -86,6 +88,7 @@ type TemplateConfig = {
   flowAction: string | null;
   flowId: string | null;
   operatorVariables?: OperatorVariableMeta[] | null;
+  hiddenAt?: string | null;
 };
 
 type ListResponse = {
@@ -144,7 +147,10 @@ function meaningfulRejectedReason(status: string, reason: string | undefined): s
  * preso na primeira página (até 100) e não exibia o total real da conta.
  * Com `channelId`, lista a WABA daquele canal (necessário com 2+ Cloud API).
  */
-async function fetchAllTemplates(channelId?: string | null): Promise<MetaTemplateRow[]> {
+async function fetchAllTemplates(
+  channelId?: string | null,
+  includeHidden = false,
+): Promise<MetaTemplateRow[]> {
   const all: MetaTemplateRow[] = [];
   let after: string | undefined;
   // Guarda de segurança contra loop infinito (500 * 200 = 100k templates).
@@ -153,6 +159,7 @@ async function fetchAllTemplates(channelId?: string | null): Promise<MetaTemplat
     q.set("limit", "500");
     if (after) q.set("after", after);
     if (channelId?.trim()) q.set("channelId", channelId.trim());
+    if (includeHidden) q.set("includeHidden", "1");
     const res = await fetch(apiUrl(`/api/meta/whatsapp/message-templates?${q.toString()}`));
     const data = (await res.json().catch(() => ({}))) as ListResponse & { message?: string };
     if (!res.ok) {
@@ -164,6 +171,37 @@ async function fetchAllTemplates(channelId?: string | null): Promise<MetaTemplat
     after = next;
   }
   return all;
+}
+
+type TemplateUsage = {
+  automations: Array<{ id: string; number: number; name: string; active: boolean }>;
+  activeCount: number;
+};
+
+/** Automações cujo passo "Template WhatsApp" aponta para este template. */
+async function fetchTemplateUsage(name: string): Promise<TemplateUsage> {
+  const res = await fetch(
+    apiUrl(`/api/whatsapp-template-configs/hidden?name=${encodeURIComponent(name)}`),
+  );
+  return parseApiResponse<TemplateUsage>(res, "Erro ao verificar uso do template.");
+}
+
+/**
+ * Oculta/reexibe o template só no CRM. A Meta não tem esse conceito — quando
+ * ela recusa a exclusão (template em campanha, janela de 30 dias), é isto que
+ * tira o template da lista sem mentir que foi excluído lá.
+ */
+async function setTemplateHidden(vars: {
+  metaTemplateId: string;
+  metaTemplateName: string;
+  hidden: boolean;
+}): Promise<void> {
+  const res = await fetch(apiUrl("/api/whatsapp-template-configs/hidden"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(vars),
+  });
+  await parseApiResponse<unknown>(res, "Erro ao ocultar template no CRM.");
 }
 
 type CloneReport = {
@@ -318,9 +356,13 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     setChannelId((connected ?? metaChannels[0]).id);
   }, [metaChannels, channelId]);
 
+  // Templates ocultados no CRM ficam fora da lista por padrão; o toggle traz
+  // de volta (marcados) para dar pra reexibir.
+  const [showHidden, setShowHidden] = React.useState(false);
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["meta-whatsapp-templates", "all", channelId || "none"],
-    queryFn: () => fetchAllTemplates(channelId),
+    queryKey: ["meta-whatsapp-templates", "all", channelId || "none", showHidden],
+    queryFn: () => fetchAllTemplates(channelId, showHidden),
     enabled: Boolean(channelId),
   });
 
@@ -349,6 +391,9 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     (r) => r.status === "PENDING" || r.status === "PENDING_APPROVAL",
   ).length;
   const countAgent = rows.filter((r) => configByMetaId.get(r.id)?.agentEnabled).length;
+  // Vem dos configs locais, não das linhas: com o toggle desligado as linhas
+  // ocultas nem chegam do backend, mas o chip precisa mostrar o total.
+  const hiddenCount = templateConfigs.filter((c) => c.hiddenAt).length;
 
   const [query, setQuery] = React.useState("");
   const [catFilter, setCatFilter] = React.useState<"all" | "UTILITY" | "MARKETING" | "AUTHENTICATION">("all");
@@ -362,6 +407,14 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
       return okC && okQ;
     });
   }, [rows, query, catFilter, configByMetaId]);
+
+  /** Lista da Meta + configs locais + seletores de template das automações. */
+  function invalidateTemplateLists() {
+    queryClient.invalidateQueries({ queryKey: ["meta-whatsapp-templates"] });
+    queryClient.invalidateQueries({ queryKey: ["whatsapp-template-configs"] });
+    queryClient.invalidateQueries({ queryKey: ["automation-whatsapp-templates"] });
+    queryClient.invalidateQueries({ queryKey: ["editor-wa-templates"] });
+  }
 
   const configMutation = useMutation({
     mutationFn: upsertTemplateConfig,
@@ -534,10 +587,118 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     },
     onSuccess: () => {
       toast.success("Template removido na Meta.");
-      queryClient.invalidateQueries({ queryKey: ["meta-whatsapp-templates"] });
+      invalidateTemplateLists();
+    },
+  });
+
+  const hideMutation = useMutation({
+    mutationFn: setTemplateHidden,
+    onSuccess: (_r, vars) => {
+      toast.success(
+        vars.hidden
+          ? "Template oculto no CRM. Na Meta ele continua existindo."
+          : "Template reexibido.",
+      );
+      invalidateTemplateLists();
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  /**
+   * Exclui na Meta; se a Graph recusar (template em campanha, janela de 30
+   * dias, permissão), mostra o motivo dela e oferece ocultar só no CRM — o
+   * template para de aparecer sem fingir que foi apagado lá.
+   *
+   * Ocultar não interrompe automação que já usa o template: o envio resolve
+   * pelo nome. Por isso, quando há automação ativa usando, exigimos uma
+   * confirmação extra listando quais são.
+   */
+  async function handleDeleteTemplate(row: MetaTemplateRow) {
+    const ok = await confirmDialog({
+      title: "Excluir template",
+      description: `Excluir o template "${row.name}" na Meta? Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      await deleteMutation.mutateAsync({ id: row.id, name: row.name });
+      return;
+    } catch (e) {
+      const metaError = e instanceof Error ? e.message : "Erro desconhecido.";
+      // O status ajuda a distinguir recusa da Graph (502 com texto dela) de
+      // falha de proxy (HTML), que vira a mensagem genérica de indisponível.
+      const status = e instanceof ApiError ? ` (HTTP ${e.status})` : "";
+      const hide = await confirmDialog({
+        title: "A Meta não excluiu o template",
+        description: (
+          <>
+            <p>
+              {metaError}
+              {status}
+            </p>
+            <p className="mt-2">
+              Posso ocultar <strong>{row.name}</strong> só no CRM: ele sai desta
+              lista, do seletor das automações e das mensagens prontas. Na Meta
+              o template continua existindo.
+            </p>
+          </>
+        ),
+        confirmLabel: "Ocultar no CRM",
+        cancelLabel: "Manter na lista",
+      });
+      if (!hide) return;
+      await hideTemplateWithUsageCheck(row);
+    }
+  }
+
+  /** Confirma com o operador quando há automação ativa usando o template. */
+  async function hideTemplateWithUsageCheck(row: MetaTemplateRow) {
+    let usage: TemplateUsage | null = null;
+    try {
+      usage = await fetchTemplateUsage(row.name);
+    } catch {
+      // Falha ao consultar uso não bloqueia ocultar — só perdemos o aviso.
+    }
+
+    const used = usage && Array.isArray(usage.automations) ? usage.automations : [];
+    const active = used.filter((a) => a.active);
+    if (active.length > 0) {
+      const ok = await confirmDialog({
+        title: "Template em uso por automação ativa",
+        description: (
+          <>
+            <p>
+              {active.length === 1
+                ? "1 automação ativa usa este template:"
+                : `${active.length} automações ativas usam este template:`}
+            </p>
+            <ul className="mt-2 list-disc pl-5">
+              {active.slice(0, 8).map((a) => (
+                <li key={a.id}>
+                  #{a.number} — {a.name}
+                </li>
+              ))}
+              {active.length > 8 ? <li>e outras {active.length - 8}…</li> : null}
+            </ul>
+            <p className="mt-2">
+              Elas continuam enviando normalmente — ocultar só tira o template
+              das listas do CRM. Confirma?
+            </p>
+          </>
+        ),
+        confirmLabel: "Ocultar mesmo assim",
+      });
+      if (!ok) return;
+    }
+
+    hideMutation.mutate({
+      metaTemplateId: row.id,
+      metaTemplateName: row.name,
+      hidden: true,
+    });
+  }
 
   const cloneMutation = useMutation({
     mutationFn: async (vars: { sourceChannelId: string; targetChannelId: string }) => {
@@ -880,6 +1041,11 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
           <HubChip active={catFilter === "AUTHENTICATION"} onClick={() => setCatFilter("AUTHENTICATION")} count={countAuth}>
             Auth
           </HubChip>
+          {hiddenCount > 0 || showHidden ? (
+            <HubChip active={showHidden} onClick={() => setShowHidden((v) => !v)} count={hiddenCount}>
+              Ocultos
+            </HubChip>
+          ) : null}
         </HubToolbar>
 
         <p className="px-[18px] pt-3 text-[12px] text-[var(--text-muted)]">
@@ -975,7 +1141,10 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                   <div
                     key={row.id}
                     style={{ gridTemplateColumns: TPL_GRID_COLS }}
-                    className="group grid items-center gap-3 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]"
+                    className={cn(
+                      "group grid items-center gap-3 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]",
+                      row.hiddenInCrm && "opacity-60",
+                    )}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-success)_14%,transparent)] text-[var(--color-success)]">
@@ -988,6 +1157,15 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--color-info)_14%,transparent)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-info)] ring-1 ring-[color-mix(in_srgb,var(--color-info)_30%,transparent)]">
                               <Phone className="size-2.5" />
                               Voz
+                            </span>
+                          ) : null}
+                          {row.hiddenInCrm ? (
+                            <span
+                              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--glass-bg-overlay)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)] ring-1 ring-[var(--glass-border)]"
+                              title="Oculto no CRM — continua existindo na Meta"
+                            >
+                              <EyeOff className="size-2.5" />
+                              Oculto
                             </span>
                           ) : null}
                         </div>
@@ -1104,21 +1282,46 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                         >
                           <ClipboardCopy className="size-3.5" />
                         </ButtonGlass>
+                        {row.hiddenInCrm ? (
+                          <ButtonGlass
+                            type="button"
+                            variant="glass"
+                            size="icon"
+                            className="size-8"
+                            aria-label="Reexibir no CRM"
+                            title="Reexibir no CRM"
+                            onClick={() =>
+                              hideMutation.mutate({
+                                metaTemplateId: row.id,
+                                metaTemplateName: row.name,
+                                hidden: false,
+                              })
+                            }
+                            disabled={hideMutation.isPending}
+                          >
+                            <Eye className="size-3.5" />
+                          </ButtonGlass>
+                        ) : (
+                          <ButtonGlass
+                            type="button"
+                            variant="glass"
+                            size="icon"
+                            className="size-8"
+                            aria-label="Ocultar no CRM"
+                            title="Ocultar no CRM (não mexe na Meta)"
+                            onClick={() => void hideTemplateWithUsageCheck(row)}
+                            disabled={hideMutation.isPending}
+                          >
+                            <EyeOff className="size-3.5" />
+                          </ButtonGlass>
+                        )}
                         <ButtonGlass
                           type="button"
                           variant="glass"
                           size="icon"
                           className="size-8 text-[var(--color-danger)] hover:text-[var(--color-danger)]"
                           aria-label="Excluir na Meta"
-                          onClick={async () => {
-                            const ok = await confirmDialog({
-                              title: "Excluir template",
-                              description: `Excluir o template "${row.name}" na Meta? Esta ação não pode ser desfeita.`,
-                              confirmLabel: "Excluir",
-                              variant: "destructive",
-                            });
-                            if (ok) deleteMutation.mutate({ id: row.id, name: row.name });
-                          }}
+                          onClick={() => void handleDeleteTemplate(row)}
                           disabled={deleteMutation.isPending}
                         >
                           <Trash2 className="size-3.5" />
