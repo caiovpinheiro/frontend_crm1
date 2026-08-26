@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLock as Lock, IconLogin as LogIn, IconMail as Mail, IconShieldCheck as ShieldCheck } from "@tabler/icons-react";
+import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLock as Lock, IconLogin as LogIn, IconMail as Mail } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
