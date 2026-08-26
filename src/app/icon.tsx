@@ -29,7 +29,7 @@ export default function Icon() {
           letterSpacing: -1,
         }}
       >
-        E
+        B
       </div>
     ),
     { ...size },

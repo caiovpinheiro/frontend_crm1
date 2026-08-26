@@ -40,16 +40,16 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "EduIT CRM",
+  title: "Bwipo",
   description: "CRM para gestão de relacionamento com clientes",
-  applicationName: "EduIT",
+  applicationName: "Bwipo",
   // PWA / iOS standalone — quando instalado na home, abre fullscreen
   // com a barra de status preta translucida (Safari respeita "default"
   // mais "black-translucent": o conteudo passa por baixo da status bar
   // e aproveitamos o env(safe-area-inset-top) pra empurrar o conteudo).
   appleWebApp: {
     capable: true,
-    title: "EduIT",
+    title: "Bwipo",
     statusBarStyle: "black-translucent",
   },
   formatDetection: {

@@ -34,7 +34,7 @@ export default function Icon512() {
           letterSpacing: -16,
         }}
       >
-        E
+        B
       </div>
     ),
     { ...size },

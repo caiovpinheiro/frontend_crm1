@@ -34,7 +34,7 @@ export default function IconMaskable() {
           letterSpacing: -10,
         }}
       >
-        E
+        B
       </div>
     ),
     { ...size },

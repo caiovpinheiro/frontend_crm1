@@ -298,7 +298,7 @@ function LoginForm() {
           >
             <ShieldCheck className="size-8 text-white" strokeWidth={2} />
           </div>
-          <h1 className="font-display text-[22px] font-bold tracking-tight text-white">CRM EduIT</h1>
+          <h1 className="font-display text-[22px] font-bold tracking-tight text-white">Bwipo</h1>
           <p className="mt-1 text-[14px] text-white/70">
             {identifyOnly
               ? "Informe seu e-mail para abrir o login da sua empresa."
@@ -438,7 +438,7 @@ function LoginForm() {
           </p>
         </form>
 
-        <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · CRM EduIT</p>
+        <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · Bwipo</p>
       </div>
     </div>
     </HeroGeometric>

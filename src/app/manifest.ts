@@ -29,10 +29,10 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "EduIT CRM",
-    short_name: "EduIT",
+    name: "Bwipo",
+    short_name: "Bwipo",
     description:
-      "CRM EduIT — Inbox, Pipeline e atendimento WhatsApp em um app instalavel.",
+      "Bwipo — Inbox, Pipeline e atendimento WhatsApp em um app instalavel.",
     start_url: "/inbox",
     scope: "/",
     display: "standalone",
