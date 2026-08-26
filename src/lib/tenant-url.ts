@@ -2,11 +2,11 @@
  * URLs de tenant no estilo Kommo: https://{slug}.{NEXT_PUBLIC_TENANT_BASE_DOMAIN}
  *
  * Env (inlined no browser):
- *   NEXT_PUBLIC_TENANT_BASE_DOMAIN  — default `crm.eduit.com.br`
+ *   NEXT_PUBLIC_TENANT_BASE_DOMAIN  — default `bwipo.com`
  *   NEXT_PUBLIC_TENANT_PROTOCOL     — default `https` (use `http` em dev)
  */
 
-const DEFAULT_BASE_DOMAIN = "crm.eduit.com.br";
+const DEFAULT_BASE_DOMAIN = "bwipo.com";
 const DEFAULT_PROTOCOL = "https";
 
 export function getTenantBaseDomain(): string {

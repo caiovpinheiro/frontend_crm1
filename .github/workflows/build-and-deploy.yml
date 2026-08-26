@@ -67,28 +67,36 @@ jobs:
         run: |
           if [ "$BRANCH_REF" = "refs/heads/main" ]; then
             TAG=latest
-            API_BASE="$V_API_BASE_PROD"
-            NEXTAUTH_URL="$V_NEXTAUTH_URL_PROD"
+            API_BASE="${V_API_BASE_PROD:-https://api.bwipo.com}"
+            NEXTAUTH_URL="${V_NEXTAUTH_URL_PROD:-https://bwipo.com}"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_PROD"
             WEBHOOK="$S_WEBHOOK_PROD"
+            TENANT_BASE="bwipo.com"
+            APP_URL="https://bwipo.com"
           else
             TAG=dev
             API_BASE="$V_API_BASE_DEV"
             NEXTAUTH_URL="$V_NEXTAUTH_URL_DEV"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_DEV"
             WEBHOOK="$S_WEBHOOK_DEV"
+            TENANT_BASE=""
+            APP_URL=""
           fi
           TAG=$(printf '%s' "$TAG" | tr -d '\r\n')
           API_BASE=$(printf '%s' "$API_BASE" | tr -d '\r\n')
           NEXTAUTH_URL=$(printf '%s' "$NEXTAUTH_URL" | tr -d '\r\n')
           NEXTAUTH_SECRET=$(printf '%s' "$NEXTAUTH_SECRET" | tr -d '\r\n')
           WEBHOOK=$(printf '%s' "$WEBHOOK" | tr -d '\r\n')
+          TENANT_BASE=$(printf '%s' "$TENANT_BASE" | tr -d '\r\n')
+          APP_URL=$(printf '%s' "$APP_URL" | tr -d '\r\n')
           {
             echo "TAG=$TAG"
             echo "API_BASE=$API_BASE"
             echo "NEXTAUTH_URL=$NEXTAUTH_URL"
             echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET"
             echo "WEBHOOK=$WEBHOOK"
+            echo "TENANT_BASE=$TENANT_BASE"
+            echo "APP_URL=$APP_URL"
           } >> "$GITHUB_OUTPUT"
           echo "::group::env resolved (values masked)"
           [ -n "$TAG" ]             && echo "TAG=<set>"             || echo "TAG=<EMPTY>"
@@ -96,6 +104,8 @@ jobs:
           [ -n "$NEXTAUTH_URL" ]    && echo "NEXTAUTH_URL=<set>"    || echo "NEXTAUTH_URL=<EMPTY>"
           [ -n "$NEXTAUTH_SECRET" ] && echo "NEXTAUTH_SECRET=<set>" || echo "NEXTAUTH_SECRET=<EMPTY>"
           [ -n "$WEBHOOK" ]         && echo "WEBHOOK=<set>"         || echo "WEBHOOK=<EMPTY>"
+          [ -n "$TENANT_BASE" ]     && echo "TENANT_BASE=<set>"     || echo "TENANT_BASE=<EMPTY>"
+          [ -n "$APP_URL" ]         && echo "APP_URL=<set>"         || echo "APP_URL=<EMPTY>"
           echo "::endgroup::"
 
       # ── Build Next.js fora do Docker ─────────────────────────────────────
@@ -143,6 +153,9 @@ jobs:
           NEXTAUTH_URL: ${{ steps.env.outputs.NEXTAUTH_URL }}
           NEXTAUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
           AUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
+          NEXT_PUBLIC_TENANT_BASE_DOMAIN: ${{ steps.env.outputs.TENANT_BASE }}
+          NEXT_PUBLIC_APP_URL: ${{ steps.env.outputs.APP_URL }}
+          NEXT_PUBLIC_TENANT_PROTOCOL: https
           BUILD_ID: ${{ github.sha }}
           GITHUB_SHA: ${{ github.sha }}
         run: npm run build

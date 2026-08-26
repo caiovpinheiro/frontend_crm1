@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
+import { resolveTenantFromRequest } from "@/lib/tenant-host";
+import { buildTenantUrl, getTenantBaseDomain, getTenantProtocol } from "@/lib/tenant-url";
 
 function LoginShellFallback() {
   return (
@@ -45,41 +47,40 @@ function resolvePostLoginOrigin(): string {
     origin.startsWith("capacitor://") ||
     origin.startsWith("ionic://")
   ) {
-    return (
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-      "https://frontend-front.v74knz.easypanel.host"
-    );
+    const app = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+    if (app && !/easypanel\.host/i.test(app)) return app;
+    return `${getTenantProtocol()}://${getTenantBaseDomain()}`;
   }
   return origin;
+}
+
+function isApexLoginHost(): boolean {
+  if (typeof window === "undefined") return false;
+  return resolveTenantFromRequest({ hostHeader: window.location.host }).kind === "apex";
 }
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = safeInternalPath(searchParams.get("callbackUrl"), "/dashboard");
+  const emailFromQuery = (searchParams.get("email") ?? "").trim();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailFromQuery);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // Botão de preview: resolvido só no client (após mount) para cobrir o caso
-  // do v0.dev onde a env var NEXT_PUBLIC_PREVIEW_MODE não foi inlinada no build.
-  // Em SSR fica `false` → sem hydration mismatch.
+  const [identifyOnly, setIdentifyOnly] = useState(false);
   const [previewAllowed, setPreviewAllowed] = useState(false);
-  /**
-   * Bump incrementado a cada novo erro pra forçar o `<motion.p role="alert">`
-   * a refazer a animação de entrada mesmo quando a string do erro é igual à
-   * tentativa anterior (ex.: usuário erra senha 2x seguidas). React não
-   * re-monta um node só porque o texto mudou de "X" pra "X" — usamos a
-   * `key={errorBump}` no nó pra forçar remount + animação.
-   */
   const [errorBump, setErrorBump] = useState(0);
   const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setPreviewAllowed(isPreviewMode() || isV0PreviewHost());
-  }, []);
+    if (isApexLoginHost() && !emailFromQuery) {
+      setIdentifyOnly(true);
+    }
+  }, [emailFromQuery]);
 
   useEffect(() => {
     if (!loginSuccess) return;
@@ -116,6 +117,33 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
+      if (identifyOnly) {
+        const res = await fetch("/api/auth/tenant-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+        });
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; slug?: string | null; apex?: boolean }
+          | null;
+        if (!res.ok || !data?.ok) {
+          showError("Não encontramos uma conta com este e-mail.");
+          return;
+        }
+        if (data.slug) {
+          const next = new URL(`${buildTenantUrl(data.slug)}/login`);
+          next.searchParams.set("email", email.trim());
+          if (callbackUrl && callbackUrl !== "/dashboard") {
+            next.searchParams.set("callbackUrl", callbackUrl);
+          }
+          window.location.assign(next.toString());
+          return;
+        }
+        setIdentifyOnly(false);
+        requestAnimationFrame(() => passwordRef.current?.focus());
+        return;
+      }
+
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
@@ -271,7 +299,11 @@ function LoginForm() {
             <ShieldCheck className="size-8 text-white" strokeWidth={2} />
           </div>
           <h1 className="font-display text-[22px] font-bold tracking-tight text-white">CRM EduIT</h1>
-          <p className="mt-1 text-[14px] text-white/70">Faça login para gerenciar conversas e negócios.</p>
+          <p className="mt-1 text-[14px] text-white/70">
+            {identifyOnly
+              ? "Informe seu e-mail para abrir o login da sua empresa."
+              : "Faça login para gerenciar conversas e negócios."}
+          </p>
         </div>
 
         <form
@@ -299,6 +331,7 @@ function LoginForm() {
             </div>
           </div>
 
+          {!identifyOnly ? (
           <div className="mb-6">
             <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
               Senha
@@ -336,6 +369,7 @@ function LoginForm() {
               </button>
             </div>
           </div>
+          )}
 
           {error ? (
             <motion.div
@@ -367,12 +401,12 @@ function LoginForm() {
             {loading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Entrando…
+                {identifyOnly ? "Buscando…" : "Entrando…"}
               </>
             ) : (
               <>
                 <LogIn className="size-4" />
-                Entrar
+                {identifyOnly ? "Continuar" : "Entrar"}
               </>
             )}
           </button>
