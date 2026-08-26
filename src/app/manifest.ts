@@ -44,21 +44,21 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       // PNG 192 — minimo obrigatorio do Chrome Android pra installable.
       {
-        src: "/icon0",
+        src: "/icon-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       // PNG 512 — splash screen Android + icone alta densidade.
       {
-        src: "/icon1",
+        src: "/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       // PNG 512 maskable — adaptive icon Android (corta em circulo/squircle).
       {
-        src: "/icon2",
+        src: "/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
@@ -78,21 +78,21 @@ export default function manifest(): MetadataRoute.Manifest {
         short_name: "Inbox",
         description: "Conversas em aberto",
         url: "/inbox",
-        icons: [{ src: "/icon0", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Pipeline",
         short_name: "Pipeline",
         description: "Funil de vendas",
         url: "/pipeline",
-        icons: [{ src: "/icon0", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Tarefas",
         short_name: "Tarefas",
         description: "Minhas tarefas",
         url: "/activities",
-        icons: [{ src: "/icon0", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],
   };

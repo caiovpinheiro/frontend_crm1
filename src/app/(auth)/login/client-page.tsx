@@ -289,16 +289,13 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center p-6">
       <div className="flex w-full max-w-sm flex-col items-center">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div
-            className="mb-4 flex size-16 items-center justify-center rounded-2xl text-white"
-            style={{
-              background: "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)",
-              boxShadow: "0 12px 32px -8px rgba(91,111,245,0.55)",
-            }}
-          >
-            <ShieldCheck className="size-8 text-white" strokeWidth={2} />
-          </div>
-          <h1 className="font-display text-[22px] font-bold tracking-tight text-white">Bwipo</h1>
+          {/* Logo Bwipo (fundo transparente) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-bwipo.png"
+            alt="Bwipo"
+            className="mb-4 h-12 w-auto object-contain"
+          />
           <p className="mt-1 text-[14px] text-white/70">
             {identifyOnly
               ? "Informe seu e-mail para abrir o login da sua empresa."
