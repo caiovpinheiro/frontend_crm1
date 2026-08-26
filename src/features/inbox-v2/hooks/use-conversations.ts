@@ -254,8 +254,12 @@ export function useTabCounts(
   return useQuery<TabCounts>({
     queryKey: ["conversations", "tab-counts", filterKey, searchKey],
     queryFn: () => fetchTabCounts(filters, searchKey),
-    refetchInterval: 8_000,
-    staleTime: 2_000,
+    // `?counts=1` agrega sobre todas as conversas da org (300ms-1.6s no
+    // servidor). O SSE (`useInboxRealtime`) já invalida esta query em
+    // new_message/conversation_updated, então o polling é só safety-net —
+    // 8s multiplicava essa agregação por aba aberta e por atendente.
+    refetchInterval: 30_000,
+    staleTime: 25_000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     enabled: isPreviewMode() ? true : enabled,
