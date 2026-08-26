@@ -44,8 +44,6 @@ import {
   mergeTemplateQuickReplies,
   useStepTemplateCatalog,
   useUserOptions,
-  usePublishedFlowOptions,
-  optionsWithSaved,
   type Opt,
 } from "./editor-data"
 import {
@@ -1659,9 +1657,6 @@ type BtnItem = {
   text?: string
   title?: string
   gotoStepId?: string
-  kind?: string
-  flowDefinitionId?: string
-  flowCta?: string
 }
 
 function ButtonsBuilder({
@@ -1690,14 +1685,10 @@ function ButtonsBuilder({
   const key = variant
   const asList = items.length > 3
   const titleMax = asList ? 24 : 20
-  const allowFlow = variant === "title"
-  const flows = usePublishedFlowOptions()
   const update = (i: number, patch: Partial<BtnItem>) => onChange(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)))
-  const add = () => onChange([...items, { id: rid("btn"), [key]: "", kind: "action" }])
+  const add = () => onChange([...items, { id: rid("btn"), [key]: "" }])
   const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i))
   const full = max != null && items.length >= max
-  const isFlowItem = (it: BtnItem) =>
-    (it.kind ?? "").toLowerCase() === "flow" || Boolean((it.flowDefinitionId ?? "").trim() && (it.kind ?? "").toLowerCase() !== "action")
   return (
     <div className="cfg-field">
       <span className="cfg-label">{asList ? "Itens da lista (máx. 10)" : label}</span>
@@ -1705,7 +1696,6 @@ function ButtonsBuilder({
         {asList
           ? "4+ opções: o WhatsApp envia como lista (Meta: 10 itens, título 24 caracteres)."
           : "Até 3 opções aparecem como botões (20 caracteres). A 4ª vira lista."}
-        {allowFlow ? " Cada botão pode ser Ação (resposta) ou Flow (abre um formulário publicado)." : ""}
       </span>
       {asList && listMeta && (
         <div className="mt-2 flex flex-col gap-2">
@@ -1740,46 +1730,6 @@ function ButtonsBuilder({
                 ×
               </button>
             </div>
-            {allowFlow && (
-              <ConfigSelect
-                value={isFlowItem(it) ? "flow" : "action"}
-                allowEmpty={false}
-                options={[
-                  { value: "action", label: "Botão de ação" },
-                  { value: "flow", label: "Botão de Flow" },
-                ]}
-                placeholder="Tipo"
-                onChange={(v) =>
-                  update(i, {
-                    kind: v,
-                    ...(v === "action" ? { flowDefinitionId: "", flowCta: "" } : {}),
-                  })
-                }
-              />
-            )}
-            {allowFlow && isFlowItem(it) && (
-              <>
-                <ConfigSelect
-                  value={str(it.flowDefinitionId)}
-                  options={optionsWithSaved(flows.options, str(it.flowDefinitionId))}
-                  loading={flows.isLoading}
-                  placeholder="Flow publicado…"
-                  onChange={(v) => update(i, { flowDefinitionId: v, kind: "flow" })}
-                />
-                {!flows.isLoading && flows.options.length === 0 && (
-                  <span className="cfg-hint">
-                    Nenhum Flow publicado. Crie em Configurações → Modelos de mensagem.
-                  </span>
-                )}
-                <InputGlass
-                  className="cfg-input nodrag"
-                  placeholder="CTA do Flow (máx. 20)"
-                  value={str(it.flowCta)}
-                  maxLength={20}
-                  onChange={(e) => update(i, { flowCta: e.target.value, kind: "flow" })}
-                />
-              </>
-            )}
             {!hideStepTargets && (
               <ConfigSelect value={str(it.gotoStepId)} options={steps} placeholder="Ir para passo…" onChange={(v) => update(i, { gotoStepId: v })} />
             )}

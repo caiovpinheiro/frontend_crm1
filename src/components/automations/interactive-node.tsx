@@ -31,15 +31,7 @@ export type InteractiveButton = {
   title?: string;
   id?: string;
   gotoStepId?: string;
-  kind?: string;
-  flowDefinitionId?: string;
 };
-
-function isFlowButton(btn: InteractiveButton): boolean {
-  if ((btn.kind ?? "").toLowerCase() === "flow") return true;
-  if ((btn.kind ?? "").toLowerCase() === "action") return false;
-  return Boolean((btn.flowDefinitionId ?? "").trim());
-}
 
 export type InteractiveNodeData = {
   stepType: string;
@@ -64,8 +56,7 @@ export type InteractiveNodeData = {
 type InteractiveRF = Node<InteractiveNodeData, "interactive">;
 
 function buttonLabel(btn: InteractiveButton, idx: number): string {
-  const title = btn.title || btn.text || `Opção ${idx + 1}`;
-  return isFlowButton(btn) ? `Flow: ${title}` : title;
+  return btn.title || btn.text || `Opção ${idx + 1}`;
 }
 
 export function InteractiveNode({ data, selected }: NodeProps<InteractiveRF>) {

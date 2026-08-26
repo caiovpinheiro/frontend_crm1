@@ -6,14 +6,6 @@ type Btn = {
   title?: string
   text?: string
   gotoStepId?: string
-  kind?: string
-  flowDefinitionId?: string
-}
-
-function isFlowBtn(btn: Btn): boolean {
-  if ((btn.kind ?? "").toLowerCase() === "flow") return true
-  if ((btn.kind ?? "").toLowerCase() === "action") return false
-  return Boolean((btn.flowDefinitionId ?? "").trim())
 }
 
 function interactiveOutputs(config: Record<string, unknown>, withElse: boolean): NonNullable<FlowNodeData["outputs"]> {
@@ -22,7 +14,7 @@ function interactiveOutputs(config: Record<string, unknown>, withElse: boolean):
     const title = (btn.title || btn.text || `Botão ${idx + 1}`).trim() || `Botão ${idx + 1}`
     return {
       id: `btn_${idx}`,
-      label: isFlowBtn(btn) ? `Flow: ${title}` : title,
+      label: title,
     }
   })
   if (withElse) {
