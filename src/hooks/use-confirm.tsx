@@ -19,12 +19,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+/**
+ * Mesma forma de `ConfirmOptions` de `@/components/ui/confirm-dialog`, para
+ * que um call site possa trocar entre o hook local e este (via Provider) sem
+ * reescrever as opções: `description` aceita ReactNode e `destructive` é
+ * aceito como alias de `variant: "destructive"`.
+ */
 type ConfirmOptions = {
   title?: string;
-  description: string;
+  description: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "default" | "destructive";
+  destructive?: boolean;
 };
 
 type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>;
@@ -76,7 +83,11 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => handleResult(true)}
-              variant={opts.variant === "destructive" ? "destructive" : "default"}
+              variant={
+                opts.variant === "destructive" || opts.destructive
+                  ? "destructive"
+                  : "default"
+              }
             >
               {opts.confirmLabel ?? "Confirmar"}
             </AlertDialogAction>
