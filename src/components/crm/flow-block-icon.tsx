@@ -15,6 +15,7 @@ import {
   IconFileText,
   IconPhoto,
   IconClick,
+  IconClipboardList,
   IconWorld,
   IconHelpCircle,
   IconPlayerPause,
@@ -108,6 +109,7 @@ export const blockMeta: Record<string, BlockMeta> = {
   "wa-template": def("Template WhatsApp", IconFileText, "green", "whatsapp"),
   "wa-media": def("Mídia WhatsApp", IconPhoto, "green", "whatsapp"),
   "wa-buttons": def("Botões WhatsApp", IconClick, "violet", "whatsapp"),
+  "wa-flow": def("Formulário WhatsApp", IconClipboardList, "violet", "whatsapp"),
 
   // Integrações
   webhook: def("Webhook", IconWorld, "slate", "integration"),
@@ -147,6 +149,8 @@ const apiTypeToBlockKey: Record<string, string> = {
   send_whatsapp_template: "wa-template",
   send_whatsapp_media: "wa-media",
   send_whatsapp_interactive: "wa-buttons",
+  send_whatsapp_flow: "wa-flow",
+  send_whatsapp_list: "wa-buttons",
   webhook: "webhook",
   delay: "delay",
   condition: "condition",

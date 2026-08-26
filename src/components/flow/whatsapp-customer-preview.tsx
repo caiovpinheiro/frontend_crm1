@@ -39,6 +39,7 @@ const PREVIEWABLE = new Set([
   "send_whatsapp_template",
   "send_whatsapp_interactive",
   "send_whatsapp_list",
+  "send_whatsapp_flow",
   "send_whatsapp_media",
   "send_product",
   "question",
@@ -103,6 +104,11 @@ function asChoices(cfg: NodeConfig, outputs: Output[]): Choice[] {
     : []
   if (fromButtons.length) return fromButtons
   if (fromRows.length) return fromRows
+  const flowId = String(cfg.flowDefinitionId ?? "").trim()
+  if (flowId) {
+    const cta = String(cfg.flowCta ?? "").trim() || "Abrir formulário"
+    return [{ id: "flow_cta", title: cta, kind: "flow" }]
+  }
   return outputs
     .filter((o) => o.kind === "response")
     .map((o) => ({ id: o.key, title: o.label || "Opção", kind: "reply" as const }))

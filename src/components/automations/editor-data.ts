@@ -749,3 +749,26 @@ export function useCustomFieldMetaBySlug(entity: "contact" | "deal") {
   }
   return { bySlug, isLoading: q.isLoading }
 }
+
+type PublishedFlowRow = {
+  id: string
+  shortId?: string | null
+  name: string
+  metaFlowId?: string | null
+}
+
+/** Flows publicados na Meta — seletor do node Formulário e catálogo do `/`. */
+export function usePublishedFlowOptions() {
+  const q = useQuery({
+    queryKey: ["editor-wa-published-flows"],
+    staleTime: 60_000,
+    queryFn: async (): Promise<Opt[]> => {
+      const rows = asArray(await getJson("/api/whatsapp-flow-definitions/published")) as PublishedFlowRow[]
+      return rows
+        .filter((r) => (r.id ?? "").trim() && (r.name ?? "").trim())
+        .map((r) => ({ value: r.id, label: r.name }))
+    },
+  })
+  return { options: q.data ?? [], isLoading: q.isLoading }
+}
+

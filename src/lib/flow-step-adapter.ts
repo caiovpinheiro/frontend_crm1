@@ -24,6 +24,7 @@ const MESSAGE_TYPES = new Set<ActionStepType>([
   "send_whatsapp_message",
   "send_whatsapp_template",
   "send_whatsapp_media",
+  "send_whatsapp_flow",
   "send_product",
   "send_email",
 ])
@@ -139,6 +140,7 @@ const META_FAILURE_TYPES = new Set<string>([
   "send_whatsapp_media",
   "send_whatsapp_interactive",
   "send_whatsapp_list",
+  "send_whatsapp_flow",
   "question",
   "send_product",
   "send_email",
@@ -258,7 +260,11 @@ export function outputsFromStepConfig(
     }
     return outs
   }
-  if (type === "send_whatsapp_message" || type === "send_whatsapp_template") {
+  if (
+    type === "send_whatsapp_message" ||
+    type === "send_whatsapp_template" ||
+    type === "send_whatsapp_flow"
+  ) {
     return [
       { key: "next", label: "Próximo passo", kind: "navigation", target: t("next", cfg.nextStepId) },
       { key: "timeout", label: "Caso o contato não responda", kind: "error", target: t("timeout", cfg.timeoutGotoStepId) },

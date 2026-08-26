@@ -81,6 +81,7 @@ const PAUSING_TYPES = new Set([
   "question",
   "send_whatsapp_interactive",
   "send_whatsapp_list",
+  "send_whatsapp_flow",
 ]);
 
 /**
@@ -182,7 +183,8 @@ export function getStepOutgoing(step: StepLike): StepOutgoing {
     }
     case "send_whatsapp_message":
     case "send_whatsapp_media":
-    case "send_whatsapp_template": {
+    case "send_whatsapp_template":
+    case "send_whatsapp_flow": {
       if (step.type === "send_whatsapp_template") {
         const buttons = Array.isArray(c.buttons) ? (c.buttons as Record<string, unknown>[]) : [];
         buttons.forEach((b, i) => {
@@ -622,6 +624,7 @@ function categorizeStepType(type: string): ActionCategory {
     case "send_whatsapp_media":
     case "send_whatsapp_interactive":
     case "send_whatsapp_list":
+    case "send_whatsapp_flow":
     case "question":
     case "send_email":
       return "messaging";

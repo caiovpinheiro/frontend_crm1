@@ -43,6 +43,7 @@ import {
   getTemplateDetail,
   mergeTemplateQuickReplies,
   useStepTemplateCatalog,
+  usePublishedFlowOptions,
   useUserOptions,
   type Opt,
 } from "./editor-data"
@@ -294,6 +295,18 @@ function Field({
                   pipelineName: name,
                   ...(stepType === "mark_deal_lost" ? { lostReason: "" } : {}),
                 })
+              }
+            />
+          </Labeled>
+        )
+      }
+      if (field.source === "publishedFlow") {
+        return (
+          <Labeled label={field.label} optional={field.optional} hint={field.hint}>
+            <PublishedFlowSelect
+              value={str(config[field.key])}
+              onPick={(id, name) =>
+                onChange({ ...config, flowDefinitionId: id, flowName: name })
               }
             />
           </Labeled>
@@ -910,6 +923,13 @@ function SourceSelect({
           onChange={onChange}
         />
       )
+    case "publishedFlow":
+      return (
+        <PublishedFlowSelect
+          value={value}
+          onPick={(id) => onChange(id)}
+        />
+      )
     case "automation":
       return <HookSelect hook={useAutomationOptions} value={value} onChange={onChange} placeholder="Selecione uma automação…" />
     case "aiAgentId":
@@ -937,6 +957,35 @@ function StageSelect({
       options={options}
       loading={isLoading}
       placeholder="Selecione um estágio…"
+      onChange={(id) => {
+        const opt = options.find((o) => o.value === id)
+        onPick(id, opt?.label ?? "")
+      }}
+    />
+  )
+}
+
+function PublishedFlowSelect({
+  value,
+  onPick,
+}: {
+  value: string
+  onPick: (id: string, name: string) => void
+}) {
+  const { options, isLoading } = usePublishedFlowOptions()
+  if (!isLoading && options.length === 0) {
+    return (
+      <p className="cfg-info">
+        Nenhum formulário publicado. Crie e publique em Modelos → Flows.
+      </p>
+    )
+  }
+  return (
+    <ConfigSelect
+      value={value}
+      options={options}
+      loading={isLoading}
+      placeholder="Selecione um formulário…"
       onChange={(id) => {
         const opt = options.find((o) => o.value === id)
         onPick(id, opt?.label ?? "")

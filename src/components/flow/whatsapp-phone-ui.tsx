@@ -82,8 +82,13 @@ export function asWaChoices(cfg: NodeConfig, outputs: Output[]): WaChoice[] {
         }
       })
     : []
-  if (fromButtons.length) return fromButtons
-  if (fromRows.length) return fromRows
+  if (fromButtons.length > 0) return fromButtons
+  if (fromRows.length > 0) return fromRows
+  const flowId = String(cfg.flowDefinitionId ?? "").trim()
+  if (flowId) {
+    const cta = String(cfg.flowCta ?? "").trim() || "Abrir formulário"
+    return [{ id: "flow_cta", title: cta, kind: "flow" }]
+  }
   return outputs
     .filter((o) => o.kind === "response")
     .map((o) => ({ id: o.key, title: o.label || "Opção", kind: "reply" as const }))

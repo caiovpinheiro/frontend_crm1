@@ -36,7 +36,8 @@ import {
   IconFileText as FileText,
   IconLoader2 as Loader2,
   IconMessageQuestion as MessageSquareQuote,
-  IconMessage2,
+          IconMessage2,
+  IconClipboardList as ClipboardList,
   IconSearch,
   IconSparkles,
   IconStar,
@@ -61,6 +62,7 @@ export type SlashItemKind =
   | "internal-template"
   | "quick-reply"
   | "meta-template"
+  | "wa-flow"
   | "automation";
 
 /** Metadados de destaque (favorito / uso) anexados a qualquer item. */
@@ -105,6 +107,11 @@ export type SlashItem = SlashItemHighlight &
       flowAction: string | null;
       flowId: string | null;
       operatorVariables: OperatorVariableMeta[] | null;
+    }
+  | {
+      kind: "wa-flow";
+      id: string;
+      name: string;
     }
   | {
       kind: "automation";
@@ -236,6 +243,38 @@ async function fetchQuickReplies(): Promise<QuickReplyRow[]> {
   const data = await r.json().catch(() => []);
   const list = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
   return list as QuickReplyRow[];
+}
+
+type PublishedFlowRow = {
+  id: string;
+  shortId?: string | null;
+  name: string;
+};
+
+async function fetchPublishedFlows(): Promise<PublishedFlowRow[]> {
+  const r = await fetch(apiUrl("/api/whatsapp-flow-definitions/published"));
+  if (!r.ok) return [];
+  const data = await r.json().catch(() => []);
+  return Array.isArray(data) ? (data as PublishedFlowRow[]) : [];
+}
+
+async function sendWaFlowRequest(
+  conversationId: string,
+  flowDefinitionId: string,
+): Promise<{ reopenedConversationId?: string }> {
+  const res = await fetch(apiUrl(`/api/conversations/${conversationId}/flow`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ flowDefinitionId }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    message?: string;
+    reopenedConversationId?: string;
+  };
+  if (!res.ok) {
+    throw new Error(typeof json?.message === "string" ? json.message : "Falha ao enviar formulário");
+  }
+  return { reopenedConversationId: json.reopenedConversationId };
 }
 
 /**
@@ -436,6 +475,12 @@ export function useSlashMenu({
     enabled: queriesEnabled,
     staleTime: 60_000,
   });
+  const flowsQ = useQuery({
+    queryKey: ["slash-published-flows"],
+    queryFn: fetchPublishedFlows,
+    enabled: queriesEnabled,
+    staleTime: 60_000,
+  });
 
   // Preferências do agente (favoritos + contador de uso) para destacar/ordenar.
   const shortcutsQ = useQuery({
@@ -470,7 +515,7 @@ export function useSlashMenu({
 
   const isLoading =
     queriesEnabled &&
-    (internalsQ.isLoading || metasQ.isLoading || quickRepliesQ.isLoading);
+    (internalsQ.isLoading || metasQ.isLoading || quickRepliesQ.isLoading || flowsQ.isLoading);
 
   // Busca unificada: o campo da modal tem prioridade; sem ele, usa o
   // token "/..." do composer. Accent-insensitive, prioriza TÍTULO.
@@ -549,6 +594,17 @@ export function useSlashMenu({
       }
     }
 
+    for (const f of flowsQ.data ?? []) {
+      const title = f.name;
+      if (q === "" || hitTitle(title)) {
+        out.push({
+          kind: "wa-flow",
+          id: f.id,
+          name: f.name,
+        });
+      }
+    }
+
     if (automationsEnabled) {
       for (const a of automationsQ.data?.items ?? []) {
         if (
@@ -603,6 +659,7 @@ export function useSlashMenu({
     internalsQ.data,
     metasQ.data,
     quickRepliesQ.data,
+    flowsQ.data,
     automationsQ.data,
     automationsEnabled,
     effectiveQuery,
@@ -727,6 +784,34 @@ export function useSlashMenu({
         return;
       }
 
+      if (item.kind === "wa-flow") {
+        const before = draft.slice(0, token.start);
+        const after = draft.slice(token.end);
+        setDraft(before + after);
+        close();
+        if (!conversationId) {
+          toast.error("Abra uma conversa para enviar o formulário.");
+          return;
+        }
+        void sendWaFlowRequest(conversationId, item.id)
+          .then((res) => {
+            toast.success(`Formulário enviado: ${item.name}`);
+            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+            queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
+            if (res.reopenedConversationId) {
+              queryClient.invalidateQueries({
+                queryKey: ["messages", res.reopenedConversationId],
+              });
+            }
+          })
+          .catch((err) =>
+            toast.error(
+              err instanceof Error ? err.message : "Erro ao enviar formulário",
+            ),
+          );
+        return;
+      }
+
       // Contabiliza uso (favoritos/mais usados) — todos os caminhos abaixo
       // efetivamente "usam" o item (insert, abrir flow Meta ou override v2).
       recordUsage(item.kind, item.id);
@@ -794,7 +879,7 @@ export function useSlashMenu({
         el.setSelectionRange(pos, pos);
       });
     },
-    [draft, setDraft, token, close, onPickMetaTemplate, onSelectOverride, onInsertMedia, templateContext, textareaRef, contactId, conversationId, recordUsage],
+    [draft, setDraft, token, close, onPickMetaTemplate, onSelectOverride, onInsertMedia, templateContext, textareaRef, contactId, conversationId, recordUsage, queryClient],
   );
 
   const applyActive = React.useCallback(() => {
@@ -892,6 +977,7 @@ const KIND_ORDER: SlashItemKind[] = [
   "internal-template",
   "quick-reply",
   "meta-template",
+  "wa-flow",
   "automation",
 ];
 
@@ -899,6 +985,7 @@ const KIND_GROUP_LABEL: Record<SlashItemKind, string> = {
   "internal-template": "Modelos internos do CRM",
   "quick-reply": "Mensagens rápidas",
   "meta-template": "Templates WhatsApp (Meta)",
+  "wa-flow": "Formulários WhatsApp",
   automation: "Automações",
 };
 
@@ -906,6 +993,7 @@ const KIND_GROUP_HINT: Record<SlashItemKind, string> = {
   "internal-template": "Mensagem do CRM com variáveis preenchidas no envio",
   "quick-reply": "Resposta pronta — envia o texto (e o anexo, se houver)",
   "meta-template": "Modelo aprovado na Meta — abre painel para confirmar envio",
+  "wa-flow": "Formulário publicado — envia na janela de 24h e abre no WhatsApp",
   automation: "Dispara a automação permitida nesta conversa",
 };
 
@@ -913,6 +1001,7 @@ const KIND_ICON: Record<SlashItemKind, React.ComponentType<{ className?: string;
   "internal-template": FileText,
   "quick-reply": Bolt,
   "meta-template": MessageSquareQuote,
+  "wa-flow": ClipboardList,
   automation: Bolt,
 };
 
@@ -929,6 +1018,10 @@ const KIND_VISUAL: Record<SlashItemKind, { fg: string; bg: string }> = {
   "meta-template": {
     fg: "text-[var(--color-success)]",
     bg: "bg-[var(--color-success-soft,rgba(16,185,129,0.1))]",
+  },
+  "wa-flow": {
+    fg: "text-[var(--color-lavender)]",
+    bg: "bg-[var(--color-lavender)]/10",
   },
   automation: {
     fg: "text-[var(--color-lavender)]",
@@ -994,6 +1087,7 @@ export function SlashCommandMenu({
     "internal-template": [],
     "quick-reply": [],
     "meta-template": [],
+    "wa-flow": [],
     automation: [],
   };
   // "Destaques" = favoritos + mais usados do agente (topo). Esses itens saem
@@ -1003,7 +1097,9 @@ export function SlashCommandMenu({
   const destaque: IndexedItem[] = [];
   state.items.forEach((item, i) => {
     const highlighted =
-      item.kind !== "automation" && (!!item.favorite || (item.useCount ?? 0) > 0);
+      item.kind !== "automation" &&
+      item.kind !== "wa-flow" &&
+      (!!item.favorite || (item.useCount ?? 0) > 0);
     if (highlighted) destaque.push({ item, globalIndex: i });
     else byKind[item.kind].push({ item, globalIndex: i });
   });
@@ -1256,16 +1352,22 @@ function SlashItemCard({
   const visual = KIND_VISUAL[item.kind];
   const title = item.kind === "meta-template" ? item.label || item.name : item.name;
   // Favorito/uso só se aplicam a modelos/mensagens/templates (não automações).
-  const canFavorite = item.kind !== "automation" && !!onToggleFavorite;
+  const canFavorite = item.kind !== "automation" && item.kind !== "wa-flow" && !!onToggleFavorite;
   const isFav = !!item.favorite;
   const preview =
     item.kind === "meta-template"
       ? item.bodyPreview
       : item.kind === "automation"
         ? item.messagePreview || item.description || ""
-        : item.content;
+        : item.kind === "wa-flow"
+          ? "Envia o formulário agora (janela de 24h)"
+          : item.content;
   const tag =
-    item.kind === "automation" ? item.categoryLabel || null : item.category ?? null;
+    item.kind === "automation"
+      ? item.categoryLabel || null
+      : "category" in item
+        ? (item.category ?? null)
+        : null;
   const hasMedia =
     (item.kind === "internal-template" && !!item.mediaUrl) ||
     (item.kind === "quick-reply" && !!item.attachmentUrl);

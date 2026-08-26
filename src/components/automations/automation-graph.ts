@@ -103,6 +103,7 @@ const META_SEND_FAILURE_TYPES = new Set([
   "send_whatsapp_media",
   "send_whatsapp_interactive",
   "send_whatsapp_list",
+  "send_whatsapp_flow",
   "question",
 ])
 
@@ -178,7 +179,7 @@ function buildEdges(steps: AutomationStep[]): Edge[] {
     // Mensagem / template linear (sem botões): aresta Sem resposta.
     if (
       !isInteractiveStep(a) &&
-      (a.type === "send_whatsapp_message" || a.type === "send_whatsapp_template")
+      (a.type === "send_whatsapp_message" || a.type === "send_whatsapp_template" || a.type === "send_whatsapp_flow")
     ) {
       const timeoutId = typeof cfg.timeoutGotoStepId === "string" ? cfg.timeoutGotoStepId : ""
       if (timeoutId && stepIds.has(timeoutId)) {

@@ -98,6 +98,8 @@ export interface NodeConfig {
   options?: unknown[]
   buttons?: unknown[]
   rows?: unknown[]
+  flowDefinitionId?: string
+  flowCta?: string
   headers?: unknown[]
   queryParams?: unknown[]
   body?: string

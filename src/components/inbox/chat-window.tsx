@@ -1771,6 +1771,8 @@ export function ChatWindow({
     textareaRef,
     templateContext: slashTemplateContext,
     onPickMetaTemplate: handlePickMetaTemplate,
+    conversationId,
+    contactId,
     // Em modo nota ou com anexo pendente, atalho fica "à toa" — usuário
     // raramente quer template numa nota interna ou junto com mídia.
     disabled: noteMode || !!pendingFile || composeDisabled,

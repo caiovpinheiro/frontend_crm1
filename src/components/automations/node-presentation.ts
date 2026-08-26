@@ -135,6 +135,23 @@ export function resolveFlowPresentation(
         outputs: [{ ...SUCCESS_SEND_OUTPUT }, { ...FAILURE_OUTPUT }],
       }
     }
+    case "send_whatsapp_flow": {
+      const name = String(config.flowName ?? "").trim()
+      const body = String(config.body ?? "").trim()
+      const subtitle = body
+        ? clampSubtitle(body, 90)
+        : name
+          ? clampSubtitle(name)
+          : data.subtitle
+      return {
+        subtitle,
+        outputs: [
+          { ...SUCCESS_SEND_OUTPUT },
+          { id: "timeout", label: "Sem resposta", icon: "clock", err: true },
+          { ...FAILURE_OUTPUT },
+        ],
+      }
+    }
     case "send_whatsapp_template": {
       const tpl = String(config.templateName ?? "").trim()
       const body = String(config.bodyPreview ?? "").trim()

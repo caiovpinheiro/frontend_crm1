@@ -105,6 +105,17 @@ export function FlowSimulator({
   const pickChoice = (c: WaChoice, index: number) => {
     if (c.kind === "flow") {
       if (!current) return
+      if (lastBot?.stepType === "send_whatsapp_flow") {
+        const target = resolveSimTarget(current, "next", edges)
+        const next = continueFlowSimulation(target, nodes, edges, [
+          ...sim.events,
+          { id: `u_${Date.now()}`, kind: "user", text: c.title, time: nowWaLabel() },
+        ])
+        setSim(next)
+        setListOpen(false)
+        onStepChange?.(next.currentId)
+        return
+      }
       if (lastBot?.preview === "WhatsApp Flow") {
         const target = resolveSimTarget(current, c.id, edges)
         const next = continueFlowSimulation(target, nodes, edges, [

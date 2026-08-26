@@ -12,6 +12,7 @@ import {
   IconMail as Mail,
   IconMessage as MessageSquare,
   IconClick as MousePointerClick,
+  IconClipboardList as ClipboardList,
   IconPencil as Pencil,
   IconTag as Tag,
   IconTrophy as Trophy,
@@ -70,6 +71,7 @@ const iconMap: Record<string, ComponentType<{ className?: string; strokeWidth?: 
   send_whatsapp_template: MessageSquare,
   send_whatsapp_media: Image,
   send_whatsapp_interactive: MousePointerClick,
+  send_whatsapp_flow: ClipboardList,
   webhook: Webhook,
   update_lead_score: Activity,
   transfer_to_ai_agent: BotMessageSquare,
@@ -79,11 +81,13 @@ const META_LINEAR_FAILURE_TYPES = new Set([
   "send_whatsapp_message",
   "send_whatsapp_template",
   "send_whatsapp_media",
+  "send_whatsapp_flow",
 ]);
 
 const META_WAIT_TIMEOUT_TYPES = new Set([
   "send_whatsapp_message",
   "send_whatsapp_template",
+  "send_whatsapp_flow",
 ]);
 
 function StepIcon({ type }: { type: string }) {
@@ -123,7 +127,8 @@ export function ActionNode({ data, selected }: NodeProps<ActionRF>) {
   const s = data.stats;
   const hasReplyTimeout =
     data.stepType === "send_whatsapp_message" ||
-    data.stepType === "send_whatsapp_template";
+    data.stepType === "send_whatsapp_template" ||
+    data.stepType === "send_whatsapp_flow";
 
   return (
     <FlowNodeShell

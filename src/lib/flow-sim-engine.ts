@@ -11,6 +11,7 @@ const PREVIEWABLE = new Set([
   "send_whatsapp_template",
   "send_whatsapp_interactive",
   "send_whatsapp_list",
+  "send_whatsapp_flow",
   "send_whatsapp_media",
   "send_product",
   "question",
@@ -88,6 +89,7 @@ function delayLabel(cfg: NodeConfig): string {
 }
 
 function hasReplyChoices(stepType: string, outputs: Output[]): boolean {
+  if (stepType === "send_whatsapp_flow") return true
   if (
     stepType === "send_whatsapp_interactive" ||
     stepType === "send_whatsapp_list" ||

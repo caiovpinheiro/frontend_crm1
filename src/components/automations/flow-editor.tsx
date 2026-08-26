@@ -43,6 +43,8 @@ const STEP_CHIP: Record<string, Chip> = {
   send_whatsapp_template: "green",
   send_whatsapp_media: "green",
   send_whatsapp_interactive: "violet",
+  send_whatsapp_list: "violet",
+  send_whatsapp_flow: "violet",
   send_email: "blue",
   // Salesbot
   question: "violet",

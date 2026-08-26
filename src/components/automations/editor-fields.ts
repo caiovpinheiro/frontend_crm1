@@ -13,6 +13,7 @@ export type SourceKey =
   | "aiAgentId"
   | "aiAgentUserId"
   | "template"
+  | "publishedFlow"
   | "automation"
 
 type Common = {
@@ -206,6 +207,47 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "builder", builder: "buttonsTitle", key: "buttons", label: "Opções (até 3 = botões, 4–10 = lista)" },
     { kind: "step", key: "elseGotoStepId", label: "Se resposta não bater → ir para", optional: true },
     { kind: "text", key: "saveToVariable", label: "Salvar resposta em variável", optional: true, placeholder: "ex.: resposta" },
+    { kind: "duration", key: "timeoutMs", label: "Sem resposta em" },
+    {
+      kind: "select",
+      key: "timeoutAction",
+      label: "Se ninguém responder",
+      options: [
+        { value: "continue", label: "Continuar fluxo (próximo passo)" },
+        { value: "stop", label: "Encerrar automação" },
+        { value: "goto", label: "Ir para passo" },
+      ],
+    },
+    { kind: "step", key: "timeoutGotoStepId", label: "Ir para (no timeout)", optional: true },
+    ...META_FAILURE_FIELDS,
+  ],
+  send_whatsapp_flow: [
+    { kind: "channelPicker" },
+    {
+      kind: "source",
+      source: "publishedFlow",
+      key: "flowDefinitionId",
+      label: "Formulário",
+      hint: "Apenas flows publicados na Meta. Fora da janela 24h use um template com botão Flow.",
+    },
+    {
+      kind: "textarea",
+      key: "body",
+      label: "Texto da mensagem",
+      optional: true,
+      placeholder: "Preencha o formulário",
+      hint: "Vazio = usa o nome do formulário.",
+    },
+    {
+      kind: "text",
+      key: "flowCta",
+      label: "Texto do botão",
+      placeholder: "Abrir formulário",
+      hint: "Máx. 20 caracteres, sem emoji (limite da Meta).",
+    },
+    { kind: "text", key: "header", label: "Cabeçalho", optional: true, placeholder: "Título acima da mensagem" },
+    { kind: "text", key: "footer", label: "Rodapé", optional: true, placeholder: "Texto abaixo da mensagem" },
+    { kind: "text", key: "saveToVariable", label: "Salvar resposta em variável", optional: true, placeholder: "ex.: formulario" },
     { kind: "duration", key: "timeoutMs", label: "Sem resposta em" },
     {
       kind: "select",
