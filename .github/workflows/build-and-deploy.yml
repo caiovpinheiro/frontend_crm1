@@ -63,6 +63,7 @@ jobs:
           S_NEXTAUTH_SECRET_PROD: ${{ secrets.NEXTAUTH_SECRET_PROD }}
           S_NEXTAUTH_SECRET_DEV: ${{ secrets.NEXTAUTH_SECRET_DEV }}
           S_WEBHOOK_PROD: ${{ secrets.EASYPANEL_WEBHOOK_PROD }}
+          S_WEBHOOK_FRONT_DO: ${{ secrets.EASYPANEL_FRONT_DO }}
           S_WEBHOOK_DEV: ${{ secrets.EASYPANEL_WEBHOOK_DEV }}
         run: |
           if [ "$BRANCH_REF" = "refs/heads/main" ]; then
@@ -73,7 +74,9 @@ jobs:
             API_BASE="https://api.bwipo.com"
             NEXTAUTH_URL="https://bwipo.com"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_PROD"
-            WEBHOOK="$S_WEBHOOK_PROD"
+            # Webhook do serviço frontend no EasyPanel DO (EASYPANEL_FRONT_DO);
+            # fallback para o secret antigo de prod se o novo não existir.
+            WEBHOOK="${S_WEBHOOK_FRONT_DO:-$S_WEBHOOK_PROD}"
             TENANT_BASE="bwipo.com"
             APP_URL="https://bwipo.com"
           else
