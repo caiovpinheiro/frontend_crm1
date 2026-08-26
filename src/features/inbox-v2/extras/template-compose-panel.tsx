@@ -129,29 +129,34 @@ export function TemplateComposePanel({
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
   const waChannels = availableChannels?.filter((c) => c.type === "WHATSAPP");
 
-  // Canal gravado na conversa ausente ou fora da lista CONNECTED →
-  // não identificado. Exige modal de confirmação antes do envio.
+  // Canal gravado na conversa ausente ou fora da lista CONNECTED.
+  // Não bloqueia o envio se o composer já tem um WhatsApp CONNECTED
+  // selecionado (sessão 24h encerrada cai exatamente neste caso).
   const channelsReady = waChannels !== undefined;
   const conversationChannelConnected = Boolean(
     conversationChannelId &&
       waChannels?.some((c) => c.id === conversationChannelId),
   );
   const channelUnidentified = channelsReady && !conversationChannelConnected;
+  const selectedIsConnected = Boolean(
+    selectedChannelId && waChannels?.some((c) => c.id === selectedChannelId),
+  );
+  const effectiveChannelId =
+    confirmedChannelId ?? (selectedIsConnected ? selectedChannelId : null);
   const needsChannelPick =
-    channelUnidentified && (waChannels?.length ?? 0) > 0;
+    channelUnidentified && (waChannels?.length ?? 0) > 0 && !effectiveChannelId;
 
   const suggestedChannelId = useMemo(() => {
     if (!waChannels?.length) return null;
     if (lastMessageChannelId && waChannels.some((c) => c.id === lastMessageChannelId)) {
       return lastMessageChannelId;
     }
+    if (selectedIsConnected) return selectedChannelId ?? null;
     return null;
-  }, [waChannels, lastMessageChannelId]);
-
-  const effectiveChannelId = confirmedChannelId ?? selectedChannelId ?? null;
+  }, [waChannels, lastMessageChannelId, selectedIsConnected, selectedChannelId]);
 
   const showChannelSelector = Boolean(
-    !needsChannelPick &&
+    !channelUnidentified &&
       waChannels &&
       waChannels.length > 0 &&
       onSelectChannel,
@@ -164,8 +169,8 @@ export function TemplateComposePanel({
   }, [conversationId, template.name]);
 
   useEffect(() => {
-    if (needsChannelPick && !confirmedChannelId) setPickOpen(true);
-  }, [needsChannelPick, confirmedChannelId]);
+    if (needsChannelPick) setPickOpen(true);
+  }, [needsChannelPick]);
 
   const placeholders = useMemo(
     () => extractPlaceholders(template.content, template.operatorVariables),
@@ -213,9 +218,10 @@ export function TemplateComposePanel({
         languageCode: template.language ?? "pt_BR",
         components,
         templateGraphId: template.metaTemplateId ?? null,
-        // Sempre envia o id quando o canal da conversa está morto —
-        // omitir faz o backend cair no `conv.channelRef` desconectado.
-        channelId: needsChannelPick ? channelId : (channelId ?? null),
+        // Sempre manda o canal CONNECTED escolhido. Omitir faz o backend
+        // cair no `conv.channelRef` da conversa — que nesta tela costuma
+        // estar desconectado (sessão 24h já fechou).
+        channelId: channelId ?? null,
       });
     },
     onSuccess: (data) => {
@@ -252,14 +258,14 @@ export function TemplateComposePanel({
   }
 
   async function handleSendClick() {
-    if (needsChannelPick && !confirmedChannelId) {
+    if (!effectiveChannelId && (waChannels?.length ?? 0) > 0) {
       pendingSendRef.current = true;
       setPickOpen(true);
       return;
     }
-    const outboundId = confirmedChannelId ?? selectedChannelId ?? null;
+    const outboundId = effectiveChannelId;
     if (
-      !needsChannelPick &&
+      conversationChannelConnected &&
       isChannelMismatch(outboundId, conversationChannelId) &&
       outboundId &&
       conversationChannelId
@@ -283,7 +289,8 @@ export function TemplateComposePanel({
     return ch.phoneNumber ? `${ch.name} · ${ch.phoneNumber}` : ch.name;
   }, [waChannels, confirmedChannelId, selectedChannelId]);
 
-  const sendBlockedByChannel = channelUnidentified && !confirmedChannelId;
+  const sendBlockedByChannel =
+    channelsReady && (waChannels?.length ?? 0) > 0 && !effectiveChannelId;
 
   return (
     <div className="absolute bottom-full left-0 mb-2 w-full rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)] p-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
@@ -369,14 +376,16 @@ export function TemplateComposePanel({
           <IconAlertTriangle size={14} className="mt-px shrink-0 text-[var(--color-warn)]" />
           <p>
             O canal desta conversa não está identificado ou está{" "}
-            <span className="font-semibold">desconectado</span>. Escolha
-            um WhatsApp conectado da organização para enviar o template.
+            <span className="font-semibold">desconectado</span>.
+            {effectiveChannelId
+              ? " O template será enviado pelo WhatsApp selecionado."
+              : " Escolha um WhatsApp conectado da organização para enviar o template."}
           </p>
         </div>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-        {needsChannelPick ? (
+        {channelUnidentified && (waChannels?.length ?? 0) > 0 ? (
           <button
             type="button"
             onClick={() => setPickOpen(true)}
@@ -420,7 +429,7 @@ export function TemplateComposePanel({
         </button>
       </div>
 
-      {needsChannelPick || pickOpen ? (
+      {channelUnidentified || pickOpen ? (
         <ChannelPickModal
           open={pickOpen}
           onOpenChange={setPickOpen}
