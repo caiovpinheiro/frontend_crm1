@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSession } from "next-auth/react";
 
 import { apiUrl } from "@/lib/api";
 import { postWhatsappCall } from "@/lib/wa-whatsapp-call";
@@ -35,6 +36,8 @@ function applyOfferSdp(raw: string): string[] {
  * o agente atende no overlay (pre_accept → accept) e o áudio flui via WebRTC.
  */
 export function useWhatsappInboundWebRtc(enabled: boolean) {
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? null;
   const pcRef = React.useRef<RTCPeerConnection | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
   const incomingRef = React.useRef<IncomingWhatsappCall | null>(null);
@@ -319,6 +322,7 @@ export function useWhatsappInboundWebRtc(enabled: boolean) {
           event?: string;
           direction?: string;
           signalingStatus?: string;
+          assignedToId?: string | null;
           session?: { sdp_type?: string; sdp?: string };
         };
         const dir = (p.direction ?? "").toUpperCase();
@@ -332,6 +336,10 @@ export function useWhatsappInboundWebRtc(enabled: boolean) {
           p.callId &&
           p.conversationId
         ) {
+          const assigneeId = p.assignedToId?.trim() || null;
+          if (!currentUserId || !assigneeId || assigneeId !== currentUserId) {
+            return;
+          }
           const curPhase = phaseRef.current;
           const mine = incomingRef.current;
           if (mine && mine.callId !== p.callId && (curPhase === "live" || curPhase === "connecting")) {
@@ -372,7 +380,7 @@ export function useWhatsappInboundWebRtc(enabled: boolean) {
         if (!mine || !p.callId || p.callId !== mine.callId) return;
         reset();
       },
-      [reset],
+      [currentUserId, reset],
     ),
     enabled,
   );
