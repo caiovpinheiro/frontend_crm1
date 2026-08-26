@@ -67,8 +67,11 @@ jobs:
         run: |
           if [ "$BRANCH_REF" = "refs/heads/main" ]; then
             TAG=latest
-            API_BASE="${V_API_BASE_PROD:-https://api.bwipo.com}"
-            NEXTAUTH_URL="${V_NEXTAUTH_URL_PROD:-https://bwipo.com}"
+            # Produção DigitalOcean: NÃO usar API_BASE_PROD / NEXTAUTH_URL_PROD
+            # se ainda apontarem para *.easypanel.host (Hostinger). NEXT_PUBLIC_*
+            # é inlined no `next build`; env do EasyPanel no container não troca.
+            API_BASE="https://api.bwipo.com"
+            NEXTAUTH_URL="https://bwipo.com"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_PROD"
             WEBHOOK="$S_WEBHOOK_PROD"
             TENANT_BASE="bwipo.com"
