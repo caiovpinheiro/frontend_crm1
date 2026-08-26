@@ -19,6 +19,7 @@ import { MobileAppUpdateDialog } from "@/components/layout/mobile-app-update-dia
 import { NativeApkUpdateDialog } from "@/components/layout/native-apk-update-dialog";
 import { UpdateAvailableBanner } from "@/components/layout/update-banner";
 import { SoftphoneWidget } from "@/features/softphone/components";
+import { WhatsappIncomingCallWidget } from "@/components/inbox/whatsapp-incoming-call-widget";
 import { ChatThemeApplier } from "@/components/providers/chat-theme-applier";
 import { MobileBottomNav } from "@/components/crm/mobile-bottom-nav";
 import { NavRailV2 } from "@/components/crm/nav-rail-v2";
@@ -57,6 +58,7 @@ export default function AppLayout({
         <MobileAppUpdateDialog />
         <NativeApkUpdateDialog />
         <SoftphoneWidget />
+        <WhatsappIncomingCallWidget />
         {/* Alerta global de tarefa (polling; sem overlay). */}
         <TaskAlertCenter />
         <NativeFcmBootstrap />

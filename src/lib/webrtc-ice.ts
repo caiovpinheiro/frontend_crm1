@@ -20,3 +20,20 @@ export function getBrowserIceServers(): RTCIceServer[] {
   }
   return [{ urls: "stun:stun.l.google.com:19302" }];
 }
+
+export function waitIceGatheringComplete(pc: RTCPeerConnection, timeoutMs = 12_000): Promise<void> {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(), timeoutMs);
+    pc.addEventListener(
+      "icegatheringstatechange",
+      () => {
+        if (pc.iceGatheringState === "complete") {
+          clearTimeout(timer);
+          resolve();
+        }
+      },
+      { once: false },
+    );
+  });
+}
