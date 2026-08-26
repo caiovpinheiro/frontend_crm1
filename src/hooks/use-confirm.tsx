@@ -21,7 +21,7 @@ import {
 
 type ConfirmOptions = {
   title?: string;
-  description: string;
+  description: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "default" | "destructive";
