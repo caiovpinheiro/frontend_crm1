@@ -332,44 +332,44 @@ function LoginForm() {
           </div>
 
           {!identifyOnly ? (
-          <div className="mb-6">
-            <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
-              Senha
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden />
-              <input
-                ref={passwordRef}
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                aria-invalid={!!error}
-                aria-describedby={error ? "login-error" : undefined}
-                className={cn(
-                  "h-11 w-full rounded-full border bg-[var(--glass-bg-base)] pl-9 pr-11 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] backdrop-blur transition-all focus:outline-none focus:ring-2 disabled:opacity-50",
-                  error
-                    ? "border-[var(--color-danger)]/40 focus:border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20"
-                    : "border-[var(--glass-border)] focus:border-primary focus:ring-primary/20",
-                )}
-              />
-              <button
-                type="button"
-                tabIndex={-1}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
+            <div className="mb-6">
+              <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
+                Senha
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden />
+                <input
+                  ref={passwordRef}
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  aria-invalid={!!error}
+                  aria-describedby={error ? "login-error" : undefined}
+                  className={cn(
+                    "h-11 w-full rounded-full border bg-[var(--glass-bg-base)] pl-9 pr-11 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] backdrop-blur transition-all focus:outline-none focus:ring-2 disabled:opacity-50",
+                    error
+                      ? "border-[var(--color-danger)]/40 focus:border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20"
+                      : "border-[var(--glass-border)] focus:border-primary focus:ring-primary/20",
+                  )}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
-          </div>
-          )}
+          ) : null}
 
           {error ? (
             <motion.div
