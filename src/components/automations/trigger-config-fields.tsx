@@ -799,8 +799,8 @@ export function TriggerConfigFields({ triggerType, value, onChange, stacked }: P
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             {triggerType === "call_received"
-              ? "Disparado quando uma ligação é recebida (encerrada). O contato é resolvido pelo número."
-              : "Disparado quando uma ligação realizada é encerrada."}
+              ? "Disparado quando uma ligação de entrada é encerrada (WhatsApp ou telefonia SIP). Filtre por atendidas ou não atendidas."
+              : "Disparado quando uma ligação de saída é encerrada (WhatsApp ou telefonia SIP)."}
           </p>
           <div className="space-y-2">
             <Label htmlFor="tc-call-status">Resultado da ligação (opcional)</Label>
