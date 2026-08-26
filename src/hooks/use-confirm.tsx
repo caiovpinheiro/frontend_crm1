@@ -25,6 +25,8 @@ type ConfirmOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "default" | "destructive";
+  /** Alias de `variant: "destructive"` (chamadas no estilo do confirm-dialog). */
+  destructive?: boolean;
 };
 
 type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>;
@@ -76,7 +78,11 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => handleResult(true)}
-              variant={opts.variant === "destructive" ? "destructive" : "default"}
+              variant={
+                opts.variant === "destructive" || opts.destructive
+                  ? "destructive"
+                  : "default"
+              }
             >
               {opts.confirmLabel ?? "Confirmar"}
             </AlertDialogAction>
