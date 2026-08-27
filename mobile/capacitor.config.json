@@ -3,11 +3,14 @@
   "appName": "EduIT CRM",
   "webDir": "www",
   "server": {
-    "url": "https://frontend-front.v74knz.easypanel.host/",
-    "hostname": "frontend-front.v74knz.easypanel.host",
+    "url": "https://bwipo.com/",
+    "hostname": "bwipo.com",
     "cleartext": false,
     "androidScheme": "https",
     "allowNavigation": [
+      "bwipo.com",
+      "www.bwipo.com",
+      "*.bwipo.com",
       "frontend-front.v74knz.easypanel.host",
       "*.v74knz.easypanel.host",
       "banco-frontend-crm.6tqx2r.easypanel.host",

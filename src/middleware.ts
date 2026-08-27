@@ -181,6 +181,8 @@ const PUBLIC_PATHS = new Set([
   "/dev/campaigns-cards-preview",
   // Cockpit: HTML estático; dados via Bearer token ou sessão CRM.
   "/cockpit-agente.html",
+  // Manifesto e APKs do app nativo (sem login — o APK consulta na abertura).
+  "/mobile-release.json",
 ]);
 
 const PUBLIC_API_PATHS = new Set([
@@ -341,6 +343,13 @@ export async function middleware(req: NextRequest) {
       PWA_PUBLIC_PATHS.has(pathname) ||
       pathname.startsWith("/swe-worker-") ||
       pathname.startsWith("/workbox-")
+    ) {
+      return nextWithTenant();
+    }
+
+    if (
+      pathname === "/mobile-release.json" ||
+      (pathname.startsWith("/releases/") && pathname.endsWith(".apk"))
     ) {
       return nextWithTenant();
     }

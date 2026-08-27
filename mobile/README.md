@@ -20,7 +20,7 @@ npm install
 ```
 
 1. `capacitor.config.json` → `server.url` aponta pra produção
-   (`https://frontend-front.v74knz.easypanel.host`). Para testar DEV
+   (`https://bwipo.com/`). Para testar DEV
    (`https://crm-dev-frontend.ca31ey.easypanel.host`), troque
    temporariamente e rode `npm run sync`.
    **Importante:** mudar `server.url` / `hostname` exige **novo APK** +
@@ -72,7 +72,7 @@ APK: `app/build/outputs/apk/release/app-release.apk`
 6. (Opcional) Deploy leve do CRM se ainda usar o espelho em `/mobile-release.json`
 
 O app consulta primeiro:
-`https://crm-mobile-releases.6tqx2r.easypanel.host/mobile-release.json`
+`https://bwipo.com/mobile-release.json`
 
 ## iOS
 
