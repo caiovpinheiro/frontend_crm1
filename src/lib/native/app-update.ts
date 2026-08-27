@@ -16,7 +16,8 @@
 import { getAppUpdatePlugin, isNativePlatform } from "@/lib/native/capacitor";
 import { resolveMobileReleaseManifestUrl } from "@/lib/native/mobile-release-config";
 
-const THROTTLE_KEY = "crm_native_update_checked_at";
+/** Guarda o versionCode já oferecido — não bloqueia descoberta de versão nova. */
+const PROMPT_KEY = "crm_native_update_prompted";
 const THROTTLE_MS = 12 * 60 * 60 * 1000; // 12h
 
 export interface MobileReleaseInfo {
@@ -33,20 +34,25 @@ export interface NativeAppUpdateInfo {
   localVersionName: string;
 }
 
-function readThrottleTimestamp(): number {
-  if (typeof window === "undefined") return 0;
+function readPrompted(): { code: number; at: number } | null {
+  if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(THROTTLE_KEY);
-    return raw ? Number(raw) || 0 : 0;
+    const raw = window.localStorage.getItem(PROMPT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { code?: unknown; at?: unknown };
+    const code = Number(parsed.code);
+    const at = Number(parsed.at);
+    if (!Number.isFinite(code) || !Number.isFinite(at)) return null;
+    return { code, at };
   } catch {
-    return 0;
+    return null;
   }
 }
 
-function writeThrottleTimestamp(): void {
+function writePrompted(code: number): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(THROTTLE_KEY, String(Date.now()));
+    window.localStorage.setItem(PROMPT_KEY, JSON.stringify({ code, at: Date.now() }));
   } catch {
     // Storage bloqueado (modo privado, quota etc.) — ignora silenciosamente.
   }
@@ -65,12 +71,13 @@ function parseMobileRelease(data: Partial<MobileReleaseInfo>): MobileReleaseInfo
 
 /**
  * Busca o manifesto no serviço de releases (EasyPanel separado).
- * Fallback: `/mobile-release.json` no host do CRM (compat).
+ * Fallbacks: `/api/mobile-release` (proxy same-origin) e `/mobile-release.json`.
  */
 export async function fetchMobileRelease(): Promise<MobileReleaseInfo | null> {
   const bust = `t=${Date.now()}`;
   const candidates = [
     `${resolveMobileReleaseManifestUrl()}?${bust}`,
+    `/api/mobile-release?${bust}`,
     `/mobile-release.json?${bust}`,
   ];
 
@@ -104,7 +111,6 @@ export async function checkNativeAppUpdate(
 
   const release = await fetchMobileRelease();
   if (!release || !release.apkUrl) {
-    writeThrottleTimestamp();
     return null;
   }
 
@@ -119,18 +125,22 @@ export async function checkNativeAppUpdate(
   }
 
   if (release.versionCode <= localVersionCode) {
-    writeThrottleTimestamp();
     return null;
   }
 
-  // Updates com force: true sempre aparecem; as opcionais respeitam throttle 12h.
   const bypassThrottle = options.force || release.force;
   if (!bypassThrottle) {
-    const lastChecked = readThrottleTimestamp();
-    if (Date.now() - lastChecked < THROTTLE_MS) return null;
+    const prompted = readPrompted();
+    if (
+      prompted &&
+      prompted.code === release.versionCode &&
+      Date.now() - prompted.at < THROTTLE_MS
+    ) {
+      return null;
+    }
   }
 
-  writeThrottleTimestamp();
+  writePrompted(release.versionCode);
   return { release, localVersionCode, localVersionName };
 }
 

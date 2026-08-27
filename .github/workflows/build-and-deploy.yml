@@ -72,6 +72,7 @@ jobs:
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_PROD"
             WEBHOOK="$S_WEBHOOK_PROD"
             APP_URL="$V_NEXTAUTH_URL_PROD"
+            MOBILE_RELEASE_URL="https://crm-mobile.7w7dai.easypanel.host/mobile-release.json"
           else
             TAG=dev
             API_BASE="$V_API_BASE_DEV"
@@ -79,6 +80,7 @@ jobs:
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_DEV"
             WEBHOOK="$S_WEBHOOK_DEV"
             APP_URL="$V_NEXTAUTH_URL_DEV"
+            MOBILE_RELEASE_URL="https://crm-apk-dev.ca31ey.easypanel.host/mobile-release.json"
           fi
           TAG=$(printf '%s' "$TAG" | tr -d '\r\n')
           API_BASE=$(printf '%s' "$API_BASE" | tr -d '\r\n')
@@ -86,6 +88,7 @@ jobs:
           NEXTAUTH_SECRET=$(printf '%s' "$NEXTAUTH_SECRET" | tr -d '\r\n')
           WEBHOOK=$(printf '%s' "$WEBHOOK" | tr -d '\r\n')
           APP_URL=$(printf '%s' "$APP_URL" | tr -d '\r\n')
+          MOBILE_RELEASE_URL=$(printf '%s' "$MOBILE_RELEASE_URL" | tr -d '\r\n')
           {
             echo "TAG=$TAG"
             echo "API_BASE=$API_BASE"
@@ -93,6 +96,7 @@ jobs:
             echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET"
             echo "WEBHOOK=$WEBHOOK"
             echo "APP_URL=$APP_URL"
+            echo "MOBILE_RELEASE_URL=$MOBILE_RELEASE_URL"
           } >> "$GITHUB_OUTPUT"
           echo "::group::env resolved (values masked)"
           [ -n "$TAG" ]             && echo "TAG=<set>"             || echo "TAG=<EMPTY>"
@@ -101,6 +105,7 @@ jobs:
           [ -n "$NEXTAUTH_SECRET" ] && echo "NEXTAUTH_SECRET=<set>" || echo "NEXTAUTH_SECRET=<EMPTY>"
           [ -n "$WEBHOOK" ]         && echo "WEBHOOK=<set>"         || echo "WEBHOOK=<EMPTY>"
           [ -n "$APP_URL" ]         && echo "APP_URL=<set>"         || echo "APP_URL=<EMPTY>"
+          [ -n "$MOBILE_RELEASE_URL" ] && echo "MOBILE_RELEASE_URL=<set>" || echo "MOBILE_RELEASE_URL=<EMPTY>"
           echo "::endgroup::"
 
       # ── Build Next.js fora do Docker ─────────────────────────────────────
@@ -149,6 +154,7 @@ jobs:
           NEXTAUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
           AUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
           NEXT_PUBLIC_APP_URL: ${{ steps.env.outputs.APP_URL }}
+          NEXT_PUBLIC_MOBILE_RELEASE_MANIFEST_URL: ${{ steps.env.outputs.MOBILE_RELEASE_URL }}
           BUILD_ID: ${{ github.sha }}
           GITHUB_SHA: ${{ github.sha }}
         run: npm run build

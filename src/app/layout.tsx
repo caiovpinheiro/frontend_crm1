@@ -16,6 +16,7 @@ import { auth } from "@/lib/auth-public";
 import "@/lib/auth-types";
 
 import { PreviewMocksInstaller } from "@/components/preview-mocks-installer";
+import { NativeApkUpdateDialog } from "@/components/layout/native-apk-update-dialog";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -130,7 +131,10 @@ export default async function RootLayout({
           }}
         />
         <PreviewMocksInstaller />
-        <Providers session={session}>{children}</Providers>
+        <Providers session={session}>
+          {children}
+          <NativeApkUpdateDialog />
+        </Providers>
         <Toaster
           className="crm-toaster"
           position="bottom-right"

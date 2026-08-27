@@ -2263,3 +2263,8 @@ aplicada com SQL aditivo idempotente em
 - Modelo: Cursor Grok 4.5
 - Decisão: tokenizar as cores fixas do editor em `--fx-*` (novos: `--fx-surface-2`, `--fx-input-bg`, `--fx-divider-strong`, `--fx-surface-err`, `--fx-border-err`, `--fx-out-label*`, `--fx-text-label`, `--fx-accent-ink`, `--fx-warn-*`), com os hex claros atuais como valor padrão, e concentrar o dark em um único bloco `.v2-dark .automation-editor`. Canvas passa de `#0e1524` para `#1a2334`–`#1f2a40` (azul escuro suave, família do `--bg-mesh` do CRM); cards em `#26314a`, campos recuados em `#1e2740`. O glifo `⊘` do ramo "senão" virou `IconBan` (Tabler) — a fonte do app não tem U+2298 e renderizava tofu.
 - Alternativas descartadas: sobrescrever cada seletor em `.v2-dark` (duplica regra e desincroniza com o claro); manter o remapeamento por utilitário Tailwind em `globals-v2.css` como única estratégia (não alcança as classes `cfg-*`/`fx-*`, que são CSS puro).
+
+### 2026-08-27 — Manifesto do APK nos hosts EasyPanel atuais
+- Modelo: Cursor Grok 4.6
+- Decisão: o check in-app (plugin AppUpdate + diálogo "Atualizar sem APK") volta a ler o manifesto em `crm-mobile.7w7dai` (prod) e `crm-apk-dev.ca31ey` (DEV), com proxy público `/api/mobile-release` e `/mobile-release.json` liberado no middleware. Host antigo `frontend-app.v74knz` está 503; o fallback no CRM redirecionava para login. Throttle passa a ser por `versionCode` oferecido, não por "último check".
+- Alternativas descartadas: manter o host legado; exigir env EasyPanel nova só no painel (CI já embute a URL por branch).
