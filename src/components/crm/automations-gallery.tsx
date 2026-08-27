@@ -38,9 +38,9 @@ export function AutomationsGallery({
       role="table"
       aria-label="Lista de automações"
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-1">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-1">
         <div
-          className="sticky top-0 z-[2] hidden shrink-0 items-center gap-4 rounded-[var(--radius-md)] border-b border-[var(--glass-border-subtle)] bg-[color-mix(in_srgb,var(--brand-primary)_7%,var(--bg-base,#dde8f5))] px-4 py-2.5 lg:grid"
+          className="sticky top-0 z-[2] hidden shrink-0 items-center gap-4 border-b border-[var(--glass-border-subtle)] bg-[color-mix(in_srgb,var(--brand-primary)_7%,var(--bg-base,#dde8f5))] px-4 py-2.5 lg:grid"
           style={{ gridTemplateColumns: GRID_TEMPLATE }}
           role="row"
         >
@@ -64,7 +64,7 @@ export function AutomationsGallery({
           </span>
         </div>
 
-        <div className="flex flex-col gap-2" role="rowgroup">
+        <div className="flex flex-col" role="rowgroup">
           {automations.map((a) => (
             <AutomationCard
               key={a.id}
