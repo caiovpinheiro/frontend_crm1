@@ -289,12 +289,12 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center p-6">
       <div className="flex w-full max-w-sm flex-col items-center">
         <div className="mb-6 flex flex-col items-center text-center">
-          {/* Logo Bwipo (fundo transparente) */}
+          {/* Wordmark Bwipo: marca + wipo branco (fundo transparente) */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo-bwipo.png"
+            src="/logo-bwipo-white.png"
             alt="Bwipo"
-            className="mb-4 h-12 w-auto object-contain"
+            className="mb-4 h-12 w-auto max-w-[220px] object-contain"
           />
           <p className="mt-1 text-[14px] text-white/70">
             {identifyOnly
