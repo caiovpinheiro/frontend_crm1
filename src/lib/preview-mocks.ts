@@ -990,6 +990,7 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
       esperando:  CONVERSATIONS.filter((c) => c.unreadCount > 0).length + 2,
       respondidas: CONVERSATIONS.filter((c) => c.lastMessage.direction === "out").length,
       ligar:      0,
+      agente_ia:  CONVERSATIONS.filter((c) => c.assignedTo?.type === "AI").length,
       automacao:  2,
       finalizados: CONVERSATIONS.filter((c) => c.status === "RESOLVED").length,
       erro:       CONVERSATIONS.filter((c) => c.hasError).length,
@@ -1004,6 +1005,7 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
       if (tab === "entrada")     items = items.filter((c) => c.status === "OPEN");
       if (tab === "esperando")   items = items.filter((c) => c.unreadCount > 0);
       if (tab === "respondidas") items = items.filter((c) => c.lastMessage.direction === "out");
+      if (tab === "agente_ia")   items = items.filter((c) => c.assignedTo?.type === "AI");
       if (tab === "finalizados") items = items.filter((c) => c.status === "RESOLVED");
       if (tab === "erro")        items = items.filter((c) => c.hasError);
       if (search) items = items.filter((c) => c.contact.name.toLowerCase().includes(search));

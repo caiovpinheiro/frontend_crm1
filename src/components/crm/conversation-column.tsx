@@ -13,6 +13,7 @@ import {
   IconCornerUpLeft,
   IconCircleCheck,
   IconRobot,
+  IconSparkles,
   IconAlertCircle,
   IconRefresh,
   IconPhone,
@@ -166,6 +167,13 @@ function statusVisual(label: string | undefined): {
       Icon: IconPhone,
       bg: "rgba(16,185,129,0.14)",
       fg: "rgb(5,150,105)",
+    }
+  // Antes de "automa": a fila do Agente IA é distinta da de Automação.
+  if (l.includes("agente"))
+    return {
+      Icon: IconSparkles,
+      bg: "rgba(236,72,153,0.14)",
+      fg: "rgb(219,39,119)",
     }
   if (l.includes("automa"))
     return {
