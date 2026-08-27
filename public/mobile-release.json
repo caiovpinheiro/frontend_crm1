@@ -1,7 +1,7 @@
 {
-  "versionCode": 8,
-  "versionName": "1.0.7",
-  "apkUrl": "https://frontend-app.v74knz.easypanel.host/releases/eduit-crm-1.0.7.apk",
-  "force": true,
-  "notes": "Icone EduIT com proporcao corrigida no app e nas notificacoes."
+  "versionCode": 10,
+  "versionName": "1.0.9",
+  "apkUrl": "https://crm-mobile.7w7dai.easypanel.host/releases/bwipo-1.0.9.apk",
+  "force": false,
+  "notes": "Ícone do app atualizado para a marca Bwipo."
 }

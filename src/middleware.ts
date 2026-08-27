@@ -186,6 +186,7 @@ const PUBLIC_PATHS = new Set([
 const PUBLIC_API_PATHS = new Set([
   "/api/signup",
   "/api/app-revision",
+  "/api/mobile-release",
   "/api/organization/by-slug",
 ]);
 
@@ -201,6 +202,7 @@ const PWA_PUBLIC_PATHS = new Set([
   "/icon-maskable.svg",
   "/apple-icon",
   "/api/push/vapid-public",
+  "/mobile-release.json",
 ]);
 
 /** Cookie curto: evita bater no BE a cada request do middleware. */

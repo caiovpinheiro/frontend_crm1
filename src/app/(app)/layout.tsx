@@ -16,7 +16,6 @@
 import "@/styles/globals-v2.css";
 import { BiometricLockGate } from "@/components/layout/biometric-lock-gate";
 import { MobileAppUpdateDialog } from "@/components/layout/mobile-app-update-dialog";
-import { NativeApkUpdateDialog } from "@/components/layout/native-apk-update-dialog";
 import { UpdateAvailableBanner } from "@/components/layout/update-banner";
 import { SoftphoneWidget } from "@/features/softphone/components";
 import { WhatsappIncomingCallWidget } from "@/components/inbox/whatsapp-incoming-call-widget";
@@ -56,7 +55,6 @@ export default function AppLayout({
         <RouteTransition>{children}</RouteTransition>
         <UpdateAvailableBanner />
         <MobileAppUpdateDialog />
-        <NativeApkUpdateDialog />
         <SoftphoneWidget />
         <WhatsappIncomingCallWidget />
         {/* Alerta global de tarefa (polling; sem overlay). */}
