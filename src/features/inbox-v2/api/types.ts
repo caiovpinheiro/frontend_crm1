@@ -15,6 +15,7 @@ export type InboxTab =
   | "esperando"
   | "respondidas"
   | "ligar"
+  | "agente_ia"
   | "automacao"
   | "finalizados"
   | "erro";
@@ -140,6 +141,7 @@ export interface TabCounts {
   esperando: number;
   respondidas: number;
   ligar: number;
+  agente_ia: number;
   automacao: number;
   finalizados: number;
   erro: number;

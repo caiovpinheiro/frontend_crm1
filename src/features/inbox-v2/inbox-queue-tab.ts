@@ -18,9 +18,10 @@ export function inboxQueueTabFor(row: ConversationListRow): InboxTab {
   if (row.hasError) return "erro";
 
   const assigneeType = (row.assignedTo?.type ?? "").toUpperCase();
-  const hasInbound = Boolean(row.lastInboundAt);
 
-  if (assigneeType === "AI" && !hasInbound) return "automacao";
+  // Responsável IA tem fila própria (`agente_ia`), tenha o aluno respondido
+  // ou não — espelha `tabToWhere` no backend.
+  if (assigneeType === "AI") return "agente_ia";
   if (!row.assignedToId) return "entrada";
 
   const dir = lastMessageDirection(row);

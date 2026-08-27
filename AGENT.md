@@ -5,6 +5,18 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-08-27 — Inbox: aba "Agente IA"
+
+**Decisão.** Nova aba `agente_ia` entre "Ligar" e "Automação" (`TABS`, `INBOX_TAB_IDS`, `INBOX_TAB_BAR_ORDER`, `TabCounts`), com ícone próprio no `statusVisual` (`IconSparkles`, rosa — a IA não é o robô de campanha). `inboxQueueTabFor` passa a mandar qualquer conversa com assignee `type: AI` para essa fila, independente de inbound.
+
+**Contexto.** A fila da IA existe agora no backend (`tabToWhere` case `agente_ia`); as conversas com a IA como responsável saíram de Entrada/Aguardando/Respondidas/Automação. Sem a aba no frontend elas simplesmente sumiriam da Inbox.
+
+**Alternativas descartadas.** Derivar a aba no cliente a partir de `assignedTo.type` (badges e paginação vêm do servidor; `todos` e as permissões também). Reusar o ícone/rótulo de Automação (esconde a diferença entre robô de campanha e atendimento da IA).
+
+**Impacto.** Deploy acoplado ao backend: a aba envia `tab=agente_ia`, que o backend antigo rejeita. `inbox:tab:agente_ia` controla a visibilidade; roles antigas caem no fallback de `inbox:tab:entrada` / `inbox:tab:automacao`.
+
+---
+
 ### 2026-08-21 — Inbox: voltar nativo do celular volta à lista
 
 **Modelo usado.** Cursor Grok 4.5.
