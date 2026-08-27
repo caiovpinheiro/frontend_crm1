@@ -13,7 +13,9 @@ documenta **por que** algo foi feito, não **o que**.
 
 **Alternativas descartadas.** Derivar a aba no cliente a partir de `assignedTo.type` (badges e paginação vêm do servidor; `todos` e as permissões também). Reusar o ícone/rótulo de Automação (esconde a diferença entre robô de campanha e atendimento da IA).
 
-**Impacto.** Deploy acoplado ao backend: a aba envia `tab=agente_ia`, que o backend antigo rejeita. `inbox:tab:agente_ia` controla a visibilidade; roles antigas caem no fallback de `inbox:tab:entrada` / `inbox:tab:automacao`.
+**Cockpit.** O KPI "Ainda com a IA" (aba Saúde de `/ai-agents`) é a mesma população da aba: o hint virou "na aba Agente IA" e o modal de casos ganhou atalho para `/inbox?tab=agente_ia` via `QUEUE_TAB_BY_KEY`. Mapa por key em vez de `if` solto porque outros KPIs viram fila depois.
+
+**Impacto.** Deploy acoplado ao backend, **frontend primeiro**: o backend antigo ignora `tab` desconhecida em vez de rejeitar, então a aba nova apenas lista tudo até o backend subir. Subir o backend antes é o que esconde as conversas da IA de Entrada/Aguardando/Respondidas/Automação sem aba para recebê-las. `inbox:tab:agente_ia` controla a visibilidade; roles antigas caem no fallback de `inbox:tab:entrada` / `inbox:tab:automacao`.
 
 ---
 
