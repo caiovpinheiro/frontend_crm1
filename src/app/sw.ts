@@ -122,7 +122,7 @@ self.addEventListener("push", (event: PushEvent) => {
     payload = event.data.json() as PushPayload;
   } catch {
     // Fallback: trata como texto puro.
-    payload = { title: "EduIT", body: event.data.text() };
+    payload = { title: "Bwipo", body: event.data.text() };
   }
 
   const {

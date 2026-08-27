@@ -895,7 +895,7 @@ export function ShowcaseClient() {
         {/* Rodapé */}
         <footer className="border-t border-[var(--glass-border)] py-8 text-center">
           <p className="font-display text-[12px] font-semibold text-[var(--text-muted)]">
-            Design System v2 — Eduit CRM · Fonte de verdade: <span className="font-mono">src/styles/globals-v2.css</span> + <span className="font-mono">src/components/crm/</span>
+            Design System v2 — Bwipo · Fonte de verdade: <span className="font-mono">src/styles/globals-v2.css</span> + <span className="font-mono">src/components/crm/</span>
           </p>
         </footer>
       </main>

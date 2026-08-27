@@ -730,7 +730,7 @@ function ProfileCard({
             id="signature"
             value={signature}
             onChange={(e) => setSignature(e.target.value)}
-            placeholder="Ex.: Marcelo · EduIT"
+            placeholder="Ex.: Marcelo · Bwipo"
           />
         </Field>
 

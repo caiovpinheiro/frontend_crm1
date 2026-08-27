@@ -36,7 +36,7 @@ export default async function AdminLayout({
             </div>
             <div className="flex flex-col leading-tight">
               <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                EduIT
+                Bwipo
               </span>
               <span className="font-display text-sm font-semibold text-foreground">
                 Admin

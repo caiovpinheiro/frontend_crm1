@@ -15,7 +15,7 @@ type Step = {
 const STEPS: Step[] = [
   {
     icon: Sparkles,
-    title: "Bem-vindo ao EduIT Premium",
+    title: "Bem-vindo ao Bwipo",
     body: "Tour rápido de 30 segundos pra mostrar 4 atalhos que economizam horas por dia.",
     cta: "Vamos lá",
   },

@@ -48,7 +48,7 @@ const LAST = [
   "Carvalho", "Ribeiro", "Martins", "Rocha", "Gomes", "Barbosa", "Araújo", "Melo",
 ];
 const COMPANY_NAMES = [
-  "EduIT Educação", "TechNova Sistemas", "Aurora Saúde", "Vértice Consultoria",
+  "Bwipo Educação", "TechNova Sistemas", "Aurora Saúde", "Vértice Consultoria",
   "Lumina Energia", "Praxis Logística", "Onda Digital", "Forte Seguros",
   "Mantra Marketing", "Solare Engenharia", "Nimbus Cloud", "Raízes Agro",
   "Pulso Telecom", "Vega Imobiliária", "Cobalto Indústria", "Faro Educacional",

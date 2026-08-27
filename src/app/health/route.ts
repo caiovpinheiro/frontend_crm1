@@ -37,7 +37,7 @@ export async function GET() {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="30">
-  <title>Frontend OK · CRM EduIT</title>
+  <title>Frontend OK · Bwipo</title>
   <style>
     body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:#f8fafc;color:#0f172a;min-height:100dvh;padding:64px 24px}
     .shell{max-width:480px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid rgba(0,0,0,0.06);padding:24px}

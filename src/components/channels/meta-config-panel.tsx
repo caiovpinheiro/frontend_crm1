@@ -457,7 +457,7 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
               id="meta-app-name"
               value={appName}
               onChange={(e) => setAppName(e.target.value)}
-              placeholder="Ex: WhatsApp Eduit"
+              placeholder="Ex: WhatsApp Bwipo"
             />
           </div>
         </div>

@@ -26,7 +26,7 @@ export default function RegisterPage() {
       <p className="mt-6 text-xs text-muted-foreground">
         É uma empresa interessada em contratar o CRM?
         <br />
-        Fale com a equipe EduIT em{" "}
+        Fale com a equipe Bwipo em{" "}
         <a
           href="mailto:comercial@eduit.com.br"
           className="font-medium text-foreground hover:underline"
