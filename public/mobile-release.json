@@ -1,7 +1,7 @@
 {
-  "versionCode": 12,
-  "versionName": "1.0.11-dev",
-  "apkUrl": "https://crm-apk-dev.ca31ey.easypanel.host/releases/bwipo-dev-1.0.11.apk",
+  "versionCode": 13,
+  "versionName": "1.0.12-dev",
+  "apkUrl": "https://crm-apk-dev.ca31ey.easypanel.host/releases/bwipo-dev-1.0.12.apk",
   "force": false,
-  "notes": "Ícone do app atualizado para a marca Bwipo."
+  "notes": "Ícone do app com o logo Bwipo completo, sem recorte."
 }
