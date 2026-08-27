@@ -47,7 +47,7 @@ function resolvePostLoginOrigin(): string {
   ) {
     return (
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-      "https://frontend-front.v74knz.easypanel.host"
+      "https://crm-dev-frontend.ca31ey.easypanel.host"
     );
   }
   return origin;

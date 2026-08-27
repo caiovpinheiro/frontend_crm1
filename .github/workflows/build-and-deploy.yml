@@ -71,24 +71,28 @@ jobs:
             NEXTAUTH_URL="$V_NEXTAUTH_URL_PROD"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_PROD"
             WEBHOOK="$S_WEBHOOK_PROD"
+            APP_URL="$V_NEXTAUTH_URL_PROD"
           else
             TAG=dev
             API_BASE="$V_API_BASE_DEV"
             NEXTAUTH_URL="$V_NEXTAUTH_URL_DEV"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_DEV"
             WEBHOOK="$S_WEBHOOK_DEV"
+            APP_URL="$V_NEXTAUTH_URL_DEV"
           fi
           TAG=$(printf '%s' "$TAG" | tr -d '\r\n')
           API_BASE=$(printf '%s' "$API_BASE" | tr -d '\r\n')
           NEXTAUTH_URL=$(printf '%s' "$NEXTAUTH_URL" | tr -d '\r\n')
           NEXTAUTH_SECRET=$(printf '%s' "$NEXTAUTH_SECRET" | tr -d '\r\n')
           WEBHOOK=$(printf '%s' "$WEBHOOK" | tr -d '\r\n')
+          APP_URL=$(printf '%s' "$APP_URL" | tr -d '\r\n')
           {
             echo "TAG=$TAG"
             echo "API_BASE=$API_BASE"
             echo "NEXTAUTH_URL=$NEXTAUTH_URL"
             echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET"
             echo "WEBHOOK=$WEBHOOK"
+            echo "APP_URL=$APP_URL"
           } >> "$GITHUB_OUTPUT"
           echo "::group::env resolved (values masked)"
           [ -n "$TAG" ]             && echo "TAG=<set>"             || echo "TAG=<EMPTY>"
@@ -143,6 +147,7 @@ jobs:
           NEXTAUTH_URL: ${{ steps.env.outputs.NEXTAUTH_URL }}
           NEXTAUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
           AUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
+          NEXT_PUBLIC_APP_URL: ${{ steps.env.outputs.APP_URL }}
           BUILD_ID: ${{ github.sha }}
           GITHUB_SHA: ${{ github.sha }}
         run: npm run build
