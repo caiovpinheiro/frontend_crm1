@@ -57,7 +57,7 @@ function BrandMark() {
         className="app-loading-mark relative flex size-16 items-center justify-center"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-bwipo.png" alt="" className="size-16 object-contain" />
+        <img src="/logo-bwipo-mark.png" alt="" className="size-16 object-contain" />
       </span>
     </span>
   );
