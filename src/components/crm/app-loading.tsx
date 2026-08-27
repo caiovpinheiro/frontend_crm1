@@ -43,7 +43,7 @@ export type AppLoadingProps = {
 
 function BrandMark() {
   return (
-    <span className="relative inline-flex size-14 items-center justify-center">
+    <span className="relative inline-flex size-16 items-center justify-center">
       <span
         aria-hidden
         className="app-loading-halo absolute inset-[-10px] rounded-[var(--radius-2xl)]"
@@ -54,10 +54,10 @@ function BrandMark() {
       />
       <span
         aria-hidden
-        className="app-loading-mark relative flex size-14 items-center justify-center"
+        className="app-loading-mark relative flex size-16 items-center justify-center"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-bwipo.png" alt="" className="size-14 object-contain" />
+        <img src="/logo-bwipo.png" alt="" className="size-16 object-contain" />
       </span>
     </span>
   );
