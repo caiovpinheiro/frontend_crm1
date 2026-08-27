@@ -439,7 +439,7 @@ function IPhoneMockup({ bottomNav }: { bottomNav: MobileModuleId[] }) {
           <div className="absolute left-0 right-0 top-7 flex items-center justify-between bg-sidebar border-b border-sidebar-border px-4 py-3 shadow-[var(--shadow-sm)]">
             <div className="flex items-center gap-2">
               <span className="flex size-7 items-center justify-center rounded-md bg-[var(--glass-bg-overlay)]">
-                <span className="text-[12px] font-bold text-primary">E</span>
+                <span className="text-[12px] font-bold text-primary">B</span>
               </span>
               <span className="font-display text-[13px] font-extrabold tracking-tight text-white">
                 Inbox

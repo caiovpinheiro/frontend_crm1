@@ -68,7 +68,7 @@ export default function RegisterPage() {
         <div className="space-y-1">
           <CardTitle className="text-xl font-semibold tracking-tight">Criar conta</CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
-            Cadastre-se no <span className="font-medium text-foreground">EduIT CRM</span>
+            Cadastre-se no <span className="font-medium text-foreground">Bwipo</span>
           </CardDescription>
         </div>
       </CardHeader>

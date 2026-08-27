@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLock as Lock, IconLogin as LogIn, IconMail as Mail, IconShieldCheck as ShieldCheck } from "@tabler/icons-react";
+import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLock as Lock, IconLogin as LogIn, IconMail as Mail } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
@@ -261,16 +261,12 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center p-6">
       <div className="flex w-full max-w-sm flex-col items-center">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div
-            className="mb-4 flex size-16 items-center justify-center rounded-2xl text-white"
-            style={{
-              background: "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)",
-              boxShadow: "0 12px 32px -8px rgba(91,111,245,0.55)",
-            }}
-          >
-            <ShieldCheck className="size-8 text-white" strokeWidth={2} />
-          </div>
-          <h1 className="font-display text-[22px] font-bold tracking-tight text-white">CRM EduIT</h1>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-bwipo-white.png"
+            alt="Bwipo"
+            className="mb-4 h-12 w-auto max-w-[220px] object-contain"
+          />
           <p className="mt-1 text-[14px] text-white/70">Faça login para gerenciar conversas e negócios.</p>
         </div>
 
@@ -404,7 +400,7 @@ function LoginForm() {
           </p>
         </form>
 
-        <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · CRM EduIT</p>
+        <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · Bwipo</p>
       </div>
     </div>
     </HeroGeometric>

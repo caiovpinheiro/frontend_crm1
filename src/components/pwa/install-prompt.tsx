@@ -72,7 +72,7 @@ export function InstallPrompt() {
         "md:hidden",
       )}
       role="dialog"
-      aria-label="Instalar EduIT"
+      aria-label="Instalar Bwipo"
     >
       <button
         type="button"
@@ -84,12 +84,11 @@ export function InstallPrompt() {
       </button>
 
       <div className="flex items-start gap-3 pr-6">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-indigo-glow)]">
-          <span className="text-lg font-bold">E</span>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-bwipo.png" alt="" className="size-11 shrink-0 object-contain" />
         <div className="min-w-0 flex-1">
           <p className="font-display text-[14px] font-extrabold tracking-tight text-[var(--text-primary)]">
-            Instale o EduIT
+            Instale o Bwipo
           </p>
           <p className="mt-0.5 text-[12px] font-medium leading-tight text-[var(--text-muted)]">
             {isIOS

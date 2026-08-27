@@ -1,15 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="EduIT CRM">
-  <title>EduIT CRM</title>
-  <!--
-    Versão MASKABLE do ícone PWA.
-    Android pode aplicar máscaras (círculo, squircle, teardrop) e
-    cortar os cantos do ícone  então a "safe zone" é o círculo
-    central de 80% (de 102 a 922). Aqui:
-    - O fundo navy se estende borda-a-borda (sem rounded  a máscara
-      do SO faz isso).
-    - O "E" foi reduzido para 60% do canvas e centralizado, para
-      caber em qualquer máscara sem ser cortado.
-  -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Bwipo">
+  <title>Bwipo</title>
+  <!-- Versão MASKABLE: fundo borda-a-borda, "B" dentro da safe zone (80%). -->
   <defs>
     <radialGradient id="cyanGlowMask" cx="80%" cy="80%" r="55%">
       <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.32" />
@@ -21,10 +12,20 @@
   <rect x="0" y="0" width="1024" height="1024" fill="#0d1b3e" />
   <rect x="0" y="0" width="1024" height="1024" fill="url(#cyanGlowMask)" />
 
-  <g fill="#ffffff" transform="translate(204 204) scale(0.6)">
-    <rect x="320" y="280" width="128" height="464" rx="14" />
-    <rect x="320" y="280" width="392" height="104" rx="14" />
-    <rect x="320" y="460" width="316" height="104" rx="14" />
-    <rect x="320" y="640" width="392" height="104" rx="14" />
+  <g transform="translate(204 204) scale(0.6)">
+    <g fill="#ffffff">
+      <rect x="330" y="270" width="120" height="484" rx="14" />
+      <rect x="330" y="270" width="300" height="104" rx="14" />
+      <rect x="330" y="466" width="300" height="96" rx="14" />
+      <rect x="330" y="650" width="300" height="104" rx="14" />
+      <circle cx="600" cy="374" r="104" />
+      <circle cx="600" cy="650" r="104" />
+    </g>
+    <g fill="#0d1b3e">
+      <circle cx="600" cy="374" r="52" />
+      <circle cx="600" cy="650" r="52" />
+      <rect x="450" y="374" width="80" height="92" />
+      <rect x="450" y="562" width="80" height="88" />
+    </g>
   </g>
 </svg>

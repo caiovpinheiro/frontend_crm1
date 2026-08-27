@@ -54,18 +54,10 @@ function BrandMark() {
       />
       <span
         aria-hidden
-        className="app-loading-mark relative flex size-14 items-center justify-center rounded-[var(--radius-xl)] shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--brand-primary)_60%,transparent)]"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)",
-        }}
+        className="app-loading-mark relative flex size-14 items-center justify-center"
       >
-        <svg viewBox="0 0 1024 1024" className="size-7 text-white" fill="currentColor" aria-hidden>
-          <rect x="320" y="280" width="128" height="464" rx="14" />
-          <rect x="320" y="280" width="392" height="104" rx="14" />
-          <rect x="320" y="460" width="316" height="104" rx="14" />
-          <rect x="320" y="640" width="392" height="104" rx="14" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-bwipo.png" alt="" className="size-14 object-contain" />
       </span>
     </span>
   );

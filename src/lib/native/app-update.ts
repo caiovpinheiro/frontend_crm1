@@ -161,7 +161,7 @@ export async function installNativeUpdate(apkUrl: string): Promise<void> {
       // Ignora — a mensagem abaixo já orienta o usuário mesmo se a tela não abrir.
     }
     throw new Error(
-      'Permissão necessária: ative "Instalar apps desconhecidos" para o EduIT CRM e tente novamente.',
+      'Permissão necessária: ative "Instalar apps desconhecidos" para o Bwipo e tente novamente.',
     );
   }
 

@@ -251,7 +251,7 @@ export default function OnboardingWizard({ initialOrganization }: Props) {
             </button>
           </div>
           <div className="text-[11px] leading-snug text-muted-foreground">
-            Dúvidas? Fale com a equipe EduIT em{" "}
+            Dúvidas? Fale com a equipe Bwipo em{" "}
             <a
               href="mailto:suporte@eduit.com.br"
               className="underline underline-offset-2 hover:text-foreground"

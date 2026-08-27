@@ -117,7 +117,7 @@ export function BiometricLockGate() {
           <IconFingerprint className="size-8 text-white" aria-hidden />
         </div>
         <div>
-          <h2 className="font-display text-lg font-bold text-white">EduIT CRM bloqueado</h2>
+          <h2 className="font-display text-lg font-bold text-white">Bwipo bloqueado</h2>
           <p className="mt-1.5 text-sm leading-snug text-white/70">
             Confirme sua identidade para continuar.
           </p>
