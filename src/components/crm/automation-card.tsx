@@ -36,7 +36,7 @@ export function AutomationCard({ automation, onToggle, onDelete }: AutomationCar
   return (
     <article
       className={cn(
-        "group relative grid min-h-[56px] min-w-0 shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden border-b border-[var(--glass-border-subtle)] bg-transparent px-3.5 py-2.5 last:border-b-0 transition-colors duration-150 hover:bg-[var(--glass-bg-subtle)] focus-within:bg-[var(--glass-bg-subtle)] sm:px-4 lg:min-h-14 lg:grid-cols-[minmax(200px,1.55fr)_minmax(132px,1fr)_72px_88px_112px_96px] lg:gap-4 lg:py-2",
+        "group relative grid min-h-[68px] min-w-0 shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden border-b border-[var(--glass-border-subtle)] bg-transparent px-3.5 py-3.5 last:border-b-0 transition-colors duration-150 hover:bg-[color-mix(in_srgb,white_48%,transparent)] focus-within:bg-[color-mix(in_srgb,white_48%,transparent)] sm:px-4 lg:min-h-16 lg:grid-cols-[minmax(200px,1.55fr)_minmax(132px,1fr)_72px_88px_112px_96px] lg:gap-4 lg:py-3.5",
       )}
       role="row"
     >
@@ -62,6 +62,9 @@ export function AutomationCard({ automation, onToggle, onDelete }: AutomationCar
           <h3 className="min-w-0 shrink truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
             {automation.name}
           </h3>
+          <span className="shrink-0 text-[11px] leading-none text-[var(--text-muted)]/55" aria-hidden>
+            •
+          </span>
           <span className="flex min-w-0 max-w-[58%] shrink-0 items-center gap-1.5">
             <IconBolt size={13} stroke={2.2} className="shrink-0 text-[var(--brand-primary)]" />
             <span className="min-w-0 truncate font-body text-[12px] text-[var(--text-muted)] sm:text-[12.5px]">
