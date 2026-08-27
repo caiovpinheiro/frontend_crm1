@@ -63,15 +63,22 @@ jobs:
           S_NEXTAUTH_SECRET_PROD: ${{ secrets.NEXTAUTH_SECRET_PROD }}
           S_NEXTAUTH_SECRET_DEV: ${{ secrets.NEXTAUTH_SECRET_DEV }}
           S_WEBHOOK_PROD: ${{ secrets.EASYPANEL_WEBHOOK_PROD }}
+          S_WEBHOOK_FRONT_DO: ${{ secrets.EASYPANEL_FRONT_DO }}
           S_WEBHOOK_DEV: ${{ secrets.EASYPANEL_WEBHOOK_DEV }}
         run: |
           if [ "$BRANCH_REF" = "refs/heads/main" ]; then
             TAG=latest
-            API_BASE="$V_API_BASE_PROD"
-            NEXTAUTH_URL="$V_NEXTAUTH_URL_PROD"
+            # Produção DigitalOcean: NÃO usar API_BASE_PROD / NEXTAUTH_URL_PROD
+            # se ainda apontarem para *.easypanel.host (Hostinger). NEXT_PUBLIC_*
+            # é inlined no `next build`; env do EasyPanel no container não troca.
+            API_BASE="https://api.bwipo.com"
+            NEXTAUTH_URL="https://bwipo.com"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_PROD"
-            WEBHOOK="$S_WEBHOOK_PROD"
-            APP_URL="$V_NEXTAUTH_URL_PROD"
+            # Webhook do serviço frontend no EasyPanel DO (EASYPANEL_FRONT_DO);
+            # fallback para o secret antigo de prod se o novo não existir.
+            WEBHOOK="${S_WEBHOOK_FRONT_DO:-$S_WEBHOOK_PROD}"
+            TENANT_BASE="bwipo.com"
+            APP_URL="https://bwipo.com"
             MOBILE_RELEASE_URL="https://crm-mobile.7w7dai.easypanel.host/mobile-release.json"
           else
             TAG=dev
@@ -79,6 +86,10 @@ jobs:
             NEXTAUTH_URL="$V_NEXTAUTH_URL_DEV"
             NEXTAUTH_SECRET="$S_NEXTAUTH_SECRET_DEV"
             WEBHOOK="$S_WEBHOOK_DEV"
+            TENANT_BASE=""
+            # Mantido apontando para o host de dev: com APP_URL vazio o app
+            # mobile compilado em dev cairia no default `bwipo.com` do
+            # `getTenantBaseDomain()` — ou seja, logaria em produção.
             APP_URL="$V_NEXTAUTH_URL_DEV"
             MOBILE_RELEASE_URL="https://crm-apk-dev.ca31ey.easypanel.host/mobile-release.json"
           fi
@@ -87,6 +98,7 @@ jobs:
           NEXTAUTH_URL=$(printf '%s' "$NEXTAUTH_URL" | tr -d '\r\n')
           NEXTAUTH_SECRET=$(printf '%s' "$NEXTAUTH_SECRET" | tr -d '\r\n')
           WEBHOOK=$(printf '%s' "$WEBHOOK" | tr -d '\r\n')
+          TENANT_BASE=$(printf '%s' "$TENANT_BASE" | tr -d '\r\n')
           APP_URL=$(printf '%s' "$APP_URL" | tr -d '\r\n')
           MOBILE_RELEASE_URL=$(printf '%s' "$MOBILE_RELEASE_URL" | tr -d '\r\n')
           {
@@ -95,6 +107,7 @@ jobs:
             echo "NEXTAUTH_URL=$NEXTAUTH_URL"
             echo "NEXTAUTH_SECRET=$NEXTAUTH_SECRET"
             echo "WEBHOOK=$WEBHOOK"
+            echo "TENANT_BASE=$TENANT_BASE"
             echo "APP_URL=$APP_URL"
             echo "MOBILE_RELEASE_URL=$MOBILE_RELEASE_URL"
           } >> "$GITHUB_OUTPUT"
@@ -104,6 +117,7 @@ jobs:
           [ -n "$NEXTAUTH_URL" ]    && echo "NEXTAUTH_URL=<set>"    || echo "NEXTAUTH_URL=<EMPTY>"
           [ -n "$NEXTAUTH_SECRET" ] && echo "NEXTAUTH_SECRET=<set>" || echo "NEXTAUTH_SECRET=<EMPTY>"
           [ -n "$WEBHOOK" ]         && echo "WEBHOOK=<set>"         || echo "WEBHOOK=<EMPTY>"
+          [ -n "$TENANT_BASE" ]     && echo "TENANT_BASE=<set>"     || echo "TENANT_BASE=<EMPTY>"
           [ -n "$APP_URL" ]         && echo "APP_URL=<set>"         || echo "APP_URL=<EMPTY>"
           [ -n "$MOBILE_RELEASE_URL" ] && echo "MOBILE_RELEASE_URL=<set>" || echo "MOBILE_RELEASE_URL=<EMPTY>"
           echo "::endgroup::"
@@ -153,7 +167,9 @@ jobs:
           NEXTAUTH_URL: ${{ steps.env.outputs.NEXTAUTH_URL }}
           NEXTAUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
           AUTH_SECRET: ${{ steps.env.outputs.NEXTAUTH_SECRET }}
+          NEXT_PUBLIC_TENANT_BASE_DOMAIN: ${{ steps.env.outputs.TENANT_BASE }}
           NEXT_PUBLIC_APP_URL: ${{ steps.env.outputs.APP_URL }}
+          NEXT_PUBLIC_TENANT_PROTOCOL: https
           NEXT_PUBLIC_MOBILE_RELEASE_MANIFEST_URL: ${{ steps.env.outputs.MOBILE_RELEASE_URL }}
           BUILD_ID: ${{ github.sha }}
           GITHUB_SHA: ${{ github.sha }}

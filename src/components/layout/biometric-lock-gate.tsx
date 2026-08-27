@@ -19,8 +19,10 @@
  */
 
 import * as React from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { IconFingerprint, IconLogout } from "@tabler/icons-react";
+
+import { signOutToLogin } from "@/lib/sign-out-to-login";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { getNativeAppPlugin, isNativePlatform } from "@/lib/native/capacitor";
@@ -139,7 +141,7 @@ export function BiometricLockGate() {
         </ButtonGlass>
         <button
           type="button"
-          onClick={() => void signOut({ callbackUrl: "/" })}
+          onClick={() => void signOutToLogin()}
           className="inline-flex items-center gap-1.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white"
         >
           <IconLogout className="size-3.5" aria-hidden />

@@ -375,6 +375,31 @@ export async function middleware(req: NextRequest) {
       return finish(NextResponse.redirect(loginUrl));
     }
 
+    // Logado no APEX com uma org na sessão → manda para o subdomínio da org.
+    // O apex é só login/marketing; o app roda em {slug}.{base}. Sem isso,
+    // quem abre bwipo.com logado via cookie Domain=.bwipo.com via o CRM da
+    // org no host errado (o backend escopa pela sessão, então "funciona").
+    if (
+      !tenantSlug &&
+      reqAuth?.user &&
+      !reqAuth.user.isSuperAdmin &&
+      reqAuth.user.organizationSlug &&
+      !pathname.startsWith("/api/") &&
+      !pathname.startsWith("/login") &&
+      !pathname.startsWith("/register")
+    ) {
+      const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0] ?? "";
+      const base = getTenantBaseDomain();
+      // Só redireciona quando já estamos no domínio de tenant (apex real),
+      // não em localhost / preview / IP.
+      if (host === base || host === `www.${base}`) {
+        const target = new URL(
+          `${getTenantProtocol()}://${reqAuth.user.organizationSlug}.${base}${pathname}${req.nextUrl.search ?? ""}`,
+        );
+        return finish(NextResponse.redirect(target));
+      }
+    }
+
     // Para /api/* (rotas que vão pro backend), permite Bearer token mesmo sem sessão.
     if (
       !reqAuth &&

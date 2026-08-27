@@ -260,8 +260,13 @@ export function useTabCounts(
     // 8s multiplicava essa agregação por aba aberta e por atendente.
     refetchInterval: 30_000,
     staleTime: 25_000,
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
+    // Desligados pelo mesmo motivo do `useConversations`: com o SSE
+    // invalidando a query, cada montagem do componente e cada volta de foco
+    // só somavam uma agregação a mais. No HAR de 26/ago/26 os counts
+    // apareciam 12x em 17s. O `refetchInterval` acima cobre a recuperação
+    // caso o EventSource caia.
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
     enabled: isPreviewMode() ? true : enabled,
   });
 }

@@ -15,10 +15,11 @@ import { NetworkOnly, Serwist } from "serwist";
  *  4. Fallback offline minimo.
  *
  * NAO faz:
- *  - Cache de mídia autenticada (/api/storage e /api/media). Respostas
- *    parciais HTTP 206 precisam preservar o Range e nunca podem vir do
- *    cache runtime genérico de APIs do Serwist.
- *  - Cache de SSE — streams nao sao cacheaveis.
+ *  - Cache de NENHUMA rota de /api/. Cobre a mídia autenticada
+ *    (/api/storage e /api/media), cujas respostas parciais 206 precisam
+ *    preservar o Range, e o SSE (/api/sse/messages), que é um stream sem
+ *    fim. Vale para o resto da API também: são dados de um tenant, e o
+ *    Cache Storage sobrevive ao logout.
  *  - Background sync de mensagens (proxima fase).
  */
 
@@ -38,25 +39,40 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
+    // NENHUMA rota de /api/ passa por cache. Precisa vir ANTES do
+    // defaultCache, que casa `/api/` em GET com NetworkFirst na cache
+    // "apis" (24h, networkTimeoutSeconds 10). Duas consequências que não
+    // queremos num CRM multi-tenant:
+    //
+    //  1. Resposta autenticada de um tenant fica gravada no Cache Storage
+    //     do navegador por 24h e sobrevive ao logout.
+    //  2. Se a API passa de 10s (deploy, incidente), o worker serve dado
+    //     de até 24h atrás em silêncio, em vez de deixar o erro aparecer.
+    //
+    // Também é o que mantém o SSE fora do cache: `/api/sse/messages` é GET
+    // same-origin e caía naquela regra — e `Cache.put()` de um corpo em
+    // streaming espera o stream terminar, o que num SSE nunca acontece.
     {
       matcher: ({ sameOrigin, url: { pathname } }) =>
-        sameOrigin &&
-        (pathname.startsWith("/api/storage/") ||
-          pathname.startsWith("/api/media/") ||
-          pathname === "/wa-call-permission" ||
-          pathname.startsWith("/api/wa-call-permission") ||
-          pathname === "/wa-whatsapp-call" ||
-          pathname.startsWith("/api/wa-whatsapp-call") ||
-          pathname.includes("/whatsapp-calls")),
-      method: "POST",
+        sameOrigin && pathname.startsWith("/api/"),
+      method: "GET",
       handler: new NetworkOnly(),
     },
     {
       matcher: ({ sameOrigin, url: { pathname } }) =>
+        sameOrigin && pathname.startsWith("/api/"),
+      method: "POST",
+      handler: new NetworkOnly(),
+    },
+    // Rotas de página das chamadas WhatsApp — fora de /api/, então não são
+    // cobertas pelas regras acima.
+    {
+      matcher: ({ sameOrigin, url: { pathname } }) =>
         sameOrigin &&
-        (pathname.startsWith("/api/storage/") ||
-          pathname.startsWith("/api/media/")),
-      method: "GET",
+        (pathname === "/wa-call-permission" ||
+          pathname === "/wa-whatsapp-call" ||
+          pathname.includes("/whatsapp-calls")),
+      method: "POST",
       handler: new NetworkOnly(),
     },
     ...defaultCache,
@@ -64,6 +80,16 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+/**
+ * Apaga a cache "apis" deixada pelas versões anteriores deste worker.
+ * Enquanto o defaultCache tratava /api/ com NetworkFirst, respostas
+ * autenticadas foram gravadas em disco com validade de 24h — mudar a regra
+ * não remove o que já está lá.
+ */
+self.addEventListener("activate", (event: ExtendableEvent) => {
+  event.waitUntil(caches.delete("apis"));
+});
 
 // ─────────────────────────────────────────────────────────────────
 // PUSH NOTIFICATIONS

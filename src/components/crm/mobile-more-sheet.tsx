@@ -15,7 +15,7 @@ import {
   IconUserCircle,
   IconX,
 } from "@tabler/icons-react";
-import { signOut } from "next-auth/react";
+import { signOutToLogin } from "@/lib/sign-out-to-login";
 
 import {
   AGENT_STATUS_META,
@@ -249,7 +249,7 @@ export function MobileMoreSheet({
               type="button"
               onClick={() => {
                 onClose();
-                void signOut({ callbackUrl: "/login" });
+                void signOutToLogin();
               }}
               className="flex items-center gap-2.5 rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-3 text-destructive active:bg-destructive/10"
             >
