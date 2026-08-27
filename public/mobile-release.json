@@ -1,7 +1,7 @@
 {
-  "versionCode": 10,
-  "versionName": "1.0.9",
-  "apkUrl": "https://crm-mobile.7w7dai.easypanel.host/releases/bwipo-1.0.9.apk",
+  "versionCode": 11,
+  "versionName": "1.0.10",
+  "apkUrl": "https://crm-mobile.7w7dai.easypanel.host/releases/bwipo-1.0.10.apk",
   "force": false,
-  "notes": "Ícone do app atualizado para a marca Bwipo."
+  "notes": "Ícone do app com o logo Bwipo completo, sem recorte."
 }
