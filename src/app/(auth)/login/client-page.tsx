@@ -47,7 +47,7 @@ function resolvePostLoginOrigin(): string {
   ) {
     return (
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-      "https://bwipo.com"
+      "https://frontend-front.v74knz.easypanel.host"
     );
   }
   return origin;

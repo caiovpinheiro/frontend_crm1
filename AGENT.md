@@ -2149,12 +2149,6 @@ aplicada com SQL aditivo idempotente em
 - Modelo: Opus / cursor grok 4.5 (implementação)
 - Decisão: `capacitor.config.json` (`server.url` / `hostname`) e fallback de `resolvePostLoginOrigin` devem apontar para `https://frontend-front.v74knz.easypanel.host` (produção correta). Não usar `banco-frontend-crm.6tqx2r.easypanel.host` (host legado com UI antiga "Olá, Admin"/PresetBar). UI única = frontend responsivo; o visual legado no APK vinha do host errado embutido no build (e `app-revision` no host antigo devolvia HTML de login, por isso o APK não pediu atualização). Mudar `server.url` exige novo APK + sync.
 - Alternativas descartadas: manter o host legado; apontar o APK permanentemente para DEV (`crm-dev-frontend.ca31ey`).
-- Superado em 2026-08-27 pelo host `https://bwipo.com/`.
-
-### 2026-08-27 — APK aponta para produção `https://bwipo.com/`
-- Modelo: Cursor Grok 4.6
-- Decisão: com a VPS/EasyPanel nova, `capacitor.config.json` (`server.url` / `hostname`), `resolvePostLoginOrigin`, `allowNavigation` (`bwipo.com` + `*.bwipo.com`) e o manifesto `mobile-release.json` apontam para `https://bwipo.com`. O usuário indicou `http://bwipo.com/`; o apex responde 308 para HTTPS e os cookies de sessão são `Secure`, então o WebView usa HTTPS. Hosts EasyPanel antigos ficam só em `allowNavigation` por transição. Mudar `server.url` exige novo APK + `npm run sync`.
-- Alternativas descartadas: HTTP no Capacitor (`cleartext`) — o CRM redireciona para HTTPS e quebraria cookie; manter `frontend-front.v74knz.easypanel.host` como URL principal.
 
 ### 2026-08-06 — Layout mobile é por organização (fim do singleton `default`)
 - Modelo: GPT-5.6 (decisão) / claude-sonnet-5-thinking-high (implementação)

@@ -1,11 +1,11 @@
 /**
- * Manifesto de versão do APK.
+ * Manifesto de versão do APK (serviço EasyPanel separado).
  *
- * Produção: mesmo host do CRM (`https://bwipo.com/mobile-release.json`).
+ * Host real do serviço de releases (EasyPanel → Domínios).
  * Override: NEXT_PUBLIC_MOBILE_RELEASE_MANIFEST_URL
  */
 export const DEFAULT_MOBILE_RELEASE_MANIFEST_URL =
-  "https://bwipo.com/mobile-release.json";
+  "https://frontend-app.v74knz.easypanel.host/mobile-release.json";
 
 export function resolveMobileReleaseManifestUrl(): string {
   const fromEnv =
