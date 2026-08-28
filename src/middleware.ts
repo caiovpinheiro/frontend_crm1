@@ -106,7 +106,7 @@ function apexOrigin(req: NextRequest): string {
   if (isSingleHostCrm(hostname)) {
     return req.nextUrl.origin;
   }
-  return `${proto}://${base}`;}
+  return `${proto}://${base}`;
 }
 
 function unknownTenantResponse(req: NextRequest, slug: string): NextResponse {
