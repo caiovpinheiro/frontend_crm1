@@ -19,6 +19,18 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-08-26 — Encaminhar formulário WhatsApp (slash + node)
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Operador envia Flow publicado de duas formas: atalho `/` (envia na hora, janela 24h) e node `send_whatsapp_flow` no grupo Mensagens. Catálogo via GET `/api/whatsapp-flow-definitions/published`. Fora da janela 24h o caminho continua sendo template com botão FLOW.
+
+**Alternativas descartadas.** Recolocar Ação/Flow no node Botões. Abrir painel de confirmação no `/` (não há variáveis de template para preencher).
+
+**Impacto.** `slash-command-menu.tsx`, `add-step-node.tsx` (grupo Mensagens), editor inline `publishedFlow`.
+
+---
+
 ### 2026-08-21 — Inbox: voltar nativo do celular volta à lista
 
 **Modelo usado.** Cursor Grok 4.5.

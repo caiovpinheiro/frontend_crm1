@@ -58,7 +58,8 @@ const GROUPS: { title: string; items: PaletteItem[] }[] = [
     items: [{ type: "delay" }, { type: "condition" }, { type: "round_robin" }, { type: "business_hours" }, { type: "check_agent_status" }],
   },
   {
-    title: "WhatsApp",
+    // Mesmo nome do STEP_GROUPS / modal "O que deseja automatizar?"
+    title: "Mensagens",
     items: [
       { type: "send_whatsapp_message" },
       { type: "send_whatsapp_template" },
