@@ -3166,7 +3166,7 @@ export function ChatWindow({
                         label={
                           agentNameFromWhatsappCallSender(m.senderName) ||
                           m.senderName ||
-                          "Admin EduIT"
+                          "Admin Bwipo"
                         }
                         side="top"
                       >
@@ -3180,7 +3180,7 @@ export function ChatWindow({
                               agentNameFromWhatsappCallSender(m.senderName) ||
                               m.senderName ||
                               session?.user?.name ||
-                              "Admin EduIT",
+                              "Admin Bwipo",
                             imageUrl: isBot
                               ? null
                               : (m.senderImageUrl ??
@@ -4999,7 +4999,7 @@ interface AudioMessageProps {
   deliveryStatus?: "sent" | "delivered" | "read";
   /** Quando true, aplica a paleta unificada do agente (#f0f9fa / #cffafe). */
   out?: boolean;
-  /** Label opcional exibido no topo do balão (ex.: "Admin EduIT"). */
+  /** Label opcional exibido no topo do balão (ex.: "Admin Bwipo"). */
   senderLabel?: string;
   /** Gravação de ligação WhatsApp — chrome distinto do áudio de voz. */
   isCallRec?: boolean;

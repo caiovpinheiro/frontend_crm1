@@ -5,6 +5,20 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-08-27 — Inbox: aba "Agente IA"
+
+**Decisão.** Nova aba `agente_ia` entre "Ligar" e "Automação" (`TABS`, `INBOX_TAB_IDS`, `INBOX_TAB_BAR_ORDER`, `TabCounts`), com ícone próprio no `statusVisual` (`IconSparkles`, rosa — a IA não é o robô de campanha). `inboxQueueTabFor` passa a mandar qualquer conversa com assignee `type: AI` para essa fila, independente de inbound.
+
+**Contexto.** A fila da IA existe agora no backend (`tabToWhere` case `agente_ia`); as conversas com a IA como responsável saíram de Entrada/Aguardando/Respondidas/Automação. Sem a aba no frontend elas simplesmente sumiriam da Inbox.
+
+**Alternativas descartadas.** Derivar a aba no cliente a partir de `assignedTo.type` (badges e paginação vêm do servidor; `todos` e as permissões também). Reusar o ícone/rótulo de Automação (esconde a diferença entre robô de campanha e atendimento da IA).
+
+**Cockpit.** O KPI "Ainda com a IA" (aba Saúde de `/ai-agents`) é a mesma população da aba: o hint virou "na aba Agente IA" e o modal de casos ganhou atalho para `/inbox?tab=agente_ia` via `QUEUE_TAB_BY_KEY`. Mapa por key em vez de `if` solto porque outros KPIs viram fila depois.
+
+**Impacto.** Deploy acoplado ao backend, **frontend primeiro**: o backend antigo ignora `tab` desconhecida em vez de rejeitar, então a aba nova apenas lista tudo até o backend subir. Subir o backend antes é o que esconde as conversas da IA de Entrada/Aguardando/Respondidas/Automação sem aba para recebê-las. `inbox:tab:agente_ia` controla a visibilidade; roles antigas caem no fallback de `inbox:tab:entrada` / `inbox:tab:automacao`.
+
+---
+
 ### 2026-08-26 — Encaminhar formulário WhatsApp (slash + node)
 
 **Modelo usado.** Cursor Grok 4.6.
@@ -2263,3 +2277,8 @@ aplicada com SQL aditivo idempotente em
 - Modelo: Cursor Grok 4.5
 - Decisão: tokenizar as cores fixas do editor em `--fx-*` (novos: `--fx-surface-2`, `--fx-input-bg`, `--fx-divider-strong`, `--fx-surface-err`, `--fx-border-err`, `--fx-out-label*`, `--fx-text-label`, `--fx-accent-ink`, `--fx-warn-*`), com os hex claros atuais como valor padrão, e concentrar o dark em um único bloco `.v2-dark .automation-editor`. Canvas passa de `#0e1524` para `#1a2334`–`#1f2a40` (azul escuro suave, família do `--bg-mesh` do CRM); cards em `#26314a`, campos recuados em `#1e2740`. O glifo `⊘` do ramo "senão" virou `IconBan` (Tabler) — a fonte do app não tem U+2298 e renderizava tofu.
 - Alternativas descartadas: sobrescrever cada seletor em `.v2-dark` (duplica regra e desincroniza com o claro); manter o remapeamento por utilitário Tailwind em `globals-v2.css` como única estratégia (não alcança as classes `cfg-*`/`fx-*`, que são CSS puro).
+
+### 2026-08-27 — Manifesto do APK nos hosts EasyPanel atuais
+- Modelo: Cursor Grok 4.6
+- Decisão: o check in-app (plugin AppUpdate + diálogo "Atualizar sem APK") volta a ler o manifesto em `crm-mobile.7w7dai` (prod) e `crm-apk-dev.ca31ey` (DEV), com proxy público `/api/mobile-release` e `/mobile-release.json` liberado no middleware. Host antigo `frontend-app.v74knz` está 503; o fallback no CRM redirecionava para login. Throttle passa a ser por `versionCode` oferecido, não por "último check".
+- Alternativas descartadas: manter o host legado; exigir env EasyPanel nova só no painel (CI já embute a URL por branch).

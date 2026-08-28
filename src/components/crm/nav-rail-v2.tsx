@@ -17,7 +17,8 @@ import {
   Sun,
   Trash2,
 } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutToLogin } from "@/lib/sign-out-to-login";
 import { toast } from "sonner";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
@@ -750,7 +751,7 @@ export function NavRailV2({ className }: { className?: string }) {
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
-            onClick={() => void signOut({ callbackUrl: "/login" })}
+            onClick={() => void signOutToLogin()}
             className={cn(
               ACCOUNT_MENU_ITEM,
               "text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive",

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { IconMessageCircle } from "@tabler/icons-react";
+import { IconInbox, IconMessageCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
@@ -32,6 +32,20 @@ function inboxHref(number: number | null, id: string): string {
   return `/inbox?c=${encodeURIComponent(id)}`;
 }
 
+/**
+ * KPIs cuja lista é a mesma população de uma fila da Inbox — o modal ganha um
+ * atalho para a aba em vez de deixar o operador atender caso a caso daqui.
+ * `attending_now` usa o predicado da aba `agente_ia` (OPEN, sem erro, dono IA).
+ */
+const QUEUE_TAB_BY_KEY: Partial<
+  Record<AcademicCaseKey, { href: string; label: string }>
+> = {
+  attending_now: {
+    href: "/inbox?tab=agente_ia",
+    label: "Abrir aba Agente IA na Inbox",
+  },
+};
+
 export function CockpitCasesDialog({
   open,
   onClose,
@@ -56,6 +70,7 @@ export function CockpitCasesDialog({
   const pageSize = query.data?.pageSize ?? 50;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const cases = query.data?.cases ?? [];
+  const queueTab = open ? QUEUE_TAB_BY_KEY[open.key] : undefined;
 
   return (
     <Dialog open={Boolean(open)} onOpenChange={(v) => !v && onClose()}>
@@ -63,6 +78,19 @@ export function CockpitCasesDialog({
         <DialogHeader>
           <DialogTitle>{open?.title ?? "Casos"}</DialogTitle>
         </DialogHeader>
+        {queueTab && (
+          <ButtonGlass
+            size="sm"
+            className="inline-flex w-fit items-center gap-1.5"
+            onClick={() => {
+              onClose();
+              router.push(queueTab.href);
+            }}
+          >
+            <IconInbox size={16} />
+            {queueTab.label}
+          </ButtonGlass>
+        )}
         {query.isPending && (
           <p className="font-body text-[13px] text-[var(--text-muted)]">
             Carregando casos…

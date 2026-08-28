@@ -78,7 +78,7 @@ export function LandingClient() {
 
       <footer className="border-t border-[var(--glass-border-subtle)] py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-6 text-center text-xs text-[var(--color-text-muted)] md:flex-row md:justify-between md:text-left">
-          <span>© {new Date().getFullYear()} EduIT CRM. Todos os direitos reservados.</span>
+          <span>© {new Date().getFullYear()} Bwipo. Todos os direitos reservados.</span>
           <span>
             Já tem conta?{" "}
             <Link href="/login" className="font-semibold text-white hover:underline">
@@ -95,13 +95,13 @@ export function LandingClient() {
 function Header() {
   return (
     <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-      <div className="flex items-center gap-2">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[var(--shadow-sm)]">
-          <span className="text-base font-bold">E</span>
-        </div>
-        <span className="font-heading text-lg font-extrabold tracking-tight text-white">
-          EduIT CRM
-        </span>
+      <div className="flex items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo-bwipo-white.png"
+          alt="Bwipo"
+          className="h-8 w-auto max-w-[160px] object-contain"
+        />
       </div>
       <Link
         href="/login"
@@ -372,7 +372,7 @@ function SignupCard() {
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          Ao criar, você concorda com os termos de uso da EduIT.
+          Ao criar, você concorda com os termos de uso da Bwipo.
         </p>
       </form>
     </div>

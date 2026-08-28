@@ -44,7 +44,7 @@ const AGENTS = [
 
 const ORG = {
   id: "preview-org",
-  name: "EduIT CRM",
+  name: "Bwipo",
   slug: "eduit",
   plan: "PRO",
   logoUrl: null,
@@ -469,7 +469,7 @@ function makeMessages(conversationId: string) {
       replyToId: null,
       reactions: [],
       media: {
-        url: "https://placehold.co/600x400/3b82f6/ffffff?text=Deck+EduIT",
+        url: "https://placehold.co/600x400/3b82f6/ffffff?text=Deck+Bwipo",
         mimeType: "image/png",
         fileName: "deck-eduit.png",
         duration: null,
@@ -698,7 +698,7 @@ const INTERNAL_TEMPLATES = [
 
 /* ── Templates WhatsApp ── */
 const WA_TEMPLATES = [
-  { id: "tpl-1", name: "boas_vindas",    category: "MARKETING",  language: "pt_BR", body: "Olá {{1}}, seja bem-vindo(a) ao EduIT CRM! Como posso ajudar?" },
+  { id: "tpl-1", name: "boas_vindas",    category: "MARKETING",  language: "pt_BR", body: "Olá {{1}}, seja bem-vindo(a) ao Bwipo! Como posso ajudar?" },
   { id: "tpl-2", name: "envio_proposta", category: "UTILITY",    language: "pt_BR", body: "Oi {{1}}, segue a proposta comercial que combinamos. Qualquer dúvida, estou aqui!" },
   { id: "tpl-3", name: "followup_48h",   category: "UTILITY",    language: "pt_BR", body: "Oi {{1}}, passando para saber se teve chance de avaliar nossa proposta. 😊" },
   { id: "tpl-4", name: "reativacao",     category: "MARKETING",  language: "pt_BR", body: "Olá {{1}}, faz um tempo que não conversamos. Temos novidades que podem te interessar!" },
@@ -990,6 +990,9 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
       esperando:  CONVERSATIONS.filter((c) => c.unreadCount > 0).length + 2,
       respondidas: CONVERSATIONS.filter((c) => c.lastMessage.direction === "out").length,
       ligar:      0,
+      // Nenhuma conversa do fixture tem responsável IA (os mocks de
+      // `assignedTo` são todos consultores humanos).
+      agente_ia:  0,
       automacao:  2,
       finalizados: CONVERSATIONS.filter((c) => c.status === "RESOLVED").length,
       erro:       CONVERSATIONS.filter((c) => c.hasError).length,
@@ -1004,6 +1007,7 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
       if (tab === "entrada")     items = items.filter((c) => c.status === "OPEN");
       if (tab === "esperando")   items = items.filter((c) => c.unreadCount > 0);
       if (tab === "respondidas") items = items.filter((c) => c.lastMessage.direction === "out");
+      if (tab === "agente_ia")   items = [];
       if (tab === "finalizados") items = items.filter((c) => c.status === "RESOLVED");
       if (tab === "erro")        items = items.filter((c) => c.hasError);
       if (search) items = items.filter((c) => c.contact.name.toLowerCase().includes(search));

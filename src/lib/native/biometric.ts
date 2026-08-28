@@ -12,7 +12,7 @@ import { getNativeBiometricPlugin, isNativePlatform } from "@/lib/native/capacit
 
 export const BIOMETRIC_LOCK_STORAGE_KEY = "crm_biometric_lock_enabled";
 
-const DEFAULT_TITLE = "EduIT CRM";
+const DEFAULT_TITLE = "Bwipo";
 const DEFAULT_REASON = "Confirme sua identidade para continuar";
 
 export interface BiometricAvailability {

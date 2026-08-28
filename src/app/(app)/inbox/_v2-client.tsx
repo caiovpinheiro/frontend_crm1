@@ -195,15 +195,22 @@ function ContactTagsTray({
 }
 
 // Ordem das tabs alinhada ao legado (`conversation-list.tsx`
-// TAB_ORDER). "Automação" lista conversas cujo contato tem automação
-// RUNNING (fila de automação). "Erro" = OPEN + hasError (falha de envio);
-// encerradas não entram — hasError sticky em RESOLVED poluía a aba.
+// TAB_ORDER). "Agente IA" lista conversas cujo responsável é um usuário
+// `type: AI` — sai daqui no handoff (vira Entrada, com ou sem consultor).
+// "Automação" lista conversas cujo contato tem automação RUNNING (fila de
+// automação). "Erro" = OPEN + hasError (falha de envio); encerradas não
+// entram — hasError sticky em RESOLVED poluía a aba.
 const TABS: ReadonlyArray<{ id: InboxTab; label: string; title?: string }> = [
   { id: "todos", label: "Todas" },
   { id: "entrada", label: "Entrada" },
   { id: "esperando", label: "Aguardando" },
   { id: "respondidas", label: "Respondidas" },
   { id: "ligar", label: "Ligar", title: "WhatsApp com permissão de ligação ativa" },
+  {
+    id: "agente_ia",
+    label: "Agente IA",
+    title: "Conversas em atendimento pelo Agente IA",
+  },
   { id: "automacao", label: "Automação" },
   { id: "finalizados", label: "Encerradas" },
   { id: "erro", label: "Erro" },

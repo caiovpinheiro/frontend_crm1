@@ -65,7 +65,7 @@ export default function NotificationsSettingsPage() {
             <p className="mt-1 text-pretty break-words text-sm text-[var(--text-muted)]">
               {isSubscribed
                 ? "Você receberá um aviso instantâneo aqui sempre que um cliente responder, mesmo com o app fechado."
-                : "Ative para receber novos contatos em tempo real, sem precisar abrir o EduIT."}
+                : "Ative para receber novos contatos em tempo real, sem precisar abrir o Bwipo."}
             </p>
 
             {!isSupported && (
@@ -80,7 +80,7 @@ export default function NotificationsSettingsPage() {
               <Alert
                 kind="warn"
                 title="Permissão bloqueada"
-                description="Você ou o sistema bloquearam notificações. Abra as configurações do navegador (cadeado na barra de endereço) e permita notificações para o EduIT."
+                description="Você ou o sistema bloquearam notificações. Abra as configurações do navegador (cadeado na barra de endereço) e permita notificações para o Bwipo."
               />
             )}
 
@@ -129,7 +129,7 @@ export default function NotificationsSettingsPage() {
         </h2>
         <p className="mt-1 text-pretty break-words text-sm text-[var(--text-muted)]">
           Para receber notificações no celular como um app nativo,
-          instale o EduIT na tela inicial.
+          instale o Bwipo na tela inicial.
         </p>
 
         <div className="mt-5 flex min-w-0 items-start gap-3 rounded-2xl bg-[var(--glass-bg-subtle)] p-4">

@@ -31,6 +31,7 @@ type ConfirmOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: "default" | "destructive";
+  /** Alias de `variant: "destructive"` (chamadas no estilo do confirm-dialog). */
   destructive?: boolean;
 };
 

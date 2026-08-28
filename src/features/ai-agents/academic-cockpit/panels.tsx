@@ -102,7 +102,7 @@ export function SaudePanel({
         <KpiCard
           label="Ainda com a IA"
           value={data.attendingNow}
-          hint="em atendimento"
+          hint="na aba Agente IA"
           icon={<IconRobot size={20} />}
           onClick={() => onOpenCases("attending_now", "Ainda com a IA")}
         />

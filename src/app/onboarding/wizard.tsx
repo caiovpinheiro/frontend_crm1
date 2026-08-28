@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOutToLogin } from "@/lib/sign-out-to-login";
 import { useMemo, useRef, useState } from "react";
 import { IconArrowLeft as ArrowLeft, IconArrowRight as ArrowRight, IconBuilding as Building2, IconCheck as Check, IconFlag as Flag, IconPhoto as ImageIcon, IconLayoutKanban as Kanban, IconLink as LinkIcon, IconLoader2 as Loader2, IconLogout as LogOut, IconPalette as Palette, IconRadio as Radio, IconPlayerSkipForward as SkipForward, IconTrash as Trash2, IconUpload as Upload, IconUsers as Users } from "@tabler/icons-react";
 
@@ -167,7 +167,7 @@ export default function OnboardingWizard({ initialOrganization }: Props) {
       confirmLabel: "Sair",
     });
     if (!ok) return;
-    await signOut({ callbackUrl: "/" });
+    await signOutToLogin();
   }
 
   function addTeamMember() {
@@ -251,7 +251,7 @@ export default function OnboardingWizard({ initialOrganization }: Props) {
             </button>
           </div>
           <div className="text-[11px] leading-snug text-muted-foreground">
-            Dúvidas? Fale com a equipe EduIT em{" "}
+            Dúvidas? Fale com a equipe Bwipo em{" "}
             <a
               href="mailto:suporte@eduit.com.br"
               className="underline underline-offset-2 hover:text-foreground"

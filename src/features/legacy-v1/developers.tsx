@@ -47,7 +47,7 @@ const sections: Section[] = [
   {
     id: "introducao",
     title: "Introdução",
-    content: `A API do CRM Eduit permite integrar sistemas externos, automatizar processos e sincronizar dados com sua conta.
+    content: `A API do Bwipo permite integrar sistemas externos, automatizar processos e sincronizar dados com sua conta.
 
 Com ela você pode:
 • Criar e atualizar contatos, negócios e empresas
@@ -856,7 +856,7 @@ export default function DevelopersPage() {
           </div>
           <div>
             <h1 className="text-sm font-bold text-foreground">API Docs</h1>
-            <p className="text-[10px] text-muted-foreground">CRM Eduit</p>
+            <p className="text-[10px] text-muted-foreground">Bwipo</p>
           </div>
         </div>
 

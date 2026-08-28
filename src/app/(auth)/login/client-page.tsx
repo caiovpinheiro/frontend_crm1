@@ -4,13 +4,15 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLock as Lock, IconLogin as LogIn, IconMail as Mail, IconShieldCheck as ShieldCheck } from "@tabler/icons-react";
+import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLock as Lock, IconLogin as LogIn, IconMail as Mail } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
+import { resolveTenantFromRequest } from "@/lib/tenant-host";
+import { buildTenantUrl } from "@/lib/tenant-url";
 
 function LoginShellFallback() {
   return (
@@ -45,41 +47,44 @@ function resolvePostLoginOrigin(): string {
     origin.startsWith("capacitor://") ||
     origin.startsWith("ionic://")
   ) {
+    // DEV_BRANCH: o filtro de `easypanel.host` do main descartaria a URL de
+    // dev e cairia no default `bwipo.com` do `getTenantBaseDomain()` — o app
+    // mobile de dev logaria em produção. Aqui a URL de dev é a correta.
     return (
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-      "https://frontend-front.v74knz.easypanel.host"
+      "https://crm-dev-frontend.ca31ey.easypanel.host"
     );
   }
   return origin;
 }
 
+function isApexLoginHost(): boolean {
+  if (typeof window === "undefined") return false;
+  return resolveTenantFromRequest({ hostHeader: window.location.host }).kind === "apex";
+}
+
 function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = safeInternalPath(searchParams.get("callbackUrl"), "/dashboard");
+  const emailFromQuery = (searchParams.get("email") ?? "").trim();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailFromQuery);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // Botão de preview: resolvido só no client (após mount) para cobrir o caso
-  // do v0.dev onde a env var NEXT_PUBLIC_PREVIEW_MODE não foi inlinada no build.
-  // Em SSR fica `false` → sem hydration mismatch.
+  const [identifyOnly, setIdentifyOnly] = useState(false);
   const [previewAllowed, setPreviewAllowed] = useState(false);
-  /**
-   * Bump incrementado a cada novo erro pra forçar o `<motion.p role="alert">`
-   * a refazer a animação de entrada mesmo quando a string do erro é igual à
-   * tentativa anterior (ex.: usuário erra senha 2x seguidas). React não
-   * re-monta um node só porque o texto mudou de "X" pra "X" — usamos a
-   * `key={errorBump}` no nó pra forçar remount + animação.
-   */
   const [errorBump, setErrorBump] = useState(0);
   const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setPreviewAllowed(isPreviewMode() || isV0PreviewHost());
-  }, []);
+    if (isApexLoginHost() && !emailFromQuery) {
+      setIdentifyOnly(true);
+    }
+  }, [emailFromQuery]);
 
   useEffect(() => {
     if (!loginSuccess) return;
@@ -116,6 +121,33 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
+      if (identifyOnly) {
+        const res = await fetch("/api/auth/tenant-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+        });
+        const data = (await res.json().catch(() => null)) as
+          | { ok?: boolean; slug?: string | null; apex?: boolean }
+          | null;
+        if (!res.ok || !data?.ok) {
+          showError("Não encontramos uma conta com este e-mail.");
+          return;
+        }
+        if (data.slug) {
+          const next = new URL(`${buildTenantUrl(data.slug)}/login`);
+          next.searchParams.set("email", email.trim());
+          if (callbackUrl && callbackUrl !== "/dashboard") {
+            next.searchParams.set("callbackUrl", callbackUrl);
+          }
+          window.location.assign(next.toString());
+          return;
+        }
+        setIdentifyOnly(false);
+        requestAnimationFrame(() => passwordRef.current?.focus());
+        return;
+      }
+
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
@@ -261,17 +293,18 @@ function LoginForm() {
     <div className="flex min-h-screen items-center justify-center p-6">
       <div className="flex w-full max-w-sm flex-col items-center">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div
-            className="mb-4 flex size-16 items-center justify-center rounded-2xl text-white"
-            style={{
-              background: "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)",
-              boxShadow: "0 12px 32px -8px rgba(91,111,245,0.55)",
-            }}
-          >
-            <ShieldCheck className="size-8 text-white" strokeWidth={2} />
-          </div>
-          <h1 className="font-display text-[22px] font-bold tracking-tight text-white">CRM EduIT</h1>
-          <p className="mt-1 text-[14px] text-white/70">Faça login para gerenciar conversas e negócios.</p>
+          {/* Wordmark Bwipo: marca + wipo branco (fundo transparente) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-bwipo-white.png"
+            alt="Bwipo"
+            className="mb-4 h-12 w-auto max-w-[220px] object-contain"
+          />
+          <p className="mt-1 text-[14px] text-white/70">
+            {identifyOnly
+              ? "Informe seu e-mail para abrir o login da sua empresa."
+              : "Faça login para gerenciar conversas e negócios."}
+          </p>
         </div>
 
         <form
@@ -299,43 +332,45 @@ function LoginForm() {
             </div>
           </div>
 
-          <div className="mb-6">
-            <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
-              Senha
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden />
-              <input
-                ref={passwordRef}
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                aria-invalid={!!error}
-                aria-describedby={error ? "login-error" : undefined}
-                className={cn(
-                  "h-11 w-full rounded-full border bg-[var(--glass-bg-base)] pl-9 pr-11 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] backdrop-blur transition-all focus:outline-none focus:ring-2 disabled:opacity-50",
-                  error
-                    ? "border-[var(--color-danger)]/40 focus:border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20"
-                    : "border-[var(--glass-border)] focus:border-primary focus:ring-primary/20",
-                )}
-              />
-              <button
-                type="button"
-                tabIndex={-1}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-              >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
+          {!identifyOnly ? (
+            <div className="mb-6">
+              <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
+                Senha
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden />
+                <input
+                  ref={passwordRef}
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  aria-invalid={!!error}
+                  aria-describedby={error ? "login-error" : undefined}
+                  className={cn(
+                    "h-11 w-full rounded-full border bg-[var(--glass-bg-base)] pl-9 pr-11 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] backdrop-blur transition-all focus:outline-none focus:ring-2 disabled:opacity-50",
+                    error
+                      ? "border-[var(--color-danger)]/40 focus:border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20"
+                      : "border-[var(--glass-border)] focus:border-primary focus:ring-primary/20",
+                  )}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {error ? (
             <motion.div
@@ -367,12 +402,12 @@ function LoginForm() {
             {loading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                Entrando…
+                {identifyOnly ? "Buscando…" : "Entrando…"}
               </>
             ) : (
               <>
                 <LogIn className="size-4" />
-                Entrar
+                {identifyOnly ? "Continuar" : "Entrar"}
               </>
             )}
           </button>
@@ -404,7 +439,7 @@ function LoginForm() {
           </p>
         </form>
 
-        <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · CRM EduIT</p>
+        <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · Bwipo</p>
       </div>
     </div>
     </HeroGeometric>
