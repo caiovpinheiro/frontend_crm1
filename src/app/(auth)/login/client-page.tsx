@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
-import { resolveTenantFromRequest } from "@/lib/tenant-host";
+import { isMarketingApexHost } from "@/lib/tenant-host";
 import { buildTenantUrl } from "@/lib/tenant-url";
 
 function LoginShellFallback() {
@@ -60,7 +60,7 @@ function resolvePostLoginOrigin(): string {
 
 function isApexLoginHost(): boolean {
   if (typeof window === "undefined") return false;
-  return resolveTenantFromRequest({ hostHeader: window.location.host }).kind === "apex";
+  return isMarketingApexHost(window.location.host);
 }
 
 function LoginForm() {
