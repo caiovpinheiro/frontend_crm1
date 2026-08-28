@@ -208,6 +208,35 @@ const PWA_PUBLIC_PATHS = new Set([
 /** Cookie curto: evita bater no BE a cada request do middleware. */
 const TENANT_VERIFIED_MAX_AGE_SEC = 600;
 
+/**
+ * Cache em memória da verificação de tenant (por processo do frontend).
+ * Clientes que NÃO guardam o cookie `tenant_verified` (app mobile em
+ * WebView, scripts, monitores) disparavam uma chamada ao backend em TODA
+ * request — o storm de by-slug de 28/ago/26. Com o cache, mesmo sem
+ * cookie o backend só vê 1 chamada por slug a cada 10 min por processo.
+ * Só guarda resultado positivo ("ok"); 404/erro não cacheiam (org nova
+ * não pode herdar "missing" e falha de rede não pode grudar).
+ */
+const tenantVerifyCache = new Map<string, number>();
+const TENANT_VERIFY_CACHE_MAX = 500;
+
+function readTenantVerifyCache(slug: string): boolean {
+  const expiresAt = tenantVerifyCache.get(slug);
+  if (!expiresAt) return false;
+  if (expiresAt <= Date.now()) {
+    tenantVerifyCache.delete(slug);
+    return false;
+  }
+  return true;
+}
+
+function writeTenantVerifyCache(slug: string): void {
+  if (tenantVerifyCache.size >= TENANT_VERIFY_CACHE_MAX) {
+    tenantVerifyCache.clear();
+  }
+  tenantVerifyCache.set(slug, Date.now() + TENANT_VERIFIED_MAX_AGE_SEC * 1000);
+}
+
 async function verifyTenantSlugExists(
   req: NextRequest,
   slug: string,
@@ -216,6 +245,7 @@ async function verifyTenantSlugExists(
   // Sessão da própria org já prova existência ACTIVE no login.
   if (sessionSlug && sessionSlug === slug) return "ok";
   if (req.cookies.get(TENANT_VERIFIED_COOKIE)?.value === slug) return "ok";
+  if (readTenantVerifyCache(slug)) return "ok";
 
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
     .trim()
@@ -225,13 +255,31 @@ async function verifyTenantSlugExists(
 
   try {
     const url = `${apiBase}/api/organization/by-slug?slug=${encodeURIComponent(slug)}`;
+    // Repassa o IP real do cliente na chamada server-side. Sem isso o
+    // backend via o IP interno do container do frontend e o rate-limit
+    // (`auth.public`, por IP) agrupava TODOS os usuários num único balde
+    // — sob rajada, todo mundo tomava 429 junto (28/ago/26).
+    // Usa o ÚLTIMO hop do XFF recebido (o que o proxy anexou = peer TCP
+    // real); entradas anteriores do header podem ser forjadas pelo cliente.
+    const inboundXff = req.headers.get("x-forwarded-for");
+    const clientIp = inboundXff
+      ?.split(",")
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .pop();
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (clientIp) {
+      headers["x-forwarded-for"] = clientIp;
+      headers["x-real-ip"] = clientIp;
+    }
     const res = await fetch(url, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers,
       cache: "no-store",
     });
     if (res.status === 404) return "missing";
     if (!res.ok) return "skip";
+    writeTenantVerifyCache(slug);
     return "ok";
   } catch {
     // BE fora do ar: não derruba o app inteiro — auth/JWT ainda protege dados.
