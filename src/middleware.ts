@@ -208,6 +208,35 @@ const PWA_PUBLIC_PATHS = new Set([
 /** Cookie curto: evita bater no BE a cada request do middleware. */
 const TENANT_VERIFIED_MAX_AGE_SEC = 600;
 
+/**
+ * Cache em memória da verificação de tenant (por processo do frontend).
+ * Clientes que NÃO guardam o cookie `tenant_verified` (app mobile em
+ * WebView, scripts, monitores) disparavam uma chamada ao backend em TODA
+ * request — o storm de by-slug de 28/ago/26. Com o cache, mesmo sem
+ * cookie o backend só vê 1 chamada por slug a cada 10 min por processo.
+ * Só guarda resultado positivo ("ok"); 404/erro não cacheiam (org nova
+ * não pode herdar "missing" e falha de rede não pode grudar).
+ */
+const tenantVerifyCache = new Map<string, number>();
+const TENANT_VERIFY_CACHE_MAX = 500;
+
+function readTenantVerifyCache(slug: string): boolean {
+  const expiresAt = tenantVerifyCache.get(slug);
+  if (!expiresAt) return false;
+  if (expiresAt <= Date.now()) {
+    tenantVerifyCache.delete(slug);
+    return false;
+  }
+  return true;
+}
+
+function writeTenantVerifyCache(slug: string): void {
+  if (tenantVerifyCache.size >= TENANT_VERIFY_CACHE_MAX) {
+    tenantVerifyCache.clear();
+  }
+  tenantVerifyCache.set(slug, Date.now() + TENANT_VERIFIED_MAX_AGE_SEC * 1000);
+}
+
 async function verifyTenantSlugExists(
   req: NextRequest,
   slug: string,
@@ -216,6 +245,7 @@ async function verifyTenantSlugExists(
   // Sessão da própria org já prova existência ACTIVE no login.
   if (sessionSlug && sessionSlug === slug) return "ok";
   if (req.cookies.get(TENANT_VERIFIED_COOKIE)?.value === slug) return "ok";
+  if (readTenantVerifyCache(slug)) return "ok";
 
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
     .trim()
@@ -249,6 +279,7 @@ async function verifyTenantSlugExists(
     });
     if (res.status === 404) return "missing";
     if (!res.ok) return "skip";
+    writeTenantVerifyCache(slug);
     return "ok";
   } catch {
     // BE fora do ar: não derruba o app inteiro — auth/JWT ainda protege dados.
