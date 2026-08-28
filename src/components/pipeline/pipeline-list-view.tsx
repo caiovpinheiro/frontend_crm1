@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { IconArrowDown as ArrowDown, IconArrowUp as ArrowUp, IconArrowsUpDown as ArrowUpDown } from "@tabler/icons-react";
 
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import type { BoardStage } from "@/components/pipeline/kanban-board";
@@ -14,6 +13,7 @@ import {
 } from "@/lib/utils";
 import { ds } from "@/lib/design-system";
 import { ChatAvatar, type ChatAvatarChannel } from "@/components/inbox/chat-avatar";
+import { LIST_CARD_HEAD_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader } from "@/components/crm/sortable-header";
 
 function normalizeChannel(raw: string | null | undefined): ChatAvatarChannel {
   if (!raw) return null;
@@ -179,13 +179,8 @@ export function PipelineListView({
     }
   };
 
-  // DNA Chat: ícones de sort em slate, ativo em blue (não cyan).
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="size-3 text-[var(--text-faint)] dark:text-[var(--text-secondary)]" strokeWidth={2} />;
-    return sortDir === "asc"
-      ? <ArrowUp className="size-3 text-[var(--color-info)] dark:text-[var(--color-info)]" strokeWidth={2} />
-      : <ArrowDown className="size-3 text-[var(--color-info)] dark:text-[var(--color-info)]" strokeWidth={2} />;
-  };
+  const columnClass =
+    "grid grid-cols-[auto_1fr] items-center gap-4 lg:grid-cols-[36px_minmax(200px,1.4fr)_minmax(180px,1.3fr)_110px_minmax(150px,1fr)_150px_120px_110px]";
 
   const formatCurrency = (val: number | string) => {
     const n = dealNumericValue(val);
@@ -201,164 +196,131 @@ export function PipelineListView({
   };
 
   return (
-    <div className="h-full overflow-auto bg-[var(--color-bg-card)] dark:bg-[var(--glass-bg-modal)]">
-      <table className="w-full min-w-[900px] text-left text-[13px]">
-        <thead className="sticky top-0 z-10 border-b border-[var(--glass-border-subtle)] bg-[var(--glass-bg-modal)] backdrop-blur-sm dark:border-[var(--glass-border)] dark:bg-[var(--glass-bg-modal)]/95">
-          <tr>
-            <th className="w-10 px-4 py-3">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
-                onChange={toggleAll}
-                className="size-4 rounded border-[var(--glass-border)] text-[var(--color-info)] focus:ring-[var(--color-brand-primary)]/30 dark:border-slate-600 dark:bg-[var(--glass-bg-base)]"
-              />
-            </th>
-            {([
-              ["title", "Negócio"],
-              ["contact", "Contato"],
-              ["value", "Valor"],
-              ["stage", "Etapa"],
-              ["owner", "Responsável"],
-              ["createdAt", "Criado em"],
-              ["status", "Status"],
-            ] as [SortField, string][]).map(([field, label]) => (
-              <th key={field} className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => handleSort(field)}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-wide text-[var(--color-ink-muted)] hover:text-foreground"
-                >
-                  {label}
-                  <SortIcon field={field} />
-                </button>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.length === 0 ? (
-            <tr>
-              <td colSpan={8} className="py-16 text-center text-[13px] text-[var(--color-ink-muted)]">
-                Nenhum negócio encontrado
-              </td>
-            </tr>
-          ) : (
-            sorted.map((deal) => {
-              const sl = statusLabel(deal.status);
-              const owner = deal.owner?.name;
-              return (
-                <tr
-                  key={deal.id}
-                  className={cn(
-                    "cursor-pointer border-b border-[var(--glass-border-subtle)] transition-colors hover:bg-[var(--color-bg-subtle)] dark:border-[var(--glass-border)]",
-                    selectedDeals.has(deal.id) && "bg-[var(--color-indigo-soft)]/50 hover:bg-[var(--color-indigo-soft)]/70 dark:bg-[var(--color-info)]/10 dark:hover:bg-[var(--color-info)]/15",
-                  )}
-                >
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={selectedDeals.has(deal.id)}
-                      onChange={() => toggleOne(deal.id)}
-                      className="size-4 rounded border-[var(--glass-border)] text-[var(--color-info)] focus:ring-[var(--color-brand-primary)]/30 dark:border-slate-600 dark:bg-[var(--glass-bg-base)]"
-                    />
-                  </td>
-                  <td
-                    className="max-w-[220px] truncate px-4 py-3 text-[13px] font-medium text-foreground"
-                    onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
-                  >
-                    {deal.title || "Sem título"}
-                  </td>
-                  <td
-                    className="max-w-[200px] px-4 py-3"
-                    onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
-                  >
-                    {deal.contact?.name ? (
-                      <div className="flex min-w-0 items-center gap-2">
-                        <ChatAvatar
-                          user={{
-                            id: deal.contact.id,
-                            name: deal.contact.name,
-                            imageUrl: resolveContactAvatarDisplayUrl(
-                              deal.contact.avatarUrl ?? null,
-                            ),
-                          }}
-                          phone={deal.contact.phone ?? undefined}
-                          channel={normalizeChannel(deal.channel)}
-                          size={28}
-                        />
-                        <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
-                          {deal.contact.name}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-[13px] text-[var(--color-ink-muted)]">—</span>
-                    )}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-[13px] font-medium tabular-nums text-foreground"
-                    onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
-                  >
-                    {formatCurrency(deal.value)}
-                  </td>
-                  <td
-                    className="px-4 py-3"
-                    onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
-                  >
-                    <span className={ds.chip.softer}>
-                      <span
-                        className={ds.chip.dot}
-                        style={{ backgroundColor: deal.stageColor }}
-                      />
-                      {deal.stageName}
-                    </span>
-                  </td>
-                  <td
-                    className="max-w-[160px] px-4 py-3"
-                    onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
-                  >
-                    {owner ? (
-                      <div className="flex items-center gap-2">
-                        {/* Mesmo padrão do chat / kanban / inbox: avatar
-                            do agente HERDA a foto cadastrada em
-                            `/settings/profile` (`User.avatarUrl`).
-                            `channel={null}` + `hideCartoon` deixa o
-                            chip limpo, sem badge whatsapp e sem
-                            ilustração de cliente. */}
-                        <ChatAvatar
-                          user={{
-                            id: deal.owner?.id,
-                            name: owner,
-                            imageUrl: deal.owner?.avatarUrl ?? null,
-                          }}
-                          size={24}
-                          channel={null}
-                          hideCartoon
-                        />
-                        <span className="min-w-0 truncate text-[13px] text-foreground">{owner}</span>
-                      </div>
-                    ) : (
-                      <span className="text-[13px] text-[var(--color-ink-muted)]">—</span>
-                    )}
-                  </td>
-                  <td
-                    className="px-4 py-3 text-[12px] tabular-nums text-[var(--color-ink-muted)]"
-                    onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
-                  >
-                    {formatDate(deal.createdAt)}
-                  </td>
-                  <td
-                    className="px-4 py-3"
-                    onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
-                  >
-                    <span className={sl.cls}>{sl.text}</span>
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
+    <div className={cn("min-w-0 overflow-x-auto", LIST_CARD_STACK_CLASS)}>
+      <div className={cn(columnClass, LIST_CARD_HEAD_CLASS)}>
+        <span className="flex items-center">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
+            onChange={toggleAll}
+            className="size-4 rounded border-border"
+            aria-label="Selecionar todos"
+          />
+        </span>
+        {([
+          ["title", "Negócio"],
+          ["contact", "Contato"],
+          ["value", "Valor"],
+          ["stage", "Etapa"],
+          ["owner", "Responsável"],
+          ["createdAt", "Criado em"],
+          ["status", "Status"],
+        ] as [SortField, string][]).map(([field, label]) => (
+          <SortableHeader
+            key={field}
+            label={label}
+            sort={sortField === field ? sortDir : null}
+            onSort={() => handleSort(field)}
+          />
+        ))}
+      </div>
+
+      {sorted.length === 0 ? (
+        <p className="px-5 py-16 text-center text-sm text-muted-foreground">
+          Nenhum negócio encontrado
+        </p>
+      ) : (
+        sorted.map((deal) => {
+          const sl = statusLabel(deal.status);
+          const owner = deal.owner?.name;
+          return (
+            <div
+              key={deal.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onDealClick(deal.number?.toString() ?? deal.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onDealClick(deal.number?.toString() ?? deal.id);
+                }
+              }}
+              className={cn(
+                columnClass,
+                LIST_CARD_ROW_CLASS,
+                "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                selectedDeals.has(deal.id) && "border-primary bg-primary/10",
+              )}
+            >
+              <span className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={selectedDeals.has(deal.id)}
+                  onChange={() => toggleOne(deal.id)}
+                  className="size-4 rounded border-border"
+                  aria-label={`Selecionar ${deal.title || "negócio"}`}
+                />
+              </span>
+              <p className="truncate font-semibold text-foreground">
+                {deal.title || "Sem título"}
+              </p>
+              {deal.contact?.name ? (
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <ChatAvatar
+                    user={{
+                      id: deal.contact.id,
+                      name: deal.contact.name,
+                      imageUrl: resolveContactAvatarDisplayUrl(
+                        deal.contact.avatarUrl ?? null,
+                      ),
+                    }}
+                    phone={deal.contact.phone ?? undefined}
+                    channel={normalizeChannel(deal.channel)}
+                    size={28}
+                  />
+                  <span className="truncate text-sm text-foreground">
+                    {deal.contact.name}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">—</span>
+              )}
+              <span className="text-sm font-medium tabular-nums text-foreground">
+                {formatCurrency(deal.value)}
+              </span>
+              <span className={ds.chip.softer}>
+                <span
+                  className={ds.chip.dot}
+                  style={{ backgroundColor: deal.stageColor }}
+                />
+                {deal.stageName}
+              </span>
+              {owner ? (
+                <div className="flex min-w-0 items-center gap-2">
+                  <ChatAvatar
+                    user={{
+                      id: deal.owner?.id,
+                      name: owner,
+                      imageUrl: deal.owner?.avatarUrl ?? null,
+                    }}
+                    size={24}
+                    channel={null}
+                    hideCartoon
+                  />
+                  <span className="min-w-0 truncate text-sm text-foreground">{owner}</span>
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">—</span>
+              )}
+              <span className="text-sm tabular-nums text-muted-foreground">
+                {formatDate(deal.createdAt)}
+              </span>
+              <span className={sl.cls}>{sl.text}</span>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

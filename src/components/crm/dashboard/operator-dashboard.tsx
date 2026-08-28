@@ -12,43 +12,74 @@ import {
 import { EmptyState } from "@/components/crm/empty-state";
 import { StatCard } from "@/components/crm/stat-card";
 import { ChartCard } from "@/components/crm/chart-card";
-import { formatNumber } from "@/features/dashboard-v2/format";
+import { formatNumber, textMatchesQuery } from "@/features/dashboard-v2/format";
 import type { DashboardMeData, DashboardMeItem } from "@/features/dashboard-v2/api";
+import type { OperatorWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
 
-export function OperatorDashboard({ data }: { data: DashboardMeData }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
-        <KpiLink href="/inbox?tab=esperando">
-          <StatCard
-            icon={<IconMessage size={18} />}
-            label="Aguardando você"
-            value={formatNumber(data.conversations.total)}
-            accent="warning"
-            caption="conversas sem resposta"
-          />
-        </KpiLink>
-        <KpiLink href="/activities">
-          <StatCard
-            icon={<IconChecklist size={18} />}
-            label="Tarefas"
-            value={formatNumber(data.activities.overdue + data.activities.today)}
-            accent="danger"
-            caption={`${formatNumber(data.activities.overdue)} atrasadas · ${formatNumber(data.activities.today)} hoje`}
-          />
-        </KpiLink>
-        <KpiLink href="/pipeline">
-          <StatCard
-            icon={<IconHourglassHigh size={18} />}
-            label="Parados com você"
-            value={formatNumber(data.stalled.total)}
-            accent="teal"
-            caption="negócios sem movimento"
-          />
-        </KpiLink>
-      </div>
+export function OperatorDashboardWidget({
+  id,
+  data,
+  search,
+}: {
+  id: OperatorWidgetId;
+  data: DashboardMeData;
+  search: string;
+}) {
+  const q = search;
+  const conversations = data.conversations.items.filter(
+    (item) =>
+      textMatchesQuery(item.title, q) ||
+      textMatchesQuery(item.subtitle, q) ||
+      textMatchesQuery(item.meta, q),
+  );
+  const tasks = data.activities.items.filter(
+    (item) =>
+      textMatchesQuery(item.title, q) ||
+      textMatchesQuery(item.subtitle, q) ||
+      textMatchesQuery(item.meta, q),
+  );
+  const stalled = data.stalled.items.filter(
+    (item) =>
+      textMatchesQuery(item.title, q) ||
+      textMatchesQuery(item.subtitle, q) ||
+      textMatchesQuery(item.meta, q),
+  );
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+  switch (id) {
+    case "kpis":
+      return (
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+          <KpiLink href="/inbox?tab=esperando">
+            <StatCard
+              icon={<IconMessage size={18} />}
+              label="Aguardando você"
+              value={formatNumber(data.conversations.total)}
+              accent="warning"
+              caption="conversas sem resposta"
+            />
+          </KpiLink>
+          <KpiLink href="/activities">
+            <StatCard
+              icon={<IconChecklist size={18} />}
+              label="Tarefas"
+              value={formatNumber(data.activities.overdue + data.activities.today)}
+              accent="danger"
+              caption={`${formatNumber(data.activities.overdue)} atrasadas · ${formatNumber(data.activities.today)} hoje`}
+            />
+          </KpiLink>
+          <KpiLink href="/pipeline">
+            <StatCard
+              icon={<IconHourglassHigh size={18} />}
+              label="Parados com você"
+              value={formatNumber(data.stalled.total)}
+              accent="teal"
+              caption="negócios sem movimento"
+            />
+          </KpiLink>
+        </div>
+      );
+    case "conversations":
+      return (
         <WorkList
           title="Conversas"
           subtitle="Cliente falou por último"
@@ -56,8 +87,11 @@ export function OperatorDashboard({ data }: { data: DashboardMeData }) {
           emptyTitle="Nada aguardando"
           emptyHint="Quando um contato responder, aparece aqui."
           icon={<IconMessage size={24} />}
-          items={data.conversations.items}
+          items={conversations}
         />
+      );
+    case "tasks":
+      return (
         <WorkList
           title="Tarefas"
           subtitle="Atrasadas e do dia"
@@ -65,8 +99,11 @@ export function OperatorDashboard({ data }: { data: DashboardMeData }) {
           emptyTitle="Sem tarefas pendentes"
           emptyHint="Sua fila de hoje está limpa."
           icon={<IconChecklist size={24} />}
-          items={data.activities.items}
+          items={tasks}
         />
+      );
+    case "stalled":
+      return (
         <WorkList
           title="Negócios parados"
           subtitle="Sem atualização além do prazo da etapa"
@@ -74,16 +111,15 @@ export function OperatorDashboard({ data }: { data: DashboardMeData }) {
           emptyTitle="Nenhum negócio parado"
           emptyHint="Seus cards estão dentro do prazo."
           icon={<IconBriefcase size={24} />}
-          items={data.stalled.items}
+          items={stalled}
         />
-      </div>
-    </div>
-  );
+      );
+  }
 }
 
 function KpiLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="block min-w-0 rounded-[var(--radius-xl)] outline-none ring-[var(--brand-primary)] focus-visible:ring-2">
+    <Link href={href} className="block min-w-0 rounded-xl outline-none ring-primary focus-visible:ring-2">
       {children}
     </Link>
   );

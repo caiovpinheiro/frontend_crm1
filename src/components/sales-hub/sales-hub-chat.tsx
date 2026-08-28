@@ -25,7 +25,11 @@ import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
 import { ActivitiesPanel } from "@/components/pipeline/deal-workspace/panels/activities";
-import { isSessionExpired, toMessageBubble } from "@/features/inbox-v2/adapters";
+import {
+  isWhatsappComposerSessionExpired,
+  lastInboundAtFromThread,
+  toMessageBubble,
+} from "@/features/inbox-v2/adapters";
 import {
   useChannelSession,
   useConversationFeatures,
@@ -186,21 +190,23 @@ export function SalesHubChat({
     [pinnedMessageIds, messageBubbles],
   );
 
-  // Janela de 24h da Meta — backend é source of truth (`session.active`),
-  // com fallback heurístico em `lastInboundAt`. Mesma regra do /inbox.
+  // Janela de 24h da Meta — mesma regra do /inbox (thread visível reabre).
   const sessionInfo = messagesData?.session;
-  const sessionExpired = messagesData
-    ? sessionInfo?.active !== undefined
-      ? !sessionInfo.active
-      : isSessionExpired(sessionInfo?.lastInboundAt ?? lastInboundAt ?? null)
-    : false;
-  const sessionExpiredEffective = !applyWhatsappSession
-    ? false
-    : selectedChannelId && selectedSessionFetched
-      ? selectedSession?.active !== true
-      : channelOverrideActive
-        ? false
-        : sessionExpired;
+  const threadLastInboundAt = lastInboundAtFromThread(
+    messagesData?.messages,
+    selectedChannelId,
+    { strictChannel: channelOverrideActive },
+  );
+  const sessionExpiredEffective = isWhatsappComposerSessionExpired({
+    applyWhatsappSession,
+    messagesLoaded: Boolean(messagesData),
+    channelOverrideActive,
+    selectedSessionFetched,
+    selectedSessionActive: selectedSession?.active,
+    messagesSessionActive: sessionInfo?.active,
+    messagesLastInboundAt: sessionInfo?.lastInboundAt ?? lastInboundAt ?? null,
+    threadLastInboundAt,
+  });
   const canReply = messagesData?.canReply ?? true;
   const isResolved = conversationStatus === "RESOLVED";
 

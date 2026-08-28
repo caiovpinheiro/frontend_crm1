@@ -208,7 +208,7 @@ function JobCard({ job }: { job: JobOpening }) {
   );
 }
 
-function CreateJobDialog({
+export function CreateJobDialog({
   open,
   onOpenChange,
 }: {

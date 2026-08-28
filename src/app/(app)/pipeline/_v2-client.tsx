@@ -64,6 +64,7 @@ import {
   type ExportScope,
 } from "@/features/pipeline-v2/import-export";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import { pageActionsMenuTriggerClass } from "@/components/crm/page-toolbar";
 import { avatarInitials } from "@/features/inbox-v2/adapters";
 import { useContactSidebar } from "@/features/inbox-v2/hooks";
 import {
@@ -118,6 +119,7 @@ import { PipelineChannelsModal } from "@/features/pipeline-v2/extras/pipeline-ch
 import { computePopoverPosition } from "@/features/pipeline-v2/extras/use-portal-popover";
 import { ContactTagsPopover } from "@/features/inbox-v2/extras/contact-tags-popover";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
+import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
 import { FilterChips } from "@/components/pipeline/kanban-filters/filter-chips";
 import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
@@ -880,6 +882,7 @@ export default function KanbanV2ClientPage({
               }}
             />
           }
+          period={<PipelinePeriodCalendar filters={filters} onPatch={patchFilters} />}
           menuSlot={
             <TooltipGlass label="Ordenar, importar e exportar" side="bottom">
               <button
@@ -890,8 +893,8 @@ export default function KanbanV2ClientPage({
                 aria-label="Ações do pipeline"
                 aria-expanded={kebabOpen}
                 className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)] transition-[filter,box-shadow] hover:brightness-105",
-                  kebabOpen && "ring-2 ring-[var(--brand-primary)]/35 brightness-95",
+                  pageActionsMenuTriggerClass,
+                  kebabOpen && "ring-2 ring-primary/35 brightness-95",
                 )}
               >
                 <IconMenu2 size={18} stroke={2.2} />
@@ -899,11 +902,7 @@ export default function KanbanV2ClientPage({
             </TooltipGlass>
           }
         />
-        {/*
-         * PipelineKebabMenu vive FORA do PageHeader porque este renderiza
-         * `actions` em dois blocos (desktop `lg:flex` + mobile `lg:hidden`) —
-         * colocá-lo dentro do menuSlot duplicaria o portal do menu.
-         */}
+        {/* Portal do menu ancorado no botão do header — irmão, não filho do slot. */}
         <PipelineKebabMenu
           open={kebabOpen}
           anchorRef={kebabBtnRef}
@@ -994,7 +993,6 @@ export default function KanbanV2ClientPage({
                 pipelineId={pipelineId}
                 statusFilter={status}
                 stages={board}
-                addStage={addStage}
                 selectedIds={selectedIds}
                 selectionMode={selectionMode}
                 onToggleSelect={toggleSelect}
@@ -1003,7 +1001,6 @@ export default function KanbanV2ClientPage({
                 onAddDeal={() =>
                   setAddStage({ id: col.stageId, name: col.title })
                 }
-                onCloseAddDeal={() => setAddStage(null)}
                 canChangeStage={canChangeStage}
                 loadMore={
                   !hasServerBoard && rawStage?.hasMore && remaining > 0
@@ -1745,8 +1742,6 @@ function DroppableColumn({
   pipelineId,
   statusFilter,
   onAddDeal,
-  onCloseAddDeal,
-  addStage,
   stages,
   selectedIds,
   selectionMode,
@@ -1762,8 +1757,6 @@ function DroppableColumn({
   pipelineId: string | null;
   statusFilter: StatusFilter;
   onAddDeal?: () => void;
-  onCloseAddDeal?: () => void;
-  addStage: { id: string; name: string } | null;
   stages: BoardStageDto[];
   selectedIds: Set<string>;
   selectionMode: boolean;
@@ -1789,8 +1782,6 @@ function DroppableColumn({
     dealIdsInColumn.length > 0 && selectedInColumnCount === dealIdsInColumn.length;
   const someSelected = selectedInColumnCount > 0;
 
-  const isAddingHere = addStage?.id === column.stageId;
-
   return (
     <Droppable droppableId={column.stageId} isDropDisabled={!canChangeStage}>
       {(provided, snapshot) => (
@@ -1803,18 +1794,6 @@ function DroppableColumn({
           deals={column.deals}
           onDealClick={onDealClick}
           onAddDeal={onAddDeal}
-          addFormSlot={
-            isAddingHere ? (
-              <AddDealDialog
-                open={true}
-                onOpenChange={(o) => { if (!o) onCloseAddDeal?.(); }}
-                stages={stages.map((s) => ({ id: s.id, name: s.name }))}
-                defaultStageId={column.stageId}
-                pipelineId={pipelineId}
-                statusFilter={statusFilter}
-              />
-            ) : undefined
-          }
           selection={{
             allSelected,
             someSelected,
@@ -2040,9 +2019,8 @@ function PipelineKebabMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
-  // O `menuSlot` do PageHeader é montado em dois blocos (desktop/mobile),
-  // então o ref anexado ao botão pode terminar apontando pra cópia oculta.
-  // `resolveAnchor` procura, em tempo real, o botão visível pelo data-attr.
+  // Âncora visível do kebab (`data-pipeline-kebab-trigger`) — um único botão
+  // no PageHeader; o lookup por data-attr cobre re-renders e portal.
   const resolveAnchor = useCallback((): HTMLElement | null => {
     const nodes = document.querySelectorAll<HTMLElement>(
       "[data-pipeline-kebab-trigger]",

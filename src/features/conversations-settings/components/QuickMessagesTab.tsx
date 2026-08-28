@@ -111,7 +111,7 @@ function GroupSection({
 
 const MEDIA_ACCEPT_QR = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm";
 
-function CreateQuickReplyModal({
+export function CreateQuickReplyModal({
   open,
   onClose,
   groups,

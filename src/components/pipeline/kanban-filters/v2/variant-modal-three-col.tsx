@@ -1,35 +1,28 @@
 /**
- * Modal canônico do filtro do funil (padrão B + densidade Kommo).
+ * Modal canônico do filtro do funil.
  *
- * Shell: Dialog central com backdrop blur (igual modelos/automações).
- * Layout: 3 colunas
- *   Col 1 — Visualizações / atalhos / salvos (fonte menor)
- *   Col 2 — Propriedades (multi-seletores FECHADOS com busca + scroll)
- *   Col 3 — Tags em chips (fonte menor, multi-seleção)
- *
- * jul/26 — substitui o popover tabulado da PipelineSearchFilterBar.
+ * Chrome: `FilterModalShell` (tokens, rounded-2xl, Limpar no header).
+ * Conteúdo: Negócio / Pessoas / Personalizados + tags + ordenação.
  */
 
 "use client";
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import {
-  IconAdjustmentsHorizontal as SlidersHorizontal,
-  IconCheck,
-  IconX as X,
-} from "@tabler/icons-react";
+import { IconCheck } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { ModalPortalContext } from "@/components/ui/modal-portal-context";
 import { TagChip } from "@/components/crm/tag-chip";
+import {
+  FilterModalShell,
+  FilterSegmentedTablist,
+} from "@/components/crm/filter-popover";
 
 import {
   ContactCustomFieldsSection,
   ContactSection,
   ConversationSection,
-  DatesPeriodSection,
   DealCustomFieldsSection,
   LossReasonsSection,
   OwnersSection,
@@ -42,7 +35,7 @@ import {
   useFilterDraft,
   type SectionProps,
 } from "./core";
-import { countActiveFilters, isEmptyFilters, type AdvancedDealFilters } from "../types";
+import { countPanelFilters, isEmptyFilters, type AdvancedDealFilters } from "../types";
 import type { VariantProps } from "./types";
 
 export type PipelineSortKey =
@@ -64,12 +57,11 @@ const SORT_OPTIONS: { key: PipelineSortKey; label: string }[] = [
   { key: "created_oldest", label: "Criação: mais antiga" },
 ];
 
-type MiddleTab = "negocio" | "pessoas" | "periodo" | "custom";
+type MiddleTab = "negocio" | "pessoas" | "custom";
 
 const MIDDLE_TABS: { id: MiddleTab; label: string; hint: string }[] = [
   { id: "negocio", label: "Negócio", hint: "Busca, etapa, origem, status e valor" },
   { id: "pessoas", label: "Pessoas", hint: "Responsável e dados do contato" },
-  { id: "periodo", label: "Período", hint: "Criação e fechamento" },
   { id: "custom", label: "Personalizados", hint: "Campos do negócio e contato" },
 ];
 
@@ -93,12 +85,6 @@ function middleTabCount(id: MiddleTab, f: AdvancedDealFilters): number {
       f.withoutContact
         ? 1
         : 0)
-    );
-  }
-  if (id === "periodo") {
-    return (
-      (f.createdAt?.from || f.createdAt?.to ? 1 : 0) +
-      (f.closedAt?.from || f.closedAt?.to ? 1 : 0)
     );
   }
   return (f.dealCustomFields?.length ?? 0) + (f.contactCustomFields?.length ?? 0);
@@ -350,7 +336,7 @@ function ConversationSegmentation({
   );
 }
 
-function ModalShell({
+function PipelineFilterShell({
   onClose,
   draft,
   draftCount,
@@ -369,98 +355,31 @@ function ModalShell({
   children: React.ReactNode;
   wide?: boolean;
 }) {
-  // Publica o painel no ModalPortalContext p/ MultiSelectDropdown/DropdownGlass
-  // portarem DENTRO do modal (top-layer), não atrás do backdrop. [jul/26]
-  const [portalNode, setPortalNode] = React.useState<HTMLDivElement | null>(null);
-
   return (
-    <div className="fixed inset-0 z-(--z-popover) flex items-center justify-center p-0 sm:p-4">
-      <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-md"
-        onMouseDown={onClose}
-        aria-hidden
-      />
-      <div
-        ref={setPortalNode}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Filtros do funil"
-        className={cn(
-          "relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-[var(--radius-2xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] text-[var(--text-primary)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl",
-          wide ? "h-[min(84vh,760px)] max-w-[1120px]" : "h-[min(92dvh,100%)] max-w-lg",
-        )}
-      >
-        <ModalPortalContext.Provider value={portalNode}>
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--glass-border-subtle)] px-5 py-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]">
-              <SlidersHorizontal className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-[16px] font-bold tracking-tight text-[var(--text-primary)]">
-                  Filtros do funil
-                </h2>
-                {draftCount > 0 && (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1.5 font-display text-[10px] font-bold text-white">
-                    {draftCount}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 font-body text-[12px] text-[var(--text-muted)]">
-                Multi-seleção em responsáveis, etapas, origens e tags
-              </p>
-            </div>
-          </div>
+    <FilterModalShell
+      title="Filtros"
+      labelledBy="Filtros do funil"
+      count={draftCount}
+      onClose={onClose}
+      onClear={onClear}
+      clearDisabled={isEmptyFilters(draft)}
+      onApply={onApply}
+      wide={wide}
+      extraFooter={
+        onRequestSave ? (
           <button
             type="button"
-            onClick={onClose}
-            className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
-            aria-label="Fechar"
+            onClick={() => onRequestSave(draft)}
+            disabled={isEmptyFilters(draft)}
+            className="inline-flex h-10 items-center rounded-full border border-border bg-card px-4 text-sm font-bold text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
           >
-            <X className="size-4" />
+            Salvar filtro
           </button>
-        </header>
-
-        <div className="min-h-0 flex-1">{children}</div>
-
-        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)] px-5 py-3">
-          <p className="font-body text-[12px] text-[var(--text-muted)]">
-            <b className="font-semibold text-[var(--brand-primary)]">{draftCount}</b> critérios
-            selecionados
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onClear}
-              disabled={isEmptyFilters(draft)}
-              className="inline-flex h-9 items-center rounded-[var(--radius-md)] px-3 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-40"
-            >
-              Limpar tudo
-            </button>
-            {onRequestSave && (
-              <button
-                type="button"
-                onClick={() => onRequestSave(draft)}
-                disabled={isEmptyFilters(draft)}
-                className="inline-flex h-9 items-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] px-3 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-40"
-              >
-                Salvar filtro
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onApply}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 font-display text-[12px] font-bold text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)] transition-opacity hover:opacity-90"
-            >
-              <IconCheck size={13} />
-              Aplicar filtros
-            </button>
-          </div>
-        </footer>
-        </ModalPortalContext.Provider>
-      </div>
-    </div>
+        ) : null
+      }
+    >
+      {children}
+    </FilterModalShell>
   );
 }
 
@@ -482,24 +401,13 @@ export function FilterModalThreeCol({
     onApply,
   );
   const isDesktop = useIsDesktop();
-  const draftCount = countActiveFilters(draft);
+  const draftCount = countPanelFilters(draft);
   const [middleTab, setMiddleTab] = React.useState<MiddleTab>("negocio");
   const middleScrollRef = React.useRef<HTMLElement>(null);
 
   React.useEffect(() => {
     middleScrollRef.current?.scrollTo({ top: 0 });
   }, [middleTab]);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onOpenChange(false);
-    document.addEventListener("keydown", onEsc);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onEsc);
-      document.body.style.overflow = "";
-    };
-  }, [open, onOpenChange]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -552,7 +460,7 @@ export function FilterModalThreeCol({
 
   if (!isDesktop) {
     return createPortal(
-      <ModalShell
+      <PipelineFilterShell
         onClose={() => onOpenChange(false)}
         draft={draft}
         draftCount={draftCount}
@@ -577,20 +485,19 @@ export function FilterModalThreeCol({
           <ContactSection {...section} />
           <ConversationSection {...section} />
           <ValueSection {...section} />
-          <DatesPeriodSection {...section} />
           <DealCustomFieldsSection {...section} />
           <ContactCustomFieldsSection {...section} />
           <div className="min-h-[220px] rounded-[var(--radius-lg)] border border-[var(--glass-border-subtle)] p-3">
             <TagsChipColumn {...section} />
           </div>
         </div>
-      </ModalShell>,
+      </PipelineFilterShell>,
       document.body,
     );
   }
 
   return createPortal(
-    <ModalShell
+    <PipelineFilterShell
       wide
       onClose={() => onOpenChange(false)}
       draft={draft}
@@ -696,8 +603,6 @@ export function FilterModalThreeCol({
                 </div>
               )}
 
-              {middleTab === "periodo" && <DatesPeriodSection {...section} />}
-
               {middleTab === "custom" && (
                 <div className="space-y-3">
                   <DealCustomFieldsSection {...section} />
@@ -713,7 +618,7 @@ export function FilterModalThreeCol({
           <TagsChipColumn {...section} />
         </aside>
       </div>
-    </ModalShell>,
+    </PipelineFilterShell>,
     document.body,
   );
 }

@@ -8,7 +8,6 @@ import { useIsMobile } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 
 import { SettingsSidebar } from "./_components/settings-sidebar";
-import { SettingsSlide } from "./_components/settings-slide";
 
 /**
  * Layout master-detail de /settings.
@@ -40,7 +39,9 @@ export default function SettingsLayout({
   if (isMobile && !isHub) {
     return (
       <div className="v2-screen flex min-w-0 flex-col overflow-hidden p-3 sm:p-4">
-        <SettingsSlide>{children}</SettingsSlide>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+          {children}
+        </div>
       </div>
     );
   }
@@ -81,7 +82,9 @@ export default function SettingsLayout({
       </div>
 
       <div className="relative flex min-w-0 flex-col overflow-hidden">
-        <SettingsSlide>{children}</SettingsSlide>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+          {children}
+        </div>
       </div>
     </div>
   );

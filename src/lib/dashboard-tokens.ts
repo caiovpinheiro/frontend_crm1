@@ -31,11 +31,10 @@ export const fadeInUp = {
 };
 
 /**
- * Classe-base de card premium para dashboards (tema claro). Usa `shadow-[var(--shadow-lg)]`,
- * borda sutil, radius 2xl. Hover leve. Reutilizar com `cn(dashboardCardClass, "…")`.
+ * Classe-base de card de dashboard. Raio canônico `rounded-xl`.
  */
 export const dashboardCardClass =
-  "rounded-2xl border border-border/70 bg-card p-5 shadow-[var(--shadow-lg)] transition-shadow duration-300 hover:shadow-[var(--shadow-sm)]";
+  "rounded-xl border border-border/70 bg-card p-5 shadow-[var(--shadow-lg)] transition-shadow duration-300 hover:shadow-[var(--shadow-sm)]";
 
 /** Variante compacta do card (pra KPIs menores). */
 export const dashboardCardClassCompact =
@@ -43,7 +42,7 @@ export const dashboardCardClassCompact =
 
 /** Classe-base de card premium no modo War Room (fundo dark). */
 export const dashboardCardClassDark =
-  "rounded-2xl border border-[var(--glass-border-subtle)] bg-white/[0.03] p-5 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.6)] backdrop-blur-sm";
+  "rounded-xl border border-[var(--glass-border-subtle)] bg-white/[0.03] p-5 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.6)] backdrop-blur-sm";
 
 /**
  * Tipografia de título de página do dashboard.

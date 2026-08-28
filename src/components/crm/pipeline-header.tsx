@@ -1,18 +1,16 @@
 "use client"
 
 import { useState } from "react"
+import { Kanban, List, MessagesSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PageHeader, type PageHeaderBack } from "@/components/crm/page-header"
+import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
 import { SearchInput } from "@/components/crm/search-input"
-import { PageSegmentedControl } from "@/components/crm/page-toolbar"
+import type { PageHeaderBack } from "@/components/crm/page-header"
 import {
-  IconLayoutKanban,
-  IconList,
   IconClock,
   IconCircleCheck,
   IconCircleX,
   IconGridDots,
-  IconMessages,
 } from "@tabler/icons-react"
 
 type TabId = "abertos" | "ganhos" | "perdidos" | "todos"
@@ -23,35 +21,11 @@ type ViewType = "kanban" | "flow" | "list"
  * (`PageSegmentedControl size="compact"` com ícone + rótulo).
  * Ordem: Kanban · Flow · Lista (Flow ao lado do Kanban).
  */
-const VIEW_ITEMS = [
-  {
-    value: "kanban",
-    label: (
-      <span className="flex items-center gap-1.5">
-        <IconLayoutKanban size={14} />
-        Kanban
-      </span>
-    ),
-  },
-  {
-    value: "flow",
-    label: (
-      <span className="flex items-center gap-1.5">
-        <IconMessages size={14} />
-        Flow
-      </span>
-    ),
-  },
-  {
-    value: "list",
-    label: (
-      <span className="flex items-center gap-1.5">
-        <IconList size={14} />
-        Lista
-      </span>
-    ),
-  },
-] as const
+const VIEW_OPTIONS = [
+  { key: "kanban" as const, label: "Kanban", icon: Kanban },
+  { key: "flow" as const, label: "Flow", icon: MessagesSquare },
+  { key: "list" as const, label: "Lista", icon: List },
+]
 
 interface PipelineHeaderProps {
   activeTab?: TabId
@@ -81,6 +55,11 @@ interface PipelineHeaderProps {
    * para plugar a `PipelineSearchFilterBar` (busca + filtros segmentados).
    */
   searchSlot?: React.ReactNode
+  /**
+   * Calendário de período — depois da busca+Filtrar, antes de Kanban/Flow/Lista.
+   * Criação e fechamento vivem aqui, não no modal Filtros do funil.
+   */
+  period?: React.ReactNode
   /**
    * Slot livre à direita das ações, exibido após o toggle Kanban/Lista e
    * antes do botão "+ Novo". Padrão do kanban: hambúrguer azul.
@@ -123,6 +102,7 @@ export function PipelineHeader({
   onSearchChange,
   searchPlaceholder = "Buscar por título, contato, CPF, RGM…",
   searchSlot,
+  period,
   menuSlot,
   tabsOverride,
   settingsSlot,
@@ -154,17 +134,11 @@ export function PipelineHeader({
   // do hambúrguer (menuSlot), então o botão dedicado foi removido.
   void onNewDeal
   const actionButtons = !hideActions ? (
-    <>
-      <PageSegmentedControl
-        items={VIEW_ITEMS}
-        value={view}
-        onChange={(v) => handleViewChange(v as ViewType)}
-        aria-label="Modo de visualização"
-        size="compact"
-        className="shrink-0"
-      />
-      {menuSlot}
-    </>
+    <HeaderPillToggle
+      options={VIEW_OPTIONS}
+      value={view}
+      onChange={(v) => handleViewChange(v)}
+    />
   ) : null
 
   // Se tabsOverride não foi fornecido, renderizamos as tabs padrão.
@@ -227,13 +201,17 @@ export function PipelineHeader({
 
   return (
     <div className="flex flex-col gap-2">
-      <PageHeader
-        back={back}
-        icon={<IconLayoutKanban size={22} stroke={2.2} />}
+      <SectionHeader
+        icon={Kanban}
         title="Pipeline"
+        back={back}
         titleAccessory={titleAccessory}
-        center={center}
-        actions={actionButtons ? <div className="flex items-center gap-2">{actionButtons}</div> : undefined}
+        search={Boolean(center)}
+        searchSlot={center}
+        period={period}
+        actions={actionButtons}
+        menu={Boolean(menuSlot)}
+        menuSlot={menuSlot}
       />
 
       {hasSecondary && (

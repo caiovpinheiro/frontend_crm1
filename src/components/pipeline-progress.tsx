@@ -9,6 +9,7 @@ import {
   useState,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import {
   IconChevronLeft,
@@ -27,6 +28,8 @@ export type PipelineProgressStage = {
   value: number;
   entered: number;
   lost: number;
+  /** Coorte Painel: % que avançou para a próxima etapa. */
+  passThrough?: number | null;
   href?: string;
 };
 
@@ -131,19 +134,34 @@ function StageColumn({ stage }: { stage: PipelineProgressStage }) {
         </p>
       </MetricLink>
       <div className="mt-auto rounded-[var(--radius-md)] border border-[var(--pipeline-border)] bg-[var(--pipeline-surface)] px-2.5 py-2">
-        <p
-          className={cn(
-            "font-display text-[16px] font-bold tabular-nums",
-            stage.entered > 0
-              ? "text-[var(--pipeline-success)]"
-              : "text-[var(--pipeline-text-muted)]",
-          )}
-        >
-          {stage.entered > 0 ? `+${formatCount(stage.entered)}` : "0"}
-        </p>
-        <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
-          {stage.entered === 1 ? "entrou" : "entraram"}
-        </p>
+        {stage.entered > 0 ? (
+          <>
+            <p className="font-display text-[16px] font-bold tabular-nums text-[var(--pipeline-success)]">
+              {`+${formatCount(stage.entered)}`}
+            </p>
+            <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+              {stage.entered === 1 ? "entrou" : "entraram"}
+            </p>
+          </>
+        ) : stage.passThrough != null ? (
+          <>
+            <p className="font-display text-[16px] font-bold tabular-nums text-foreground">
+              {`${stage.passThrough.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+            </p>
+            <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+              passagem
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-display text-[16px] font-bold tabular-nums text-[var(--pipeline-text-muted)]">
+              0
+            </p>
+            <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+              entraram
+            </p>
+          </>
+        )}
       </div>
       <MetricLink
         href={stage.href}
@@ -158,6 +176,93 @@ function StageColumn({ stage }: { stage: PipelineProgressStage }) {
           ? `${formatCount(stage.lost)} ${stage.lost === 1 ? "perda" : "perdas"}`
           : "0 perdas"}
       </MetricLink>
+    </article>
+  );
+}
+
+function FunnelSausage({
+  stages,
+  novosCount,
+}: {
+  stages: PipelineProgressStage[];
+  novosCount?: number;
+}) {
+  const weights = stages.map((s) => Math.max(0, s.count));
+  const total = weights.reduce((sum, n) => sum + n, 0);
+  const label = stages
+    .map((s) => `${s.name}: ${formatCount(s.count)}`)
+    .join(", ");
+  const novos = Math.max(0, novosCount ?? 0);
+
+  return (
+    <div className="flex items-center gap-3 px-4 pt-3">
+      <div
+        className="shrink-0 rounded-xl border border-border bg-card px-3 py-1.5 text-center"
+        aria-label={`${formatCount(novos)} novos no período`}
+      >
+        <p className="font-display text-[18px] font-bold leading-none tabular-nums text-[var(--pipeline-success)]">
+          {novos > 0 ? `+${formatCount(novos)}` : "0"}
+        </p>
+        <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Novo
+        </p>
+      </div>
+      <div
+        className="flex h-3.5 min-w-0 flex-1 overflow-hidden rounded-full bg-secondary"
+        role="img"
+        aria-label={
+          total > 0
+            ? `Distribuição do funil: ${label}. Novos: ${formatCount(novos)}`
+            : "Funil sem negócios no período"
+        }
+      >
+        {novos > 0 ? (
+          <span
+            className="h-full min-w-[6px] bg-[var(--pipeline-success)]"
+            style={{
+              width: `${Math.max(4, total > 0 ? (novos / (total + novos)) * 100 : 12)}%`,
+            }}
+            title={`Novos: +${formatCount(novos)}`}
+          />
+        ) : null}
+        {total > 0
+          ? stages.map((stage, i) => {
+              const pct = (weights[i]! / total) * (total / (total + novos || 1)) * 100;
+              if (pct <= 0) return null;
+              return (
+                <span
+                  key={stage.id}
+                  className="h-full min-w-px"
+                  style={{
+                    width: `${pct}%`,
+                    background: stage.color || "var(--brand-primary)",
+                  }}
+                  title={`${stage.name}: ${formatCount(stage.count)}`}
+                />
+              );
+            })
+          : null}
+      </div>
+    </div>
+  );
+}
+
+function NovosColumn({ count, value }: { count: number; value: number }) {
+  return (
+    <article className="pipeline-progress-col">
+      <span className="h-1.5 w-full rounded-full bg-[var(--pipeline-success)]" aria-hidden />
+      <h3 className="truncate font-display text-[11px] font-bold uppercase tracking-wide text-[var(--pipeline-text-muted)]">
+        Novos
+      </h3>
+      <p className="font-display text-[26px] font-bold leading-none tabular-nums text-[var(--pipeline-success)]">
+        {count > 0 ? `+${formatCount(count)}` : "0"}
+      </p>
+      <p className="mt-1 font-body text-[12px] text-[var(--pipeline-text-secondary)]">
+        {formatMoney(value)}
+      </p>
+      <p className="mt-auto font-body text-[11px] text-[var(--pipeline-text-muted)]">
+        Entraram no período
+      </p>
     </article>
   );
 }
@@ -197,12 +302,16 @@ export function PipelineProgress({
   cohort,
   pipelineHref,
   period,
+  novos,
+  headerAction,
 }: {
   stages: PipelineProgressStage[];
   summary: PipelineProgressSummary;
   cohort?: PipelineProgressCohort;
   pipelineHref: string;
   period?: PipelineProgressPeriod;
+  novos?: { count: number; value: number };
+  headerAction?: ReactNode;
 }) {
   const labelId = useId();
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -335,13 +444,18 @@ export function PipelineProgress({
             ) : null}
           </p>
         </div>
-        <Link
-          href={pipelineHref}
-          className="shrink-0 rounded-[var(--radius-md)] font-display text-[11px] font-semibold text-[var(--brand-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-        >
-          Pipeline
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {headerAction}
+          <Link
+            href={pipelineHref}
+            className="rounded-[var(--radius-md)] font-display text-[11px] font-semibold text-[var(--brand-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          >
+            Pipeline
+          </Link>
+        </div>
       </header>
+
+      {stages.length > 0 ? <FunnelSausage stages={stages} novosCount={novos?.count} /> : null}
 
       {stages.length === 0 ? (
         <EmptyState
@@ -374,6 +488,7 @@ export function PipelineProgress({
             }}
           >
             <div className="pipeline-progress-track">
+              {novos ? <NovosColumn count={novos.count} value={novos.value} /> : null}
               {stages.map((stage) => (
                 <StageColumn key={stage.id} stage={stage} />
               ))}

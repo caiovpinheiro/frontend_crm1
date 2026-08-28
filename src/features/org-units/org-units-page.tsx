@@ -242,7 +242,7 @@ export function OrgUnitsPage() {
   );
 }
 
-function OrgUnitDialog({
+export function OrgUnitDialog({
   open,
   onOpenChange,
   unit,

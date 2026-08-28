@@ -2,19 +2,15 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import {
-  IconAdjustmentsHorizontal,
-  IconCheck,
-  IconRotateClockwise,
-  IconSearch,
-} from "@tabler/icons-react";
+import { IconCheck, IconRotateClockwise } from "@tabler/icons-react";
 
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { cn } from "@/lib/utils";
 
 /**
  * Barra de busca com filtros segmentados em popover — padrão canônico do
  * sistema (referência: Departamentos). Injete no slot `center` do PageHeader
- * via `useSettingsHeaderSlots().setCenter(...)`.
+ * (cluster à direita) via `useSettingsHeaderSlots().setCenter(...)`.
  *
  * - Contorno leve enquanto ocioso; foco/hover no padrão brand.
  * - Botão de filtros fica ativo (azul) quando há filtro aplicado ou o popover
@@ -121,44 +117,18 @@ export function SettingsListFilterBar({
 
   return (
     <div ref={ref} className="relative w-full">
-      <span className="pointer-events-none absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-[var(--text-muted)]">
-        {icon ?? <IconSearch size={15} />}
-      </span>
-      <input
-        type="search"
+      <SearchFilterBar
         value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        onFocus={() => hasFilters && setOpen(true)}
+        onChange={onSearch}
         placeholder={placeholder}
-        aria-label={ariaLabel ?? placeholder}
-        className={cn(
-          "h-10 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-9 font-body text-[13px] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] outline-none placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--input-ring-focus)]",
-          hasFilters ? "pr-24" : "pr-4",
-        )}
+        ariaLabel={ariaLabel ?? placeholder}
+        leading={icon}
+        withFilter={hasFilters}
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => setOpen((o) => !o)}
+        onFocus={() => hasFilters && setOpen(true)}
       />
-      {hasFilters && (
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-label="Filtros"
-          className={cn(
-            "absolute right-1.5 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 transition-colors",
-            activeCount > 0 || open
-              ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-              : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]",
-          )}
-        >
-          <IconAdjustmentsHorizontal size={15} />
-          <span className="font-display text-[11px] font-semibold leading-none">
-            Filtrar
-          </span>
-          {activeCount > 0 && (
-            <span className="font-display text-[10px] font-bold leading-none tabular-nums">
-              {activeCount}
-            </span>
-          )}
-        </button>
-      )}
 
       {open && hasFilters && coords && typeof document !== "undefined" && createPortal(
         <div

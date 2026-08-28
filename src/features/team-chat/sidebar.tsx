@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MoreVertical, Search, SquarePen, Star } from "lucide-react";
 
+import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { cn } from "@/lib/utils";
 
@@ -267,8 +268,8 @@ export function Sidebar({
     <aside className="orbita-block flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
       <div className="shrink-0 px-4 pb-3 pt-4">
         <div className="flex items-center gap-1">
-          <h1 className="min-w-0 flex-1 truncate px-1 font-display text-[22px] font-semibold tracking-tight text-[var(--orbita-text)]">
-            Rely
+          <h1 className="min-w-0 flex-1 px-1">
+            <BwipoWordmark />
           </h1>
           <HeaderIcon label="Nova conversa" onClick={onNew}>
             <SquarePen className="h-[18px] w-[18px]" />

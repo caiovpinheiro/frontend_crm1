@@ -794,7 +794,7 @@ function TabulationsBody() {
 
 /* ─── Modal "Nova tabulação" (monta árvore antes de salvar) ────────── */
 
-function NewTabulationModal({
+export function NewTabulationModal({
   open,
   onOpenChange,
   departmentId,

@@ -94,7 +94,7 @@ export function ColumnResizer({
       title="Arrastar para tornar mais estreito ou mais largo"
       onPointerDown={onPointerDown}
       className={cn(
-        "v2-col-resize-cursor absolute top-0 z-20 flex h-full w-3 appearance-none items-center justify-center border-0 bg-transparent p-0",
+        "v2-col-resize-cursor group/resize absolute top-0 z-20 flex h-full w-3 appearance-none items-center justify-center border-0 bg-transparent p-0",
         direction === "left" ? "-left-[6px]" : "-right-[6px]",
         className,
       )}
@@ -102,8 +102,10 @@ export function ColumnResizer({
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none h-8 w-[3px] rounded-full bg-[var(--text-muted)]/45",
-          dragging && "bg-[var(--brand-primary)]",
+          "pointer-events-none rounded-full transition-colors",
+          dragging
+            ? "h-8 w-[3px] bg-primary"
+            : "h-4 w-px bg-transparent group-hover/resize:bg-primary",
         )}
       />
     </button>
@@ -228,7 +230,7 @@ export function ResizableColumnHead({
 }) {
   return (
     <div
-      className={cn("relative min-w-0 shrink-0 overflow-hidden pr-1", className)}
+      className={cn("relative min-w-0 shrink-0 overflow-x-hidden overflow-y-visible pr-1", className)}
       style={{ width, minWidth: width, maxWidth: width }}
     >
       {children}

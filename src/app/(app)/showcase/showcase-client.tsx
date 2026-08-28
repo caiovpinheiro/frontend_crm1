@@ -237,6 +237,7 @@ export function ShowcaseClient() {
   const [toggled, setToggled] = useState(true)
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
   const [dropdown, setDropdown] = useState<string | null>(null)
 
   const navItems = [
@@ -319,7 +320,7 @@ export function ShowcaseClient() {
                 { name: "--text-primary", value: "#0f172a", label: "Primary" },
                 { name: "--text-secondary", value: "#374151", label: "Secondary" },
                 { name: "--text-muted", value: "#4b5563", label: "Muted" },
-                { name: "--bg-base", value: "#dde8f5", label: "BG Base" },
+                { name: "--bg-base", value: "#f4f6fb", label: "BG Base" },
               ].map((t) => (
                 <div key={t.name} className="flex flex-col gap-2">
                   <div
@@ -578,7 +579,7 @@ export function ShowcaseClient() {
           </Block>
 
           {/* Paginação */}
-          <Block title="PaginationGlass" usage="page/lastPage com canPrev/canNext e onPrev/onNext controlados. total + entityLabel renderizam o resumo à esquerda.">
+          <Block title="PaginationGlass" usage="Badge + entidade · página X de Y à esquerda; Por página (25|50|100) e Anterior/Próxima à direita. showNav={false} esconde a navegação (ex. Logs).">
             <PaginationGlass
               total={287}
               entityLabel="contatos"
@@ -588,6 +589,8 @@ export function ShowcaseClient() {
               canNext={page < 12}
               onPrev={() => setPage((p) => Math.max(1, p - 1))}
               onNext={() => setPage((p) => Math.min(12, p + 1))}
+              perPage={perPage}
+              onPerPageChange={(value) => { setPerPage(value); setPage(1) }}
             />
           </Block>
 

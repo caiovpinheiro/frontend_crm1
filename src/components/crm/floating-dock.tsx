@@ -144,10 +144,10 @@ export function DockButton({
   // no idle e --nav-text-hover-bg/--nav-text-hover no hover — contraste
   // adequado sobre fundo escuro. Estado ativo mantém o brand-primary.
   const innerClasses = cn(
-    "flex h-full w-full items-center justify-center rounded-[var(--radius-md)] transition-colors",
+    "flex h-full w-full items-center justify-center rounded-2xl transition-colors",
     active
-      ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-      : "bg-transparent text-[var(--nav-text-muted)] hover:bg-[var(--nav-text-hover-bg)] hover:text-[var(--nav-text-hover)]",
+      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/30"
+      : "bg-transparent text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
     className,
   );
 

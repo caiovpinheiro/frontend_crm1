@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClipboardList } from "lucide-react";
 import { IconLoader2 as Loader2 } from "@tabler/icons-react";
 import {
   IconAdjustmentsHorizontal,
@@ -16,7 +17,6 @@ import {
   IconBrandWhatsapp,
   IconBriefcase,
   IconBuildingCommunity,
-  IconCalendarEvent,
   IconCheck,
   IconChecklist,
   IconClipboardList,
@@ -38,7 +38,7 @@ import {
   IconUsers,
   IconX,
 } from "@tabler/icons-react";
-import { format, isSameDay, parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
@@ -58,15 +58,29 @@ import {
 import type { ListCallsFilters } from "@/features/softphone/api/types";
 import { RestrictedScreen } from "@/components/crm/restricted-screen";
 import { useRequireManager } from "@/hooks/use-user-role";
-import { PageHeader } from "@/components/crm/page-header";
-import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
+import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
+import {
+  FilterChip,
+  FilterPopoverBody,
+  FilterPopoverHeader,
+  FilterPopoverPanel,
+  FilterSectionLabel,
+  FilterSegmentedTabs,
+} from "@/components/crm/filter-popover";
+import {
+  PeriodCalendarButton,
+  PeriodIsoRangePanel,
+  PeriodPresetPanel,
+} from "@/components/crm/period-calendar-button";
+import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { PaginationGlass } from "@/components/crm/pagination-glass";
 import {
+  LIST_CARD_ROW_CLASS,
   listTableHeadRowClass,
   SortableHeader,
   type SortDir,
 } from "@/components/crm/sortable-header";
-import { DateRangePicker, type DateRange } from "@/components/crm/date-range-picker";
 import { EmptyState } from "@/components/crm/empty-state";
 import { KpiSquareScroll } from "@/components/crm/kpi-card";
 import { PageDemoBanner } from "@/components/crm/page-demo-banner";
@@ -75,7 +89,6 @@ import {
   FALLBACK_CONFIG,
   actorDisplay,
   eventDescription,
-  groupFeedByDay,
   type FeedEvent,
 } from "@/components/crm/feed";
 import { useActivityFeed } from "@/features/activity-feed/use-activity-feed";
@@ -86,15 +99,15 @@ import { shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
 import { cn } from "@/lib/utils";
 import { SystemUsageTab } from "@/features/system-usage/system-usage-tab";
 import {
-  SystemUsagePeriodFilter,
   defaultSystemUsagePeriod,
   type SystemUsagePeriodValue,
 } from "@/features/system-usage/system-usage-period-filter";
+import { LogsStatsPanel } from "./_stats-panel";
 
 const LOG_TABS = [
   "Eventos",
   "Chamadas",
-  "Estatísticas (30d)",
+  "Estatísticas",
   "Uso do sistema",
 ] as const;
 
@@ -154,29 +167,27 @@ const ACTOR_BADGE: Record<
   },
 };
 
-// Ordem/cores dos KPIs por tipo de ator na aba Estatísticas (espelha ACTOR_BADGE).
-const STATS_ACTOR_ORDER: { key: string; label: string; color: string }[] = [
-  { key: "HUMAN", label: "Humanos", color: "var(--brand-primary)" },
-  { key: "AI", label: "Agentes IA", color: "var(--color-fuchsia)" },
-  { key: "AUTOMATION", label: "Automações", color: "var(--color-lavender)" },
-  { key: "INTEGRATION", label: "Integrações", color: "var(--color-sky)" },
-  { key: "SYSTEM", label: "Sistema", color: "var(--text-muted)" },
-];
-
-// Paleta cíclica das barras (Top tipos / Por entidade).
-const BAR_PALETTE = [
-  "var(--brand-primary)",
-  "var(--color-success)",
-  "var(--color-sky)",
-  "var(--color-lavender)",
-  "var(--color-fuchsia)",
-  "var(--color-danger)",
-];
-
 // 6 colunas: Evento | Detalhe | Entidade | Origem | Responsável | Data.
 // minmax garante largura mínima legível mesmo ao rolar lateralmente.
 const FEED_GRID =
-  "grid-cols-[minmax(160px,1.4fr)_minmax(180px,1.7fr)_minmax(150px,1.5fr)_minmax(150px,1.5fr)_minmax(120px,0.9fr)_minmax(90px,0.7fr)]";
+  "grid-cols-[minmax(160px,1.4fr)_minmax(180px,1.7fr)_minmax(150px,1.5fr)_minmax(150px,1.5fr)_minmax(120px,0.9fr)_minmax(132px,0.85fr)]";
+
+function endOfInclusiveDay(d: Date): Date {
+  const c = new Date(d);
+  c.setHours(23, 59, 59, 999);
+  return c;
+}
+
+/** Detalhe da lista de Eventos: sem timestamp (a coluna Data já mostra data+hora). */
+function eventListDetail(ev: FeedEvent): string {
+  if (ev.type === "CREATED") return "";
+  if (ev.type === "CONTACT_CREATED") {
+    return String(
+      ev.meta?.name ?? ev.meta?.preview ?? ev.entityLabel ?? "",
+    ).trim();
+  }
+  return eventDescription(ev);
+}
 
 type SortColumn = "evento" | "detalhe" | "entidade" | "origem" | "ator" | "data";
 
@@ -369,7 +380,9 @@ export default function LogsClientPage() {
   const [qDebounced, setQDebounced] = React.useState<string>("");
   const [demo, setDemo] = React.useState<boolean>(false);
   const [limit, setLimit] = React.useState<number>(50);
-  const [range, setRange] = React.useState<DateRange>({ from: null, to: null });
+  const [feedPeriod, setFeedPeriod] = React.useState<SystemUsagePeriodValue>(
+    () => defaultSystemUsagePeriod(),
+  );
   const [stagePipelineId, setStagePipelineId] = React.useState<string | null>(null);
   const [stageFrom, setStageFrom] = React.useState<string[]>([]);
   const [stageTo, setStageTo] = React.useState<string[]>([]);
@@ -384,14 +397,18 @@ export default function LogsClientPage() {
       entityType: entity === "ALL" ? undefined : [entity],
       actorType: actor === "ALL" ? undefined : [actor],
       q: qDebounced || undefined,
-      dateFrom: range.from ? format(range.from, "yyyy-MM-dd") : undefined,
-      dateTo: range.to ? format(range.to, "yyyy-MM-dd") : undefined,
+      dateFrom: feedPeriod.range.from
+        ? feedPeriod.range.from.toISOString()
+        : undefined,
+      dateTo: feedPeriod.range.to
+        ? endOfInclusiveDay(feedPeriod.range.to).toISOString()
+        : undefined,
       stagePipelineId: stagePipelineId || undefined,
       stageFrom: stageFrom.length ? stageFrom : undefined,
       stageTo: stageTo.length ? stageTo : undefined,
       limit,
     }),
-    [entity, actor, qDebounced, range, stagePipelineId, stageFrom, stageTo, limit],
+    [entity, actor, qDebounced, feedPeriod, stagePipelineId, stageFrom, stageTo, limit],
   );
 
   const {
@@ -412,7 +429,7 @@ export default function LogsClientPage() {
     entity !== "ALL" ||
     actor !== "ALL" ||
     Boolean(q) ||
-    Boolean(range.from) ||
+    feedPeriod.preset !== "30d" ||
     Boolean(stagePipelineId) ||
     stageFrom.length > 0 ||
     stageTo.length > 0;
@@ -443,7 +460,7 @@ export default function LogsClientPage() {
     const getKey = (ev: FeedEvent): string => {
       if (sort.column === "evento")
         return (EVENT_CONFIG[ev.type]?.label ?? ev.type).toLowerCase();
-      if (sort.column === "detalhe") return eventDescription(ev).toLowerCase();
+      if (sort.column === "detalhe") return eventListDetail(ev).toLowerCase();
       if (sort.column === "entidade")
         return [
           ENTITY_LABEL[ev.entityType ?? ""] ?? ev.entityType ?? "",
@@ -472,11 +489,6 @@ export default function LogsClientPage() {
     return arr;
   }, [allItems, sort, isDefaultSort]);
 
-  const groups = React.useMemo(
-    () => (isDefaultSort ? groupFeedByDay(allItems) : []),
-    [allItems, isDefaultSort],
-  );
-
   const toggleSort = (column: SortColumn) => {
     setSort((prev) =>
       prev.column === column
@@ -503,20 +515,36 @@ export default function LogsClientPage() {
     return () => io.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  const statsRange = React.useMemo(
+    () => ({
+      dateFrom: feedPeriod.range.from
+        ? feedPeriod.range.from.toISOString()
+        : undefined,
+      dateTo: feedPeriod.range.to
+        ? endOfInclusiveDay(feedPeriod.range.to).toISOString()
+        : undefined,
+    }),
+    [feedPeriod],
+  );
+
   // Estatísticas só devem carregar quando a aba correspondente estiver ativa.
-  const { data: stats, isLoading: statsLoading } = useActivityStats(isStats);
+  const { data: stats, isLoading: statsLoading } = useActivityStats(
+    isStats,
+    statsRange,
+  );
 
   if (ready && !isManagerUp) return <RestrictedScreen />;
 
   return (
-    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4">
+    <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-3 overflow-hidden sm:gap-4">
-        <PageHeader
-          icon={<IconClipboardList size={22} stroke={2.2} />}
+      <main className="flex min-w-0 flex-col gap-3 sm:gap-4">
+        <SectionHeader
+          icon={ClipboardList}
           title="Logs"
-          center={
+          search={isFeed || (isCalls && callsWidget.enabled === true)}
+          searchSlot={
             isFeed ? (
               <FeedSearchFilterBar
                 search={q}
@@ -525,8 +553,6 @@ export default function LogsClientPage() {
                 onEntityChange={setEntity}
                 actor={actor}
                 onActorChange={setActor}
-                range={range}
-                onRangeChange={setRange}
                 stagePipelineId={stagePipelineId}
                 onStagePipelineChange={setStagePipelineId}
                 stageFrom={stageFrom}
@@ -535,69 +561,77 @@ export default function LogsClientPage() {
                 onStageToChange={setStageTo}
               />
             ) : isCalls && callsWidget.enabled === true ? (
-              <div className="flex w-full justify-start">
-                <CallsSearchFilterBar
-                  search={callsSearch}
-                  onSearch={setCallsSearch}
-                  filters={callsFilters}
-                  onFiltersChange={setCallsFilters}
-                />
-              </div>
+              <CallsSearchFilterBar
+                search={callsSearch}
+                onSearch={setCallsSearch}
+                filters={callsFilters}
+                onFiltersChange={setCallsFilters}
+              />
+            ) : undefined
+          }
+          period={
+            isFeed || isStats ? (
+              <PeriodCalendarButton active={feedPeriod.preset !== "30d"}>
+                <PeriodPresetPanel value={feedPeriod} onChange={setFeedPeriod} />
+              </PeriodCalendarButton>
             ) : isUsage ? (
-              <div className="flex w-full justify-start">
-                <SystemUsagePeriodFilter
-                  value={usagePeriod}
-                  onChange={setUsagePeriod}
+              <PeriodCalendarButton active={usagePeriod.preset !== "30d"}>
+                <PeriodPresetPanel value={usagePeriod} onChange={setUsagePeriod} />
+              </PeriodCalendarButton>
+            ) : isCalls && callsWidget.enabled === true ? (
+              <PeriodCalendarButton
+                active={!!(callsFilters.dateFrom || callsFilters.dateTo)}
+              >
+                <PeriodIsoRangePanel
+                  from={callsFilters.dateFrom ?? ""}
+                  to={callsFilters.dateTo ?? ""}
+                  onChange={({ from, to }) =>
+                    setCallsFilters((prev) => ({
+                      ...prev,
+                      dateFrom: from || undefined,
+                      dateTo: to || undefined,
+                    }))
+                  }
+                  allowClear
                 />
-              </div>
+              </PeriodCalendarButton>
             ) : undefined
           }
           actions={
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <PageSegmentedControl
-                size="compact"
-                aria-label="Visão dos logs"
-                items={LOG_TABS.map((label, index) => ({
-                  value: String(index),
-                  label:
-                    index === 1 && typeof callsTotal === "number" ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        {label}
-                        <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1.5 font-display text-[10px] font-bold leading-none text-white">
-                          {callsTotal.toLocaleString("pt-BR")}
-                        </span>
-                      </span>
-                    ) : (
-                      label
-                    ),
-                }))}
-                value={String(activeTab)}
-                onChange={(v) => setActiveTab(Number(v))}
+            <HeaderTabs
+              tabs={LOG_TABS.map((label, index) => ({
+                key: String(index),
+                label,
+                badge: index === 1 && typeof callsTotal === "number" ? callsTotal : undefined,
+              }))}
+              value={String(activeTab)}
+              onChange={(v) => setActiveTab(Number(v))}
+            />
+          }
+          menu={isFeed || (isCalls && callsWidget.enabled === true)}
+          menuSlot={
+            isFeed ? (
+              <FeedActionsMenu
+                demo={demo}
+                onToggleDemo={() => setDemo((d) => !d)}
+                hasFilters={hasFilters}
+                onClearFilters={() => {
+                  setEntity("ALL");
+                  setActor("ALL");
+                  setQ("");
+                  setFeedPeriod(defaultSystemUsagePeriod());
+                  setStagePipelineId(null);
+                  setStageFrom([]);
+                  setStageTo([]);
+                }}
               />
-              {isFeed && (
-                <FeedActionsMenu
-                  demo={demo}
-                  onToggleDemo={() => setDemo((d) => !d)}
-                  hasFilters={hasFilters}
-                  onClearFilters={() => {
-                    setEntity("ALL");
-                    setActor("ALL");
-                    setQ("");
-                    setRange({ from: null, to: null });
-                    setStagePipelineId(null);
-                    setStageFrom([]);
-                    setStageTo([]);
-                  }}
-                />
-              )}
-              {isCalls && callsWidget.enabled === true && (
-                <CallsActionsMenu
-                  syncing={callsSyncMutation.isPending}
-                  onSync={() => callsSyncMutation.mutate()}
-                  onSettings={() => router.push("/widgets?configure=calls_history")}
-                />
-              )}
-            </div>
+            ) : isCalls && callsWidget.enabled === true ? (
+              <CallsActionsMenu
+                syncing={callsSyncMutation.isPending}
+                onSync={() => callsSyncMutation.mutate()}
+                onSettings={() => router.push("/widgets?configure=calls_history")}
+              />
+            ) : undefined
           }
         />
 
@@ -634,8 +668,7 @@ export default function LogsClientPage() {
             ) : (
               /* Layout em cards (padrão Chamadas): cabeçalho solto + linhas
                  individuais com gap. Scroll horizontal se viewport < 960px. */
-              <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-                <div className="flex min-w-[960px] flex-col gap-2">
+              <div className="flex min-w-[960px] flex-col gap-2.5 overflow-x-auto">
                   <div
                     className={listTableHeadRowClass(
                       `${FEED_GRID} gap-3.5 border border-transparent px-4 py-2`,
@@ -680,26 +713,9 @@ export default function LogsClientPage() {
                     </div>
                   )}
 
-                  {isDefaultSort
-                    ? groups.map(([dayKey, dayItems]) => (
-                        <div key={dayKey} className="flex flex-col gap-2">
-                          <div className="flex items-center justify-between px-1 pt-1">
-                            <span className="shrink-0 font-display text-[11px] font-bold text-[var(--text-secondary)]">
-                              {dayLabel(dayItems[0].occurredAt)}
-                            </span>
-                            <span className="shrink-0 font-display text-[11px] font-medium text-[var(--text-muted)]">
-                              {dayItems.length} evento
-                              {dayItems.length !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                          {dayItems.map((ev) => (
-                            <EventCard key={ev.id} event={ev} />
-                          ))}
-                        </div>
-                      ))
-                    : sortedFlat.map((ev) => (
-                        <EventCard key={ev.id} event={ev} />
-                      ))}
+                  {sortedFlat.map((ev) => (
+                    <EventCard key={ev.id} event={ev} />
+                  ))}
 
                   <div ref={sentinelRef} className="h-1" />
                   {isFetchingNextPage && (
@@ -713,16 +729,15 @@ export default function LogsClientPage() {
                       Fim do histórico.
                     </p>
                   )}
-                </div>
               </div>
             )}
 
             {!isLoading && !isError && allItems.length > 0 && (
               <PaginationGlass
-                label={`${allItems.length.toLocaleString("pt-BR")} eventos carregados`}
+                total={allItems.length}
+                entityLabel="eventos"
                 showNav={false}
                 perPage={limit}
-                perPageOptions={[25, 50, 100, 200]}
                 onPerPageChange={setLimit}
               />
             )}
@@ -749,53 +764,14 @@ export default function LogsClientPage() {
             </div>
           )
         ) : (
-          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="flex flex-col">
             {statsLoading || !stats ? (
               <div className="flex items-center justify-center py-16 text-[13px] text-[var(--text-muted)]">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 Calculando estatísticas...
               </div>
             ) : (
-              <div className="space-y-4">
-                {/* KPIs por tipo de ator — Total destacado em brand */}
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-                  <ActorKpi total value={stats.totals.total} />
-                  {STATS_ACTOR_ORDER.map((a) => (
-                    <ActorKpi
-                      key={a.key}
-                      label={a.label}
-                      value={stats.totals.byActorType[a.key] ?? 0}
-                      color={a.color}
-                    />
-                  ))}
-                </div>
-
-                {/* Top tipos de evento + Por entidade — barras proporcionais */}
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <StatBarPanel
-                    title="Top tipos de evento"
-                    caption="30 dias"
-                    rows={stats.totals.byType.map((r, i) => ({
-                      label: EVENT_CONFIG[r.type]?.label ?? r.type,
-                      value: r.count,
-                      color: BAR_PALETTE[i % BAR_PALETTE.length],
-                    }))}
-                  />
-                  <StatBarPanel
-                    title="Por entidade"
-                    caption="30 dias"
-                    rows={Object.entries(stats.totals.byEntityType).map(
-                      ([k, v], i) => ({
-                        label: ENTITY_LABEL[k] ?? k,
-                        value: v,
-                        color: BAR_PALETTE[i % BAR_PALETTE.length],
-                      }),
-                    )}
-                  />
-                </div>
-
-                <EventsPerDay rows={stats.timeline} />
-              </div>
+              <LogsStatsPanel stats={stats} />
             )}
           </div>
         )}
@@ -940,7 +916,7 @@ function CallsNotEnabledState() {
 function EventCard({ event }: { event: FeedEvent }) {
   const cfg = EVENT_CONFIG[event.type] ?? FALLBACK_CONFIG;
   const Icon = cfg.Icon;
-  const detail = eventDescription(event);
+  const detail = eventListDetail(event);
   const actor = actorDisplay(event);
   const badge = ACTOR_BADGE[actor.type] ?? ACTOR_BADGE.SYSTEM;
 
@@ -958,7 +934,7 @@ function EventCard({ event }: { event: FeedEvent }) {
 
   return (
     <div
-      className={`grid ${FEED_GRID} items-center gap-3.5 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]`}
+      className={`grid ${FEED_GRID} items-center gap-3.5 ${LIST_CARD_ROW_CLASS}`}
     >
       {/* Coluna: Evento */}
       <div className="flex min-w-0 items-center gap-2">
@@ -1378,138 +1354,16 @@ function FeedMiniDash({ items }: { items: FeedEvent[] }) {
 
 function EventDate({ iso }: { iso: string }) {
   const d = parseISO(iso);
-  const isToday = isSameDay(d, new Date());
-  if (isToday) {
-    return (
-      <span className="font-display tabular-nums text-[12.5px] text-[var(--text-muted)]">
-        {format(d, "HH:mm", { locale: ptBR })}
-      </span>
-    );
-  }
   return (
-    <span className="flex flex-col items-end gap-0">
-      <span className="font-display tabular-nums text-[12.5px] text-[var(--text-secondary)]">
-        {format(d, "dd MMM", { locale: ptBR })}
-      </span>
-      <span className="font-display tabular-nums text-[11px] text-[var(--text-muted)]">
-        {format(d, "HH:mm", { locale: ptBR })}
-      </span>
+    <span className="font-display tabular-nums text-[12.5px] text-[var(--text-muted)]">
+      {format(d, "dd/MM/yyyy HH:mm", { locale: ptBR })}
     </span>
-  );
-}
-
-function dayLabel(iso: string): string {
-  const d = parseISO(iso);
-  const today = new Date();
-  const yesterday = new Date();
-  yesterday.setDate(today.getDate() - 1);
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-  if (sameDay(d, today)) return "Hoje";
-  if (sameDay(d, yesterday)) return "Ontem";
-  return format(d, "EEEE, dd 'de' MMMM", { locale: ptBR });
-}
-
-function ActorKpi({
-  label,
-  value,
-  color,
-  total,
-}: {
-  label?: string;
-  value: number;
-  color?: string;
-  total?: boolean;
-}) {
-  if (total) {
-    return (
-      <div className="rounded-[var(--radius-xl)] border border-[var(--brand-primary)] bg-[var(--brand-primary)] p-4 text-white shadow-[0_6px_20px_rgba(91,111,245,0.35)]">
-        <p className="font-display text-[26px] font-bold leading-none tabular-nums">
-          {value.toLocaleString("pt-BR")}
-        </p>
-        <p className="mt-1.5 font-body text-[11.5px] text-white/85">
-          Total de eventos
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-4 backdrop-blur-md shadow-[var(--glass-shadow-sm)]">
-      <p className="font-display text-[26px] font-bold leading-none tabular-nums text-[var(--text-primary)]">
-        {value.toLocaleString("pt-BR")}
-      </p>
-      <p className="mt-1.5 flex items-center gap-1.5 font-body text-[11.5px] text-[var(--text-muted)]">
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: color }}
-        />
-        {label}
-      </p>
-    </div>
-  );
-}
-
-function StatBarPanel({
-  title,
-  caption,
-  rows,
-}: {
-  title: string;
-  caption?: string;
-  rows: { label: string; value: number; color: string }[];
-}) {
-  const max = Math.max(1, ...rows.map((r) => r.value));
-  return (
-    <section className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
-      <div className="flex items-center justify-between border-b border-[var(--glass-border-subtle)] px-4 py-3">
-        <h3 className="font-display text-[13px] font-bold text-[var(--text-primary)]">
-          {title}
-        </h3>
-        {caption && (
-          <span className="font-body text-[11px] text-[var(--text-muted)]">
-            {caption}
-          </span>
-        )}
-      </div>
-      <ul className="px-4 py-2">
-        {rows.length === 0 ? (
-          <li className="py-3 text-center font-body text-[12px] text-[var(--text-muted)]">
-            Sem dados no período.
-          </li>
-        ) : (
-          rows.map((r) => (
-            <li
-              key={r.label}
-              className="grid grid-cols-[minmax(110px,150px)_1fr_auto] items-center gap-3 py-1.5"
-            >
-              <span className="truncate font-body text-[12.5px] text-[var(--text-secondary)]">
-                {r.label}
-              </span>
-              <div className="h-2 rounded-full bg-[var(--glass-bg-overlay)]">
-                <div
-                  className="h-2 rounded-full"
-                  style={{
-                    width: `${(r.value / max) * 100}%`,
-                    backgroundColor: r.color,
-                  }}
-                />
-              </div>
-              <span className="w-12 text-right font-display text-[13px] font-bold tabular-nums text-[var(--text-primary)]">
-                {r.value.toLocaleString("pt-BR")}
-              </span>
-            </li>
-          ))
-        )}
-      </ul>
-    </section>
   );
 }
 
 // ── Feed: busca + popover de filtros (padrão Contatos/Empresas) ─────────────
 
-type FeedFilterTab = "entidade" | "ator" | "periodo" | "transicao";
+type FeedFilterTab = "entidade" | "ator" | "transicao";
 
 const FEED_FILTER_TABS: {
   id: FeedFilterTab;
@@ -1522,11 +1376,6 @@ const FEED_FILTER_TABS: {
     icon: <IconBuildingCommunity size={14} stroke={2.2} />,
   },
   { id: "ator", label: "Ator", icon: <IconUsers size={14} stroke={2.2} /> },
-  {
-    id: "periodo",
-    label: "Período",
-    icon: <IconCalendarEvent size={14} stroke={2.2} />,
-  },
   {
     id: "transicao",
     label: "Fase",
@@ -1553,15 +1402,6 @@ function usePipelinesLite(enabled: boolean) {
   });
 }
 
-function CountBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 font-display text-[10px] font-bold leading-none text-white">
-      {count}
-    </span>
-  );
-}
-
 function FeedSearchFilterBar({
   search,
   onSearch,
@@ -1569,8 +1409,6 @@ function FeedSearchFilterBar({
   onEntityChange,
   actor,
   onActorChange,
-  range,
-  onRangeChange,
   stagePipelineId,
   onStagePipelineChange,
   stageFrom,
@@ -1584,8 +1422,6 @@ function FeedSearchFilterBar({
   onEntityChange: (v: string) => void;
   actor: string;
   onActorChange: (v: string) => void;
-  range: DateRange;
-  onRangeChange: (r: DateRange) => void;
   stagePipelineId: string | null;
   onStagePipelineChange: (v: string | null) => void;
   stageFrom: string[];
@@ -1603,7 +1439,6 @@ function FeedSearchFilterBar({
   const activeCount =
     (entity !== "ALL" ? 1 : 0) +
     (actor !== "ALL" ? 1 : 0) +
-    (range.from || range.to ? 1 : 0) +
     (stageTransitionActive ? 1 : 0);
 
   const { data: pipelines = [] } = usePipelinesLite(open && tab === "transicao");
@@ -1634,7 +1469,6 @@ function FeedSearchFilterBar({
   const tabBadge = (id: FeedFilterTab) => {
     if (id === "entidade") return entity !== "ALL" ? 1 : 0;
     if (id === "ator") return actor !== "ALL" ? 1 : 0;
-    if (id === "periodo") return range.from || range.to ? 1 : 0;
     if (id === "transicao")
       return (
         (stagePipelineId ? 1 : 0) +
@@ -1647,7 +1481,6 @@ function FeedSearchFilterBar({
   function clearAll() {
     onEntityChange("ALL");
     onActorChange("ALL");
-    onRangeChange({ from: null, to: null });
     onStagePipelineChange(null);
     onStageFromChange([]);
     onStageToChange([]);
@@ -1655,208 +1488,97 @@ function FeedSearchFilterBar({
 
   return (
     <div ref={ref} className="relative w-full">
-      <IconSearch
-        size={15}
-        className="absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-[var(--text-muted)]"
-      />
-      <input
-        type="search"
+      <SearchFilterBar
         value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        onFocus={() => setOpen(true)}
+        onChange={onSearch}
         placeholder="Pesquisar e filtrar eventos..."
-        aria-label="Buscar e filtrar eventos"
-        className="h-10 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-9 pr-24 font-body text-[13px] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] outline-none placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--input-ring-focus)]"
+        ariaLabel="Buscar e filtrar eventos"
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => setOpen((o) => !o)}
+        onFocus={() => setOpen(true)}
       />
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Filtros"
-        className={cn(
-          "absolute right-1.5 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 transition-colors",
-          activeCount > 0 || open
-            ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]",
-        )}
-      >
-        <IconAdjustmentsHorizontal size={15} />
-        <span className="font-display text-[11px] font-semibold leading-none">
-          Filtrar
-        </span>
-        {activeCount > 0 && (
-          <span className="font-display text-[10px] font-bold leading-none tabular-nums">
-            {activeCount}
-          </span>
-        )}
-      </button>
 
-      {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 flex w-[min(100vw-2rem,380px)] flex-col overflow-visible rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md">
-          <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-            <div className="flex items-center gap-2">
-              <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">
-                Filtros
-              </span>
-              <CountBadge count={activeCount} />
-            </div>
-            <button
-              type="button"
-              onClick={clearAll}
-              disabled={activeCount === 0}
-              className="flex items-center gap-1 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-40"
-            >
-              <IconRotateClockwise size={13} /> Limpar
-            </button>
-          </div>
-
-          <div className="px-4 pb-3">
-            <div
-              role="tablist"
-              aria-label="Seções do filtro"
-              className="flex items-center gap-0.5 rounded-full bg-[var(--glass-bg-strong)] p-1"
-            >
-              {FEED_FILTER_TABS.map((t) => {
-                const active = tab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setTab(t.id)}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 font-display text-[12px] font-bold transition-all",
-                      active
-                        ? "bg-[var(--glass-bg-modal,#fff)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)]"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    )}
-                  >
-                    <span
-                      className={
-                        active ? "text-[var(--brand-primary)]" : undefined
-                      }
-                    >
-                      {t.icon}
-                    </span>
-                    {t.label}
-                    <CountBadge count={tabBadge(t.id)} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="max-h-[min(60vh,420px)] overflow-y-auto px-4 pb-3">
+      {open ? (
+        <FilterPopoverPanel className="w-[min(100vw-2rem,420px)]">
+          <FilterPopoverHeader
+            count={activeCount}
+            onClear={clearAll}
+            clearDisabled={activeCount === 0}
+          />
+          <FilterSegmentedTabs
+            value={tab}
+            onChange={setTab}
+            tabs={FEED_FILTER_TABS.map((t) => ({
+              id: t.id,
+              label: t.label,
+              icon: t.icon,
+              badge: tabBadge(t.id),
+            }))}
+          />
+          <FilterPopoverBody>
             {tab === "entidade" && (
               <div className="flex flex-wrap gap-1.5">
-                {ENTITY_OPTIONS.map((opt) => {
-                  const selected = entity === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => onEntityChange(opt.value)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                        selected
-                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                          : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-                      )}
-                    >
-                      {selected && <IconCheck size={12} stroke={2.4} />}
-                      {opt.label}
-                    </button>
-                  );
-                })}
+                {ENTITY_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    selected={entity === opt.value}
+                    onClick={() => onEntityChange(opt.value)}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
               </div>
             )}
 
             {tab === "ator" && (
               <div className="flex flex-wrap gap-1.5">
-                {ACTOR_OPTIONS.map((opt) => {
-                  const selected = actor === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => onActorChange(opt.value)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                        selected
-                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                          : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-                      )}
-                    >
-                      {selected && <IconCheck size={12} stroke={2.4} />}
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {tab === "periodo" && (
-              <div className="flex flex-col gap-2">
-                <p className="font-display text-[11px] font-semibold text-[var(--text-muted)]">
-                  Intervalo de datas
-                </p>
-                <DateRangePicker value={range} onChange={onRangeChange} />
+                {ACTOR_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    selected={actor === opt.value}
+                    onClick={() => onActorChange(opt.value)}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
               </div>
             )}
 
             {tab === "transicao" && (
               <div className="flex flex-col gap-3">
-                <div className="rounded-[12px] border border-[var(--brand-primary)]/25 bg-[var(--color-primary-soft)] px-3 py-2 font-body text-[11.5px] leading-snug text-[var(--brand-primary-dark)]">
-                  Filtra apenas eventos de <b>mudança de fase</b>. Combina com
+                <div className="rounded-xl border border-border bg-secondary px-3 py-2 text-sm leading-snug text-muted-foreground">
+                  Filtra apenas eventos de <b className="text-foreground">mudança de fase</b>. Combina com
                   período e ator selecionados. Escolha o funil e, opcionalmente,
-                  as fases de <b>origem</b> e <b>destino</b>.
+                  as fases de <b className="text-foreground">origem</b> e <b className="text-foreground">destino</b>.
                 </div>
 
                 <div>
-                  <p className="mb-1.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
-                    Funil
-                  </p>
+                  <FilterSectionLabel>Funil</FilterSectionLabel>
                   <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
+                    <FilterChip
+                      selected={!stagePipelineId}
                       onClick={() => {
                         onStagePipelineChange(null);
                         onStageFromChange([]);
                         onStageToChange([]);
                       }}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                        !stagePipelineId
-                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                          : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-                      )}
                     >
-                      {!stagePipelineId && <IconCheck size={12} stroke={2.4} />}
                       Todos
-                    </button>
-                    {pipelines.map((p) => {
-                      const selected = stagePipelineId === p.id;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            onStagePipelineChange(p.id);
-                            onStageFromChange([]);
-                            onStageToChange([]);
-                          }}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                            selected
-                              ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                              : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-                          )}
-                        >
-                          {selected && <IconCheck size={12} stroke={2.4} />}
-                          {p.name}
-                        </button>
-                      );
-                    })}
+                    </FilterChip>
+                    {pipelines.map((p) => (
+                      <FilterChip
+                        key={p.id}
+                        selected={stagePipelineId === p.id}
+                        onClick={() => {
+                          onStagePipelineChange(p.id);
+                          onStageFromChange([]);
+                          onStageToChange([]);
+                        }}
+                      >
+                        {p.name}
+                      </FilterChip>
+                    ))}
                   </div>
                 </div>
 
@@ -1886,16 +1608,16 @@ function FeedSearchFilterBar({
                 )}
 
                 {!currentPipeline && pipelines.length > 0 && (
-                  <p className="rounded-[10px] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-3 py-3 text-center font-body text-[11.5px] text-[var(--text-muted)]">
+                  <p className="rounded-xl border border-dashed border-border bg-secondary px-3 py-3 text-center text-sm text-muted-foreground">
                     Selecione um funil acima para escolher as fases de origem
                     e destino.
                   </p>
                 )}
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </FilterPopoverBody>
+        </FilterPopoverPanel>
+      ) : null}
     </div>
   );
 }
@@ -1918,43 +1640,29 @@ function StagePicker({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <p className="font-display text-[11px] font-semibold text-[var(--text-muted)]">
-          {label}
-        </p>
+        <p className="text-xs font-semibold text-muted-foreground">{label}</p>
         {selected.length > 0 && (
           <button
             type="button"
             onClick={onClear}
-            className="font-display text-[10.5px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)]"
+            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             limpar ({selected.length})
           </button>
         )}
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {stages.map((s) => {
-          const on = selected.includes(s.id);
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => onToggle(s.id)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-display text-[11.5px] font-bold transition-colors",
-                on
-                  ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                  : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-              )}
-            >
-              {on && <IconCheck size={11} stroke={2.4} />}
-              {s.name}
-            </button>
-          );
-        })}
+        {stages.map((s) => (
+          <FilterChip
+            key={s.id}
+            selected={selected.includes(s.id)}
+            onClick={() => onToggle(s.id)}
+          >
+            {s.name}
+          </FilterChip>
+        ))}
       </div>
-      <p className="mt-1 font-body text-[10.5px] italic text-[var(--text-muted)]">
-        {hint}
-      </p>
+      <p className="mt-1 text-xs italic text-muted-foreground">{hint}</p>
     </div>
   );
 }
@@ -2026,47 +1734,5 @@ function CallsActionsMenu({
         },
       ]}
     />
-  );
-}
-
-function EventsPerDay({ rows }: { rows: { day: string; count: number }[] }) {
-  const max = Math.max(1, ...rows.map((r) => r.count));
-  return (
-    <section className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
-      <div className="flex items-center justify-between border-b border-[var(--glass-border-subtle)] px-4 py-3">
-        <h3 className="font-display text-[13px] font-bold text-[var(--text-primary)]">
-          Eventos por dia
-        </h3>
-        <span className="font-body text-[11px] text-[var(--text-muted)]">
-          {rows.length} dias
-        </span>
-      </div>
-      {rows.length === 0 ? (
-        <p className="py-8 text-center font-body text-[12px] text-[var(--text-muted)]">
-          Sem eventos no período.
-        </p>
-      ) : (
-        <div className="flex h-[180px] items-end gap-1.5 px-4 pb-3 pt-5">
-          {rows.map((r) => (
-            <div
-              key={r.day}
-              className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
-              title={`${r.day}: ${r.count}`}
-            >
-              <span className="font-display text-[10px] font-bold tabular-nums text-[var(--text-secondary)]">
-                {r.count}
-              </span>
-              <div
-                className="w-full max-w-[26px] rounded-t-md bg-gradient-to-b from-[var(--brand-primary)] to-[color-mix(in_srgb,var(--brand-primary)_55%,#fff)]"
-                style={{ height: `${(r.count / max) * 100}%` }}
-              />
-              <span className="font-mono text-[9px] text-[var(--text-muted)]">
-                {r.day.length > 5 ? r.day.slice(5) : r.day}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }

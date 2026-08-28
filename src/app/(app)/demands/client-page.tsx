@@ -388,7 +388,7 @@ export default function DemandsClientPage({
   );
 }
 
-function CreateItemDialog({
+export function CreateItemDialog({
   open,
   onOpenChange,
   boardId,

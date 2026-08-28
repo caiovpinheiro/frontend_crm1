@@ -1,0 +1,103 @@
+---
+description: Cards, listas e raios canônicos do CRM (DS visual)
+alwaysApply: true
+---
+
+# Cards e raios canônicos
+
+Referência visual: lista Empresas/Contatos (card por linha). Toda tela nova segue o mesmo DNA.
+
+## Conteúdo (lista, KPI, empty, `<Card>`)
+
+- Raio: `rounded-xl` (`--radius-xl`, 16px). `--radius-card` é alias disso.
+- Linha de lista: `LIST_CARD_ROW_CLASS` + `LIST_CARD_STACK_CLASS` (`src/components/crm/sortable-header.tsx`).
+- KPI: `KpiCard` (já `rounded-xl`). Empty/erro: `CARD_SURFACE_CLASS`.
+- Tokens: `bg-card`, `border-border`, `text-foreground`. Sem hex.
+- Canvas da página: `--bg-base` / `--color-background` = `#f4f6fb` (cinza de Distribuição). Não usar `#dde8f5`.
+
+```tsx
+// ❌
+<div className="rounded-2xl border bg-white p-4">
+
+// ✅
+<div className={LIST_CARD_ROW_CLASS}>
+<KpiCard label="…" value={n} icon={…} />
+```
+
+## Shells (não são cards)
+
+`rounded-2xl` (32px) só em NavRail, modal, popover, painel full (DealDetail). Não em KPI nem linha de lista.
+
+## Tipografia de lista
+
+Cabeçalhos de coluna e labels de KPI: sentence-case, sem `uppercase`. Uppercase: badge de status e labels de FormDialog (create/edit).
+
+## Cabeçalho de colunas (pipes)
+
+Pipes verticais entre colunas são o default de `listTableHeadRowClass` / `LIST_CARD_HEAD_CLASS` (`LIST_HEAD_PIPES_CLASS` em `sortable-header.tsx`). Não copiar `|` nem `border-r` em cada página.
+
+- Ordenável: `SortableHeader` (ativo = `text-primary` + chevron; inativo = muted + seletor up/down).
+- Estático: `ListColumnLabel` (muted, sem ícone). Usar quando a página não tem sort na API.
+- Header solto no fundo da página — não encapsular num card.
+
+## Rodapé de lista (PaginationGlass)
+
+- Barra no canvas (`--bg-base`), sem card branco: badge circular com o total + `{entidade} · página X de Y` à esquerda.
+- À direita: "Por página" (sentence-case, mesma escala `text-sm` da meta) + pills 25|50|100 (ativo = `bg-primary text-primary-foreground`) + Anterior/Próxima.
+- Componente: `src/components/crm/pagination-glass.tsx`. Sem hex / `text-white`.
+
+## Form dialog (create / edit)
+
+Canônico: `FormDialog` + `FormDialogIcon` + `formLabelClass` + `formControlClass` + footer `formDialogCancelClass` / `formDialogPrimaryClass` (`src/components/ui/form-dialog.tsx`). Não forkar outro dialog.
+
+```tsx
+<FormDialog
+  title="Novo contato"
+  description="Cadastre um contato e vincule empresa e tags."
+  icon={<FormDialogIcon><UserPlus className="size-4" /></FormDialogIcon>}
+  footer={
+    <>
+      <ButtonGlass variant="glass" className={formDialogCancelClass}>Cancelar</ButtonGlass>
+      <ButtonGlass variant="primary" className={formDialogPrimaryClass}>Criar</ButtonGlass>
+    </>
+  }
+>
+  <span className={formLabelClass}>Nome *</span>
+  <InputGlass className={formControlClass} />
+</FormDialog>
+```
+
+- Shell: Dialog `rounded-2xl`, overlay dim+blur, X no canto. Cards de conteúdo continuam `rounded-xl`.
+- Header: círculo `bg-primary/10 text-primary` + título + subtítulo muted. Ícones: `UserPlus` (contato), `FormDialogGlyphPlus`+`Building2` (empresa), `FormDialogGlyphPlus`+`Briefcase` (negócio).
+- Labels: ALL-CAPS, `text-muted-foreground` (`formLabelClass`). Cabeçalhos de lista ficam sentence-case.
+- Inputs / picker / busca de tags: `rounded-xl border-border bg-card` (`formControlClass`).
+- Footer à **direita**: Cancelar = pill branco `border-border` (não texto puro); Criar = `bg-primary text-primary-foreground` pill.
+- Tokens: `bg-primary`, `text-primary-foreground`, `border-border`, `text-muted-foreground`. Sem hex / `text-white`.
+
+## Cabeçalho e busca + Filtrar (referência: `/settings`)
+
+Fonte de verdade: `PageHeader` (`src/components/crm/page-header.tsx`) + pílula `SearchFilterBar` — o que `/settings` (Tags, Equipe, Campos) renderiza. `SectionHeader` é um wrapper que **reusa** `PageHeader`. Não copiar o layout de Tarefas (`text-3xl` / `h-12`).
+
+Identidade à **esquerda**; cluster busca + Filtrar + calendário + hamburger **sempre à direita** (`PAGE_HEADER_CONTROLS_CLASS`: `ml-auto`, `w-max`, `justify-end`). Em telas estreitas o cluster pode quebrar para a segunda linha, **alinhado ao fim** — não como bloco `w-full` à esquerda sob o título.
+
+- Ícone: `h-11 w-11` (`44px`), `rounded-[var(--radius-lg)]`, `border border-[var(--glass-border)]`, `bg-[var(--glass-bg-overlay)]`, `text-[var(--brand-primary)]`.
+- Título: `font-display text-[22px] font-bold leading-tight tracking-tight`.
+- Pílula: `h-10 rounded-full`, `pl-9`, `text-[13px]`, largura canônica `w-[32rem] max-w-full` (`PAGE_HEADER_SEARCH_SLOT_CLASS`). Lupa `left-3.5` size 15.
+- **Filtrar dentro da pílula**: `absolute right-1.5 h-7 rounded-full px-2.5 text-[11px] font-semibold` + ícone sliders 15px.
+- Hamburger (`PageActionsMenu`): `size-12 rounded-full bg-primary`, extremo direito (`align="end"`). Não mover.
+- Componente compartilhado: `SearchFilterBar`. Wrappers de página: `CompaniesSearchFilterBar`, `ContactsSearchFilterBar`, etc. **Nunca** `function SearchFilterBar` no mesmo arquivo que importa o shared.
+- Settings lista: `SettingsListFilterBar` (usa `SearchFilterBar` por baixo).
+
+```tsx
+<PageHeader icon={<IconTag size={22} />} title="Tags" center={<SearchFilterBar />} actions={<PageActionsMenu items={…} />} />
+```
+
+## Filtro de período (calendário no header)
+
+Quando a tela filtra por período (`dateFrom`/`dateTo` ou equivalente), o gatilho é um **ícone de calendário fora da barra de busca/Filtrar**. Não colocar pills 7/30/90 no header e não stuffed Período dentro do popover Filtrar. Settings não tem calendário; nas listas que têm, o ícone entra no cluster de **ações** (`PageHeader.actions` / `SectionHeader` prop `period`), antes do hamburger.
+
+- Componente: `PeriodCalendarButton` (`src/components/crm/period-calendar-button.tsx`).
+- Botão: `size-10 rounded-full` (mesma altura da busca `h-10`). Ícone Lucide `Calendar`. Popover `side="bottom"` `align="start"`.
+- Popover: shell `rounded-2xl` (`bg-card`, `border-border`). Presets **7 / 30 / 90** + intervalo customizado se a tela já tinha.
+- Sem período na API → omitir o ícone (não mostrar morto).
+- Tokens: `bg-card`, `border-border`, `text-foreground`, `bg-primary`, `text-primary-foreground`, `text-muted-foreground`. Sem hex / `text-white`.

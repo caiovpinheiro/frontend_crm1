@@ -25,6 +25,8 @@ import { EmptyState } from "@/components/crm/empty-state";
 import { PaginationGlass } from "@/components/crm/pagination-glass";
 import {
   ListColumnLabel,
+  LIST_CARD_ROW_CLASS,
+  LIST_CARD_STACK_CLASS,
   SortableHeader,
   listTableHeadRowClass,
   type SortDir,
@@ -274,10 +276,10 @@ function ConversationCallHistory({
         </label>
       </div>
 
-      <div className="min-w-0 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow)]">
+      <div className={cn("min-w-0", LIST_CARD_STACK_CLASS)}>
         <div
           className={cn(
-            "grid items-center gap-3 border-b border-[var(--glass-border-subtle)] bg-[color-mix(in_srgb,var(--brand-primary)_7%,transparent)] px-3 py-2.5",
+            "hidden items-center gap-4 px-5 text-xs font-semibold tracking-wide text-muted-foreground lg:grid",
             CONV_COLS,
           )}
         >
@@ -359,7 +361,7 @@ function ConversationCallRow({
   const name = call.contact?.name?.trim() || formatPhoneDisplay(call.phone);
 
   return (
-    <li className="min-w-0 border-b border-[var(--glass-border-subtle)] last:border-b-0">
+    <li className={cn("min-w-0", LIST_CARD_ROW_CLASS)}>
       <div
         className={cn(
           "grid min-w-0 items-center gap-3 px-3 py-2.5",
@@ -582,8 +584,8 @@ function StandaloneCallHistoryList({
       {header}
 
       <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-          <div className="flex min-w-[960px] flex-col gap-2">
-            <div className={listTableHeadRowClass(`${COLS} gap-3 border border-transparent px-4 py-2`)}>
+          <div className={cn("min-w-[960px]", LIST_CARD_STACK_CLASS)}>
+            <div className={listTableHeadRowClass(`${COLS} gap-3`)}>
               {HeadRow}
             </div>
 
@@ -624,7 +626,10 @@ function StandaloneCallHistoryList({
         </div>
 
       <PaginationGlass
-          label={`${total.toLocaleString("pt-BR")} chamada${total !== 1 ? "s" : ""} — página ${page} de ${lastPage}`}
+          total={total}
+          entityLabel="chamadas"
+          page={page}
+          lastPage={lastPage}
           canPrev={page > 1}
           canNext={page < lastPage}
           onPrev={() => onFiltersChange?.({ ...filters, page: Math.max(1, page - 1) })}
@@ -656,8 +661,8 @@ function CallTableRow({ call, isPlaying, onPlay, variant = "dense" }: CallTableR
       className={cn(
         `grid ${COLS} items-center gap-3 transition-all`,
         variant === "card"
-          ? "rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]"
-          : "border-b border-[var(--glass-border-subtle)] px-3 py-2.5 last:border-b-0 hover:bg-[var(--glass-bg-overlay)]",
+          ? LIST_CARD_ROW_CLASS
+          : "border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-secondary/40",
       )}
     >
         {/* Ícone de direção/status — protótipo: ⤫ perdida/falhou (danger),

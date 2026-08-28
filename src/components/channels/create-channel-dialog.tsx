@@ -1,6 +1,6 @@
 "use client";
 
-import { apiUrl } from "@/lib/api";
+import { apiUrl, parseApiResponse } from "@/lib/api";
 import type { ChannelProvider, ChannelType } from "@/lib/prisma-enum-types";
 import { IconAt as AtSign, IconCheck as Check, IconChevronDown as ChevronDown, IconChevronLeft as ChevronLeft, IconCopy as Copy, IconExternalLink as ExternalLink, IconGlobe as Globe, IconLoader2 as Loader2, IconMail as Mail, IconMessageCircle as MessageCircle, IconQrcode as QrCode, IconShare2 as Share2, IconSparkles as Sparkles, IconWebhook as Webhook } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -193,22 +193,20 @@ export function CreateChannelDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() || undefined }),
       });
-      const data = (await res.json()) as {
+      const data = await parseApiResponse<{
         channelId?: string;
         callbackUrl?: string;
         verifyToken?: string;
         webhookId?: string;
         warning?: string | null;
-        message?: string;
-      };
+      }>(res, "Falha ao gerar dados de webhook.");
       if (
-        !res.ok ||
         !data.channelId ||
         !data.callbackUrl ||
         !data.verifyToken ||
         !data.webhookId
       ) {
-        throw new Error(data.message ?? "Falha ao gerar dados de webhook.");
+        throw new Error("Falha ao gerar dados de webhook.");
       }
       setWebhookInfo({
         channelId: data.channelId,

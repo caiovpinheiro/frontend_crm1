@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,6 +24,12 @@ import { apiUrl } from "@/lib/api";
 import { listTeamUsers } from "@/features/pipeline-v2/api/users";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { cn } from "@/lib/utils";
+import { textMatchesQuery } from "@/features/dashboard-v2/format";
+import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable-widget-stack";
+import {
+  TABULATION_WIDGET_IDS,
+  useDashboardWidgetOrder,
+} from "@/features/dashboard-v2/use-dashboard-widget-order";
 
 type AnalyticsResponse = {
   total: number;
@@ -64,11 +70,35 @@ function defaultRange(): DateRange {
   return { from: today, to: today };
 }
 
-export function TabulationsDashboard() {
+export function TabulationsDashboard({
+  period,
+  search = "",
+  hideLocalFilters = false,
+  reorderable = false,
+  actorUserId: actorUserIdProp,
+  onActorUserIdChange,
+  departmentId: departmentIdProp,
+  onDepartmentIdChange,
+}: {
+  period?: { from: string; to: string };
+  search?: string;
+  hideLocalFilters?: boolean;
+  reorderable?: boolean;
+  actorUserId?: string;
+  onActorUserIdChange?: (id: string) => void;
+  departmentId?: string;
+  onDepartmentIdChange?: (id: string) => void;
+} = {}) {
   const [range, setRange] = useState<DateRange>(defaultRange);
-  const [actorUserId, setActorUserId] = useState<string>("");
-  const [departmentId, setDepartmentId] = useState<string>("");
+  const [actorUserIdLocal, setActorUserIdLocal] = useState<string>("");
+  const [departmentIdLocal, setDepartmentIdLocal] = useState<string>("");
   const [page, setPage] = useState(1);
+  const { order, reorder } = useDashboardWidgetOrder("tabulations", TABULATION_WIDGET_IDS);
+
+  const actorUserId = actorUserIdProp ?? actorUserIdLocal;
+  const departmentId = departmentIdProp ?? departmentIdLocal;
+  const setActorUserId = onActorUserIdChange ?? setActorUserIdLocal;
+  const setDepartmentId = onDepartmentIdChange ?? setDepartmentIdLocal;
 
   const departmentsQuery = useDepartments();
   const usersQuery = useQuery({
@@ -81,8 +111,16 @@ export function TabulationsDashboard() {
   // startOfDay, e clicar num dia no calendário também). Mandando o `to` cru,
   // o backend filtra `occurredAt <= dia 00:00` e o último dia do período fica
   // de fora — em "Hoje" isso zerava o painel inteiro.
-  const fromIso = range.from ? startOfDay(range.from).toISOString() : "";
-  const toIso = range.to ? endOfDay(range.to).toISOString() : "";
+  const fromIso = period?.from
+    ? period.from
+    : range.from
+      ? startOfDay(range.from).toISOString()
+      : "";
+  const toIso = period?.to
+    ? period.to
+    : range.to
+      ? endOfDay(range.to).toISOString()
+      : "";
 
   const analyticsQuery = useQuery({
     queryKey: [
@@ -121,14 +159,16 @@ export function TabulationsDashboard() {
     staleTime: 15_000,
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [fromIso, toIso, actorUserId, departmentId]);
+
   const data = analyticsQuery.data;
   const totalPages = useMemo(() => {
     if (!data) return 1;
     return Math.max(1, Math.ceil(data.total / data.perPage));
   }, [data]);
 
-  const maxTab = data?.byTabulation[0]?.count ?? 1;
-  const maxUser = data?.byUser[0]?.count ?? 1;
   const loadingValue = analyticsQuery.isLoading ? "…" : "—";
 
   const userOptions = useMemo(
@@ -142,7 +182,7 @@ export function TabulationsDashboard() {
   // sem o toggle o operador entra no recorte e não acha a saída sem voltar ao
   // dropdown do topo.
   const toggleDepartment = (id: string) => {
-    setDepartmentId((prev) => (prev === id ? "" : id));
+    setDepartmentId(departmentId === id ? "" : id);
     setPage(1);
   };
 
@@ -157,11 +197,28 @@ export function TabulationsDashboard() {
     [departmentsQuery.data],
   );
 
+  const byTabulation = (data?.byTabulation ?? []).filter(
+    (row) =>
+      textMatchesQuery(row.path, search) ||
+      textMatchesQuery(row.name, search) ||
+      textMatchesQuery(row.departmentName, search),
+  );
+  const byUser = (data?.byUser ?? []).filter((row) =>
+    textMatchesQuery(row.name, search),
+  );
+  const logItems = (data?.items ?? []).filter(
+    (row) =>
+      textMatchesQuery(row.actorName, search) ||
+      textMatchesQuery(row.contactName, search) ||
+      textMatchesQuery(row.tabulationPath, search) ||
+      textMatchesQuery(row.departmentName, search),
+  );
+  const maxTab = byTabulation[0]?.count ?? 1;
+  const maxUser = byUser[0]?.count ?? 1;
+
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {/* z-30: o calendário do período é absolute dentro deste card, e o
-          backdrop-blur do card cria um contexto de empilhamento — sem isso a
-          faixa de KPIs (irmã seguinte) desenha por cima do popover. */}
+      {!hideLocalFilters ? (
       <GlassCard className="relative z-30 flex min-w-0 flex-col gap-3 overflow-visible p-3.5 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="flex w-full min-w-0 flex-col gap-1 sm:min-w-[220px] sm:flex-1">
           <span className="text-[11px] font-medium text-[var(--text-muted)]">
@@ -230,6 +287,7 @@ export function TabulationsDashboard() {
           Atualizar
         </ButtonGlass>
       </GlassCard>
+      ) : null}
 
       {/* Sem isto uma falha na API fica idêntica a "período sem tabulação":
           os KPIs caem no traço e as listas mostram estado vazio. */}
@@ -240,6 +298,19 @@ export function TabulationsDashboard() {
         </div>
       )}
 
+      <SortableWidgetStack
+        disabled={!reorderable}
+        droppableId="dashboard-tabulations"
+        ids={reorderable ? order : [...TABULATION_WIDGET_IDS]}
+        labels={{
+          kpis: "Indicadores",
+          rankings: "Rankings",
+          log: "Log de tabulações",
+        }}
+        onReorder={reorder}
+        render={(id) => {
+          if (id === "kpis") {
+            return (
       <KpiStrip aria-label="Indicadores de tabulações" cardMinWidth={168}>
         <KpiCard
           label="Tabulações no período"
@@ -272,13 +343,16 @@ export function TabulationsDashboard() {
           icon={<IconTrophy size={20} stroke={2.2} />}
         />
       </KpiStrip>
-
+            );
+          }
+          if (id === "rankings") {
+            return (
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <GlassCard className="min-w-0 overflow-hidden p-4">
           <h3 className="mb-3 text-[13px] font-semibold text-[var(--text-primary)]">
             Principais tabulações
           </h3>
-          {!data?.byTabulation.length ? (
+          {!byTabulation.length ? (
             <EmptyState
               icon={<IconChartBar size={22} />}
               title="Sem tabulações no período"
@@ -287,7 +361,7 @@ export function TabulationsDashboard() {
             />
           ) : (
             <ul className="flex flex-col gap-2">
-              {data.byTabulation.map((row) => (
+              {byTabulation.map((row) => (
                 <li key={row.tabulationId} className="flex min-w-0 flex-col gap-1">
                   <div className="flex min-w-0 items-baseline justify-between gap-2 text-[12.5px]">
                     <span
@@ -355,7 +429,7 @@ export function TabulationsDashboard() {
           <h3 className="mb-3 text-[13px] font-semibold text-[var(--text-primary)]">
             Por usuário
           </h3>
-          {!data?.byUser.length ? (
+          {!byUser.length ? (
             <EmptyState
               icon={<IconUsers size={22} />}
               title="Nenhum usuário no filtro"
@@ -364,7 +438,7 @@ export function TabulationsDashboard() {
             />
           ) : (
             <ul className="flex flex-col gap-2">
-              {data.byUser.map((row) => (
+              {byUser.map((row) => (
                 <li key={row.userId} className="flex min-w-0 flex-col gap-1">
                   <div className="flex min-w-0 items-baseline justify-between gap-2 text-[12.5px]">
                     <span
@@ -389,7 +463,10 @@ export function TabulationsDashboard() {
           )}
         </GlassCard>
       </div>
-
+            );
+          }
+          if (id === "log") {
+            return (
       <GlassCard className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-b border-[var(--glass-border)] px-4 py-3">
           <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
@@ -404,7 +481,7 @@ export function TabulationsDashboard() {
             <IconLoader2 size={16} className="animate-spin" />
             Carregando…
           </div>
-        ) : !data?.items.length ? (
+        ) : !logItems.length ? (
           <div className="p-6">
             <EmptyState
               icon={<IconClipboardList size={22} />}
@@ -425,7 +502,7 @@ export function TabulationsDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {data.items.map((row) => (
+                {logItems.map((row) => (
                   <tr
                     key={row.id}
                     className="border-t border-[var(--glass-border)] text-[var(--text-primary)]"
@@ -483,6 +560,11 @@ export function TabulationsDashboard() {
           </div>
         ) : null}
       </GlassCard>
+            );
+          }
+          return null;
+        }}
+      />
     </div>
   );
 }

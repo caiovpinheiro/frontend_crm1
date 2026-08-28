@@ -328,7 +328,7 @@ export function toConversationCard(
     lastMessageStatus,
     lastMessageSendError,
     // Conversas encerradas/finalizadas — badge visual "Encerrada" no card.
-    resolved: row.status === "RESOLVED",
+    resolved: row.status === "RESOLVED" || Boolean(row.closedAt),
     // Canal de origem — substitui o status dot pelo logo da plataforma
     // no canto inferior direito do avatar.
     channel: row.channel ?? null,
@@ -937,7 +937,7 @@ export function toContactAside(
 
 // ─────────────────────────────────────────────────────────────────
 // Session expirada? (alerta de 24h da WhatsApp Business)
-// ─────────────────────────────────────���───────────────────────────
+// ─────────────────────────────────────────────────────────────────
 
 const SESSION_WINDOW_HOURS = 24;
 
@@ -949,4 +949,73 @@ export function isSessionExpired(
   const d = new Date(lastInboundAt);
   if (Number.isNaN(d.getTime())) return true;
   return Date.now() - d.getTime() > windowHours * 60 * 60 * 1000;
+}
+
+export type ThreadInboundMessage = {
+  direction?: string | null;
+  createdAt?: string | null;
+  channelId?: string | null;
+  isPrivate?: boolean;
+  private?: boolean;
+  messageType?: string | null;
+};
+
+/**
+ * Último inbound do cliente no canal do composer, a partir do thread já
+ * carregado. Template outbound não reabre a janela; uma bolha `in` de
+ * agora sim — mesmo se `GET /session` / `channel-session` ainda estiver
+ * cacheado como fechado.
+ *
+ * Com `strictChannel`, inbound sem `channelId` não conta (override CSV vs
+ * Acadêmico: a janela da Meta é por número).
+ */
+export function lastInboundAtFromThread(
+  messages: ThreadInboundMessage[] | undefined,
+  selectedChannelId?: string | null,
+  opts?: { strictChannel?: boolean },
+): string | null {
+  if (!messages?.length) return null;
+  let latest: string | null = null;
+  for (const m of messages) {
+    if (m.direction !== "in") continue;
+    if (m.isPrivate || m.private) continue;
+    const t = (m.messageType ?? "").toLowerCase();
+    if (t === "note" || t === "event" || t.startsWith("event:")) continue;
+    if (selectedChannelId && m.channelId && m.channelId !== selectedChannelId) {
+      continue;
+    }
+    if (opts?.strictChannel && selectedChannelId && !m.channelId) continue;
+    const at = m.createdAt;
+    if (!at) continue;
+    if (!latest || at > latest) latest = at;
+  }
+  return latest;
+}
+
+/**
+ * Composer WhatsApp: a bolha inbound visível reabre a janela. Sem isso o
+ * `useChannelSession` (staleTime + sem invalidate no SSE) mantinha o
+ * banner "Sessão de 24h encerrada" depois da resposta do cliente.
+ */
+export function isWhatsappComposerSessionExpired(args: {
+  applyWhatsappSession: boolean;
+  messagesLoaded: boolean;
+  channelOverrideActive: boolean;
+  selectedSessionFetched: boolean;
+  selectedSessionActive?: boolean;
+  messagesSessionActive?: boolean;
+  messagesLastInboundAt?: string | null;
+  threadLastInboundAt?: string | null;
+}): boolean {
+  if (!args.applyWhatsappSession) return false;
+  if (!args.messagesLoaded) return false;
+  if (!isSessionExpired(args.threadLastInboundAt)) return false;
+  if (args.channelOverrideActive) {
+    if (!args.selectedSessionFetched) return false;
+    return args.selectedSessionActive !== true;
+  }
+  if (args.messagesSessionActive !== undefined) {
+    return !args.messagesSessionActive;
+  }
+  return isSessionExpired(args.messagesLastInboundAt);
 }

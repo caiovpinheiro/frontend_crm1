@@ -1,8 +1,10 @@
 import type { FetchCampaignsParams, FetchRecipientsParams } from "./api";
 import type {
+  CampaignAction,
   CampaignDetail,
   CampaignListItem,
   CampaignStats,
+  CampaignStatus,
   CampaignsListResponse,
   ChannelRow,
   PreviewResponse,
@@ -11,6 +13,19 @@ import type {
   SegmentRow,
   TemplateRow,
 } from "./types";
+
+const mockListeners = new Set<() => void>();
+
+export function subscribeMockCampaigns(listener: () => void): () => void {
+  mockListeners.add(listener);
+  return () => {
+    mockListeners.delete(listener);
+  };
+}
+
+function bumpMockCampaigns() {
+  mockListeners.forEach((listener) => listener());
+}
 
 function daysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString();
@@ -59,14 +74,14 @@ const MOCK_ITEMS: CampaignListItem[] = [
     status: "SENDING",
     totalRecipients: 580,
     sentCount: 312,
-    deliveredCount: 298,
-    failedCount: 14,
-    readCount: 187,
-    repliedCount: 41,
+    deliveredCount: 305,
+    failedCount: 7,
+    readCount: 120,
+    repliedCount: 22,
     scheduledAt: null,
-    startedAt: hoursAgo(2),
+    startedAt: "2026-08-24T13:20:08.000Z",
     completedAt: null,
-    createdAt: daysAgo(3),
+    createdAt: "2026-08-24T13:20:00.000Z",
     channel: CHANNEL,
     segment: { id: "seg-2", name: "Leads quentes" },
     createdBy: CREATOR,
@@ -205,11 +220,15 @@ const MOCK_DETAILS: Record<string, CampaignDetail> = Object.fromEntries(
         item.type === "TEXT"
           ? "Olá {{nome}}, seu boleto vence amanhã. Responda SIM para receber o link de pagamento."
           : null,
-      sendRate: item.status === "SENDING" ? 30 : 50,
+      sendRate: item.id === "camp-2" ? 15 : item.status === "SENDING" ? 30 : 50,
       automation:
         item.type === "AUTOMATION"
           ? { id: "auto-2", name: "Agente IA" }
           : null,
+      audienceTags:
+        item.id === "camp-2"
+          ? [{ id: "tag-promo", name: "promo_junho" }]
+          : undefined,
     },
   ]),
 );
@@ -318,6 +337,61 @@ export function mockCampaignsPage(
 }
 
 export const MOCK_CAMPAIGNS_PAGE = mockCampaignsPage({ perPage: 200 });
+
+const CANCELLABLE: CampaignStatus[] = [
+  "DRAFT",
+  "SCHEDULED",
+  "PROCESSING",
+  "SENDING",
+  "PAUSED",
+];
+
+export function mockRunCampaignAction(
+  id: string,
+  action: CampaignAction,
+): { message: string; status: string } {
+  const item = MOCK_ITEMS.find((c) => c.id === id);
+  if (!item) throw new Error("Campanha não encontrada.");
+  const detail = MOCK_DETAILS[id];
+
+  const apply = (status: CampaignStatus) => {
+    item.status = status;
+    if (detail) detail.status = status;
+    bumpMockCampaigns();
+  };
+
+  switch (action) {
+    case "pause":
+      if (item.status !== "SENDING" && item.status !== "PROCESSING") {
+        throw new Error("Apenas campanhas em envio podem ser pausadas.");
+      }
+      apply("PAUSED");
+      return { message: "Campanha pausada.", status: "PAUSED" };
+    case "resume":
+      if (item.status !== "PAUSED") {
+        throw new Error("Apenas campanhas pausadas podem ser retomadas.");
+      }
+      apply("SENDING");
+      return { message: "Campanha retomada.", status: "SENDING" };
+    case "cancel":
+      if (!CANCELLABLE.includes(item.status)) {
+        throw new Error("Esta campanha não pode ser encerrada.");
+      }
+      apply("FAILED");
+      return { message: "Campanha encerrada.", status: "CANCELLED" };
+    case "launch":
+      if (item.status !== "DRAFT") {
+        throw new Error("Apenas campanhas em rascunho podem ser lançadas.");
+      }
+      apply(item.scheduledAt ? "SCHEDULED" : "PROCESSING");
+      return {
+        message: "Campanha lançada.",
+        status: item.scheduledAt ? "SCHEDULED" : "PROCESSING",
+      };
+    default:
+      throw new Error("Ação inválida.");
+  }
+}
 
 export function mockCampaignDetail(id: string): CampaignDetail | null {
   return MOCK_DETAILS[id] ?? null;

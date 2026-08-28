@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,7 +16,6 @@ import {
   IconGridDots,
   IconList,
   IconLoader2,
-  IconMenu2,
   IconPlus,
   IconRotateClockwise,
   IconSettings,
@@ -28,8 +27,8 @@ import {
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import {
-  pageActionsMenuItemClass,
-  pageActionsMenuPanelClass,
+  PageActionsMenu,
+  type PageActionsMenuItem,
   PageSegmentedControl,
 } from "@/components/crm/page-toolbar";
 import { PaginationGlass } from "@/components/crm/pagination-glass";
@@ -46,6 +45,7 @@ import {
   type DealListTab,
 } from "@/components/crm/deal-list-table";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
+import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
 import { FilterChips } from "@/components/pipeline/kanban-filters/filter-chips";
 import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
@@ -62,7 +62,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
-import { RequirePermission } from "@/components/auth/require-permission";
+import { useCan } from "@/hooks/use-my-permissions";
 
 import {
   useBoard,
@@ -287,10 +287,10 @@ export default function V2PipelineListClientPage() {
   }
 
   return (
-    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+    <div className="v2-screen v2-page-scroll grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-y-auto p-4">
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
+      <main className="flex min-w-0 flex-col gap-4">
         <PipelineHeader
           activeView="list"
           onViewChange={(view) => {
@@ -331,6 +331,7 @@ export default function V2PipelineListClientPage() {
               }}
             />
           }
+          period={<PipelinePeriodCalendar filters={filters} onPatch={patchFilters} />}
           tabsOverride={
             <PageSegmentedControl
               size="compact"
@@ -364,7 +365,7 @@ export default function V2PipelineListClientPage() {
 
         {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-2 px-0.5">
-            <span className="font-display text-[11px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
+            <span className="text-xs font-semibold tracking-wide text-primary">
               Filtros ativos
             </span>
             {!isEmptyFilters(filters) && (
@@ -528,29 +529,17 @@ function ListActionsMenu({
   onColumns: () => void;
   onDupes: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const canImport = useCan("deal:import");
+  const canExport = useCan("deal:export");
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  const items: {
-    icon: React.ReactNode;
-    label: string;
-    onClick: () => void;
-    divider?: boolean;
-    primary?: boolean;
-    permission?: "deal:import" | "deal:export";
-  }[] = [
+  const items: PageActionsMenuItem[] = [
     { icon: <IconPlus size={14} stroke={2.6} />, label: "Adicionar negócio", onClick: onAdd, primary: true },
-    { icon: <IconFileImport size={13} />, label: "Importar", onClick: onImport, permission: "deal:import" },
-    { icon: <IconDownload size={13} />, label: "Exportar", onClick: onExport, permission: "deal:export" },
+    ...(canImport
+      ? [{ icon: <IconFileImport size={13} />, label: "Importar", onClick: onImport }]
+      : []),
+    ...(canExport
+      ? [{ icon: <IconDownload size={13} />, label: "Exportar", onClick: onExport }]
+      : []),
     { icon: <IconUsersGroup size={13} />, label: "Localizar duplicados", onClick: onDupes },
     {
       icon: <IconSettings size={13} />,
@@ -560,55 +549,7 @@ function ListActionsMenu({
     },
   ];
 
-  return (
-    <div ref={ref} className="relative">
-      <TooltipGlass label="Ações da lista" side="bottom">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-label="Ações da lista"
-          aria-expanded={open}
-          className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)] transition-[filter,box-shadow] hover:brightness-105",
-            open && "ring-2 ring-[var(--brand-primary)]/35 brightness-95",
-          )}
-        >
-          <IconMenu2 size={18} stroke={2.2} />
-        </button>
-      </TooltipGlass>
-      {open && (
-        <div className={cn(pageActionsMenuPanelClass, "w-[240px]")}>
-          {items.map((it) => {
-            const button = (
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  it.onClick();
-                }}
-                className={pageActionsMenuItemClass({ primary: it.primary })}
-              >
-                <span className="shrink-0">{it.icon}</span>
-                {it.label}
-              </button>
-            );
-            return (
-              <div key={it.label}>
-                {it.divider && (
-                  <div className="mx-3 my-1.5 h-px bg-[var(--glass-border-subtle)]" />
-                )}
-                {it.permission ? (
-                  <RequirePermission permission={it.permission}>{button}</RequirePermission>
-                ) : (
-                  button
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return <PageActionsMenu aria-label="Ações da lista" items={items} />;
 }
 
 // ── Configuração da lista ────────────────────────────────────────────────────

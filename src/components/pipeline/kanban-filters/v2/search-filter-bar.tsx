@@ -23,7 +23,7 @@ import type { DealListItemDto } from "@/features/pipeline-v2/api/list";
 import { usePipelines } from "@/features/pipeline-v2/hooks";
 import { usePipelineOmnisearch } from "@/features/pipeline-v2/use-pipeline-omnisearch";
 
-import { countActiveFilters, type AdvancedDealFilters } from "../types";
+import { countPanelFilters, type AdvancedDealFilters } from "../types";
 import { createSavedFilter } from "../api";
 import {
   FilterModalThreeCol,
@@ -83,7 +83,8 @@ export function PipelineSearchFilterBar({
     [pipelines],
   );
   const menu = useOmnisearchMenu(search, hits.items.length);
-  const activeCount = countActiveFilters(filters) + (search.trim() ? 1 : 0);
+  // Período (criação/fechamento) marca o ícone do calendário, não o Filtrar.
+  const activeCount = countPanelFilters(filters) + (search.trim() ? 1 : 0);
 
   function pickDeal(deal: DealListItemDto) {
     onPickDeal?.(deal);

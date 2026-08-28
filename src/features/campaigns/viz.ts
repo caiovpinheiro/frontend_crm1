@@ -57,6 +57,14 @@ export function isSendingLike(c: CampaignListItem): boolean {
   return c.status === "SENDING" || c.status === "PROCESSING";
 }
 
+export function isPausable(c: CampaignListItem): boolean {
+  return isSendingLike(c);
+}
+
+export function isResumable(c: CampaignListItem): boolean {
+  return c.status === "PAUSED";
+}
+
 /** Status que o DELETE /api/campaigns/:id aceita. */
 const DELETABLE: CampaignStatus[] = ["DRAFT", "COMPLETED", "CANCELLED", "FAILED"];
 

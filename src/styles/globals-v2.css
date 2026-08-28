@@ -13,10 +13,10 @@
 
 @theme {
   /* ── Background do mesh (DealDetailPanel fullscreen + v2 layout) ── */
-  --bg-base:                #dde8f5;
-  --bg-mesh-1:              #dde8f5;
-  --bg-mesh-2:              #dde8f5;
-  --bg-mesh:                #dde8f5;
+  --bg-base:                #f4f6fb;
+  --bg-mesh-1:              #f4f6fb;
+  --bg-mesh-2:              #f4f6fb;
+  --bg-mesh:                #f4f6fb;
 
   /* ── Cores semânticas faltantes do v0 ─────────────────────────── */
   /* Opacidade aumentada para chips/badges terem contraste sobre fundo
@@ -34,20 +34,20 @@
      bubble outgoing do chat, botões Ganhar, NavRail). Sem isso o
      gradient resolve para "transparent" e o balão fica invisível.
      Valores idênticos ao ds base (ds-deal-aberto.html). */
-  --brand-primary:          #5b6ff5;
-  --brand-primary-light:    #7b8df7;
-  --brand-primary-dark:     #3d52e8;
-  --brand-primary-hover:    #4466d6;  /* hover state do botão primary */
-  --brand-gradient-end:     #1e3a8a;  /* tom escuro no final dos gradientes de nós */
-  --brand-secondary:        #a78bfa;
-  --brand-accent:           #f472b6;
+  --brand-primary:          #2f66f2;
+  --brand-primary-light:    #5b8af5;
+  --brand-primary-dark:     #1e4ed8;
+  --brand-primary-hover:    #1e4ed8;
+  --brand-gradient-end:     #1c274c;
+  --brand-secondary:        #6a37d6;
+  --brand-accent:           #6a37d6;
 
   /* ── Cores semânticas adicionais usadas em inline styles do v0 ── */
-  --color-success:          #10b981;
-  --color-success-text:     #047857;
+  --color-success:          #2f9e6b;
+  --color-success-text:     #2f9e6b;
   --color-danger:           #ef4444;
   --color-danger-text:      #b91c1c;
-  --color-warning:          #f59e0b;
+  --color-warning:          #d9930f;
   --color-info:             #3b82f6;
   --color-teal:             #10D8D8;
   /* ── Variantes "warn" (âmbar escuro) + backgrounds semânticos usados
@@ -111,7 +111,7 @@
      Trilho lateral escuro que devolve identidade visual perdida
      quando a rail virou glass sobre mesh lavanda. Ficando fora da
      família --glass-* pra permitir escurecer sem afetar cards. */
-  --nav-bg:               rgba(30, 41, 99, 0.97);        /* indigo-900 quase sólido — tom do original */
+  --nav-bg:               oklch(0.27 0.075 266);
   --nav-border:           rgba(255, 255, 255, 0.06);
   --nav-text-muted:       rgba(199, 210, 254, 0.65);    /* indigo-200 — ícone inativo */
   --nav-text-hover-bg:    rgba(255, 255, 255, 0.10);    /* hover leve */
@@ -141,10 +141,10 @@
   --radius-sm:   0.375rem;  /*  6px */
   --radius-md:   0.5rem;    /*  8px */
   --radius-lg:   0.75rem;   /* 12px */
-  --radius-xl:   1rem;      /* 16px */
-  --radius-2xl:  2rem;      /* 32px — wrappers da NavRail / DealDetailPanel */
+  --radius-xl:   1rem;      /* 16px — card de conteúdo (lista, KPI, empty) */
+  --radius-2xl:  2rem;      /* 32px — shells: NavRail, modal, painel */
   --radius-xs:   0.25rem;   /*  4px — checkboxes, small badges, mínimo UI */
-  --radius-card: 1.375rem;  /* 22px — cards principais da UI */
+  --radius-card: var(--radius-xl);
   --radius-input: 0.625rem; /* 10px — inputs, chips, pills */
   --radius-full: 9999px;
 
@@ -186,28 +186,28 @@
    ────────────────────────────────────────────────────────────────── */
 :root {
   /* Background — lavanda sólido (sem gradiente) */
-  --bg-base: #dde8f5;
-  --bg-mesh-1: #dde8f5;
-  --bg-mesh-2: #dde8f5;
-  --bg-mesh: #dde8f5;
+  --bg-base: #f4f6fb;
+  --bg-mesh-1: #f4f6fb;
+  --bg-mesh-2: #f4f6fb;
+  --bg-mesh: #f4f6fb;
 
   /* Marca — duplicado em :root para garantir que inline styles
      resolvam mesmo quando o resolver do Tailwind v4 falha. */
-  --brand-primary:       #5b6ff5;
-  --brand-primary-light: #7b8df7;
-  --brand-primary-dark:  #3d52e8;
-  --brand-secondary:     #a78bfa;
-  --brand-accent:        #f472b6;
+  --brand-primary:       #2f66f2;
+  --brand-primary-light: #5b8af5;
+  --brand-primary-dark:  #1e4ed8;
+  --brand-secondary:     #6a37d6;
+  --brand-accent:        #6a37d6;
 
   /* Cores semânticas */
-  --color-success:       #10b981;
-  --color-success-text:  #047857;
+  --color-success:       #2f9e6b;
+  --color-success-text:  #2f9e6b;
   --color-success-bg:    rgba(16, 185, 129, 0.12);
   --color-success-dark:  #0f7a5a;
   --color-danger:        #ef4444;
   --color-danger-text:   #b91c1c;
   --color-danger-dark:   #dc2626;
-  --color-warning:       #f59e0b;
+  --color-warning:       #d9930f;
   --color-info:          #3b82f6;
   --color-online:        #10b981;
   --color-enterprise-bg: rgba(91, 111, 245, 0.15);
@@ -248,8 +248,8 @@
   --col-nego:      #f59e0b;
   --col-fecha:     #10b981;
 
-  /* NavRail dedicada (indigo-900 — tom do visual original) */
-  --nav-bg:               rgba(30, 41, 99, 0.97);
+  /* NavRail — azul-marinho da logo (handoff Automações) */
+  --nav-bg:               oklch(0.27 0.075 266);
   --nav-border:           rgba(255, 255, 255, 0.06);
   --nav-text-muted:       rgba(199, 210, 254, 0.65);
   --nav-text-hover-bg:    rgba(255, 255, 255, 0.10);
@@ -280,7 +280,7 @@
   --radius-xl:   1rem;
   --radius-2xl:  2rem;
   --radius-xs:   0.25rem;
-  --radius-card: 1.375rem;
+  --radius-card: var(--radius-xl);
   --radius-input: 0.625rem;
   --radius-full: 9999px;
 
@@ -386,10 +386,10 @@
 @property --nav-rail-w {
   syntax: "<length>";
   inherits: true;
-  initial-value: 72px;
+  initial-value: 76px;
 }
 :root {
-  --nav-rail-w: 72px;
+  --nav-rail-w: 76px;
   /* Recuo vertical (top/bottom) da rail. Eixo X é 0 — colada na viewport. */
   --nav-rail-inset: 0.75rem; /* p-3 / top-3 */
   /* Gutter horizontal simétrico: rail↔conteúdo === conteúdo↔borda direita.
@@ -444,17 +444,17 @@ html[data-nav-expanded="true"] {
      unitless suportada em todo Chromium/Safari. */
   --v2-unscale: calc(1 / var(--v2-scale));
   zoom: var(--v2-scale);
+  background: var(--bg-base);
 }
 
-/* NavRail persistente no layout `(app)`: altura por dvh (não top+bottom),
-   para não depender da altura do parent quando o conteúdo some na troca
-   de rota. `left: 0` cola na borda da viewport; inset vertical bate com
-   o padding das shells (p-3 / sm:p-4). */
+/* NavRail persistente no layout `(app)`: colada à esquerda, altura total.
+   O arredondamento à direita vive no componente (`rounded-r-[32px]`). */
 .v2-nav-rail-fixed {
   left: 0;
-  top: var(--nav-rail-inset, 0.75rem);
-  width: var(--nav-rail-w, 72px);
-  height: calc(100dvh / var(--v2-scale, 1) - 2 * var(--nav-rail-inset, 0.75rem));
+  top: 0;
+  width: var(--nav-rail-w, 76px);
+  height: calc(100dvh / var(--v2-scale, 1));
+  overflow: visible;
   transition: width 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -466,6 +466,7 @@ html[data-nav-expanded="true"] {
 .v2-screen {
   height: calc(100dvh / var(--v2-scale, 1));
   transition: grid-template-columns 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: var(--bg-base);
 }
 
 /* Shell: gutter único em TODAS as páginas. No desktop a rail está
@@ -479,6 +480,35 @@ html[data-nav-expanded="true"] {
   padding-right: var(--page-gutter);
   padding-left: var(--page-gutter);
   column-gap: var(--page-gutter);
+}
+
+/* Automações / Campanhas: o miolo já tem padding próprio — zera o
+   inset da shell (vertical e lateral) para a tabela usar a largura toda. */
+.v2-root .v2-screen.v2-screen-fill {
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-right: 0;
+  padding-left: 0;
+  column-gap: 0;
+}
+
+/* Listas (contatos, empresas, automações…): a página inteira rola e a
+   scrollbar fica na extremidade direita da viewport — não no miolo.
+   align-content:start impede o grid de esticar a row à altura da tela
+   (o que recriaria scroll interno nos filhos flex-1). */
+.v2-root .v2-screen.v2-page-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 0;
+  align-content: start;
+  align-items: start;
+  scrollbar-gutter: auto;
+}
+.v2-root .v2-screen.v2-page-scroll > * {
+  min-height: min-content;
+}
+.v2-root .v2-screen.v2-page-scroll:not(.v2-screen-fill) > *:last-child {
+  padding-right: var(--page-gutter);
 }
 @media (min-width: 768px) {
   .v2-root .v2-screen {
@@ -559,7 +589,7 @@ html[data-nav-expanded="true"] {
    Scrollbars v2: invisíveis até o hover no container.
    - WebKit: track invisível, thumb 6px só no :hover do scroller.
    - Firefox: scrollbar-color transparente → visível no hover.
-   - .list-hscroll (contatos/empresas) permanece sempre visível.
+   - Página (.v2-page-scroll) e listas (.list-hscroll): sempre 5px cinza.
    ────────────────────────────────────────────────────────────────── */
 .v2-root ::-webkit-scrollbar {
   width: 6px;
@@ -588,53 +618,52 @@ html[data-nav-expanded="true"] {
   background: transparent;
 }
 /* Firefox */
-.v2-root *:not(.list-hscroll) {
+.v2-root *:not(.list-hscroll):not(.v2-page-scroll) {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-.v2-root *:not(.list-hscroll):hover {
+.v2-root *:not(.list-hscroll):not(.v2-page-scroll):hover {
   scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
 }
 
-/* ── Listas Contatos/Empresas: scrollbar horizontal bem visível ──
-   Sobrescreve o thumb de 6px transparente — aqui o usuário PRECISA
-   perceber que há colunas fora da viewport. */
+/* Página (Y) e listas (X): o mesmo thumb 5px cinza, sem trilha e sem
+   setas. NÃO setar scrollbar-width/scrollbar-color no Chromium — essas
+   propriedades desativam ::-webkit-scrollbar e voltam a barra nativa
+   (larga, azul, com botões). Firefox usa o bloco @-moz-document. */
 .v2-root .list-hscroll {
-  scrollbar-gutter: stable;
-  scrollbar-width: auto;
-  scrollbar-color: color-mix(in srgb, var(--brand-primary) 55%, transparent)
-    color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
 }
+.v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar,
 .v2-root .list-hscroll::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 5px;
+  height: 5px;
 }
+.v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-track,
 .v2-root .list-hscroll::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
-  border-radius: 9999px;
-  margin: 0 4px;
+  background: transparent;
 }
+.v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb,
 .v2-root .list-hscroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--brand-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
   border-radius: 9999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
 }
+.v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb:hover,
 .v2-root .list-hscroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--brand-primary) 70%, transparent);
-  background-clip: padding-box;
+  background: color-mix(in srgb, var(--text-primary) 38%, transparent);
 }
-.v2-dark .v2-root .list-hscroll {
-  scrollbar-color: rgba(148, 163, 255, 0.55) rgba(148, 163, 255, 0.12);
+.v2-root .list-hscroll::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
-.v2-dark .v2-root .list-hscroll::-webkit-scrollbar-track {
-  background: rgba(148, 163, 255, 0.10);
-}
-.v2-dark .v2-root .list-hscroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 255, 0.45);
-}
-.v2-dark .v2-root .list-hscroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 255, 0.7);
+@-moz-document url-prefix() {
+  .v2-root .v2-screen.v2-page-scroll,
+  .v2-root .list-hscroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-primary) 22%, transparent) transparent;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -746,7 +775,7 @@ html[data-nav-expanded="true"] {
   --wa-header:        #202c33;
 
   /* Mesh gradient base — usado em <body> (espelha `.dark` de globals.css).
-     Sem isso `--bg-gradient` herdava o valor light (#dde8f5) definido em
+     Sem isso `--bg-gradient` herdava o valor light (#f4f6fb) definido em
      `:root`, deixando a moldura clara visível ao redor dos cards escuros
      (mais evidente ainda com `.v2-root { zoom: 0.93 }`). */
   --bg-gradient: linear-gradient(135deg, #0b1220 0%, #131b30 40%, #1c1530 70%, #0e1426 100%);
@@ -771,11 +800,19 @@ html.v2-dark body {
 .v2-dark .v2-root *:hover::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.22);
 }
-.v2-dark .v2-root *:not(.list-hscroll) {
+.v2-dark .v2-root *:not(.list-hscroll):not(.v2-page-scroll) {
   scrollbar-color: transparent transparent;
 }
-.v2-dark .v2-root *:not(.list-hscroll):hover {
+.v2-dark .v2-root *:not(.list-hscroll):not(.v2-page-scroll):hover {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+.v2-dark .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb,
+.v2-dark .v2-root .list-hscroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+.v2-dark .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb:hover,
+.v2-dark .v2-root .list-hscroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 /* ── Scrollbar dentro de <dialog> ──────────────────────────────────
@@ -1090,4 +1127,22 @@ dialog *  { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.18) transpar
     min-width: 78vw;
     max-width: 78vw;
   }
+}
+
+.negocios-grid .react-grid-item {
+  overflow: hidden;
+}
+
+.negocios-grid .react-grid-item.react-grid-placeholder {
+  background: color-mix(in oklab, var(--color-primary) 16%, transparent);
+  border-radius: var(--radius-xl);
+  opacity: 1;
+}
+
+.negocios-grid .react-grid-item > .react-resizable-handle {
+  background: none;
+}
+
+.negocios-grid .react-grid-item > .react-resizable-handle::after {
+  border-color: var(--border);
 }

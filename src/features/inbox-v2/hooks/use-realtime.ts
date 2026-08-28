@@ -242,6 +242,14 @@ export function useInboxRealtime(options: {
             playInboxPing();
           }
           if (data.conversationId) {
+            if (data.direction === "in") {
+              // Janela 24h é por canal; o composer lê `channel-session`
+              // (staleTime, sem focus refetch). Sem isto o banner fica
+              // "encerrada" depois da resposta do cliente.
+              qc.invalidateQueries({
+                queryKey: ["channel-session", data.conversationId],
+              });
+            }
             if (data.conversationId === activeRef.current) {
               // Conversa aberta: refetch imediato para exibir a mensagem.
               qc.invalidateQueries({ queryKey: messagesKey(activeRef.current) });

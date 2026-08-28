@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { IconArrowLeft, IconMenu2, IconSearch } from "@tabler/icons-react";
+import { ArrowLeft, Menu, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -11,18 +11,19 @@ import { cn } from "@/lib/utils";
  * Design System v2 — elementos de toolbar de página.
  *
  * Hierarquia canônica (respeitar em todas as telas /v2):
- *   1. PageHeader        → identidade + `back` + busca compacta no `center` + `actions`
+ *   1. PageHeader        → identidade à esquerda; busca + ações à direita
  *   2. PageToolbarRow    → controles extras raros — preferir `actions` ou painel
  *   3. PageFilterBar     → dropdowns / date pickers estruturais (opcional)
  *   4. conteúdo
  *
- * Busca sempre em `PageHeader.center` via `PageSearchBar variant="compact"`.
+ * Busca no slot `center` do PageHeader (renderizado à direita) via
+ * `SearchFilterBar` ou `PageSearchBar variant="compact"` (`h-10`).
  * Tabs/segmented → `PageHeader.actions` (`PageSegmentedControl size="compact"`) ou
  * topo do painel de conteúdo quando não couber (ex.: campanhas com muitos status).
  *
- * Cabeçalho de colunas em listas → referência `/logs` (Feed):
+ * Cabeçalho de colunas em listas → referência Empresas/Contatos:
  *   `listTableHeadRowClass` + `SortableHeader` / `ListColumnLabel` em `sortable-header.tsx`
- *   (sentence case, 13px semibold, sort opcional — sem caixa alta).
+ *   (sentence case, 13px semibold, pipes entre colunas, sort opcional — sem caixa alta).
  */
 
 /** Classes padrão do gatilho DropdownGlass em barras de filtro. */
@@ -47,7 +48,7 @@ export function PageBackLink({ href, label, className }: PageBackLinkProps) {
         className,
       )}
     >
-      <IconArrowLeft size={14} stroke={2.4} className="shrink-0" />
+      <ArrowLeft size={14} strokeWidth={2.4} className="shrink-0" />
       {label}
     </Link>
   );
@@ -61,7 +62,7 @@ export interface PageSearchBarProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  /** `toolbar` = linha abaixo do header (flex-1, 42px). `compact` = centro do PageHeader. */
+  /** `toolbar` = linha abaixo do header (flex-1, 42px). `compact` = slot `center` do PageHeader (`h-10`). */
   variant?: PageSearchBarVariant;
   className?: string;
   "aria-label"?: string;
@@ -78,7 +79,7 @@ export function PageSearchBar({
   if (variant === "compact") {
     return (
       <div className={cn("relative w-full", className)}>
-        <IconSearch
+        <Search
           size={15}
           className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
         />
@@ -101,7 +102,7 @@ export function PageSearchBar({
         className,
       )}
     >
-      <IconSearch size={18} className="shrink-0" />
+      <Search size={18} className="shrink-0" />
       <input
         type="search"
         value={value}
@@ -344,9 +345,11 @@ export const pageActionsMenuPanelClass =
   "fixed z-(--z-popover) w-[220px] overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] py-1.5 shadow-[0_8px_28px_rgba(15,23,42,0.13)] backdrop-blur-md";
 
 const PAGE_ACTIONS_MENU_WIDTH = 220;
+/** Gutter from the visible content edge (excludes the page scrollbar). */
+const PAGE_ACTIONS_MENU_GUTTER = 8;
 
 export const pageActionsMenuTriggerClass =
-  "flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)] transition-[filter,box-shadow] hover:brightness-105";
+  "flex size-12 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90";
 
 export function PageActionsMenu({
   items,
@@ -367,11 +370,15 @@ export function PageActionsMenu({
   const updateCoords = React.useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const right = Math.min(
-      Math.max(8, window.innerWidth - rect.right),
-      Math.max(8, window.innerWidth - PAGE_ACTIONS_MENU_WIDTH - 8),
-    );
-    const top = Math.min(rect.bottom + 6, window.innerHeight - 8);
+    // Align the panel to the trigger's end (`align="end"`), then clamp so it
+    // stays inside the visible viewport — not under the thin page scrollbar.
+    const visibleRight = document.documentElement.clientWidth;
+    let panelRight = Math.min(rect.right, visibleRight - PAGE_ACTIONS_MENU_GUTTER);
+    if (panelRight - PAGE_ACTIONS_MENU_WIDTH < PAGE_ACTIONS_MENU_GUTTER) {
+      panelRight = PAGE_ACTIONS_MENU_GUTTER + PAGE_ACTIONS_MENU_WIDTH;
+    }
+    const right = Math.max(PAGE_ACTIONS_MENU_GUTTER, window.innerWidth - panelRight);
+    const top = Math.min(rect.bottom + 6, window.innerHeight - PAGE_ACTIONS_MENU_GUTTER);
     setCoords({ top, right });
   }, []);
 
@@ -420,7 +427,7 @@ export function PageActionsMenu({
           open && "ring-2 ring-[var(--brand-primary)]/35 brightness-95",
         )}
       >
-        <IconMenu2 size={18} stroke={2.2} />
+        <Menu size={18} strokeWidth={2} />
       </button>
       {open && coords && typeof document !== "undefined"
         ? createPortal(

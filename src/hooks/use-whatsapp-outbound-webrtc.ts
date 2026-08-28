@@ -47,6 +47,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
   const recordingStartedForCallRef = React.useRef<string | null>(null);
   const acceptedRef = React.useRef(false);
   const conversationIdRef = React.useRef<string | null>(null);
+  const remoteStreamRef = React.useRef<MediaStream | null>(null);
   conversationIdRef.current = conversationId ?? null;
 
   const [phase, setPhase] = React.useState<OutboundCallPhase>("idle");
@@ -54,8 +55,37 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
   const [activeCallId, setActiveCallId] = React.useState<string | null>(null);
   /** Áudio recebido do WhatsApp — usar num elemento audio com autoPlay e playsInline. */
   const [remoteStream, setRemoteStream] = React.useState<MediaStream | null>(null);
+  remoteStreamRef.current = remoteStream;
   const [isInitiating, setIsInitiating] = React.useState(false);
   const [mediaDebug, setMediaDebug] = React.useState<{ ice: string; conn: string } | null>(null);
+
+  /**
+   * Inicia o MediaRecorder no momento do ACCEPTED (não espera o useEffect).
+   * Se o terminate chegar no mesmo tick, o effect de `phase==="live"`
+   * nunca roda e a gravação se perdia.
+   */
+  const beginRecording = React.useCallback(() => {
+    if (recorderRef.current) return;
+    const local = streamRef.current;
+    const remote = remoteStreamRef.current;
+    if (!local || !remote) return;
+    const callId = expectedCallIdRef.current;
+    if (!callId) return;
+    if (recordingStartedForCallRef.current === callId) return;
+
+    const handle = startCallRecording(local, remote);
+    if (!handle) {
+      console.warn(
+        "[outbound-webrtc] gravação NÃO iniciou — MediaRecorder indisponível ou streams sem áudio.",
+      );
+      return;
+    }
+    recorderRef.current = handle;
+    recordingStartedForCallRef.current = callId;
+    console.info(
+      `[outbound-webrtc] gravação iniciada callId=${callId} mime=${handle.mime}`,
+    );
+  }, []);
 
   /**
    * Encerra a gravação em andamento (se houver) e dispara o upload
@@ -117,6 +147,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
     appliedAnswerRef.current = false;
     queuedAnswerRef.current = null;
     acceptedRef.current = false;
+    remoteStreamRef.current = null;
     setActiveCallId(null);
     setRemoteStream(null);
     setMediaDebug(null);
@@ -172,6 +203,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
         queuedAnswerRef.current = null;
         // SDP/toque ≠ atendimento. Gravação e "Em chamada" só no ACCEPTED.
         setPhase(acceptedRef.current ? "live" : "need_answer");
+        if (acceptedRef.current) beginRecording();
       } catch (e) {
         appliedAnswerRef.current = false;
         const m = e instanceof Error ? e.message : "SDP answer inválido";
@@ -181,7 +213,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
         releasePc();
       }
     },
-    [releasePc, terminateSilently],
+    [releasePc, terminateSilently, beginRecording],
   );
 
   const initiate = React.useCallback(async (): Promise<{ ok: boolean; callId?: string; error?: string }> => {
@@ -243,7 +275,9 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
           first?.getTracks().length ? first : ev.track ? new MediaStream([ev.track]) : null;
         if (!stream) return;
         for (const t of stream.getAudioTracks()) t.enabled = true;
+        remoteStreamRef.current = stream;
         setRemoteStream(stream);
+        if (acceptedRef.current) beginRecording();
       };
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -295,7 +329,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
     } finally {
       setIsInitiating(false);
     }
-  }, [conversationId, releasePc, terminateSilently, applyAnswer]);
+  }, [conversationId, releasePc, terminateSilently, applyAnswer, beginRecording]);
 
   // Fallback: o webhook `connect` com SDP answer pode chegar ANTES do
   // browser ter o callId (SSE dropado). Poll persiste o SDP no evento.
@@ -326,7 +360,10 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
         );
         if (accepted) {
           acceptedRef.current = true;
-          if (appliedAnswerRef.current) setPhase("live");
+          if (appliedAnswerRef.current) {
+            setPhase("live");
+            beginRecording();
+          }
         }
       } catch {
         /* ignore */
@@ -338,34 +375,14 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [phase, conversationId, applyAnswer]);
+  }, [phase, conversationId, applyAnswer, beginRecording]);
 
-  // Grava só depois do ACCEPTED: em "live" o SDP já tocou (ringback)
-  // e o cliente atendeu. A Meta não grava do lado dela.
+  // Backup: se ACCEPTED chegou antes do remoteStream, beginRecording
+  // no handler falha; o effect tenta de novo quando o stream chega.
   React.useEffect(() => {
     if (phase !== "live") return;
-    if (recorderRef.current) return;
-    const local = streamRef.current;
-    if (!local || !remoteStream) return;
-    const callId = expectedCallIdRef.current ?? activeCallId;
-    if (recordingStartedForCallRef.current === callId) return;
-
-    const handle = startCallRecording(local, remoteStream);
-    if (!handle) {
-      // Diagnóstico em console ajuda muito quando um agente reporta
-      // "gravação não funcionou" — descobrimos se foi browser sem
-      // MediaRecorder, sem tracks de áudio, etc.
-      console.warn(
-        "[outbound-webrtc] gravação NÃO iniciou — MediaRecorder indisponível ou streams sem áudio.",
-      );
-      return;
-    }
-    recorderRef.current = handle;
-    recordingStartedForCallRef.current = callId;
-    console.info(
-      `[outbound-webrtc] gravação iniciada callId=${callId} mime=${handle.mime}`,
-    );
-  }, [phase, remoteStream, activeCallId]);
+    beginRecording();
+  }, [phase, remoteStream, beginRecording]);
 
   // Encerramento remoto via webhook da Meta. Sem este listener, quando o
   // cliente desligava a chamada, o PeerConnection podia ficar em estado
@@ -392,7 +409,10 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
           const mine = expectedCallIdRef.current ?? activeCallId;
           if (!p.callId || !mine || p.callId === mine) {
             acceptedRef.current = true;
-            if (appliedAnswerRef.current) setPhase("live");
+            if (appliedAnswerRef.current) {
+              setPhase("live");
+              beginRecording();
+            }
           }
         }
         if ((p.event ?? "").toLowerCase() !== "terminate") return;
@@ -401,7 +421,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
         releasePc();
         setPhase("idle");
       },
-      [activeCallId, releasePc, applyAnswer],
+      [activeCallId, releasePc, applyAnswer, beginRecording],
     ),
     !!conversationId,
   );

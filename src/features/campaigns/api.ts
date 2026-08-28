@@ -19,6 +19,7 @@ import {
   mockCampaignRecipients,
   mockCampaignStats,
   mockCampaignsPage,
+  mockRunCampaignAction,
   MOCK_AUDIENCE_OPTIONS,
   MOCK_AUDIENCE_PREVIEW,
   MOCK_CHANNELS,
@@ -184,6 +185,13 @@ export function runCampaignAction(
   id: string,
   action: CampaignAction,
 ): Promise<{ message?: string; status?: string }> {
+  if (isPageMockMode() || id.startsWith("camp-")) {
+    try {
+      return Promise.resolve(mockRunCampaignAction(id, action));
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
   return sendJson(
     `/api/campaigns/${id}/${action}`,
     "POST",

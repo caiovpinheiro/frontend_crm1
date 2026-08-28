@@ -57,7 +57,8 @@ import {
   useChannelSession,
 } from "@/features/inbox-v2/hooks";
 import {
-  isSessionExpired,
+  isWhatsappComposerSessionExpired,
+  lastInboundAtFromThread,
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
 
@@ -266,30 +267,29 @@ export function useDealChatBinding(params: {
       applyWhatsappSession && !!effectiveConversationId && !!selectedChannelId,
     );
 
-  // Deriva sessionExpired da mesma fonte do /inbox: prioriza a sessão do
-  // número escolhido no composer (CSV vs Acadêmico são janelas distintas).
+  const channelOverrideActive =
+    !!selectedChannelId &&
+    !!conversationChannelId &&
+    selectedChannelId !== conversationChannelId;
+  // Mesma regra do /inbox: inbound visível no thread reabre a janela 24h.
   const sessionInfo = messagesResp?.session;
-  const sessionActiveFromBackend = sessionInfo?.active;
-  const lastInboundFromMessages =
-    (messagesResp?.messages ?? [])
-      .filter((m) => m.direction === "in")
-      .map((m) => m.createdAt)
-      .sort()
-      .pop() ?? null;
-  const sessionExpiredFromConversation =
-    !messagesResp
-      ? false
-      : sessionActiveFromBackend !== undefined
-        ? !sessionActiveFromBackend
-        : isSessionExpired(sessionInfo?.lastInboundAt ?? lastInboundFromMessages);
   const sessionExpiredDerived =
     sessionExpiredOverride !== undefined
       ? sessionExpiredOverride
-      : !applyWhatsappSession
-        ? false
-        : selectedChannelId && selectedSessionFetched
-          ? selectedSession?.active !== true
-          : sessionExpiredFromConversation;
+      : isWhatsappComposerSessionExpired({
+          applyWhatsappSession,
+          messagesLoaded: Boolean(messagesResp),
+          channelOverrideActive,
+          selectedSessionFetched,
+          selectedSessionActive: selectedSession?.active,
+          messagesSessionActive: sessionInfo?.active,
+          messagesLastInboundAt: sessionInfo?.lastInboundAt ?? null,
+          threadLastInboundAt: lastInboundAtFromThread(
+            messagesResp?.messages,
+            selectedChannelId,
+            { strictChannel: channelOverrideActive },
+          ),
+        });
   const sessionExpired = !!effectiveConversationId && sessionExpiredDerived;
   // Bloco C (25/jun/26): respeita `canReply` exposto pelo backend
   // (mesma fonte que o /inbox). Compat: default true quando ausente.

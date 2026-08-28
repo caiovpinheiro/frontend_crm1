@@ -18,7 +18,7 @@
  * ────────────────────────────────────────────────────────────────
  * REGRAS (Chat = source of truth):
  *  • Spacing: 8 / 16 / 24 / 32  (gap-2, gap-4, gap-6, gap-8 / px-2…)
- *  • Radius:  8 / 12 / 16        (rounded-lg / rounded-xl / rounded-2xl)
+ *  • Radius:  conteúdo `rounded-xl` (--radius-xl, 16px); shells `rounded-2xl` (32px)
  *  • Border:  1px solid rgba(0,0,0,0.06)  → border-black/6
  *  • Shadow:  none idle, popover hairline
  *  • Type:    16/semibold (title), 13/medium (body), 12/regular (meta)
@@ -40,11 +40,11 @@ export const spacing = {
   lg: 32,
 } as const;
 
-/** Escala de border-radius. */
+/** Escala de border-radius. Cards de conteúdo = xl (16px no v2). */
 export const radius = {
-  sm: 8, // rounded-lg — chips, mini buttons
-  md: 12, // rounded-xl — popovers internos, tag composer
-  lg: 16, // rounded-2xl — cards, popovers principais
+  sm: 8, // chips, mini buttons
+  md: 12, // inputs, popovers internos
+  lg: 16, // rounded-xl — card de conteúdo (lista, KPI, empty)
 } as const;
 
 /** Cores neutras canônicas (slate). Use SEMPRE estas — nunca neutral/zinc/gray. */
@@ -99,17 +99,15 @@ export const CARD_ACTIVE_SHADOW = "0 2px 6px rgba(15,23,42,0.06)";
 
 export const ds = {
   /** ── Cards ──
-   *  Estrutura idêntica em todo o app: radius 16, border 1px black/6,
-   *  bg branco, sem shadow no idle. `padding` fica a critério da seção
-   *  (8pt grid).
+   *  Conteúdo (lista, KPI, empty): `rounded-xl`. Shells (modal/nav) usam `rounded-2xl`.
    */
   card: {
-    /** Card base flat — uso geral. */
+    /** Card base — mesmo raio da lista canônica. */
     base:
-      "rounded-2xl border border-black/6 bg-white transition-colors hover:border-black/10",
+      "rounded-xl border border-black/6 bg-white transition-colors hover:border-black/10",
     /** Card interativo (clicável, com focus ring). */
     interactive:
-      "rounded-2xl border border-black/6 bg-white transition-colors cursor-pointer outline-none hover:border-black/10 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40",
+      "rounded-xl border border-black/6 bg-white transition-colors cursor-pointer outline-none hover:border-black/10 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40",
     /** Estado ativo de um card interativo (combine via cn). */
     active: "border-[var(--brand-primary)]/30",
     /** Padding canônico do card (16px). */

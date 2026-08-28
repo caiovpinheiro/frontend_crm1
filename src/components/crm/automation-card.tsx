@@ -3,13 +3,14 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import {
-  IconBolt,
-  IconTrash,
-} from "@tabler/icons-react"
+  Trash2,
+  Zap,
+} from "lucide-react"
 import { SwitchGlass } from "./switch-glass"
 import { MiniFlow, type MiniFlowStep } from "./mini-flow"
 import { blockKeyForStepType } from "./flow-block-icon"
 import type { Automation } from "@/lib/automations-data"
+import { LIST_CARD_ROW_CLASS } from "./sortable-header"
 
 interface AutomationCardProps {
   automation: Automation
@@ -21,9 +22,32 @@ interface AutomationCardProps {
    * Opcional para preservar usos legados (ex.: galeria preview).
    */
   onDelete?: (id: string) => void
+  columnClass?: string
 }
 
-export function AutomationCard({ automation, onToggle, onDelete }: AutomationCardProps) {
+function SuccessBadge({ rate }: { rate: number }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex min-w-14 justify-center rounded-full px-2.5 py-1 text-sm font-semibold tabular-nums",
+        rate >= 100
+          ? "bg-success-soft text-success"
+          : rate > 0
+            ? "bg-warning-soft text-warning"
+            : "bg-secondary text-muted-foreground",
+      )}
+    >
+      {rate}%
+    </span>
+  )
+}
+
+export function AutomationCard({
+  automation,
+  onToggle,
+  onDelete,
+  columnClass,
+}: AutomationCardProps) {
   const stepTypes =
     automation.stepTypes && automation.stepTypes.length > 0
       ? automation.stepTypes
@@ -34,60 +58,63 @@ export function AutomationCard({ automation, onToggle, onDelete }: AutomationCar
   ]
 
   return (
-    <article
+    <div
       className={cn(
-        "group relative grid min-h-[72px] min-w-0 shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3.5 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)] focus-within:border-[var(--brand-primary)]/40 sm:px-4 lg:min-h-16 lg:grid-cols-[minmax(200px,1.55fr)_minmax(132px,1fr)_72px_88px_112px_96px] lg:gap-4 lg:py-2.5",
+        "group relative cursor-pointer",
+        LIST_CARD_ROW_CLASS,
+        columnClass,
       )}
-      role="row"
     >
       <Link
         href={`/automations/${automation.id}`}
-        className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+        className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`Abrir editor de ${automation.name}`}
       >
         <span className="sr-only">Abrir editor</span>
       </Link>
 
-      <div className="pointer-events-none relative z-10 min-w-0" role="cell">
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={cn(
-              "h-2 w-2 shrink-0 rounded-full",
-              automation.active
-                ? "bg-[var(--color-success)]"
-                : "bg-[var(--text-muted)] opacity-45",
-            )}
-            aria-hidden
-          />
-          <h3 className="min-w-0 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+      <div className="pointer-events-none relative z-10 flex items-center gap-3">
+        <span
+          className={cn(
+            "size-2.5 shrink-0 rounded-full",
+            automation.active ? "bg-success" : "bg-muted-foreground/40",
+          )}
+          aria-label={automation.active ? "Ativa" : "Inativa"}
+        />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">
             {automation.name}
-          </h3>
-        </div>
-        <div className="mt-1 flex min-w-0 items-center gap-1.5 pl-4">
-          <IconBolt size={13} stroke={2.2} className="shrink-0 text-[var(--brand-primary)]" />
-          <span className="min-w-0 truncate font-body text-[12px] text-[var(--text-muted)] sm:text-[12.5px]">
-            {automation.trigger}
-          </span>
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
+            <Zap size={14} strokeWidth={2} className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+            <span className="truncate">{automation.trigger}</span>
+          </p>
         </div>
       </div>
 
-      <div className="pointer-events-none relative z-10 hidden min-w-0 overflow-hidden lg:block" role="cell">
+      <div className="pointer-events-none relative z-10 overflow-x-auto">
+        <span className="mb-1 block text-xs text-muted-foreground lg:hidden">Fluxo</span>
         <MiniFlow steps={steps} max={4} size="sm" connected={false} />
       </div>
 
-      <div className="pointer-events-none relative z-10 hidden text-left lg:block" role="cell">
-        <RowMetric value={`${automation.successRate}%`} />
+      <div className="pointer-events-none relative z-10 flex items-center gap-2 lg:block">
+        <span className="text-xs text-muted-foreground lg:hidden">Sucesso</span>
+        <SuccessBadge rate={automation.successRate} />
       </div>
 
-      <div className="pointer-events-none relative z-10 hidden text-left lg:block" role="cell">
-        <RowMetric value={automation.runs.toLocaleString("pt-BR")} />
+      <div className="pointer-events-none relative z-10 flex items-center gap-2 lg:block">
+        <span className="text-xs text-muted-foreground lg:hidden">Execuções</span>
+        <span className="text-sm font-semibold tabular-nums">
+          {automation.runs.toLocaleString("pt-BR")}
+        </span>
       </div>
 
-      <div className="pointer-events-none relative z-10 hidden min-w-0 lg:block" role="cell">
-        <RowMetric value={automation.lastRun} subdued />
+      <div className="pointer-events-none relative z-10 flex items-center gap-2 lg:block">
+        <span className="text-xs text-muted-foreground lg:hidden">Última</span>
+        <span className="text-sm text-muted-foreground">{automation.lastRun}</span>
       </div>
 
-      <div className="relative z-10 flex items-center justify-end gap-1" role="cell">
+      <div className="relative z-10 flex items-center gap-1 lg:justify-end">
         <SwitchGlass
           checked={automation.active}
           onChange={() => onToggle(automation.id)}
@@ -107,39 +134,17 @@ export function AutomationCard({ automation, onToggle, onDelete }: AutomationCar
             aria-label={`Excluir ${automation.name}`}
             title="Excluir automação"
             className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-full",
-              "border border-transparent text-[var(--text-muted)] transition-all duration-150",
+              "flex size-9 shrink-0 items-center justify-center rounded-lg",
+              "text-muted-foreground transition-colors",
               "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100",
-              "hover:border-[var(--color-danger)]/30 hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger)]/40",
+              "hover:bg-destructive/10 hover:text-destructive",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40",
             )}
           >
-            <IconTrash size={15} stroke={2.2} />
+            <Trash2 size={15} strokeWidth={2} />
           </button>
         )}
       </div>
-    </article>
-  )
-}
-
-function RowMetric({
-  value,
-  subdued = false,
-}: {
-  value: string
-  subdued?: boolean
-}) {
-  return (
-    <div className="min-w-0">
-      <p
-        className={cn(
-          "truncate font-display text-[13px] font-bold tabular-nums",
-          subdued ? "text-[var(--text-secondary)]" : "text-[var(--text-primary)]",
-        )}
-        title={value}
-      >
-        {value}
-      </p>
     </div>
   )
 }

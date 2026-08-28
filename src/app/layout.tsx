@@ -83,7 +83,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "#dde8f5",
+  themeColor: "#f4f6fb",
 };
 
 export default async function RootLayout({
@@ -97,7 +97,7 @@ export default async function RootLayout({
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`${dmSans.variable} ${plusJakarta.variable}`}
+      className={`bg-background ${dmSans.variable} ${plusJakarta.variable}`}
       data-chat-theme="azul"
       style={{ fontFamily: "var(--font-sans)" }}
     >

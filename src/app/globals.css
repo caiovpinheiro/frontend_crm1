@@ -31,7 +31,8 @@
 /* ══════════════════════════════════════════════════════════════════
    GLASS DESIGN SYSTEM v2 — CRM EduIT
    Glassmorphism-first · Plus Jakarta Sans (display) + DM Sans (body)
-   Brand: #5b6ff5 · Mesh: #dde8f5 → #b8cfec → #e8d5f0
+   Brand: #2f66f2 (azul elétrico) · Accent: #6a37d6 (violeta)
+   Mesh: #f4f6fb (cinza canvas — Distribuição / listas)
    ══════════════════════════════════════════════════════════════════ */
 
 @theme {
@@ -41,8 +42,8 @@
   --font-mono:    "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
 
   /* ── Surfaces (base do mesh + camadas translúcidas) ─────────── */
-  /* O background é coberto pelo gradient mesh aplicado em <body>. */
-  --color-background:     #dde8f5;
+  /* Canvas da página — cinza canônico (Distribuição). Cards ficam brancos. */
+  --color-background:     #f4f6fb;
   --color-bg-subtle:      rgba(255, 255, 255, 0.35);
   --color-bg-muted:       rgba(255, 255, 255, 0.45);
   --color-bg-hover:       rgba(255, 255, 255, 0.55);
@@ -54,34 +55,34 @@
   --color-ink-subtle:     #6b7280;   /* era #a0aec0 — ratio 4.6:1 sobre branco */
 
   /* ── Borders translúcidas ───────────────────────────────────── */
-  --color-border:         rgba(255, 255, 255, 0.55);
-  --color-border-soft:    rgba(255, 255, 255, 0.35);
-  --color-input:          rgba(255, 255, 255, 0.55);
-  --color-ring:           #5b6ff5;
+  --color-border:         oklch(0.915 0.012 264);
+  --color-border-soft:    oklch(0.94 0.01 264);
+  --color-input:          oklch(0.915 0.012 264);
+  --color-ring:           #2f66f2;
 
-  /* ── Brand: Periwinkle/Indigo Vivo (CTA) ─────────────────────── */
-  --color-primary:             #5b6ff5;
-  --color-primary-dark:        #3d52e8;
-  --color-primary-soft:        rgba(91, 111, 245, 0.15);
-  --color-primary-foreground:  #FFFFFF;
+  /* ── Brand: Azul elétrico (CTA, da logo) ─────────────────────── */
+  --color-primary:             #2f66f2;
+  --color-primary-dark:        #1e4ed8;
+  --color-primary-soft:        rgba(47, 102, 242, 0.15);
+  --color-primary-foreground:  #fbfcff;
 
-  /* ── Brand: Lavanda (Marca / IA) ────────────────────────────── */
-  --color-lavender:            #a78bfa;
-  --color-lavender-soft:       rgba(167, 139, 250, 0.15);
-  --color-lavender-muted:      rgba(167, 139, 250, 0.08);
-  --color-lavender-foreground: #FFFFFF;
+  /* ── Brand: Violeta (accent / rabo da logo) ─────────────────── */
+  --color-lavender:            #6a37d6;
+  --color-lavender-soft:       rgba(106, 55, 214, 0.15);
+  --color-lavender-muted:      rgba(106, 55, 214, 0.08);
+  --color-lavender-foreground: #fbfcff;
 
   /* ── Semânticas ─────────────────────────────────────────────── */
-  --color-secondary:            rgba(255, 255, 255, 0.40);
-  --color-secondary-foreground: #1e2a3b;
-  --color-accent:               #a78bfa;
-  --color-accent-foreground:    #FFFFFF;
-  --color-muted:                rgba(255, 255, 255, 0.40);
-  --color-muted-foreground:     #4b5563;
+  --color-secondary:            oklch(0.955 0.012 264);
+  --color-secondary-foreground: oklch(0.3 0.05 266);
+  --color-accent:               oklch(0.53 0.23 288);
+  --color-accent-foreground:    oklch(0.99 0.005 264);
+  --color-muted:                oklch(0.955 0.012 264);
+  --color-muted-foreground:     oklch(0.55 0.03 264);
 
-  /* Card é translúcido por padrão — vira "glass card" via tokens. */
-  --color-card:               rgba(255, 255, 255, 0.40);
-  --color-card-foreground:    #1e2a3b;
+  /* Card sólido — contraste com o fundo cinza-azulado (handoff Automações). */
+  --color-card:               oklch(1 0 0);
+  --color-card-foreground:    oklch(0.24 0.045 266);
   --color-popover:            rgba(255, 255, 255, 0.75);
   --color-popover-foreground: #1e2a3b;
 
@@ -92,29 +93,33 @@
   --dropdown-solid-bg: #ffffff;
 
   /* ── Status ─────────────────────────────────────────────────── */
-  --color-success:             #10b981;
-  --color-success-soft:        rgba(16, 185, 129, 0.12);
-  --color-success-foreground:  #FFFFFF;
+  --color-success:             oklch(0.62 0.16 152);
+  --color-success-soft:        oklch(0.94 0.05 152);
+  --color-success-foreground:  #f5fdf9;
 
-  --color-warning:             #f59e0b;
-  --color-warning-soft:        rgba(245, 158, 11, 0.12);
+  --color-warning:             oklch(0.72 0.16 62);
+  --color-warning-soft:        oklch(0.95 0.05 70);
   --color-warning-foreground:  #FFFFFF;
 
-  --color-destructive:         #ef4444;
-  --color-destructive-soft:    rgba(239, 68, 68, 0.12);
+  --color-destructive:         #d64545;
+  --color-destructive-soft:    #fbe2e2;
   --color-destructive-foreground: #FFFFFF;
 
-  --color-info:                #5b6ff5;
+  --color-info:                #2f66f2;
   --color-info-foreground:     #FFFFFF;
 
-  /* ── Sidebar — glass ─────────────────────────────────────────── */
-  --color-sidebar:                  rgba(255, 255, 255, 0.30);
-  --color-sidebar-foreground:       #1e2a3b;
-  --color-sidebar-border:           rgba(255, 255, 255, 0.45);
-  --color-sidebar-muted:            #4b5563;
-  --color-sidebar-active-bg:        #5b6ff5;
-  --color-sidebar-active-fg:        #FFFFFF;
-  --color-sidebar-hover:            rgba(255, 255, 255, 0.50);
+  /* ── Sidebar — azul-marinho da logo ──────────────────────────── */
+  --color-sidebar:                    oklch(0.27 0.075 266);
+  --color-sidebar-foreground:         oklch(0.82 0.03 264);
+  --color-sidebar-border:             oklch(0.36 0.06 266);
+  --color-sidebar-muted:              oklch(0.82 0.03 264);
+  --color-sidebar-primary:            oklch(0.62 0.2 262);
+  --color-sidebar-primary-foreground: oklch(0.99 0.005 264);
+  --color-sidebar-accent:             oklch(0.34 0.08 266);
+  --color-sidebar-accent-foreground:  oklch(0.98 0.005 264);
+  --color-sidebar-active-bg:          oklch(0.62 0.2 262);
+  --color-sidebar-active-fg:          oklch(0.99 0.005 264);
+  --color-sidebar-hover:              oklch(0.34 0.08 266);
 
   /* ── Chat ───────────────────────────────────────────────────── */
   --color-chat-sent:            rgba(91, 111, 245, 0.18);
@@ -144,11 +149,23 @@
   --color-subtle:             rgba(255, 255, 255, 0.55);
 
   /* ── Gráficos ───────────────────────────────────────────────── */
-  --color-chart-1: #5b6ff5;
-  --color-chart-2: #10b981;
-  --color-chart-3: #f59e0b;
-  --color-chart-4: #a78bfa;
-  --color-chart-5: #ef4444;
+  --color-chart-1: #2f66f2;
+  --color-chart-2: #2f9e6b;
+  --color-chart-3: #d9930f;
+  --color-chart-4: #6a37d6;
+  --color-chart-5: #d64545;
+
+  /* ── Chips de fluxo (fundo -soft + ícone cheio) ─────────────── */
+  --color-chip-blue:        oklch(0.55 0.205 262);
+  --color-chip-blue-soft:   oklch(0.93 0.045 262);
+  --color-chip-violet:      oklch(0.53 0.23 288);
+  --color-chip-violet-soft: oklch(0.93 0.05 288);
+  --color-chip-green:       oklch(0.58 0.15 152);
+  --color-chip-green-soft:  oklch(0.93 0.055 152);
+  --color-chip-orange:      oklch(0.68 0.17 55);
+  --color-chip-orange-soft: oklch(0.94 0.06 60);
+  --color-chip-red:         oklch(0.62 0.21 22);
+  --color-chip-red-soft:    oklch(0.94 0.05 22);
 
   /* ── Extras (tags coloridas) ────────────────────────────────── */
   --color-pink:      #f472b6;
@@ -181,7 +198,7 @@
   --color-text-muted:      var(--color-ink-muted);         /* #4b5563 */
   --color-text-inverse:    #ffffff;
   --color-bg-card:         #ffffff;
-  --color-brand-primary:   var(--color-primary);           /* #5b6ff5 */
+  --color-brand-primary:   var(--color-primary);           /* #2f66f2 */
   --color-success-subtle:  var(--color-success-soft);      /* rgba(16,185,129,0.12) */
   --color-danger-subtle:   var(--color-destructive-soft);  /* rgba(239,68,68,0.12) */
   --color-warn-subtle:     var(--color-warning-soft);      /* rgba(245,158,11,0.12) */
@@ -238,8 +255,9 @@
   --glass-blur-strong: blur(24px);
   --glass-blur-subtle: blur(8px);
 
-  /* Mesh gradient base — usado em <body> */
-  --bg-gradient: #dde8f5;
+  /* Canvas da página — sólido, mesmo cinza de Distribuição */
+  --bg-gradient: #f4f6fb;
+  --bg-base: #f4f6fb;
 
   /* Toast filled oficial: classes Tailwind v4 exatas do ZIP de referência. */
   --toast-success-bg: oklch(69.6% 0.17 162.48);  /* emerald-500 / #00bc7d */
@@ -369,10 +387,10 @@
    Aditivo: nomes novos, não sobrescrevem tokens shadcn deste arquivo.
    ══════════════════════════════════════════════════════════════════ */
 :root {
-  --brand-primary:        #5b6ff5;
-  --brand-primary-light:  #7b8df7;
-  --brand-primary-dark:   #3d52e8;
-  --brand-secondary:      #a78bfa;
+  --brand-primary:        #2f66f2;
+  --brand-primary-light:  #5b8af5;
+  --brand-primary-dark:   #1e4ed8;
+  --brand-secondary:      #6a37d6;
 
   --text-primary:         #0f172a;
   --text-secondary:       #374151;
@@ -384,19 +402,19 @@
 
   --color-online:         #10b981;
   --color-offline:        #94a3b8;
-  --color-enterprise-bg:  rgba(91, 111, 245, 0.15);
-  --color-success-bg:     rgba(16, 185, 129, 0.12);
-  --color-success-text:   #047857;
-  --color-danger-bg:      rgba(239, 68, 68, 0.10);
-  --color-danger-text:    #b91c1c;
-  --color-warn:           #d97706;
-  --color-warn-bg:        rgba(217, 119, 6, 0.08);
-  --color-warn-border:    rgba(217, 119, 6, 0.30);
-  --color-info-bg:        rgba(91, 111, 245, 0.08);
-  --color-info-border:    rgba(91, 111, 245, 0.28);
+  --color-enterprise-bg:  rgba(47, 102, 242, 0.15);
+  --color-success-bg:     #dff3e9;
+  --color-success-text:   #2f9e6b;
+  --color-danger-bg:      #fbe2e2;
+  --color-danger-text:    #d64545;
+  --color-warn:           #d9930f;
+  --color-warn-bg:        #fbf0d6;
+  --color-warn-border:    rgba(217, 147, 15, 0.30);
+  --color-info-bg:        rgba(47, 102, 242, 0.08);
+  --color-info-border:    rgba(47, 102, 242, 0.28);
 
-  --input-border-focus:   rgba(91, 111, 245, 0.50);
-  --input-ring-focus:     rgba(91, 111, 245, 0.20);
+  --input-border-focus:   rgba(47, 102, 242, 0.50);
+  --input-ring-focus:     rgba(47, 102, 242, 0.20);
 
   /* WhatsApp — cores de marca do canal, ISOLADAS (mock do editor de Flow
      e preview do template). Não usar fora do contexto do balão WhatsApp. */
@@ -597,7 +615,7 @@
   --color-sidebar-foreground:   #e8edf5;
   --color-sidebar-border:       rgba(255, 255, 255, 0.08);
   --color-sidebar-muted:        #6b7a8c;
-  --color-sidebar-active-bg:    #5b6ff5;
+  --color-sidebar-active-bg:    #2f66f2;
   --color-sidebar-active-fg:    #FFFFFF;
   --color-sidebar-hover:        rgba(255, 255, 255, 0.06);
 
@@ -634,6 +652,7 @@
     drop-shadow(0 0 1px color-mix(in srgb, var(--brand-primary) 40%, transparent));
 
   --bg-gradient: linear-gradient(135deg, #0b1220 0%, #131b30 40%, #1c1530 70%, #0e1426 100%);
+  --bg-base: #0b1220;
 
   ::selection { background: rgba(91, 111, 245, 0.30); color: #e8edf5; }
 }
@@ -642,10 +661,21 @@
    Espelha styles/globals-v2.css (.v2-dark) para a rota legada do editor
    de Flow, que usa o .dark do next-themes (não o .v2-dark). */
 .dark {
-  --brand-primary:        #7b8df7;
-  --brand-primary-light:  #a0aefa;
-  --brand-primary-dark:   #5b6ff5;
-  --brand-secondary:      #c4b5fd;
+  --brand-primary:        #5b8af5;
+  --brand-primary-light:  #8aa8f8;
+  --brand-primary-dark:   #2f66f2;
+  --brand-secondary:      #8b5cf6;
+
+  --color-chip-blue:        #7a9af6;
+  --color-chip-blue-soft:   rgba(47, 102, 242, 0.22);
+  --color-chip-violet:      #a78bfa;
+  --color-chip-violet-soft: rgba(106, 55, 214, 0.24);
+  --color-chip-green:       #4ade80;
+  --color-chip-green-soft:  rgba(47, 158, 107, 0.22);
+  --color-chip-orange:      #f0b429;
+  --color-chip-orange-soft: rgba(224, 138, 30, 0.22);
+  --color-chip-red:         #f07171;
+  --color-chip-red-soft:    rgba(214, 69, 69, 0.22);
 
   --text-primary:         #e2e8f0;
   --text-secondary:       #94a3b8;
@@ -925,23 +955,6 @@
   --ease-drawer-open: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-drawer-close: cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* Transição de página (rotas abertas pela NavRail).
-   A NavRail é SEMPRE o primeiro filho de `.v2-screen`; animamos apenas o
-   "recheio" (demais colunas: conteúdo/sidebar/painel), deixando a rail
-   estática. Desliza da direita + fade. `backwards` reverte a
-   `transform: none` ao fim (não cria containing block permanente que
-   quebraria filhos `position: fixed`). */
-@keyframes v2-content-slide-in {
-  0% { opacity: 0; transform: translateX(56px); }
-  100% { opacity: 1; transform: translateX(0); }
-}
-/* Classe reutilizável + alvo automático do conteúdo nas rotas da NavRail.
-   Usada também no painel de settings (SettingsSlide) para manter rail e
-   sidebar de settings estáticas, animando só o painel direito. */
-.v2-content-slide-in,
-.v2-route-transition > .v2-screen > *:not(:first-child) {
-  animation: v2-content-slide-in 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94) backwards;
-}
 @keyframes msg-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1099,42 +1112,35 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   AppLoading — estado de carregamento único do app (ver
-   components/crm/app-loading.tsx). Respiro suave da marca + faixa
-   indeterminada; nada que imite o layout final.
+   AppLoading — marca estática + arco que gira (ver
+   components/crm/app-loading.tsx). Direção CW/CCW via data-dir.
+   app-loading-halo ainda pulsa o ponto do mobile-more-sheet.
    ══════════════════════════════════════════════════════════════════ */
 @keyframes app-loading-halo {
   0%, 100% { opacity: 0.35; transform: scale(1); }
   50%      { opacity: 0.8;  transform: scale(1.1); }
 }
-@keyframes app-loading-mark {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50%      { transform: translateY(-2px) scale(1.02); }
-}
-@keyframes app-loading-track {
-  0%   { transform: translateX(-110%); }
-  100% { transform: translateX(320%); }
+@keyframes brand-loader-spin {
+  to { transform: rotate(360deg); }
 }
 
 .app-loading-halo {
   animation: app-loading-halo 2.4s ease-in-out infinite;
 }
-.app-loading-mark {
-  animation: app-loading-mark 2.4s ease-in-out infinite;
+.brand-loader-ring {
+  transform-origin: 50% 50%;
+  animation: brand-loader-spin 1.15s linear infinite;
 }
-.app-loading-track {
-  animation: app-loading-track 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.brand-loader-ring[data-dir="ccw"] {
+  animation-direction: reverse;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .app-loading-halo,
-  .app-loading-mark,
-  .app-loading-track {
+  .brand-loader-ring {
     animation: none;
   }
   .app-loading-halo { opacity: 0.5; }
-  /* Sem movimento a faixa vira uma barra estática de progresso. */
-  .app-loading-track { width: 100%; }
 }
 
 /* Modal Telefonia IP — paleta sólida (light/dark) alinhada ao mockup */
@@ -1167,10 +1173,10 @@
    RELY — chat interno (tokens próprios; não reutiliza --wa-*)
    ══════════════════════════════════════════════════════════════════ */
 :root {
-  --orbita-canvas: var(--bg-base, #dde8f5);
+  --orbita-canvas: var(--bg-base, #f4f6fb);
   --orbita-block: #ffffff;
   --orbita-chrome: #ffffff;
-  --orbita-paper: var(--bg-base, #dde8f5);
+  --orbita-paper: var(--bg-base, #f4f6fb);
   --orbita-dot: rgba(91, 111, 245, 0.14);
   --orbita-field: rgba(91, 111, 245, 0.08);
   --orbita-chip-active: rgba(167, 139, 250, 0.22);

@@ -130,7 +130,12 @@ export interface DashboardFiltersState {
   /** yyyy-mm-dd, usado quando period = "custom". */
   startDate?: string;
   endDate?: string;
+  /** Primeiro funil selecionado (legado / Atendimentos). */
   pipelineId?: string;
+  /** Funis selecionados. Vazio = todos (soma). */
+  pipelineIds: string[];
+  /** Filtro de usuário do painel Negócios (`?user=`). */
+  userIds: string[];
   stageIds: string[];
   tagIds: string[];
   ownerIds: string[];
@@ -258,7 +263,12 @@ export async function fetchDashboard(
     sp.set("startDate", filters.startDate);
     sp.set("endDate", filters.endDate);
   }
-  if (filters.pipelineId) sp.set("pipelineId", filters.pipelineId);
+  if (filters.pipelineIds.length) {
+    sp.set("pipelineIds", filters.pipelineIds.join(","));
+    if (filters.pipelineIds[0]) sp.set("pipelineId", filters.pipelineIds[0]);
+  } else if (filters.pipelineId) {
+    sp.set("pipelineId", filters.pipelineId);
+  }
   if (filters.stageIds.length) sp.set("stages", filters.stageIds.join(","));
   if (filters.tagIds.length) sp.set("tags", filters.tagIds.join(","));
   if (filters.ownerIds.length) sp.set("owners", filters.ownerIds.join(","));

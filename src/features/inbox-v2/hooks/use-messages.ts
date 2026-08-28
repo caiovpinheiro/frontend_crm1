@@ -234,7 +234,7 @@ export function emitConversationReopened(newId: string) {
 export function useSendAttachment(conversationId: string | null) {
   const qc = useQueryClient();
   return useMutation<
-    { message: InboxMessageDto; reopenedConversationId?: string },
+    { message: InboxMessageDto; reopenedConversationId?: string; audioDelivery?: "voice" | "audio" | "document" },
     Error,
     {
       file: File | Blob;

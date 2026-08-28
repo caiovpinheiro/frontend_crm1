@@ -29,6 +29,8 @@ interface UserAvatarProps {
   statusColor?: string
   /** Anel de destaque (ex.: item ativo no navrail). */
   ring?: "none" | "active"
+  /** Gradiente da NavRail (sidebar-primary → accent). */
+  variant?: "default" | "sidebar"
   className?: string
   title?: string
 }
@@ -47,6 +49,7 @@ export function UserAvatar({
   status,
   statusColor,
   ring = "none",
+  variant = "default",
   className,
   title,
 }: UserAvatarProps) {
@@ -62,9 +65,12 @@ export function UserAvatar({
     >
       <div
         className={cn(
-          "relative flex size-full items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-secondary)] font-display font-bold leading-none text-white",
+          "relative flex size-full items-center justify-center overflow-hidden rounded-full bg-gradient-to-br font-display font-bold leading-none text-accent-foreground",
+          variant === "sidebar"
+            ? "from-sidebar-primary to-accent"
+            : "from-primary to-accent",
           ring === "active" &&
-            "ring-2 ring-[var(--brand-primary)]/60 ring-offset-2 ring-offset-[var(--glass-bg-strong)]",
+            "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
         )}
         style={{ fontSize: Math.round(size * 0.36) }}
       >

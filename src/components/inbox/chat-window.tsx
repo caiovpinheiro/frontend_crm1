@@ -187,7 +187,7 @@ async function postAttachment(
     throw new Error(
       `Salvo localmente, mas falhou via WhatsApp: ${data.metaError}`,
     );
-  return data as { message: InboxMessageDto };
+  return data as { message: InboxMessageDto; audioDelivery?: "voice" | "audio" | "document" };
 }
 async function postReaction(messageId: string, emoji: string) {
   const res = await fetch(apiUrl(`/api/messages/${encodeURIComponent(messageId)}/reactions`),
@@ -1150,8 +1150,14 @@ export function ChatWindow({
       }));
       return { previous };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (e, _v, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(messagesKey, ctx.previous);
+      toast.error(e instanceof Error ? e.message : "Não foi possível enviar o anexo");
+    },
+    onSuccess: (data) => {
+      if (data?.audioDelivery && data.audioDelivery !== "voice") {
+        toast("Enviado como áudio (não como nota de voz)");
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: messagesKey });
@@ -1827,7 +1833,7 @@ export function ChatWindow({
     m: InboxMessageDto,
   ): "image" | "audio" | "video" | "document" | null => {
     const mt = String(m.messageType ?? "").toLowerCase();
-    if (mt === "whatsapp_call_recording" && m.mediaUrl) return "audio";
+    if ((mt === "whatsapp_call_recording" || mt === "sip_call") && m.mediaUrl) return "audio";
     if (mt === "image" || mt === "sticker") return "image";
     if (mt === "audio" || mt === "ptt") return "audio";
     if (mt === "video") return "video";
@@ -2285,11 +2291,10 @@ export function ChatWindow({
 
               /* Chamadas:
                  - `whatsapp_call` / `sip_call` (sem player) → Activity Item.
-                 - `whatsapp_call_recording` COM `mediaUrl` cai no fluxo de áudio.
-                 - Gravação SIP fica só na aba Chamadas, não no chat. */
+                 - `whatsapp_call_recording` ou `sip_call` COM `mediaUrl` cai no áudio. */
               if (
                 mt === "whatsapp_call" ||
-                mt === "sip_call" ||
+                (mt === "sip_call" && !m.mediaUrl) ||
                 (mt === "whatsapp_call_recording" && !m.mediaUrl)
               ) {
                 return (

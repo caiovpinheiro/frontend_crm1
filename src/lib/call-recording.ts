@@ -209,6 +209,29 @@ export function startCallRecording(
  * arquivo salvo. Falhas são silenciadas — a chamada em si não deve
  * mostrar erro pro agente por causa de upload que deu ruim.
  */
+function buildRecordingForm(params: {
+  conversationId: string;
+  callId: string | null;
+  blob: Blob;
+  ext: string;
+  startedAt: Date;
+  endedAt: Date;
+  direction?: "BUSINESS_INITIATED" | "USER_INITIATED";
+}): FormData {
+  const form = new FormData();
+  form.append(
+    "file",
+    new File([params.blob], `call-${params.callId ?? "unknown"}.${params.ext}`, {
+      type: params.blob.type || "audio/webm",
+    }),
+  );
+  if (params.callId) form.append("callId", params.callId);
+  form.append("startedAt", params.startedAt.toISOString());
+  form.append("endedAt", params.endedAt.toISOString());
+  if (params.direction) form.append("direction", params.direction);
+  return form;
+}
+
 export async function uploadCallRecording(params: {
   conversationId: string;
   callId: string | null;
@@ -218,22 +241,21 @@ export async function uploadCallRecording(params: {
   endedAt: Date;
   direction?: "BUSINESS_INITIATED" | "USER_INITIATED";
 }): Promise<void> {
+  const url = apiUrl(`/api/conversations/${params.conversationId}/whatsapp-calls/recording`);
+  const maxAttempts = 4;
   try {
-    const form = new FormData();
-    form.append(
-      "file",
-      new File([params.blob], `call-${params.callId ?? "unknown"}.${params.ext}`, {
-        type: params.blob.type || "audio/webm",
-      }),
-    );
-    if (params.callId) form.append("callId", params.callId);
-    form.append("startedAt", params.startedAt.toISOString());
-    form.append("endedAt", params.endedAt.toISOString());
-    if (params.direction) form.append("direction", params.direction);
-
-    await fetch(apiUrl(`/api/conversations/${params.conversationId}/whatsapp-calls/recording`),
-      { method: "POST", body: form },
-    );
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const res = await fetch(url, { method: "POST", body: buildRecordingForm(params) });
+      if (res.ok) return;
+      const retryable = res.status === 409 || res.status >= 500;
+      if (!retryable || attempt === maxAttempts) {
+        console.warn(
+          `[call-recording] upload falhou status=${res.status} attempt=${attempt} callId=${params.callId}`,
+        );
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 700 * attempt));
+    }
   } catch (err) {
     console.warn("[call-recording] upload falhou:", err);
   }

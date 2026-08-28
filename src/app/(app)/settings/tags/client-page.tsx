@@ -667,7 +667,7 @@ function TagsPage() {
 // Tag Form Dialog — criar/editar (nome + cor)
 // ─────────────────────────────────────────────────────────────────
 
-function TagFormDialog({
+export function TagFormDialog({
   tag,
   isPending,
   onSubmit,

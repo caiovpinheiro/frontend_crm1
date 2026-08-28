@@ -13,12 +13,12 @@
 
 import * as React from "react";
 import {
-  IconChevronDown as ChevronDown,
-  IconChevronUp as ChevronUp,
-  IconGripVertical as GripVertical,
-  IconLock as Lock,
-  IconRotate2 as RotateCcw,
-} from "@tabler/icons-react";
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  Lock,
+  RotateCcw,
+} from "lucide-react";
 
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";

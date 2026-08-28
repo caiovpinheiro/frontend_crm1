@@ -5,6 +5,10 @@ import { IconCheck as Check, IconMicrophone as Mic, IconTrash as Trash2, IconSen
 import { toast } from "sonner";
 import { TooltipHost } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import {
+  pickVoiceRecorderMime,
+  VOICE_RECORDER_AUDIO_CONSTRAINTS,
+} from "@/lib/voice-recorder-format";
 
 type AudioRecorderProps = { onSend: (blob: Blob) => void; disabled?: boolean; className?: string };
 
@@ -30,12 +34,11 @@ export function AudioRecorder({ onSend, disabled, className }: AudioRecorderProp
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+      });
       streamRef.current = stream;
-      const mimeType = MediaRecorder.isTypeSupported("audio/ogg;codecs=opus") ? "audio/ogg;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
-        : "audio/mp4";
+      const mimeType = pickVoiceRecorderMime();
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorder.current = recorder;
       chunks.current = [];

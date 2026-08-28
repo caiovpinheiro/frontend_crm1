@@ -17,7 +17,6 @@ import {
   ActiveCountBadge,
   ContactCustomFieldsSection,
   ContactSection,
-  DatesPeriodSection,
   DealCustomFieldsSection,
   OwnersSection,
   QuickFiltersList,
@@ -27,7 +26,7 @@ import {
   StatusSection,
   TagsSection,
   ValueSection,
-  countActiveFilters,
+  countPanelFilters,
   useFilterDraft,
   type SectionProps,
 } from "./core";
@@ -46,7 +45,7 @@ export function FilterBar({
 }: VariantProps) {
   const { draft, setDraftField, applyWhole, toggleArray, reset } = useFilterDraft(value, onApply);
   const section: SectionProps = { draft, options, optionsLoading, optionsError, setDraftField, toggleArray };
-  const activeCount = countActiveFilters(draft);
+  const activeCount = countPanelFilters(draft);
 
   return (
     <div className="rounded-2xl border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)]">
@@ -116,7 +115,6 @@ export function FilterBar({
               <ContactCustomFieldsSection {...section} />
             </div>
             <div className="space-y-3">
-              <DatesPeriodSection {...section} />
               <TagsSection {...section} />
             </div>
           </div>

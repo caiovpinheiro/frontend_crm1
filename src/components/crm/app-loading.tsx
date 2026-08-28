@@ -7,10 +7,9 @@ import { cn } from "@/lib/utils";
 /**
  * Estado de carregamento ÚNICO do app.
  *
- * Substitui os skeletons que imitavam o layout final (cards fantasma, ribbons
- * falsos, badges "0", "…"): eles causavam jank ao dar lugar ao conteúdo real.
- * Aqui só existe a marca + faixa de progresso, centralizadas — nada muda de
- * posição quando a UI real monta, porque o loader não desenha a UI real.
+ * Marca "b" estática + arco circular (estilo Hostinger). Só o anel gira;
+ * a direção (horário / anti-horário) é sorteada uma vez por mount.
+ * O loader não imita o layout de destino.
  *
  * Segurança: nunca fica girando pra sempre. Passado `timeoutMs` sem o
  * conteúdo assumir, troca para um estado de erro explícito com ação de
@@ -21,7 +20,7 @@ import { cn } from "@/lib/utils";
 const DEFAULT_TIMEOUT_MS = 12_000;
 
 export type AppLoadingProps = {
-  /** Texto acessível/visível abaixo da marca. */
+  /** Só para leitores de tela — nada visível ao lado da marca. */
   label?: string;
   /**
    * `screen`: ocupa a tela inteira reservando a coluna da NavRail (rotas).
@@ -33,7 +32,7 @@ export type AppLoadingProps = {
   timeoutMs?: number;
   /**
    * Estado terminal explícito (query falhou, nada a esperar): mostra a
-   * mensagem + ação em vez da faixa de progresso, sem esperar o timeout.
+   * mensagem + ação em vez do anel, sem esperar o timeout.
    */
   error?: string | null;
   /** Ação do estado de erro. Sem isto, recarrega a página. */
@@ -41,51 +40,66 @@ export type AppLoadingProps = {
   className?: string;
 };
 
-function BrandMark() {
+function BrandMark({ spinning }: { spinning: boolean }) {
+  const reactId = React.useId().replace(/:/g, "");
+  const gradId = `brand-loader-ring-${reactId}`;
+  const clockwiseRef = React.useRef(Math.random() < 0.5);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const dir = mounted && !clockwiseRef.current ? "ccw" : "cw";
+  const animate = spinning;
+
   return (
-    <span className="relative inline-flex size-14 items-center justify-center">
+    <span className="relative inline-flex size-[5.5rem] items-center justify-center">
       <span
         aria-hidden
-        className="app-loading-halo absolute inset-[-10px] rounded-[var(--radius-2xl)]"
-        style={{
-          background:
-            "radial-gradient(circle, color-mix(in srgb, var(--brand-primary) 30%, transparent) 0%, transparent 70%)",
-        }}
-      />
-      <span
-        aria-hidden
-        className="app-loading-mark relative flex size-14 items-center justify-center rounded-[var(--radius-xl)] shadow-[0_10px_30px_-12px_color-mix(in_srgb,var(--brand-primary)_60%,transparent)]"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)",
-        }}
+        className={cn(
+          "pointer-events-none absolute inset-0",
+          animate && "brand-loader-ring",
+        )}
+        data-dir={dir}
       >
-        <svg viewBox="0 0 1024 1024" className="size-7 text-white" fill="currentColor" aria-hidden>
-          <rect x="320" y="280" width="128" height="464" rx="14" />
-          <rect x="320" y="280" width="392" height="104" rx="14" />
-          <rect x="320" y="460" width="316" height="104" rx="14" />
-          <rect x="320" y="640" width="392" height="104" rx="14" />
+        <svg viewBox="0 0 80 80" className="size-full">
+          <defs>
+            {/* Cyan → royal → magenta da fita 3D; gira com o SVG. */}
+            <linearGradient
+              id={gradId}
+              x1="40"
+              y1="4"
+              x2="40"
+              y2="76"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor="var(--color-sky)" />
+              <stop offset="45%" stopColor="var(--brand-primary)" />
+              <stop offset="100%" stopColor="#d946ef" />
+            </linearGradient>
+          </defs>
+          {/* ~270° de arco (circunferência 2π·36 ≈ 226). */}
+          <circle
+            cx="40"
+            cy="40"
+            r="36"
+            fill="none"
+            stroke={`url(#${gradId})`}
+            strokeWidth="4.75"
+            strokeLinecap="round"
+            strokeDasharray="170 56"
+          />
         </svg>
       </span>
-    </span>
-  );
-}
-
-function ProgressTrack() {
-  return (
-    <span
-      aria-hidden
-      className="relative block h-[3px] w-32 overflow-hidden rounded-full"
-      style={{
-        background: "color-mix(in srgb, var(--brand-primary) 14%, transparent)",
-      }}
-    >
-      <span
-        className="app-loading-track absolute inset-y-0 left-0 w-1/3 rounded-full"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent 0%, var(--brand-primary) 50%, transparent 100%)",
-        }}
+      {/* A marca não gira — só o anel. */}
+      <img
+        src="/brand/bwipo-mark.png"
+        alt=""
+        width={112}
+        height={112}
+        draggable={false}
+        className="relative size-[3.25rem] object-contain"
       />
     </span>
   );
@@ -107,15 +121,14 @@ function Body({
         role="alert"
         data-app-loading-state="error"
       >
-        <BrandMark />
-        <p className="max-w-[260px] text-[13px] font-medium text-[var(--text-secondary)]">
+        <BrandMark spinning={false} />
+        <p className="max-w-[260px] text-[13px] font-medium text-muted-foreground">
           {message}
         </p>
         <button
           type="button"
           onClick={onRetry ?? (() => window.location.reload())}
-          className="rounded-full px-4 py-1.5 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: "var(--brand-primary)" }}
+          className="rounded-full bg-primary px-4 py-1.5 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
         >
           {onRetry ? "Tentar novamente" : "Recarregar"}
         </button>
@@ -125,16 +138,13 @@ function Body({
 
   return (
     <div
-      className="flex flex-col items-center gap-4"
+      className="flex flex-col items-center"
       role="status"
       aria-live="polite"
+      aria-label={label}
       data-app-loading-state="loading"
     >
-      <BrandMark />
-      <ProgressTrack />
-      <p className="text-[12px] font-medium tracking-wide text-[var(--text-muted)]">
-        {label}
-      </p>
+      <BrandMark spinning />
     </div>
   );
 }

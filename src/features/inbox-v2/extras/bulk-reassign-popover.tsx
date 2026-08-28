@@ -1,9 +1,8 @@
 "use client";
 
 /*
- * BulkReassignPopover — ação em massa "Reatribuir" na barra de seleção do Inbox.
- * Reusa o seletor de agentes (UserAvatar + useTeamUsers) e aplica assign
- * individual via Promise.allSettled (backend bulk não cobre `assign`).
+ * BulkReassignPopover — ação em massa "Reatribuir" / "Sem responsável"
+ * na barra de seleção do Inbox. Enfileira POST /api/conversations/bulk.
  */
 
 import { useMemo, useState } from "react";
@@ -29,9 +28,14 @@ import {
 interface BulkReassignPopoverProps {
   conversationIds: string[];
   disabled?: boolean;
-  /** Tooltip quando o botão está desabilitado (ex.: modo "todas do filtro"). */
   disabledReason?: string;
-  /** Chamado após conclusão com ao menos um êxito — tipicamente sai do modo seleção. */
+  /** Todas as conversas do filtro atual (todas as páginas). */
+  allInFilter?: boolean;
+  filterTotal?: number;
+  tab?: string;
+  search?: string;
+  filters?: Record<string, unknown>;
+  onQueued?: (operationId: string, total: number, unassign: boolean) => void;
   onDone?: () => void;
 }
 
@@ -39,6 +43,12 @@ export function BulkReassignPopover({
   conversationIds,
   disabled,
   disabledReason,
+  allInFilter,
+  filterTotal,
+  tab,
+  search,
+  filters,
+  onQueued,
   onDone,
 }: BulkReassignPopoverProps) {
   const { open, rect, triggerRef, popoverRef, toggle, close } =
@@ -58,24 +68,47 @@ export function BulkReassignPopover({
   }, [users, filter]);
 
   async function handleSelect(userId: string | null, assigneeName: string) {
-    if (conversationIds.length === 0 || bulkAssign.isPending) return;
+    if (bulkAssign.isPending) return;
+    const count = allInFilter
+      ? (filterTotal ?? conversationIds.length)
+      : conversationIds.length;
+    if (!allInFilter && conversationIds.length === 0) return;
 
-    const count = conversationIds.length;
+    const unassign = userId === null;
     const confirmed = await confirm({
-      title: "Confirmar reatribuição",
-      description: `Reatribuir ${count} conversa${count === 1 ? "" : "s"} para ${assigneeName}?`,
-      confirmLabel: "Reatribuir",
+      title: unassign ? "Remover responsável" : "Confirmar reatribuição",
+      description: allInFilter
+        ? `${unassign ? "Remover o responsável de" : "Reatribuir"} ${count.toLocaleString("pt-BR")} conversa${count === 1 ? "" : "s"} do filtro atual${unassign ? "" : ` para ${assigneeName}`}? A ação roda em segundo plano.`
+        : `${unassign ? "Remover o responsável de" : "Reatribuir"} ${count} conversa${count === 1 ? "" : "s"}${unassign ? "" : ` para ${assigneeName}`}?`,
+      confirmLabel: unassign ? "Remover" : "Reatribuir",
     });
     if (!confirmed) return;
 
     close();
     bulkAssign.mutate(
-      { ids: conversationIds, assignedToId: userId },
+      allInFilter
+        ? {
+            ids: [],
+            assignedToId: userId,
+            allInFilter: true,
+            tab,
+            search,
+            filters,
+          }
+        : { ids: conversationIds, assignedToId: userId },
       {
         onSuccess: (result) => {
           setFilter("");
-          // Só sai do modo seleção se houve ao menos um êxito (paridade Encerrar/Reabrir).
-          if (result.succeeded > 0) onDone?.();
+          if (result.operationId) {
+            onQueued?.(
+              result.operationId,
+              result.total ?? count,
+              unassign,
+            );
+            onDone?.();
+            return;
+          }
+          onDone?.();
         },
         onError: () => setFilter(""),
       },
@@ -83,7 +116,10 @@ export function BulkReassignPopover({
   }
 
   const pos = computePopoverPosition(rect, 280, 320);
-  const busy = bulkAssign.isPending || disabled || conversationIds.length === 0;
+  const busy =
+    bulkAssign.isPending ||
+    disabled ||
+    (!allInFilter && conversationIds.length === 0);
 
   return (
     <>
@@ -123,8 +159,18 @@ export function BulkReassignPopover({
               className="z-(--z-popover) rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] p-2 shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
             >
               <p className="mb-1.5 px-1 text-[11px] text-[var(--text-muted)]">
-                Atribuir {conversationIds.length} conversa
-                {conversationIds.length > 1 ? "s" : ""} a…
+                Atribuir{" "}
+                {(allInFilter
+                  ? (filterTotal ?? conversationIds.length)
+                  : conversationIds.length
+                ).toLocaleString("pt-BR")}{" "}
+                conversa
+                {(allInFilter
+                  ? (filterTotal ?? conversationIds.length)
+                  : conversationIds.length) > 1
+                  ? "s"
+                  : ""}{" "}
+                a…
               </p>
               <input
                 autoFocus

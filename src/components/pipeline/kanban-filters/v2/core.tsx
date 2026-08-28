@@ -56,7 +56,7 @@ import type {
   SavedFilter,
   TagMode,
 } from "../types";
-import { countActiveFilters, isEmptyFilters, SOURCE_NONE } from "../types";
+import { countActiveFilters, countPanelFilters, isEmptyFilters, SOURCE_NONE } from "../types";
 
 // ─── Constantes ────────────────────────────────────────────────────────────────
 
@@ -1448,7 +1448,7 @@ export function FilterHeaderActions({
 }
 
 export function ActiveCountBadge({ draft }: { draft: AdvancedDealFilters }) {
-  const n = countActiveFilters(draft);
+  const n = countPanelFilters(draft);
   if (n === 0) return null;
   return (
     <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-white">
@@ -1457,4 +1457,4 @@ export function ActiveCountBadge({ draft }: { draft: AdvancedDealFilters }) {
   );
 }
 
-export { ChevronDown, countActiveFilters, isEmptyFilters };
+export { ChevronDown, countActiveFilters, countPanelFilters, isEmptyFilters };

@@ -6,16 +6,55 @@ import { cn } from "@/lib/utils";
 
 export type SortDir = "asc" | "desc" | null;
 
-/** Faixa de cabeçalho de colunas — referência: `/logs` (Feed).
- *  Default `grid`; passe a classe `flex` para tabelas com scroll-X (contatos). */
+/** Raio canônico de card de conteúdo (lista, KPI, empty). Não usar rounded-2xl. */
+export const CARD_RADIUS_CLASS = "rounded-xl";
+
+/** Superfície canônica (empty/error). Linha de lista: `LIST_CARD_ROW_CLASS`. */
+export const CARD_SURFACE_CLASS =
+  "rounded-xl border border-border bg-card";
+
+/** Container canônico de lista "card por linha". */
+export const LIST_CARD_STACK_CLASS = "flex flex-col gap-2.5";
+
+/**
+ * Pipes verticais entre colunas (referência: Empresas/Contatos).
+ * Pseudo-elemento no filho — não adiciona nós ao grid, então
+ * `grid-template-columns` das linhas continua alinhado.
+ */
+export const LIST_HEAD_PIPES_CLASS = [
+  "[&>*]:self-stretch",
+  "[&>:not(:last-child)]:relative",
+  "[&>:not(:last-child)]:after:pointer-events-none",
+  "[&>:not(:last-child)]:after:absolute",
+  "[&>:not(:last-child)]:after:top-1/2",
+  "[&>:not(:last-child)]:after:right-1",
+  "[&>:not(:last-child)]:after:z-[1]",
+  "[&>:not(:last-child)]:after:h-4",
+  "[&>:not(:last-child)]:after:w-px",
+  "[&>:not(:last-child)]:after:-translate-y-1/2",
+  "[&>:not(:last-child)]:after:bg-border",
+  "[&>:not(:last-child)]:after:content-['']",
+].join(" ");
+
+/** Cada linha da lista é um card independente. */
+export const LIST_CARD_ROW_CLASS =
+  "rounded-xl border border-border bg-card px-5 py-3.5 transition-colors hover:border-primary/30 hover:bg-secondary/40";
+
+/** Faixa de cabeçalho de colunas — padrão card por linha.
+ *  Default `grid`; passe a classe `flex` para tabelas com scroll-X (contatos).
+ *  Pipes entre colunas vêm de `LIST_HEAD_PIPES_CLASS`. */
 export function listTableHeadRowClass(className?: string) {
   const usesFlex = /(^|\s)flex(\s|$)/.test(className ?? "");
   return cn(
-    "items-center gap-3.5 rounded-[var(--radius-md)] border-b border-[var(--glass-border-subtle)] bg-[color-mix(in_srgb,var(--brand-primary)_7%,transparent)] px-3.5 py-2.5",
+    "items-center gap-4 px-5 text-muted-foreground",
+    LIST_HEAD_PIPES_CLASS,
     !usesFlex && "grid",
     className,
   );
 }
+
+/** Cabeçalho de colunas solto — sem borda, sem caixa alta. Pipes por padrão. */
+export const LIST_CARD_HEAD_CLASS = listTableHeadRowClass("hidden lg:grid");
 
 /** Rótulo estático de coluna (sem ordenação). Mesma tipografia do SortableHeader. */
 export function ListColumnLabel({
@@ -25,13 +64,14 @@ export function ListColumnLabel({
 }: {
   children: React.ReactNode;
   className?: string;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
 }) {
   return (
     <span
       className={cn(
-        "font-display text-[13px] font-semibold tracking-normal text-[var(--text-muted)]",
-        align === "right" && "block text-right",
+        "flex w-full min-w-0 items-center font-display text-[13px] font-semibold tracking-normal text-muted-foreground",
+        align === "right" && "justify-end text-right",
+        align === "center" && "justify-center text-center",
         className,
       )}
     >
@@ -49,8 +89,9 @@ interface SortableHeaderProps {
 }
 
 /**
- * Cabeçalho de coluna ordenável — padrão canônico de listas (referência: Logs).
+ * Cabeçalho de coluna ordenável — padrão canônico de listas (referência: Empresas).
  * Sentence case, 13px, ícones de sort; sem caixa alta.
+ * `w-full` para o pipe (::after do grid item) ficar na borda da coluna, não colado no texto.
  */
 export function SortableHeader({
   label,
@@ -64,22 +105,23 @@ export function SortableHeader({
       type="button"
       onClick={onSort}
       className={cn(
-        "group inline-flex cursor-pointer items-center gap-1 rounded-[var(--radius-sm)] px-1 py-0.5 font-display text-[13px] font-semibold tracking-normal transition-colors",
+        "group flex w-full min-w-0 cursor-pointer items-center gap-1 rounded-sm px-1 py-0.5 text-left font-display text-[13px] font-semibold tracking-normal transition-colors",
         sort
-          ? "text-[var(--brand-primary)]"
-          : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-        align === "right" && "flex-row-reverse justify-end",
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground",
+        align === "right" && "flex-row-reverse justify-end text-right",
         className,
       )}
       aria-label={`Ordenar por ${label}`}
+      aria-sort={sort === "asc" ? "ascending" : sort === "desc" ? "descending" : "none"}
     >
       {label}
       {sort === "asc" ? (
-        <IconChevronUp size={12} strokeWidth={2.5} />
+        <IconChevronUp size={12} strokeWidth={2.5} className="shrink-0" />
       ) : sort === "desc" ? (
-        <IconChevronDown size={12} strokeWidth={2.5} />
+        <IconChevronDown size={12} strokeWidth={2.5} className="shrink-0" />
       ) : (
-        <IconSelector size={12} className="opacity-50 group-hover:opacity-100" />
+        <IconSelector size={12} className="shrink-0 opacity-50 group-hover:opacity-100" />
       )}
     </button>
   );

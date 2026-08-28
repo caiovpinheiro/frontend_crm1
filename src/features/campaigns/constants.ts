@@ -49,6 +49,27 @@ export const TONE_CLASSES: Record<StatusTone, string> = {
     "border-[color-mix(in_srgb,var(--color-danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] text-[var(--color-danger-text)]",
 };
 
+/** Pills de status no DNA da lista (tokens, sem hex). */
+export const STATUS_CHIP_CLASS: Record<CampaignStatus, string> = {
+  DRAFT: "bg-secondary text-muted-foreground",
+  SCHEDULED: "bg-chip-violet-soft text-chip-violet",
+  PROCESSING: "bg-chip-blue-soft text-chip-blue",
+  SENDING: "bg-chip-blue-soft text-chip-blue",
+  PAUSED: "bg-warning-soft text-warning",
+  COMPLETED: "bg-success-soft text-success",
+  CANCELLED: "bg-secondary text-muted-foreground",
+  FAILED: "bg-chip-red-soft text-chip-red",
+};
+
+export const RECIPIENT_CHIP_CLASS: Record<RecipientStatus, string> = {
+  PENDING: "bg-secondary text-muted-foreground",
+  SENDING: "bg-chip-blue-soft text-chip-blue",
+  SENT: "bg-success-soft text-success",
+  DELIVERED: "bg-success-soft text-success",
+  READ: "bg-chip-blue-soft text-chip-blue",
+  FAILED: "bg-chip-red-soft text-chip-red",
+};
+
 export const CAMPAIGN_STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "", label: "Todas" },
   { value: "DRAFT", label: "Rascunho" },

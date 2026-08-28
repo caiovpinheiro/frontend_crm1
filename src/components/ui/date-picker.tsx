@@ -1,12 +1,17 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay, isSameMonth, isValid, parseISO, startOfMonth, startOfWeek, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { IconCalendar as CalendarDays, IconChevronLeft as ChevronLeft, IconChevronRight as ChevronRight } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { FILTER_FIELD_TRIGGER_CLASS } from "@/components/crm/dropdown-glass";
+import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
+
+/** Clique no calendário portado não deve fechar o Período (outro portal). */
+export const DATE_PICKER_PORTAL_SELECTOR = "[data-date-picker-portal]";
 
 type DatePickerProps = {
   value?: string | null;
@@ -33,7 +38,10 @@ export function DatePicker({
   disabled,
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const portalContainer = useModalPortalContainer();
+  const [coords, setCoords] = React.useState<{ top: number; left: number } | null>(null);
   const selectedDate = React.useMemo(() => parseValue(value), [value]);
   const [visibleMonth, setVisibleMonth] = React.useState<Date>(selectedDate ?? new Date());
 
@@ -47,26 +55,88 @@ export function DatePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+  const updateCoords = React.useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const r = trigger.getBoundingClientRect();
+    const panel = panelRef.current;
+    const ch = panel?.offsetHeight ?? 0;
+    const cw = panel?.offsetWidth ?? 280;
+    const margin = 8;
+    const vh = window.innerHeight;
+    const vw = document.documentElement.clientWidth;
+    const spaceBelow = vh - r.bottom;
+    const openUp = ch > 0 && spaceBelow < ch + margin && r.top > spaceBelow;
+    const top = openUp
+      ? Math.max(margin, r.top - ch - margin)
+      : Math.min(r.bottom + margin, Math.max(margin, vh - Math.max(ch, 1) - margin));
+    // Prefer `align="start"`; near the right edge flip to `align="end"` (PageActionsMenu).
+    let left = r.left;
+    if (left + cw + margin > vw) {
+      left = r.right - cw;
+    }
+    left = Math.min(Math.max(margin, left), Math.max(margin, vw - cw - margin));
+    setCoords((prev) =>
+      prev && prev.top === top && prev.left === left ? prev : { top, left },
+    );
   }, []);
+
+  React.useLayoutEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    updateCoords();
+    const raf = requestAnimationFrame(updateCoords);
+    const panel = panelRef.current;
+    const ro = panel ? new ResizeObserver(updateCoords) : null;
+    if (panel && ro) ro.observe(panel);
+    window.addEventListener("resize", updateCoords);
+    window.addEventListener("scroll", updateCoords, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
+      window.removeEventListener("resize", updateCoords);
+      window.removeEventListener("scroll", updateCoords, true);
+    };
+  }, [open, updateCoords]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      const t = event.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.stopImmediatePropagation();
+      setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [open]);
 
   const monthStart = startOfMonth(visibleMonth);
   const calendarStart = startOfWeek(monthStart, { locale: ptBR });
   const calendarEnd = endOfWeek(endOfMonth(visibleMonth), { locale: ptBR });
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
+  const portalRoot = portalContainer ?? (typeof document !== "undefined" ? document.body : null);
+
   return (
-    <div ref={ref} className={cn("relative", className)}>
+    <div className={cn("relative min-w-0", className)}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
         className={cn(
           FILTER_FIELD_TRIGGER_CLASS,
@@ -82,88 +152,103 @@ export function DatePicker({
         <CalendarDays className="size-3.5 shrink-0 text-current opacity-60" />
       </button>
 
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[280px] rounded-xl border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg,var(--glass-bg-modal,#fff))] p-3 shadow-[0_8px_28px_rgba(15,23,42,0.13)]">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
-              className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]"
-              aria-label="Mês anterior"
+      {open && portalRoot
+        ? createPortal(
+            <div
+              ref={panelRef}
+              data-date-picker-portal=""
+              role="dialog"
+              aria-label="Calendário"
+              style={{
+                position: "fixed",
+                top: coords?.top ?? 0,
+                left: coords?.left ?? 0,
+                visibility: coords ? "visible" : "hidden",
+              }}
+              className="z-(--z-radix) w-[17.5rem] overflow-visible rounded-xl border border-border bg-card p-3 text-foreground shadow-lg"
             >
-              <ChevronLeft className="size-4" />
-            </button>
-            <div className="font-display text-sm font-semibold capitalize text-[var(--text-primary)]">
-              {format(visibleMonth, "MMMM yyyy", { locale: ptBR })}
-            </div>
-            <button
-              type="button"
-              onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
-              className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]"
-              aria-label="Próximo mês"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-
-          <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-[var(--color-ink-muted)]">
-            {["D", "S", "T", "Q", "Q", "S", "S"].map((day, index) => (
-              <span key={`${day}-${index}`}>{day}</span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((day) => {
-              const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
-              const inMonth = isSameMonth(day, visibleMonth);
-
-              return (
+              <div className="mb-3 flex items-center justify-between gap-2">
                 <button
-                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
+                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                  aria-label="Mês anterior"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                <div className="font-display text-sm font-semibold capitalize text-foreground">
+                  {format(visibleMonth, "MMMM yyyy", { locale: ptBR })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
+                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                  aria-label="Próximo mês"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+
+              <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-muted-foreground">
+                {["D", "S", "T", "Q", "Q", "S", "S"].map((day, index) => (
+                  <span key={`${day}-${index}`}>{day}</span>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-1">
+                {days.map((day) => {
+                  const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
+                  const inMonth = isSameMonth(day, visibleMonth);
+
+                  return (
+                    <button
+                      key={day.toISOString()}
+                      type="button"
+                      onClick={() => {
+                        onChange(format(day, "yyyy-MM-dd"));
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "flex h-8 items-center justify-center rounded-lg text-xs font-medium transition",
+                        isSelected && "bg-primary text-primary-foreground shadow-sm",
+                        !isSelected && inMonth && "text-foreground hover:bg-primary/10 hover:text-primary",
+                        !inMonth && "text-muted-foreground opacity-40 hover:bg-primary/10",
+                      )}
+                    >
+                      {format(day, "d")}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <button
                   type="button"
                   onClick={() => {
-                    onChange(format(day, "yyyy-MM-dd"));
+                    onChange("");
                     setOpen(false);
                   }}
-                  className={cn(
-                    "flex h-8 items-center justify-center rounded-lg text-xs font-medium transition",
-                    isSelected && "bg-[var(--brand-primary)] text-white shadow-sm",
-                    !isSelected && inMonth && "text-[var(--text-primary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
-                    !inMonth && "text-[var(--text-muted)] opacity-40 hover:bg-[var(--color-primary-soft)]",
-                  )}
+                  className="text-xs font-medium text-muted-foreground transition hover:text-foreground"
                 >
-                  {format(day, "d")}
+                  Limpar
                 </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                onChange("");
-                setOpen(false);
-              }}
-              className="text-xs font-medium text-[var(--text-muted)] transition hover:text-foreground"
-            >
-              Limpar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const today = new Date();
-                onChange(format(today, "yyyy-MM-dd"));
-                setVisibleMonth(today);
-                setOpen(false);
-              }}
-              className="text-xs font-medium text-[var(--text-primary)] transition hover:text-foreground"
-            >
-              Hoje
-            </button>
-          </div>
-        </div>
-      ) : null}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = new Date();
+                    onChange(format(today, "yyyy-MM-dd"));
+                    setVisibleMonth(today);
+                    setOpen(false);
+                  }}
+                  className="text-xs font-medium text-foreground transition hover:text-primary"
+                >
+                  Hoje
+                </button>
+              </div>
+            </div>,
+            portalRoot,
+          )
+        : null}
     </div>
   );
 }

@@ -1,13 +1,13 @@
 import { forwardRef } from "react";
-import type { IconProps } from "@tabler/icons-react";
+import type { LucideProps } from "lucide-react";
 
 /**
  * Ícone da Central de Widgets.
  * A geometria segue o grid modular com adição e herda os estados do CRM.
  */
-export const WidgetsIcon = forwardRef<SVGSVGElement, IconProps>(
+export const WidgetsIcon = forwardRef<SVGSVGElement, LucideProps>(
   function WidgetsIcon(
-    { color = "currentColor", size = 24, stroke = 2, title, ...props },
+    { color = "currentColor", size = 24, strokeWidth = 2, ...props },
     ref,
   ) {
     return (
@@ -19,14 +19,13 @@ export const WidgetsIcon = forwardRef<SVGSVGElement, IconProps>(
         viewBox="0 0 24 24"
         fill="none"
         stroke={color}
-        strokeWidth={stroke}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
-        role={title ? "img" : undefined}
-        aria-hidden={title ? undefined : true}
+        role="img"
+        aria-hidden
         {...props}
       >
-        {title ? <title>{title}</title> : null}
         <g fill={color} fillOpacity="0.08">
           <rect x="2.75" y="2.75" width="7.5" height="7.5" rx="1.8" />
           <rect x="2.75" y="13.75" width="7.5" height="7.5" rx="1.8" />

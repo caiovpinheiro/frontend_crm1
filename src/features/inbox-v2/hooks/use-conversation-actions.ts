@@ -297,75 +297,43 @@ export function useBulkConversationAction() {
 }
 
 /**
- * Reatribuir em massa — o POST /api/conversations/bulk NÃO implementa `assign`.
- * Usa o endpoint individual (`POST /api/conversations/:id/actions` action=assign)
- * com Promise.allSettled e reporta êxitos/falhas.
+ * Reatribuir / remover responsável em massa via POST /api/conversations/bulk.
+ * O worker processa o lote; a UI acompanha pelo `operationId`.
  */
 export function useBulkAssignConversations() {
   const qc = useQueryClient();
   return useMutation<
-    { succeeded: number; failed: number; total: number; errors: string[] },
+    Awaited<ReturnType<typeof postBulkAction>>,
     Error,
-    { ids: string[]; assignedToId: string | null }
+    {
+      ids: string[];
+      assignedToId: string | null;
+      allInFilter?: boolean;
+      tab?: string;
+      search?: string;
+      filters?: Record<string, unknown>;
+    }
   >({
-    mutationFn: async (vars) => {
-      const results = await Promise.allSettled(
-        vars.ids.map((id) =>
-          postConversationAction(id, {
-            action: "assign",
-            assignedToId: vars.assignedToId,
-          }),
-        ),
-      );
-      const succeeded = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.length - succeeded;
-      const errors = results.flatMap((result) =>
-        result.status === "rejected"
-          ? [
-              result.reason instanceof Error
-                ? result.reason.message
-                : "Erro de rede ao reatribuir conversa",
-            ]
-          : [],
-      );
-      if (succeeded === 0 && failed > 0) {
-        throw new Error(errors[0] ?? "Falha ao reatribuir conversas");
-      }
-      return { succeeded, failed, total: results.length, errors };
-    },
-    onSuccess: (result, vars) => {
+    mutationFn: (vars) =>
+      postBulkAction(
+        vars.ids,
+        "assign",
+        vars.allInFilter
+          ? {
+              allInFilter: true,
+              assignedToId: vars.assignedToId,
+              tab: vars.tab,
+              search: vars.search,
+              filters: vars.filters,
+            }
+          : { assignedToId: vars.assignedToId },
+      ),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
       qc.invalidateQueries({ queryKey: ["conversations"] });
       qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
-      qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
-      qc.invalidateQueries({ queryKey: ["activity-feed"] });
-      for (const id of vars.ids) {
-        qc.invalidateQueries({ queryKey: messagesKey(id) });
-        qc.invalidateQueries({ queryKey: ["conversation-timeline", id] });
-      }
-
-      const verb =
-        vars.assignedToId === null ? "desatribuída" : "reatribuída";
-      const verbPlural =
-        vars.assignedToId === null ? "desatribuídas" : "reatribuídas";
-
-      if (result.failed === 0) {
-        toast.success(
-          `${result.succeeded} conversa${result.succeeded > 1 ? "s" : ""} ${
-            result.succeeded > 1 ? verbPlural : verb
-          }`,
-        );
-      } else if (result.succeeded === 0) {
-        toast.error(
-          `Falha ao reatribuir ${result.failed} conversa${result.failed > 1 ? "s" : ""}.`,
-        );
-      } else {
-        toast.warning(
-          `${result.succeeded} reatribuída(s), ${result.failed} falharam: ${
-            result.errors[0] ?? "erro desconhecido"
-          }`,
-        );
-      }
+      qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
+      qc.invalidateQueries({ queryKey: ["distribution-pending"] });
     },
     onError: (err) => toast.error(err.message || "Falha ao reatribuir"),
   });

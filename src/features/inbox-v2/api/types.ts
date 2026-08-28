@@ -176,6 +176,14 @@ export interface InboxFilters {
   windowState?: "open" | "closed";
   /** Direção da última mensagem, aplicada client-side na lista do Inbox. */
   lastMessageDirection?: "in" | "out";
+  /** YYYY-MM-DD — última mensagem (`lastMessageAt` ?? `lastInboundAt`). Client-side. */
+  lastMessageFrom?: string;
+  lastMessageTo?: string;
+  /** YYYY-MM-DD — `createdAt` da conversa. Client-side. */
+  createdFrom?: string;
+  createdTo?: string;
+  /** Recorte extra do Painel (AND com a aba). */
+  painelException?: "no_reply" | "open_24h" | "unassigned" | "send_failure";
 }
 
 /** Normaliza filtros legados (`ownerId`/`stageId`) para arrays multi. */
@@ -214,6 +222,10 @@ export function hasInboxServerFilters(
     sortBy: _sb,
     sortOrder: _so,
     lastMessageDirection: _lmd,
+    lastMessageFrom: _lmf,
+    lastMessageTo: _lmt,
+    createdFrom: _cf,
+    createdTo: _ct,
     ...server
   } = n;
   return (
@@ -226,7 +238,8 @@ export function hasInboxServerFilters(
     (server.sources?.length ?? 0) > 0 ||
     server.sessionExpiresWithinHours != null ||
     server.windowState === "open" ||
-    server.windowState === "closed"
+    server.windowState === "closed" ||
+    Boolean(server.painelException)
   );
 }
 
