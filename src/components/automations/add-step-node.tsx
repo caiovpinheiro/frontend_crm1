@@ -70,7 +70,7 @@ export const stepDescription: Record<string, string> = {
   send_whatsapp_media: "Envia imagem, video ou documento.",
   send_whatsapp_interactive: "Envia botoes interativos para o contato escolher.",
   send_whatsapp_list: "Envia um menu em lista (ate 10 opcoes) pelo WhatsApp.",
-  send_whatsapp_flow: "Envia um formulario WhatsApp Flow para o contato preencher.",
+  send_whatsapp_flow: "Encaminha um formulário WhatsApp FLOW para o contato preencher.",
   send_product: "Envia um produto do catalogo com texto e parametros personalizaveis.",
   webhook: "Dispara uma chamada HTTP para um sistema externo.",
   delay: "Aguarda um intervalo de tempo antes do proximo passo.",

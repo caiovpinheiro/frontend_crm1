@@ -109,7 +109,7 @@ export const blockMeta: Record<string, BlockMeta> = {
   "wa-template": def("Template WhatsApp", IconFileText, "green", "whatsapp"),
   "wa-media": def("Mídia WhatsApp", IconPhoto, "green", "whatsapp"),
   "wa-buttons": def("Botões WhatsApp", IconClick, "violet", "whatsapp"),
-  "wa-flow": def("Formulário WhatsApp", IconClipboardList, "violet", "whatsapp"),
+  "wa-flow": def("Formulário FLOW", IconClipboardList, "violet", "whatsapp"),
 
   // Integrações
   webhook: def("Webhook", IconWorld, "slate", "integration"),
