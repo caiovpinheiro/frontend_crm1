@@ -296,6 +296,10 @@ export function useDashboardFilters(
         pipelineIds,
         pipelineId: pipelineIds[0],
         userIds: next.userIds ?? [],
+        stageIds: next.stageIds ?? [],
+        tagIds: next.tagIds ?? [],
+        ownerIds: next.ownerIds ?? [],
+        sources: next.sources ?? [],
       };
       setOptimistic(normalized);
       if (keyPart) writeJson(scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart), normalized);
@@ -308,6 +312,20 @@ export function useDashboardFilters(
     },
     [keyPart, pathname, pipelines, router, searchParams],
   );
+
+  useEffect(() => {
+    if (!pipelines?.length || !filters.pipelineIds.length) return;
+    const valid = filters.pipelineIds.filter((id) =>
+      pipelines.some((p) => p.id === id),
+    );
+    if (valid.length === filters.pipelineIds.length) return;
+    setFilters({
+      ...filters,
+      pipelineIds: valid,
+      pipelineId: valid[0],
+      stageIds: valid.length ? filters.stageIds : [],
+    });
+  }, [pipelines, filters.pipelineIds, filters.stageIds, setFilters]);
 
   useEffect(() => {
     if (!ready || !keyPart || !userId || restoredRef.current) return;

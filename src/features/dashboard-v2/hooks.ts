@@ -68,22 +68,66 @@ export function useDashboard(
   });
 }
 
+const DEAL_LIVE_SECTIONS = [
+  "kpis",
+  "funnel",
+  "evolution",
+  "agents",
+  "sources",
+  "exceptions",
+] as const;
+
+function emptyDealsResult(): PainelDealsResult {
+  return {
+    kpis: { ok: false, error: "omitido" },
+    funnel: { ok: false, error: "omitido" },
+    evolution: { ok: false, error: "omitido" },
+    agents: { ok: false, error: "omitido" },
+    sources: { ok: false, error: "omitido" },
+    exceptions: { ok: false, error: "omitido" },
+  };
+}
+
 export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
   const queryClient = useQueryClient();
   const queryKey = ["painel", "deals", filters] as const;
   const query = useQuery<PainelDealsResult>({
     queryKey,
-    queryFn: () => fetchPainelDeals(filters),
+    queryFn: async () => {
+      const parts = await Promise.all(
+        DEAL_LIVE_SECTIONS.map(async (section) => {
+          try {
+            return await fetchPainelDeals(filters, section);
+          } catch (e) {
+            const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
+            return { [section]: { ok: false, error } } as Partial<PainelDealsResult>;
+          }
+        }),
+      );
+      return parts.reduce<PainelDealsResult>(
+        (acc, part) => ({ ...acc, ...pickDefined(part as PainelDealsResult) }),
+        emptyDealsResult(),
+      );
+    },
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
   });
 
   async function retrySection(section: string) {
-    const next = await fetchPainelDeals(filters, section);
-    queryClient.setQueryData<PainelDealsResult>(queryKey, (old) =>
-      old ? { ...old, ...pickDefined(next) } : next,
-    );
+    try {
+      const next = await fetchPainelDeals(filters, section);
+      queryClient.setQueryData<PainelDealsResult>(queryKey, (old) =>
+        old ? { ...old, ...pickDefined(next) } : next,
+      );
+    } catch (e) {
+      const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
+      queryClient.setQueryData<PainelDealsResult>(queryKey, (old) =>
+        old
+          ? { ...old, [section]: { ok: false, error } }
+          : { ...emptyDealsResult(), [section]: { ok: false, error } },
+      );
+    }
   }
 
   return { ...query, retrySection };

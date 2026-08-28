@@ -2,7 +2,7 @@
  * Cliente do Painel (GET /api/painel/deals e /api/painel/service).
  */
 
-import { apiUrl } from "@/lib/api";
+import { apiUrl, parseApiResponse } from "@/lib/api";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 
 import type { DashboardFiltersState } from "./api";
@@ -264,45 +264,38 @@ export type PainelServiceResult = {
 };
 
 async function getJson<T>(path: string, errLabel: string): Promise<T> {
-  const res = await fetch(apiUrl(path));
-  const text = await res.text();
-  if (!res.ok) {
-    let message = errLabel;
-    try {
-      const parsed = JSON.parse(text) as { message?: unknown };
-      if (typeof parsed?.message === "string") message = parsed.message;
-    } catch {
-      /* corpo não-JSON */
-    }
-    throw new Error(message);
-  }
-  if (!text.trim()) {
-    throw new Error("Sessão expirada ou backend indisponível. Recarregue e faça login novamente.");
-  }
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error("Sessão não reconhecida pelo backend. Recarregue e faça login novamente.");
-  }
+  const res = await fetch(apiUrl(path), { credentials: "include", cache: "no-store" });
+  return parseApiResponse<T>(res, errLabel);
+}
+
+function asIdList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+    : [];
 }
 
 function filterQuery(filters: DashboardFiltersState, fieldIds?: string[]): URLSearchParams {
   const sp = new URLSearchParams();
-  sp.set("period", filters.period);
+  sp.set("period", filters.period ?? "last_30");
   if (filters.period === "custom" && filters.startDate && filters.endDate) {
     sp.set("startDate", filters.startDate);
     sp.set("endDate", filters.endDate);
   }
-  const pipelineIds = filters.pipelineIds?.length
-    ? filters.pipelineIds
+  const storedPipelineIds = asIdList(filters.pipelineIds);
+  const pipelineIds = storedPipelineIds.length
+    ? storedPipelineIds
     : filters.pipelineId
       ? [filters.pipelineId]
       : [];
   if (pipelineIds.length) sp.set("pipelineIds", pipelineIds.join(","));
-  if (filters.stageIds.length) sp.set("stages", filters.stageIds.join(","));
-  if (filters.tagIds.length) sp.set("tags", filters.tagIds.join(","));
-  if (filters.ownerIds.length) sp.set("owners", filters.ownerIds.join(","));
-  if (filters.sources.length) sp.set("sources", filters.sources.join(","));
+  const stageIds = asIdList(filters.stageIds);
+  const tagIds = asIdList(filters.tagIds);
+  const ownerIds = asIdList(filters.ownerIds);
+  const sources = asIdList(filters.sources);
+  if (stageIds.length) sp.set("stages", stageIds.join(","));
+  if (tagIds.length) sp.set("tags", tagIds.join(","));
+  if (ownerIds.length) sp.set("owners", ownerIds.join(","));
+  if (sources.length) sp.set("sources", sources.join(","));
   if (fieldIds?.length) sp.set("fieldIds", fieldIds.join(","));
   return sp;
 }
