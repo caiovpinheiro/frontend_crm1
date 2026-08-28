@@ -32,7 +32,9 @@ export function useMessages(conversationId: string | null) {
     queryFn: () => getMessages(conversationId as string, { history: true }),
     enabled: !!conversationId,
     staleTime: 20_000,
-    refetchInterval: 45_000,
+    // SSE invalida na hora em new_message da conversa ativa; o poll é só
+    // safety-net. 90s (era 45s) — ver storm de 28/ago/26.
+    refetchInterval: 90_000,
     refetchOnWindowFocus: false,
   });
 }

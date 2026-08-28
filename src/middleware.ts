@@ -225,9 +225,26 @@ async function verifyTenantSlugExists(
 
   try {
     const url = `${apiBase}/api/organization/by-slug?slug=${encodeURIComponent(slug)}`;
+    // Repassa o IP real do cliente na chamada server-side. Sem isso o
+    // backend via o IP interno do container do frontend e o rate-limit
+    // (`auth.public`, por IP) agrupava TODOS os usuários num único balde
+    // — sob rajada, todo mundo tomava 429 junto (28/ago/26).
+    // Usa o ÚLTIMO hop do XFF recebido (o que o proxy anexou = peer TCP
+    // real); entradas anteriores do header podem ser forjadas pelo cliente.
+    const inboundXff = req.headers.get("x-forwarded-for");
+    const clientIp = inboundXff
+      ?.split(",")
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .pop();
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (clientIp) {
+      headers["x-forwarded-for"] = clientIp;
+      headers["x-real-ip"] = clientIp;
+    }
     const res = await fetch(url, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers,
       cache: "no-store",
     });
     if (res.status === 404) return "missing";
