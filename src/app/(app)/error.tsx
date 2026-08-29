@@ -17,10 +17,16 @@ export default function AppError({
     if (reloadOnceForStaleChunk(error)) return;
     if (isStaleChunkError(error)) return;
     try {
-      const key = "crm-app-error-autoreset";
-      const last = Number(sessionStorage.getItem(key) || 0);
-      if (Date.now() - last < 8_000) return;
-      sessionStorage.setItem(key, String(Date.now()));
+      // Sempre tenta `reset()` (1º F5 some o card). Só para se o mesmo
+      // erro voltar em loop no mesmo load — a janela de 8s fazia o
+      // 2º F5 / hard refresh mostrar "Algo deu errado" à toa.
+      const now = Date.now();
+      const started = Number(sessionStorage.getItem("crm-app-error-burst") || 0);
+      const count = Number(sessionStorage.getItem("crm-app-error-count") || 0);
+      const burst = now - started < 2_000 ? count : 0;
+      if (burst >= 2) return;
+      sessionStorage.setItem("crm-app-error-burst", String(burst === 0 ? now : started));
+      sessionStorage.setItem("crm-app-error-count", String(burst + 1));
     } catch {
       /* storage bloqueado — tenta o reset mesmo assim */
     }
