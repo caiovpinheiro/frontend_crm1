@@ -142,6 +142,78 @@ function documentLabel(content: string): string {
   return c || "Documento"
 }
 
+function mediaFileLabel(content: string, fallback: string): string {
+  if (content && !isPlaceholderContent(content)) {
+    const named = documentLabel(content)
+    if (named && named !== "Documento") return named
+  }
+  return fallback
+}
+
+/** Card compacto no lugar de preview preto/quebrado (vídeo/imagem). */
+function MediaFallback({
+  kind,
+  isOutgoing,
+  label,
+  href,
+}: {
+  kind: "image" | "video" | "document"
+  isOutgoing: boolean
+  label: string
+  href?: string | null
+}) {
+  const Icon = kind === "video" ? IconPlayerPlay : IconFile
+  const body = (
+    <>
+      <div
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)]",
+          isOutgoing ? "bg-[var(--glass-bg-subtle)]" : "bg-[var(--brand-primary)]/10",
+        )}
+      >
+        <Icon
+          size={18}
+          className={cn(
+            kind === "video" && "translate-x-px",
+            isOutgoing ? "text-white" : "text-[var(--brand-primary)]",
+          )}
+        />
+      </div>
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate font-body text-[12.5px] font-medium",
+          isOutgoing ? "text-white" : "text-[var(--text-primary)]",
+        )}
+      >
+        {label}
+      </span>
+      {href ? (
+        <IconDownload
+          size={15}
+          className={cn("shrink-0", isOutgoing ? "text-white/70" : "text-[var(--text-muted)]")}
+        />
+      ) : null}
+    </>
+  )
+  const cls = cn(
+    "flex min-w-[200px] max-w-[280px] items-center gap-2.5 rounded-[var(--radius-md)] px-3 py-2",
+    isOutgoing ? "bg-[var(--glass-bg-subtle)]" : "bg-[var(--glass-bg-strong)]",
+  )
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(cls, "transition-colors", isOutgoing ? "hover:bg-[var(--glass-bg)]" : "hover:bg-[var(--glass-bg-overlay)]")}
+      >
+        {body}
+      </a>
+    )
+  }
+  return <div className={cls}>{body}</div>
+}
+
 export interface FormField {
   label: string
   value: string
@@ -894,6 +966,7 @@ function MessageContent({
       <ImageMedia
         url={url}
         caption={caption}
+        fileLabel={mediaFileLabel(content, "Imagem")}
         isOutgoing={isOutgoing}
         metaReserve={metaReserve}
       />
@@ -903,17 +976,13 @@ function MessageContent({
   // ── Vídeo ──────────────────────────────────────────────────────
   if (kind === "video" && url) {
     return (
-      <div className="flex flex-col gap-1.5">
-        <video
-          controls
-          preload="none"
-          src={url}
-          className="max-h-[320px] w-full min-w-[220px] rounded-[var(--radius-md)] bg-black"
-        />
-        {caption && (
-          <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
-        )}
-      </div>
+      <VideoMedia
+        url={url}
+        caption={caption}
+        fileLabel={mediaFileLabel(content, "Vídeo")}
+        isOutgoing={isOutgoing}
+        metaReserve={metaReserve}
+      />
     )
   }
 
@@ -950,18 +1019,19 @@ function MessageContent({
 
   // ── Mídia sem URL (download falhou) — placeholder amigável ──────
   if (kind && !url) {
-    const labels: Record<string, string> = {
+    const labels: Record<Exclude<MediaKind, null>, string> = {
       image: "Imagem indisponível",
       video: "Vídeo indisponível",
       document: "Documento indisponível",
+      audio: "Áudio indisponível",
     }
+    const cardKind = kind === "audio" ? "document" : kind
     return (
-      <span className={cn(
-        "font-body text-[12px] italic",
-        isOutgoing ? "text-white/70" : "text-[var(--text-muted)]",
-      )}>
-        {labels[kind] ?? "Mídia indisponível"}
-      </span>
+      <MediaFallback
+        kind={cardKind}
+        isOutgoing={isOutgoing}
+        label={mediaFileLabel(content, labels[kind])}
+      />
     )
   }
 
@@ -998,15 +1068,28 @@ function MessageContent({
 function ImageMedia({
   url,
   caption,
+  fileLabel,
   isOutgoing,
   metaReserve,
 }: {
   url: string
   caption: string
+  fileLabel: string
   isOutgoing: boolean
   metaReserve?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const [failed, setFailed] = useState(false)
+  if (failed) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <MediaFallback kind="image" isOutgoing={isOutgoing} label={fileLabel} href={url} />
+        {caption && (
+          <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
+        )}
+      </div>
+    )
+  }
   return (
     <>
       <div className="flex flex-col gap-1.5">
@@ -1022,6 +1105,7 @@ function ImageMedia({
             alt={caption || "Imagem recebida"}
             className="max-h-[320px] w-auto max-w-full rounded-[var(--radius-md)] object-cover transition-opacity group-hover:opacity-[0.97]"
             loading="lazy"
+            onError={() => setFailed(true)}
           />
         </button>
         {caption && (
@@ -1030,6 +1114,47 @@ function ImageMedia({
       </div>
       <ImageLightbox src={url} alt={caption} open={open} onOpenChange={setOpen} />
     </>
+  )
+}
+
+function VideoMedia({
+  url,
+  caption,
+  fileLabel,
+  isOutgoing,
+  metaReserve,
+}: {
+  url: string
+  caption: string
+  fileLabel: string
+  isOutgoing: boolean
+  metaReserve?: ReactNode
+}) {
+  const [status, setStatus] = useState<"pending" | "ready" | "error">("pending")
+  const showPlayer = status === "ready"
+  return (
+    <div className="flex flex-col gap-1.5">
+      {!showPlayer ? (
+        <MediaFallback kind="video" isOutgoing={isOutgoing} label={fileLabel} href={url} />
+      ) : null}
+      {status !== "error" ? (
+        <video
+          controls={showPlayer}
+          preload="metadata"
+          src={url}
+          onError={() => setStatus("error")}
+          onLoadedMetadata={() => setStatus("ready")}
+          className={
+            showPlayer
+              ? "max-h-[320px] w-full min-w-[220px] rounded-[var(--radius-md)] bg-[var(--glass-bg-strong)]"
+              : "h-0 w-0 overflow-hidden opacity-0"
+          }
+        />
+      ) : null}
+      {caption && (
+        <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
+      )}
+    </div>
   )
 }
 

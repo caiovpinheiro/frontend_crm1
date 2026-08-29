@@ -3,14 +3,15 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 
+import { BWIPO_MARK_SRC } from "@/components/bwipo/bwipo-logo";
 import { cn } from "@/lib/utils";
 
 /**
  * Estado de carregamento ÚNICO do app.
  *
- * Marca "b" estática + arco circular (estilo Hostinger). Só o anel gira
- * (sempre horário — inverter depois do hydrate deslocava o primeiro paint).
- * O loader não imita o layout de destino.
+ * Mesma marca do NavRail (`BWIPO_MARK_SRC`) + arco circular. Só o anel
+ * gira (sempre horário — inverter depois do hydrate deslocava o primeiro
+ * paint). O loader não imita o layout de destino.
  *
  * Segurança: nunca fica girando pra sempre. Passado `timeoutMs` sem o
  * conteúdo assumir, troca para um estado de erro explícito com ação de
@@ -64,7 +65,7 @@ function BrandMark({ spinning }: { spinning: boolean }) {
       >
         <svg viewBox="0 0 80 80" className="size-full">
           <defs>
-            {/* Cyan → royal → magenta da fita 3D; gira com o SVG. */}
+            {/* Cyan → royal → magenta da marca; gira com o SVG. */}
             <linearGradient
               id={gradId}
               x1="40"
@@ -93,7 +94,7 @@ function BrandMark({ spinning }: { spinning: boolean }) {
       </span>
       {/* A marca não gira — só o anel. Caixa reservada = tamanho final. */}
       <img
-        src="/brand/bwipo-mark.png"
+        src={BWIPO_MARK_SRC}
         alt=""
         width={MARK_IMG_PX}
         height={MARK_IMG_PX}

@@ -865,7 +865,14 @@ export function useDealChatBinding(params: {
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]">
         <StickyDayPill date={stickyDayLabel} />
-        <div className="min-h-0 flex-1" aria-hidden />
+        {hasOlder && !olderArmed && !isFetchingOlder ? (
+          <p
+            className="pointer-events-none shrink-0 pb-1 pt-8 text-center text-[11px] font-medium text-muted-foreground"
+            role="status"
+          >
+            ↑ Role para ver mensagens anteriores
+          </p>
+        ) : null}
         <ul className="flex list-none flex-col gap-0.5">
           {olderArmed && isFetchingOlder && (
             <li className="flex list-none justify-center py-2" aria-hidden>
