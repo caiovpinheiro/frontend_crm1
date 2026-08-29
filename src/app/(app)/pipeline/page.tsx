@@ -7,7 +7,6 @@
 import { Suspense } from "react";
 
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
-import { RouteLoading } from "@/components/crm/page-loading";
 
 import { PipelineEntryClient } from "./_entry-client";
 
@@ -15,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default function V2PipelinePage() {
   return (
-    <Suspense fallback={<RouteLoading />}>
+    <Suspense fallback={null}>
       <PipelineEntryClient navRail={<NavRailSpacer />} />
     </Suspense>
   );

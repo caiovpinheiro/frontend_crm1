@@ -16,8 +16,9 @@ export function PanelLoading() {
 }
 
 /**
- * Fallback de navegação do route group `(app)`: centro da área de
- * conteúdo, abaixo do shell/nav. Não é overlay de viewport.
+ * Gate sem chrome da página (ex.: redirect do /pipeline).
+ * Centro do main, abaixo da NavRail. Não usar junto com AppLoading
+ * da lista — um loader por paint.
  */
 export function RouteLoading() {
   return (

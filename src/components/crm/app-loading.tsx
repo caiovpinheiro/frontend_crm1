@@ -47,8 +47,8 @@ export type AppLoadingProps = {
 };
 
 const MARK_SIZE = {
-  default: { box: 54, img: 32 },
-  sm: { box: 54, img: 32 },
+  default: { box: 54 },
+  sm: { box: 54 },
 } as const;
 
 function BrandMark({
@@ -60,7 +60,7 @@ function BrandMark({
 }) {
   const reactId = React.useId().replace(/:/g, "");
   const gradId = `brand-loader-ring-${reactId}`;
-  const { box: boxPx, img: imgPx } = MARK_SIZE[size];
+  const { box: boxPx } = MARK_SIZE[size];
 
   return (
     <span
@@ -104,20 +104,16 @@ function BrandMark({
           />
         </svg>
       </span>
-      {/* A marca não gira — só o anel. Caixa reservada = tamanho final. */}
+      {/* 32px explícito no atributo e no style — sem w-full / h-auto. */}
       <img
         src={BWIPO_MARK_LOADER_SRC}
         alt=""
-        width={imgPx}
-        height={imgPx}
+        width={32}
+        height={32}
         draggable={false}
-        className="relative h-8 w-8 shrink-0 object-contain"
-        style={{
-          width: imgPx,
-          height: imgPx,
-          maxWidth: imgPx,
-          maxHeight: imgPx,
-        }}
+        decoding="async"
+        className="relative shrink-0"
+        style={{ width: 32, height: 32, maxWidth: 32, maxHeight: 32 }}
       />
     </span>
   );
@@ -224,9 +220,7 @@ export function AppLoading({
 const SCREEN_LOADER_ATTR = "data-app-loading-screen";
 
 /**
- * Overlay no `document.body` (fora do `.v2-root { zoom }` e do grid da
- * página). Sem isso, `fixed` dentro de `.v2-screen` centra no miolo —
- * e o `(app)/loading.tsx` centra na viewport: dois "b" ao mesmo tempo.
+ * Overlay no `document.body` (fora do `.v2-root { zoom }` e do grid).
  * Se dois overlays existirem, só o primeiro no DOM fica visível.
  */
 function ScreenOverlay({
