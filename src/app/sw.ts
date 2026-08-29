@@ -33,6 +33,24 @@ declare const self: ServiceWorkerGlobalScope & {
   __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
 };
 
+function isSseRequest(pathname: string, request?: Request): boolean {
+  if (pathname.startsWith("/api/sse")) return true;
+  return Boolean(request?.headers.get("accept")?.includes("text/event-stream"));
+}
+
+/** EventSource quebra se o SW chama `respondWith` — nem NetworkOnly. */
+function skipSse<T extends { matcher: unknown }>(rule: T): T {
+  const orig = rule.matcher;
+  if (typeof orig !== "function") return rule;
+  return {
+    ...rule,
+    matcher: (options: { request?: Request; url: URL }) => {
+      if (isSseRequest(options.url.pathname, options.request)) return false;
+      return orig(options);
+    },
+  };
+}
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
@@ -49,18 +67,22 @@ const serwist = new Serwist({
     //  2. Se a API passa de 10s (deploy, incidente), o worker serve dado
     //     de até 24h atrás em silêncio, em vez de deixar o erro aparecer.
     //
-    // Também é o que mantém o SSE fora do cache: `/api/sse/messages` é GET
-    // same-origin e caía naquela regra — e `Cache.put()` de um corpo em
-    // streaming espera o stream terminar, o que num SSE nunca acontece.
+    // SSE (`/api/sse/*`) fica de fora de TODAS as regras: `respondWith`
+    // aborta o EventSource (net::ERR_ABORTED / ERR_FAILED), mesmo com
+    // NetworkOnly. Sem match, o browser fala com a rede direto.
     {
-      matcher: ({ sameOrigin, url: { pathname } }) =>
-        sameOrigin && pathname.startsWith("/api/"),
+      matcher: ({ sameOrigin, request, url: { pathname } }) =>
+        sameOrigin &&
+        pathname.startsWith("/api/") &&
+        !isSseRequest(pathname, request),
       method: "GET",
       handler: new NetworkOnly(),
     },
     {
-      matcher: ({ sameOrigin, url: { pathname } }) =>
-        sameOrigin && pathname.startsWith("/api/"),
+      matcher: ({ sameOrigin, request, url: { pathname } }) =>
+        sameOrigin &&
+        pathname.startsWith("/api/") &&
+        !isSseRequest(pathname, request),
       method: "POST",
       handler: new NetworkOnly(),
     },
@@ -75,20 +97,25 @@ const serwist = new Serwist({
       method: "POST",
       handler: new NetworkOnly(),
     },
-    ...defaultCache,
+    ...defaultCache.map(skipSse),
   ],
 });
 
 serwist.addEventListeners();
 
 /**
- * Apaga a cache "apis" deixada pelas versões anteriores deste worker.
- * Enquanto o defaultCache tratava /api/ com NetworkFirst, respostas
- * autenticadas foram gravadas em disco com validade de 24h — mudar a regra
- * não remove o que já está lá.
+ * Apaga caches deixadas pelas versões anteriores deste worker.
+ * "apis": NetworkFirst de /api/ (24h) — dado autenticado no disco.
+ * RSC: payload de rota com hash de chunk velho → ChunkLoadError após deploy.
  */
 self.addEventListener("activate", (event: ExtendableEvent) => {
-  event.waitUntil(caches.delete("apis"));
+  event.waitUntil(
+    Promise.all([
+      caches.delete("apis"),
+      caches.delete("pages-rsc"),
+      caches.delete("pages-rsc-prefetch"),
+    ]),
+  );
 });
 
 // ─────────────────────────────────────────────────────────────────

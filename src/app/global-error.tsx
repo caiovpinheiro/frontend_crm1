@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
+
+import { isStaleChunkError, reloadOnceForStaleChunk } from "@/lib/stale-chunk-error";
+
 export default function GlobalError({
   error,
   reset,
@@ -7,6 +11,12 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    reloadOnceForStaleChunk(error);
+  }, [error]);
+
+  const stale = isStaleChunkError(error);
+
   return (
     <html lang="pt-BR">
       <body className="flex min-h-dvh items-center justify-center bg-[var(--color-bg-subtle)] p-6">
@@ -18,7 +28,9 @@ export default function GlobalError({
           </div>
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">Algo deu errado</h2>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Ocorreu um erro inesperado. Tente recarregar a página.
+            {stale
+              ? "Uma atualização do app ficou incompleta. Recarregue para continuar."
+              : "Ocorreu um erro inesperado. Tente recarregar a página."}
           </p>
           {error.digest && (
             <p className="mt-2 font-mono text-xs text-[var(--color-ink-muted)]">
@@ -27,10 +39,10 @@ export default function GlobalError({
           )}
           <button
             type="button"
-            onClick={reset}
+            onClick={() => (stale ? window.location.reload() : reset())}
             className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[var(--glass-bg-modal)] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--glass-bg-base)]"
           >
-            Tentar novamente
+            {stale ? "Recarregar" : "Tentar novamente"}
           </button>
         </div>
       </body>
