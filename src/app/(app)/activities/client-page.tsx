@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
+import { toast } from "sonner"
 import { AppLoading } from "@/components/crm/app-loading"
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer"
 import { ActivityCalendar } from "@/components/crm/activities/activity-calendar"
@@ -22,11 +23,23 @@ import {
   type ActivityKind,
 } from "@/lib/activities-data"
 import { PageHeader } from "@/components/crm/page-header"
+import { ButtonGlass } from "@/components/crm/button-glass"
+import { InputGlass } from "@/components/crm/input-glass"
+import {
+  FormDialog,
+  FormDialogIcon,
+  formControlClass,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+  formLabelClass,
+} from "@/components/ui/form-dialog"
+import { useConfirm } from "@/components/ui/confirm-dialog"
 import {
   PagePrimaryButton,
   PageSegmentedControl,
 } from "@/components/crm/page-toolbar"
 import { cn } from "@/lib/utils"
+import { Calendar } from "lucide-react"
 import { IconCalendarEvent, IconPlus, IconX } from "@tabler/icons-react"
 import {
   useAllActivities,
@@ -61,7 +74,10 @@ const PANEL =
   "rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow)] backdrop-blur-md"
 
 const isOverdue = (a: Activity) =>
-  a.status === "pendente" && new Date(a.start).getTime() < Date.now()
+  a.status === "pendente" &&
+  Boolean(a.start) &&
+  !Number.isNaN(new Date(a.start).getTime()) &&
+  new Date(a.start).getTime() < Date.now()
 
 function RightColumn({
   items,
@@ -87,6 +103,10 @@ export default function V2ActivitiesClientPage() {
   const [composerOpen, setComposerOpen] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [detailActivity, setDetailActivity] = useState<Activity | null>(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState<Activity | null>(null)
+  const [rescheduleDate, setRescheduleDate] = useState("")
+  const [rescheduleTime, setRescheduleTime] = useState("09:00")
+  const { confirm, dialog: confirmDialog } = useConfirm()
 
   const activitiesQuery = useAllActivities({ scope: scopeFilter })
   const createMutation = useCreateActivity()
@@ -96,7 +116,7 @@ export default function V2ActivitiesClientPage() {
   const realDtos = activitiesQuery.data?.items ?? []
 
   const items: Activity[] = useMemo(
-    () => realDtos.map(dtoToActivity).filter((a) => a.start),
+    () => realDtos.map(dtoToActivity),
     [realDtos],
   )
 
@@ -152,7 +172,77 @@ export default function V2ActivitiesClientPage() {
     })
   }
 
-  const remove = (id: string) => deleteMutation.mutate(id)
+  const remove = async (id: string) => {
+    const ok = await confirm({
+      title: "Excluir tarefa?",
+      description: "A tarefa some da agenda. Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    })
+    if (!ok) return
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        setDetailActivity((cur) => (cur?.id === id ? null : cur))
+        toast.success("Tarefa excluída.")
+      },
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao excluir."),
+    })
+  }
+
+  const openReschedule = (a: Activity) => {
+    const start = a.start || `${dateKey(new Date())}T09:00`
+    setRescheduleDate(start.slice(0, 10))
+    setRescheduleTime(start.slice(11, 16) || "09:00")
+    setDetailActivity(null)
+    setRescheduleTarget(a)
+  }
+
+  const saveReschedule = () => {
+    if (!rescheduleTarget || !rescheduleDate) return
+    const local = `${rescheduleDate}T${rescheduleTime || "09:00"}`
+    updateMutation.mutate(
+      { id: rescheduleTarget.id, payload: { scheduledAt: localDateTimeToIso(local) } },
+      {
+        onSuccess: () => {
+          setSelectedDate(new Date(local))
+          setViewDate(new Date(local))
+          setRescheduleTarget(null)
+          setDetailActivity(null)
+          toast.success("Compromisso remarcado.")
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao remarcar."),
+      },
+    )
+  }
+
+  const cancelAppointment = async (a: Activity) => {
+    const ok = await confirm({
+      title: "Cancelar compromisso?",
+      description: "O compromisso fica concluído como cancelado e sai da agenda pendente.",
+      confirmLabel: "Cancelar compromisso",
+      destructive: true,
+    })
+    if (!ok) return
+    const stamp = new Date().toLocaleString("pt-BR")
+    const note = [a.notes, `Cancelado em ${stamp}`].filter(Boolean).join("\n")
+    updateMutation.mutate(
+      {
+        id: a.id,
+        payload: {
+          completed: true,
+          completedAt: new Date().toISOString(),
+          description: note,
+        },
+      },
+      {
+        onSuccess: () => {
+          setDetailActivity(null)
+          toast.success("Compromisso cancelado.")
+        },
+        onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao cancelar."),
+      },
+    )
+  }
 
   const markAllDone = () => {
     const nowIso = new Date().toISOString()
@@ -512,6 +602,8 @@ export default function V2ActivitiesClientPage() {
                       overdue={isOverdue(a)}
                       onToggle={toggle}
                       onDelete={remove}
+                      onReschedule={openReschedule}
+                      onCancel={cancelAppointment}
                       onOpenDetails={setDetailActivity}
                     />
                   ))
@@ -552,7 +644,65 @@ export default function V2ActivitiesClientPage() {
         }}
         activityId={detailActivity?.id ?? null}
         activity={detailActivity}
+        onReschedule={openReschedule}
+        onCancel={cancelAppointment}
+        onDelete={(a) => void remove(a.id)}
       />
+
+      <FormDialog
+        open={Boolean(rescheduleTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRescheduleTarget(null)
+        }}
+        title="Remarcar"
+        description="Escolha a nova data e horário do compromisso."
+        icon={
+          <FormDialogIcon>
+            <Calendar className="size-4" />
+          </FormDialogIcon>
+        }
+        size="sm"
+        busy={updateMutation.isPending}
+        footer={
+          <>
+            <ButtonGlass
+              type="button"
+              variant="glass"
+              className={formDialogCancelClass}
+              disabled={updateMutation.isPending}
+              onClick={() => setRescheduleTarget(null)}
+            >
+              Cancelar
+            </ButtonGlass>
+            <ButtonGlass
+              type="button"
+              variant="primary"
+              className={formDialogPrimaryClass}
+              disabled={!rescheduleDate || updateMutation.isPending}
+              onClick={saveReschedule}
+            >
+              {updateMutation.isPending ? "Salvando…" : "Salvar"}
+            </ButtonGlass>
+          </>
+        }
+      >
+        <span className={formLabelClass}>Data *</span>
+        <InputGlass
+          type="date"
+          className={formControlClass}
+          value={rescheduleDate}
+          onChange={(e) => setRescheduleDate(e.target.value)}
+        />
+        <span className={cn(formLabelClass, "mt-3")}>Horário</span>
+        <InputGlass
+          type="time"
+          className={formControlClass}
+          value={rescheduleTime}
+          onChange={(e) => setRescheduleTime(e.target.value)}
+        />
+      </FormDialog>
+
+      {confirmDialog}
     </div>
   )
 }

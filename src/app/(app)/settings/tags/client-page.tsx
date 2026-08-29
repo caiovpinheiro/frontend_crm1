@@ -29,6 +29,7 @@ import {
   type SettingsFilterGroup,
 } from "@/components/crm/settings-filter-bar";
 import {
+  LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
   listTableHeadRowClass,
@@ -74,7 +75,7 @@ const TAG_COLORS = [
 ];
 
 /** Grid: [check] | Nome | Deals | Contatos | Uso total | Ações */
-const LIST_GRID = "32px minmax(0,1fr) 80px 90px 90px 84px";
+const LIST_GRID = "32px minmax(0,1fr) 80px 90px 90px max-content";
 
 // ─────────────────────────────────────────────────────────────────
 // API helpers
@@ -538,7 +539,7 @@ function TagsPage() {
                 </span>
 
                 {/* Ações */}
-                <div className="flex items-center justify-end gap-1">
+                <div className={LIST_ACTIONS_CELL_CLASS}>
                   <button
                     type="button"
                     onClick={() => setEditingTag(tag)}

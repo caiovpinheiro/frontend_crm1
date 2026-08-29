@@ -23,6 +23,7 @@ import { MobileTableScroll } from "@/components/crm/mobile-table-scroll";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import {
+  LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
   listTableHeadRowClass,
@@ -76,7 +77,7 @@ const KIND_ICON: Record<ProductKind, React.ReactNode> = {
 };
 
 /** Grid da linha: [check] Produto | Preço | Tipo | Status | Ações. */
-const LIST_GRID = "32px minmax(0,1fr) 130px 120px 110px 84px";
+const LIST_GRID = "32px minmax(0,1fr) 130px 120px 110px max-content";
 
 type SortField = "name" | "price" | "kind" | "status";
 
@@ -434,7 +435,7 @@ export function ProductsV2Page() {
                 </span>
               </span>
 
-              <div className="flex items-center justify-end gap-1">
+              <div className={LIST_ACTIONS_CELL_CLASS}>
                 <button
                   type="button"
                   onClick={() => openEdit(p.id)}

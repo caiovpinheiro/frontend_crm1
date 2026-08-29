@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 /** Marca canônica do produto (loader, /rely). Não é logo de tenant. */
 export const BWIPO_MARK_SRC = "/bwipo-icon.png"
 /** PNG 64px, só o B, alpha 0. Query quebra cache do tile navy. */
-export const BWIPO_MARK_LOADER_SRC = `${BWIPO_MARK_SRC}?v=33`
+export const BWIPO_MARK_LOADER_SRC = `${BWIPO_MARK_SRC}?v=41`
 
 /** Marca do produto. Sempre com px inline — `next/image` usa width:100%
  *  e, sem CSS (F5), o PNG intrínseco (centenas de px) vira o “B fantasma”. */

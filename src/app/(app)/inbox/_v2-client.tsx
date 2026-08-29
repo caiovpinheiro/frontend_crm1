@@ -818,6 +818,7 @@ export default function InboxV2ClientPage({
           const skipped = Array.isArray(result?.skipped)
             ? result.skipped.length
             : 0;
+          const closed = result?.updated ?? 0;
           setBulkTabulationOpen(false);
           setBulkConfirmOpen(false);
           pendingBulkRef.current = null;
@@ -837,6 +838,20 @@ export default function InboxV2ClientPage({
                 { id: `inbox-bulk-resolve-${result.operationId}` },
               );
             }
+            exitSelectionMode();
+            return;
+          }
+          if (closed > 0) {
+            if (skipped > 0) {
+              toast.warning(
+                `${closed} encerrada(s). ${skipped} exigem tabulação e não foram encerradas — encerre individualmente.`,
+              );
+            } else {
+              toast.success(
+                `${closed} conversa${closed > 1 ? "s" : ""} encerrada${closed > 1 ? "s" : ""}`,
+              );
+            }
+            void refreshInboxQueue();
             exitSelectionMode();
             return;
           }
@@ -991,8 +1006,8 @@ export default function InboxV2ClientPage({
         );
       }
     }
-    qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-    qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+    void qc.refetchQueries({ queryKey: ["inbox-conversations"] });
+    void qc.refetchQueries({ queryKey: ["conversations", "tab-counts"] });
     qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
     qc.invalidateQueries({ queryKey: ["distribution-pending"] });
     setBulkOpId(null);

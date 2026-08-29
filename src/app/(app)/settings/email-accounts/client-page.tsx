@@ -23,6 +23,7 @@ import { KpiStrip } from "@/components/crm/kpi-strip";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import {
+  LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
   listTableHeadRowClass,
@@ -49,8 +50,8 @@ import { SETTINGS_HUB_BACK, SettingsV2Shell, useSettingsHeaderSlots } from "../_
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const TABS = ["Contas", "Regras de filtro"] as const;
-const ACCOUNTS_GRID = "minmax(0,1.8fr) 160px 110px 140px 72px";
-const RULES_GRID = "minmax(0,1.4fr) 60px minmax(0,1fr) 150px 64px 72px";
+const ACCOUNTS_GRID = "minmax(0,1.8fr) 160px 110px 140px max-content";
+const RULES_GRID = "minmax(0,1.4fr) 60px minmax(0,1fr) 150px 64px max-content";
 
 const FIELD_LABELS: Record<EmailRuleField, string> = {
   FROM: "Enviado de",
@@ -413,7 +414,7 @@ function AccountsList({
                 {relativeDate(acc.lastSyncedAt)}
               </span>
 
-              <div className="flex items-center justify-end gap-1">
+              <div className={LIST_ACTIONS_CELL_CLASS}>
                 <button
                   type="button"
                   onClick={() => void handleSync(acc.id)}

@@ -122,7 +122,7 @@ export function dateKey(d: Date): string {
 }
 
 /** Extrai a chave de data (YYYY-MM-DD) de um ISO de atividade. */
-export const activityDateKey = (a: Activity) => a.start.slice(0, 10)
+export const activityDateKey = (a: Activity) => (a.start || "").slice(0, 10)
 
 /** HH:mm de um ISO de atividade. */
 export const activityTime = (a: Activity) => a.start.slice(11, 16)

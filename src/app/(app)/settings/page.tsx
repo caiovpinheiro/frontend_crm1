@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+import { RouteLoading } from "@/components/crm/page-loading";
 import { useIsMobile } from "@/hooks/use-media-query";
 
 /**
@@ -19,5 +20,6 @@ export default function SettingsPageV2() {
     router.replace("/settings/profile");
   }, [isMobile, router]);
 
-  return null;
+  if (isMobile) return null;
+  return <RouteLoading />;
 }

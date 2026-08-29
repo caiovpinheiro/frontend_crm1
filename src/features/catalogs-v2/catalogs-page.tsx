@@ -21,6 +21,7 @@ import { KpiCard } from "@/components/crm/kpi-card";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import {
+  LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
   listTableHeadRowClass,
@@ -46,7 +47,7 @@ import { useCatalogs, useSaveAsTemplate } from "./hooks";
 import type { CatalogView } from "./types";
 
 /** Grid: [check] Nome | Produtos | Capacidades | Ações */
-const LIST_GRID = "32px minmax(0,1fr) 80px minmax(0,180px) 108px";
+const LIST_GRID = "32px minmax(0,1fr) 80px minmax(0,180px) max-content";
 
 type SortField = "name" | "products" | "capabilities";
 
@@ -472,7 +473,7 @@ export function CatalogsManager() {
                 </div>
 
                 {/* Ações: editar / salvar-template / excluir */}
-                <div className="flex items-center justify-end gap-1">
+                <div className={LIST_ACTIONS_CELL_CLASS}>
                   <button
                     type="button"
                     onClick={() => setEditing(cat)}

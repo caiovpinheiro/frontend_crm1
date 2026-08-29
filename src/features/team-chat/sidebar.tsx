@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MoreVertical, Search, SquarePen, Star } from "lucide-react";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
+import { AppLoading } from "@/components/crm/app-loading";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { cn } from "@/lib/utils";
 
@@ -333,7 +334,7 @@ export function Sidebar({
 
       <nav className="chat-scroll min-h-0 flex-1 overflow-y-auto border-t border-black/[0.04] py-1 dark:border-white/[0.06]" aria-label="Conversas">
         {loading ? (
-          <p className="px-4 pt-10 text-center text-sm text-muted-foreground">Carregando o time…</p>
+          <AppLoading variant="inline" className="min-h-[200px]" />
         ) : error ? (
           <p className="px-4 pt-10 text-center text-sm text-destructive">{error}</p>
         ) : visible.length === 0 ? (

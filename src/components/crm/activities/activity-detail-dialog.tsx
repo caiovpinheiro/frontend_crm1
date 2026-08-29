@@ -10,6 +10,8 @@ import {
   IconChevronDown,
   IconExternalLink,
   IconLoader2,
+  IconBan,
+  IconCalendarEvent,
   IconPencil,
   IconTrash,
   IconX,
@@ -47,6 +49,9 @@ export interface ActivityDetailDialogProps {
   activityId: string | null
   /** Dados mínimos do cabeçalho (lista local). Enriquecidos via GET se disponível. */
   activity?: Activity | null
+  onReschedule?: (activity: Activity) => void
+  onCancel?: (activity: Activity) => void
+  onDelete?: (activity: Activity) => void
 }
 
 function formatDateTime(iso: string): string {
@@ -69,11 +74,16 @@ const REVISION_LABEL: Record<ActivityCommentRevisionAction, string> = {
   DELETED: "Excluiu",
 }
 
+const APPOINTMENT_KINDS = new Set<Activity["kind"]>(["reuniao", "evento", "ligacao"])
+
 export function ActivityDetailDialog({
   open,
   onOpenChange,
   activityId,
   activity: activityProp,
+  onReschedule,
+  onCancel,
+  onDelete,
 }: ActivityDetailDialogProps) {
   const { data: session } = useSession()
   const currentUserId = session?.user?.id ?? null
@@ -509,6 +519,46 @@ export function ActivityDetailDialog({
               </section>
               )}
             </div>
+
+            {activity && (onReschedule || onCancel || onDelete) && (
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--glass-border-subtle)] px-5 py-3">
+                {onReschedule && activity.status !== "concluida" && (
+                  <ButtonGlass
+                    type="button"
+                    variant="glass"
+                    className="h-9 rounded-full px-3 text-[12px]"
+                    onClick={() => onReschedule(activity)}
+                  >
+                    <IconCalendarEvent size={14} />
+                    Remarcar
+                  </ButtonGlass>
+                )}
+                {onCancel &&
+                  activity.status !== "concluida" &&
+                  APPOINTMENT_KINDS.has(activity.kind) && (
+                    <ButtonGlass
+                      type="button"
+                      variant="glass"
+                      className="h-9 rounded-full px-3 text-[12px]"
+                      onClick={() => onCancel(activity)}
+                    >
+                      <IconBan size={14} />
+                      Cancelar
+                    </ButtonGlass>
+                  )}
+                {onDelete && (
+                  <ButtonGlass
+                    type="button"
+                    variant="glass"
+                    className="h-9 rounded-full px-3 text-[12px] text-destructive"
+                    onClick={() => onDelete(activity)}
+                  >
+                    <IconTrash size={14} />
+                    Excluir
+                  </ButtonGlass>
+                )}
+              </div>
+            )}
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
