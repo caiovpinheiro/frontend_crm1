@@ -28,6 +28,8 @@ export function messagesKey(conversationId: string | null | undefined) {
 
 /** Últimas mensagens do ticket. Histórico sobe no scroll (`fetchOlder`). */
 const MESSAGE_PAGE = 40;
+/** Fatia de tickets anteriores por gesto de scroll — nunca o dump de 8×40. */
+const HISTORY_PAGE = 25;
 
 function isTicketSeparator(m: InboxMessageDto) {
   return m.messageType === "ticket-separator" || String(m.id).startsWith("__ticket_sep_");
@@ -103,7 +105,7 @@ function mergeHistory(
     messages: [...incoming, ...prev.messages],
     hasMore: false,
     hasOlderTickets: hist.hasOlderTickets === true,
-    historyLoaded: true,
+    historyLoaded: hist.hasOlderTickets !== true,
   };
 }
 
@@ -127,51 +129,37 @@ export function useMessages(conversationId: string | null) {
     refetchOnWindowFocus: false,
   });
 
-  const fetchOlder = useCallback(async (opts?: { fill?: boolean }) => {
+  const fetchOlder = useCallback(async () => {
     if (!conversationId || fetchingOlderRef.current) return;
     const cur = qc.getQueryData<MessagesResponse>(messagesKey(conversationId));
     if (!cur) return;
-    const fill = opts?.fill === true;
     const cursor = oldestCursor(cur.messages);
     const canPage = cur.hasMore === true && Boolean(cursor);
-    // Não depende do probe `hasOlderTickets` (some em ticket sem channel
-    // ou backend antigo). Sem página nova, tenta history=1 uma vez.
     const canHistory =
-      !canPage &&
-      (!cur.historyLoaded || cur.hasOlderTickets === true);
+      !canPage && (!cur.historyLoaded || cur.hasOlderTickets === true);
     if (!canPage && !canHistory) return;
-    // Preencher a tela: no máximo um history enxuto. O resto é scroll-up.
-    if (fill && !canPage && cur.historyLoaded) return;
 
     fetchingOlderRef.current = true;
     setIsFetchingOlder(true);
-    const pullHistory = async (light: boolean) => {
-      const hist = await getMessages(
-        conversationId,
-        light
-          ? { history: true, limit: 28, budget: 28 }
-          : { history: true },
-      );
-      qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
-        mergeHistory(old, hist),
-      );
-    };
     try {
       if (canPage && cursor) {
         const page = await getMessages(conversationId, {
           before: cursor,
           limit: MESSAGE_PAGE,
         });
-        const existing = new Set(cur.messages.map((m) => String(m.id)));
-        const added = page.messages.filter((m) => !existing.has(String(m.id))).length;
         qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
           mergeOlder(old, page),
         );
-        if (added === 0 && !cur.historyLoaded) {
-          await pullHistory(fill);
-        }
       } else {
-        await pullHistory(fill);
+        const hist = await getMessages(conversationId, {
+          history: true,
+          before: cursor ?? undefined,
+          limit: HISTORY_PAGE,
+          budget: HISTORY_PAGE,
+        });
+        qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
+          mergeHistory(old, hist),
+        );
       }
     } catch {
       // Mantém a página já pintada. Próximo scroll-up tenta de novo.
