@@ -376,8 +376,8 @@ export function ChatArea({
   const prevScrollHeightRef = useRef(0)
   const onLoadOlderRef = useRef(onLoadOlder)
   onLoadOlderRef.current = onLoadOlder
-  // history=1 só depois de pin no fim. Sem isto o sentinela (topo) intersecta
-  // no 1º paint e dispara o GET pesado — painel fica branco esperando.
+  // Só true após wheel/touch UP do operador. Open/prefetch nunca arma —
+  // ticket curto deixa scrollTop=0 e isso virava loop de histórico.
   const [olderArmed, setOlderArmed] = useState(false)
 
   // Esconde o botão só quando o operador está no fim; mostra sempre que
@@ -395,12 +395,19 @@ export function ChatArea({
     return () => container.removeEventListener("scroll", onScroll)
   }, [])
 
-  // Troca de conversa: vai ao fim depois do layout. Não usa o 1º id da
-  // lista — refetch com history=1 muda o primeiro item e parecia "switch".
-  useEffect(() => {
+  // Troca de conversa: pin no fim. NUNCA arma older aqui — scrollTop fica 0
+  // quando o ticket cabe na viewport, e isso virava loop de histórico.
+  useLayoutEffect(() => {
     const switched = convKeyRef.current !== convKey
     convKeyRef.current = convKey
-    if (switched) setOlderArmed(false)
+    if (switched) {
+      setOlderArmed(false)
+      stickToBottomRef.current = true
+      setShowScrollDown(false)
+      setUnreadCount(0)
+      prevFirstIdRef.current = null
+      prevLastIdRef.current = null
+    }
     if (!switched && prevLastIdRef.current != null) return
     stickToBottomRef.current = true
     setShowScrollDown(false)
@@ -409,12 +416,11 @@ export function ChatArea({
     prevLastIdRef.current = messages[messages.length - 1]?.id ?? null
     const container = messagesRef.current
     if (!container) return
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        container.scrollTop = container.scrollHeight
-        if (messages.length > 0) setOlderArmed(true)
-      })
-    })
+    const pin = () => {
+      container.scrollTop = container.scrollHeight - container.clientHeight
+    }
+    pin()
+    requestAnimationFrame(pin)
   }, [convKey, messages])
 
   // Append no fim: gruda se o operador já estava no rodapé (ou mandou
@@ -449,8 +455,8 @@ export function ChatArea({
     }
   }, [messages])
 
-  // Prepend (histórico): mantém o ponto de leitura. Sem isto, carregar
-  // acima empurra a lista e o clique/scroll parece "pular pro topo".
+  // Prepend: prefetch (olderArmed ainda false) re-pina embaixo DEPOIS do
+  // merge. Gesto do operador preserva o ponto de leitura.
   useLayoutEffect(() => {
     const container = messagesRef.current
     if (!container) return
@@ -461,29 +467,34 @@ export function ChatArea({
       firstId !== prevFirstIdRef.current &&
       lastId === prevLastIdRef.current
     if (prepended) {
-      container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
+      if (!olderArmed) {
+        const pin = () => {
+          container.scrollTop = container.scrollHeight - container.clientHeight
+        }
+        pin()
+        requestAnimationFrame(pin)
+      } else {
+        container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
+      }
     }
     prevScrollHeightRef.current = container.scrollHeight
-  }, [messages])
+  }, [messages, olderArmed])
 
   const canLoadOlder = hasOlder || hasOlderTickets
   useEffect(() => {
-    if (!canLoadOlder || isLoadingOlder || !olderArmed) return
+    if (!canLoadOlder || isLoadingOlder) return
     const root = messagesRef.current
     if (!root) return
 
-    const load = () => {
+    // Um gesto = uma fatia. scrollTop≈0 no open/prefetch NÃO conta.
+    const loadFromGesture = () => {
+      setOlderArmed(true)
       stickToBottomRef.current = false
       onLoadOlderRef.current?.()
     }
 
-    // Só o gesto do operador. Pin no fim e sentinela visível não disparam.
     const onWheel = (e: WheelEvent) => {
-      if (e.deltaY < 0 && root.scrollTop <= 0) load()
-    }
-    const onScroll = () => {
-      if (stickToBottomRef.current) return
-      if (root.scrollTop <= 48) onLoadOlderRef.current?.()
+      if (e.deltaY < 0 && root.scrollTop <= 0) loadFromGesture()
     }
     const onTouch = (() => {
       let startY = 0
@@ -493,22 +504,20 @@ export function ChatArea({
         },
         move: (e: TouchEvent) => {
           const y = e.touches[0]?.clientY ?? 0
-          if (y - startY > 24 && root.scrollTop <= 0) load()
+          if (y - startY > 24 && root.scrollTop <= 0) loadFromGesture()
         },
       }
     })()
     root.addEventListener("wheel", onWheel, { passive: true })
-    root.addEventListener("scroll", onScroll, { passive: true })
     root.addEventListener("touchstart", onTouch.start, { passive: true })
     root.addEventListener("touchmove", onTouch.move, { passive: true })
 
     return () => {
       root.removeEventListener("wheel", onWheel)
-      root.removeEventListener("scroll", onScroll)
       root.removeEventListener("touchstart", onTouch.start)
       root.removeEventListener("touchmove", onTouch.move)
     }
-  }, [canLoadOlder, isLoadingOlder, olderArmed])
+  }, [canLoadOlder, isLoadingOlder])
 
   const { hideEvents } = useHideChatEvents()
 
@@ -673,7 +682,11 @@ export function ChatArea({
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
       <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
-        <StickyDayPill date={stickyDayLabel} loading={isLoadingOlder} paused={!olderArmed} />
+        <StickyDayPill
+          date={stickyDayLabel}
+          loading={isLoadingOlder && olderArmed}
+          paused={!olderArmed}
+        />
         {messagesLoading ? (
           <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
         ) : messagesError ? (
@@ -690,7 +703,7 @@ export function ChatArea({
         <>
         <div className="min-h-0 flex-1" aria-hidden />
         <ul className="flex list-none flex-col gap-0.5">
-        {canLoadOlder && olderArmed && !isLoadingOlder && (
+        {canLoadOlder && !isLoadingOlder && (
           <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
             ↑ Role para ver mensagens anteriores
           </li>

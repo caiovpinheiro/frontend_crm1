@@ -101,6 +101,16 @@ function mergeHistory(
   if (!prev) return { ...hist, hasMore: false, hasOlderTickets: false, historyLoaded: true };
   const existing = new Set(prev.messages.map((m) => String(m.id)));
   const incoming = hist.messages.filter((m) => !existing.has(String(m.id)));
+  // Prefetch/gesto vazio: encerra. Sem isto hasOlder fica true e o
+  // spinner "Carregando histórico…" não larga.
+  if (incoming.length === 0) {
+    return {
+      ...prev,
+      hasMore: false,
+      hasOlderTickets: false,
+      historyLoaded: true,
+    };
+  }
   return {
     ...prev,
     messages: [...incoming, ...prev.messages],
@@ -113,6 +123,8 @@ function mergeHistory(
 export function useMessages(conversationId: string | null) {
   const qc = useQueryClient();
   const fetchingOlderRef = useRef(false);
+  const conversationIdRef = useRef(conversationId);
+  conversationIdRef.current = conversationId;
   const [isFetchingOlder, setIsFetchingOlder] = useState(false);
 
   const query = useQuery<MessagesResponse>({
@@ -142,6 +154,7 @@ export function useMessages(conversationId: string | null) {
       cur.hasOlderTickets === true;
     if (!canPage && !canHistory) return;
 
+    const forId = conversationId;
     fetchingOlderRef.current = true;
     setIsFetchingOlder(true);
     try {
@@ -154,8 +167,8 @@ export function useMessages(conversationId: string | null) {
           mergeOlder(old, page),
         );
       } else {
-        // 1ª fatia de history sem `before` — o cursor do ticket atual
-        // filtrava tickets anteriores e a API voltava []. Depois pagina.
+        // 1ª fatia sem `before` — o cursor do ticket atual fazia a API
+        // filtrar createdAt e devolver []. Backend devolve 1 ticket.
         const alreadyHasHistory = cur.messages.some(isTicketSeparator);
         const hist = await getMessages(conversationId, {
           history: true,
@@ -170,8 +183,10 @@ export function useMessages(conversationId: string | null) {
     } catch {
       // Mantém a página já pintada. Próximo scroll-up tenta de novo.
     } finally {
-      fetchingOlderRef.current = false;
-      setIsFetchingOlder(false);
+      if (forId === conversationIdRef.current) {
+        fetchingOlderRef.current = false;
+        setIsFetchingOlder(false);
+      }
     }
   }, [conversationId, qc]);
 
@@ -179,10 +194,12 @@ export function useMessages(conversationId: string | null) {
   // 1ª página (`!hasMore`). Sem loop de fill: scroll-up pede o resto.
   const prefetchedHistoryForRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!conversationId) {
-      prefetchedHistoryForRef.current = null;
-      return;
-    }
+    fetchingOlderRef.current = false;
+    setIsFetchingOlder(false);
+    if (!conversationId) prefetchedHistoryForRef.current = null;
+  }, [conversationId]);
+  useEffect(() => {
+    if (!conversationId) return;
     const cur = query.data;
     if (!cur) return;
     if (cur.hasMore === true) return;

@@ -429,10 +429,13 @@ export function useDealChatBinding(params: {
     setOlderArmed(false);
   }, [effectiveConversationId]);
   useEffect(() => {
-    if (!hasOlder || isFetchingOlder || !olderArmed) return;
+    if (!hasOlder || isFetchingOlder) return;
     const el = findScrollEl();
     if (!el) return;
-    const load = () => void fetchOlderRef.current();
+    const load = () => {
+      setOlderArmed(true);
+      void fetchOlderRef.current();
+    };
     const onWheel = (e: WheelEvent) => {
       if (e.deltaY < 0 && el.scrollTop <= 0) load();
     };
@@ -452,7 +455,7 @@ export function useDealChatBinding(params: {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
     };
-  }, [findScrollEl, hasOlder, isFetchingOlder, olderArmed]);
+  }, [findScrollEl, hasOlder, isFetchingOlder]);
 
   const prevFirstIdRef = useRef<string | null>(null);
   const prevLastIdRef = useRef<string | null>(null);
@@ -467,10 +470,14 @@ export function useDealChatBinding(params: {
       firstId !== prevFirstIdRef.current &&
       lastId === prevLastIdRef.current;
     if (prepended) {
-      el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+      if (!olderArmed) {
+        el.scrollTop = el.scrollHeight - el.clientHeight;
+      } else {
+        el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+      }
     }
     prevScrollHeightRef.current = el.scrollHeight;
-  }, [bubbles, findScrollEl]);
+  }, [bubbles, findScrollEl, olderArmed]);
   useEffect(() => {
     const el = findScrollEl();
     const firstId = bubbles[0]?.id ?? null;
@@ -490,7 +497,6 @@ export function useDealChatBinding(params: {
         requestAnimationFrame(() => {
           const e = findScrollEl();
           if (e) e.scrollTop = e.scrollHeight;
-          if (bubbles.length > 0) setOlderArmed(true);
         }),
       );
       setShowScrollDown(false);
@@ -831,10 +837,10 @@ export function useDealChatBinding(params: {
     });
     messagesNode = (
       <div className="flex min-h-full flex-col">
-        <StickyDayPill date={stickyDayLabel} loading={isFetchingOlder} paused={!olderArmed} />
+        <StickyDayPill date={stickyDayLabel} loading={isFetchingOlder && olderArmed} paused={!olderArmed} />
         <div className="min-h-0 flex-1" aria-hidden />
         <ul className="flex list-none flex-col gap-0.5">
-          {hasOlder && olderArmed && !isFetchingOlder && (
+          {hasOlder && !isFetchingOlder && (
             <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
               ↑ Role para ver mensagens anteriores
             </li>
