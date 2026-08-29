@@ -1,11 +1,17 @@
-import { AppLoading } from "@/components/crm/app-loading";
-
 /**
- * Fallback de Suspense do route group `(app)` — um único loading para TODAS
- * as rotas. Sem ramificação por path (antes o header `x-pathname` escolhia
- * um shell específico do Flow): o loader não imita mais o layout de destino,
- * então não há o que ramificar.
+ * Fallback de Suspense do route group `(app)`.
+ * Não usa overlay de tela cheia: cada clique na rail disparava o
+ * AppLoading em cima do CRM e dava a sensação de que o sistema
+ * “recarregou” (ícones/contagens sumindo). A página destino já tem
+ * skeleton próprio; aqui só um fio no topo.
  */
 export default function Loading() {
-  return <AppLoading />;
+  return (
+    <div
+      className="pointer-events-none fixed inset-x-0 top-0 z-[45] h-0.5 overflow-hidden bg-transparent"
+      aria-hidden
+    >
+      <div className="h-full w-full animate-pulse bg-primary/70" />
+    </div>
+  );
 }

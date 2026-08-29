@@ -6,7 +6,8 @@
  */
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { apiUrl } from "@/lib/api";
@@ -19,27 +20,27 @@ export type MyPermissionsData = {
   groups: { id: string; name: string }[];
 };
 
-const EMPTY_PERMISSIONS: MyPermissionsData = {
-  permissions: [],
-  channelGrants: [],
-  stageGrants: [],
-  roles: [],
-  groups: [],
-};
-
 export function useMyPermissions() {
   const { data: session } = useSession();
   const userId = (session?.user as { id?: string } | undefined)?.id;
+  const stableIdRef = useRef(userId);
+  if (userId) stableIdRef.current = userId;
+  const id = userId ?? stableIdRef.current;
 
   return useQuery({
-    queryKey: ["my-permissions", userId],
+    queryKey: ["my-permissions", id],
     queryFn: async (): Promise<MyPermissionsData> => {
-      const res = await fetch(apiUrl(`/api/users/${userId}/effective-permissions`));
-      if (!res.ok) return EMPTY_PERMISSIONS;
+      const res = await fetch(apiUrl(`/api/users/${id}/effective-permissions`));
+      if (!res.ok) {
+        throw new Error("Falha ao carregar permissões.");
+      }
       return res.json();
     },
-    enabled: !!userId,
-    staleTime: 60_000, // 1 min — alinhado com TTL do cache Redis de authz
+    enabled: !!id,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

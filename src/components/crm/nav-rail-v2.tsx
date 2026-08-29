@@ -313,12 +313,16 @@ export function NavRailV2({ className }: { className?: string }) {
   // filtros após mount, igual já fazemos com `cachedItems`. Trade-off: por
   // 1 frame um non-admin vê itens restritos; aceito (mesmo trade do prefs).
   const baseNavItems = toNavItems(effectiveItems);
-  const navItems = mounted
+  const computedNavItems = mounted
     ? filterNavItemsByPermissions(
         filterNavItemsByRole(baseNavItems, { role, isSuperAdmin }),
         { isSuperAdmin, permissions: myPerms?.permissions },
       )
     : baseNavItems;
+  const lastNavItemsRef = useRef(computedNavItems);
+  if (computedNavItems.length > 0) lastNavItemsRef.current = computedNavItems;
+  const navItems =
+    computedNavItems.length > 0 ? computedNavItems : lastNavItemsRef.current;
   useEffect(() => {
     const preview = isPreviewMode();
     const sessUser = session?.user;

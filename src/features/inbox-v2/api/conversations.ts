@@ -89,18 +89,9 @@ export async function fetchTabCounts(
   if (s) q.set("search", s);
   const res = await fetch(apiUrl(`/api/conversations?${q.toString()}`));
   if (!res.ok) {
-    return {
-      todos: 0,
-      abertas: 0,
-      entrada: 0,
-      esperando: 0,
-      respondidas: 0,
-      ligar: 0,
-      agente_ia: 0,
-      automacao: 0,
-      finalizados: 0,
-      erro: 0,
-    };
+    // Não gravar zeros no cache — um GET abortado/401 na navegação
+    // zerava os badges com a lista ainda visível (keepPreviousData).
+    throw new Error("Falha ao carregar contagem das abas.");
   }
   return res.json() as Promise<TabCounts>;
 }
