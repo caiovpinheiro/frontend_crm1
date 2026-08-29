@@ -116,8 +116,7 @@ export function SalesHubChat({
   const {
     data: messagesData,
     fetchOlder,
-    hasOlderPages,
-    hasOlderTickets,
+    hasOlder,
     isFetchingOlder,
   } = useMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
@@ -335,8 +334,7 @@ export function SalesHubChat({
         conversationNumber={conversationNumber ?? null}
         conversationId={conversationId}
         onLoadOlder={fetchOlder}
-        hasOlder={hasOlderPages}
-        hasOlderTickets={hasOlderTickets}
+        hasOlder={hasOlder}
         isLoadingOlder={isFetchingOlder}
         conversationResolved={isResolved}
         conversationClosedAt={conversationClosedAt ?? null}

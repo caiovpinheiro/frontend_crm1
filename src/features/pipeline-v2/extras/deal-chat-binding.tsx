@@ -231,8 +231,7 @@ export function useDealChatBinding(params: {
   const {
     data: messagesResp,
     fetchOlder,
-    hasOlderPages,
-    hasOlderTickets,
+    hasOlder,
     isFetchingOlder,
   } = useMessages(effectiveConversationId);
   const sendMutation = useSendMessage(effectiveConversationId);
@@ -419,6 +418,34 @@ export function useDealChatBinding(params: {
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
   }, [findScrollEl, effectiveConversationId, bubbles.length > 0]);
+
+  const fetchOlderRef = useRef(fetchOlder);
+  fetchOlderRef.current = fetchOlder;
+  useEffect(() => {
+    if (!hasOlder || isFetchingOlder) return;
+    const el = findScrollEl();
+    if (!el) return;
+    const load = () => void fetchOlderRef.current();
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0 && el.scrollTop <= 0) load();
+    };
+    let startY = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      startY = e.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0]?.clientY ?? 0;
+      if (y - startY > 24 && el.scrollTop <= 0) load();
+    };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+    };
+  }, [findScrollEl, hasOlder, isFetchingOlder, bubbles.length]);
 
   const prevFirstIdRef = useRef<string | null>(null);
   const prevLastIdRef = useRef<string | null>(null);
@@ -785,22 +812,12 @@ export function useDealChatBinding(params: {
       <>
         <StickyDayPill date={stickyDayLabel} />
         <ul className="flex list-none flex-col gap-0.5">
-          {(isFetchingOlder || hasOlderTickets || hasOlderPages) && (
+          {isFetchingOlder && (
             <li className="list-none flex justify-center py-2">
-              {isFetchingOlder ? (
-                <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
-                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
-                  Carregando histórico...
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void fetchOlder()}
-                  className="rounded-full px-3 py-1 text-[11.5px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-secondary)]"
-                >
-                  {hasOlderPages ? "Carregar mensagens anteriores" : "Carregar conversas anteriores"}
-                </button>
-              )}
+              <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
+                Carregando histórico...
+              </span>
             </li>
           )}
           {bubbleNodes}

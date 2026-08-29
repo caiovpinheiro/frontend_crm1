@@ -455,20 +455,55 @@ export function ChatArea({
     prevScrollHeightRef.current = container.scrollHeight
   }, [messages])
 
+  const canLoadOlder = hasOlder || hasOlderTickets
   useEffect(() => {
-    if (!hasOlder || isLoadingOlder) return
-    const el = olderSentinelRef.current
+    if (!canLoadOlder || isLoadingOlder) return
     const root = messagesRef.current
-    if (!el || !root) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) onLoadOlderRef.current?.()
-      },
-      { root, rootMargin: "80px 0px 0px 0px" },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [hasOlder, isLoadingOlder, messages.length])
+    if (!root) return
+
+    const load = () => onLoadOlderRef.current?.()
+
+    // Lista curta (cabe na tela): não dispara sozinho — só se o operador
+    // tentar rolar pra cima. Lista longa: sentinela no topo.
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0 && root.scrollTop <= 0) load()
+    }
+    const onTouch = (() => {
+      let startY = 0
+      return {
+        start: (e: TouchEvent) => {
+          startY = e.touches[0]?.clientY ?? 0
+        },
+        move: (e: TouchEvent) => {
+          const y = e.touches[0]?.clientY ?? 0
+          if (y - startY > 24 && root.scrollTop <= 0) load()
+        },
+      }
+    })()
+    root.addEventListener("wheel", onWheel, { passive: true })
+    root.addEventListener("touchstart", onTouch.start, { passive: true })
+    root.addEventListener("touchmove", onTouch.move, { passive: true })
+
+    const el = olderSentinelRef.current
+    const overflows = root.scrollHeight > root.clientHeight + 16
+    let io: IntersectionObserver | null = null
+    if (el && overflows) {
+      io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) load()
+        },
+        { root, rootMargin: "80px 0px 0px 0px" },
+      )
+      io.observe(el)
+    }
+
+    return () => {
+      root.removeEventListener("wheel", onWheel)
+      root.removeEventListener("touchstart", onTouch.start)
+      root.removeEventListener("touchmove", onTouch.move)
+      io?.disconnect()
+    }
+  }, [canLoadOlder, isLoadingOlder, messages.length])
 
   const { hideEvents } = useHideChatEvents()
 
@@ -635,27 +670,17 @@ export function ChatArea({
       <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
         <StickyDayPill date={stickyDayLabel} />
         <ul className="flex list-none flex-col gap-0.5">
-        {hasOlder && (
+        {canLoadOlder && (
           <li className="list-none" aria-hidden="true">
             <div ref={olderSentinelRef} className="h-1 w-full" />
           </li>
         )}
-        {(isLoadingOlder || hasOlderTickets) && (
+        {isLoadingOlder && (
           <li className="list-none flex justify-center py-2">
-            {isLoadingOlder ? (
-              <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
-                Carregando histórico...
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onLoadOlder?.()}
-                className="rounded-full px-3 py-1 text-[11.5px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-secondary)]"
-              >
-                Carregar conversas anteriores
-              </button>
-            )}
+            <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
+              Carregando histórico...
+            </span>
           </li>
         )}
         {(() => {
