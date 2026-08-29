@@ -125,17 +125,6 @@ function useLatchedReady(ready: boolean, timeoutMs = STUCK_TIMEOUT_MS) {
   return released;
 }
 
-function LoaderPane({ navRail }: { navRail?: React.ReactNode }) {
-  return (
-    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
-      {navRail ?? <NavRail />}
-      <main className="flex min-w-0 flex-col overflow-hidden">
-        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
-      </main>
-    </div>
-  );
-}
-
 export default function DashboardV2ClientPage({
   navRail,
 }: DashboardV2ClientPageProps = {}) {
@@ -144,7 +133,11 @@ export default function DashboardV2ClientPage({
   const { isManagerUp, ready } = useUserRole();
 
   if (!ready) {
-    return <LoaderPane navRail={navRail} />;
+    return (
+      <Shell navRail={navRail} title="Dashboard">
+        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
+      </Shell>
+    );
   }
 
   return isManagerUp ? (
@@ -172,7 +165,11 @@ function OperatorHome({
   );
 
   if (!painted) {
-    return <LoaderPane navRail={navRail} />;
+    return (
+      <Shell navRail={navRail} title="Sua fila">
+        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
+      </Shell>
+    );
   }
 
   return (
@@ -374,11 +371,7 @@ function ManagerHome({
     ...Object.fromEntries(funnelStages.map((s) => [`stage:${s.id}`, s.name])),
   };
 
-  if (!pagePainted) {
-    return <LoaderPane navRail={navRail} />;
-  }
-
-  const showTabLoader = !tabPainted[activeTab] && !tabReady;
+  const showTabLoader = !pagePainted || (!tabPainted[activeTab] && !tabReady);
 
   return (
     <Shell

@@ -614,6 +614,20 @@ export function Composer({
   // `onSendNote=undefined`.
   const inputDisabled = noteMode ? false : !!disabled;
 
+  // Desabilitar o textarea enquanto `busy` blurra o campo no browser.
+  // Durante o envio o campo fica só readOnly; ao terminar, devolvemos
+  // o foco para a próxima mensagem sem um clique extra.
+  const wasBusyRef = useRef(false);
+  useEffect(() => {
+    if (busy) {
+      wasBusyRef.current = true;
+      return;
+    }
+    if (!wasBusyRef.current || inputDisabled) return;
+    wasBusyRef.current = false;
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [busy, inputDisabled]);
+
   function warnOutboundBlocked() {
     if (sessionExpired) {
       toast.error(SESSION_CLOSED_TOAST, {
@@ -1210,7 +1224,8 @@ export function Composer({
                     ? "Sessão encerrada — use um template"
                     : placeholder ?? "Escreva uma mensagem ou / para modelos..."
               }
-              disabled={inputDisabled || busy}
+              disabled={inputDisabled}
+              readOnly={busy}
               className="w-full resize-none overflow-y-auto border-none bg-transparent font-body text-sm leading-snug text-[var(--text-primary)] outline-none placeholder:truncate placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50"
               style={{ height: "24px", minHeight: "24px", maxHeight: "120px" }}
             />

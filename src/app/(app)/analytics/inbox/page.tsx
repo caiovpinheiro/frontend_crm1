@@ -1,7 +1,5 @@
 import { Suspense } from "react";
 
-import { RouteLoading } from "@/components/crm/page-loading";
-
 import InboxAnalyticsClientPage from "./client-page";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +10,7 @@ export const metadata = {
 
 export default function InboxAnalyticsPage() {
   return (
-    <Suspense fallback={<RouteLoading />}>
+    <Suspense fallback={null}>
       <InboxAnalyticsClientPage />
     </Suspense>
   );
