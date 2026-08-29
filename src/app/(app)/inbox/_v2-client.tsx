@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -439,6 +439,7 @@ export default function InboxV2ClientPage({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isPlaceholderData,
     isError: isListError,
   } = useConversations({
     tab,
@@ -449,6 +450,10 @@ export default function InboxV2ClientPage({
     // (2) fetch com tab default "esperando" antes de hidratar a aba salva.
     enabled: isAuthenticated && tabHydrated && filtersHydrated,
   });
+  const handleLoadMore = useCallback(() => {
+    if (!hasNextPage || isFetchingNextPage || isPlaceholderData) return;
+    void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage]);
   const rawRows = (listData?.items ?? []).filter(Boolean);
 
   // Skeleton até a 1ª resposta da lista (mesmo se items=[]).
@@ -1329,10 +1334,8 @@ export default function InboxV2ClientPage({
           />
         ) : undefined
       }
-      onLoadMore={() => {
-        if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-      }}
-      hasMore={hasNextPage}
+      onLoadMore={handleLoadMore}
+      hasMore={hasNextPage && !isPlaceholderData}
       isLoadingMore={isFetchingNextPage}
       isLoading={listBootstrapping}
       className="h-full min-h-0"
