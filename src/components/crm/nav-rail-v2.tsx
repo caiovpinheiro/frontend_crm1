@@ -383,6 +383,7 @@ export function NavRailV2({ className }: { className?: string }) {
       {!mounted || isBwipoChat ? (
         <Link
           href={isBwipoChat ? "/" : "/dashboard"}
+          prefetch={false}
           title={isBwipoChat ? "Voltar ao CRM" : "Início"}
           aria-label={isBwipoChat ? "Voltar ao CRM" : "Início"}
           className={cn(companyMarkClass, "rounded-xl transition-opacity hover:opacity-80")}
@@ -537,6 +538,7 @@ export function NavRailV2({ className }: { className?: string }) {
                 <Link
                   key={item.key}
                   href={item.href}
+                  prefetch={false}
                   aria-label={item.title}
                   className={cn(expandedItemBase, isActive ? expandedItemActive : expandedItemIdle)}
                 >
@@ -603,6 +605,7 @@ export function NavRailV2({ className }: { className?: string }) {
       {expanded ? (
         <Link
           href="/settings/profile"
+          prefetch={false}
           aria-label="Configurações"
           {...settingsHoverProps}
           className={cn(

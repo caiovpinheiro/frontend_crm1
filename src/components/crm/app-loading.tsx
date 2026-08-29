@@ -246,6 +246,9 @@ function ScreenOverlay({
     </div>
   );
 
-  if (!target) return node;
+  // Só porta depois do mount. Pintar no fluxo no SSR e mover pro
+  // `body` no hydrate quebrava o primeiro load (error.tsx; retry
+  // remonta só no cliente e funcionava).
+  if (!target) return null;
   return createPortal(node, target);
 }

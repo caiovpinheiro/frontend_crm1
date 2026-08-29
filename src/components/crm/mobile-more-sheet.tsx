@@ -207,6 +207,7 @@ export function MobileMoreSheet({
                 <Link
                   key={item.id}
                   href={item.href}
+                  prefetch={false}
                   onClick={onClose}
                   className={cn(
                     "flex items-center gap-2.5 rounded-xl border px-3 py-3 transition-colors active:scale-[0.98]",
@@ -239,6 +240,7 @@ export function MobileMoreSheet({
           <div className="grid grid-cols-1 gap-1.5">
             <Link
               href="/settings/profile"
+              prefetch={false}
               onClick={onClose}
               className="flex items-center gap-2.5 rounded-xl border border-[var(--glass-border)] bg-[var(--color-bg-card)] px-3 py-3 text-[var(--text-primary)] active:bg-[var(--glass-bg-subtle)]"
             >

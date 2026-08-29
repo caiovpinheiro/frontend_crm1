@@ -162,7 +162,7 @@ export function DockButton({
   );
 
   const content = href ? (
-    <Link href={href} aria-label={title} className={innerClasses}>
+    <Link href={href} prefetch={false} aria-label={title} className={innerClasses}>
       {glyph}
     </Link>
   ) : (

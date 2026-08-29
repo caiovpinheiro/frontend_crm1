@@ -13,8 +13,19 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    reloadOnceForStaleChunk(error);
-  }, [error]);
+    console.error("[app-error]", error.message, error.digest ?? "");
+    if (reloadOnceForStaleChunk(error)) return;
+    if (isStaleChunkError(error)) return;
+    try {
+      const key = "crm-app-error-autoreset";
+      const last = Number(sessionStorage.getItem(key) || 0);
+      if (Date.now() - last < 8_000) return;
+      sessionStorage.setItem(key, String(Date.now()));
+    } catch {
+      /* storage bloqueado — tenta o reset mesmo assim */
+    }
+    reset();
+  }, [error, reset]);
 
   const stale = isStaleChunkError(error);
 
