@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import GridLayout, { useContainerWidth, verticalCompactor } from "react-grid-layout";
-import { GripVertical, MoreHorizontal, Trash2 } from "lucide-react";
+import { GripVertical, MoreVertical, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -43,14 +43,14 @@ function shouldAutoSize(id: string) {
   return id !== "evolution";
 }
 
-const CHROME_ACTION_CLASS = cn(
-  "flex size-8 shrink-0 items-center justify-center rounded-lg",
+const RAIL_ACTION_CLASS = cn(
+  "flex size-7 shrink-0 items-center justify-center rounded-lg",
   "bg-card text-muted-foreground",
   "hover:bg-secondary hover:text-foreground",
   "focus-visible:bg-secondary focus-visible:text-foreground",
 );
 
-function WidgetChromeRow({
+export function WidgetOrganizeRail({
   grip,
   menu,
 }: {
@@ -58,10 +58,42 @@ function WidgetChromeRow({
   menu?: ReactNode;
 }) {
   return (
-    <div className="flex h-8 shrink-0 items-center justify-between px-1">
-      {grip ?? <span className="size-8" aria-hidden />}
-      {menu ?? <span className="size-8" aria-hidden />}
+    <div className="flex w-7 shrink-0 flex-col items-center gap-1 pt-1">
+      {grip}
+      {menu}
     </div>
+  );
+}
+
+export function WidgetOverflowMenu({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <DropdownMenu className="relative z-10">
+      <DropdownMenuTrigger
+        className={RAIL_ACTION_CLASS}
+        aria-label={`Mais opções de ${label}`}
+        data-dashboard-no-drag
+      >
+        <MoreVertical className="size-3.5" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="min-w-40 rounded-2xl border border-border bg-card text-foreground shadow-lg backdrop-blur-none"
+      >
+        <DropdownMenuItem
+          onClick={onRemove}
+          className="text-destructive focus:text-destructive hover:text-destructive"
+        >
+          <Trash2 className="size-3.5" aria-hidden="true" />
+          Remover
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -72,6 +104,7 @@ export function SortableWidgetGrid({
   render,
   disabled = false,
   persistEnabled = true,
+  organizing = false,
   onRemove,
 }: {
   layout: Layout;
@@ -80,6 +113,7 @@ export function SortableWidgetGrid({
   render: (id: string) => ReactNode;
   disabled?: boolean;
   persistEnabled?: boolean;
+  organizing?: boolean;
   onRemove?: (id: string) => void;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -152,18 +186,35 @@ export function SortableWidgetGrid({
       observer.disconnect();
       if (heightTimer.current) clearTimeout(heightTimer.current);
     };
-  }, [containerRef, disabled, flushHeights, ids, mounted, width]);
+  }, [containerRef, disabled, flushHeights, ids, mounted, width, organizing]);
 
   async function requestRemove(id: string) {
     if (!onRemove) return;
     const label = labels[id] ?? "este gráfico";
     const ok = await confirm({
-      title: "Excluir gráfico?",
+      title: "Remover gráfico?",
       description: `Remover “${label}” do dashboard. Os demais cards permanecem.`,
-      confirmLabel: "Excluir",
+      confirmLabel: "Remover",
       destructive: true,
     });
     if (ok) onRemove(id);
+  }
+
+  function chrome(id: string, grip?: ReactNode) {
+    if (!organizing) return null;
+    return (
+      <WidgetOrganizeRail
+        grip={grip}
+        menu={
+          onRemove ? (
+            <WidgetOverflowMenu
+              label={labels[id] ?? id}
+              onRemove={() => void requestRemove(id)}
+            />
+          ) : undefined
+        }
+      />
+    );
   }
 
   if (disabled) {
@@ -176,20 +227,11 @@ export function SortableWidgetGrid({
             return (
               <div
                 key={id}
-                className="group/widget flex min-w-0 flex-col"
+                className="flex min-w-0 items-stretch gap-1"
                 style={{ gridColumn: `span ${span} / span ${span}` }}
               >
-                <WidgetChromeRow
-                  menu={
-                    onRemove ? (
-                      <WidgetOverflowMenu
-                        label={labels[id] ?? id}
-                        onRemove={() => void requestRemove(id)}
-                      />
-                    ) : undefined
-                  }
-                />
-                {render(id)}
+                {chrome(id)}
+                <div className="min-w-0 flex-1">{render(id)}</div>
               </div>
             );
           })}
@@ -208,12 +250,12 @@ export function SortableWidgetGrid({
           autoSize
           gridConfig={GRID_CONFIG}
           dragConfig={{
-            enabled: true,
+            enabled: organizing,
             handle: `.${DASHBOARD_GRID_DRAG_SURFACE}`,
             threshold: DASHBOARD_DRAG_THRESHOLD_PX,
             cancel: dashboardGridDragCancel(DASHBOARD_GRID_GRIP_CLASS),
           }}
-          resizeConfig={{ enabled: true, handles: ["se"] }}
+          resizeConfig={{ enabled: organizing, handles: ["se"] }}
           compactor={verticalCompactor}
           onLayoutChange={() => {
             /* Persist only from drag/resize stop and auto-size — not mount. */
@@ -235,35 +277,24 @@ export function SortableWidgetGrid({
           }}
         >
           {ids.map((id) => (
-            <div
-              key={id}
-              className={cn("group/widget min-w-0", DASHBOARD_GRID_DRAG_SURFACE)}
-            >
-              <div data-grid-measure={id} className="flex min-w-0 flex-col">
-                <WidgetChromeRow
-                  grip={
-                    <button
-                      type="button"
-                      className={cn(
-                        DASHBOARD_GRID_GRIP_CLASS,
-                        CHROME_ACTION_CLASS,
-                        "cursor-grab active:cursor-grabbing",
-                      )}
-                      aria-label={`Mover ${labels[id] ?? id}`}
-                    >
-                      <GripVertical className="size-4" aria-hidden="true" />
-                    </button>
-                  }
-                  menu={
-                    onRemove ? (
-                      <WidgetOverflowMenu
-                        label={labels[id] ?? id}
-                        onRemove={() => void requestRemove(id)}
-                      />
-                    ) : undefined
-                  }
-                />
-                {render(id)}
+            <div key={id} className="min-w-0">
+              <div data-grid-measure={id} className="flex min-w-0 items-stretch gap-1">
+                {chrome(
+                  id,
+                  <button
+                    type="button"
+                    className={cn(
+                      DASHBOARD_GRID_GRIP_CLASS,
+                      DASHBOARD_GRID_DRAG_SURFACE,
+                      RAIL_ACTION_CLASS,
+                      "cursor-grab active:cursor-grabbing",
+                    )}
+                    aria-label={`Mover ${labels[id] ?? id}`}
+                  >
+                    <GripVertical className="size-3.5" aria-hidden="true" />
+                  </button>,
+                )}
+                <div className="min-w-0 flex-1">{render(id)}</div>
               </div>
             </div>
           ))}
@@ -273,37 +304,5 @@ export function SortableWidgetGrid({
       )}
       {confirmDialog}
     </div>
-  );
-}
-
-function WidgetOverflowMenu({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
-  return (
-    <DropdownMenu className="relative z-10">
-      <DropdownMenuTrigger
-        className={CHROME_ACTION_CLASS}
-        aria-label={`Ações de ${label}`}
-        data-dashboard-no-drag
-      >
-        <MoreHorizontal className="size-4" aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="min-w-40 rounded-2xl border-border bg-card text-foreground shadow-lg backdrop-blur-none"
-      >
-        <DropdownMenuItem
-          onClick={onRemove}
-          className="text-destructive focus:text-destructive hover:text-destructive"
-        >
-          <Trash2 className="size-3.5" aria-hidden="true" />
-          Excluir
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

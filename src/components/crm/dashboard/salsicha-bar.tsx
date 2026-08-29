@@ -11,7 +11,7 @@ export function SalsichaBar({
 }) {
   const pct = Math.max(0, Math.min(100, ratio * 100));
   return (
-    <div className={cn("h-1 overflow-hidden rounded-full bg-secondary", className)}>
+    <div className={cn("h-2 overflow-hidden rounded-full bg-secondary", className)}>
       <div
         className="h-full rounded-full bg-primary"
         style={{

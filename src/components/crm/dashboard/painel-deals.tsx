@@ -314,7 +314,7 @@ function DealStageCards({
     );
   }
   return (
-    <div className="flex flex-wrap gap-2.5">
+    <div className="flex flex-wrap gap-1.5">
       {stages.map((stage) => (
         <div key={stage.id} className="min-w-[240px] max-w-full flex-1 basis-[calc(33.333%-7px)]">
           <DealStageWidget stage={stage} search={search} userIds={userIds} />

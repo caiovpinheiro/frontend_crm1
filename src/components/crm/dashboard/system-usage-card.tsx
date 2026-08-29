@@ -42,14 +42,14 @@ export function SystemUsageCard({
       action={
         <div className="flex items-center gap-3 text-right">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[10px] font-semibold text-muted-foreground">
               Total
             </p>
             <p className="text-sm font-bold tabular-nums">{formatUsageHours(total)}</p>
           </div>
           <div className="h-8 w-px bg-border" />
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[10px] font-semibold text-muted-foreground">
               Média
             </p>
             <p className="text-sm font-bold tabular-nums">{formatUsageHours(avg)}</p>

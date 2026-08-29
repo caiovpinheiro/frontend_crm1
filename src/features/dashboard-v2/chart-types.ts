@@ -10,7 +10,7 @@ export const DASHBOARD_CHART_TYPES = [
 export type DashboardChartType = (typeof DASHBOARD_CHART_TYPES)[number];
 
 export const DEFAULT_CARD_CHART_TYPE: DashboardChartType = "column";
-export const DEFAULT_USAGE_CHART_TYPE: DashboardChartType = "treemap";
+export const DEFAULT_USAGE_CHART_TYPE: DashboardChartType = "bar";
 
 export const DASHBOARD_CHART_TYPE_LABELS: Record<DashboardChartType, string> = {
   bar: "Barras",

@@ -74,6 +74,7 @@ export function AddDashboardCardDialog({
   onAddPreset,
   onAddStage,
   onCreate,
+  presetsOnly = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -84,6 +85,7 @@ export function AddDashboardCardDialog({
   onAddPreset: (id: string, chartType?: DashboardChartType) => void;
   onAddStage: (stageId: string) => void;
   onCreate: (card: NegociosCustomCard) => void;
+  presetsOnly?: boolean;
 }) {
   const [mode, setMode] = useState<CatalogMode>("preset");
   const [kind, setKind] = useState<DynamicKind>("event");
@@ -200,16 +202,20 @@ export function AddDashboardCardDialog({
         </>
       }
     >
-      <span className={formLabelClass}>Catálogo</span>
-      <div className="mb-4 flex gap-2">
-        {MODE_OPTIONS.map(([id, label]) => (
-          <button key={id} type="button" onClick={() => setMode(id)} className={pillClass(mode === id)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      {presetsOnly ? null : (
+        <>
+          <span className={formLabelClass}>Catálogo</span>
+          <div className="mb-4 flex gap-2">
+            {MODE_OPTIONS.map(([id, label]) => (
+              <button key={id} type="button" onClick={() => setMode(id)} className={pillClass(mode === id)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
-      {mode === "preset" ? (
+      {mode === "preset" || presetsOnly ? (
         <>
           <span className={formLabelClass}>Gráfico pronto</span>
           <div className="mb-4 grid gap-2">

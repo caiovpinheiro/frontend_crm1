@@ -37,7 +37,14 @@ export const STAGE_WIDGET_PREFIX = "stage:";
 
 export const DASHBOARD_GRID_COLS = 12;
 export const DASHBOARD_GRID_ROW_HEIGHT = 20;
-export const DASHBOARD_GRID_MARGIN = [10, 10] as const;
+export const DASHBOARD_GRID_MARGIN = [6, 6] as const;
+
+export const TABULATION_BOARD_WIDGET_IDS = [
+  "tabKpis",
+  "tabTop",
+  "tabByUser",
+  "tabLog",
+] as const;
 
 export const DEAL_CORE_WIDGET_IDS = [
   "kpis",
@@ -47,13 +54,14 @@ export const DEAL_CORE_WIDGET_IDS = [
   "agents",
   "sources",
   "exceptions",
-  "tabulations",
+  ...TABULATION_BOARD_WIDGET_IDS,
 ] as const;
 
 export type DealCoreWidgetId = (typeof DEAL_CORE_WIDGET_IDS)[number];
+export type TabulationBoardWidgetId = (typeof TABULATION_BOARD_WIDGET_IDS)[number];
 
 /** Core presets that stay off the board until the user adds them. */
-const OPTIONAL_CORE_WIDGET_IDS: readonly DealCoreWidgetId[] = ["tabulations"];
+const OPTIONAL_CORE_WIDGET_IDS: readonly DealCoreWidgetId[] = TABULATION_BOARD_WIDGET_IDS;
 
 export type NegociosCustomCard = {
   id: string;
@@ -73,17 +81,22 @@ export type NegociosGridStore = {
   usageChartType?: DashboardChartType;
   /** Core/stage widgets the user removed — do not re-append on load or stage sync. */
   hiddenWidgetIds?: string[];
+  /** One-time fold of auto-synced stage cards into the funnel strip. */
+  foldedAutoStages?: boolean;
 };
 
 const DEFAULT_SIZES: Record<DealCoreWidgetId, { w: number; h: number; minW: number; minH: number }> = {
   kpis: { w: 12, h: 4, minW: 6, minH: 3 },
-  funnel: { w: 12, h: 12, minW: 6, minH: 6 },
-  usage: { w: 6, h: 16, minW: 3, minH: 8 },
+  funnel: { w: 12, h: 8, minW: 6, minH: 5 },
+  usage: { w: 6, h: 10, minW: 3, minH: 6 },
   evolution: { w: 6, h: 14, minW: 3, minH: 8 },
   agents: { w: 6, h: 10, minW: 3, minH: 5 },
   sources: { w: 6, h: 8, minW: 3, minH: 4 },
   exceptions: { w: 12, h: 5, minW: 4, minH: 3 },
-  tabulations: { w: 12, h: 16, minW: 6, minH: 8 },
+  tabKpis: { w: 12, h: 4, minW: 6, minH: 3 },
+  tabTop: { w: 6, h: 10, minW: 3, minH: 5 },
+  tabByUser: { w: 6, h: 10, minW: 3, minH: 5 },
+  tabLog: { w: 12, h: 10, minW: 6, minH: 5 },
 };
 
 const STAGE_DEFAULT = { w: 4, h: 8, minW: 3, minH: 4 };
@@ -146,43 +159,24 @@ export function stageCell(count: number, index: number): { x: number; w: number 
   return { x: pos * 4, w: 4 };
 }
 
-function packStages(stageIds: string[], startY: number): LayoutItem[] {
-  return stageIds.map((id, index) => {
-    const { x, w } = stageCell(stageIds.length, index);
-    return {
-      i: stageWidgetId(id),
-      x,
-      y: startY + Math.floor(index / STAGE_PER_ROW) * STAGE_DEFAULT.h,
-      w,
-      h: STAGE_DEFAULT.h,
-      minW: STAGE_DEFAULT.minW,
-      minH: STAGE_DEFAULT.minH,
-      isResizable: false,
-    };
-  });
-}
-
-export function defaultNegociosLayout(cardIds: string[] = [], stageIds: string[] = []): Layout {
+export function defaultNegociosLayout(cardIds: string[] = []): Layout {
   const kpis = DEFAULT_SIZES.kpis;
   const funnel = DEFAULT_SIZES.funnel;
+  const afterFunnel = kpis.h + funnel.h;
   const items: LayoutItem[] = [
     { i: "kpis", x: 0, y: 0, w: kpis.w, h: kpis.h, minW: kpis.minW, minH: kpis.minH },
     { i: "funnel", x: 0, y: kpis.h, w: funnel.w, h: funnel.h, minW: funnel.minW, minH: funnel.minH },
+    { i: "usage", x: 0, y: afterFunnel, ...DEFAULT_SIZES.usage },
+    { i: "evolution", x: 6, y: afterFunnel, ...DEFAULT_SIZES.evolution },
+    { i: "agents", x: 0, y: afterFunnel + DEFAULT_SIZES.usage.h, ...DEFAULT_SIZES.agents },
+    { i: "sources", x: 6, y: afterFunnel + DEFAULT_SIZES.evolution.h, ...DEFAULT_SIZES.sources },
+    { i: "exceptions", x: 0, y: afterFunnel + DEFAULT_SIZES.usage.h + DEFAULT_SIZES.agents.h, ...DEFAULT_SIZES.exceptions },
   ];
-  items.push(...packStages(stageIds, kpis.h + funnel.h));
-  const afterStages = kpis.h + funnel.h + Math.ceil(stageIds.length / STAGE_PER_ROW) * STAGE_DEFAULT.h;
-  items.push(
-    { i: "usage", x: 0, y: afterStages, ...DEFAULT_SIZES.usage },
-    { i: "evolution", x: 6, y: afterStages, ...DEFAULT_SIZES.evolution },
-    { i: "agents", x: 0, y: afterStages + DEFAULT_SIZES.usage.h, ...DEFAULT_SIZES.agents },
-    { i: "sources", x: 6, y: afterStages + DEFAULT_SIZES.evolution.h, ...DEFAULT_SIZES.sources },
-    { i: "exceptions", x: 0, y: afterStages + DEFAULT_SIZES.usage.h + DEFAULT_SIZES.agents.h, ...DEFAULT_SIZES.exceptions },
-  );
   cardIds.forEach((id, idx) => {
     items.push({
       i: id,
       x: (idx % STAGE_PER_ROW) * 4,
-      y: afterStages + DEFAULT_SIZES.usage.h + DEFAULT_SIZES.agents.h + DEFAULT_SIZES.exceptions.h + Math.floor(idx / STAGE_PER_ROW) * CUSTOM_DEFAULT.h,
+      y: afterFunnel + DEFAULT_SIZES.usage.h + DEFAULT_SIZES.agents.h + DEFAULT_SIZES.exceptions.h + Math.floor(idx / STAGE_PER_ROW) * CUSTOM_DEFAULT.h,
       w: CUSTOM_DEFAULT.w,
       h: CUSTOM_DEFAULT.h,
       minW: CUSTOM_DEFAULT.minW,
@@ -190,6 +184,29 @@ export function defaultNegociosLayout(cardIds: string[] = [], stageIds: string[]
     });
   });
   return compactNegociosLayout(items);
+}
+
+function expandLegacyTabulations(layout: Layout): Layout {
+  const old = layout.find((item) => item.i === "tabulations");
+  if (!old) return layout;
+  const rest = layout.filter((item) => item.i !== "tabulations");
+  return [
+    ...rest,
+    { i: "tabKpis", x: 0, y: old.y, ...DEFAULT_SIZES.tabKpis },
+    { i: "tabTop", x: 0, y: old.y + DEFAULT_SIZES.tabKpis.h, ...DEFAULT_SIZES.tabTop },
+    { i: "tabByUser", x: 6, y: old.y + DEFAULT_SIZES.tabKpis.h, ...DEFAULT_SIZES.tabByUser },
+    { i: "tabLog", x: 0, y: old.y + DEFAULT_SIZES.tabKpis.h + DEFAULT_SIZES.tabTop.h, ...DEFAULT_SIZES.tabLog },
+  ];
+}
+
+function hideAutoSyncedStages(layout: Layout, hidden: string[]): { layout: Layout; hidden: string[] } {
+  const stageItems = layout.filter((item) => isStageWidgetId(item.i));
+  if (stageItems.length < 3) return { layout, hidden };
+  const ids = stageItems.map((item) => item.i);
+  return {
+    layout: layout.filter((item) => !isStageWidgetId(item.i)),
+    hidden: uniqueIds([...hidden, ...ids]),
+  };
 }
 
 function isLayoutItem(v: unknown): v is LayoutItem {
@@ -211,6 +228,7 @@ function isCustomCard(v: unknown): v is NegociosCustomCard {
 }
 
 function parseUsageChartType(value: unknown): DashboardChartType {
+  if (value === "dot") return "bar";
   return isDashboardChartType(value) ? value : DEFAULT_USAGE_CHART_TYPE;
 }
 
@@ -290,9 +308,17 @@ function parseHiddenWidgetIds(value: unknown): string[] {
   return [...new Set(value.filter((id): id is string => typeof id === "string" && id.length > 0))];
 }
 
+function expandHiddenIds(hidden: string[]): string[] {
+  if (!hidden.includes("tabulations")) return hidden.filter((id) => id !== "tabulations");
+  return uniqueIds([
+    ...hidden.filter((id) => id !== "tabulations"),
+    ...TABULATION_BOARD_WIDGET_IDS,
+  ]);
+}
+
 function hideOptionalCore(layout: Layout, hidden: string[]): string[] {
   const present = new Set(layout.map((item) => item.i));
-  const next = [...hidden];
+  const next = expandHiddenIds(hidden);
   for (const id of OPTIONAL_CORE_WIDGET_IDS) {
     if (!present.has(id) && !next.includes(id)) next.push(id);
   }
@@ -338,32 +364,42 @@ function parseStore(raw: unknown): NegociosGridStore | null {
   const saved = Array.isArray(parsed.layout) ? parsed.layout.filter(isLayoutItem) : [];
   if (!saved.length && !cards.length && parsed.version !== 2) return null;
   const mockStages = isPageMockMode() ? MOCK_FUNNEL_STAGE_IDS : [];
-  const fromSaved = stageIdsFromLayout(saved);
-  const stageIds = fromSaved.length ? fromSaved : mockStages;
+  const expanded = expandLegacyTabulations(saved);
+  const alreadyFolded = parsed.foldedAutoStages === true;
+  const pruned = alreadyFolded
+    ? { layout: expanded, hidden: expandHiddenIds(parseHiddenWidgetIds(parsed.hiddenWidgetIds)) }
+    : hideAutoSyncedStages(
+        expanded,
+        expandHiddenIds(parseHiddenWidgetIds(parsed.hiddenWidgetIds)),
+      );
+  const stageIds = stageIdsFromLayout(pruned.layout).length
+    ? stageIdsFromLayout(pruned.layout)
+    : mockStages;
   const usageChartType = parseUsageChartType(parsed.usageChartType);
-  const hiddenWidgetIds = hideOptionalCore(saved, parseHiddenWidgetIds(parsed.hiddenWidgetIds));
+  const hiddenWidgetIds = hideOptionalCore(pruned.layout, pruned.hidden);
   const legacy = parsed.version !== 2 || saved.some((item) => item.i === "stages");
   if (legacy) {
-    const source = resetBloated(saved.filter((item) => item.i !== "stages"));
+    const source = resetBloated(pruned.layout.filter((item) => item.i !== "stages"));
     return {
       version: 2,
       layout: mergeLayout(source, cards, stageIds, hiddenWidgetIds),
       cards,
       usageChartType,
       hiddenWidgetIds,
+      foldedAutoStages: true,
     };
   }
   return {
     version: 2,
-    layout: compactNegociosLayout(adoptSavedLayout(saved, cards, stageIds, hiddenWidgetIds)),
+    layout: compactNegociosLayout(adoptSavedLayout(pruned.layout, cards, stageIds, hiddenWidgetIds)),
     cards,
     usageChartType,
     hiddenWidgetIds,
+    foldedAutoStages: true,
   };
 }
 
 function emptyStore(): NegociosGridStore {
-  const mockStages = isPageMockMode() ? MOCK_FUNNEL_STAGE_IDS : [];
   if (isPageMockMode()) {
     const cards: NegociosCustomCard[] = [
       {
@@ -374,25 +410,24 @@ function emptyStore(): NegociosGridStore {
         chartType: "column",
       },
     ];
-    const layout = defaultNegociosLayout(
-      cards.map((c) => `card:${c.id}`),
-      MOCK_FUNNEL_STAGE_IDS,
-    );
+    const layout = defaultNegociosLayout(cards.map((c) => `card:${c.id}`));
     return {
       version: 2,
       layout,
       cards,
       usageChartType: DEFAULT_USAGE_CHART_TYPE,
       hiddenWidgetIds: hideOptionalCore(layout, []),
+      foldedAutoStages: true,
     };
   }
-  const layout = defaultNegociosLayout([], mockStages);
+  const layout = defaultNegociosLayout();
   return {
     version: 2,
     layout,
     cards: [],
     usageChartType: DEFAULT_USAGE_CHART_TYPE,
     hiddenWidgetIds: hideOptionalCore(layout, []),
+    foldedAutoStages: true,
   };
 }
 
@@ -413,6 +448,7 @@ export function useNegociosGrid() {
       cards: [],
       usageChartType: DEFAULT_USAGE_CHART_TYPE,
       hiddenWidgetIds: hideOptionalCore(layout, []),
+      foldedAutoStages: true,
     };
   });
   const [hydrated, setHydrated] = useState(false);
@@ -477,8 +513,9 @@ export function useNegociosGrid() {
       cards: store.cards,
       usageChartType: store.usageChartType,
       hiddenWidgetIds,
+      foldedAutoStages: store.foldedAutoStages ?? true,
     });
-  }, [hiddenWidgetIds, hydrated, persist, store.cards, store.layout, store.usageChartType]);
+  }, [hiddenWidgetIds, hydrated, persist, store.cards, store.foldedAutoStages, store.layout, store.usageChartType]);
 
   const commit = useCallback(
     (patch: Partial<NegociosGridStore>) => {
@@ -488,6 +525,7 @@ export function useNegociosGrid() {
         cards: store.cards,
         usageChartType: store.usageChartType,
         hiddenWidgetIds,
+        foldedAutoStages: store.foldedAutoStages ?? true,
         ...patch,
       });
     },
@@ -512,10 +550,10 @@ export function useNegociosGrid() {
     (stageIds: string[]) => {
       if (!hydrated) return;
       const visible = stageIdsFromLayout(store.layout);
-      const expectedVisible = stageIds.filter((id) => !hiddenWidgetIds.includes(stageWidgetId(id)));
+      const expectedVisible = visible.filter((id) => stageIds.includes(id));
       if (sameStageSet(visible, expectedVisible)) return;
       const next = compactNegociosLayout(
-        adoptSavedLayout(store.layout, store.cards, stageIds, hiddenWidgetIds),
+        adoptSavedLayout(store.layout, store.cards, expectedVisible, hiddenWidgetIds),
       );
       if (sameLayout(next, store.layout)) return;
       commit({ layout: next });
