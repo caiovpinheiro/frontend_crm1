@@ -219,7 +219,7 @@ export function ActivityRow({
           {menuOpen && (
             <div
               role="menu"
-              className="absolute right-0 top-full z-30 mt-1 w-48 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-1 shadow-[var(--glass-shadow)] backdrop-blur-md"
+              className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-2xl border border-border bg-card p-1 text-foreground shadow-lg"
             >
               {onOpenDetails && (
                 <button
