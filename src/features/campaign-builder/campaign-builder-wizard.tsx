@@ -31,6 +31,8 @@ export function CampaignBuilderWizard() {
   const [name, setName] = useState("");
   const [type, setType] = useState<"TEMPLATE" | "TEXT" | "AUTOMATION">("TEMPLATE");
   const [channelId, setChannelId] = useState("");
+  const [useLastConversationChannel, setUseLastConversationChannel] =
+    useState(false);
   const [segmentId, setSegmentId] = useState("");
   const [automationId, setAutomationId] = useState("");
   const [templateName, setTemplateName] = useState("");
@@ -71,7 +73,7 @@ export function CampaignBuilderWizard() {
   });
 
   const canContinue = useMemo(() => {
-    if (step === 0) return Boolean(type && channelId);
+    if (step === 0) return Boolean(type && (useLastConversationChannel || channelId));
     if (step === 1) return type !== "AUTOMATION" || Boolean(automationId);
     if (step === 2) return Boolean(segmentId);
     if (step === 3) {
@@ -81,7 +83,7 @@ export function CampaignBuilderWizard() {
       return true;
     }
     return false;
-  }, [automationId, channelId, name, segmentId, step, templateName, textContent, type]);
+  }, [automationId, channelId, name, segmentId, step, templateName, textContent, type, useLastConversationChannel]);
 
   async function upsertDraft() {
     const payload = {
@@ -89,7 +91,8 @@ export function CampaignBuilderWizard() {
       patch: {
         name: name.trim() || "Nova campanha",
         type,
-        channelId,
+        channelId: useLastConversationChannel ? undefined : channelId,
+        useLastConversationChannel,
         segmentId,
         automationId: automationId || undefined,
         templateName: templateName || undefined,
@@ -172,10 +175,19 @@ export function CampaignBuilderWizard() {
                 <Label>Canal</Label>
                 <SelectNative
                   className="h-10 text-sm"
-                  value={channelId}
-                  onChange={(e) => setChannelId(e.target.value)}
+                  value={useLastConversationChannel ? "__last__" : channelId}
+                  onChange={(e) => {
+                    if (e.target.value === "__last__") {
+                      setUseLastConversationChannel(true);
+                      setChannelId("");
+                      return;
+                    }
+                    setUseLastConversationChannel(false);
+                    setChannelId(e.target.value);
+                  }}
                 >
                   <option value="">Selecione</option>
+                  <option value="__last__">Último canal conversado (por contato)</option>
                   {(channelsQuery.data ?? [])
                     .filter((c) => c.status === "CONNECTED")
                     .map((c) => (

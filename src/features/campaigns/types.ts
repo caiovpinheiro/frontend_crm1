@@ -40,7 +40,8 @@ export interface CampaignListItem {
   startedAt?: string | null;
   completedAt?: string | null;
   createdAt: string;
-  channel: { id: string; name: string; provider: string };
+  useLastConversationChannel?: boolean;
+  channel?: { id: string; name: string; provider: string } | null;
   segment?: { id: string; name: string } | null;
   createdBy?: { id: string; name: string };
 }
@@ -151,7 +152,8 @@ export interface TemplateRow {
 export interface CreateCampaignBody {
   name: string;
   type: CampaignType;
-  channelId: string;
+  channelId?: string;
+  useLastConversationChannel?: boolean;
   segmentId?: string;
   filters?: CampaignFilters;
   templateName?: string;

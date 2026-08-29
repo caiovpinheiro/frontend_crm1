@@ -27,6 +27,7 @@ import {
 } from "../api";
 
 import { isPreviewMode } from "@/lib/preview-mode";
+import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
 /**
  * Page size pedido por request. O backend tem cap em 200 (ver
@@ -161,10 +162,14 @@ export function useConversations(params: {
  * um 404 (sem acesso / inexistente) propague rápido e o inbox trate o erro.
  */
 export function useConversationById(conversationId: string | null) {
+  const apiId =
+    conversationId && !isInboxConversationNumberParam(conversationId)
+      ? conversationId
+      : null;
   return useQuery<ConversationListRow>({
-    queryKey: ["inbox-conversation", conversationId],
-    queryFn: () => getConversation(conversationId as string),
-    enabled: Boolean(conversationId) && !isPreviewMode(),
+    queryKey: ["inbox-conversation", apiId],
+    queryFn: () => getConversation(apiId as string),
+    enabled: Boolean(apiId) && !isPreviewMode(),
     staleTime: 10_000,
     retry: false,
   });
@@ -182,7 +187,10 @@ export function useActiveAutomations(conversationId: string | null) {
   return useQuery<{ items: ActiveAutomationDto[] }, Error, ActiveAutomationDto[]>({
     queryKey: activeAutomationsKey(conversationId),
     queryFn: () => getActiveAutomations(conversationId as string),
-    enabled: Boolean(conversationId) && !isPreviewMode(),
+    enabled:
+      Boolean(conversationId) &&
+      !isInboxConversationNumberParam(conversationId) &&
+      !isPreviewMode(),
     staleTime: 15_000,
     select: (d) => d.items,
   });

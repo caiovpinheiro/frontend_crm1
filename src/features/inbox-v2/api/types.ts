@@ -124,7 +124,7 @@ export interface ConversationListRow {
   tabulationId?: string | null;
   /**
    * Opt-in de voz WhatsApp, quando o backend serializar.
-   * Sem este campo (e sem lastMessage de chamada) o chip não pede calling-context.
+   * Sem este campo (e sem aba Ligar / SSE) o chip não pede calling-context.
    */
   whatsappCallConsentStatus?: string | null;
   hasCalling?: boolean;
