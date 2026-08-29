@@ -94,9 +94,28 @@ export const DASHBOARD_UI_KEY_PREFIX = "dashboard-ui";
 export type DashboardUiState = {
   tab?: string;
   clock?: "business" | "elapsed";
+  /** Legado (um id). Preferir `tabActorUserIds`. */
   tabActorUserId?: string;
   tabDepartmentId?: string;
+  tabActorUserIds?: string[];
+  tabDepartmentIds?: string[];
 };
+
+function asSavedIds(list: unknown, legacy?: unknown): string[] {
+  if (Array.isArray(list)) {
+    return list.filter((id): id is string => typeof id === "string" && id.length > 0);
+  }
+  if (typeof legacy === "string" && legacy) return [legacy];
+  return [];
+}
+
+export function readSavedActorUserIds(saved: DashboardUiState): string[] {
+  return asSavedIds(saved.tabActorUserIds, saved.tabActorUserId);
+}
+
+export function readSavedDepartmentIds(saved: DashboardUiState): string[] {
+  return asSavedIds(saved.tabDepartmentIds, saved.tabDepartmentId);
+}
 
 export function readDashboardUiState(
   keyPart: string,

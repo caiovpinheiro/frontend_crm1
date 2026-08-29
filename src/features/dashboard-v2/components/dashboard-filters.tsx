@@ -54,10 +54,10 @@ export function DashboardSearchFilterBar({
   options,
   effectivePipelineId,
   variant,
-  actorUserId = "",
-  onActorUserIdChange,
-  departmentId = "",
-  onDepartmentIdChange,
+  actorUserIds = [],
+  onActorUserIdsChange,
+  departmentIds = [],
+  onDepartmentIdsChange,
   userOptions = [],
   liveUserOptions = [],
   departmentOptions = [],
@@ -69,10 +69,10 @@ export function DashboardSearchFilterBar({
   options?: FilterOptionsResponse;
   effectivePipelineId?: string;
   variant: "deals" | "service";
-  actorUserId?: string;
-  onActorUserIdChange?: (id: string) => void;
-  departmentId?: string;
-  onDepartmentIdChange?: (id: string) => void;
+  actorUserIds?: string[];
+  onActorUserIdsChange?: (ids: string[]) => void;
+  departmentIds?: string[];
+  onDepartmentIdsChange?: (ids: string[]) => void;
   userOptions?: { value: string; label: string }[];
   /** Usuários vistos no funil/uso — o filtro de Negócios se atualiza sozinho. */
   liveUserOptions?: { value: string; label: string }[];
@@ -85,7 +85,7 @@ export function DashboardSearchFilterBar({
 
   const structuralCount = countStructuralDashboardFilters(filters);
   const tabulationCount =
-    (actorUserId ? 1 : 0) + (departmentId ? 1 : 0);
+    (actorUserIds.length ? 1 : 0) + (departmentIds.length ? 1 : 0);
   const activeCount = variant === "service" ? tabulationCount : structuralCount;
   const showFilter = true;
 
@@ -138,8 +138,8 @@ export function DashboardSearchFilterBar({
 
   function handleClear() {
     if (variant === "service") {
-      onActorUserIdChange?.("");
-      onDepartmentIdChange?.("");
+      onActorUserIdsChange?.([]);
+      onDepartmentIdsChange?.([]);
       return;
     }
     onPatch({
@@ -160,9 +160,9 @@ export function DashboardSearchFilterBar({
     if (id === "origem") return filters.sources.length;
     if (id === "consultor") return filters.ownerIds.length;
     if (id === "usuario") {
-      return variant === "deals" ? (filters.userIds?.length ?? 0) : actorUserId ? 1 : 0;
+      return variant === "deals" ? (filters.userIds?.length ?? 0) : actorUserIds.length;
     }
-    if (id === "departamento") return departmentId ? 1 : 0;
+    if (id === "departamento") return departmentIds.length;
     return 0;
   }
 
@@ -278,11 +278,10 @@ export function DashboardSearchFilterBar({
                 <OptionList
                   label="Usuário"
                   options={userOptions}
-                  selected={actorUserId ? [actorUserId] : []}
+                  selected={actorUserIds}
                   onToggle={(id) =>
-                    onActorUserIdChange?.(id === actorUserId ? "" : id)
+                    onActorUserIdsChange?.(toggleId(actorUserIds, id))
                   }
-                  single
                   emptyLabel="Nenhum usuário"
                 />
               )
@@ -291,11 +290,10 @@ export function DashboardSearchFilterBar({
               <OptionList
                 label="Departamento"
                 options={departmentOptions}
-                selected={departmentId ? [departmentId] : []}
+                selected={departmentIds}
                 onToggle={(id) =>
-                  onDepartmentIdChange?.(id === departmentId ? "" : id)
+                  onDepartmentIdsChange?.(toggleId(departmentIds, id))
                 }
-                single
                 emptyLabel="Nenhum departamento"
               />
             ) : null}
