@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, Fragment } from "
 import { Copy, Download, FileText, Pin, PinOff, Reply, SmilePlus, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { AppLoading } from "@/components/crm/app-loading";
 import { StatusTicks, type DeliveryTickStatus } from "@/components/crm/status-ticks";
 
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -91,6 +92,8 @@ export function MessageList({
   messages,
   meId,
   loading,
+  error = null,
+  onRetry,
   query = "",
   onToggleReaction,
   onTogglePin,
@@ -100,6 +103,8 @@ export function MessageList({
   messages: TeamChatMessage[];
   meId: string;
   loading: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   query?: string;
   onToggleReaction: (id: string, emoji: string) => void;
   onTogglePin: (id: string) => void;
@@ -121,7 +126,7 @@ export function MessageList({
   }, [messages.length, room.id]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {pinned.length > 0 && (
         <div className="sticky top-0 z-10 shrink-0 bg-[var(--orbita-block-soft)] px-4 py-2">
           <div className="flex w-full items-start gap-2">
@@ -152,6 +157,16 @@ export function MessageList({
           </div>
         </div>
       )}
+      {loading ? (
+        <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando mensagens" />
+      ) : error ? (
+        <AppLoading
+          variant="inline"
+          className="min-h-0 flex-1"
+          error={error}
+          onRetry={onRetry}
+        />
+      ) : (
       <div className="chat-scroll flex-1 overflow-y-auto px-4 py-3 md:px-10">
         <div className="flex min-h-full w-full flex-col">
           <div className="mb-4 flex justify-center">
@@ -171,9 +186,7 @@ export function MessageList({
               </p>
             </div>
           </div>
-          {loading ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Carregando…</p>
-          ) : q && visible.every((m) => m.kind === "SYSTEM") && !visible.some((m) => m.content.toLowerCase().includes(q)) ? (
+          {q && visible.every((m) => m.kind === "SYSTEM") && !visible.some((m) => m.content.toLowerCase().includes(q)) ? (
             <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma mensagem nesta conversa.</p>
           ) : (
             <div className="flex flex-col">
@@ -233,6 +246,7 @@ export function MessageList({
           <div ref={endRef} className="h-2" />
         </div>
       </div>
+      )}
     </div>
   );
 }

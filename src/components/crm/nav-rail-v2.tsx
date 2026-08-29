@@ -60,7 +60,6 @@ import {
   type OrgBrandCache,
 } from "@/hooks/use-organization";
 import { SoftphoneNavIcon } from "@/features/softphone/components/softphone-nav-icon";
-import { BwipoMark } from "@/components/bwipo/bwipo-logo";
 
 /**
  * Cache local da preferencia da sidebar. O react-query perde o cache a cada
@@ -359,7 +358,6 @@ export function NavRailV2({ className }: { className?: string }) {
     const expandedItemActive =
     "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/30";
 
-  const isBwipoChat = pathname.startsWith("/rely");
   const companyMarkClass = cn(
     "flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl outline-none",
     companyLogo && "rounded-full font-display text-base font-bold text-accent-foreground ring-1 ring-sidebar-primary/40",
@@ -406,16 +404,16 @@ export function NavRailV2({ className }: { className?: string }) {
     >
       {/* Brand mark + chevron de expandir colado no logo (HANDOFF). */}
       <div className={cn("relative mb-3", expanded && "self-center")}>
-      {!mounted || isBwipoChat ? (
+      {!mounted ? (
         <Link
-          href={isBwipoChat ? "/" : "/dashboard"}
+          href="/dashboard"
           prefetch={false}
-          title={isBwipoChat ? "Voltar ao CRM" : "Início"}
-          aria-label={isBwipoChat ? "Voltar ao CRM" : "Início"}
+          title="Início"
+          aria-label="Início"
           className={cn(companyMarkClass, "rounded-xl transition-opacity hover:opacity-80")}
           style={{ width: 48, height: 48 }}
         >
-          {isBwipoChat ? <BwipoMark size={48} className="size-12" /> : brandMark}
+          {brandMark}
         </Link>
       ) : (
         <DropdownMenu>

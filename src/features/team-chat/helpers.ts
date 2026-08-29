@@ -85,9 +85,19 @@ export function getOrbitaNameColor(id: string) {
   return NAME_COLORS[hashOf(id) % NAME_COLORS.length];
 }
 
+function isProductMarkUrl(url: string) {
+  const path = url.split("?")[0]?.toLowerCase() ?? "";
+  return (
+    path.endsWith("/bwipo-icon.png") ||
+    path === "bwipo-icon.png" ||
+    path.endsWith("/bwipo-chat-light.png") ||
+    path.endsWith("/bwipo-chat-dark.png")
+  );
+}
+
 export function normalizeAvatarUrl(url?: string | null): string | null {
   const value = url?.trim();
-  if (!value) return null;
+  if (!value || isProductMarkUrl(value)) return null;
   if (
     value.startsWith("http://") ||
     value.startsWith("https://") ||

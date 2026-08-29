@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
+import { AppLoading } from "@/components/crm/app-loading";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +92,13 @@ export function TeamChatApp() {
     );
   }
 
+  // Não usar só isLoading: no RQ v5, query disabled ou o frame
+  // isPending+idle → isLoading=false + data=undefined → empty flash.
+  const listBootstrapping =
+    status === "loading" ||
+    (ready &&
+      ((!roomsQuery.data && !roomsQuery.isError) ||
+        (!peopleQuery.data && !peopleQuery.isError)));
   const loadError =
     roomsQuery.error instanceof Error
       ? roomsQuery.error.message
@@ -99,7 +107,7 @@ export function TeamChatApp() {
         : null;
 
   return (
-    <div className="team-chat-shell h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+    <div className="team-chat-shell flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
       <div
         className={cn(
           "flex h-full min-h-0 w-[340px] min-w-[320px] shrink-0 flex-col border-r border-[var(--orbita-divider)]",
@@ -110,7 +118,7 @@ export function TeamChatApp() {
           directs={directs}
           groups={groups}
           activeId={selectedId}
-          loading={status === "loading"}
+          loading={listBootstrapping}
           error={directs.length === 0 && groups.length === 0 ? loadError : null}
           favorites={favorites}
           onToggleFavorite={toggleFavorite}
@@ -129,11 +137,13 @@ export function TeamChatApp() {
 
       <section
         className={cn(
-          "relative flex min-h-0 min-w-0 flex-1 flex-col",
+          "relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
           selected ? "flex" : "hidden lg:flex",
         )}
       >
-        {selected ? (
+        {listBootstrapping && !selected ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : selected ? (
           <Thread
             room={selected}
             meId={meId}
@@ -234,9 +244,12 @@ function Thread({
   onToggleFavorite: () => void;
   onAddMembers: () => void;
 }) {
-  const { data, isLoading } = useTeamChatMessages(room.id);
+  const { data, isError, error, refetch } = useTeamChatMessages(room.id);
   const { send, react, pin } = useTeamChatMutations();
   const messages = data?.messages ?? [];
+  const messagesBootstrapping = !data && !isError;
+  const messagesError =
+    error instanceof Error ? error.message : isError ? "Não foi possível carregar as mensagens." : null;
   const [chatQuery, setChatQuery] = useState("");
   const [quote, setQuote] = useState<{ author: string; text: string } | null>(null);
   const pingTyping = usePingTeamChatTyping(room.id);
@@ -265,7 +278,11 @@ function Thread({
           room={room}
           messages={messages}
           meId={meId}
-          loading={isLoading}
+          loading={messagesBootstrapping}
+          error={messagesError}
+          onRetry={() => {
+            void refetch();
+          }}
           query={chatQuery}
           onToggleReaction={(id, emoji) =>
             react.mutate({ roomId: room.id, messageId: id, emoji }, { onError: (e: Error) => toast.error(e.message) })

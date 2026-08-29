@@ -47,7 +47,7 @@ const withSerwist = withSerwistInit({
     /campaigns[\\/]page/,
     /activities[\\/]page/,
     /email[\\/]page/,
-    /rely[\\/]page/,
+    /bwipo-chat[\\/]page/,
     /dashboard[\\/]page/,
   ],
 });
@@ -157,8 +157,9 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       // ── v2 legacy (segmento /v2/* virou raiz) ──────────────────────
-      { source: "/team-chat", destination: "/rely", permanent: false },
-      { source: "/orbita", destination: "/rely", permanent: false },
+      { source: "/rely", destination: "/bwipo-chat", permanent: false },
+      { source: "/team-chat", destination: "/bwipo-chat", permanent: false },
+      { source: "/orbita", destination: "/bwipo-chat", permanent: false },
       { source: "/v2", destination: "/dashboard", permanent: true },
       { source: "/v2/:path*", destination: "/:path*", permanent: true },
 
