@@ -100,3 +100,12 @@ import-teste-*.csv
 
 certificates
 .superpowers/
+
+# Sucata local — artes, proto, auditoria HAR (não sobe)
+.brand-tmp/
+src/features/ui-proto/
+.screenshots-ui/
+.next-verify/
+scripts/_*.mjs
+scripts/perf-*.json
+scripts/flow-load-audit.json
