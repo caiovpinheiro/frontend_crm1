@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import GridLayout, { useContainerWidth, verticalCompactor } from "react-grid-layout";
-import { GripVertical } from "lucide-react";
+import { GripVertical, MoreHorizontal, Trash2 } from "lucide-react";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   armSuppressClickAfterDrag,
   DASHBOARD_DRAG_THRESHOLD_PX,
@@ -36,6 +43,18 @@ function shouldAutoSize(id: string) {
   return id !== "evolution";
 }
 
+const HOVER_ACTION_CLASS = cn(
+  "z-10 flex size-8 items-center justify-center rounded-lg",
+  "bg-card/90 text-muted-foreground",
+  "opacity-0 transition-opacity",
+  "pointer-events-none",
+  "hover:bg-secondary hover:text-foreground",
+  "group-hover/widget:pointer-events-auto group-hover/widget:opacity-100",
+  "group-has-[:focus-visible]/widget:pointer-events-auto group-has-[:focus-visible]/widget:opacity-100",
+  "group-has-[[aria-expanded=true]]/widget:pointer-events-auto group-has-[[aria-expanded=true]]/widget:opacity-100",
+  "focus-visible:pointer-events-auto focus-visible:opacity-100",
+);
+
 export function SortableWidgetGrid({
   layout,
   onLayoutChange,
@@ -43,6 +62,7 @@ export function SortableWidgetGrid({
   render,
   disabled = false,
   persistEnabled = true,
+  onRemove,
 }: {
   layout: Layout;
   onLayoutChange: (layout: Layout) => void;
@@ -50,7 +70,9 @@ export function SortableWidgetGrid({
   render: (id: string) => ReactNode;
   disabled?: boolean;
   persistEnabled?: boolean;
+  onRemove?: (id: string) => void;
 }) {
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const { width, containerRef, mounted } = useContainerWidth();
   const ids = useMemo(() => layout.map((item) => item.i), [layout]);
   const layoutRef = useRef(layout);
@@ -118,23 +140,39 @@ export function SortableWidgetGrid({
     };
   }, [containerRef, disabled, flushHeights, ids, mounted, width]);
 
+  async function requestRemove(id: string) {
+    if (!onRemove) return;
+    const label = labels[id] ?? "este gráfico";
+    const ok = await confirm({
+      title: "Excluir gráfico?",
+      description: `Remover “${label}” do dashboard. Os demais cards permanecem.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (ok) onRemove(id);
+  }
+
   if (disabled) {
     return (
-      <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-12">
-        {ids.map((id) => {
-          const item = layout.find((entry) => entry.i === id);
-          const span = item?.w ?? 12;
-          return (
-            <div
-              key={id}
-              className="min-w-0"
-              style={{ gridColumn: `span ${span} / span ${span}` }}
-            >
-              {render(id)}
-            </div>
-          );
-        })}
-      </div>
+      <>
+        <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-12">
+          {ids.map((id) => {
+            const item = layout.find((entry) => entry.i === id);
+            const span = item?.w ?? 12;
+            return (
+              <div
+                key={id}
+                className="group/widget relative min-w-0"
+                style={{ gridColumn: `span ${span} / span ${span}` }}
+              >
+                {onRemove ? <WidgetOverflowMenu label={labels[id] ?? id} onRemove={() => void requestRemove(id)} /> : null}
+                {render(id)}
+              </div>
+            );
+          })}
+        </div>
+        {confirmDialog}
+      </>
     );
   }
 
@@ -179,19 +217,14 @@ export function SortableWidgetGrid({
                 type="button"
                 className={cn(
                   DASHBOARD_GRID_GRIP_CLASS,
-                  "absolute left-2 top-2 z-10 flex size-8 cursor-grab items-center justify-center rounded-lg",
-                  "bg-card/90 text-muted-foreground",
-                  "opacity-0 transition-opacity",
-                  "pointer-events-none",
-                  "hover:bg-secondary hover:text-foreground active:cursor-grabbing",
-                  "group-hover/widget:pointer-events-auto group-hover/widget:opacity-100",
-                  "group-has-[:focus-visible]/widget:pointer-events-auto group-has-[:focus-visible]/widget:opacity-100",
-                  "focus-visible:pointer-events-auto focus-visible:opacity-100",
+                  HOVER_ACTION_CLASS,
+                  "absolute left-2 top-2 cursor-grab active:cursor-grabbing",
                 )}
                 aria-label={`Mover ${labels[id] ?? id}`}
               >
                 <GripVertical className="size-4" aria-hidden="true" />
               </button>
+              {onRemove ? <WidgetOverflowMenu label={labels[id] ?? id} onRemove={() => void requestRemove(id)} /> : null}
               <div data-grid-measure={id} className="min-w-0">
                 {render(id)}
               </div>
@@ -201,6 +234,36 @@ export function SortableWidgetGrid({
       ) : (
         <div className="min-h-48" />
       )}
+      {confirmDialog}
     </div>
+  );
+}
+
+function WidgetOverflowMenu({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <DropdownMenu className="absolute right-2 top-2 z-10">
+      <DropdownMenuTrigger
+        className={HOVER_ACTION_CLASS}
+        aria-label={`Ações de ${label}`}
+        data-dashboard-no-drag
+      >
+        <MoreHorizontal className="size-4" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40 rounded-xl">
+        <DropdownMenuItem
+          onClick={onRemove}
+          className="text-destructive focus:text-destructive hover:text-destructive"
+        >
+          <Trash2 className="size-3.5" aria-hidden="true" />
+          Excluir
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -7,18 +7,15 @@ import {
   resolveChartType,
   type DashboardChartType,
 } from "@/features/dashboard-v2/chart-types";
-import { ChartTypePicker } from "@/features/dashboard-v2/components/chart-type-picker";
 import { formatUsageHours } from "@/features/dashboard-v2/format";
 import type { SystemUsageAggregateRow } from "@/features/system-usage/types";
 
 export function SystemUsageCard({
   rows,
   chartType = DEFAULT_USAGE_CHART_TYPE,
-  onChartTypeChange,
 }: {
   rows: SystemUsageAggregateRow[];
   chartType?: DashboardChartType;
-  onChartTypeChange?: (next: DashboardChartType) => void;
 }) {
   const type = resolveChartType(chartType, DEFAULT_USAGE_CHART_TYPE);
 
@@ -61,7 +58,6 @@ export function SystemUsageCard({
       }
     >
       <div data-dashboard-no-drag className="flex flex-col gap-3">
-        <ChartTypePicker value={type} onChange={(next) => onChartTypeChange?.(next)} />
         <CategoricalChart
           type={type}
           rows={rows.map((row) => ({
