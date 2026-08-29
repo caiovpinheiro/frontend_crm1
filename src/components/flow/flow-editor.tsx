@@ -14,6 +14,7 @@ import {
   IconPlayerPause,
   IconSitemap,
 } from "@tabler/icons-react"
+import { AppLoading } from "@/components/crm/app-loading"
 import { PageHeader } from "@/components/crm/page-header"
 import { PageActionsMenu, PageGhostButton, PagePrimaryButton } from "@/components/crm/page-toolbar"
 import {
@@ -600,7 +601,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
     }
   }, [detail, toggleAutomation])
 
-  if (automation.isLoading) {
+  if (!detail && !automation.isError) {
     return <EditorPlaceholder state="loading" />
   }
 
@@ -862,27 +863,27 @@ function EditorPlaceholder({
         icon={<IconBolt size={22} stroke={2.2} />}
         title={state === "loading" ? "Carregando fluxo…" : "Fluxo indisponível"}
       />
-      <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)]">
-        {state === "loading" ? (
-          <p className="text-sm text-[var(--text-muted)]">Carregando os passos da automação…</p>
-        ) : (
+      {state === "loading" ? (
+        <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando automação" />
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center rounded-[var(--radius-xl)] border border-border bg-card">
           <div className="max-w-sm text-center">
-            <p className="text-sm font-bold text-[var(--text-strong)]">
+            <p className="text-sm font-bold text-foreground">
               Não foi possível abrir o fluxo
             </p>
-            <p className="mt-1 text-[13px] text-[var(--text-muted)]">{message}</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">{message}</p>
             {onRetry ? (
               <button
                 type="button"
                 onClick={onRetry}
-                className="mt-4 rounded-full bg-primary px-4 py-2 text-[12px] font-extrabold tracking-tight text-white"
+                className="mt-4 rounded-full bg-primary px-4 py-2 text-[12px] font-extrabold tracking-tight text-primary-foreground"
               >
                 Tentar novamente
               </button>
             ) : null}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
