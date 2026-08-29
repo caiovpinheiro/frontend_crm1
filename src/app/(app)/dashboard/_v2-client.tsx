@@ -114,12 +114,7 @@ export default function DashboardV2ClientPage({
   const { isManagerUp, ready } = useUserRole();
 
   if (!ready) {
-    return (
-      <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
-        {navRail ?? <NavRail />}
-        <AppLoading variant="inline" className="min-h-[420px]" />
-      </div>
-    );
+    return <AppLoading />;
   }
 
   return isManagerUp ? (
@@ -602,7 +597,7 @@ function QueryState({
   children: React.ReactNode;
 }) {
   if (isLoading && !hasData) {
-    return <AppLoading variant="inline" className="min-h-[420px]" />;
+    return <AppLoading variant="inline" className="min-h-[240px]" />;
   }
   if (error) return <QueryError error={error} />;
   return <>{children}</>;

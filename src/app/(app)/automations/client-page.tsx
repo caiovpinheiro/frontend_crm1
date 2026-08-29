@@ -15,7 +15,7 @@ import {
   Zap,
 } from "lucide-react"
 
-import { AppLoading } from "@/components/crm/app-loading"
+import { AutomationsListSkeleton } from "@/components/crm/automations-list-skeleton"
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer"
 import { RestrictedScreen } from "@/components/crm/restricted-screen"
 import { useRequireManager } from "@/hooks/use-user-role"
@@ -379,7 +379,7 @@ export default function V2AutomationsClientPage() {
         />
 
         {isLoading ? (
-          <AppLoading variant="inline" className="min-h-0 flex-1" />
+          <AutomationsListSkeleton />
         ) : isError ? (
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
             {listQuery.error instanceof Error

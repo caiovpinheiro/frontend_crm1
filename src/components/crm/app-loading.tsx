@@ -1,14 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
 
 /**
  * Estado de carregamento ÚNICO do app.
  *
- * Marca "b" estática + arco circular (estilo Hostinger). Só o anel gira;
- * a direção (horário / anti-horário) é sorteada uma vez por mount.
+ * Marca "b" estática + arco circular (estilo Hostinger). Só o anel gira
+ * (sempre horário — inverter depois do hydrate deslocava o primeiro paint).
  * O loader não imita o layout de destino.
  *
  * Segurança: nunca fica girando pra sempre. Passado `timeoutMs` sem o
@@ -23,9 +24,10 @@ export type AppLoadingProps = {
   /** Só para leitores de tela — nada visível ao lado da marca. */
   label?: string;
   /**
-   * `screen`: overlay fixo no viewport (marca no centro geométrico).
-   * `panel`: ocupa só a área disponível (dentro de layouts que já têm chrome).
-   * `inline`: bloco centrado sem altura mínima de tela.
+   * `screen` / `panel`: overlay fixo no viewport (marca no centro).
+   * `panel` é alias de `screen` — um loader na coluna do conteúdo
+   * (ao lado do rail) é o que fazia a marca pular no primeiro paint.
+   * `inline`: bloco no fluxo, só para refetch com chrome já visível.
    */
   variant?: "screen" | "panel" | "inline";
   /** 0 desliga a rede de segurança (use só onde há outro guard de timeout). */
@@ -40,28 +42,25 @@ export type AppLoadingProps = {
   className?: string;
 };
 
+const MARK_BOX_PX = 88;
+const MARK_IMG_PX = 52;
+
 function BrandMark({ spinning }: { spinning: boolean }) {
   const reactId = React.useId().replace(/:/g, "");
   const gradId = `brand-loader-ring-${reactId}`;
-  const clockwiseRef = React.useRef(Math.random() < 0.5);
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const dir = mounted && !clockwiseRef.current ? "ccw" : "cw";
-  const animate = spinning;
 
   return (
-    <span className="relative inline-flex size-[5.5rem] items-center justify-center">
+    <span
+      className="relative inline-flex items-center justify-center"
+      style={{ width: MARK_BOX_PX, height: MARK_BOX_PX }}
+    >
       <span
         aria-hidden
         className={cn(
           "pointer-events-none absolute inset-0",
-          animate && "brand-loader-ring",
+          spinning && "brand-loader-ring",
         )}
-        data-dir={dir}
+        data-dir="cw"
       >
         <svg viewBox="0 0 80 80" className="size-full">
           <defs>
@@ -92,14 +91,15 @@ function BrandMark({ spinning }: { spinning: boolean }) {
           />
         </svg>
       </span>
-      {/* A marca não gira — só o anel. */}
+      {/* A marca não gira — só o anel. Caixa reservada = tamanho final. */}
       <img
         src="/brand/bwipo-mark.png"
         alt=""
-        width={112}
-        height={112}
+        width={MARK_IMG_PX}
+        height={MARK_IMG_PX}
         draggable={false}
-        className="relative size-[3.25rem] object-contain"
+        className="relative object-contain"
+        style={{ width: MARK_IMG_PX, height: MARK_IMG_PX }}
       />
     </span>
   );
@@ -183,26 +183,69 @@ export function AppLoading({
     );
   }
 
-  if (variant === "panel") {
-    return (
-      <div
-        className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}
-        aria-busy={busy}
-      >
-        {content}
-      </div>
-    );
-  }
-
   return (
+    <ScreenOverlay className={className} busy={busy}>
+      <Body label={label} message={message} onRetry={error ? onRetry : undefined} />
+    </ScreenOverlay>
+  );
+}
+
+const SCREEN_LOADER_ATTR = "data-app-loading-screen";
+
+/**
+ * Overlay no `document.body` (fora do `.v2-root { zoom }` e do grid da
+ * página). Sem isso, `fixed` dentro de `.v2-screen` centra no miolo —
+ * e o `(app)/loading.tsx` centra na viewport: dois "b" ao mesmo tempo.
+ * Se dois overlays existirem, só o primeiro no DOM fica visível.
+ */
+function ScreenOverlay({
+  children,
+  className,
+  busy,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  busy: boolean;
+}) {
+  const hostRef = React.useRef<HTMLDivElement>(null);
+  const [target, setTarget] = React.useState<HTMLElement | null>(null);
+  const [isPrimary, setIsPrimary] = React.useState(true);
+
+  React.useLayoutEffect(() => {
+    setTarget(document.body);
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!target) return;
+    const el = hostRef.current;
+    if (!el) return;
+
+    const sync = () => {
+      const nodes = document.querySelectorAll(`[${SCREEN_LOADER_ATTR}]`);
+      setIsPrimary(nodes[0] === el);
+    };
+    sync();
+    const mo = new MutationObserver(sync);
+    mo.observe(target, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [target]);
+
+  const node = (
     <div
+      ref={hostRef}
+      data-app-loading-screen=""
       className={cn(
         "fixed inset-0 z-[35] flex items-center justify-center bg-background",
+        !isPrimary && "hidden",
         className,
       )}
       aria-busy={busy}
+      aria-hidden={!isPrimary}
     >
-      <Body label={label} message={message} onRetry={error ? onRetry : undefined} />
+      {children}
     </div>
   );
+
+  if (!target) return node;
+  return createPortal(node, target);
 }

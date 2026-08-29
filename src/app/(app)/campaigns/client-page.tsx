@@ -219,7 +219,7 @@ export default function CampaignsClientPage() {
 
         <div className="flex min-h-0 flex-1 flex-col">
             {isLoading && allItems.length === 0 ? (
-              <AppLoading variant="inline" className="min-h-[320px]" />
+              <AppLoading />
             ) : error ? (
               <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
                 {error instanceof Error ? error.message : "Erro ao carregar."}

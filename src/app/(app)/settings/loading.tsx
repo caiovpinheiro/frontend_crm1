@@ -1,8 +1,7 @@
-import { PanelLoading } from "@/components/crm/page-loading";
+import { PageLoading } from "@/components/crm/page-loading";
 
-/** Loader de settings: renderiza DENTRO do `settings/layout.tsx`, que já
- *  mantém NavRail + sidebar persistentes — então só o painel direito exibe
- *  skeleton. */
+/** Mesmo overlay de viewport do `(app)/loading.tsx`. Um loader só no
+ *  painel (ao lado do rail/sidebar) deslocava a marca no primeiro paint. */
 export default function Loading() {
-  return <PanelLoading />;
+  return <PageLoading />;
 }

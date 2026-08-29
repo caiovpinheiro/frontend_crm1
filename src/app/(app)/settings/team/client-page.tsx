@@ -755,7 +755,7 @@ function TeamContent() {
 
       {/* LISTA — linha a linha (padrão canônico) */}
       {isLoading && users.length === 0 ? (
-        <AppLoading variant="inline" className="min-h-[320px]" />
+        <AppLoading />
       ) : filtered.length === 0 ? (
         <GlassCard variant="panel" className="px-6 py-12 text-center font-body text-[13px] text-[var(--text-muted)]">
           {term || roleFilter !== "all"

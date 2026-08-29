@@ -723,7 +723,7 @@ export default function V2ContactsClientPage() {
 
         {/* Estados: loading / erro / vazio */}
         {isLoading ? (
-          <AppLoading variant="inline" className="min-h-[400px]" />
+          <AppLoading />
         ) : hasError ? (
           <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {query.error instanceof Error ? query.error.message : "Erro ao carregar."}

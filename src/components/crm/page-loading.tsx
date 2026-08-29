@@ -4,9 +4,9 @@ import { AppLoading } from "@/components/crm/app-loading";
  * Compat: `PageLoading` / `PanelLoading` continuam existindo como nomes.
  * Delegam para o `AppLoading` (marca + anel).
  *
- * - `PageLoading`: overlay fixo, marca no centro do viewport.
- * - `PanelLoading`: só o painel, para seções cujo `layout.tsx` já mantém
- *   rail/sidebar persistentes (ex.: `/settings`).
+ * - `PageLoading` / `PanelLoading`: overlay fixo, marca no centro do
+ *   viewport. `PanelLoading` não centra mais na coluna do conteúdo —
+ *   isso fazia a marca pular depois do `loading.tsx` da rota.
  */
 
 export function PageLoading() {
