@@ -47,9 +47,13 @@ export const DEAL_CORE_WIDGET_IDS = [
   "agents",
   "sources",
   "exceptions",
+  "tabulations",
 ] as const;
 
 export type DealCoreWidgetId = (typeof DEAL_CORE_WIDGET_IDS)[number];
+
+/** Core presets that stay off the board until the user adds them. */
+const OPTIONAL_CORE_WIDGET_IDS: readonly DealCoreWidgetId[] = ["tabulations"];
 
 export type NegociosCustomCard = {
   id: string;
@@ -79,6 +83,7 @@ const DEFAULT_SIZES: Record<DealCoreWidgetId, { w: number; h: number; minW: numb
   agents: { w: 6, h: 10, minW: 3, minH: 5 },
   sources: { w: 6, h: 8, minW: 3, minH: 4 },
   exceptions: { w: 12, h: 5, minW: 4, minH: 3 },
+  tabulations: { w: 12, h: 16, minW: 6, minH: 8 },
 };
 
 const STAGE_DEFAULT = { w: 4, h: 8, minW: 3, minH: 4 };
@@ -231,7 +236,9 @@ function defaultItemForId(id: string): LayoutItem {
 
 /**
  * Keep saved x/y/w/h. Only append widgets the store does not know yet.
- * Does not compact — packing on load was rewriting a valid arrangement.
+ * Drops the legacy aggregate "stages" cell and unknown/hidden ids so they
+ * cannot reserve an empty band. Compacting is the caller's job when the
+ * set of widgets changed (remove / restore / hydrate holes).
  */
 export function adoptSavedLayout(
   saved: Layout | null,
@@ -244,12 +251,12 @@ export function adoptSavedLayout(
     ...DEAL_CORE_WIDGET_IDS,
     ...stageIds.map(stageWidgetId),
     ...cards.map((c) => `card:${c.id}`),
-  ].filter((id) => !hidden.has(id));
+  ].filter((id) => id !== "stages" && !hidden.has(id));
   const expectedSet = new Set<string>(expected);
   const byId = new Map((saved ?? []).filter(isLayoutItem).map((item) => [item.i, item]));
   const kept: Layout = [];
   for (const item of saved ?? []) {
-    if (!isLayoutItem(item) || !expectedSet.has(item.i)) continue;
+    if (!isLayoutItem(item) || item.i === "stages" || !expectedSet.has(item.i)) continue;
     const base = defaultItemForId(item.i);
     kept.push({
       ...base,
@@ -281,6 +288,15 @@ function mergeLayout(
 function parseHiddenWidgetIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((id): id is string => typeof id === "string" && id.length > 0))];
+}
+
+function hideOptionalCore(layout: Layout, hidden: string[]): string[] {
+  const present = new Set(layout.map((item) => item.i));
+  const next = [...hidden];
+  for (const id of OPTIONAL_CORE_WIDGET_IDS) {
+    if (!present.has(id) && !next.includes(id)) next.push(id);
+  }
+  return next;
 }
 
 function uniqueIds(ids: string[]): string[] {
@@ -325,7 +341,7 @@ function parseStore(raw: unknown): NegociosGridStore | null {
   const fromSaved = stageIdsFromLayout(saved);
   const stageIds = fromSaved.length ? fromSaved : mockStages;
   const usageChartType = parseUsageChartType(parsed.usageChartType);
-  const hiddenWidgetIds = parseHiddenWidgetIds(parsed.hiddenWidgetIds);
+  const hiddenWidgetIds = hideOptionalCore(saved, parseHiddenWidgetIds(parsed.hiddenWidgetIds));
   const legacy = parsed.version !== 2 || saved.some((item) => item.i === "stages");
   if (legacy) {
     const source = resetBloated(saved.filter((item) => item.i !== "stages"));
@@ -339,7 +355,7 @@ function parseStore(raw: unknown): NegociosGridStore | null {
   }
   return {
     version: 2,
-    layout: adoptSavedLayout(saved, cards, stageIds, hiddenWidgetIds),
+    layout: compactNegociosLayout(adoptSavedLayout(saved, cards, stageIds, hiddenWidgetIds)),
     cards,
     usageChartType,
     hiddenWidgetIds,
@@ -358,23 +374,25 @@ function emptyStore(): NegociosGridStore {
         chartType: "column",
       },
     ];
+    const layout = defaultNegociosLayout(
+      cards.map((c) => `card:${c.id}`),
+      MOCK_FUNNEL_STAGE_IDS,
+    );
     return {
       version: 2,
-      layout: defaultNegociosLayout(
-        cards.map((c) => `card:${c.id}`),
-        MOCK_FUNNEL_STAGE_IDS,
-      ),
+      layout,
       cards,
       usageChartType: DEFAULT_USAGE_CHART_TYPE,
-      hiddenWidgetIds: [],
+      hiddenWidgetIds: hideOptionalCore(layout, []),
     };
   }
+  const layout = defaultNegociosLayout([], mockStages);
   return {
     version: 2,
-    layout: defaultNegociosLayout([], mockStages),
+    layout,
     cards: [],
     usageChartType: DEFAULT_USAGE_CHART_TYPE,
-    hiddenWidgetIds: [],
+    hiddenWidgetIds: hideOptionalCore(layout, []),
   };
 }
 
@@ -387,13 +405,16 @@ export function useNegociosGrid() {
   const { ready, userId, keyPart } = useDashboardStorageScope();
   const storageKey = keyPart ? scopedKey(NEGOCIOS_GRID_KEY_PREFIX, keyPart) : "";
 
-  const [store, setStore] = useState<NegociosGridStore>(() => ({
-    version: 2,
-    layout: defaultNegociosLayout(),
-    cards: [],
-    usageChartType: DEFAULT_USAGE_CHART_TYPE,
-    hiddenWidgetIds: [],
-  }));
+  const [store, setStore] = useState<NegociosGridStore>(() => {
+    const layout = defaultNegociosLayout();
+    return {
+      version: 2,
+      layout,
+      cards: [],
+      usageChartType: DEFAULT_USAGE_CHART_TYPE,
+      hiddenWidgetIds: hideOptionalCore(layout, []),
+    };
+  });
   const [hydrated, setHydrated] = useState(false);
   const remoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -444,6 +465,21 @@ export function useNegociosGrid() {
 
   const hiddenWidgetIds = store.hiddenWidgetIds ?? [];
 
+  useEffect(() => {
+    if (!hydrated) return;
+    const compacted = compactNegociosLayout(
+      store.layout.filter((item) => item.i !== "stages"),
+    );
+    if (sameLayout(compacted, store.layout)) return;
+    persist({
+      version: 2,
+      layout: compacted,
+      cards: store.cards,
+      usageChartType: store.usageChartType,
+      hiddenWidgetIds,
+    });
+  }, [hiddenWidgetIds, hydrated, persist, store.cards, store.layout, store.usageChartType]);
+
   const commit = useCallback(
     (patch: Partial<NegociosGridStore>) => {
       persist({
@@ -463,7 +499,9 @@ export function useNegociosGrid() {
       if (!hydrated) return;
       const incomingStages = stageIdsFromLayout(layout);
       const stageIds = incomingStages.length ? incomingStages : stageIdsFromLayout(store.layout);
-      const next = adoptSavedLayout(layout, store.cards, stageIds, hiddenWidgetIds);
+      const next = compactNegociosLayout(
+        adoptSavedLayout(layout, store.cards, stageIds, hiddenWidgetIds),
+      );
       if (sameLayout(next, store.layout)) return;
       commit({ layout: next });
     },
@@ -476,7 +514,9 @@ export function useNegociosGrid() {
       const visible = stageIdsFromLayout(store.layout);
       const expectedVisible = stageIds.filter((id) => !hiddenWidgetIds.includes(stageWidgetId(id)));
       if (sameStageSet(visible, expectedVisible)) return;
-      const next = adoptSavedLayout(store.layout, store.cards, stageIds, hiddenWidgetIds);
+      const next = compactNegociosLayout(
+        adoptSavedLayout(store.layout, store.cards, stageIds, hiddenWidgetIds),
+      );
       if (sameLayout(next, store.layout)) return;
       commit({ layout: next });
     },
@@ -491,7 +531,9 @@ export function useNegociosGrid() {
       commit({
         cards,
         hiddenWidgetIds: nextHidden,
-        layout: adoptSavedLayout(store.layout, cards, stageIdsFromLayout(store.layout), nextHidden),
+        layout: compactNegociosLayout(
+          adoptSavedLayout(store.layout, cards, stageIdsFromLayout(store.layout), nextHidden),
+        ),
       });
     },
     [commit, hiddenWidgetIds, hydrated, store],
@@ -512,11 +554,13 @@ export function useNegociosGrid() {
       commit({
         cards,
         hiddenWidgetIds: nextHidden,
-        layout: adoptSavedLayout(
-          store.layout.filter((item) => item.i !== widgetId),
-          cards,
-          stageIds,
-          nextHidden,
+        layout: compactNegociosLayout(
+          adoptSavedLayout(
+            store.layout.filter((item) => item.i !== widgetId),
+            cards,
+            stageIds,
+            nextHidden,
+          ),
         ),
       });
     },
@@ -537,7 +581,9 @@ export function useNegociosGrid() {
         hiddenWidgetIds: nextHidden,
         usageChartType:
           widgetId === "usage" && chartType ? chartType : store.usageChartType,
-        layout: adoptSavedLayout(store.layout, store.cards, stageIds, nextHidden),
+        layout: compactNegociosLayout(
+          adoptSavedLayout(store.layout, store.cards, stageIds, nextHidden),
+        ),
       });
     },
     [commit, hiddenWidgetIds, hydrated, store],

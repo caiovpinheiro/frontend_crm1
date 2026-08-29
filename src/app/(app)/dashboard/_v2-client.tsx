@@ -82,6 +82,7 @@ const DEAL_LABELS: Record<string, string> = {
   agents: "Ganhos por agente",
   sources: "Origem",
   exceptions: "Exceções",
+  tabulations: "Tabulações",
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -417,12 +418,24 @@ function ManagerHome({
             labels={cardLabels}
             onRemove={grid.removeWidget}
             render={(id) => {
-              if (id === "stages") return null;
               if (id === "usage") {
                 return (
                   <SystemUsageCard
                     rows={usageRows}
                     chartType={grid.usageChartType}
+                  />
+                );
+              }
+              if (id === "tabulations") {
+                return (
+                  <TabulationsDashboard
+                    period={period}
+                    search={search}
+                    hideLocalFilters
+                    actorUserId={tabActorUserId}
+                    onActorUserIdChange={setTabActorUserId}
+                    departmentId={tabDepartmentId}
+                    onDepartmentIdChange={setTabDepartmentId}
                   />
                 );
               }
@@ -549,7 +562,7 @@ function renderDealWidget(
   userIds?: string[],
   funnelPicker?: ReactNode,
 ) {
-  if (id === "usage") return null;
+  if (id === "usage" || id === "tabulations") return null;
   if (query.error && !query.data) {
     if (id !== "kpis") return <PainelSkeleton className="min-h-48" />;
     return (
