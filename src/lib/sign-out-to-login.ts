@@ -28,7 +28,7 @@ export function apexOrigin(): string {
   return "https://bwipo.com";
 }
 
-/** Logoff sempre volta ao login do apex — nunca EasyPanel / crm.eduit. */
+/** Logoff: em produção (`bwipo.com` / `{slug}.bwipo.com`) volta ao apex. EasyPanel DEV fica no mesmo host. */
 export function apexLoginUrl(): string {
   return `${apexOrigin()}/login`;
 }

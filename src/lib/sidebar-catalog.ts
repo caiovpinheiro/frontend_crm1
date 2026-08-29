@@ -1,4 +1,5 @@
 import {
+  Blocks,
   Building2,
   ClipboardList,
   Kanban,
@@ -13,8 +14,6 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-
-import { WidgetsIcon } from "@/components/icons/widgets-icon";
 import type { AppUserRole } from "@/lib/auth-types";
 
 /**
@@ -170,10 +169,10 @@ export const SIDEBAR_CATALOG: readonly SidebarCatalogItem[] = [
   },
   {
     key: "widgets",
-    title: "Widgets",
+    title: "Integrações",
     href: "/widgets",
-    icon: WidgetsIcon,
-    description: "Central de extensões da organização.",
+    icon: Blocks,
+    description: "Integrações e extensões da organização.",
     locked: false,
     requiredPermission: "nav:widgets",
   },
