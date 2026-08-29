@@ -134,10 +134,11 @@ export default function DemandsClientPage({
     >
       {navRail ?? <NavRailSpacer />}
       {booting ? (
-        <AppLoading variant="panel" />
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
       ) : boardsQuery.isError || boardQuery.isError ? (
         <AppLoading
-          variant="panel"
+          variant="inline"
+          className="min-h-0 flex-1"
           error={loadErrorMessage}
           onRetry={() => {
             void boardsQuery.refetch();

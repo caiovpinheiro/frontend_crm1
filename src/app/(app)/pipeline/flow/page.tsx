@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default function PipelineFlowPage() {
   return (
-    <Suspense fallback={<AppLoading />}>
+    <Suspense fallback={<AppLoading variant="inline" className="min-h-[100dvh]" />}>
       <SalesHubHost />
     </Suspense>
   );

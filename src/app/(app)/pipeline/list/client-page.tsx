@@ -268,6 +268,13 @@ export default function V2PipelineListClientPage() {
   );
 
   const hasActiveFilters = !isEmptyFilters(filters) || !!search.trim();
+  const pipelinesEmpty =
+    pipelinesQuery.isFetched && pipelines.length === 0;
+  const waitingForPipeline =
+    sessionStatus === "loading" ||
+    (isAuthenticated && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
+  const waitingForDeals =
+    !!pipelineId && !dealsQuery.data && !dealsQuery.isError;
 
   function toggleColumn(key: DealListColumnKey) {
     if (key === "dealTitle") return;
@@ -397,8 +404,8 @@ export default function V2PipelineListClientPage() {
           </div>
         )}
 
-        {dealsQuery.isLoading && rows.length === 0 ? (
-          <AppLoading />
+        {waitingForPipeline || waitingForDeals ? (
+          <AppLoading variant="inline" className="min-h-[240px] flex-1" />
         ) : dealsQuery.error ? (
           <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {dealsQuery.error instanceof Error

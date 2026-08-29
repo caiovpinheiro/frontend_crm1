@@ -25,16 +25,13 @@ export type AppLoadingProps = {
   /** Só para leitores de tela — nada visível ao lado da marca. */
   label?: string;
   /**
-   * `screen` / `panel`: overlay fixo no viewport (marca no centro).
-   * `panel` é alias de `screen` — um loader na coluna do conteúdo
-   * (ao lado do rail) é o que fazia a marca pular no primeiro paint.
-   * `inline`: bloco no fluxo, só para refetch com chrome já visível.
+   * `inline` (padrão): bloco no fluxo, marca 32px no centro do container.
+   * `screen` / `panel`: overlay fixo no viewport. `panel` é alias de `screen`.
    */
   variant?: "screen" | "panel" | "inline";
   /**
-   * `default` — splash (caixa 88 / marca 52).
-   * `sm` — painel de conversa / inline (~54 / 32).
-   * Inline omite e cai em `sm`.
+   * `sm` — padrão de todas as páginas (~54 / marca 32, conversa).
+   * `default` — splash maior (caixa 88 / marca 52), só se pedido.
    */
   size?: "default" | "sm";
   /** 0 desliga a rede de segurança (use só onde há outro guard de timeout). */
@@ -169,7 +166,7 @@ function Body({
 
 export function AppLoading({
   label = "Carregando",
-  variant = "screen",
+  variant = "inline",
   size,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   error = null,
@@ -177,7 +174,7 @@ export function AppLoading({
   className,
 }: AppLoadingProps) {
   const [timedOut, setTimedOut] = React.useState(false);
-  const resolvedSize = size ?? (variant === "inline" ? "sm" : "default");
+  const resolvedSize = size ?? "sm";
 
   React.useEffect(() => {
     if (error || timeoutMs <= 0) return;

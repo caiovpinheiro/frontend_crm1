@@ -36,6 +36,7 @@ import {
   normalizeSearchQuery,
 } from "@/lib/search-query";
 
+import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
 import { KanbanColumn } from "@/components/crm/kanban-column";
@@ -226,7 +227,8 @@ export default function KanbanV2ClientPage({
   const bump = useImportExportBump();
 
   const status = BOARD_STATUS;
-  const { data: pipelines } = usePipelines(isAuthenticated);
+  const pipelinesQuery = usePipelines(isAuthenticated);
+  const pipelines = pipelinesQuery.data;
   // URL `?pipeline=<number>` + LS interno; nunca CUID/slug na query.
   const { pipelineId, setPipelineId } = usePipelineUrlSync(pipelines);
 
@@ -820,6 +822,17 @@ export default function KanbanV2ClientPage({
       // em lastInboundAt. Não passar override manual aqui.
     });
 
+  const boardQuery = hasServerBoard ? boardFiltered : boardNormal;
+  const pipelinesEmpty = Array.isArray(pipelines) && pipelines.length === 0;
+  // Sem pipelineId a query do board fica disabled (isLoading=false, data
+  // undefined) e `columns=[]` pintava EmptyBoard ("Selecione um pipeline")
+  // até o GET /pipelines + LS resolverem — flash empty → board.
+  const waitingForPipeline =
+    sessionStatus === "loading" ||
+    (isAuthenticated && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
+  const waitingForBoard =
+    !!pipelineId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
+
   function handleDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
     if (!destination) return;
@@ -835,6 +848,18 @@ export default function KanbanV2ClientPage({
       toStageId: destination.droppableId,
       toIndex: destination.index,
     });
+  }
+
+  if (waitingForPipeline || waitingForBoard) {
+    return (
+      <div
+        className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4"
+        style={{ gridTemplateRows: "1fr" }}
+      >
+        {navRail ?? <NavRailSpacer />}
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
+      </div>
+    );
   }
 
   return (
