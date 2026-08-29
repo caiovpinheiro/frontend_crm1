@@ -41,12 +41,13 @@ export async function getChannelSession(
  */
 export async function getMessages(
   conversationId: string,
-  opts?: { history?: boolean; before?: string; limit?: number },
+  opts?: { history?: boolean; before?: string; limit?: number; budget?: number },
 ): Promise<MessagesResponse> {
   const params = new URLSearchParams();
   if (opts?.history === true) params.set("history", "1");
   if (opts?.before) params.set("before", opts.before);
   if (opts?.limit) params.set("limit", String(opts.limit));
+  if (opts?.budget) params.set("budget", String(opts.budget));
   const q = params.size > 0 ? `?${params.toString()}` : "";
   const res = await fetch(
     apiUrl(`/api/conversations/${conversationId}/messages${q}`),

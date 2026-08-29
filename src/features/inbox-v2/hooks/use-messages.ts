@@ -52,6 +52,11 @@ function mergeTail(
   prev: MessagesResponse | undefined,
   next: MessagesResponse,
 ): MessagesResponse {
+  // Refetch vazio (timeout / 5xx parseado como []) não apaga o que já
+  // está na tela — era uma causa de painel branco depois do 1º load.
+  if (!next.messages.length && prev?.messages.length) {
+    return prev;
+  }
   if (!prev?.messages?.length) {
     return {
       ...next,
@@ -97,7 +102,7 @@ function mergeHistory(
     ...prev,
     messages: [...incoming, ...prev.messages],
     hasMore: false,
-    hasOlderTickets: false,
+    hasOlderTickets: hist.hasOlderTickets === true,
     historyLoaded: true,
   };
 }
@@ -122,19 +127,35 @@ export function useMessages(conversationId: string | null) {
     refetchOnWindowFocus: false,
   });
 
-  const fetchOlder = useCallback(async () => {
+  const fetchOlder = useCallback(async (opts?: { fill?: boolean }) => {
     if (!conversationId || fetchingOlderRef.current) return;
     const cur = qc.getQueryData<MessagesResponse>(messagesKey(conversationId));
     if (!cur) return;
+    const fill = opts?.fill === true;
     const cursor = oldestCursor(cur.messages);
     const canPage = cur.hasMore === true && Boolean(cursor);
     // Não depende do probe `hasOlderTickets` (some em ticket sem channel
     // ou backend antigo). Sem página nova, tenta history=1 uma vez.
-    const canHistory = !cur.historyLoaded && !canPage;
+    const canHistory =
+      !canPage &&
+      (!cur.historyLoaded || cur.hasOlderTickets === true);
     if (!canPage && !canHistory) return;
+    // Preencher a tela: no máximo um history enxuto. O resto é scroll-up.
+    if (fill && !canPage && cur.historyLoaded) return;
 
     fetchingOlderRef.current = true;
     setIsFetchingOlder(true);
+    const pullHistory = async (light: boolean) => {
+      const hist = await getMessages(
+        conversationId,
+        light
+          ? { history: true, limit: 28, budget: 28 }
+          : { history: true },
+      );
+      qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
+        mergeHistory(old, hist),
+      );
+    };
     try {
       if (canPage && cursor) {
         const page = await getMessages(conversationId, {
@@ -147,17 +168,13 @@ export function useMessages(conversationId: string | null) {
           mergeOlder(old, page),
         );
         if (added === 0 && !cur.historyLoaded) {
-          const hist = await getMessages(conversationId, { history: true });
-          qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
-            mergeHistory(old, hist),
-          );
+          await pullHistory(fill);
         }
       } else {
-        const hist = await getMessages(conversationId, { history: true });
-        qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
-          mergeHistory(old, hist),
-        );
+        await pullHistory(fill);
       }
+    } catch {
+      // Mantém a página já pintada. Próximo scroll-up tenta de novo.
     } finally {
       fetchingOlderRef.current = false;
       setIsFetchingOlder(false);
@@ -171,7 +188,9 @@ export function useMessages(conversationId: string | null) {
   );
   // Até tentar history=1, o scroll-up continua armado — senão conversas
   // sem `hasOlderTickets` nunca pedem o histórico.
-  const hasOlder = Boolean(data && (hasOlderPages || !data.historyLoaded));
+  const hasOlder = Boolean(
+    data && (hasOlderPages || !data.historyLoaded || data.hasOlderTickets === true),
+  );
 
   return {
     ...query,

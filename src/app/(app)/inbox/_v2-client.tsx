@@ -628,6 +628,8 @@ export default function InboxV2ClientPage({
     fetchOlder,
     hasOlder,
     isFetchingOlder,
+    isPending: messagesPending,
+    isError: messagesFailed,
   } = useMessages(activeId);
   const messages = messagesData?.messages ?? [];
   const sessionInfo = messagesData?.session;
@@ -1616,6 +1618,8 @@ export default function InboxV2ClientPage({
         onLoadOlder={fetchOlder}
         hasOlder={hasOlder}
         isLoadingOlder={isFetchingOlder}
+        messagesLoading={messagesPending && !messagesData}
+        messagesError={messagesFailed && !messagesData}
         conversationResolved={activeRow?.status === "RESOLVED"}
         conversationClosedAt={activeRow?.closedAt ?? null}
         onUseTemplate={() => setTemplateOpen(true)}

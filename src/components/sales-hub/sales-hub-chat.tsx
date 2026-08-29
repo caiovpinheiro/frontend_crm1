@@ -118,6 +118,8 @@ export function SalesHubChat({
     fetchOlder,
     hasOlder,
     isFetchingOlder,
+    isPending: messagesPending,
+    isError: messagesFailed,
   } = useMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
   const reactMessage = useReactMessage(conversationId);
@@ -336,6 +338,8 @@ export function SalesHubChat({
         onLoadOlder={fetchOlder}
         hasOlder={hasOlder}
         isLoadingOlder={isFetchingOlder}
+        messagesLoading={messagesPending && !messagesData}
+        messagesError={messagesFailed && !messagesData}
         conversationResolved={isResolved}
         conversationClosedAt={conversationClosedAt ?? null}
         onUseTemplate={() => setTemplateOpen(true)}

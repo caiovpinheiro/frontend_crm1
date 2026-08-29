@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import { isPreviewMode, PREVIEW_USER } from "@/lib/preview-mode"
+import { AppLoading } from "@/components/crm/app-loading"
 import { ChatAvatar } from "@/components/inbox/chat-avatar"
 import { AVATAR_SIZE, avatarInitials } from "@/lib/avatar"
 import { MessageBubble, ConnectionDivider, ConversationClosedMarker, TicketDivider, DaySeparator, formatChatDayLabel, StickyDayPill, useStickyDayLabel, type Message } from "./message-bubble"
@@ -183,12 +184,16 @@ interface ChatAreaProps {
    */
   floatingCallSlot?: React.ReactNode
 
-  /** Scroll-up: pede mensagens mais antigas do ticket atual. */
-  onLoadOlder?: () => void
+  /** Scroll-up: pede mensagens mais antigas. `fill` = só o que cabe na tela. */
+  onLoadOlder?: (opts?: { fill?: boolean }) => void
   hasOlder?: boolean
   /** Tickets anteriores (não dispara sozinho — botão no topo). */
   hasOlderTickets?: boolean
   isLoadingOlder?: boolean
+  /** Primeira página ainda em voo — skeleton no painel, não coluna branca. */
+  messagesLoading?: boolean
+  /** GET da primeira página falhou e não há cache. */
+  messagesError?: boolean
 }
 
 export function ChatArea({
@@ -236,6 +241,8 @@ export function ChatArea({
   hasOlder = false,
   hasOlderTickets = false,
   isLoadingOlder = false,
+  messagesLoading = false,
+  messagesError = false,
 }: ChatAreaProps) {
   const messages = useMemo(() => {
     const seen = new Set<string>()
@@ -370,6 +377,9 @@ export function ChatArea({
   const olderSentinelRef = useRef<HTMLDivElement>(null)
   const onLoadOlderRef = useRef(onLoadOlder)
   onLoadOlderRef.current = onLoadOlder
+  // history=1 só depois de pin no fim. Sem isto o sentinela (topo) intersecta
+  // no 1º paint e dispara o GET pesado — painel fica branco esperando.
+  const [olderArmed, setOlderArmed] = useState(false)
 
   // Esconde o botão só quando o operador está no fim; mostra sempre que
   // sobe no histórico (não só quando chega inbound).
@@ -391,6 +401,7 @@ export function ChatArea({
   useEffect(() => {
     const switched = convKeyRef.current !== convKey
     convKeyRef.current = convKey
+    if (switched) setOlderArmed(false)
     if (!switched && prevLastIdRef.current != null) return
     stickToBottomRef.current = true
     setShowScrollDown(false)
@@ -402,6 +413,7 @@ export function ChatArea({
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         container.scrollTop = container.scrollHeight
+        if (messages.length > 0) setOlderArmed(true)
       })
     })
   }, [convKey, messages])
@@ -450,14 +462,28 @@ export function ChatArea({
       firstId !== prevFirstIdRef.current &&
       lastId === prevLastIdRef.current
     if (prepended) {
-      container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
+      if (stickToBottomRef.current) {
+        container.scrollTop = container.scrollHeight
+      } else {
+        container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
+      }
     }
     prevScrollHeightRef.current = container.scrollHeight
   }, [messages])
 
   const canLoadOlder = hasOlder || hasOlderTickets
+  // Ticket curto: depois do 1º paint no fim, pede o que falta pra preencher
+  // a viewport (páginas do ticket ou um pedaço de history). Scroll-up pede o resto.
   useEffect(() => {
-    if (!canLoadOlder || isLoadingOlder) return
+    if (!olderArmed || isLoadingOlder || messagesLoading || !canLoadOlder) return
+    const root = messagesRef.current
+    if (!root) return
+    if (root.scrollHeight > root.clientHeight + 24) return
+    onLoadOlderRef.current?.({ fill: true })
+  }, [olderArmed, isLoadingOlder, messagesLoading, canLoadOlder, messages.length])
+
+  useEffect(() => {
+    if (!canLoadOlder || isLoadingOlder || !olderArmed) return
     const root = messagesRef.current
     if (!root) return
 
@@ -503,7 +529,7 @@ export function ChatArea({
       root.removeEventListener("touchmove", onTouch.move)
       io?.disconnect()
     }
-  }, [canLoadOlder, isLoadingOlder, messages.length])
+  }, [canLoadOlder, isLoadingOlder, messages.length, olderArmed])
 
   const { hideEvents } = useHideChatEvents()
 
@@ -668,11 +694,30 @@ export function ChatArea({
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
       <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
-        <StickyDayPill date={stickyDayLabel} loading={isLoadingOlder} />
+        <StickyDayPill date={stickyDayLabel} loading={isLoadingOlder} paused={!olderArmed} />
+        {messagesLoading ? (
+          <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
+        ) : messagesError ? (
+          <AppLoading
+            variant="inline"
+            className="min-h-[240px]"
+            error="Não foi possível carregar as mensagens."
+          />
+        ) : messages.length === 0 ? (
+          <p className="m-auto text-center text-[13px] text-muted-foreground">
+            Nenhuma mensagem nesta conversa.
+          </p>
+        ) : (
+        <div className="flex min-h-full flex-col justify-end">
         <ul className="flex list-none flex-col gap-0.5">
-        {canLoadOlder && (
+        {canLoadOlder && olderArmed && (
           <li className="list-none" aria-hidden="true">
             <div ref={olderSentinelRef} className="h-1 w-full" />
+          </li>
+        )}
+        {canLoadOlder && olderArmed && !isLoadingOlder && (
+          <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
+            ↑ Role para ver mensagens anteriores
           </li>
         )}
         {(() => {
@@ -734,8 +779,10 @@ export function ChatArea({
               return null
             }
             const dayLabel = formatChatDayLabel(message.createdAt)
-            const showDay = Boolean(dayLabel && dayLabel !== lastDayLabel)
-            if (showDay && dayLabel) lastDayLabel = dayLabel
+            const isNewDay = Boolean(dayLabel && dayLabel !== lastDayLabel)
+            // Primeiro dia fica só no sticky ao rolar — evita duas pills "Hoje".
+            const showDay = isNewDay && lastDayLabel !== null
+            if (isNewDay && dayLabel) lastDayLabel = dayLabel
             // Marcador de troca de conexão: aparece quando o channelId muda
             // em relação à última mensagem com canal conhecido.
             let connLabel: string | null = null
@@ -813,6 +860,8 @@ export function ChatArea({
             closedAt={conversationClosedAt ?? null}
             conversationNumber={conversationNumber}
           />
+        )}
+        </div>
         )}
       </div>
 

@@ -16,6 +16,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { IconChevronDown, IconLoader2, IconMessageCirclePlus, IconPinFilled, IconX } from "@tabler/icons-react";
 
+import { AppLoading } from "@/components/crm/app-loading";
 import { apiUrl } from "@/lib/api";
 import { avatarInitials } from "@/lib/avatar";
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions";
@@ -233,6 +234,8 @@ export function useDealChatBinding(params: {
     fetchOlder,
     hasOlder,
     isFetchingOlder,
+    isPending: messagesPending,
+    isError: messagesFailed,
   } = useMessages(effectiveConversationId);
   const sendMutation = useSendMessage(effectiveConversationId);
   const reactMutation = useReactMessage(effectiveConversationId);
@@ -421,8 +424,12 @@ export function useDealChatBinding(params: {
 
   const fetchOlderRef = useRef(fetchOlder);
   fetchOlderRef.current = fetchOlder;
+  const [olderArmed, setOlderArmed] = useState(false);
   useEffect(() => {
-    if (!hasOlder || isFetchingOlder) return;
+    setOlderArmed(false);
+  }, [effectiveConversationId]);
+  useEffect(() => {
+    if (!hasOlder || isFetchingOlder || !olderArmed) return;
     const el = findScrollEl();
     if (!el) return;
     const load = () => void fetchOlderRef.current();
@@ -445,7 +452,15 @@ export function useDealChatBinding(params: {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
     };
-  }, [findScrollEl, hasOlder, isFetchingOlder, bubbles.length]);
+  }, [findScrollEl, hasOlder, isFetchingOlder, bubbles.length, olderArmed]);
+
+  useEffect(() => {
+    if (!olderArmed || isFetchingOlder || !hasOlder) return;
+    const el = findScrollEl();
+    if (!el) return;
+    if (el.scrollHeight > el.clientHeight + 24) return;
+    void fetchOlderRef.current({ fill: true });
+  }, [findScrollEl, olderArmed, isFetchingOlder, hasOlder, bubbles.length]);
 
   const prevFirstIdRef = useRef<string | null>(null);
   const prevLastIdRef = useRef<string | null>(null);
@@ -460,7 +475,12 @@ export function useDealChatBinding(params: {
       firstId !== prevFirstIdRef.current &&
       lastId === prevLastIdRef.current;
     if (prepended) {
-      el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+      if (nearBottom) {
+        el.scrollTop = el.scrollHeight;
+      } else {
+        el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+      }
     }
     prevScrollHeightRef.current = el.scrollHeight;
   }, [bubbles, findScrollEl]);
@@ -483,6 +503,7 @@ export function useDealChatBinding(params: {
         requestAnimationFrame(() => {
           const e = findScrollEl();
           if (e) e.scrollTop = e.scrollHeight;
+          if (bubbles.length > 0) setOlderArmed(true);
         }),
       );
       setShowScrollDown(false);
@@ -658,10 +679,22 @@ export function useDealChatBinding(params: {
         </Link>
       </div>
     );
+  } else if (messagesPending && !messagesResp) {
+    messagesNode = (
+      <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
+    );
+  } else if (messagesFailed && !messagesResp) {
+    messagesNode = (
+      <AppLoading
+        variant="inline"
+        className="min-h-[240px]"
+        error="Não foi possível carregar as mensagens."
+      />
+    );
   } else if (bubbles.length === 0) {
     messagesNode = (
       <>
-        <div className="flex h-full items-center justify-center text-[12px] text-[var(--text-muted,#718096)]">
+        <div className="flex h-full items-center justify-center text-[12px] text-muted-foreground">
           Nenhuma mensagem ainda.
         </div>
         {isResolved && (
@@ -736,8 +769,9 @@ export function useDealChatBinding(params: {
         return null;
       }
       const dayLabel = formatChatDayLabel(b.createdAt);
-      const showDay = Boolean(dayLabel && dayLabel !== lastDayLabel);
-      if (showDay && dayLabel) lastDayLabel = dayLabel;
+      const isNewDay = Boolean(dayLabel && dayLabel !== lastDayLabel);
+      const showDay = isNewDay && lastDayLabel !== null;
+      if (isNewDay && dayLabel) lastDayLabel = dayLabel;
       let connLabel: string | null = null;
       if (showConnSwitches && b.channelId && b.channelId !== lastChannelId) {
         const ref = channelsMap[b.channelId];
@@ -809,9 +843,14 @@ export function useDealChatBinding(params: {
       );
     });
     messagesNode = (
-      <>
-        <StickyDayPill date={stickyDayLabel} loading={isFetchingOlder} />
+      <div className="flex min-h-full flex-col justify-end">
+        <StickyDayPill date={stickyDayLabel} loading={isFetchingOlder} paused={!olderArmed} />
         <ul className="flex list-none flex-col gap-0.5">
+          {hasOlder && olderArmed && !isFetchingOlder && (
+            <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
+              ↑ Role para ver mensagens anteriores
+            </li>
+          )}
           {bubbleNodes}
         </ul>
         {isResolved && !hasPersistedClose && (
@@ -842,7 +881,7 @@ export function useDealChatBinding(params: {
             </button>
           </div>
         )}
-      </>
+      </div>
     );
   }
 
