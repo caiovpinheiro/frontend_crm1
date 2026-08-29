@@ -63,6 +63,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useCan } from "@/hooks/use-my-permissions";
+import { useStuckTimeout } from "@/hooks/use-stuck-timeout";
 
 import {
   useBoard,
@@ -270,11 +271,15 @@ export default function V2PipelineListClientPage() {
   const hasActiveFilters = !isEmptyFilters(filters) || !!search.trim();
   const pipelinesEmpty =
     pipelinesQuery.isFetched && pipelines.length === 0;
-  const waitingForPipeline =
+  const pipelinesPending =
     sessionStatus === "loading" ||
     (isAuthenticated && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
-  const waitingForDeals =
+  const pipelinesStuck = useStuckTimeout(pipelinesPending);
+  const waitingForPipeline = pipelinesPending && !pipelinesStuck;
+  const dealsPending =
     !!pipelineId && !dealsQuery.data && !dealsQuery.isError;
+  const dealsStuck = useStuckTimeout(dealsPending);
+  const waitingForDeals = dealsPending && !dealsStuck;
 
   function toggleColumn(key: DealListColumnKey) {
     if (key === "dealTitle") return;
@@ -414,11 +419,19 @@ export default function V2PipelineListClientPage() {
         <div className={LIST_PAGE_PANE_CLASS}>
         {waitingForPipeline || waitingForDeals ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
-        ) : dealsQuery.error ? (
+        ) : dealsQuery.error || dealsStuck ? (
           <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {dealsQuery.error instanceof Error
               ? dealsQuery.error.message
               : "Erro ao carregar negócios."}
+          </div>
+        ) : !pipelineId ? (
+          <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
+            <EmptyState
+              icon={<IconList size={28} />}
+              title="Selecione um pipeline"
+              description="Pipeline ativo nao retornou estagios. Verifique a configuracao no painel de administracao."
+            />
           </div>
         ) : rows.length === 0 ? (
           <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">

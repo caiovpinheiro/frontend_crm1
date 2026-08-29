@@ -91,6 +91,7 @@ import { updateDeal } from "@/features/pipeline-v2/api";
 import { createContact } from "@/features/directory-v2/api";
 import { personNameFromDealTitle, sanitizeContactName } from "@/lib/display-name";
 import { useCan, useMyPermissions } from "@/hooks/use-my-permissions";
+import { useStuckTimeout } from "@/hooks/use-stuck-timeout";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { BulkActionsBar } from "@/components/pipeline/bulk-actions-bar";
 import type { BulkScopeContext } from "@/components/pipeline/bulk-edit-fields-dialog";
@@ -824,14 +825,31 @@ export default function KanbanV2ClientPage({
 
   const boardQuery = hasServerBoard ? boardFiltered : boardNormal;
   const pipelinesEmpty = Array.isArray(pipelines) && pipelines.length === 0;
-  // Sem pipelineId a query do board fica disabled (isLoading=false, data
-  // undefined) e `columns=[]` pintava EmptyBoard ("Selecione um pipeline")
-  // até o GET /pipelines + LS resolverem — flash empty → board.
-  const waitingForPipeline =
+  // Sem pipelineId a query do board fica disabled. Não esconder o chrome —
+  // header fica visível; o loader fica só no body. Timeout/erro soltam o
+  // spinner (query idle/`refetchOnMount: false` não tem isError).
+  const pipelinesPending =
     sessionStatus === "loading" ||
     (isAuthenticated && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
-  const waitingForBoard =
+  const pipelinesStuck = useStuckTimeout(pipelinesPending);
+  const waitingForPipeline = pipelinesPending && !pipelinesStuck;
+
+  const boardPending =
     !!pipelineId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
+  const boardStuck = useStuckTimeout(boardPending);
+  const waitingForBoard = boardPending && !boardStuck;
+
+  const boardIdleUnfetched =
+    !boardQuery.data &&
+    boardQuery.fetchStatus === "idle" &&
+    !boardQuery.isFetched &&
+    !boardQuery.isError;
+
+  useLayoutEffect(() => {
+    if (!pipelineId || !isAuthenticated) return;
+    if (boardIdleUnfetched) void boardQuery.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelineId, isAuthenticated, boardIdleUnfetched]);
 
   function handleDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
@@ -848,18 +866,6 @@ export default function KanbanV2ClientPage({
       toStageId: destination.droppableId,
       toIndex: destination.index,
     });
-  }
-
-  if (waitingForPipeline || waitingForBoard) {
-    return (
-      <div
-        className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4"
-        style={{ gridTemplateRows: "1fr" }}
-      >
-        {navRail ?? <NavRailSpacer />}
-        <AppLoading variant="inline" className="min-h-0 flex-1" />
-      </div>
-    );
   }
 
   return (
@@ -994,6 +1000,9 @@ export default function KanbanV2ClientPage({
         </div>
         )}
 
+        {waitingForPipeline || waitingForBoard ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : (
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div
@@ -1052,6 +1061,7 @@ export default function KanbanV2ClientPage({
           <ScrollMapVertical boardRef={boardRef} columnCount={columns.length} />
           </div>{/* fim relative wrapper */}
         </DragDropContext>
+        )}
       </div>
 
       {importExportOpen && (
