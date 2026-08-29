@@ -1018,17 +1018,17 @@ function MessageContent({
   }
 
   // ── Mídia sem URL (download falhou) — placeholder amigável ──────
+  // Áudio sem URL já cai no AudioPlayer acima (`url` é nullable), então
+  // `kind` aqui é só image | video | document.
   if (kind && !url) {
-    const labels: Record<Exclude<MediaKind, null>, string> = {
+    const labels = {
       image: "Imagem indisponível",
       video: "Vídeo indisponível",
       document: "Documento indisponível",
-      audio: "Áudio indisponível",
-    }
-    const cardKind = kind === "audio" ? "document" : kind
+    } as const
     return (
       <MediaFallback
-        kind={cardKind}
+        kind={kind}
         isOutgoing={isOutgoing}
         label={mediaFileLabel(content, labels[kind])}
       />
