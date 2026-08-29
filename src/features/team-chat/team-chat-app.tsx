@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Laptop, MessageCircle } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
+import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { cn } from "@/lib/utils";
 
 import { ChatHeader } from "./chat-header";
@@ -148,7 +150,7 @@ export function TeamChatApp() {
             onAddMembers={() => setAddOpen(true)}
           />
         ) : (
-          <LandingEmpty onNew={() => setComposeOpen(true)} />
+          <LandingEmpty />
         )}
       </section>
 
@@ -301,27 +303,34 @@ function Thread({
   );
 }
 
-function LandingEmpty({ onNew }: { onNew: () => void }) {
+function LandingEmpty() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-[var(--orbita-paper)] px-6 text-center" data-wa-thread>
-      <span className="grid h-16 w-16 place-items-center rounded-2xl bg-[var(--orbita-block)] shadow-[0_8px_24px_rgba(91,111,245,0.12)] ring-1 ring-[var(--orbita-divider)]">
-        <svg viewBox="0 0 32 32" className="h-8 w-8" aria-hidden>
-          <circle cx="16" cy="16" r="3.2" fill="var(--orbita-selected)" />
-          <ellipse cx="16" cy="16" rx="11" ry="4.4" fill="none" stroke="var(--orbita-selected)" strokeWidth="1.4" transform="rotate(-24 16 16)" />
-          <ellipse cx="16" cy="16" rx="11" ry="4.4" fill="none" stroke="var(--color-lavender, #a78bfa)" strokeWidth="1.4" transform="rotate(28 16 16)" />
-        </svg>
-      </span>
-      <p className="mt-5 font-display text-[28px] font-semibold tracking-tight text-[var(--orbita-text)]">Rely</p>
-      <p className="mt-2 max-w-sm text-[14px] leading-relaxed text-[var(--orbita-text-secondary)]">
-        Chat interno do time. Escolha uma conversa ou comece uma nova.
-      </p>
-      <button
-        type="button"
-        onClick={onNew}
-        className="mt-5 text-[14px] font-semibold text-[var(--orbita-selected)] hover:underline"
+    <div
+      className="flex flex-1 flex-col items-center justify-center px-6"
+      data-wa-thread
+    >
+      <div
+        className={cn(
+          CARD_SURFACE_CLASS,
+          "flex w-full max-w-md flex-col items-center px-8 py-12 text-center",
+        )}
       >
-        Nova conversa
-      </button>
+        <div className="relative flex h-16 w-20 items-center justify-center text-primary">
+          <Laptop className="size-16" strokeWidth={1.25} aria-hidden />
+          <MessageCircle
+            className="absolute size-6 -translate-y-0.5"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        </div>
+        <h2 className="mt-6 font-display text-xl font-bold tracking-tight text-foreground">
+          Bwipo Chat
+        </h2>
+        <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
+          Selecione uma conversa para ver mensagens, ligações e o histórico do
+          time.
+        </p>
+      </div>
     </div>
   );
 }
