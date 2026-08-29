@@ -30,8 +30,8 @@ export type AppLoadingProps = {
    */
   variant?: "screen" | "panel" | "inline";
   /**
-   * `sm` — padrão de todas as páginas (~54 / marca 32, conversa).
-   * `default` — splash maior (caixa 88 / marca 52), só se pedido.
+   * Sempre marca 32px. `default` é alias de `sm` — splash grande
+   * (52–88px) virava o “B fantasma” no F5.
    */
   size?: "default" | "sm";
   /** 0 desliga a rede de segurança (use só onde há outro guard de timeout). */
@@ -47,7 +47,7 @@ export type AppLoadingProps = {
 };
 
 const MARK_SIZE = {
-  default: { box: 88, img: 52 },
+  default: { box: 54, img: 32 },
   sm: { box: 54, img: 32 },
 } as const;
 
@@ -112,7 +112,12 @@ function BrandMark({
         height={imgPx}
         draggable={false}
         className="relative object-contain"
-        style={{ width: imgPx, height: imgPx }}
+        style={{
+          width: imgPx,
+          height: imgPx,
+          maxWidth: imgPx,
+          maxHeight: imgPx,
+        }}
       />
     </span>
   );

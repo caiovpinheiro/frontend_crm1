@@ -21,7 +21,7 @@ import { useSession } from "next-auth/react";
 import { signOutToLogin } from "@/lib/sign-out-to-login";
 import { toast } from "sonner";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "react";
 
 import {
   DropdownMenu,
@@ -53,9 +53,11 @@ import {
 import { useSidebarPreferences } from "@/features/sidebar/hooks";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import {
+  readCachedOrgBrand,
   useOrganization,
   useRemoveOrganizationLogo,
   useUpdateOrganizationLogo,
+  type OrgBrandCache,
 } from "@/hooks/use-organization";
 import { SoftphoneNavIcon } from "@/features/softphone/components/softphone-nav-icon";
 import { BwipoMark } from "@/components/bwipo/bwipo-logo";
@@ -148,16 +150,24 @@ export function NavRailV2({ className }: { className?: string }) {
     ? { onMouseEnter: onGearEnter, onMouseLeave: onGearLeave }
     : undefined;
 
-  // Identidade da empresa (avatar do topo, estilo Kommo): iniciais do nome da
-  // org e o ID da conta (organizationId) copiável no popover. Enquanto a org
-  // não carrega, o avatar mostra só um ponto pulsando (nada de texto fake).
-  const companyName = organization?.name?.trim() ?? "";
-  const companyLogo = organization?.logoUrl ?? null;
-  const accountId =
+  // Identidade da empresa (avatar do topo). A logo NÃO usa o B da Bwipo
+  // como placeholder — no F5 isso era o fantasma. Slot vazio 48px até o
+  // cache (localStorage) ou o GET; cache aplicado no layout effect para
+  // pintar antes do frame.
+  const orgId =
     organization?.id ??
     (session?.user as { organizationId?: string | null } | undefined)
       ?.organizationId ??
     "";
+  const [cachedBrand, setCachedBrand] = useState<OrgBrandCache | null>(null);
+  useLayoutEffect(() => {
+    setCachedBrand(readCachedOrgBrand(orgId || undefined));
+  }, [orgId]);
+  const companyName = organization?.name?.trim() ?? cachedBrand?.name ?? "";
+  const companyLogo = organization
+    ? organization.logoUrl
+    : (cachedBrand?.logoUrl ?? null);
+  const accountId = orgId;
   async function copyAccountId() {
     if (!accountId) return;
     try {
@@ -354,11 +364,23 @@ export function NavRailV2({ className }: { className?: string }) {
     "flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl outline-none",
     companyLogo && "rounded-full font-display text-base font-bold text-accent-foreground ring-1 ring-sidebar-primary/40",
   );
-  const brandMark = companyLogo ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={companyLogo} alt={companyName || "Empresa"} className="size-full object-cover" />
-  ) : (
-    <BwipoMark className="size-12" />
+  const brandMark = (
+    <span
+      className="flex size-12 shrink-0 items-center justify-center overflow-hidden"
+      style={{ width: 48, height: 48 }}
+    >
+      {companyLogo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={companyLogo}
+          alt={companyName || "Empresa"}
+          width={48}
+          height={48}
+          draggable={false}
+          className="size-full object-cover"
+        />
+      ) : null}
+    </span>
   );
 
   return (
@@ -391,8 +413,9 @@ export function NavRailV2({ className }: { className?: string }) {
           title={isBwipoChat ? "Voltar ao CRM" : "Início"}
           aria-label={isBwipoChat ? "Voltar ao CRM" : "Início"}
           className={cn(companyMarkClass, "rounded-xl transition-opacity hover:opacity-80")}
+          style={{ width: 48, height: 48 }}
         >
-          <BwipoMark className="size-12" />
+          {isBwipoChat ? <BwipoMark size={48} className="size-12" /> : brandMark}
         </Link>
       ) : (
         <DropdownMenu>
@@ -403,19 +426,28 @@ export function NavRailV2({ className }: { className?: string }) {
               companyMarkClass,
               "transition-shadow hover:ring-2 hover:ring-sidebar-primary/40 focus-visible:ring-2 focus-visible:ring-sidebar-primary/50",
             )}
+            style={{ width: 48, height: 48 }}
           >
             {brandMark}
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="start" className={ACCOUNT_MENU_CONTENT}>
             <div className="flex items-center gap-3 px-2 py-2">
-              <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl">
+              <div
+                className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+                style={{ width: 40, height: 40 }}
+              >
                 {companyLogo ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={companyLogo} alt={companyName || "Empresa"} className="size-full object-cover" />
-                ) : (
-                  <BwipoMark className="size-10" />
-                )}
+                  <img
+                    src={companyLogo}
+                    alt={companyName || "Empresa"}
+                    width={40}
+                    height={40}
+                    draggable={false}
+                    className="size-full object-cover"
+                  />
+                ) : null}
               </div>
               <div className="min-w-0">
                 <p className="truncate font-display text-[13px] font-bold text-[var(--color-popover-foreground)]">
