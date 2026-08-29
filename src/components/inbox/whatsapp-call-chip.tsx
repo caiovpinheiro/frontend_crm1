@@ -74,6 +74,16 @@ type CallingContext = {
   suggestCallPermission: boolean;
 };
 
+/** 404 = org/conversa sem feature de voz. Não refetch/poll nessa conversa. */
+type CallingContextMiss = { noCalling: true };
+type CallingContextResult = CallingContext | CallingContextMiss;
+
+const callingContextMisses = new Set<string>();
+
+function isCallingMiss(d: CallingContextResult | undefined): d is CallingContextMiss {
+  return !!d && "noCalling" in d;
+}
+
 /** Meta bloqueia novo request por 24h depois de um REJECT. */
 const DENY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -225,20 +235,34 @@ export function WhatsappCallChip({
 
   const { data, isLoading } = useQuery({
     queryKey: key,
-    queryFn: async () => {
+    queryFn: async (): Promise<CallingContextResult> => {
+      if (callingContextMisses.has(conversationId)) {
+        return { noCalling: true };
+      }
       const r = await fetch(apiUrl(`/api/conversations/${conversationId}/calling-context`));
+      if (r.status === 404) {
+        callingContextMisses.add(conversationId);
+        return { noCalling: true };
+      }
       if (!r.ok) throw new Error("Erro ao carregar estado de voz");
       return r.json() as Promise<CallingContext>;
     },
-    enabled: !!conversationId && isWaVoiceChannel,
+    enabled: !!conversationId && isWaVoiceChannel && !callingContextMisses.has(conversationId),
+    retry: false,
     staleTime: 15_000,
     // Sanity polling quando há chamada ativa: se um webhook `terminate` se
     // perder, o chip se auto-corrige em até 10s ao invés de ficar preso em
-    // "Em chamada" indefinidamente.
-    refetchInterval: (q) =>
-      (q.state.data as CallingContext | undefined)?.activeCallMetaId ? 10_000 : false,
+    // "Em chamada" indefinidamente. 404 = sem feature: não polla.
+    refetchInterval: (q) => {
+      const d = q.state.data as CallingContextResult | undefined;
+      if (!d || isCallingMiss(d) || callingContextMisses.has(conversationId)) return false;
+      return d.activeCallMetaId ? 10_000 : false;
+    },
     refetchIntervalInBackground: false,
   });
+  const callingUnavailable =
+    isCallingMiss(data) || callingContextMisses.has(conversationId);
+  const ctx = callingUnavailable ? undefined : data;
 
   const [msgTick, bumpMsgs] = React.useState(0);
   React.useEffect(() => {
@@ -383,7 +407,7 @@ export function WhatsappCallChip({
     const cur = outbound.phase;
     const wasActive = prev === "live" || prev === "need_answer";
     const isActive = cur === "live" || cur === "need_answer";
-    if (wasActive && !isActive) {
+    if (wasActive && !isActive && !callingContextMisses.has(conversationId)) {
       queryClient.invalidateQueries({ queryKey: key });
     }
     prevPhaseRef.current = cur;
@@ -415,7 +439,9 @@ export function WhatsappCallChip({
         ) {
           const p = evtData as { conversationId?: string };
           if (p.conversationId === conversationId) {
-            queryClient.invalidateQueries({ queryKey: key });
+            if (!callingContextMisses.has(conversationId)) {
+              queryClient.invalidateQueries({ queryKey: key });
+            }
             // Histórico de chamadas também precisa atualizar quando
             // chega evento de chamada (terminate, recording etc).
             queryClient.invalidateQueries({ queryKey: recentCallsKey });
@@ -435,7 +461,7 @@ export function WhatsappCallChip({
       } catch {
         /* ignore */
       }
-      const envTpl = (data?.envCallPermissionTemplate ?? "").trim();
+      const envTpl = (ctx?.envCallPermissionTemplate ?? "").trim();
       const templateName = (chosenTemplate ?? "").trim() || envTpl || stored;
       if (!templateName) {
         throw new Error(
@@ -508,13 +534,13 @@ export function WhatsappCallChip({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const apiCs = data?.consentStatus ?? "NONE";
+  const apiCs = ctx?.consentStatus ?? "NONE";
   const inferred = inferGrantFromMessages(cachedMessages?.messages);
   const expiryApi = useConsentExpiry(
     apiCs,
-    data?.consentType ?? null,
-    data?.consentUpdatedAt ?? null,
-    data?.consentExpiresAt ?? null,
+    ctx?.consentType ?? null,
+    ctx?.consentUpdatedAt ?? null,
+    ctx?.consentExpiresAt ?? null,
   );
   const expiryInf = useConsentExpiry(
     inferred ? "GRANTED" : "NONE",
@@ -561,10 +587,10 @@ export function WhatsappCallChip({
     if (!menuOpen) setPlayingRecordingUrl(null);
   }, [menuOpen]);
 
-  if (!isWaVoiceChannel) return null;
+  if (!isWaVoiceChannel || callingUnavailable) return null;
   const effectivelyExpired =
     cs === "EXPIRED" || (cs === "GRANTED" && !expiry.isPermanent && expiry.expired);
-  const activeCallId = data?.activeCallMetaId ?? null;
+  const activeCallId = ctx?.activeCallMetaId ?? null;
   const hasActiveCall =
     !!activeCallId || outbound.phase === "live" || outbound.phase === "need_answer";
 
@@ -572,10 +598,10 @@ export function WhatsappCallChip({
   // estiver dentro dela, re-solicitar voz é garantido falhar, então a UI
   // travamos o botão e mostramos o tempo restante.
   const denyCooldown = (() => {
-    if (cs !== "DENIED" || !data?.consentUpdatedAt) {
+    if (cs !== "DENIED" || !ctx?.consentUpdatedAt) {
       return { active: false, remainingMs: 0 };
     }
-    const since = new Date(data.consentUpdatedAt).getTime();
+    const since = new Date(ctx.consentUpdatedAt).getTime();
     const remainingMs = DENY_COOLDOWN_MS - (Date.now() - since);
     return { active: remainingMs > 0, remainingMs: Math.max(0, remainingMs) };
   })();
