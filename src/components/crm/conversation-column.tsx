@@ -230,34 +230,32 @@ export function ConversationColumn({
   isRefreshing = false,
   scrollToTopKey,
 }: ConversationColumnProps) {
-  // Sentinela invisível no fim da lista. Quando entra no viewport
-  // (com 200px de margem), dispara `onLoadMore`. IntersectionObserver
-  // é a forma mais confiável — onScroll perde frame em listas longas
-  // e tem que recalcular thresholds manualmente.
+  // Sentinela no fim da lista. Callback via ref para o observer
+  // não remountar a cada render (onLoadMore inline + sentinela
+  // visível = cascata de páginas). Pausa enquanto carrega.
   const sentinelRef = useRef<HTMLDivElement>(null)
   const listScrollRef = useRef<HTMLDivElement>(null)
+  const onLoadMoreRef = useRef(onLoadMore)
+  onLoadMoreRef.current = onLoadMore
   useEffect(() => {
     if (!scrollToTopKey) return
     listScrollRef.current?.scrollTo({ top: 0 })
   }, [scrollToTopKey])
   useEffect(() => {
-    if (!onLoadMore || !hasMore) return
+    if (!hasMore || isLoading || isLoadingMore) return
     const el = sentinelRef.current
     if (!el) return
     const io = new IntersectionObserver(
       (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            onLoadMore()
-            break
-          }
+        if (entries.some((e) => e.isIntersecting)) {
+          onLoadMoreRef.current?.()
         }
       },
-      { rootMargin: "200px 0px" },
+      { root: listScrollRef.current, rootMargin: "80px 0px" },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [onLoadMore, hasMore])
+  }, [hasMore, isLoading, isLoadingMore])
   const [internalTab, setInternalTab] = useState(0)
   const isControlledTabs = tabsOverride !== undefined
   const tabs: ReadonlyArray<TabItem> = isControlledTabs ? tabsOverride : DEFAULT_TABS

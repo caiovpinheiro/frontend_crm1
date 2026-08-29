@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -29,10 +30,11 @@ import { isPreviewMode } from "@/lib/preview-mode";
 
 /**
  * Page size pedido por request. O backend tem cap em 200 (ver
- * `_backend/src/services/conversations.ts`). Primeiro paint = 10;
- * o infinite scroll pede mais 10 ao chegar no fim da lista.
+ * `_backend/src/services/conversations.ts`). 40 preenche a coluna;
+ * lote de 10 deixava o sentinela sempre visível e disparava
+ * página atrás de página ("Carregando mais..." sem fim).
  */
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 40;
 
 /**
  * Lista paginada (infinite) de conversas da aba ativa.
@@ -86,6 +88,10 @@ export function useConversations(params: {
     staleTime: 45_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    // Troca de aba/filtro: mantém a lista anterior no lugar até a
+    // primeira página nova chegar (sem isso o scroller vira skeleton
+    // e o sentinela remonta → cascata de fetch).
+    placeholderData: keepPreviousData,
   });
 
   // Agrega todas as páginas carregadas em um único `items[]` pra
@@ -144,6 +150,7 @@ export function useConversations(params: {
     fetchNextPage: query.fetchNextPage,
     hasNextPage: query.hasNextPage ?? false,
     isFetchingNextPage: query.isFetchingNextPage,
+    isPlaceholderData: query.isPlaceholderData,
   };
 }
 
