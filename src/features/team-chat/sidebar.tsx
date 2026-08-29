@@ -5,6 +5,7 @@ import { MoreVertical, Search, SquarePen, Star } from "lucide-react";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { AppLoading } from "@/components/crm/app-loading";
+import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { cn } from "@/lib/utils";
 
@@ -332,13 +333,16 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="chat-scroll min-h-0 flex-1 overflow-y-auto border-t border-black/[0.04] py-1 dark:border-white/[0.06]" aria-label="Conversas">
+      <nav className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-black/[0.04] py-1 dark:border-white/[0.06]" aria-label="Conversas">
         {loading ? (
-          <AppLoading variant="inline" className="min-h-[200px]" />
+          <AppLoading variant="inline" className="min-h-0 flex-1 lg:hidden" />
         ) : error ? (
-          <p className="px-4 pt-10 text-center text-sm text-destructive">{error}</p>
+          <div className={cn(CARD_SURFACE_CLASS, "mx-4 mt-6 px-4 py-8 text-center")}>
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
         ) : visible.length === 0 ? (
-          <p className="px-4 pt-10 text-center text-sm text-muted-foreground">
+          <div className={cn(CARD_SURFACE_CLASS, "mx-4 mt-6 px-4 py-8 text-center")}>
+            <p className="text-sm text-muted-foreground">
             {filter === "unread" && !q
               ? "Nenhuma conversa não lida."
               : filter === "favorites" && !q
@@ -348,7 +352,8 @@ export function Sidebar({
                 : q
                   ? "Nenhuma conversa encontrada."
                   : "Nenhuma conversa ainda."}
-          </p>
+            </p>
+          </div>
         ) : (
           visible.map((item) => (
             <ChatRow

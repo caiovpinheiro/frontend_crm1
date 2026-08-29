@@ -113,7 +113,7 @@ export const SIDEBAR_CATALOG: readonly SidebarCatalogItem[] = [
   {
     key: "team-chat",
     title: "Bwipo Chat",
-    href: "/rely",
+    href: "/bwipo-chat",
     icon: MessagesSquare,
     description: "Chat interno do time — diretas e canais.",
     locked: false,
