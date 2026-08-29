@@ -272,7 +272,7 @@ export default function V2DealDetailClientPage({ dealId }: V2DealDetailClientPag
       <div className="grid min-h-0 grid-cols-[380px_1fr] gap-4 overflow-hidden">
         {dealQuery.isLoading && !record ? (
           <aside className="flex min-h-0 flex-col">
-            <AppLoading variant="panel" />
+            <AppLoading variant="inline" className="min-h-0 flex-1" />
           </aside>
         ) : dealQuery.error ? (
           <DealErrorPanel

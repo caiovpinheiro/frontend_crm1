@@ -584,6 +584,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   if (pipelinesFailed) {
     return (
       <AppLoading
+        variant="inline"
+        className="min-h-[100dvh]"
         error={
           pipelinesEmpty
             ? "Nenhum funil configurado nesta organização."
@@ -597,7 +599,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   // Só sessão/funil. NÃO esperar isFetched do board — query disabled/idle
   // nunca fica fetched e o Flow ficava preso no loading para sempre.
   if (sessionStatus === "loading" || !pipelineId) {
-    return <AppLoading />;
+    return <AppLoading variant="inline" className="min-h-[100dvh]" />;
   }
 
   const hasActiveFilters = !isEmptyFilters(filters) || !!search.trim();

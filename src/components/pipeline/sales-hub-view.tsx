@@ -742,7 +742,7 @@ export function SalesHubView({
   // layout final. Os gates que alimentam `chromePending` são todos limitados
   // (snapshot, erro ou hold de 50ms), então isto nunca fica preso.
   if (chromePending) {
-    return <AppLoading variant="panel" className="h-full" />;
+    return <AppLoading variant="inline" className="h-full min-h-0 flex-1" />;
   }
 
   return (

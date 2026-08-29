@@ -209,7 +209,7 @@ export default function WidgetsClientPage({
 }
 
 function LoadingState() {
-  return <AppLoading />;
+  return <AppLoading variant="inline" className="min-h-[240px]" />;
 }
 
 function ErrorState({ message }: { message: string }) {

@@ -14,7 +14,7 @@ export function BwipoMark({ className }: { className?: string }) {
       height={44}
       priority
       aria-hidden="true"
-      className={cn("shrink-0 rounded-xl object-contain shadow-sm", className)}
+      className={cn("shrink-0 object-contain", className)}
     />
   )
 }

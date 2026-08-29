@@ -114,7 +114,7 @@ export default function DashboardV2ClientPage({
   const { isManagerUp, ready } = useUserRole();
 
   if (!ready) {
-    return <AppLoading />;
+    return <AppLoading variant="inline" className="min-h-[100dvh]" />;
   }
 
   return isManagerUp ? (
