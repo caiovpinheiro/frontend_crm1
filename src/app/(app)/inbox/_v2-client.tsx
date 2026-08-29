@@ -626,8 +626,7 @@ export default function InboxV2ClientPage({
   const {
     data: messagesData,
     fetchOlder,
-    hasOlderPages,
-    hasOlderTickets,
+    hasOlder,
     isFetchingOlder,
   } = useMessages(activeId);
   const messages = messagesData?.messages ?? [];
@@ -1615,8 +1614,7 @@ export default function InboxV2ClientPage({
         conversationNumber={activeRow?.number ?? null}
         conversationId={activeRow.id}
         onLoadOlder={fetchOlder}
-        hasOlder={hasOlderPages}
-        hasOlderTickets={hasOlderTickets}
+        hasOlder={hasOlder}
         isLoadingOlder={isFetchingOlder}
         conversationResolved={activeRow?.status === "RESOLVED"}
         conversationClosedAt={activeRow?.closedAt ?? null}

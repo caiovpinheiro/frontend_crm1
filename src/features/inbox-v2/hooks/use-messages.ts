@@ -156,10 +156,14 @@ export function useMessages(conversationId: string | null) {
   const hasOlderTickets = Boolean(
     data && !data.historyLoaded && !hasOlderPages && data.hasOlderTickets === true,
   );
+  // Ticket atual ainda tem página, ou há tickets anteriores — um único
+  // gatilho de scroll-up (não um botão escondido atrás da pill do dia).
+  const hasOlder = hasOlderPages || hasOlderTickets;
 
   return {
     ...query,
     fetchOlder,
+    hasOlder,
     hasOlderPages,
     hasOlderTickets,
     isFetchingOlder,
