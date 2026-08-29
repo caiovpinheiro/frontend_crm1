@@ -63,6 +63,7 @@ function mergeTail(
     return {
       ...next,
       hasMore: inferHasMore(next, MESSAGE_PAGE),
+      hasOlderTickets: next.hasOlderTickets === true,
       historyLoaded: false,
     };
   }
@@ -136,7 +137,9 @@ export function useMessages(conversationId: string | null) {
     const cursor = oldestCursor(cur.messages);
     const canPage = cur.hasMore === true && Boolean(cursor);
     const canHistory =
-      !canPage && (!cur.historyLoaded || cur.hasOlderTickets === true);
+      !canPage &&
+      !cur.historyLoaded &&
+      cur.hasOlderTickets === true;
     if (!canPage && !canHistory) return;
 
     fetchingOlderRef.current = true;
@@ -151,9 +154,12 @@ export function useMessages(conversationId: string | null) {
           mergeOlder(old, page),
         );
       } else {
+        // 1ª fatia de history sem `before` — o cursor do ticket atual
+        // filtrava tickets anteriores e a API voltava []. Depois pagina.
+        const alreadyHasHistory = cur.messages.some(isTicketSeparator);
         const hist = await getMessages(conversationId, {
           history: true,
-          before: cursor ?? undefined,
+          before: alreadyHasHistory ? cursor ?? undefined : undefined,
           limit: HISTORY_PAGE,
           budget: HISTORY_PAGE,
         });
@@ -172,13 +178,9 @@ export function useMessages(conversationId: string | null) {
   const data = query.data;
   const hasOlderPages = data?.hasMore === true;
   const hasOlderTickets = Boolean(
-    data && !data.historyLoaded && !hasOlderPages && data.hasOlderTickets === true,
+    data && !data.historyLoaded && data.hasOlderTickets === true,
   );
-  // Até tentar history=1, o scroll-up continua armado — senão conversas
-  // sem `hasOlderTickets` nunca pedem o histórico.
-  const hasOlder = Boolean(
-    data && (hasOlderPages || !data.historyLoaded || data.hasOlderTickets === true),
-  );
+  const hasOlder = Boolean(data && (hasOlderPages || hasOlderTickets));
 
   return {
     ...query,
