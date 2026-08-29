@@ -935,6 +935,8 @@ function TeamContent() {
       ) : null}
       </>
       )}
+      </>
+      )}
 
       <EditUserDialog
         user={editTarget}
