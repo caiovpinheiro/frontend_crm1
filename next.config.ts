@@ -107,8 +107,8 @@ const nextConfig: NextConfig = {
   /**
    * REWRITES — Frontend separado.
    *
-   * O frontend NÃO tem rotas /api/* próprias (exceto /api/preview-login),
-   * todas as chamadas /api/* são repassadas pro backend via rewrite. Isso
+   * O frontend NÃO tem rotas /api/* próprias (exceto preview-login, SSE
+   * e uploads locais), as demais /api/* vão pro backend via rewrite. Isso
    * evita que código copiado do monolito quebre só por causa de URLs
    * absolutas e mantém os cookies de auth no mesmo origin do frontend.
    *
@@ -118,6 +118,7 @@ const nextConfig: NextConfig = {
    * o backend sem precisar de regex de exclusão.
    *
    * Lista de rewrites (afterFiles):
+   *   - /api/sse/messages    → /sse-messages (proxy local, sem buffer)
    *   - /api/:path*          → backend (CATCH-ALL via parâmetro nomeado)
    *   - /uploads/:path*      → backend (servir mídias armazenadas no backend)
    */
@@ -137,6 +138,12 @@ const nextConfig: NextConfig = {
         {
           source: "/api/wa-whatsapp-call",
           destination: "/wa-whatsapp-call",
+        },
+        // SSE: afterFiles `/api/:path*` intercepta App Router e o proxy
+        // de rewrite do Next relança hang-up como "failed to pipe response".
+        {
+          source: "/api/sse/messages",
+          destination: "/sse-messages",
         },
         { source: "/api/:path*", destination: `${base}/api/:path*` },
         { source: "/uploads/:path*", destination: `${base}/api/uploads/:path*` },
