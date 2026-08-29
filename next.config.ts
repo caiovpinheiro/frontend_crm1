@@ -35,7 +35,21 @@ const withSerwist = withSerwistInit({
   cacheOnNavigation: false,
   reloadOnOnline: true,
   disable: process.env.NODE_ENV !== "production",
-  exclude: [/\.map$/, /^manifest.*\.js$/, /\/api\//, /\/_next\/data\//],
+  exclude: [
+    /\.map$/,
+    /^manifest.*\.js$/,
+    /\/api\//,
+    /\/_next\/data\//,
+    /inbox[\\/]page/,
+    /contacts[\\/]page/,
+    /companies[\\/]page/,
+    /automations[\\/]page/,
+    /campaigns[\\/]page/,
+    /activities[\\/]page/,
+    /email[\\/]page/,
+    /rely[\\/]page/,
+    /dashboard[\\/]page/,
+  ],
 });
 
 function securityHeaders(): { key: string; value: string }[] {

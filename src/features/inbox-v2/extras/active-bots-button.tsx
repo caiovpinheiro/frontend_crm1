@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 import {
   IconRobot,
   IconPlayerPauseFilled,
@@ -233,7 +234,10 @@ export function ActiveBotsButton({
   className,
 }: ActiveBotsButtonProps) {
   const { open, rect, triggerRef, popoverRef, toggle, close } = usePortalPopover();
-  const { data: active = [], isLoading } = useContactActiveAutomations(contactId);
+  const idle = useIdleEnabled(2000);
+  const { data: active = [], isLoading } = useContactActiveAutomations(
+    idle || open ? contactId : null,
+  );
   const { data: history = [], isLoading: loadingHistory } =
     useContactAutomationHistory(contactId, open);
   const cancel = useCancelAutomation(contactId);

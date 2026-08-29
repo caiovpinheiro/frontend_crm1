@@ -18,6 +18,8 @@ export { AssigneePopover } from "./assignee-popover";
 export { BulkReassignPopover } from "./bulk-reassign-popover";
 export { TagsPopover } from "./tags-popover";
 export { ConversationActionsMenu } from "./conversation-actions-menu";
+export { TabulationDialog } from "./tabulation-dialog";
+export { ResolveConfirmDialog } from "./skip-automations-option";
 export { TransferPopover } from "./transfer-popover";
 export { ConversationTimelineTab } from "./conversation-timeline-tab";
 export { InboxFilterButton } from "./filter-panel";

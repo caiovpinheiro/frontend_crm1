@@ -33,11 +33,14 @@ async function fetchDepartments(): Promise<Department[]> {
   return res.json();
 }
 
-export function useDepartments() {
+export function useDepartments(enabled = true) {
   return useQuery<Department[]>({
     queryKey: QUERY_KEY,
     queryFn: fetchDepartments,
+    enabled,
     staleTime: 30_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

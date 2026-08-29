@@ -30,12 +30,10 @@ import { toast } from "sonner";
 
 import { CampaignsList } from "@/features/campaigns/campaigns-list";
 import { CampaignsMiniDash } from "@/features/campaigns/mini-dash";
-import { useCampaignActions, useCampaigns, useDeleteCampaign } from "@/features/campaigns/hooks";
-import { mockCampaignsPage, subscribeMockCampaigns } from "@/features/campaigns/mock-campaigns";
+import { useAllCampaigns, useCampaignActions, useCampaigns, useDeleteCampaign } from "@/features/campaigns/hooks";
 import { CAMPAIGN_STATUS_FILTERS } from "@/features/campaigns/constants";
 import type { CampaignAction, CampaignListItem, CampaignStatus } from "@/features/campaigns/types";
 import { SORT_KEYS, SORT_LABEL, sortCampaigns, type CampaignSortKey } from "@/features/campaigns/viz";
-import { isPageMockMode, shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
 
 const LIST_PER_PAGE = [6, 12, 24] as const;
 const DEFAULT_PER_PAGE = 6;
@@ -78,9 +76,6 @@ export default function CampaignsClientPage() {
   const deleteMutation = useDeleteCampaign();
   const campaignActions = useCampaignActions();
   const { confirm, dialog: confirmDialog } = useConfirm();
-  const [mockEpoch, setMockEpoch] = useState(0);
-
-  useEffect(() => subscribeMockCampaigns(() => setMockEpoch((n) => n + 1)), []);
 
   useEffect(() => {
     const stored = readCampaignSort();
@@ -113,54 +108,27 @@ export default function CampaignsClientPage() {
     isAuthenticated,
   );
 
-  // KPIs e contagens do popover — lote amplo, sem os filtros da lista.
-  const metricsQuery = useCampaigns({ page: 1, perPage: 200 }, isAuthenticated);
-  const realItems = metricsQuery.data?.items ?? [];
+  // KPIs e contagens do popover — todas as páginas do GET /api/campaigns.
+  const metricsQuery = useAllCampaigns(isAuthenticated);
+  const realItems = metricsQuery.data ?? [];
 
-  const isDemoBase = shouldAutoDemoEmpty({
-    realCount: realItems.length,
-    hasFilters: false,
-    isLoading: metricsQuery.isLoading,
-    isError: metricsQuery.isError,
-  });
-
-  // Em modo demo a paginação roda sobre o mock com os mesmos params da API.
-  const demoPage = useMemo(
-    () =>
-      isDemoBase
-        ? mockCampaignsPage({
-            page,
-            perPage,
-            status: statusFilter || undefined,
-            search: debouncedSearch || undefined,
-          })
-        : null,
-    [isDemoBase, page, perPage, statusFilter, debouncedSearch, mockEpoch],
-  );
-
-  const demoAllItems = useMemo(
-    () => (isDemoBase ? mockCampaignsPage({ perPage: 200 }).items : []),
-    [isDemoBase, mockEpoch],
-  );
-
-  const allItems = demoPage ? demoPage.items : listQuery.data?.items ?? [];
-  const total = demoPage ? demoPage.total : listQuery.data?.total ?? 0;
+  const allItems = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
   const safePage = Math.min(page, lastPage);
 
   const statusCounts = useMemo(() => {
-    const source = isDemoBase ? demoAllItems : realItems;
     const map: Partial<Record<CampaignStatus, number>> = {};
-    for (const c of source) {
+    for (const c of realItems) {
       map[c.status] = (map[c.status] ?? 0) + 1;
     }
     return map;
-  }, [isDemoBase, demoAllItems, realItems]);
+  }, [realItems]);
 
   const isLoading = listQuery.isLoading;
-  const error = isDemoBase ? null : listQuery.error;
+  const error = listQuery.error;
 
-  const dashSource = isDemoBase ? demoAllItems : realItems;
+  const dashSource = realItems;
   const visibleItems = useMemo(
     () => sortCampaigns(allItems, sortKey),
     [allItems, sortKey],
@@ -171,10 +139,6 @@ export default function CampaignsClientPage() {
   };
 
   const handleDelete = async (campaign: CampaignListItem) => {
-    if (isDemoBase || isPageMockMode() || campaign.id.startsWith("camp-")) {
-      toast.info("Modo demonstração — exclusão indisponível.");
-      return;
-    }
     const ok = await confirm({
       title: "Excluir campanha?",
       description: (

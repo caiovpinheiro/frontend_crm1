@@ -449,7 +449,7 @@ export function DealDetailPanel({
   // Antes o painel era estatico e ignorava qualquer toggle de "olho" feito
   // na config — o operador clicava "esconder Produtos" e nada acontecia.
   // Mapeamento sectionId interno -> id da taxonomia field-layout.
-  const { sections: fieldLayoutSections } = useFieldLayout("deal_panel_v2")
+  const { sections: fieldLayoutSections } = useFieldLayout("deal_panel_v2", isOpen)
   const sectionHiddenMap = useMemo(() => {
     const FIELD_LAYOUT_TO_INTERNAL: Record<string, SidebarSection> = {
       dados_contato: "contato",

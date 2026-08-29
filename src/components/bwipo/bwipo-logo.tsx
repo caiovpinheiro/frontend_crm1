@@ -29,22 +29,26 @@ export function BwipoMark({
   )
 }
 
+/** PNG do lockup com balão Chat. Query quebra cache da arte antiga. */
+const BWIPO_CHAT_LIGHT_SRC = "/bwipo-chat-light.png?v=40"
+const BWIPO_CHAT_DARK_SRC = "/bwipo-chat-dark.png?v=40"
+
 export function BwipoWordmark({ className }: { className?: string }) {
   return (
     <span className={cn("flex items-center", className)}>
       <Image
-        src="/bwipo-chat-light.png"
+        src={BWIPO_CHAT_LIGHT_SRC}
         alt="BWiPO Chat"
-        width={264}
-        height={88}
+        width={1071}
+        height={280}
         priority
         className="h-14 w-auto object-contain dark:hidden"
       />
       <Image
-        src="/bwipo-chat-dark.png"
+        src={BWIPO_CHAT_DARK_SRC}
         alt="BWiPO Chat"
-        width={264}
-        height={88}
+        width={1015}
+        height={280}
         priority
         className="hidden h-14 w-auto object-contain dark:block"
       />

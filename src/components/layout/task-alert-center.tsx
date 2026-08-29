@@ -20,6 +20,7 @@ import {
 } from "@/features/directory-v2/hooks";
 import { ACTIVITY_KINDS, type ActivityKind } from "@/lib/activities-data";
 import { cn } from "@/lib/utils";
+import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 
 const TYPE_TO_KIND: Record<string, ActivityKind> = {
   CALL: "ligacao",
@@ -69,7 +70,8 @@ export function TaskAlertCenter() {
   const router = useRouter();
   const qc = useQueryClient();
 
-  const { data } = useActivityAlert(authenticated);
+  const idle = useIdleEnabled();
+  const { data } = useActivityAlert(authenticated && idle);
   const dismissMutation = useDismissActivityAlert();
   const snoozeMutation = useSnoozeActivityAlert();
 

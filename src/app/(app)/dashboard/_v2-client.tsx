@@ -7,6 +7,7 @@ import { LayoutDashboard, Plus } from "lucide-react";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRail } from "@/components/crm/nav-rail";
+import { STUCK_TIMEOUT_MS } from "@/hooks/use-stuck-timeout";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { PeriodCalendarButton } from "@/components/crm/period-calendar-button";
 import { PainelBlockError, PainelSkeleton } from "@/components/crm/dashboard/painel-block";
@@ -106,6 +107,35 @@ interface DashboardV2ClientPageProps {
   navRail?: React.ReactNode;
 }
 
+function querySettled(query: { isFetched: boolean; isError: boolean }) {
+  return query.isFetched || query.isError;
+}
+
+/** Liga uma vez (sucesso, erro ou timeout) e não desliga no refetch. */
+function useLatchedReady(ready: boolean, timeoutMs = STUCK_TIMEOUT_MS) {
+  const [released, setReleased] = useState(false);
+  useEffect(() => {
+    if (ready) setReleased(true);
+  }, [ready]);
+  useEffect(() => {
+    if (released) return;
+    const id = window.setTimeout(() => setReleased(true), timeoutMs);
+    return () => window.clearTimeout(id);
+  }, [released, timeoutMs]);
+  return released;
+}
+
+function LoaderPane({ navRail }: { navRail?: React.ReactNode }) {
+  return (
+    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+      {navRail ?? <NavRail />}
+      <main className="flex min-w-0 flex-col overflow-hidden">
+        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
+      </main>
+    </div>
+  );
+}
+
 export default function DashboardV2ClientPage({
   navRail,
 }: DashboardV2ClientPageProps = {}) {
@@ -114,11 +144,7 @@ export default function DashboardV2ClientPage({
   const { isManagerUp, ready } = useUserRole();
 
   if (!ready) {
-    return (
-      <Shell navRail={navRail} title="Dashboard">
-        <AppLoading variant="inline" className="min-h-0 flex-1" />
-      </Shell>
-    );
+    return <LoaderPane navRail={navRail} />;
   }
 
   return isManagerUp ? (
@@ -137,7 +163,17 @@ function OperatorHome({
 }) {
   const query = useDashboardMe(isAuthenticated);
   const [search, setSearch] = useState("");
-  const { order, reorder } = useDashboardWidgetOrder("operator", OPERATOR_WIDGET_IDS);
+  const { order, reorder, hydrated: orderHydrated } = useDashboardWidgetOrder(
+    "operator",
+    OPERATOR_WIDGET_IDS,
+  );
+  const painted = useLatchedReady(
+    !isAuthenticated || ((querySettled(query) || Boolean(query.error)) && orderHydrated),
+  );
+
+  if (!painted) {
+    return <LoaderPane navRail={navRail} />;
+  }
 
   return (
     <Shell
@@ -186,7 +222,8 @@ function ManagerHome({
   const isService = activeTab === "service";
   const isTabulations = activeTab === "tabulations";
 
-  const { data: options } = useDashboardFilterOptions(isAuthenticated);
+  const optionsQuery = useDashboardFilterOptions(isAuthenticated);
+  const options = optionsQuery.data;
   const { filters, patch } = useDashboardFilters(options?.pipelines);
   const dealsQuery = usePainelDeals(filters, isAuthenticated && isDeals);
   const agoraQuery = usePainelAgora(clock, isAuthenticated && isService);
@@ -236,6 +273,42 @@ function ManagerHome({
       tabDepartmentId,
     });
   }, [uiHydrated, uiScope.keyPart, activeTab, clock, tabActorUserId, tabDepartmentId]);
+
+  const optionsSettled = !isAuthenticated || querySettled(optionsQuery);
+  const dealsSettled = !isAuthenticated || querySettled(dealsQuery);
+  const usageSettled = !isAuthenticated || querySettled(usageQuery);
+  const customSettled =
+    fieldIds.length === 0 || !isAuthenticated || querySettled(customFieldsQuery);
+  const serviceSettled =
+    !isAuthenticated || (querySettled(serviceQuery) && querySettled(agoraQuery));
+  const dealsReady = dealsSettled && usageSettled && customSettled && grid.hydrated;
+  const serviceReady = serviceSettled && serviceOrder.hydrated;
+  const primarySettled = !uiHydrated
+    ? false
+    : isDeals
+      ? dealsReady && optionsSettled
+      : isService
+        ? serviceReady && optionsSettled
+        : optionsSettled;
+  const pagePainted = useLatchedReady(primarySettled);
+
+  const [tabPainted, setTabPainted] = useState<Partial<Record<DashboardTabKey, boolean>>>(
+    {},
+  );
+  const tabReady = isDeals ? dealsReady : isService ? serviceReady : true;
+
+  useEffect(() => {
+    if (!pagePainted || !tabReady) return;
+    setTabPainted((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
+  }, [pagePainted, tabReady, activeTab]);
+
+  useEffect(() => {
+    if (!pagePainted || tabPainted[activeTab]) return;
+    const id = window.setTimeout(() => {
+      setTabPainted((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
+    }, STUCK_TIMEOUT_MS);
+    return () => window.clearTimeout(id);
+  }, [pagePainted, tabPainted, activeTab]);
 
   const liveUserOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -301,6 +374,12 @@ function ManagerHome({
     ...Object.fromEntries(funnelStages.map((s) => [`stage:${s.id}`, s.name])),
   };
 
+  if (!pagePainted) {
+    return <LoaderPane navRail={navRail} />;
+  }
+
+  const showTabLoader = !tabPainted[activeTab] && !tabReady;
+
   return (
     <Shell
       navRail={navRail}
@@ -334,7 +413,9 @@ function ManagerHome({
         ) : undefined
       }
     >
-      {isDeals ? (
+      {showTabLoader ? (
+        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
+      ) : isDeals ? (
         <>
           <SortableWidgetGrid
             layout={grid.layout}

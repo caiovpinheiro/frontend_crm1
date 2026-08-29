@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { DockButton } from "@/components/crm/floating-dock";
 import { cn } from "@/lib/utils";
 import { useSoftphone } from "../hooks/use-softphone";
+import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 import { useCallsWidget } from "../hooks/use-calls-widget";
 import { getMyCredentialsOrNull } from "../api/extensions";
 
@@ -31,7 +32,8 @@ export function SoftphoneNavIcon({
 }) {
   const { status: sessionStatus } = useSession();
   const isAuthenticated = sessionStatus === "authenticated";
-  const callsWidget = useCallsWidget(isAuthenticated);
+  const idle = useIdleEnabled();
+  const callsWidget = useCallsWidget(isAuthenticated && idle);
 
   const credentialsQuery = useQuery({
     queryKey: ["softphone", "credentials"],

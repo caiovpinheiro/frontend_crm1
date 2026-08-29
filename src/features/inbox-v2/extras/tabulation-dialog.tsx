@@ -62,6 +62,58 @@ function collectSearchHits(
   return hits;
 }
 
+/** Departamento dominante entre as conversas selecionadas para o modal em massa. */
+export function pickBulkCloseDepartment(
+  rows: Array<{
+    id: string;
+    status?: string;
+    departmentId?: string | null;
+    department?: { id: string; requireTabulationOnClose?: boolean } | null;
+  }>,
+  selectedIds: Iterable<string>,
+  opts?: { allInFilter?: boolean },
+): {
+  departmentId: string | null;
+  requireTabulationOnClose: boolean;
+  mixed: boolean;
+} {
+  const selected = new Set(selectedIds);
+  const pool = opts?.allInFilter
+    ? rows.filter((r) => r.status !== "RESOLVED")
+    : rows.filter((r) => selected.has(r.id) && r.status !== "RESOLVED");
+  const counts = new Map<
+    string,
+    { n: number; require: boolean }
+  >();
+  for (const r of pool) {
+    const id = r.departmentId ?? r.department?.id ?? null;
+    if (!id) continue;
+    const prev = counts.get(id) ?? { n: 0, require: false };
+    counts.set(id, {
+      n: prev.n + 1,
+      require: prev.require || !!r.department?.requireTabulationOnClose,
+    });
+  }
+  if (counts.size === 0) {
+    return { departmentId: null, requireTabulationOnClose: false, mixed: false };
+  }
+  let bestId: string | null = null;
+  let bestN = -1;
+  let bestRequire = false;
+  for (const [id, v] of counts) {
+    if (v.n > bestN || (v.n === bestN && v.require && !bestRequire)) {
+      bestId = id;
+      bestN = v.n;
+      bestRequire = v.require;
+    }
+  }
+  return {
+    departmentId: bestId,
+    requireTabulationOnClose: bestRequire,
+    mixed: counts.size > 1,
+  };
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;

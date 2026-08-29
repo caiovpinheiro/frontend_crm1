@@ -84,7 +84,7 @@ export function TagsPopover({
   /** Snapshot dos ids do deal no momento da abertura (base do diff). */
   const baselineIdsRef = useRef<Set<string>>(idsFromTags(currentTags));
 
-  const tagsQuery = useDealTags();
+  const tagsQuery = useDealTags(open);
   const addMutation = useAddDealTag(pipelineId, statusFilter);
   const removeMutation = useRemoveDealTag(pipelineId, statusFilter);
 

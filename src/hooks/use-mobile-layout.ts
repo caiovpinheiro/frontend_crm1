@@ -1,7 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { apiUrl } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
+import { isNativePlatform } from "@/lib/native/capacitor";
 
 import {
   BOTTOM_NAV_MAX,
@@ -46,12 +49,25 @@ async function fetchMobileLayout(): Promise<MobileLayoutConfigDto> {
   };
 }
 
+function needsMobileLayout(): boolean {
+  if (typeof window === "undefined") return false;
+  return isNativePlatform() || window.matchMedia("(max-width: 767px)").matches;
+}
+
 export function useMobileLayout() {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    setEnabled(needsMobileLayout());
+  }, []);
+
   const query = useQuery({
     queryKey: QUERY_KEY,
     queryFn: fetchMobileLayout,
+    enabled,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   return {
