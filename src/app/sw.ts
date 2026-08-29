@@ -38,14 +38,22 @@ function isSseRequest(pathname: string, request?: Request): boolean {
   return Boolean(request?.headers.get("accept")?.includes("text/event-stream"));
 }
 
-/** EventSource quebra se o SW chama `respondWith` — nem NetworkOnly. */
-function skipSse<T extends { matcher: unknown }>(rule: T): T {
+/**
+ * defaultCache do Serwist também casa navegação e RSC (`pages-rsc`,
+ * `pages-rsc-prefetch`). Hard refresh + payload velho = error.tsx
+ * ("Algo deu errado") com APIs 200. SSE: `respondWith` aborta o stream.
+ */
+function skipFragileRuntime<T extends { matcher: unknown }>(rule: T): T {
   const orig = rule.matcher;
   if (typeof orig !== "function") return rule;
   return {
     ...rule,
     matcher: (options: { request?: Request; url: URL }) => {
-      if (isSseRequest(options.url.pathname, options.request)) return false;
+      const request = options.request;
+      if (isSseRequest(options.url.pathname, request)) return false;
+      if (request?.mode === "navigate") return false;
+      if (request?.headers.get("RSC") === "1") return false;
+      if (request?.headers.get("Next-Router-Prefetch") === "1") return false;
       return orig(options);
     },
   };
@@ -97,7 +105,7 @@ const serwist = new Serwist({
       method: "POST",
       handler: new NetworkOnly(),
     },
-    ...defaultCache.map(skipSse),
+    ...defaultCache.map(skipFragileRuntime),
   ],
 });
 

@@ -29,7 +29,10 @@ function readAppRevision(): { revision: string; builtAt: string | null } {
 const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
-  cacheOnNavigation: true,
+  // Navegação/RSC no SW (pages-rsc) + hard refresh = tela de erro
+  // com APIs 200. Prefetch do rail já é prefetch={false}; o SW não
+  // deve cachear documento nem payload RSC.
+  cacheOnNavigation: false,
   reloadOnOnline: true,
   disable: process.env.NODE_ENV !== "production",
   exclude: [/\.map$/, /^manifest.*\.js$/, /\/api\//, /\/_next\/data\//],
