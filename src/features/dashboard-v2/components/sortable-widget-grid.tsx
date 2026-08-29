@@ -44,7 +44,7 @@ function shouldAutoSize(id: string) {
 }
 
 const HOVER_ACTION_CLASS = cn(
-  "z-10 flex size-8 items-center justify-center rounded-lg",
+  "flex size-8 shrink-0 items-center justify-center rounded-lg",
   "bg-card/90 text-muted-foreground",
   "opacity-0 transition-opacity",
   "pointer-events-none",
@@ -54,6 +54,21 @@ const HOVER_ACTION_CLASS = cn(
   "group-has-[[aria-expanded=true]]/widget:pointer-events-auto group-has-[[aria-expanded=true]]/widget:opacity-100",
   "focus-visible:pointer-events-auto focus-visible:opacity-100",
 );
+
+function WidgetChromeRow({
+  grip,
+  menu,
+}: {
+  grip?: ReactNode;
+  menu?: ReactNode;
+}) {
+  return (
+    <div className="flex h-9 shrink-0 items-center justify-between px-1">
+      {grip ?? <span className="size-8" aria-hidden />}
+      {menu ?? <span className="size-8" aria-hidden />}
+    </div>
+  );
+}
 
 export function SortableWidgetGrid({
   layout,
@@ -162,10 +177,19 @@ export function SortableWidgetGrid({
             return (
               <div
                 key={id}
-                className="group/widget relative min-w-0"
+                className="group/widget flex min-w-0 flex-col"
                 style={{ gridColumn: `span ${span} / span ${span}` }}
               >
-                {onRemove ? <WidgetOverflowMenu label={labels[id] ?? id} onRemove={() => void requestRemove(id)} /> : null}
+                <WidgetChromeRow
+                  menu={
+                    onRemove ? (
+                      <WidgetOverflowMenu
+                        label={labels[id] ?? id}
+                        onRemove={() => void requestRemove(id)}
+                      />
+                    ) : undefined
+                  }
+                />
                 {render(id)}
               </div>
             );
@@ -212,20 +236,34 @@ export function SortableWidgetGrid({
           }}
         >
           {ids.map((id) => (
-            <div key={id} className={cn("group/widget relative min-w-0", DASHBOARD_GRID_DRAG_SURFACE)}>
-              <button
-                type="button"
-                className={cn(
-                  DASHBOARD_GRID_GRIP_CLASS,
-                  HOVER_ACTION_CLASS,
-                  "absolute left-2 top-2 cursor-grab active:cursor-grabbing",
-                )}
-                aria-label={`Mover ${labels[id] ?? id}`}
-              >
-                <GripVertical className="size-4" aria-hidden="true" />
-              </button>
-              {onRemove ? <WidgetOverflowMenu label={labels[id] ?? id} onRemove={() => void requestRemove(id)} /> : null}
-              <div data-grid-measure={id} className="min-w-0">
+            <div
+              key={id}
+              className={cn("group/widget min-w-0", DASHBOARD_GRID_DRAG_SURFACE)}
+            >
+              <div data-grid-measure={id} className="flex min-w-0 flex-col">
+                <WidgetChromeRow
+                  grip={
+                    <button
+                      type="button"
+                      className={cn(
+                        DASHBOARD_GRID_GRIP_CLASS,
+                        HOVER_ACTION_CLASS,
+                        "cursor-grab active:cursor-grabbing",
+                      )}
+                      aria-label={`Mover ${labels[id] ?? id}`}
+                    >
+                      <GripVertical className="size-4" aria-hidden="true" />
+                    </button>
+                  }
+                  menu={
+                    onRemove ? (
+                      <WidgetOverflowMenu
+                        label={labels[id] ?? id}
+                        onRemove={() => void requestRemove(id)}
+                      />
+                    ) : undefined
+                  }
+                />
                 {render(id)}
               </div>
             </div>
@@ -247,7 +285,7 @@ function WidgetOverflowMenu({
   onRemove: () => void;
 }) {
   return (
-    <DropdownMenu className="absolute right-2 top-2 z-10">
+    <DropdownMenu className="relative z-10">
       <DropdownMenuTrigger
         className={HOVER_ACTION_CLASS}
         aria-label={`Ações de ${label}`}

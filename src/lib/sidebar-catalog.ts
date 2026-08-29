@@ -122,7 +122,7 @@ export const SIDEBAR_CATALOG: readonly SidebarCatalogItem[] = [
   {
     key: "activities",
     title: "Tarefas",
-    href: "/tarefas",
+    href: "/activities",
     icon: ListChecks,
     description: "Tarefas, follow-ups e agenda.",
     locked: false,

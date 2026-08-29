@@ -40,6 +40,7 @@ import {
   type SettingsFilterGroup,
 } from "@/components/crm/settings-filter-bar";
 import {
+  LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
   listTableHeadRowClass,
@@ -92,7 +93,7 @@ type CrmPermissionDraft = Record<CrmActionKey, boolean>;
 const DEFAULT_PER_PAGE = 25;
 
 /** Grid da lista de usuários: [check] | Usuário | E-mail | Função | Telefonia | Ações */
-const USER_LIST_GRID = "32px minmax(0,1.5fr) minmax(0,1.3fr) 200px 104px 120px";
+const USER_LIST_GRID = "32px minmax(0,1.5fr) minmax(0,1.3fr) 200px 104px max-content";
 
 const DEFAULT_INVITE_PERMISSIONS: CrmPermissionDraft = {
   editLeads: true,
@@ -879,7 +880,7 @@ function TeamContent() {
                 </div>
 
                 {/* Ações */}
-                <div className="flex items-center justify-end gap-1">
+                <div className={LIST_ACTIONS_CELL_CLASS}>
                   {isAdmin ? (
                     <>
                       <button

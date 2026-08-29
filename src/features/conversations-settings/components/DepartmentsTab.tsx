@@ -46,6 +46,7 @@ import { MobileTableScroll } from "@/components/crm/mobile-table-scroll";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import {
+  LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
   listTableHeadRowClass,
@@ -80,7 +81,7 @@ import { useTeamUsers } from "@/features/pipeline-v2/hooks/use-deal-mutations";
 type SortField = "name" | "members" | "conversations" | "createdAt";
 type DeleteResult = { ok: true } | { ok: false; status: number; message: string };
 
-const LIST_GRID = "32px minmax(0,1fr) 100px 140px 120px 84px";
+const LIST_GRID = "32px minmax(0,1fr) 100px 140px 120px max-content";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR", {
@@ -929,7 +930,7 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
                   {formatDate(dept.createdAt)}
                 </span>
 
-                <div className="flex items-center justify-end gap-1">
+                <div className={LIST_ACTIONS_CELL_CLASS}>
                   <button
                     type="button"
                     onClick={() => setEditTarget(dept)}

@@ -12,16 +12,22 @@ import {
   IconDotsVertical,
   IconCircleCheck,
   IconRotateClockwise,
+  IconCalendarEvent,
+  IconBan,
   IconExternalLink,
 } from "@tabler/icons-react"
 import { CheckboxGlass } from "@/components/crm/checkbox-glass"
 import { ACTIVITY_KINDS, activityTime, type Activity } from "@/lib/activities-data"
+
+const APPOINTMENT_KINDS = new Set<Activity["kind"]>(["reuniao", "evento", "ligacao"])
 
 interface ActivityRowProps {
   activity: Activity
   overdue?: boolean
   onToggle: (id: string) => void
   onDelete: (id: string) => void
+  onReschedule?: (activity: Activity) => void
+  onCancel?: (activity: Activity) => void
   /** Clique controlado no corpo da row (abre detalhes). */
   onOpenDetails?: (activity: Activity) => void
 }
@@ -31,6 +37,8 @@ export function ActivityRow({
   overdue,
   onToggle,
   onDelete,
+  onReschedule,
+  onCancel,
   onOpenDetails,
 }: ActivityRowProps) {
   const meta = ACTIVITY_KINDS[activity.kind]
@@ -224,6 +232,34 @@ export function ActivityRow({
                   className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-2 text-left font-display text-[12px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)]"
                 >
                   Detalhes
+                </button>
+              )}
+              {onReschedule && !done && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onReschedule(activity)
+                    setMenuOpen(false)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-2 text-left font-display text-[12px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)]"
+                >
+                  <IconCalendarEvent size={15} className="text-[var(--text-muted)]" />
+                  Remarcar
+                </button>
+              )}
+              {onCancel && !done && APPOINTMENT_KINDS.has(activity.kind) && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onCancel(activity)
+                    setMenuOpen(false)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-2 text-left font-display text-[12px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)]"
+                >
+                  <IconBan size={15} className="text-[var(--text-muted)]" />
+                  Cancelar compromisso
                 </button>
               )}
               <button

@@ -57,7 +57,7 @@ import { PageDemoBanner } from "@/components/crm/page-demo-banner";
 import { Chip } from "@/components/crm/chip";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ListHScroll } from "@/components/crm/list-hscroll";
-import { ListColumnLabel, CARD_SURFACE_CLASS, LIST_CARD_HEAD_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, listTableHeadRowClass, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
+import { ListColumnLabel, CARD_SURFACE_CLASS, LIST_ACTIONS_CELL_CLASS, LIST_CARD_HEAD_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, listTableHeadRowClass, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
 import { AVATAR_SIZE } from "@/lib/avatar";
 import {
@@ -634,7 +634,7 @@ function DistributionMiniDash({
 
 // 6 colunas: responsável, presença (+ horário), fila, volume, elegibilidade, ações
 const RESP_GRID =
-  "grid-cols-[minmax(260px,2.6fr)_minmax(200px,1.5fr)_minmax(56px,0.55fr)_minmax(64px,0.65fr)_minmax(170px,1.35fr)_minmax(168px,1.1fr)]";
+  "grid-cols-[minmax(260px,2.6fr)_minmax(200px,1.5fr)_minmax(56px,0.55fr)_minmax(64px,0.65fr)_minmax(170px,1.35fr)_max-content]";
 
 function ResponsiblesCardList({
   responsibles,
@@ -940,7 +940,7 @@ function ResponsibleCard({
       </div>
 
       {/* Ações */}
-      <div className="flex justify-end gap-1.5">
+      <div className={cn(LIST_ACTIONS_CELL_CLASS, "gap-1.5")}>
         {canManage && r.queueCount > 0 && (
           <button
             type="button"

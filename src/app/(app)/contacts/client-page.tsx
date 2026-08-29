@@ -56,7 +56,7 @@ import {
   FilterRadioRow,
   FilterSegmentedTabs,
 } from "@/components/crm/filter-popover";
-import { ListColumnLabel, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, listTableHeadRowClass, type SortDir } from "@/components/crm/sortable-header";
+import { ListColumnLabel, LIST_ACTIONS_CELL_CLASS, LIST_ACTIONS_TRACK, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, listTableHeadRowClass, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
   parseWidthClass,
@@ -1533,9 +1533,9 @@ function CardsView({
   const nameW = getWidth(NAME_COL_KEY, 240);
   const gridTemplate = [
     "32px",
-    `${nameW}px`,
+    `minmax(${nameW}px, 1fr)`,
     ...columns.map((c) => `${getWidth(c.key, parseWidthClass(c.width))}px`),
-    "112px",
+    LIST_ACTIONS_TRACK,
   ].join(" ");
 
   return (
@@ -1582,7 +1582,7 @@ function CardsView({
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
             style={{ gridTemplateColumns: gridTemplate }}
             className={cn(
-              "group grid cursor-pointer items-center gap-3",
+              "group grid cursor-pointer items-center justify-start gap-3",
               LIST_CARD_ROW_CLASS,
               isSelected && "border-primary bg-primary/10",
             )}
@@ -1616,7 +1616,7 @@ function CardsView({
               </div>
             ))}
 
-            <div className="flex items-center justify-end gap-1">
+            <div className={LIST_ACTIONS_CELL_CLASS}>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onOpenLead(c); }}

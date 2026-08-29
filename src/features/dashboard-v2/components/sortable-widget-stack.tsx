@@ -69,28 +69,30 @@ export function SortableWidgetStack({
                     ref={dragProvided.innerRef}
                     {...dragProvided.draggableProps}
                     className={cn(
-                      "group/widget relative min-w-0",
+                      "group/widget flex min-w-0 flex-col",
                       snapshot.isDragging && "z-20",
                     )}
                   >
-                    <button
-                      type="button"
-                      {...dragProvided.dragHandleProps}
-                      aria-label={`Reordenar ${labels[id] ?? id}`}
-                      className={cn(
-                        "absolute left-2 top-2 z-10 flex size-8 cursor-grab items-center justify-center rounded-lg",
-                        "bg-card/90 text-muted-foreground",
-                        "opacity-0 transition-opacity",
-                        "pointer-events-none",
-                        "hover:bg-secondary hover:text-foreground active:cursor-grabbing",
-                        "group-hover/widget:pointer-events-auto group-hover/widget:opacity-100",
-                        "group-has-[:focus-visible]/widget:pointer-events-auto group-has-[:focus-visible]/widget:opacity-100",
-                        "focus-visible:pointer-events-auto focus-visible:opacity-100",
-                        snapshot.isDragging && "pointer-events-auto opacity-100",
-                      )}
-                    >
-                      <GripVertical className="size-4" aria-hidden="true" />
-                    </button>
+                    <div className="flex h-9 shrink-0 items-center px-1">
+                      <button
+                        type="button"
+                        {...dragProvided.dragHandleProps}
+                        aria-label={`Reordenar ${labels[id] ?? id}`}
+                        className={cn(
+                          "flex size-8 shrink-0 cursor-grab items-center justify-center rounded-lg",
+                          "bg-card/90 text-muted-foreground",
+                          "opacity-0 transition-opacity",
+                          "pointer-events-none",
+                          "hover:bg-secondary hover:text-foreground active:cursor-grabbing",
+                          "group-hover/widget:pointer-events-auto group-hover/widget:opacity-100",
+                          "group-has-[:focus-visible]/widget:pointer-events-auto group-has-[:focus-visible]/widget:opacity-100",
+                          "focus-visible:pointer-events-auto focus-visible:opacity-100",
+                          snapshot.isDragging && "pointer-events-auto opacity-100",
+                        )}
+                      >
+                        <GripVertical className="size-4" aria-hidden="true" />
+                      </button>
+                    </div>
                     {render(id)}
                   </section>
                 )}

@@ -40,13 +40,20 @@ export const LIST_HEAD_PIPES_CLASS = [
 export const LIST_CARD_ROW_CLASS =
   "rounded-xl border border-border bg-card px-5 py-3.5 transition-colors hover:border-primary/30 hover:bg-secondary/40";
 
+/** Track da coluna Ações: cabe os ícones, não absorve o stretch do card. */
+export const LIST_ACTIONS_TRACK = "max-content";
+
+/** Célula Ações: uma linha, não encolhe, não quebra. */
+export const LIST_ACTIONS_CELL_CLASS =
+  "flex w-max min-w-max shrink-0 flex-nowrap items-center justify-end gap-1";
+
 /** Faixa de cabeçalho de colunas — padrão card por linha.
  *  Default `grid`; passe a classe `flex` para tabelas com scroll-X (contatos).
  *  Pipes entre colunas vêm de `LIST_HEAD_PIPES_CLASS`. */
 export function listTableHeadRowClass(className?: string) {
   const usesFlex = /(^|\s)flex(\s|$)/.test(className ?? "");
   return cn(
-    "items-center gap-4 px-5 text-muted-foreground",
+    "items-center justify-start gap-4 px-5 text-muted-foreground",
     LIST_HEAD_PIPES_CLASS,
     !usesFlex && "grid",
     className,

@@ -6,6 +6,8 @@
 
 import { Suspense } from "react";
 
+import { RouteLoading } from "@/components/crm/page-loading";
+
 import DistributionClientPage from "./client-page";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 
@@ -15,7 +17,7 @@ export default function DistributionPage() {
   // Suspense: o client lê `?tab=` (deep-link da aba Cobertura) com
   // `useSearchParams`.
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<RouteLoading />}>
       <DistributionClientPage navRail={<NavRailSpacer />} />
     </Suspense>
   );
