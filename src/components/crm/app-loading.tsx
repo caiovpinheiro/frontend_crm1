@@ -23,7 +23,7 @@ export type AppLoadingProps = {
   /** Só para leitores de tela — nada visível ao lado da marca. */
   label?: string;
   /**
-   * `screen`: ocupa a tela inteira reservando a coluna da NavRail (rotas).
+   * `screen`: overlay fixo no viewport (marca no centro geométrico).
    * `panel`: ocupa só a área disponível (dentro de layouts que já têm chrome).
    * `inline`: bloco centrado sem altura mínima de tela.
    */
@@ -196,13 +196,13 @@ export function AppLoading({
 
   return (
     <div
-      className={cn("v2-screen grid min-w-0 overflow-hidden p-3 sm:p-4", className)}
-      style={{ gridTemplateColumns: "var(--nav-rail-w, 72px) minmax(0, 1fr)" }}
+      className={cn(
+        "fixed inset-0 z-[35] flex items-center justify-center bg-background",
+        className,
+      )}
       aria-busy={busy}
     >
-      {/* Reserva a coluna da NavRail (o trilho real é fixed no layout). */}
-      <div aria-hidden className="max-md:hidden" />
-      <div className="flex min-h-0 min-w-0 flex-col">{content}</div>
+      <Body label={label} message={message} onRetry={error ? onRetry : undefined} />
     </div>
   );
 }
