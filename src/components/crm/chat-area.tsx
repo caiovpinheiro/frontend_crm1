@@ -708,14 +708,13 @@ export function ChatArea({
           </div>
         )
       })()}
-      {/* Pill fixa acima do scroller — não cobre bolhas nem outra pill. */}
       <div className="flex min-h-0 flex-1 flex-col">
-      {messages.length > 0 && !messagesLoading && !messagesError ? (
-        <StickyDayPill date={stickyDayLabel} />
-      ) : null}
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
       <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [overflow-anchor:none] px-3 pt-3 pb-8 max-md:px-2">
+        {messages.length > 0 && !messagesLoading && !messagesError ? (
+          <StickyDayPill date={stickyDayLabel} />
+        ) : null}
         {messagesLoading ? (
           <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
         ) : messagesError ? (
@@ -739,8 +738,8 @@ export function ChatArea({
         )}
         {(() => {
           // Pills de dia inline no fluxo. O dia no topo vem do overlay
-          // `StickyDayPill` — a pill in-flow do dia atual some pra não
-          // empilhar duas "Hoje". `data-day-label` alimenta o sticky.
+          // `StickyDayPill` — a pill in-flow do dia atual fica invisible
+          // (mantém altura). `data-day-sep` alimenta o sticky.
           const distinctChannels = new Set(
             messages.map((m) => m.channelId).filter(Boolean) as string[],
           )
@@ -797,13 +796,8 @@ export function ChatArea({
             }
             const dayLabel = formatChatDayLabel(message.createdAt)
             const isNewDay = Boolean(dayLabel && dayLabel !== lastDayLabel)
-            // Sticky substitui a pill in-flow do dia visível — sem duas "Hoje".
-            const showDay = Boolean(
-              isNewDay &&
-              dayLabel &&
-              (stickyDayLabel ? dayLabel !== stickyDayLabel : lastDayLabel !== null),
-            )
             if (isNewDay && dayLabel) lastDayLabel = dayLabel
+            const showDay = isNewDay && Boolean(dayLabel)
             // Marcador de troca de conexão: aparece quando o channelId muda
             // em relação à última mensagem com canal conhecido.
             let connLabel: string | null = null
@@ -817,13 +811,16 @@ export function ChatArea({
             const isEvent = message.kind === "event"
             const lane: "in" | "out" | "other" =
               isEvent || message.isNote ? "other" : message.type === "outgoing" ? "out" : "in"
-            const clusterBreak = !showDay && lastLane !== null && lastLane !== lane
+            const clusterBreak = !isNewDay && lastLane !== null && lastLane !== lane
             lastLane = lane
             return (
               <Fragment key={`${message.id || "msg"}-${index}`}>
                 {showDay && dayLabel ? (
-                  <li className="pointer-events-none list-none" data-day-label={dayLabel}>
-                    <DaySeparator date={dayLabel} />
+                  <li className="pointer-events-none list-none">
+                    <DaySeparator
+                      date={dayLabel}
+                      occluded={Boolean(stickyDayLabel) && dayLabel === stickyDayLabel}
+                    />
                   </li>
                 ) : null}
                 <li

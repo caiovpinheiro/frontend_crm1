@@ -63,7 +63,7 @@ import { dt } from "@/lib/design-tokens";
 import { cn } from "@/lib/utils";
 import { MetaSendErrorBalloon } from "@/components/crm/meta-send-error-balloon";
 import { EventRow, classifyTimelineItem, isRedundantOpenStatusEvent } from "@/components/crm/chat-timeline";
-import { StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
+import { DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
 
 /** Texto da nota em uma linha (banner fixado estilo WhatsApp). */
 function notePreviewOneLine(content: string, maxChars = 140): string {
@@ -2275,7 +2275,7 @@ export function ChatWindow({
               if (mt === "ai_draft" && m.isPrivate && conversationId) {
                 return (
                   <React.Fragment key={m.id}>
-                    {showDate && <DateSep date={m.createdAt} />}
+                    {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
                     <div data-msg-idx={idx} data-day-label={dayLabel}>
                       <AIDraftCard
                         messageId={String(m.id)}
@@ -2299,7 +2299,7 @@ export function ChatWindow({
               ) {
                 return (
                   <React.Fragment key={m.id}>
-                    {showDate && <DateSep date={m.createdAt} />}
+                    {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
                     <div data-msg-idx={idx} data-day-label={dayLabel}>
                       <CallActivityItem message={m} />
                     </div>
@@ -2311,7 +2311,7 @@ export function ChatWindow({
               if (consentVerdict) {
                 return (
                   <React.Fragment key={m.id}>
-                    {showDate && <DateSep date={m.createdAt} />}
+                    {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
                     <div data-msg-idx={idx} data-day-label={dayLabel}>
                       <ConsentActivityItem
                         message={m}
@@ -2333,7 +2333,7 @@ export function ChatWindow({
                     : m.content || "Evento do sistema WhatsApp.";
                 return (
                   <React.Fragment key={m.id}>
-                    {showDate && <DateSep date={m.createdAt} />}
+                    {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
                     <div data-msg-idx={idx} data-day-label={dayLabel}>
                       <SystemEventRow
                         body={systemBody}
@@ -2356,7 +2356,7 @@ export function ChatWindow({
                 if (isRedundantOpenStatusEvent(m.content)) return null;
                 return (
                   <React.Fragment key={m.id}>
-                    {showDate && <DateSep date={m.createdAt} />}
+                    {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
                     <div data-msg-idx={idx} data-day-label={dayLabel}>
                       <EventRow
                         action={classified.action ?? "ia"}
@@ -2400,7 +2400,7 @@ export function ChatWindow({
 
             return (
               <React.Fragment key={m.id}>
-                {showDate && <DateSep date={m.createdAt} />}
+                {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
                 <MotionDiv
                   data-msg-idx={idx} data-day-label={dayLabel}
                   initial={{ opacity: 0, y: 8 }}
@@ -4534,18 +4534,20 @@ function shouldShowDateSeparator(
   );
 }
 
-function DateSep({ date }: { date: string | null }) {
+function DateSep({
+  date,
+  stickyLabel,
+}: {
+  date: string | null;
+  stickyLabel: string | null;
+}) {
   const label = chatDateLabel(date);
   if (!label) return null;
   return (
-    <div
-      className="pointer-events-none flex justify-center py-2"
-      data-day-label={label}
-    >
-      <span className="inline-flex items-center rounded-full border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)]/95 px-3 py-0.5 font-display text-[11px] font-semibold capitalize text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-        {label}
-      </span>
-    </div>
+    <DaySeparator
+      date={label}
+      occluded={Boolean(stickyLabel) && label === stickyLabel}
+    />
   );
 }
 
