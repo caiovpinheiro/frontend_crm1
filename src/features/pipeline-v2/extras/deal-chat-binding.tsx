@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconChevronDown, IconLoader2, IconMessageCirclePlus, IconPinFilled, IconX } from "@tabler/icons-react";
+import { IconChevronDown, IconMessageCirclePlus, IconPinFilled, IconX } from "@tabler/icons-react";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { apiUrl } from "@/lib/api";
@@ -668,13 +668,15 @@ export function useDealChatBinding(params: {
 
   // ── messages ────────────────────────────────────────────────
   let messagesNode: React.ReactNode;
-  if (!effectiveConversationId) {
-    messagesNode = ensuring ? (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[var(--text-muted)]">
-        <IconLoader2 size={22} className="animate-spin" />
-        <p className="font-display text-[13px]">Iniciando conversa…</p>
-      </div>
-    ) : (
+  const messagesBootstrapping =
+    (!effectiveConversationId && ensuring) ||
+    (!!effectiveConversationId && messagesPending && !messagesResp);
+  if (messagesBootstrapping) {
+    messagesNode = (
+      <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
+    );
+  } else if (!effectiveConversationId) {
+    messagesNode = (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]">
           <IconMessageCirclePlus size={28} />
@@ -694,10 +696,6 @@ export function useDealChatBinding(params: {
           Abrir Caixa de Entrada
         </Link>
       </div>
-    );
-  } else if (messagesPending && !messagesResp) {
-    messagesNode = (
-      <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
     );
   } else if (messagesFailed && !messagesResp) {
     messagesNode = (
