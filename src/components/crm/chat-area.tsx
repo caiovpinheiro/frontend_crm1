@@ -408,6 +408,20 @@ export function ChatArea({
     return () => container.removeEventListener("scroll", onScroll)
   }, [])
 
+  // Preview de mídia pode crescer depois do pin (vídeo com metadata).
+  // Re-pina só se o operador já estava no fim — thread curto (scrollTop=0) não muda.
+  useEffect(() => {
+    const container = messagesRef.current
+    if (!container || typeof ResizeObserver === "undefined") return
+    const ro = new ResizeObserver(() => {
+      if (!stickToBottomRef.current) return
+      pinToBottom(container)
+    })
+    const list = container.querySelector("ul")
+    if (list) ro.observe(list)
+    return () => ro.disconnect()
+  }, [convKey, messages.length])
+
   // Troca de conversa: pin no fim. NUNCA arma older aqui — scrollTop fica 0
   // quando o ticket cabe na viewport, e isso virava loop de histórico.
   useLayoutEffect(() => {
@@ -509,6 +523,15 @@ export function ChatArea({
   }, [messages, olderArmed])
 
   const canLoadOlder = hasOlder || hasOlderTickets
+  // Só sinal — não carrega. Some no gesto (olderArmed) ou quando a API
+  // já não tem fatia acima.
+  const showOlderHint =
+    canLoadOlder &&
+    !olderArmed &&
+    !isLoadingOlder &&
+    messages.length > 0 &&
+    !messagesLoading &&
+    !messagesError
   useEffect(() => {
     if (!canLoadOlder || isLoadingOlder) return
     const root = messagesRef.current
@@ -729,7 +752,16 @@ export function ChatArea({
           </p>
         ) : (
         <>
-        <div className="min-h-0 flex-1" aria-hidden />
+        {showOlderHint ? (
+          <p
+            className="pointer-events-none shrink-0 pb-1 pt-8 text-center text-[11px] font-medium text-muted-foreground"
+            role="status"
+          >
+            ↑ Role para ver mensagens anteriores
+          </p>
+        ) : null}
+        {/* Sem spacer flex-1: thread curto preenche de cima. Thread longo
+            continua pinado no fim via pinToBottom. */}
         <ul className="flex list-none flex-col gap-0.5">
         {olderArmed && isLoadingOlder && (
           <li className="flex list-none justify-center py-2" aria-hidden>
