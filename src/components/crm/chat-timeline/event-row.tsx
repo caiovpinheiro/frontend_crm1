@@ -78,7 +78,7 @@ export function EventRow({
   time,
   className,
 }: EventRowProps) {
-  const hasActor = Boolean(actor.trim()) || Boolean(actorId);
+  const hasActor = Boolean(actor?.trim()) || Boolean(actorId);
   const needsLookup = hasActor && isGenericHumanEventActor(actor) && Boolean(actorId);
   const { data: teamUsers } = useTeamUsersQuery(needsLookup);
   const displayActor = useMemo(() => {

@@ -264,6 +264,7 @@ function MobileBottomNavClassic() {
                 <Link
                   key={item.id}
                   href={item.href}
+                  prefetch={false}
                   aria-label={item.label}
                   aria-current={isActive ? "page" : undefined}
                   className={itemClass(isActive)}

@@ -63,6 +63,7 @@ export function NavRail({ className }: { className?: string }) {
           <TooltipGlass key={item.title} label={item.title} side="right">
             <Link
               href={item.href}
+              prefetch={false}
               aria-label={item.title}
               className={cn(
                 "w-11 h-11 rounded-[var(--radius-md)] flex items-center justify-center cursor-pointer transition-all duration-150 relative",
