@@ -9,7 +9,7 @@
  * pra serem plugados nas props correspondentes do DealDetailPanel.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -228,7 +228,13 @@ export function useDealChatBinding(params: {
     !ensureMutation.isError &&
     (ensureMutation.isPending || !dealDetailSettled || canAutoEnsure);
 
-  const { data: messagesResp } = useMessages(effectiveConversationId);
+  const {
+    data: messagesResp,
+    fetchOlder,
+    hasOlderPages,
+    hasOlderTickets,
+    isFetchingOlder,
+  } = useMessages(effectiveConversationId);
   const sendMutation = useSendMessage(effectiveConversationId);
   const reactMutation = useReactMessage(effectiveConversationId);
   const pinNoteMutation = usePinNote(effectiveConversationId);
@@ -416,6 +422,21 @@ export function useDealChatBinding(params: {
 
   const prevFirstIdRef = useRef<string | null>(null);
   const prevLastIdRef = useRef<string | null>(null);
+  const prevScrollHeightRef = useRef(0);
+  useLayoutEffect(() => {
+    const el = findScrollEl();
+    if (!el) return;
+    const firstId = bubbles[0]?.id ?? null;
+    const lastId = bubbles[bubbles.length - 1]?.id ?? null;
+    const prepended =
+      prevFirstIdRef.current != null &&
+      firstId !== prevFirstIdRef.current &&
+      lastId === prevLastIdRef.current;
+    if (prepended) {
+      el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+    }
+    prevScrollHeightRef.current = el.scrollHeight;
+  }, [bubbles, findScrollEl]);
   useEffect(() => {
     const el = findScrollEl();
     const firstId = bubbles[0]?.id ?? null;
@@ -764,6 +785,24 @@ export function useDealChatBinding(params: {
       <>
         <StickyDayPill date={stickyDayLabel} />
         <ul className="flex list-none flex-col gap-0.5">
+          {(isFetchingOlder || hasOlderTickets || hasOlderPages) && (
+            <li className="list-none flex justify-center py-2">
+              {isFetchingOlder ? (
+                <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
+                  Carregando histórico...
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void fetchOlder()}
+                  className="rounded-full px-3 py-1 text-[11.5px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-secondary)]"
+                >
+                  {hasOlderPages ? "Carregar mensagens anteriores" : "Carregar conversas anteriores"}
+                </button>
+              )}
+            </li>
+          )}
           {bubbleNodes}
         </ul>
         {isResolved && !hasPersistedClose && (

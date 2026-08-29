@@ -113,7 +113,13 @@ export function SalesHubChat({
     setReplyTo(null);
   }, [conversationId]);
 
-  const { data: messagesData } = useMessages(conversationId);
+  const {
+    data: messagesData,
+    fetchOlder,
+    hasOlderPages,
+    hasOlderTickets,
+    isFetchingOlder,
+  } = useMessages(conversationId);
   const sendMessage = useSendMessage(conversationId);
   const reactMessage = useReactMessage(conversationId);
   const pinMessage = usePinMessage(conversationId);
@@ -328,6 +334,10 @@ export function SalesHubChat({
         connections={messagesData?.channels}
         conversationNumber={conversationNumber ?? null}
         conversationId={conversationId}
+        onLoadOlder={fetchOlder}
+        hasOlder={hasOlderPages}
+        hasOlderTickets={hasOlderTickets}
+        isLoadingOlder={isFetchingOlder}
         conversationResolved={isResolved}
         conversationClosedAt={conversationClosedAt ?? null}
         onUseTemplate={() => setTemplateOpen(true)}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useEffect, useCallback, useMemo, type FormEvent, Fragment } from "react"
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type FormEvent, Fragment } from "react"
 import { useSession } from "next-auth/react"
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions"
 import { cn } from "@/lib/utils"
@@ -182,6 +182,13 @@ interface ChatAreaProps {
    * viewport (portal + `fixed`); aqui só montamos o node.
    */
   floatingCallSlot?: React.ReactNode
+
+  /** Scroll-up: pede mensagens mais antigas do ticket atual. */
+  onLoadOlder?: () => void
+  hasOlder?: boolean
+  /** Tickets anteriores (não dispara sozinho — botão no topo). */
+  hasOlderTickets?: boolean
+  isLoadingOlder?: boolean
 }
 
 export function ChatArea({
@@ -225,6 +232,10 @@ export function ChatArea({
   conversationClosedAt,
   activeBotsSlot,
   floatingCallSlot,
+  onLoadOlder,
+  hasOlder = false,
+  hasOlderTickets = false,
+  isLoadingOlder = false,
 }: ChatAreaProps) {
   const messages = useMemo(() => {
     const seen = new Set<string>()
@@ -355,6 +366,10 @@ export function ChatArea({
   const stickToBottomRef = useRef(true)
   const prevFirstIdRef = useRef<string | null>(null)
   const prevLastIdRef = useRef<string | null>(null)
+  const prevScrollHeightRef = useRef(0)
+  const olderSentinelRef = useRef<HTMLDivElement>(null)
+  const onLoadOlderRef = useRef(onLoadOlder)
+  onLoadOlderRef.current = onLoadOlder
 
   // Esconde o botão só quando o operador está no fim; mostra sempre que
   // sobe no histórico (não só quando chega inbound).
@@ -422,6 +437,38 @@ export function ChatArea({
       setUnreadCount((n) => n + 1)
     }
   }, [messages])
+
+  // Prepend (histórico): mantém o ponto de leitura. Sem isto, carregar
+  // acima empurra a lista e o clique/scroll parece "pular pro topo".
+  useLayoutEffect(() => {
+    const container = messagesRef.current
+    if (!container) return
+    const firstId = messages[0]?.id ?? null
+    const lastId = messages[messages.length - 1]?.id ?? null
+    const prepended =
+      prevFirstIdRef.current != null &&
+      firstId !== prevFirstIdRef.current &&
+      lastId === prevLastIdRef.current
+    if (prepended) {
+      container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
+    }
+    prevScrollHeightRef.current = container.scrollHeight
+  }, [messages])
+
+  useEffect(() => {
+    if (!hasOlder || isLoadingOlder) return
+    const el = olderSentinelRef.current
+    const root = messagesRef.current
+    if (!el || !root) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onLoadOlderRef.current?.()
+      },
+      { root, rootMargin: "80px 0px 0px 0px" },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasOlder, isLoadingOlder, messages.length])
 
   const { hideEvents } = useHideChatEvents()
 
@@ -588,6 +635,29 @@ export function ChatArea({
       <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
         <StickyDayPill date={stickyDayLabel} />
         <ul className="flex list-none flex-col gap-0.5">
+        {hasOlder && (
+          <li className="list-none" aria-hidden="true">
+            <div ref={olderSentinelRef} className="h-1 w-full" />
+          </li>
+        )}
+        {(isLoadingOlder || hasOlderTickets) && (
+          <li className="list-none flex justify-center py-2">
+            {isLoadingOlder ? (
+              <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
+                Carregando histórico...
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onLoadOlder?.()}
+                className="rounded-full px-3 py-1 text-[11.5px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-secondary)]"
+              >
+                Carregar conversas anteriores
+              </button>
+            )}
+          </li>
+        )}
         {(() => {
           // Pills de dia inline no fluxo (Hoje / Ontem / weekday). O dia
           // visível no topo vem do overlay `StickyDayPill`, não de várias
