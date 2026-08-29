@@ -668,19 +668,11 @@ export function ChatArea({
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
       <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
-        <StickyDayPill date={stickyDayLabel} />
+        <StickyDayPill date={stickyDayLabel} loading={isLoadingOlder} />
         <ul className="flex list-none flex-col gap-0.5">
         {canLoadOlder && (
           <li className="list-none" aria-hidden="true">
             <div ref={olderSentinelRef} className="h-1 w-full" />
-          </li>
-        )}
-        {isLoadingOlder && (
-          <li className="list-none flex justify-center py-2">
-            <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
-              Carregando histórico...
-            </span>
           </li>
         )}
         {(() => {

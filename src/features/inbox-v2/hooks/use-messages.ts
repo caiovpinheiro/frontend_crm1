@@ -34,11 +34,12 @@ function isTicketSeparator(m: InboxMessageDto) {
 }
 
 function oldestCursor(messages: InboxMessageDto[]): string | null {
+  let oldest: string | null = null;
   for (const m of messages) {
     if (isTicketSeparator(m) || !m.createdAt) continue;
-    return m.createdAt;
+    if (!oldest || m.createdAt < oldest) oldest = m.createdAt;
   }
-  return null;
+  return oldest;
 }
 
 function inferHasMore(page: MessagesResponse, limit: number): boolean {
@@ -79,7 +80,9 @@ function mergeOlder(
   return {
     ...prev,
     messages: [...incoming, ...prev.messages],
-    hasMore: inferHasMore(page, MESSAGE_PAGE),
+    // Página vazia/duplicada (before ignorado ou fim do ticket) — para
+    // de paginar pra o próximo gesto pedir history=1.
+    hasMore: incoming.length === 0 ? false : inferHasMore(page, MESSAGE_PAGE),
   };
 }
 
@@ -125,7 +128,9 @@ export function useMessages(conversationId: string | null) {
     if (!cur) return;
     const cursor = oldestCursor(cur.messages);
     const canPage = cur.hasMore === true && Boolean(cursor);
-    const canHistory = !cur.historyLoaded && cur.hasOlderTickets === true && !canPage;
+    // Não depende do probe `hasOlderTickets` (some em ticket sem channel
+    // ou backend antigo). Sem página nova, tenta history=1 uma vez.
+    const canHistory = !cur.historyLoaded && !canPage;
     if (!canPage && !canHistory) return;
 
     fetchingOlderRef.current = true;
@@ -136,9 +141,17 @@ export function useMessages(conversationId: string | null) {
           before: cursor,
           limit: MESSAGE_PAGE,
         });
+        const existing = new Set(cur.messages.map((m) => String(m.id)));
+        const added = page.messages.filter((m) => !existing.has(String(m.id))).length;
         qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
           mergeOlder(old, page),
         );
+        if (added === 0 && !cur.historyLoaded) {
+          const hist = await getMessages(conversationId, { history: true });
+          qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
+            mergeHistory(old, hist),
+          );
+        }
       } else {
         const hist = await getMessages(conversationId, { history: true });
         qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
@@ -156,9 +169,9 @@ export function useMessages(conversationId: string | null) {
   const hasOlderTickets = Boolean(
     data && !data.historyLoaded && !hasOlderPages && data.hasOlderTickets === true,
   );
-  // Ticket atual ainda tem página, ou há tickets anteriores — um único
-  // gatilho de scroll-up (não um botão escondido atrás da pill do dia).
-  const hasOlder = hasOlderPages || hasOlderTickets;
+  // Até tentar history=1, o scroll-up continua armado — senão conversas
+  // sem `hasOlderTickets` nunca pedem o histórico.
+  const hasOlder = Boolean(data && (hasOlderPages || !data.historyLoaded));
 
   return {
     ...query,
