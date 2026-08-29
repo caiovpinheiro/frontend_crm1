@@ -16,10 +16,11 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { AppLoading } from "@/components/crm/app-loading"
 import { ButtonGlass } from "@/components/crm/button-glass"
 import { InputGlass } from "@/components/crm/input-glass"
 import { MiniCalendar } from "@/components/crm/mini-calendar"
-import { PageActionsMenu } from "@/components/crm/page-toolbar"
+import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar"
 import {
   PeriodCalendarButton,
   PeriodIsoRangePanel,
@@ -44,7 +45,7 @@ import {
 } from "@/components/ui/form-dialog"
 import { cn } from "@/lib/utils"
 import {
-  TASKS,
+  ENTITY_KIND_META,
   TASK_TYPE_ORDER,
   WEEKDAYS_SHORT,
   allTypesOn,
@@ -118,13 +119,36 @@ function TaskTypeIcon({ type, className }: { type: TaskType; className?: string 
   return <Icon className={className} strokeWidth={2} aria-hidden="true" />
 }
 
-type CalendarView = "dia" | "semana" | "mes"
+type CalendarView = "dia" | "semana" | "mes" | "agenda"
 
-const HOUR_START = 7
-const HOUR_END = 20
-const HOUR_HEIGHT = 56
+export type ActivityScopeFilter = "all" | "mine" | "department"
+
+const HOUR_START = 6
+const HOUR_END = 22
+const HOUR_HEIGHT = 52
 const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
 const GRID_HEIGHT = HOURS.length * HOUR_HEIGHT
+const TASK_DRAG_MIME = "application/x-crm-task"
+
+const SCOPE_FILTERS: { key: ActivityScopeFilter; label: string }[] = [
+  { key: "all", label: "Todas" },
+  { key: "mine", label: "Minhas" },
+  { key: "department", label: "Departamento" },
+]
+
+function dateAtHour(day: Date, hour: number, minute = 0): Date {
+  const next = new Date(day)
+  next.setHours(hour, minute, 0, 0)
+  return next
+}
+
+function slotFromPointer(day: Date, clientY: number, columnTop: number): Date {
+  const offset = Math.max(0, clientY - columnTop)
+  const totalMin = HOUR_START * 60 + (offset / HOUR_HEIGHT) * 60
+  const snapped = Math.round(totalMin / 15) * 15
+  const clamped = Math.min(HOUR_END * 60 - 15, Math.max(HOUR_START * 60, snapped))
+  return dateAtHour(day, Math.floor(clamped / 60), clamped % 60)
+}
 
 const SITUATION_OPTIONS: { id: TaskSituationFilter; label: string }[] = [
   { id: "all", label: "Todas" },
@@ -179,13 +203,37 @@ function NowLine({ now }: { now: Date }) {
   )
 }
 
-function TaskBlock({ task, compact }: { task: Task; compact?: boolean }) {
+function TaskBlock({
+  task,
+  compact,
+  draggable,
+  onOpen,
+}: {
+  task: Task
+  compact?: boolean
+  draggable?: boolean
+  onOpen?: (task: Task) => void
+}) {
   const meta = taskTypeMeta[task.type]
+  const entity = ENTITY_KIND_META[task.entityKind ?? "tarefa"]
   const start = taskStart(task)
+  const typeLabel = task.dealId ? `${entity.label} · ${meta.label}` : meta.label
+
   return (
-    <div
+    <button
+      type="button"
+      draggable={draggable}
+      onDragStart={(e) => {
+        if (!draggable) return
+        e.dataTransfer.setData(TASK_DRAG_MIME, task.id)
+        e.dataTransfer.effectAllowed = "move"
+      }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onOpen?.(task)
+      }}
       className={cn(
-        "overflow-hidden rounded-lg border px-1.5 py-0.5 text-left",
+        "w-full overflow-hidden rounded-lg border px-1.5 py-0.5 text-left",
         CHIP_BLOCK[meta.colorKey],
         task.status === "concluida" && "opacity-60",
       )}
@@ -199,15 +247,16 @@ function TaskBlock({ task, compact }: { task: Task; compact?: boolean }) {
           <p className={cn("truncate font-semibold", compact ? "text-[10px] leading-tight" : "text-xs")}>
             {task.title}
           </p>
-          {!compact && (
-            <p className="truncate text-[10px] opacity-80">
-              {formatTime(start)}
-              {task.contact ? ` · ${task.contact}` : ""}
-            </p>
-          )}
+          <p className="truncate text-[10px] opacity-80">
+            {formatTime(start)}
+            <span className="mx-1">·</span>
+            {typeLabel}
+            {task.contact ? ` · ${task.contact}` : ""}
+          </p>
           {!compact && task.linkLabel && task.linkHref && (
             <Link
               href={task.linkHref}
+              onClick={(e) => e.stopPropagation()}
               className="truncate text-[10px] font-medium underline-offset-2 hover:underline"
             >
               {task.linkLabel}
@@ -215,7 +264,7 @@ function TaskBlock({ task, compact }: { task: Task; compact?: boolean }) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -223,10 +272,16 @@ function TimeGrid({
   days,
   tasks,
   now,
+  onOpen,
+  onCreateAt,
+  onReschedule,
 }: {
   days: Date[]
   tasks: Task[]
   now: Date
+  onOpen?: (task: Task) => void
+  onCreateAt?: (date: Date) => void
+  onReschedule?: (task: Task, nextStart: Date) => void
 }) {
   const byDay = useMemo(() => {
     const map = new Map<string, Task[]>()
@@ -237,6 +292,12 @@ function TimeGrid({
     }
     return map
   }, [days, tasks])
+
+  const byId = useMemo(() => {
+    const map = new Map<string, Task>()
+    for (const task of tasks) map.set(task.id, task)
+    return map
+  }, [tasks])
 
   return (
     <div
@@ -286,9 +347,34 @@ function TimeGrid({
         const dayTasks = byDay.get(key) ?? []
         const today = isSameDay(day, now)
         return (
-          <div key={key} className="relative border-l border-border" style={{ height: GRID_HEIGHT }}>
+          <div
+            key={key}
+            className="relative border-l border-border"
+            style={{ height: GRID_HEIGHT }}
+            onDragOver={(e) => {
+              if (!onReschedule) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = "move"
+            }}
+            onDrop={(e) => {
+              if (!onReschedule) return
+              e.preventDefault()
+              const id = e.dataTransfer.getData(TASK_DRAG_MIME)
+              const task = id ? byId.get(id) : undefined
+              if (!task) return
+              const rect = e.currentTarget.getBoundingClientRect()
+              onReschedule(task, slotFromPointer(day, e.clientY, rect.top))
+            }}
+          >
             {HOURS.map((hour) => (
-              <div key={hour} className="border-b border-border/60" style={{ height: HOUR_HEIGHT }} />
+              <button
+                key={hour}
+                type="button"
+                aria-label={`Criar em ${dateKey(day)} ${String(hour).padStart(2, "0")}:00`}
+                onClick={() => onCreateAt?.(dateAtHour(day, hour))}
+                className="absolute left-0 right-0 border-b border-border/60 hover:bg-primary/5"
+                style={{ top: (hour - HOUR_START) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+              />
             ))}
             {dayTasks.map((task) => {
               const geo = blockGeometry(taskStart(task), task.durationMin)
@@ -299,7 +385,11 @@ function TimeGrid({
                   className="absolute right-1 left-1 z-[1]"
                   style={{ top: geo.top, height: geo.height }}
                 >
-                  <TaskBlock task={task} />
+                  <TaskBlock
+                    task={task}
+                    draggable={Boolean(onReschedule)}
+                    onOpen={onOpen}
+                  />
                 </div>
               )
             })}
@@ -316,11 +406,15 @@ function MonthGrid({
   tasks,
   selectedDate,
   onSelectDate,
+  onOpen,
+  onCreateAt,
 }: {
   date: Date
   tasks: Task[]
   selectedDate: Date
   onSelectDate: (d: Date) => void
+  onOpen?: (task: Task) => void
+  onCreateAt?: (date: Date) => void
 }) {
   const now = new Date()
   const year = date.getFullYear()
@@ -355,17 +449,29 @@ function MonthGrid({
         const extra = Math.max(0, items.length - 3)
         const visible = items.slice(0, 3)
         return (
-          <button
+          <div
             key={key}
-            type="button"
-            onClick={() => onSelectDate(day)}
+            role="button"
+            tabIndex={0}
+            onClick={() => onCreateAt?.(dateAtHour(day, 9))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                onCreateAt?.(dateAtHour(day, 9))
+              }
+            }}
             className={cn(
               "min-h-24 border-r border-b border-border p-1.5 text-left align-top",
               !inMonth && "bg-secondary/40",
               isSameDay(day, selectedDate) && "ring-1 ring-inset ring-primary/40",
             )}
           >
-            <span
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelectDate(day)
+              }}
               className={cn(
                 "mb-1 flex size-6 items-center justify-center rounded-full text-xs font-semibold",
                 isSameDay(day, now) && "bg-primary text-primary-foreground",
@@ -374,16 +480,66 @@ function MonthGrid({
               )}
             >
               {day.getDate()}
-            </span>
+            </button>
             <div className="flex flex-col gap-0.5">
               {visible.map((task) => (
-                <TaskBlock key={task.id} task={task} compact />
+                <TaskBlock key={task.id} task={task} compact onOpen={onOpen} />
               ))}
               {extra > 0 && (
                 <span className="px-1 text-[10px] font-medium text-muted-foreground">+{extra}</span>
               )}
             </div>
-          </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function AgendaList({
+  tasks,
+  onOpen,
+}: {
+  tasks: Task[]
+  onOpen?: (task: Task) => void
+}) {
+  const groups = useMemo(() => {
+    const map = new Map<string, Task[]>()
+    const sorted = [...tasks].sort((a, b) => taskStart(a).getTime() - taskStart(b).getTime())
+    for (const task of sorted) {
+      const key = dateKey(taskStart(task))
+      const list = map.get(key)
+      if (list) list.push(task)
+      else map.set(key, [task])
+    }
+    return [...map.entries()]
+  }, [tasks])
+
+  if (groups.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-10 text-center">
+        <p className="text-sm text-muted-foreground">Nenhum compromisso neste período.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      {groups.map(([key, items]) => {
+        const day = taskStart(items[0])
+        return (
+          <section key={key} className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold capitalize text-foreground">
+              {dayPeriodTitle(day)}
+            </h3>
+            <ul className="flex flex-col gap-1.5">
+              {items.map((task) => (
+                <li key={task.id}>
+                  <TaskBlock task={task} onOpen={onOpen} />
+                </li>
+              ))}
+            </ul>
+          </section>
         )
       })}
     </div>
@@ -435,6 +591,7 @@ export function NewTaskDialog({
       linkLabel: company.trim() || undefined,
       createdBy: "Você",
       status: "pendente",
+      entityKind: "tarefa",
     })
     onOpenChange(false)
   }
@@ -697,7 +854,25 @@ function TasksSearchFilterBar({
   )
 }
 
-export function TasksView() {
+export function TasksView({
+  tasks,
+  loading = false,
+  error = null,
+  scope,
+  onScopeChange,
+  onOpenTask,
+  onCreateAt,
+  onReschedule,
+}: {
+  tasks: Task[]
+  loading?: boolean
+  error?: string | null
+  scope?: ActivityScopeFilter
+  onScopeChange?: (scope: ActivityScopeFilter) => void
+  onOpenTask?: (task: Task) => void
+  onCreateAt?: (date: Date) => void
+  onReschedule?: (task: Task, nextStart: Date) => void
+}) {
   const now = useNow()
   const [view, setView] = useState<CalendarView>("semana")
   const [cursor, setCursor] = useState(() => new Date())
@@ -706,10 +881,8 @@ export function TasksView() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [extraTasks, setExtraTasks] = useState<Task[]>([])
-  const [createOpen, setCreateOpen] = useState(false)
 
-  const allTasks = useMemo(() => [...TASKS, ...extraTasks], [extraTasks])
+  const allTasks = tasks
 
   const rangedTasks = useMemo(
     () => allTasks.filter((t) => taskMatchesQuery(t, search) && taskInIsoRange(t, dateFrom, dateTo)),
@@ -768,7 +941,11 @@ export function TasksView() {
   }
 
   const title =
-    view === "dia" ? dayPeriodTitle(cursor) : view === "semana" ? weekPeriodTitle(cursor) : monthPeriodTitle(cursor)
+    view === "dia"
+      ? dayPeriodTitle(cursor)
+      : view === "semana"
+        ? weekPeriodTitle(cursor)
+        : monthPeriodTitle(cursor)
 
   const shift = (delta: number) => {
     setCursor((prev) => {
@@ -784,9 +961,8 @@ export function TasksView() {
 
   const days = view === "dia" ? [cursor] : weekDays(cursor)
 
-  function handleCreate(task: Task) {
-    setExtraTasks((prev) => [...prev, task])
-    setCursor(taskStart(task))
+  const openCreate = (at?: Date) => {
+    onCreateAt?.(at ?? dateAtHour(cursor, 9))
   }
 
   return (
@@ -829,7 +1005,7 @@ export function TasksView() {
               {
                 icon: <Plus size={14} strokeWidth={2.6} />,
                 label: "Nova tarefa",
-                onClick: () => setCreateOpen(true),
+                onClick: () => openCreate(),
                 primary: true,
               },
             ]}
@@ -837,7 +1013,7 @@ export function TasksView() {
         }
       />
 
-      <div className="flex min-h-0 flex-col gap-4 lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-64">
           <div className={cn(CARD_SURFACE_CLASS, "p-4")}>
             <MiniCalendar
@@ -913,38 +1089,61 @@ export function TasksView() {
               </div>
               <h2 className="truncate text-lg font-semibold text-foreground">{title}</h2>
             </div>
-            <HeaderPillToggle
-              options={[
-                { key: "dia", label: "Dia" },
-                { key: "semana", label: "Semana" },
-                { key: "mes", label: "Mês" },
-              ]}
-              value={view}
-              onChange={setView}
-            />
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {scope && onScopeChange ? (
+                <PageSegmentedControl
+                  size="compact"
+                  aria-label="Escopo das tarefas"
+                  className="w-max shrink-0"
+                  items={SCOPE_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
+                  value={scope}
+                  onChange={(v) => onScopeChange(v as ActivityScopeFilter)}
+                />
+              ) : null}
+              <HeaderPillToggle
+                options={[
+                  { key: "dia", label: "Dia" },
+                  { key: "semana", label: "Semana" },
+                  { key: "mes", label: "Mês" },
+                  { key: "agenda", label: "Agenda" },
+                ]}
+                value={view}
+                onChange={setView}
+              />
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
-            {view === "mes" ? (
+            {loading && tasks.length === 0 ? (
+              <AppLoading variant="inline" className="min-h-[320px]" />
+            ) : error ? (
+              <div className="flex min-h-[240px] items-center justify-center p-6 text-center text-sm text-destructive">
+                {error}
+              </div>
+            ) : view === "mes" ? (
               <MonthGrid
                 date={cursor}
                 tasks={visibleTasks}
                 selectedDate={cursor}
                 onSelectDate={setCursor}
+                onOpen={onOpenTask}
+                onCreateAt={onCreateAt}
               />
+            ) : view === "agenda" ? (
+              <AgendaList tasks={visibleTasks} onOpen={onOpenTask} />
             ) : (
-              <TimeGrid days={days} tasks={visibleTasks} now={now} />
+              <TimeGrid
+                days={days}
+                tasks={visibleTasks}
+                now={now}
+                onOpen={onOpenTask}
+                onCreateAt={onCreateAt}
+                onReschedule={onReschedule}
+              />
             )}
           </div>
         </section>
       </div>
-
-      <NewTaskDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        defaultDate={cursor}
-        onCreate={handleCreate}
-      />
     </>
   )
 }

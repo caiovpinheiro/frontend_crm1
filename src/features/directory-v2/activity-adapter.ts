@@ -13,6 +13,7 @@
  */
 
 import type { Activity, ActivityKind } from "@/lib/activities-data";
+import type { Task } from "@/lib/tasks-data";
 import type { ActivityListItemDto, ActivityTypeDto } from "./api";
 
 const TYPE_TO_KIND: Record<ActivityTypeDto, ActivityKind> = {
@@ -80,4 +81,30 @@ export function dtoToActivity(dto: ActivityListItemDto): Activity {
 
 export function activityKindToType(kind: ActivityKind): ActivityTypeDto {
   return KIND_TO_TYPE[kind] ?? "TASK";
+}
+
+/** Agenda Google Calendar (TasksView) fala `Task`; a API fala `Activity`. */
+export function activityToTask(activity: Activity): Task {
+  const mins = activity.durationMin;
+  const dealId = activity.dealId ?? null;
+  const contactId = activity.contactId ?? null;
+  return {
+    id: activity.id,
+    title: activity.title,
+    type: activity.kind,
+    start: activity.start,
+    durationMin: mins && mins > 0 ? mins : 30,
+    contact: activity.contactName ?? activity.withWhom,
+    createdBy: activity.createdBy?.name ?? undefined,
+    status: activity.status,
+    entityKind: "tarefa",
+    dealId,
+    contactId,
+    linkLabel: activity.dealTitle ?? undefined,
+    linkHref: dealId
+      ? `/pipeline/${dealId}`
+      : contactId
+        ? `/contacts/${contactId}`
+        : undefined,
+  };
 }

@@ -103,7 +103,13 @@ export function ActivityComposer({
     setDate(dateKey(defaultDate))
     setTitle("")
     setKind("tarefa")
-    setTime("09:00")
+    const hh = String(defaultDate.getHours()).padStart(2, "0")
+    const mm = String(defaultDate.getMinutes()).padStart(2, "0")
+    setTime(
+      defaultDate.getHours() === 0 && defaultDate.getMinutes() === 0
+        ? "09:00"
+        : `${hh}:${mm}`,
+    )
     setDuration("30")
     setContactId(presetContactId)
     setContactName(presetContactName)
