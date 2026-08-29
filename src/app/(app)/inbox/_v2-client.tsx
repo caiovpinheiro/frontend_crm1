@@ -627,6 +627,7 @@ export default function InboxV2ClientPage({
     data: messagesData,
     fetchOlder,
     hasOlder,
+    hasOlderTickets,
     isFetchingOlder,
     isPending: messagesPending,
     isError: messagesFailed,
@@ -1617,6 +1618,7 @@ export default function InboxV2ClientPage({
         conversationId={activeRow.id}
         onLoadOlder={fetchOlder}
         hasOlder={hasOlder}
+        hasOlderTickets={hasOlderTickets}
         isLoadingOlder={isFetchingOlder}
         messagesLoading={messagesPending && !messagesData}
         messagesError={messagesFailed && !messagesData}

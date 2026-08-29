@@ -190,25 +190,12 @@ export function useMessages(conversationId: string | null) {
     }
   }, [conversationId, qc]);
 
-  // Uma fatia de histórico ao abrir — só se o ticket atual já cabe na
-  // 1ª página (`!hasMore`). Sem loop de fill: scroll-up pede o resto.
-  const prefetchedHistoryForRef = useRef<string | null>(null);
+  // Prefetch de 1 fatia (ticket curto) é medido no ChatArea pela
+  // viewport — daqui não dispara GET no open.
   useEffect(() => {
     fetchingOlderRef.current = false;
     setIsFetchingOlder(false);
-    if (!conversationId) prefetchedHistoryForRef.current = null;
   }, [conversationId]);
-  useEffect(() => {
-    if (!conversationId) return;
-    const cur = query.data;
-    if (!cur) return;
-    if (cur.hasMore === true) return;
-    if (cur.historyLoaded || cur.hasOlderTickets !== true) return;
-    if (cur.messages.some(isTicketSeparator)) return;
-    if (prefetchedHistoryForRef.current === conversationId) return;
-    prefetchedHistoryForRef.current = conversationId;
-    void fetchOlder();
-  }, [conversationId, query.data, fetchOlder]);
 
   const data = query.data;
   const hasOlderPages = data?.hasMore === true;

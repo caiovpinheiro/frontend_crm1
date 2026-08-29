@@ -233,6 +233,7 @@ export function useDealChatBinding(params: {
     data: messagesResp,
     fetchOlder,
     hasOlder,
+    hasOlderTickets,
     isFetchingOlder,
     isPending: messagesPending,
     isError: messagesFailed,
@@ -425,14 +426,19 @@ export function useDealChatBinding(params: {
   const fetchOlderRef = useRef(fetchOlder);
   fetchOlderRef.current = fetchOlder;
   const [olderArmed, setOlderArmed] = useState(false);
+  const pinSettledRef = useRef(false);
+  const viewportPrefetchDoneRef = useRef<string | null>(null);
   useEffect(() => {
     setOlderArmed(false);
+    pinSettledRef.current = false;
+    viewportPrefetchDoneRef.current = null;
   }, [effectiveConversationId]);
   useEffect(() => {
     if (!hasOlder || isFetchingOlder) return;
     const el = findScrollEl();
     if (!el) return;
     const load = () => {
+      if (!pinSettledRef.current) return;
       setOlderArmed(true);
       void fetchOlderRef.current();
     };
@@ -472,6 +478,7 @@ export function useDealChatBinding(params: {
     if (prepended) {
       if (!olderArmed) {
         el.scrollTop = el.scrollHeight - el.clientHeight;
+        pinSettledRef.current = true;
       } else {
         el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
       }
@@ -496,7 +503,23 @@ export function useDealChatBinding(params: {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
           const e = findScrollEl();
-          if (e) e.scrollTop = e.scrollHeight;
+          if (!e) return;
+          e.scrollTop = e.scrollHeight;
+          const convKey = effectiveConversationId ?? "";
+          if (viewportPrefetchDoneRef.current === convKey) {
+            pinSettledRef.current = true;
+            return;
+          }
+          const list = e.querySelector("ul");
+          const listH = list instanceof HTMLElement ? list.getBoundingClientRect().height : 0;
+          const fills = listH + 24 >= e.clientHeight;
+          if (!hasOlderTickets || fills) {
+            viewportPrefetchDoneRef.current = convKey;
+            pinSettledRef.current = true;
+            return;
+          }
+          viewportPrefetchDoneRef.current = convKey;
+          void fetchOlderRef.current();
         }),
       );
       setShowScrollDown(false);
@@ -514,7 +537,7 @@ export function useDealChatBinding(params: {
       setShowScrollDown(true);
       setUnreadCount((n) => n + 1);
     }
-  }, [bubbles, effectiveConversationId, findScrollEl, scrollToEnd]);
+  }, [bubbles, effectiveConversationId, findScrollEl, scrollToEnd, hasOlderTickets]);
 
   const scrollToMessage = useCallback((messageId: string) => {
     // O chat do deal fica num drawer; pode haver a mesma âncora montada no
@@ -763,7 +786,11 @@ export function useDealChatBinding(params: {
       }
       const dayLabel = formatChatDayLabel(b.createdAt);
       const isNewDay = Boolean(dayLabel && dayLabel !== lastDayLabel);
-      const showDay = isNewDay && lastDayLabel !== null;
+      const showDay = Boolean(
+        isNewDay &&
+        dayLabel &&
+        (stickyDayLabel ? dayLabel !== stickyDayLabel : lastDayLabel !== null),
+      );
       if (isNewDay && dayLabel) lastDayLabel = dayLabel;
       let connLabel: string | null = null;
       if (showConnSwitches && b.channelId && b.channelId !== lastChannelId) {
@@ -836,13 +863,14 @@ export function useDealChatBinding(params: {
       );
     });
     messagesNode = (
-      <div className="flex min-h-full flex-col">
-        <StickyDayPill date={stickyDayLabel} loading={isFetchingOlder && olderArmed} paused={!olderArmed} />
+      <div className="flex h-full min-h-0 flex-col">
+        <StickyDayPill date={stickyDayLabel} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]">
         <div className="min-h-0 flex-1" aria-hidden />
         <ul className="flex list-none flex-col gap-0.5">
-          {hasOlder && !isFetchingOlder && (
-            <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
-              ↑ Role para ver mensagens anteriores
+          {olderArmed && isFetchingOlder && (
+            <li className="flex list-none justify-center py-2" aria-hidden>
+              <span className="inline-block size-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
             </li>
           )}
           {bubbleNodes}
@@ -875,6 +903,7 @@ export function useDealChatBinding(params: {
             </button>
           </div>
         )}
+        </div>
       </div>
     );
   }
