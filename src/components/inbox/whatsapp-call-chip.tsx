@@ -114,17 +114,18 @@ function messageTypeLooksLikeCalling(type: string | null | undefined): boolean {
 
 /** Sem flag/campo de chamada no payload → zero GET. */
 export function conversationHasCallingHint(
-  row: CallingHintSource | null | undefined,
+  row: object | null | undefined,
 ): boolean {
   if (!row) return false;
-  if (row.hasCalling === true) return true;
-  const status = row.whatsappCallConsentStatus ?? row.callConsentStatus;
+  const src = row as CallingHintSource;
+  if (src.hasCalling === true) return true;
+  const status = src.whatsappCallConsentStatus ?? src.callConsentStatus;
   if (status && status !== "NONE") return true;
-  if (messageTypeLooksLikeCalling(row.lastMessagePreview?.messageType)) return true;
+  if (messageTypeLooksLikeCalling(src.lastMessagePreview?.messageType)) return true;
   return (
-    textLooksLikeCalling(row.lastMessagePreview?.content) ||
-    textLooksLikeCalling(row.lastMessage?.preview) ||
-    textLooksLikeCalling(row.lastMessage?.content)
+    textLooksLikeCalling(src.lastMessagePreview?.content) ||
+    textLooksLikeCalling(src.lastMessage?.preview) ||
+    textLooksLikeCalling(src.lastMessage?.content)
   );
 }
 
