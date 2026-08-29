@@ -21,6 +21,7 @@ import {
 } from "../api";
 
 import { invalidatePipelineBoards } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
 export function messagesKey(conversationId: string | null | undefined) {
   return ["messages", conversationId ?? "__none__"] as const;
@@ -134,7 +135,7 @@ export function useMessages(conversationId: string | null) {
       const prev = qc.getQueryData<MessagesResponse>(messagesKey(conversationId));
       return mergeTail(prev, page);
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId && !isInboxConversationNumberParam(conversationId),
     staleTime: 20_000,
     // SSE invalida na hora em new_message da conversa ativa; o poll é só
     // safety-net. 90s (era 45s) — ver storm de 28/ago/26.

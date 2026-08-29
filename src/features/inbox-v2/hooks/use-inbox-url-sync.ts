@@ -5,7 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const C_PARAM = "c";
 const LEGACY_PARAMS = ["conversationId", "conversation", "conv"] as const;
 
-export function isInboxConversationNumberParam(raw: string): boolean {
+export function isInboxConversationNumberParam(
+  raw: string | null | undefined,
+): boolean {
+  if (!raw) return false;
   return /^\d+$/.test(raw.trim());
 }
 

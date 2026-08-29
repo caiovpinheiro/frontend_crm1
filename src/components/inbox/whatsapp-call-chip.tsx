@@ -93,26 +93,7 @@ export type CallingHintSource = {
   lastMessage?: { preview?: string; content?: string } | null;
 };
 
-function textLooksLikeCalling(raw: string | null | undefined): boolean {
-  const t = (raw ?? "").toLowerCase();
-  if (!t) return false;
-  return (
-    t.includes("call_permission") ||
-    t.includes("permissão de liga") ||
-    t.includes("permissao de liga") ||
-    t.includes("solicitação de voz") ||
-    t.includes("solicitacao de voz") ||
-    ((t.includes("aceitou") || t.includes("recusou")) &&
-      (t.includes("liga") || t.includes("voz") || t.includes("chamad")))
-  );
-}
-
-function messageTypeLooksLikeCalling(type: string | null | undefined): boolean {
-  const t = (type ?? "").toLowerCase();
-  return t === "call" || t === "whatsapp_call" || t === "voice_call";
-}
-
-/** Sem flag/campo de chamada no payload → zero GET. */
+/** Sem flag/consent de WhatsApp Call no payload → zero GET. Áudio de voz no chat não conta. */
 export function conversationHasCallingHint(
   row: object | null | undefined,
 ): boolean {
@@ -121,23 +102,7 @@ export function conversationHasCallingHint(
   if (src.hasCalling === true) return true;
   const status = src.whatsappCallConsentStatus ?? src.callConsentStatus;
   if (status && status !== "NONE") return true;
-  if (messageTypeLooksLikeCalling(src.lastMessagePreview?.messageType)) return true;
-  return (
-    textLooksLikeCalling(src.lastMessagePreview?.content) ||
-    textLooksLikeCalling(src.lastMessage?.preview) ||
-    textLooksLikeCalling(src.lastMessage?.content)
-  );
-}
-
-function messagesIndicateCalling(
-  messages: { content?: string; messageType?: string; createdAt?: string }[] | undefined,
-): boolean {
-  if (!messages?.length) return false;
-  if (inferGrantFromMessages(messages)) return true;
-  return messages.some(
-    (m) =>
-      messageTypeLooksLikeCalling(m.messageType) || textLooksLikeCalling(m.content),
-  );
+  return false;
 }
 
 /** Meta bloqueia novo request por 24h depois de um REJECT. */
@@ -282,9 +247,9 @@ export function WhatsappCallChip({
   /** `cta` = green pill in the inbox header. Compact `chip` for deal/sales-hub. */
   variant?: "chip" | "cta";
   /**
-   * Payload do ticket já indica chamada (consent, aba Ligar, lastMessage).
-   * Sem isto o GET só dispara se a timeline em cache ou um SSE `whatsapp_call`
-   * mostrarem contexto de voz. Conversa WhatsApp comum = zero request.
+   * Evidência real de WhatsApp Call: aba Ligar ou consent no payload.
+   * Sem isto o GET só dispara com SSE `whatsapp_call`. Áudio de voz no
+   * chat não autoriza request.
    */
   hasCalling?: boolean;
 }) {
@@ -312,12 +277,11 @@ export function WhatsappCallChip({
     () => queryClient.getQueryData<MessagesResponse>(messagesKey(conversationId)),
     [queryClient, conversationId, msgTick],
   );
-  const hintFromMessages = messagesIndicateCalling(cachedMessages?.messages);
   const shouldFetchCalling =
     !!conversationId &&
     isWaVoiceChannel &&
     !callingContextMisses.has(conversationId) &&
-    (hasCalling || hintFromMessages || sseCalling);
+    (hasCalling || sseCalling);
 
   const { data, isLoading } = useQuery({
     queryKey: key,
@@ -499,7 +463,13 @@ export function WhatsappCallChip({
             callId?: string;
             session?: { sdp_type?: string; sdp?: string };
           };
-          if (p.conversationId === conversationId) setSseCalling(true);
+          if (p.conversationId === conversationId) {
+            setSseCalling(true);
+            if (!callingContextMisses.has(conversationId)) {
+              queryClient.invalidateQueries({ queryKey: key });
+            }
+            queryClient.invalidateQueries({ queryKey: recentCallsKey });
+          }
           if (
             p.callId &&
             p.session?.sdp_type?.toLowerCase() === "answer" &&
@@ -507,21 +477,6 @@ export function WhatsappCallChip({
             (p.conversationId === conversationId || p.callId === outbound.activeCallId)
           ) {
             void applyAnswerRef.current(p.callId, p.session.sdp);
-          }
-        }
-        if (
-          event === "new_message" ||
-          event === "whatsapp_call" ||
-          event === "conversation_updated"
-        ) {
-          const p = evtData as { conversationId?: string };
-          if (p.conversationId === conversationId) {
-            if (!callingContextMisses.has(conversationId)) {
-              queryClient.invalidateQueries({ queryKey: key });
-            }
-            // Histórico de chamadas também precisa atualizar quando
-            // chega evento de chamada (terminate, recording etc).
-            queryClient.invalidateQueries({ queryKey: recentCallsKey });
           }
         }
       },

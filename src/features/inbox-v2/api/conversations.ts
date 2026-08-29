@@ -97,13 +97,16 @@ export async function fetchTabCounts(
 }
 
 /**
- * GET /api/conversations/:id — busca UMA conversa (dígitos = number da org;
- * senão CUID). Usado pelo deep-link (?c=<number>): quando a conversa não
- * está na lista/aba carregada, buscamos direto. 404 = não existe ou sem acesso.
+ * GET /api/conversations/:id — só CUID. Ticket `#332843` / `?c=332843`
+ * resolve na lista do client (`matchesConversationUrlRef`); não bate na
+ * API com ID numérico (404 em produção).
  */
 export async function getConversation(
   conversationId: string,
 ): Promise<ConversationListRow> {
+  if (/^\d+$/.test(conversationId.trim())) {
+    throw new Error("Conversa não encontrada ou sem permissão");
+  }
   const res = await fetch(apiUrl(`/api/conversations/${conversationId}`));
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
