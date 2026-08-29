@@ -29,11 +29,10 @@ import { isPreviewMode } from "@/lib/preview-mode";
 
 /**
  * Page size pedido por request. O backend tem cap em 200 (ver
- * `_backend/src/services/conversations.ts`). Mantemos 25 pra latência
- * baixa do primeiro paint (~2-3 viewports de conversas) — o infinite
- * scroll cobre o resto.
+ * `_backend/src/services/conversations.ts`). Primeiro paint = 10;
+ * o infinite scroll pede mais 10 ao chegar no fim da lista.
  */
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
 /**
  * Lista paginada (infinite) de conversas da aba ativa.
