@@ -25,7 +25,6 @@ import {
   TabulationByUserWidget,
   TabulationKpiWidget,
   TabulationLogWidget,
-  TabulationsDashboard,
   TabulationTopWidget,
 } from "@/app/(app)/settings/tabulations/tabulations-dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -61,12 +60,13 @@ import {
   DEAL_CORE_WIDGET_IDS,
   isStageWidgetId,
   parseStageWidgetId,
-  TABULATION_BOARD_WIDGET_IDS,
   useNegociosGrid,
   type DealCoreWidgetId,
 } from "@/features/dashboard-v2/use-negocios-grid";
 import {
+  isTabulationWidgetId,
   OPERATOR_WIDGET_IDS,
+  SERVICE_BOARD_WIDGET_IDS,
   SERVICE_WIDGET_IDS,
   TABULATION_WIDGET_IDS,
   useDashboardWidgetOrder,
@@ -79,7 +79,6 @@ import { textMatchesQuery } from "@/features/dashboard-v2/format";
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
   { key: "service", label: "Atendimentos" },
-  { key: "tabulations", label: "Tabulações" },
 ] as const;
 
 type DashboardTabKey = (typeof DASHBOARD_TABS)[number]["key"];
@@ -93,10 +92,6 @@ const DEAL_LABELS: Record<string, string> = {
   agents: "Ganhos por agente",
   sources: "Origem",
   exceptions: "Exceções",
-  tabKpis: TABULATION_WIDGET_LABELS.kpis,
-  tabTop: TABULATION_WIDGET_LABELS.top,
-  tabByUser: TABULATION_WIDGET_LABELS.byUser,
-  tabLog: TABULATION_WIDGET_LABELS.log,
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -109,6 +104,10 @@ const SERVICE_LABELS: Record<string, string> = {
   attendants: "Tabelas",
   channels: "Canal e motivo",
   exceptions: "Exceções",
+  kpis: TABULATION_WIDGET_LABELS.kpis,
+  top: TABULATION_WIDGET_LABELS.top,
+  byUser: TABULATION_WIDGET_LABELS.byUser,
+  log: TABULATION_WIDGET_LABELS.log,
 };
 
 const OPERATOR_LABELS: Record<string, string> = {
@@ -247,7 +246,6 @@ function ManagerHome({
   const [uiHydrated, setUiHydrated] = useState(false);
   const isDeals = activeTab === "deals";
   const isService = activeTab === "service";
-  const isTabulations = activeTab === "tabulations";
 
   const optionsQuery = useDashboardFilterOptions(isAuthenticated);
   const options = optionsQuery.data;
@@ -261,9 +259,6 @@ function ManagerHome({
   const [organizing, setOrganizing] = useState(false);
   const [tabLogPage, setTabLogPage] = useState(1);
   const grid = useNegociosGrid();
-  const tabOrder = useDashboardWidgetOrder("tabulations", TABULATION_WIDGET_IDS, {
-    allowHide: true,
-  });
   const fieldIds = useMemo(
     () => grid.cards.filter((c) => c.type === "customField" && c.fieldId).map((c) => c.fieldId!),
     [grid.cards],
@@ -277,20 +272,21 @@ function ManagerHome({
     queryKey: ["team-users-tabulations"],
     queryFn: () => listTeamUsers(),
     staleTime: 60_000,
-    enabled: isAuthenticated && isTabulations,
+    enabled: isAuthenticated && isService,
   });
 
-  const serviceOrder = useDashboardWidgetOrder("service", SERVICE_WIDGET_IDS);
-  const hasDealTabWidgets = grid.widgetIds.some((id) =>
-    (TABULATION_BOARD_WIDGET_IDS as readonly string[]).includes(id),
-  );
+  const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {
+    allowHide: true,
+    pinnedIds: SERVICE_WIDGET_IDS,
+  });
+  const hasServiceTabWidgets = serviceOrder.order.some((id) => isTabulationWidgetId(id));
   const tabAnalyticsQuery = useTabulationAnalytics({
     fromIso: period.from,
     toIso: period.to,
     actorUserId: tabActorUserId,
     departmentId: tabDepartmentId,
     page: tabLogPage,
-    enabled: isAuthenticated && (isTabulations || (isDeals && hasDealTabWidgets)),
+    enabled: isAuthenticated && isService && hasServiceTabWidgets,
   });
 
   useEffect(() => {
@@ -301,7 +297,9 @@ function ManagerHome({
     if (!uiScope.ready || !uiScope.keyPart || !uiScope.userId) return;
     const saved = readDashboardUiState(uiScope.keyPart, uiScope.userId);
     if (saved) {
-      if (saved.tab === "deals" || saved.tab === "service" || saved.tab === "tabulations") {
+      if (saved.tab === "tabulations") {
+        setActiveTab("service");
+      } else if (saved.tab === "deals" || saved.tab === "service") {
         setActiveTab(saved.tab);
       }
       if (saved.clock === "business" || saved.clock === "elapsed") setClock(saved.clock);
@@ -334,15 +332,13 @@ function ManagerHome({
     ? false
     : isDeals
       ? dealsReady && optionsSettled
-      : isService
-        ? serviceReady && optionsSettled
-        : optionsSettled;
+      : serviceReady && optionsSettled;
   const pagePainted = useLatchedReady(primarySettled);
 
   const [tabPainted, setTabPainted] = useState<Partial<Record<DashboardTabKey, boolean>>>(
     {},
   );
-  const tabReady = isDeals ? dealsReady : isService ? serviceReady : true;
+  const tabReady = isDeals ? dealsReady : serviceReady;
 
   useEffect(() => {
     if (!pagePainted || !tabReady) return;
@@ -384,13 +380,13 @@ function ManagerHome({
       onPatch={patch}
       options={options}
       effectivePipelineId={effectivePipelineId}
-      variant={isTabulations ? "tabulations" : isService ? "service" : "deals"}
+      variant={isService ? "service" : "deals"}
       actorUserId={tabActorUserId}
       onActorUserIdChange={setTabActorUserId}
       departmentId={tabDepartmentId}
       onDepartmentIdChange={setTabDepartmentId}
       userOptions={
-        isTabulations
+        isService
           ? (usersQuery.data ?? []).map((u) => ({ value: u.id, label: u.name }))
           : (options?.users ?? []).map((u) => ({ value: u.id, label: u.name }))
       }
@@ -444,16 +440,12 @@ function ManagerHome({
         <PageActionsMenu
           aria-label="Ações do dashboard"
           items={[
-            ...(isDeals || isTabulations
-              ? [
-                  {
-                    icon: <Plus className="size-4" />,
-                    label: "Adicionar card",
-                    onClick: () => setAddCardOpen(true),
-                    primary: true as const,
-                  },
-                ]
-              : []),
+            {
+              icon: <Plus className="size-4" />,
+              label: "Adicionar card",
+              onClick: () => setAddCardOpen(true),
+              primary: true as const,
+            },
             {
               icon: organizing ? <Check className="size-4" /> : <Move className="size-4" />,
               label: organizing ? "Concluir organização" : "Organizar cards",
@@ -482,18 +474,6 @@ function ManagerHome({
                     rows={usageRows}
                     chartType={grid.usageChartType}
                   />
-                );
-              }
-              if ((TABULATION_BOARD_WIDGET_IDS as readonly string[]).includes(id)) {
-                return renderTabBoardWidget(
-                  id,
-                  tabAnalyticsQuery,
-                  search,
-                  tabActorUserId,
-                  tabDepartmentId,
-                  setTabDepartmentId,
-                  tabLogPage,
-                  setTabLogPage,
                 );
               }
               if (isStageWidgetId(id)) {
@@ -575,55 +555,55 @@ function ManagerHome({
             onAddStage={(stageId) => grid.restoreWidget(`stage:${stageId}`)}
             onCreate={grid.addCard}
           />
-          <AddDashboardCardDialog
-            open={addCardOpen && isTabulations}
-            onOpenChange={setAddCardOpen}
-            fields={[]}
-            stages={[]}
-            presentIds={tabOrder.order}
-            presets={TABULATION_WIDGET_IDS.map((id) => ({
-              id,
-              label: TABULATION_WIDGET_LABELS[id],
-            }))}
-            presetsOnly
-            onAddPreset={(id) => tabOrder.restore(id)}
-            onAddStage={() => undefined}
-            onCreate={() => undefined}
-          />
         </>
-      ) : isService ? (
+      ) : (
+        <>
           <SortableWidgetStack
             ids={serviceOrder.order}
             labels={SERVICE_LABELS}
             onReorder={serviceOrder.reorder}
             organizing={organizing}
             droppableId="dashboard-atendimento"
-          render={(id) =>
-            renderServiceWidget(
-              id as ServiceWidgetId,
-              search,
-              clock,
-              setClock,
-              agoraQuery,
-              serviceQuery,
-            )
-          }
-        />
-      ) : (
-        <TabulationsDashboard
-          period={period}
-          search={search}
-          hideLocalFilters
-          reorderable
-          organizing={organizing}
-          widgetOrder={tabOrder.order}
-          onReorderWidgets={tabOrder.reorder}
-          onHideWidget={tabOrder.hide}
-          actorUserId={tabActorUserId}
-          onActorUserIdChange={setTabActorUserId}
-          departmentId={tabDepartmentId}
-          onDepartmentIdChange={setTabDepartmentId}
-        />
+            onRemove={serviceOrder.hide}
+            canRemove={isTabulationWidgetId}
+            render={(id) =>
+              isTabulationWidgetId(id)
+                ? renderTabBoardWidget(
+                    id,
+                    tabAnalyticsQuery,
+                    search,
+                    tabActorUserId,
+                    tabDepartmentId,
+                    setTabDepartmentId,
+                    tabLogPage,
+                    setTabLogPage,
+                  )
+                : renderServiceWidget(
+                    id as ServiceWidgetId,
+                    search,
+                    clock,
+                    setClock,
+                    agoraQuery,
+                    serviceQuery,
+                  )
+            }
+          />
+          <AddDashboardCardDialog
+            open={addCardOpen && isService}
+            onOpenChange={setAddCardOpen}
+            fields={[]}
+            stages={[]}
+            presentIds={serviceOrder.order}
+            presets={TABULATION_WIDGET_IDS.map((id) => ({
+              id,
+              label: TABULATION_WIDGET_LABELS[id],
+            }))}
+            presetsOnly
+            onAddPreset={(id) => serviceOrder.restore(id)}
+            onAddStage={() => undefined}
+            onCreate={() => undefined}
+          />
+        </>
       )}
     </Shell>
   );
@@ -657,8 +637,8 @@ function renderTabBoardWidget(
   );
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.perPage)) : 1;
 
-  if (id === "tabKpis") return <TabulationKpiWidget data={data} loadingValue={loadingValue} />;
-  if (id === "tabTop") {
+  if (id === "kpis") return <TabulationKpiWidget data={data} loadingValue={loadingValue} />;
+  if (id === "top") {
     return (
       <TabulationTopWidget
         rows={byTabulation}
@@ -670,8 +650,8 @@ function renderTabBoardWidget(
       />
     );
   }
-  if (id === "tabByUser") return <TabulationByUserWidget rows={byUser} />;
-  if (id === "tabLog") {
+  if (id === "byUser") return <TabulationByUserWidget rows={byUser} />;
+  if (id === "log") {
     return (
       <TabulationLogWidget
         data={data}
@@ -696,7 +676,7 @@ function renderDealWidget(
   userIds?: string[],
   funnelPicker?: ReactNode,
 ) {
-  if (id === "usage" || id.startsWith("tab")) return null;
+  if (id === "usage") return null;
   if (query.error && !query.data) {
     if (id !== "kpis") return <PainelSkeleton className="min-h-48" />;
     return (

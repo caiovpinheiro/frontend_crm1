@@ -68,7 +68,7 @@ export function DashboardSearchFilterBar({
   onPatch: (partial: Partial<DashboardFiltersState>) => void;
   options?: FilterOptionsResponse;
   effectivePipelineId?: string;
-  variant: "deals" | "service" | "tabulations";
+  variant: "deals" | "service";
   actorUserId?: string;
   onActorUserIdChange?: (id: string) => void;
   departmentId?: string;
@@ -80,14 +80,14 @@ export function DashboardSearchFilterBar({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const tabs = variant === "tabulations" ? TABULATION_TABS : DEAL_TABS;
+  const tabs = variant === "service" ? TABULATION_TABS : DEAL_TABS;
   const [tab, setTab] = useState<FilterTab>(tabs[0].id);
 
   const structuralCount = countStructuralDashboardFilters(filters);
   const tabulationCount =
     (actorUserId ? 1 : 0) + (departmentId ? 1 : 0);
-  const activeCount = variant === "tabulations" ? tabulationCount : structuralCount;
-  const showFilter = variant !== "service";
+  const activeCount = variant === "service" ? tabulationCount : structuralCount;
+  const showFilter = true;
 
   useEffect(() => {
     setTab(tabs[0].id);
@@ -137,7 +137,7 @@ export function DashboardSearchFilterBar({
   }));
 
   function handleClear() {
-    if (variant === "tabulations") {
+    if (variant === "service") {
       onActorUserIdChange?.("");
       onDepartmentIdChange?.("");
       return;
