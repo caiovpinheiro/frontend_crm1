@@ -20,6 +20,11 @@ type DatePickerProps = {
   className?: string;
   /** Classes extras no botão gatilho (borda, altura, radius…). */
   triggerClassName?: string;
+  /**
+   * `soft`: popover `rounded-2xl` e dias `rounded-full` (modal GCal).
+   * Default mantém o chrome dos filtros de período.
+   */
+  shape?: "default" | "soft";
   disabled?: boolean;
 };
 
@@ -35,8 +40,10 @@ export function DatePicker({
   placeholder = "Selecionar data",
   className,
   triggerClassName,
+  shape = "default",
   disabled,
 }: DatePickerProps) {
+  const soft = shape === "soft";
   const [open, setOpen] = React.useState(false);
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
@@ -165,13 +172,19 @@ export function DatePicker({
                 left: coords?.left ?? 0,
                 visibility: coords ? "visible" : "hidden",
               }}
-              className="z-(--z-radix) w-[17.5rem] overflow-visible rounded-xl border border-border bg-card p-3 text-foreground shadow-lg"
+              className={cn(
+                "z-(--z-radix) w-[17.5rem] overflow-visible border border-border bg-card p-3 text-foreground shadow-lg",
+                soft ? "rounded-2xl p-4" : "rounded-xl",
+              )}
             >
               <div className="mb-3 flex items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
-                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                  className={cn(
+                    "inline-flex size-8 items-center justify-center text-muted-foreground transition hover:bg-primary/10 hover:text-primary",
+                    soft ? "rounded-full" : "rounded-lg",
+                  )}
                   aria-label="Mês anterior"
                 >
                   <ChevronLeft className="size-4" />
@@ -182,7 +195,10 @@ export function DatePicker({
                 <button
                   type="button"
                   onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
-                  className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+                  className={cn(
+                    "inline-flex size-8 items-center justify-center text-muted-foreground transition hover:bg-primary/10 hover:text-primary",
+                    soft ? "rounded-full" : "rounded-lg",
+                  )}
                   aria-label="Próximo mês"
                 >
                   <ChevronRight className="size-4" />
@@ -209,7 +225,8 @@ export function DatePicker({
                         setOpen(false);
                       }}
                       className={cn(
-                        "flex h-8 items-center justify-center rounded-lg text-xs font-medium transition",
+                        "flex size-8 items-center justify-center text-xs font-medium transition",
+                        soft ? "rounded-full" : "rounded-lg",
                         isSelected && "bg-primary text-primary-foreground shadow-sm",
                         !isSelected && inMonth && "text-foreground hover:bg-primary/10 hover:text-primary",
                         !inMonth && "text-muted-foreground opacity-40 hover:bg-primary/10",

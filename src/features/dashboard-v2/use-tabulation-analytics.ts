@@ -35,26 +35,34 @@ export type TabulationAnalyticsResponse = {
 export function useTabulationAnalytics({
   fromIso,
   toIso,
-  actorUserId,
-  departmentId,
+  actorUserIds,
+  departmentIds,
   page,
   enabled = true,
 }: {
   fromIso: string;
   toIso: string;
-  actorUserId: string;
-  departmentId: string;
+  actorUserIds: string[];
+  departmentIds: string[];
   page: number;
   enabled?: boolean;
 }) {
   return useQuery({
-    queryKey: ["tabulation-analytics", fromIso, toIso, actorUserId, departmentId, page],
+    queryKey: ["tabulation-analytics", fromIso, toIso, actorUserIds, departmentIds, page],
     queryFn: async (): Promise<TabulationAnalyticsResponse> => {
       const sp = new URLSearchParams();
       if (fromIso) sp.set("from", fromIso);
       if (toIso) sp.set("to", toIso);
-      if (actorUserId) sp.set("actorUserId", actorUserId);
-      if (departmentId) sp.set("departmentId", departmentId);
+      if (actorUserIds.length === 1) {
+        sp.set("actorUserId", actorUserIds[0]!);
+      } else if (actorUserIds.length > 1) {
+        sp.set("actorUserIds", actorUserIds.join(","));
+      }
+      if (departmentIds.length === 1) {
+        sp.set("departmentId", departmentIds[0]!);
+      } else if (departmentIds.length > 1) {
+        sp.set("departmentIds", departmentIds.join(","));
+      }
       sp.set("page", String(page));
       sp.set("perPage", "25");
       const res = await fetch(apiUrl(`/api/analytics/tabulations?${sp}`), {

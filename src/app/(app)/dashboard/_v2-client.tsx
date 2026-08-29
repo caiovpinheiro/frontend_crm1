@@ -53,6 +53,8 @@ import {
 } from "@/features/dashboard-v2/use-dashboard-filters";
 import {
   readDashboardUiState,
+  readSavedActorUserIds,
+  readSavedDepartmentIds,
   useDashboardStorageScope,
   writeDashboardUiState,
 } from "@/features/dashboard-v2/dashboard-persist";
@@ -240,8 +242,8 @@ function ManagerHome({
   const [activeTab, setActiveTab] = useState<DashboardTabKey>("deals");
   const [search, setSearch] = useState("");
   const [clock, setClock] = useState<"business" | "elapsed">("business");
-  const [tabActorUserId, setTabActorUserId] = useState("");
-  const [tabDepartmentId, setTabDepartmentId] = useState("");
+  const [tabActorUserIds, setTabActorUserIds] = useState<string[]>([]);
+  const [tabDepartmentIds, setTabDepartmentIds] = useState<string[]>([]);
   const uiScope = useDashboardStorageScope();
   const [uiHydrated, setUiHydrated] = useState(false);
   const isDeals = activeTab === "deals";
@@ -283,15 +285,15 @@ function ManagerHome({
   const tabAnalyticsQuery = useTabulationAnalytics({
     fromIso: period.from,
     toIso: period.to,
-    actorUserId: tabActorUserId,
-    departmentId: tabDepartmentId,
+    actorUserIds: tabActorUserIds,
+    departmentIds: tabDepartmentIds,
     page: tabLogPage,
     enabled: isAuthenticated && isService && hasServiceTabWidgets,
   });
 
   useEffect(() => {
     setTabLogPage(1);
-  }, [period.from, period.to, tabActorUserId, tabDepartmentId]);
+  }, [period.from, period.to, tabActorUserIds, tabDepartmentIds]);
 
   useEffect(() => {
     if (!uiScope.ready || !uiScope.keyPart || !uiScope.userId) return;
@@ -303,8 +305,8 @@ function ManagerHome({
         setActiveTab(saved.tab);
       }
       if (saved.clock === "business" || saved.clock === "elapsed") setClock(saved.clock);
-      if (typeof saved.tabActorUserId === "string") setTabActorUserId(saved.tabActorUserId);
-      if (typeof saved.tabDepartmentId === "string") setTabDepartmentId(saved.tabDepartmentId);
+      setTabActorUserIds(readSavedActorUserIds(saved));
+      setTabDepartmentIds(readSavedDepartmentIds(saved));
     }
     setUiHydrated(true);
   }, [uiScope.ready, uiScope.keyPart, uiScope.userId]);
@@ -314,10 +316,12 @@ function ManagerHome({
     writeDashboardUiState(uiScope.keyPart, {
       tab: activeTab,
       clock,
-      tabActorUserId,
-      tabDepartmentId,
+      tabActorUserIds,
+      tabDepartmentIds,
+      tabActorUserId: tabActorUserIds[0] ?? "",
+      tabDepartmentId: tabDepartmentIds[0] ?? "",
     });
-  }, [uiHydrated, uiScope.keyPart, activeTab, clock, tabActorUserId, tabDepartmentId]);
+  }, [uiHydrated, uiScope.keyPart, activeTab, clock, tabActorUserIds, tabDepartmentIds]);
 
   const optionsSettled = !isAuthenticated || querySettled(optionsQuery);
   const dealsSettled = !isAuthenticated || querySettled(dealsQuery);
@@ -381,10 +385,10 @@ function ManagerHome({
       options={options}
       effectivePipelineId={effectivePipelineId}
       variant={isService ? "service" : "deals"}
-      actorUserId={tabActorUserId}
-      onActorUserIdChange={setTabActorUserId}
-      departmentId={tabDepartmentId}
-      onDepartmentIdChange={setTabDepartmentId}
+      actorUserIds={tabActorUserIds}
+      onActorUserIdsChange={setTabActorUserIds}
+      departmentIds={tabDepartmentIds}
+      onDepartmentIdsChange={setTabDepartmentIds}
       userOptions={
         isService
           ? (usersQuery.data ?? []).map((u) => ({ value: u.id, label: u.name }))
@@ -572,9 +576,9 @@ function ManagerHome({
                     id,
                     tabAnalyticsQuery,
                     search,
-                    tabActorUserId,
-                    tabDepartmentId,
-                    setTabDepartmentId,
+                    tabActorUserIds,
+                    tabDepartmentIds,
+                    setTabDepartmentIds,
                     tabLogPage,
                     setTabLogPage,
                   )
@@ -613,9 +617,9 @@ function renderTabBoardWidget(
   id: string,
   query: ReturnType<typeof useTabulationAnalytics>,
   search: string,
-  _actorUserId: string,
-  departmentId: string,
-  setDepartmentId: (id: string) => void,
+  _actorUserIds: string[],
+  departmentIds: string[],
+  setDepartmentIds: (ids: string[]) => void,
   page: number,
   setPage: (page: number) => void,
 ) {
@@ -642,9 +646,13 @@ function renderTabBoardWidget(
     return (
       <TabulationTopWidget
         rows={byTabulation}
-        departmentId={departmentId}
+        departmentIds={departmentIds}
         onToggleDepartment={(next) => {
-          setDepartmentId(departmentId === next ? "" : next);
+          setDepartmentIds(
+            departmentIds.includes(next)
+              ? departmentIds.filter((id) => id !== next)
+              : [...departmentIds, next],
+          );
           setPage(1);
         }}
       />

@@ -97,12 +97,16 @@ export function TabulationKpiWidget({
 export function TabulationTopWidget({
   rows,
   departmentId,
+  departmentIds,
   onToggleDepartment,
 }: {
   rows: TabulationAnalyticsResponse["byTabulation"];
-  departmentId: string;
+  /** Um departamento (página de tabulações). Preferir `departmentIds`. */
+  departmentId?: string;
+  departmentIds?: string[];
   onToggleDepartment: (id: string) => void;
 }) {
+  const selectedDeptIds = departmentIds ?? (departmentId ? [departmentId] : []);
   return (
     <GlassCard className="min-w-0 overflow-hidden p-4">
       <h3 className="mb-3 text-[13px] font-semibold text-foreground">Principais tabulações</h3>
@@ -124,14 +128,14 @@ export function TabulationTopWidget({
               row.departmentId && row.departmentName ? (
                 <button
                   type="button"
-                  aria-pressed={departmentId === row.departmentId}
+                  aria-pressed={selectedDeptIds.includes(row.departmentId)}
                   aria-label={
-                    departmentId === row.departmentId
+                    selectedDeptIds.includes(row.departmentId)
                       ? `Limpar filtro de ${row.departmentName}`
                       : `Filtrar por ${row.departmentName}`
                   }
                   title={
-                    departmentId === row.departmentId
+                    selectedDeptIds.includes(row.departmentId)
                       ? `Limpar filtro de ${row.departmentName}`
                       : `Filtrar por ${row.departmentName}`
                   }
@@ -346,8 +350,8 @@ export function TabulationsDashboard({
   const analyticsQuery = useTabulationAnalytics({
     fromIso,
     toIso,
-    actorUserId,
-    departmentId,
+    actorUserIds: actorUserId ? [actorUserId] : [],
+    departmentIds: departmentId ? [departmentId] : [],
     page,
   });
 

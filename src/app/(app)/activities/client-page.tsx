@@ -10,6 +10,7 @@ import { ActivityDetailDialog } from "@/components/crm/activities/activity-detai
 import { TasksView } from "@/components/crm/tasks-view"
 import { ButtonGlass } from "@/components/crm/button-glass"
 import { InputGlass } from "@/components/crm/input-glass"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   FormDialog,
   FormDialogIcon,
@@ -271,11 +272,12 @@ export default function V2ActivitiesClientPage() {
         }
       >
         <span className={formLabelClass}>Data *</span>
-        <InputGlass
-          type="date"
-          className={formControlClass}
+        <DatePicker
           value={rescheduleDate}
-          onChange={(e) => setRescheduleDate(e.target.value)}
+          onChange={setRescheduleDate}
+          shape="soft"
+          placeholder="Escolher data"
+          triggerClassName={cn(formControlClass, "h-11 justify-between")}
         />
         <span className={cn(formLabelClass, "mt-3")}>Horário</span>
         <InputGlass
