@@ -623,7 +623,13 @@ export default function InboxV2ClientPage({
   // F5. Toggle manual continua funcionando quando há activeRow.
   const effectiveAsideCollapsed = asideCollapsed || !activeRow;
 
-  const { data: messagesData } = useMessages(activeId);
+  const {
+    data: messagesData,
+    fetchOlder,
+    hasOlderPages,
+    hasOlderTickets,
+    isFetchingOlder,
+  } = useMessages(activeId);
   const messages = messagesData?.messages ?? [];
   const sessionInfo = messagesData?.session;
 
@@ -1608,6 +1614,10 @@ export default function InboxV2ClientPage({
         connections={messagesData?.channels}
         conversationNumber={activeRow?.number ?? null}
         conversationId={activeRow.id}
+        onLoadOlder={fetchOlder}
+        hasOlder={hasOlderPages}
+        hasOlderTickets={hasOlderTickets}
+        isLoadingOlder={isFetchingOlder}
         conversationResolved={activeRow?.status === "RESOLVED"}
         conversationClosedAt={activeRow?.closedAt ?? null}
         onUseTemplate={() => setTemplateOpen(true)}

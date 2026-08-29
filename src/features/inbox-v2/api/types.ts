@@ -359,6 +359,12 @@ export interface SessionInfo {
 
 export interface MessagesResponse {
   messages: InboxMessageDto[];
+  /** Ainda há mensagens mais antigas neste ticket (`?before=`). */
+  hasMore?: boolean;
+  /** Existem tickets anteriores do mesmo contato/canal (`?history=1`). */
+  hasOlderTickets?: boolean;
+  /** Client-only: já mesclou o histórico de tickets anteriores. */
+  historyLoaded?: boolean;
   pinnedNoteId: string | null;
   /** Mensagens fixadas no topo da conversa (banner estilo WhatsApp) —
    *  várias por conversa (máx. 3), diferente de `pinnedNoteId` (só notas).

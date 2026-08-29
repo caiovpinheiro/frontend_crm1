@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -25,11 +26,91 @@ export function messagesKey(conversationId: string | null | undefined) {
   return ["messages", conversationId ?? "__none__"] as const;
 }
 
-/** Histórico da conversa ativa (ticket atual + histórico capado/paralelo no backend). */
+/** Últimas mensagens do ticket. Histórico sobe no scroll (`fetchOlder`). */
+const MESSAGE_PAGE = 40;
+
+function isTicketSeparator(m: InboxMessageDto) {
+  return m.messageType === "ticket-separator" || String(m.id).startsWith("__ticket_sep_");
+}
+
+function oldestCursor(messages: InboxMessageDto[]): string | null {
+  for (const m of messages) {
+    if (isTicketSeparator(m) || !m.createdAt) continue;
+    return m.createdAt;
+  }
+  return null;
+}
+
+function inferHasMore(page: MessagesResponse, limit: number): boolean {
+  if (typeof page.hasMore === "boolean") return page.hasMore;
+  const real = page.messages.filter((m) => !isTicketSeparator(m));
+  return real.length >= limit;
+}
+
+function mergeTail(
+  prev: MessagesResponse | undefined,
+  next: MessagesResponse,
+): MessagesResponse {
+  if (!prev?.messages?.length) {
+    return {
+      ...next,
+      hasMore: inferHasMore(next, MESSAGE_PAGE),
+      historyLoaded: false,
+    };
+  }
+  const incomingIds = new Set(next.messages.map((m) => String(m.id)));
+  const kept = prev.messages.filter((m) => !incomingIds.has(String(m.id)));
+  return {
+    ...next,
+    messages: [...kept, ...next.messages],
+    hasMore: prev.hasMore === true,
+    hasOlderTickets: prev.hasOlderTickets === true || next.hasOlderTickets === true,
+    historyLoaded: prev.historyLoaded === true,
+  };
+}
+
+function mergeOlder(
+  prev: MessagesResponse | undefined,
+  page: MessagesResponse,
+): MessagesResponse {
+  if (!prev) return { ...page, historyLoaded: false };
+  const existing = new Set(prev.messages.map((m) => String(m.id)));
+  const incoming = page.messages.filter((m) => !existing.has(String(m.id)));
+  return {
+    ...prev,
+    messages: [...incoming, ...prev.messages],
+    hasMore: inferHasMore(page, MESSAGE_PAGE),
+  };
+}
+
+function mergeHistory(
+  prev: MessagesResponse | undefined,
+  hist: MessagesResponse,
+): MessagesResponse {
+  if (!prev) return { ...hist, hasMore: false, hasOlderTickets: false, historyLoaded: true };
+  const existing = new Set(prev.messages.map((m) => String(m.id)));
+  const incoming = hist.messages.filter((m) => !existing.has(String(m.id)));
+  return {
+    ...prev,
+    messages: [...incoming, ...prev.messages],
+    hasMore: false,
+    hasOlderTickets: false,
+    historyLoaded: true,
+  };
+}
+
 export function useMessages(conversationId: string | null) {
-  return useQuery<MessagesResponse>({
+  const qc = useQueryClient();
+  const fetchingOlderRef = useRef(false);
+  const [isFetchingOlder, setIsFetchingOlder] = useState(false);
+
+  const query = useQuery<MessagesResponse>({
     queryKey: messagesKey(conversationId),
-    queryFn: () => getMessages(conversationId as string, { history: true }),
+    queryFn: async () => {
+      const page = await getMessages(conversationId as string, { limit: MESSAGE_PAGE });
+      const prev = qc.getQueryData<MessagesResponse>(messagesKey(conversationId));
+      return mergeTail(prev, page);
+    },
     enabled: !!conversationId,
     staleTime: 20_000,
     // SSE invalida na hora em new_message da conversa ativa; o poll é só
@@ -37,6 +118,52 @@ export function useMessages(conversationId: string | null) {
     refetchInterval: 90_000,
     refetchOnWindowFocus: false,
   });
+
+  const fetchOlder = useCallback(async () => {
+    if (!conversationId || fetchingOlderRef.current) return;
+    const cur = qc.getQueryData<MessagesResponse>(messagesKey(conversationId));
+    if (!cur) return;
+    const cursor = oldestCursor(cur.messages);
+    const canPage = cur.hasMore === true && Boolean(cursor);
+    const canHistory = !cur.historyLoaded && cur.hasOlderTickets === true && !canPage;
+    if (!canPage && !canHistory) return;
+
+    fetchingOlderRef.current = true;
+    setIsFetchingOlder(true);
+    try {
+      if (canPage && cursor) {
+        const page = await getMessages(conversationId, {
+          before: cursor,
+          limit: MESSAGE_PAGE,
+        });
+        qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
+          mergeOlder(old, page),
+        );
+      } else {
+        const hist = await getMessages(conversationId, { history: true });
+        qc.setQueryData(messagesKey(conversationId), (old: MessagesResponse | undefined) =>
+          mergeHistory(old, hist),
+        );
+      }
+    } finally {
+      fetchingOlderRef.current = false;
+      setIsFetchingOlder(false);
+    }
+  }, [conversationId, qc]);
+
+  const data = query.data;
+  const hasOlderPages = data?.hasMore === true;
+  const hasOlderTickets = Boolean(
+    data && !data.historyLoaded && !hasOlderPages && data.hasOlderTickets === true,
+  );
+
+  return {
+    ...query,
+    fetchOlder,
+    hasOlderPages,
+    hasOlderTickets,
+    isFetchingOlder,
+  };
 }
 
 /** Mutation: enviar mensagem de texto ou nota interna. */

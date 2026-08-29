@@ -36,15 +36,18 @@ export async function getChannelSession(
 }
 
 /** GET /api/conversations/:id/messages
- *  `history` default false no cold path — ticket atual pinta rápido;
- *  o hook faz um segundo fetch com history=1 e mescla no cache.
+ *  Cold path: últimas N do ticket (sem history). Scroll-up usa `before`;
+ *  tickets anteriores só com `history=1` quando o operador pede.
  */
 export async function getMessages(
   conversationId: string,
-  opts?: { history?: boolean },
+  opts?: { history?: boolean; before?: string; limit?: number },
 ): Promise<MessagesResponse> {
-  const history = opts?.history === true;
-  const q = history ? "?history=1" : "";
+  const params = new URLSearchParams();
+  if (opts?.history === true) params.set("history", "1");
+  if (opts?.before) params.set("before", opts.before);
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  const q = params.size > 0 ? `?${params.toString()}` : "";
   const res = await fetch(
     apiUrl(`/api/conversations/${conversationId}/messages${q}`),
   );
@@ -54,8 +57,17 @@ export async function getMessages(
       typeof data?.message === "string" ? data.message : "Erro ao carregar mensagens",
     );
   }
+  const messages = Array.isArray(data.messages) ? data.messages : [];
+  const requested = opts?.limit ?? 50;
   return {
-    messages: Array.isArray(data.messages) ? data.messages : [],
+    messages,
+    hasMore:
+      typeof data.hasMore === "boolean"
+        ? data.hasMore
+        : opts?.history !== true &&
+          messages.filter((m) => m.messageType !== "ticket-separator").length >=
+            requested,
+    hasOlderTickets: data.hasOlderTickets === true,
     pinnedNoteId: data.pinnedNoteId ?? null,
     // Fixadas da conversa (várias, estilo WhatsApp). Aceita o array novo
     // (`pinnedMessageIds`) e cai no campo único legado (`pinnedMessageId`)
