@@ -376,9 +376,22 @@ export function ChatArea({
   const prevScrollHeightRef = useRef(0)
   const onLoadOlderRef = useRef(onLoadOlder)
   onLoadOlderRef.current = onLoadOlder
-  // Só true após wheel/touch UP do operador. Open/prefetch nunca arma —
-  // ticket curto deixa scrollTop=0 e isso virava loop de histórico.
+  // Só true após wheel/touch UP do operador, depois do pin de abertura.
+  // Open/prefetch nunca arma — ticket curto deixa scrollTop=0 e isso
+  // virava loop de histórico.
   const [olderArmed, setOlderArmed] = useState(false)
+  const pinSettledRef = useRef(false)
+  const viewportPrefetchDoneRef = useRef<string | null>(null)
+
+  const pinToBottom = (container: HTMLElement) => {
+    container.scrollTop = container.scrollHeight - container.clientHeight
+  }
+
+  const listFillsViewport = (container: HTMLElement) => {
+    const list = container.querySelector("ul")
+    const listH = list instanceof HTMLElement ? list.getBoundingClientRect().height : 0
+    return listH + 24 >= container.clientHeight
+  }
 
   // Esconde o botão só quando o operador está no fim; mostra sempre que
   // sobe no histórico (não só quando chega inbound).
@@ -402,6 +415,8 @@ export function ChatArea({
     convKeyRef.current = convKey
     if (switched) {
       setOlderArmed(false)
+      pinSettledRef.current = false
+      viewportPrefetchDoneRef.current = null
       stickToBottomRef.current = true
       setShowScrollDown(false)
       setUnreadCount(0)
@@ -416,12 +431,25 @@ export function ChatArea({
     prevLastIdRef.current = messages[messages.length - 1]?.id ?? null
     const container = messagesRef.current
     if (!container) return
-    const pin = () => {
-      container.scrollTop = container.scrollHeight - container.clientHeight
-    }
-    pin()
-    requestAnimationFrame(pin)
-  }, [convKey, messages])
+    pinToBottom(container)
+    requestAnimationFrame(() => {
+      pinToBottom(container)
+      if (messagesLoading || messages.length === 0) return
+      if (viewportPrefetchDoneRef.current === convKey) {
+        pinSettledRef.current = true
+        return
+      }
+      // 1ª página já preenche a tela → sem GET extra. Ticket curto +
+      // tickets anteriores → uma fatia, depois pin. Sem loop de fill.
+      if (!hasOlderTickets || listFillsViewport(container)) {
+        viewportPrefetchDoneRef.current = convKey
+        pinSettledRef.current = true
+        return
+      }
+      viewportPrefetchDoneRef.current = convKey
+      onLoadOlderRef.current?.()
+    })
+  }, [convKey, messages, messagesLoading, hasOlderTickets])
 
   // Append no fim: gruda se o operador já estava no rodapé (ou mandou
   // mensagem). Eventos de sistema (permissão de ligação, distribuição)
@@ -468,11 +496,11 @@ export function ChatArea({
       lastId === prevLastIdRef.current
     if (prepended) {
       if (!olderArmed) {
-        const pin = () => {
-          container.scrollTop = container.scrollHeight - container.clientHeight
-        }
-        pin()
-        requestAnimationFrame(pin)
+        pinToBottom(container)
+        requestAnimationFrame(() => {
+          pinToBottom(container)
+          pinSettledRef.current = true
+        })
       } else {
         container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
       }
@@ -488,6 +516,7 @@ export function ChatArea({
 
     // Um gesto = uma fatia. scrollTop≈0 no open/prefetch NÃO conta.
     const loadFromGesture = () => {
+      if (!pinSettledRef.current) return
       setOlderArmed(true)
       stickToBottomRef.current = false
       onLoadOlderRef.current?.()
@@ -679,14 +708,14 @@ export function ChatArea({
           </div>
         )
       })()}
+      {/* Pill fixa acima do scroller — não cobre bolhas nem outra pill. */}
+      <div className="flex min-h-0 flex-1 flex-col">
+      {messages.length > 0 && !messagesLoading && !messagesError ? (
+        <StickyDayPill date={stickyDayLabel} />
+      ) : null}
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
-      <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
-        <StickyDayPill
-          date={stickyDayLabel}
-          loading={isLoadingOlder && olderArmed}
-          paused={!olderArmed}
-        />
+      <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [overflow-anchor:none] px-3 pt-3 pb-8 max-md:px-2">
         {messagesLoading ? (
           <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
         ) : messagesError ? (
@@ -703,15 +732,15 @@ export function ChatArea({
         <>
         <div className="min-h-0 flex-1" aria-hidden />
         <ul className="flex list-none flex-col gap-0.5">
-        {canLoadOlder && !isLoadingOlder && (
-          <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
-            ↑ Role para ver mensagens anteriores
+        {olderArmed && isLoadingOlder && (
+          <li className="flex list-none justify-center py-2" aria-hidden>
+            <span className="inline-block size-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
           </li>
         )}
         {(() => {
-          // Pills de dia inline no fluxo (Hoje / Ontem / weekday). O dia
-          // visível no topo vem do overlay `StickyDayPill`, não de várias
-          // stickies irmãs. `data-day-label` alimenta `useStickyDayLabel`.
+          // Pills de dia inline no fluxo. O dia no topo vem do overlay
+          // `StickyDayPill` — a pill in-flow do dia atual some pra não
+          // empilhar duas "Hoje". `data-day-label` alimenta o sticky.
           const distinctChannels = new Set(
             messages.map((m) => m.channelId).filter(Boolean) as string[],
           )
@@ -768,8 +797,12 @@ export function ChatArea({
             }
             const dayLabel = formatChatDayLabel(message.createdAt)
             const isNewDay = Boolean(dayLabel && dayLabel !== lastDayLabel)
-            // Primeiro dia fica só no sticky ao rolar — evita duas pills "Hoje".
-            const showDay = isNewDay && lastDayLabel !== null
+            // Sticky substitui a pill in-flow do dia visível — sem duas "Hoje".
+            const showDay = Boolean(
+              isNewDay &&
+              dayLabel &&
+              (stickyDayLabel ? dayLabel !== stickyDayLabel : lastDayLabel !== null),
+            )
             if (isNewDay && dayLabel) lastDayLabel = dayLabel
             // Marcador de troca de conexão: aparece quando o channelId muda
             // em relação à última mensagem com canal conhecido.
@@ -851,6 +884,7 @@ export function ChatArea({
         )}
         </>
         )}
+      </div>
       </div>
 
       {/* Botão flutuante "descer" (estilo WhatsApp) — só aparece quando o
