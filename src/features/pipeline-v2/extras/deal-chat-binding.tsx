@@ -697,13 +697,13 @@ export function useDealChatBinding(params: {
     );
   } else if (messagesPending && !messagesResp) {
     messagesNode = (
-      <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
+      <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
     );
   } else if (messagesFailed && !messagesResp) {
     messagesNode = (
       <AppLoading
         variant="inline"
-        className="min-h-[240px]"
+        className="min-h-0 flex-1"
         error="Não foi possível carregar as mensagens."
       />
     );
