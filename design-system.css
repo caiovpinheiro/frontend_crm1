@@ -4,10 +4,10 @@
 
 :root {
   /* === CORES PRIMÁRIAS === */
-  --color-bg-base: #dde8f5;
-  --color-bg-mid: #c8d9ef;
-  --color-bg-mesh-1: #b8cfec;
-  --color-bg-mesh-2: #e8d5f0;
+  --color-bg-base: #f4f6fb;
+  --color-bg-mid: #eef1f6;
+  --color-bg-mesh-1: #f4f6fb;
+  --color-bg-mesh-2: #f4f6fb;
 
   /* === GLASSMORPHISM TOKENS === */
   --glass-bg: rgba(255, 255, 255, 0.25);

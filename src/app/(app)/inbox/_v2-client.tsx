@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useBulkOperation, isBulkOperationFinished } from "@/hooks/use-bulk-operation";
 import { RequirePermission } from "@/components/auth/require-permission";
-import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { useCan, useMyPermissions } from "@/hooks/use-my-permissions";
 import { listAllowedInboxTabsForUser } from "@/lib/authz/scope-grants-shared";
 import { toast } from "sonner";
 import {
@@ -42,6 +42,7 @@ import { ContactAside } from "@/components/crm/contact-aside";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
 import { PageHeader } from "@/components/crm/page-header";
+import { InboxPeriodCalendar } from "@/features/inbox-v2/extras/inbox-period-calendar";
 import {
   ColumnResizer,
   usePersistentWidth,
@@ -50,7 +51,8 @@ import { useIsDesktop } from "@/hooks/use-media-query";
 import { COMPOSER_FOCUS_CHAT_EVENT } from "@/lib/composer-insert";
 
 import {
-  isSessionExpired,
+  isWhatsappComposerSessionExpired,
+  lastInboundAtFromThread,
   toChatContact,
   toContactAside,
   toConversationCard,
@@ -214,6 +216,19 @@ const TABS: ReadonlyArray<{ id: InboxTab; label: string; title?: string }> = [
   { id: "erro", label: "Erro" },
 ];
 
+function inIsoDayRange(
+  iso: string | null | undefined,
+  from?: string,
+  to?: string,
+): boolean {
+  if (!from && !to) return true;
+  if (!iso) return false;
+  const day = iso.slice(0, 10);
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+}
+
 /**
  * Props opcionais — usadas para reaproveitar o chat dentro de um shell
  * diferente (ex.: segmento real `/v2/inbox` que injeta o `<NavRailV2 />`
@@ -226,8 +241,8 @@ interface InboxV2ClientPageProps {
   /**
    * Metadados do cabeçalho de página opcional, renderizado ACIMA das
    * colunas (estilo "Caixa de entrada" do DS de referência). Quando
-   * presente, a busca e o filtro sobem para este header (busca à
-   * direita, filtro ao centro) e somem da coluna de conversas. Quando
+   * presente, a busca e o filtro sobem para este header (pílula à
+   * direita, calendário nas actions) e somem da coluna de conversas. Quando
    * ausente, mantém o layout legado de linha única (busca/filtro na
    * própria coluna) — usado por `(v2)/inbox-v2`.
    */
@@ -359,6 +374,9 @@ export default function InboxV2ClientPage({
   // BulkOperation pra pollar progresso e dar feedback ao terminar.
   const [bulkOpId, setBulkOpId] = useState<string | null>(null);
   const bulkSkippedRef = useRef(0);
+  const bulkKindRef = useRef<"resolve" | "assign" | "unassign">("resolve");
+  const canBulkAssign =
+    useCan("conversation:reassign_others") || useCan("conversation:transfer");
 
   function exitSelectionMode() {
     setSelectionMode(false);
@@ -409,6 +427,10 @@ export default function InboxV2ClientPage({
     sortBy,
     sortOrder,
     lastMessageDirection,
+    lastMessageFrom,
+    lastMessageTo,
+    createdFrom,
+    createdTo,
     ...serverFilters
   } = filters;
 
@@ -459,6 +481,14 @@ export default function InboxV2ClientPage({
           : direction === "in" || direction === "inbound";
       });
     }
+    if (lastMessageFrom || lastMessageTo) {
+      list = list.filter((r) =>
+        inIsoDayRange(r.lastMessageAt ?? r.lastInboundAt, lastMessageFrom, lastMessageTo),
+      );
+    }
+    if (createdFrom || createdTo) {
+      list = list.filter((r) => inIsoDayRange(r.createdAt, createdFrom, createdTo));
+    }
     const by = sortBy ?? "lastInboundAt";
     const sign = (sortOrder ?? "desc") === "asc" ? 1 : -1;
     const ts = (v: string | null | undefined) => (v ? new Date(v).getTime() : 0);
@@ -471,7 +501,7 @@ export default function InboxV2ClientPage({
       }
       return sign * (lastActivityTs(a) - lastActivityTs(b));
     });
-  }, [rawRows, lastMessageDirection, sortBy, sortOrder]);
+  }, [rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
 
   const { data: tabCounts } = useTabCounts(
     isAuthenticated && tabHydrated && filtersHydrated,
@@ -763,6 +793,7 @@ export default function InboxV2ClientPage({
           // e mostra UM único toast. O toast final (sucesso/parcial/falha)
           // vem do efeito de polling abaixo.
           if (result?.operationId) {
+            bulkKindRef.current = "resolve";
             bulkSkippedRef.current = skipped;
             setBulkOpId(result.operationId);
             const total = result.total ?? count;
@@ -850,33 +881,58 @@ export default function InboxV2ClientPage({
     if (!bulkOpId || !isBulkOperationFinished(bulkOpStatus)) return;
     const d = bulkOp.data;
     if (d) {
-      const toastId = `inbox-bulk-resolve-${bulkOpId}`;
+      const kind = bulkKindRef.current;
+      const toastId =
+        kind === "resolve"
+          ? `inbox-bulk-resolve-${bulkOpId}`
+          : `inbox-bulk-assign-${bulkOpId}`;
       const skipped = bulkSkippedRef.current;
+      const doneVerb =
+        kind === "unassign"
+          ? "sem responsável"
+          : kind === "assign"
+            ? "reatribuída"
+            : "encerrada";
+      const doneVerbPlural =
+        kind === "unassign"
+          ? "sem responsável"
+          : kind === "assign"
+            ? "reatribuídas"
+            : "encerradas";
       if (bulkOpStatus === "COMPLETED") {
-        if (skipped > 0) {
+        if (kind === "resolve" && skipped > 0) {
           toast.warning(
             `${d.succeeded} encerrada(s). ${skipped} exigem tabulação e não foram encerradas — encerre individualmente.`,
             { id: toastId },
           );
         } else {
           toast.success(
-            `${d.succeeded} conversa${d.succeeded > 1 ? "s" : ""} encerrada${d.succeeded > 1 ? "s" : ""}`,
+            `${d.succeeded} conversa${d.succeeded > 1 ? "s" : ""} ${
+              d.succeeded > 1 ? doneVerbPlural : doneVerb
+            }`,
             { id: toastId },
           );
         }
       } else if (bulkOpStatus === "PARTIAL") {
         toast.warning(
-          skipped > 0
+          kind === "resolve" && skipped > 0
             ? `${d.succeeded} encerrada(s), ${d.failed} falharam. ${skipped} exigem tabulação — encerre individualmente.`
-            : `${d.succeeded} encerrada(s), ${d.failed} falharam`,
+            : `${d.succeeded} ${doneVerbPlural}, ${d.failed} falharam`,
           { id: toastId },
         );
       } else if (bulkOpStatus === "FAILED") {
-        toast.error("Falha ao encerrar as conversas em massa.", { id: toastId });
+        toast.error(
+          kind === "resolve"
+            ? "Falha ao encerrar as conversas em massa."
+            : "Falha ao reatribuir as conversas em massa.",
+          { id: toastId },
+        );
       }
     }
     qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
     qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+    qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
+    qc.invalidateQueries({ queryKey: ["distribution-pending"] });
     setBulkOpId(null);
   }, [bulkOpId, bulkOpStatus, bulkOp.data, qc]);
 
@@ -1025,25 +1081,25 @@ export default function InboxV2ClientPage({
   }, [pinnedMessageIds, messageBubbles]);
   const chatContact = activeRow ? toChatContact(activeRow) : null;
   // Backend é source of truth quando disponível (`session.active`).
-  // Fallback heurístico: se o backend não enviou `session`, calculamos a
-  // janela de 24h via `isSessionExpired(lastInboundAt)`. Garante que o
-  // alerta volte a aparecer mesmo em cenários onde o payload do messages
-  // não inclui o objeto `session` (ex.: cache stale, payload reduzido,
-  // backends mais antigos). Só decide depois que `messagesData` chegou
-  // para evitar falso-positivo durante o loading inicial.
+  // Fallback: thread visível (inbound do cliente reabre na hora — o cache
+  // `channel-session` não acompanhava o SSE) e, sem `session`, lastInboundAt.
   const sessionActiveFromBackend = sessionInfo?.active;
-  const sessionExpired = activeRow && messagesData
-    ? sessionActiveFromBackend !== undefined
-      ? !sessionActiveFromBackend
-      : isSessionExpired(sessionInfo?.lastInboundAt ?? activeRow.lastInboundAt)
-    : false;
-  const sessionExpiredEffective = !applyWhatsappSession
-    ? false
-    : selectedChannelId && selectedSessionFetched
-      ? selectedSession?.active !== true
-      : channelOverrideActive
-        ? false
-        : sessionExpired;
+  const threadLastInboundAt = lastInboundAtFromThread(
+    messages,
+    selectedChannelId,
+    { strictChannel: channelOverrideActive },
+  );
+  const sessionExpiredEffective = isWhatsappComposerSessionExpired({
+    applyWhatsappSession,
+    messagesLoaded: Boolean(activeRow && messagesData),
+    channelOverrideActive,
+    selectedSessionFetched,
+    selectedSessionActive: selectedSession?.active,
+    messagesSessionActive: sessionActiveFromBackend,
+    messagesLastInboundAt:
+      sessionInfo?.lastInboundAt ?? activeRow?.lastInboundAt ?? null,
+    threadLastInboundAt,
+  });
   // Bloco C (25/jun/26): backend pode setar `canReply:false` quando o
   // usuário não tem `channel.send`. Default true preserva compat com
   // backend antigo (que não envia o campo).
@@ -1064,8 +1120,12 @@ export default function InboxV2ClientPage({
 
   const navRailNode = navRail ?? <NavRail />;
 
-  // Com header de página, busca no centro do header e filtro nas actions.
+  // Com header de página, busca à direita no header (slot `center`); período nas actions.
   const searchInHeader = !!pageHeader;
+
+  const inboxPeriodNode = (
+    <InboxPeriodCalendar filters={filters} onChange={setFilters} />
+  );
 
   const inboxSearchFilterNode = (
     <InboxSearchFilterBar
@@ -1175,18 +1235,26 @@ export default function InboxV2ClientPage({
               <span className="ml-1.5">Reabrir</span>
             </ButtonGlass>
           </RequirePermission>
-          <RequirePermission permission="conversation:reassign_others">
+          {canBulkAssign && (
             <BulkReassignPopover
               conversationIds={[...selectedIds]}
-              disabled={bulkAction.isPending || selectAllFilter}
-              disabledReason={
-                selectAllFilter
-                  ? "Reatribuir não se aplica a “todas do filtro”. Selecione conversas nesta página."
-                  : undefined
-              }
+              disabled={bulkAction.isPending}
+              allInFilter={selectAllFilter}
+              filterTotal={filterTotal}
+              tab={tab}
+              search=""
+              filters={serverFilters as Record<string, unknown>}
+              onQueued={(operationId, total, unassign) => {
+                bulkKindRef.current = unassign ? "unassign" : "assign";
+                setBulkOpId(operationId);
+                toast.success(
+                  `${unassign ? "Removendo responsável de" : "Reatribuindo"} ${total.toLocaleString("pt-BR")} conversa${total > 1 ? "s" : ""} em segundo plano…`,
+                  { id: `inbox-bulk-assign-${operationId}` },
+                );
+              }}
               onDone={exitSelectionMode}
             />
-          </RequirePermission>
+          )}
         </>
       )}
       <ButtonGlass type="button" variant="glass" size="sm" onClick={exitSelectionMode}>
@@ -1848,6 +1916,7 @@ export default function InboxV2ClientPage({
                 icon={pageHeader.icon}
                 title={pageHeader.title}
                 center={activeId ? undefined : inboxSearchFilterNode}
+                actions={activeId ? undefined : inboxPeriodNode}
               />,
             )}
             {!activeId ? (
@@ -1932,7 +2001,12 @@ export default function InboxV2ClientPage({
               icon={pageHeader.icon}
               title={pageHeader.title}
               center={inboxSearchFilterNode}
-              actions={collapseHeaderBtn}
+              actions={
+                <>
+                  {inboxPeriodNode}
+                  {collapseHeaderBtn}
+                </>
+              }
             />,
           )}
           <div

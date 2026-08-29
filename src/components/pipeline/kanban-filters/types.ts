@@ -72,6 +72,9 @@ export type AdvancedDealFilters = {
   conversationStatus?: "open" | "closed";
   /** Direção da última mensagem: "out" = nossa / "in" = do cliente. */
   lastMessageDirection?: "in" | "out";
+  /** Exceções do Painel → lista filtrada. */
+  exception?: "no_task" | "stalled" | "overdue" | "empty_value";
+  stalledDays?: number;
 };
 
 export type FilterOptionsResponse = {
@@ -164,6 +167,26 @@ export function countActiveFilters(f: AdvancedDealFilters | null | undefined): n
   if (f.valueFrom != null || f.valueTo != null) n++;
   if (f.conversationStatus) n++;
   if (f.lastMessageDirection) n++;
+  if (f.exception) n++;
+  return n;
+}
+
+/** Criação e/ou fechamento — critério que vive no calendário do header. */
+export function isPeriodFilterActive(f: AdvancedDealFilters | null | undefined): boolean {
+  if (!f) return false;
+  return !!(f.createdAt?.from || f.createdAt?.to || f.closedAt?.from || f.closedAt?.to);
+}
+
+/**
+ * Badge do botão Filtrar / rodapé do modal: período não entra (ícone do calendário).
+ * `isEmptyFilters` / `countActiveFilters` continuam incluindo período para
+ * chips e para o "Limpar tudo" do modal.
+ */
+export function countPanelFilters(f: AdvancedDealFilters | null | undefined): number {
+  if (!f) return 0;
+  let n = countActiveFilters(f);
+  if (f.createdAt?.from || f.createdAt?.to) n--;
+  if (f.closedAt?.from || f.closedAt?.to) n--;
   return n;
 }
 

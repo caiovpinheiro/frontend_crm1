@@ -10,7 +10,7 @@ import { BadgeGlass } from "./badge-glass";
 import { CheckboxGlass } from "./checkbox-glass";
 import { ColumnResizer, useColumnWidths } from "./column-resizer";
 import { ListHScroll } from "./list-hscroll";
-import { SortableHeader, type SortDir, listTableHeadRowClass } from "./sortable-header";
+import { SortableHeader, type SortDir, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, listTableHeadRowClass } from "./sortable-header";
 import { StageDot } from "./stage-dot";
 
 export type DealListStatus = "OPEN" | "WON" | "LOST";
@@ -249,9 +249,9 @@ export function DealListTable({
   return (
     <ListHScroll className={className} scrollerClassName="pb-1">
       {/* w-max + minmax nas colunas: overflow X real (igual Contatos/Empresas). */}
-      <div className="flex w-max min-w-full flex-col gap-2">
+      <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
         <div
-          className={listTableHeadRowClass("grid gap-3 border border-transparent px-4 py-2")}
+          className={listTableHeadRowClass("hidden gap-3 lg:grid")}
           style={{ gridTemplateColumns: gridTemplate }}
         >
           <span>
@@ -265,7 +265,7 @@ export function DealListTable({
           {columns.map((col) => {
             const w = getWidth(col.key, col.minPx);
             return (
-              <div key={col.key} className="relative min-w-0 overflow-hidden pr-1">
+              <div key={col.key} className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
                 <SortableHeader
                   label={col.label}
                   sort={sortFor(col.key)}
@@ -303,10 +303,9 @@ export function DealListTable({
                 }}
                 style={{ gridTemplateColumns: gridTemplate }}
                 className={cn(
-                  "group grid cursor-pointer items-center gap-3 rounded-[var(--radius-xl)] border px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]",
-                  isChecked
-                    ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)]"
-                    : "border-[var(--glass-border)] bg-[var(--glass-bg-base)]",
+                  "group grid cursor-pointer items-center gap-3",
+                  LIST_CARD_ROW_CLASS,
+                  isChecked && "border-primary bg-primary/10",
                 )}
               >
                 <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>

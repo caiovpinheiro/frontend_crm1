@@ -11,8 +11,6 @@ import {
   IconPencil,
   IconPhone,
   IconMail,
-  IconTable,
-  IconLayoutList,
   IconSettings,
   IconCheck,
   IconColumns,
@@ -23,16 +21,30 @@ import {
   IconSearch,
   IconAdjustmentsHorizontal,
   IconArrowsSort,
-  IconCalendarEvent,
   IconMapPin,
 } from "@tabler/icons-react";
+import { Building2, LayoutList, Pencil, Table2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
-import { PageHeader } from "@/components/crm/page-header";
-import { pagePrimaryButtonClass, PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
-import { ListColumnLabel, SortableHeader, listTableHeadRowClass, type SortDir } from "@/components/crm/sortable-header";
+import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
+import {
+  PeriodCalendarButton,
+  PeriodIsoRangePanel,
+} from "@/components/crm/period-calendar-button";
+import { PageActionsMenu } from "@/components/crm/page-toolbar";
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
+import {
+  FilterApplyButton,
+  FilterPopoverBody,
+  FilterPopoverFooter,
+  FilterPopoverHeader,
+  FilterPopoverPanel,
+  FilterRadioRow,
+  FilterSegmentedTabs,
+} from "@/components/crm/filter-popover";
+import { ListColumnLabel, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, listTableHeadRowClass, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
   parseWidthClass,
@@ -59,12 +71,6 @@ import {
 } from "@/components/crm/omnisearch-results";
 import { useOmnisearchMenu } from "@/components/crm/use-omnisearch-menu";
 import { useCompaniesOmnisearch } from "@/features/directory-v2/use-directory-omnisearch";
-import { DatePicker } from "@/components/ui/date-picker";
-import {
-  dateRangeFromPreset,
-  detectPreset,
-  type DatePresetKey,
-} from "@/components/pipeline/kanban-filters/date-presets";
 import {
   Dialog,
   DialogContent,
@@ -73,7 +79,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FormDialog } from "@/components/ui/form-dialog";
+import {
+  FormDialog,
+  FormDialogGlyphPlus,
+  FormDialogIcon,
+  formControlClass,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+  formLabelClass,
+} from "@/components/ui/form-dialog";
 
 import {
   useCompanies,
@@ -183,45 +197,21 @@ const SORT_OPTIONS = [
   { value: "updatedAt:desc", label: "Modificadas recentemente" },
 ] as const;
 
-type FilterPanelTab = "ordenar" | "periodo" | "local";
+type FilterPanelTab = "ordenar" | "local";
 
 const FILTER_TABS: { id: FilterPanelTab; label: string; icon: React.ReactNode }[] = [
   { id: "ordenar", label: "Ordenar", icon: <IconArrowsSort size={14} stroke={2.2} /> },
-  { id: "periodo", label: "Período", icon: <IconCalendarEvent size={14} stroke={2.2} /> },
   { id: "local", label: "Local", icon: <IconMapPin size={14} stroke={2.2} /> },
 ];
-
-const CREATED_PRESETS: { key: DatePresetKey; label: string }[] = [
-  { key: "today", label: "Hoje" },
-  { key: "last_7", label: "Últimos 7 dias" },
-  { key: "last_30", label: "Últimos 30 dias" },
-  { key: "this_month", label: "Este mês" },
-];
-
-const FILTER_INPUT_CLASS =
-  "h-9 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] px-3 font-body text-[13px] text-[var(--text-primary)] shadow-none outline-none transition-colors hover:bg-[var(--color-primary-soft)] focus:border-[var(--brand-primary)]/40 focus:ring-2 focus:ring-[var(--brand-primary)]/20";
-
-const DATE_TRIGGER_CLASS =
-  "h-9 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] px-3 shadow-none hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]";
 
 type CompanyFilterDraft = {
   sortBy: CompanySortField;
   sortOrder: "asc" | "desc";
-  createdFrom: string;
-  createdTo: string;
   state: string;
   city: string;
   industry: string;
 };
 
-function FilterCountBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 font-display text-[10px] font-bold leading-none text-white">
-      {count}
-    </span>
-  );
-}
 
 function fmtDateBR(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -229,11 +219,6 @@ function fmtDateBR(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString("pt-BR");
 }
-
-const VIEW_ITEMS = [
-  { value: "cards", label: <span className="flex items-center gap-1.5"><IconLayoutList size={14} />Cards</span> },
-  { value: "tabela", label: <span className="flex items-center gap-1.5"><IconTable size={14} />Tabela</span> },
-] as const;
 
 export default function V2CompaniesClientPage() {
   const { status } = useSession();
@@ -293,14 +278,12 @@ export default function V2CompaniesClientPage() {
   }, [segment, sortBy, sortOrder, createdFrom, createdTo, filterState, filterCity, filterIndustry]);
 
   const activeFilterCount =
-    (createdFrom || createdTo ? 1 : 0) +
     (filterState ? 1 : 0) +
     (filterCity ? 1 : 0) +
     (filterIndustry ? 1 : 0);
+  const periodActive = !!(createdFrom || createdTo);
 
   function clearPanelFilters() {
-    setCreatedFrom("");
-    setCreatedTo("");
     setFilterState("");
     setFilterCity("");
     setFilterIndustry("");
@@ -403,55 +386,64 @@ export default function V2CompaniesClientPage() {
   }
 
   return (
-    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+    <div className="v2-screen v2-page-scroll grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-y-auto p-4">
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
-        <PageHeader
-          icon={<IconBuilding size={22} stroke={2.2} />}
+      <main className="flex min-w-0 flex-col gap-4">
+        <SectionHeader
+          icon={Building2}
           title="Empresas"
-          center={
-            <div className="flex w-full justify-start">
-              <SearchFilterBar
-                search={search}
-                onSearch={setSearch}
-                facets={facetsQuery.data}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                createdFrom={createdFrom}
-                createdTo={createdTo}
-                stateFilter={filterState}
-                cityFilter={filterCity}
-                industryFilter={filterIndustry}
-                activeCount={activeFilterCount}
-                onClear={clearPanelFilters}
-                onPick={handlePickSearchCompany}
-                onApply={(next) => {
-                  setSortBy(next.sortBy);
-                  setSortOrder(next.sortOrder);
-                  setCreatedFrom(next.createdFrom);
-                  setCreatedTo(next.createdTo);
-                  setFilterState(next.state);
-                  setFilterCity(next.city);
-                  setFilterIndustry(next.industry);
+          searchSlot={
+            <CompaniesSearchFilterBar
+              search={search}
+              onSearch={setSearch}
+              facets={facetsQuery.data}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              stateFilter={filterState}
+              cityFilter={filterCity}
+              industryFilter={filterIndustry}
+              activeCount={activeFilterCount}
+              onClear={clearPanelFilters}
+              onPick={handlePickSearchCompany}
+              onApply={(next) => {
+                setSortBy(next.sortBy);
+                setSortOrder(next.sortOrder);
+                setFilterState(next.state);
+                setFilterCity(next.city);
+                setFilterIndustry(next.industry);
+              }}
+            />
+          }
+          period={
+            <PeriodCalendarButton active={periodActive}>
+              <PeriodIsoRangePanel
+                from={createdFrom}
+                to={createdTo}
+                onChange={({ from, to }) => {
+                  setCreatedFrom(from);
+                  setCreatedTo(to);
                 }}
+                rangeLabel="Criação"
+                allowClear
               />
-            </div>
+            </PeriodCalendarButton>
           }
           actions={
-            <div className="flex items-center gap-2">
-              <PageSegmentedControl
-                items={VIEW_ITEMS}
-                value={view}
-                onChange={(v) => setView(v as ViewMode)}
-                aria-label="Modo de visualização"
-                size="compact"
-              />
-              <ActionsMenu
-                onAdd={() => setCreateOpen(true)}
-                onColumns={() => setColumnsOpen(true)}
-              />
-            </div>
+            <HeaderPillToggle
+              options={[
+                { key: "cards", label: "Cards", icon: LayoutList },
+                { key: "tabela", label: "Tabela", icon: Table2 },
+              ]}
+              value={view}
+              onChange={(v) => setView(v as ViewMode)}
+            />
+          }
+          menuSlot={
+            <ActionsMenu
+              onAdd={() => setCreateOpen(true)}
+              onColumns={() => setColumnsOpen(true)}
+            />
           }
         />
 
@@ -607,9 +599,9 @@ export default function V2CompaniesClientPage() {
 
 // ── Busca + painel de filtros segmentado (padrão Contatos) ───────────────────
 
-function SearchFilterBar({
+function CompaniesSearchFilterBar({
   search, onSearch, facets,
-  sortBy, sortOrder, createdFrom, createdTo,
+  sortBy, sortOrder,
   stateFilter, cityFilter, industryFilter,
   activeCount, onClear, onApply, onPick,
 }: {
@@ -618,8 +610,6 @@ function SearchFilterBar({
   facets: CompanyFacetsDto | undefined;
   sortBy: CompanySortField;
   sortOrder: "asc" | "desc";
-  createdFrom: string;
-  createdTo: string;
   stateFilter: string;
   cityFilter: string;
   industryFilter: string;
@@ -631,7 +621,7 @@ function SearchFilterBar({
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<FilterPanelTab>("ordenar");
   const [draft, setDraft] = useState<CompanyFilterDraft>({
-    sortBy, sortOrder, createdFrom, createdTo,
+    sortBy, sortOrder,
     state: stateFilter, city: cityFilter, industry: industryFilter,
   });
   const ref = useRef<HTMLDivElement>(null);
@@ -646,10 +636,10 @@ function SearchFilterBar({
   useEffect(() => {
     if (!open) return;
     setDraft({
-      sortBy, sortOrder, createdFrom, createdTo,
+      sortBy, sortOrder,
       state: stateFilter, city: cityFilter, industry: industryFilter,
     });
-  }, [open, sortBy, sortOrder, createdFrom, createdTo, stateFilter, cityFilter, industryFilter]);
+  }, [open, sortBy, sortOrder, stateFilter, cityFilter, industryFilter]);
 
   useEffect(() => {
     if (!open) return;
@@ -661,26 +651,13 @@ function SearchFilterBar({
   }, [open]);
 
   const sortKey = `${draft.sortBy}:${draft.sortOrder}`;
-  const createdActive = !!(draft.createdFrom || draft.createdTo);
-  const periodCount = createdActive ? 1 : 0;
   const localCount = (draft.state ? 1 : 0) + (draft.city ? 1 : 0) + (draft.industry ? 1 : 0);
-  const draftActiveCount = periodCount + localCount;
-
-  const createdPreset = detectPreset({
-    from: draft.createdFrom || null,
-    to: draft.createdTo || null,
-  });
-
-  function applyCreatedPreset(key: DatePresetKey) {
-    const range = dateRangeFromPreset(key);
-    if (!range) return;
-    setDraft((prev) => ({ ...prev, createdFrom: range.from ?? "", createdTo: range.to ?? "" }));
-  }
+  const draftActiveCount = localCount;
 
   function handleClear() {
     setDraft((prev) => ({
       ...prev,
-      createdFrom: "", createdTo: "", state: "", city: "", industry: "",
+      state: "", city: "", industry: "",
     }));
     onClear();
   }
@@ -691,7 +668,6 @@ function SearchFilterBar({
   }
 
   const tabBadge = (id: FilterPanelTab) => {
-    if (id === "periodo") return periodCount;
     if (id === "local") return localCount;
     return 0;
   };
@@ -699,11 +675,17 @@ function SearchFilterBar({
   return (
     <div ref={ref} className="relative w-full">
       <div ref={menu.wrapRef}>
-      <IconSearch size={15} className="absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-[var(--text-muted)]" />
-      <input
-        type="search"
+      <SearchFilterBar
         value={search}
-        onChange={(e) => onSearch(e.target.value)}
+        onChange={onSearch}
+        placeholder="Pesquisar e filtrar..."
+        ariaLabel="Buscar e filtrar empresas"
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => {
+          menu.close();
+          setOpen((o) => !o);
+        }}
         onFocus={() => menu.setFocused(true)}
         onKeyDown={(e) =>
           menu.onInputKeyDown(e, () => {
@@ -711,9 +693,6 @@ function SearchFilterBar({
             if (c) pickCompany(c);
           })
         }
-        placeholder="Pesquisar e filtrar..."
-        aria-label="Buscar e filtrar empresas"
-        className="h-10 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-9 pr-24 font-body text-[13px] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] outline-none placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--input-ring-focus)]"
       />
       </div>
       {menu.showHits && menu.coords && typeof document !== "undefined" && (
@@ -758,153 +737,43 @@ function SearchFilterBar({
           </OmnisearchSection>
         </OmnisearchResultsPanel>
       )}
-      <button
-        type="button"
-        onClick={() => {
-          menu.close();
-          setOpen((o) => !o);
-        }}
-        aria-label="Filtros"
-        className={cn(
-          "absolute right-1.5 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 transition-colors",
-          activeCount > 0 || open
-            ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]",
-        )}
-      >
-        <IconAdjustmentsHorizontal size={15} />
-        <span className="font-display text-[11px] font-semibold leading-none">
-          Filtrar
-        </span>
-        {activeCount > 0 && (
-          <span className="font-display text-[10px] font-bold leading-none tabular-nums">
-            {activeCount}
-          </span>
-        )}
-      </button>
 
       {open && (
-        <div
-          className={cn(
-            "absolute left-0 top-[calc(100%+8px)] z-40 flex w-[min(100vw-2rem,380px)] flex-col rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md",
-            tab === "periodo" ? "overflow-visible" : "max-h-[min(78vh,560px)] overflow-hidden",
-          )}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-            <div className="flex items-center gap-2">
-              <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">Filtros</span>
-              <FilterCountBadge count={draftActiveCount || activeCount} />
-            </div>
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={draftActiveCount === 0 && activeCount === 0}
-              className="flex items-center gap-1 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-40"
-            >
-              <IconRotateClockwise size={13} /> Limpar
-            </button>
-          </div>
-
-          {/* Segmented tabs */}
-          <div className="px-4 pb-3">
-            <div role="tablist" aria-label="Seções do filtro" className="flex items-center gap-0.5 rounded-full bg-[var(--glass-bg-strong)] p-1">
-              {FILTER_TABS.map((t) => {
-                const active = tab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setTab(t.id)}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 font-display text-[12px] font-bold transition-all",
-                      active
-                        ? "bg-[var(--glass-bg-modal,#fff)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)]"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    )}
-                  >
-                    <span className={active ? "text-[var(--brand-primary)]" : undefined}>{t.icon}</span>
-                    {t.label}
-                    <FilterCountBadge count={tabBadge(t.id)} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Body */}
-          <div className={cn("px-4 pb-3", tab === "periodo" ? "overflow-visible" : "min-h-0 flex-1 overflow-y-auto")}>
+        <FilterPopoverPanel>
+          <FilterPopoverHeader
+            count={draftActiveCount || activeCount}
+            onClear={handleClear}
+            clearDisabled={draftActiveCount === 0 && activeCount === 0}
+          />
+          <FilterSegmentedTabs
+            value={tab}
+            onChange={setTab}
+            tabs={FILTER_TABS.map((t) => ({
+              id: t.id,
+              label: t.label,
+              icon: t.icon,
+              badge: tabBadge(t.id),
+            }))}
+          />
+          <FilterPopoverBody>
             {tab === "ordenar" && (
-              <div className="flex flex-col gap-2" role="listbox" aria-label="Ordenar por">
-                <p className="mb-0.5 font-display text-[12px] font-semibold text-[var(--text-muted)]">Ordenar resultados por</p>
+              <div className="flex flex-col gap-0.5" role="listbox" aria-label="Ordenar por">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">Ordenar resultados por</p>
                 {SORT_OPTIONS.map((opt) => {
                   const selected = sortKey === opt.value;
                   return (
-                    <button
+                    <FilterRadioRow
                       key={opt.value}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
+                      selected={selected}
                       onClick={() => {
                         const [f, o] = opt.value.split(":");
                         setDraft((prev) => ({ ...prev, sortBy: f as CompanySortField, sortOrder: o as "asc" | "desc" }));
                       }}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-2.5 text-left font-display text-[13px] font-semibold transition-colors",
-                        selected
-                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--text-primary)]"
-                          : "border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-[var(--text-secondary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
-                      )}
                     >
-                      <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2", selected ? "border-[var(--brand-primary)]" : "border-[var(--glass-border)]")}>
-                        {selected && <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)]" />}
-                      </span>
                       {opt.label}
-                    </button>
+                    </FilterRadioRow>
                   );
                 })}
-              </div>
-            )}
-
-            {tab === "periodo" && (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <p className="mb-2 font-display text-[11px] font-semibold text-[var(--text-muted)]">Atalhos rápidos (data de criação)</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CREATED_PRESETS.map((p) => {
-                      const on = createdPreset === p.key;
-                      return (
-                        <button
-                          key={p.key}
-                          type="button"
-                          onClick={() => applyCreatedPreset(p.key)}
-                          className={cn(
-                            "rounded-full px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                            on
-                              ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.3)]"
-                              : "border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-[var(--text-secondary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
-                          )}
-                        >
-                          {p.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className={cn("rounded-[16px] border p-3", createdActive ? "border-[var(--brand-primary)]/35 bg-[var(--color-primary-soft)]" : "border-[var(--glass-border)] bg-[var(--glass-bg-strong)]")}>
-                  <div className="mb-2.5 flex items-center gap-1.5">
-                    <IconCalendarEvent size={14} className={createdActive ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"} />
-                    <span className="font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Criação</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <DatePicker value={draft.createdFrom || null} onChange={(v) => setDraft((p) => ({ ...p, createdFrom: v }))} placeholder="dd/mm/aaaa" className="min-w-0 flex-1" triggerClassName={DATE_TRIGGER_CLASS} />
-                    <span className="shrink-0 font-body text-[12px] text-[var(--text-muted)]">até</span>
-                    <DatePicker value={draft.createdTo || null} onChange={(v) => setDraft((p) => ({ ...p, createdTo: v }))} placeholder="dd/mm/aaaa" className="min-w-0 flex-1" triggerClassName={DATE_TRIGGER_CLASS} />
-                  </div>
-                </div>
               </div>
             )}
 
@@ -933,15 +802,13 @@ function SearchFilterBar({
                 />
               </div>
             )}
-          </div>
-
-          {/* Footer */}
-          <div className="border-t border-[var(--glass-border-subtle)] px-4 py-3">
-            <button type="button" onClick={handleApply} className={`${pagePrimaryButtonClass} h-10 w-full justify-center text-[14px]`}>
+          </FilterPopoverBody>
+          <FilterPopoverFooter>
+            <FilterApplyButton onClick={handleApply} className="w-full justify-center">
               {draftActiveCount > 0 ? `Aplicar (${draftActiveCount})` : "Aplicar"}
-            </button>
-          </div>
-        </div>
+            </FilterApplyButton>
+          </FilterPopoverFooter>
+        </FilterPopoverPanel>
       )}
     </div>
   );
@@ -958,19 +825,19 @@ function FilterSelectField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
+      <span className={formLabelClass}>{label}</span>
       <div className="relative">
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={cn(FILTER_INPUT_CLASS, "appearance-none pr-8", value ? "border-[var(--brand-primary)]/50" : "")}
+          className={cn(formControlClass, "h-9 appearance-none pr-8 text-sm", value ? "border-primary/50" : "")}
         >
           <option value="">{placeholder}</option>
           {options.map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
-        <IconMapPin size={13} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+        <IconMapPin size={13} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       </div>
     </label>
   );
@@ -1087,10 +954,10 @@ function TabelaView({
   const dirFor = (f: CompanySortField): SortDir => (sortBy === f ? sortOrder : null);
   const nameW = getWidth(NAME_COL_KEY, 240);
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-1.5 backdrop-blur-md shadow-[var(--glass-shadow)]">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
       <ListHScroll>
-        <div className="flex w-max min-w-full flex-col">
-          <div className={listTableHeadRowClass("sticky top-0 z-[1] flex w-max min-w-full items-center gap-3 px-3 py-2")}>
+        <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
+          <div className={listTableHeadRowClass("hidden w-max min-w-full items-center lg:flex")}>
             <span className="w-9 shrink-0">
               <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todas" />
             </span>
@@ -1123,7 +990,11 @@ function TabelaView({
               tabIndex={0}
               onClick={() => onEdit(c)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
-              className={`flex w-max min-w-full cursor-pointer items-center gap-3 border-b border-[var(--glass-border-subtle)] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-[var(--glass-bg-overlay)] ${selected.has(c.id) ? "bg-[var(--color-primary-soft)]" : ""}`}
+              className={cn(
+                "flex w-max min-w-full cursor-pointer items-center gap-3",
+                LIST_CARD_ROW_CLASS,
+                selected.has(c.id) && "border-primary bg-primary/10",
+              )}
             >
               <span className="w-9 shrink-0" onClick={(e) => e.stopPropagation()}>
                 <CheckboxGlass checked={selected.has(c.id)} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} />
@@ -1192,22 +1063,22 @@ function CardsView({
 
   return (
     <ListHScroll scrollerClassName="pb-1">
-    <div className="flex w-max min-w-full flex-col gap-2">
+    <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
       <div
-        className={listTableHeadRowClass("grid gap-3 border border-transparent px-4 py-2")}
+        className={listTableHeadRowClass("hidden gap-3 lg:grid")}
         style={{ gridTemplateColumns: gridTemplate }}
       >
         <span>
           <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todas" />
         </span>
-        <div className="relative min-w-0 overflow-hidden pr-1">
+        <div className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
           <SortableHeader label="Empresa" sort={dirFor("name")} onSort={() => onSort("name")} />
           <ColumnResizer value={nameW} onChange={(px) => setWidth(NAME_COL_KEY, px)} min={160} max={420} />
         </div>
         {columns.map((col) => {
           const w = getWidth(col.key, parseWidthClass(col.width));
           return (
-            <div key={col.key} className="relative min-w-0 overflow-hidden pr-1">
+            <div key={col.key} className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
               {col.sortField ? (
                 <SortableHeader
                   label={col.label}
@@ -1234,10 +1105,9 @@ function CardsView({
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
             style={{ gridTemplateColumns: gridTemplate }}
             className={cn(
-              "group grid cursor-pointer items-center gap-3 rounded-[var(--radius-xl)] border px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]",
-              isSelected
-                ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)]"
-                : "border-[var(--glass-border)] bg-[var(--glass-bg-base)]",
+              "group grid cursor-pointer items-center gap-3",
+              LIST_CARD_ROW_CLASS,
+              isSelected && "border-primary bg-primary/10",
             )}
           >
             <span onClick={(e) => e.stopPropagation()}>
@@ -1294,7 +1164,7 @@ function CardsView({
 
 // ── Dialogs ──────────────────────────────────────────────────────────────────
 
-function ConfirmDeleteDialog({ open, count, pending, onCancel, onConfirm }: {
+export function ConfirmDeleteDialog({ open, count, pending, onCancel, onConfirm }: {
   open: boolean; count: number; pending: boolean; onCancel: () => void; onConfirm: () => void;
 }) {
   return (
@@ -1322,7 +1192,7 @@ function ConfirmDeleteDialog({ open, count, pending, onCancel, onConfirm }: {
   );
 }
 
-function CreateCompanyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function CreateCompanyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [phone, setPhone] = useState("");
@@ -1361,16 +1231,24 @@ function CreateCompanyDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       open={open}
       onOpenChange={onOpenChange}
       title="Nova empresa"
+      description="Cadastre uma empresa no CRM."
+      icon={
+        <FormDialogIcon>
+          <FormDialogGlyphPlus>
+            <Building2 className="size-4" />
+          </FormDialogGlyphPlus>
+        </FormDialogIcon>
+      }
       size="lg"
       footer={
         <>
-          <ButtonGlass variant="glass" size="sm" type="button" onClick={() => onOpenChange(false)}>Cancelar</ButtonGlass>
-          <ButtonGlass variant="primary" size="sm" type="submit" form="new-company-form" disabled={!name.trim() || createMut.isPending}>{createMut.isPending ? "Criando..." : "Criar"}</ButtonGlass>
+          <ButtonGlass variant="glass" size="sm" type="button" onClick={() => onOpenChange(false)} className={formDialogCancelClass}>Cancelar</ButtonGlass>
+          <ButtonGlass variant="primary" size="sm" type="submit" form="new-company-form" disabled={!name.trim() || createMut.isPending} className={formDialogPrimaryClass}>{createMut.isPending ? "Criando..." : "Criar"}</ButtonGlass>
         </>
       }
     >
       <form id="new-company-form" onSubmit={handleSubmit} className="flex flex-col">
-        <FieldInput label="Nome da Empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
+        <FieldInput label="Nome da empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
         <div className="grid grid-cols-2 gap-3">
           <FieldInput label="CNPJ" type="text" value={cnpj} onChange={setCnpj} placeholder="00.000.000/0000-00" />
           <FieldInput label="Telefone" type="tel" value={phone} onChange={setPhone} placeholder="(11) 3333-4444" />
@@ -1381,7 +1259,7 @@ function CreateCompanyDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           <FieldInput label="Cidade" type="text" value={city} onChange={setCity} placeholder="São Paulo" />
           <FieldInput label="Estado" type="text" value={uf} onChange={setUf} placeholder="UF" />
         </div>
-        <FieldInput label="Endereço da Empresa" type="text" value={address} onChange={setAddress} placeholder="Rua, número, bairro" />
+        <FieldInput label="Endereço da empresa" type="text" value={address} onChange={setAddress} placeholder="Rua, número, complemento" />
         {createMut.isError && (
           <p className="text-[12px] text-[var(--color-danger-text)]">{createMut.error instanceof Error ? createMut.error.message : "Erro ao criar empresa."}</p>
         )}
@@ -1443,16 +1321,22 @@ function EditCompanyDialog({ company, onClose }: { company: CompanyListItemDto |
       open={open}
       onOpenChange={(next) => !next && onClose()}
       title="Editar empresa"
+      description={name || company?.name}
+      icon={
+        <FormDialogIcon>
+          <Pencil className="size-4" />
+        </FormDialogIcon>
+      }
       size="lg"
       footer={
         <>
-          <ButtonGlass variant="glass" size="sm" type="button" onClick={onClose}>Cancelar</ButtonGlass>
-          <ButtonGlass variant="primary" size="sm" type="submit" form="edit-company-form" disabled={!name.trim() || updateMut.isPending}>{updateMut.isPending ? "Salvando..." : "Salvar"}</ButtonGlass>
+          <ButtonGlass variant="glass" size="sm" type="button" onClick={onClose} className={formDialogCancelClass}>Cancelar</ButtonGlass>
+          <ButtonGlass variant="primary" size="sm" type="submit" form="edit-company-form" disabled={!name.trim() || updateMut.isPending} className={formDialogPrimaryClass}>{updateMut.isPending ? "Salvando..." : "Salvar"}</ButtonGlass>
         </>
       }
     >
       <form id="edit-company-form" onSubmit={handleSubmit} className="flex flex-col">
-        <FieldInput label="Nome da Empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
+        <FieldInput label="Nome da empresa *" type="text" required autoFocus value={name} onChange={setName} placeholder="Razão social ou nome fantasia" />
         <div className="grid grid-cols-2 gap-3">
           <FieldInput label="CNPJ" type="text" value={cnpj} onChange={setCnpj} placeholder="00.000.000/0000-00" />
           <FieldInput label="Telefone" type="tel" value={phone} onChange={setPhone} placeholder="(11) 3333-4444" />
@@ -1463,7 +1347,7 @@ function EditCompanyDialog({ company, onClose }: { company: CompanyListItemDto |
           <FieldInput label="Cidade" type="text" value={city} onChange={setCity} placeholder="São Paulo" />
           <FieldInput label="Estado" type="text" value={uf} onChange={setUf} placeholder="UF" />
         </div>
-        <FieldInput label="Endereço da Empresa" type="text" value={address} onChange={setAddress} placeholder="Rua, número, bairro" />
+        <FieldInput label="Endereço da empresa" type="text" value={address} onChange={setAddress} placeholder="Rua, número, complemento" />
         {updateMut.isError && (
           <p className="text-[12px] text-[var(--color-danger-text)]">{updateMut.error instanceof Error ? updateMut.error.message : "Erro ao atualizar empresa."}</p>
         )}
@@ -1478,8 +1362,8 @@ function FieldInput({ label, type, value, onChange, placeholder, required, autoF
 }) {
   return (
     <label className="mb-3 block">
-      <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
-      <InputGlass type={type} required={required} autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      <span className={formLabelClass}>{label}</span>
+      <InputGlass type={type} required={required} autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={formControlClass} />
     </label>
   );
 }

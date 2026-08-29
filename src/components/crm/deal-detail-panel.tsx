@@ -690,7 +690,7 @@ export function DealDetailPanel({
         className="fixed inset-0 z-50 translate-x-0 transition-transform duration-300 ease-out"
         style={{
           background:
-            "linear-gradient(135deg, var(--bg-base, #dde8f5) 0%, var(--bg-mesh-1, #b8cfec) 40%, var(--bg-mesh-2, #e8d5f0) 70%, var(--bg-base, #dde8f5) 100%)",
+            "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mesh-1) 40%, var(--bg-mesh-2) 70%, var(--bg-base) 100%)",
           backgroundAttachment: "fixed",
         }}
       >
@@ -781,7 +781,7 @@ export function DealDetailPanel({
           ? undefined
           : {
               background:
-                "linear-gradient(135deg, var(--bg-base, #dde8f5) 0%, var(--bg-mesh-1, #b8cfec) 40%, var(--bg-mesh-2, #e8d5f0) 70%, var(--bg-base, #dde8f5) 100%)",
+                "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mesh-1) 40%, var(--bg-mesh-2) 70%, var(--bg-base) 100%)",
               backgroundAttachment: "fixed",
             }
       }

@@ -7,6 +7,7 @@ import { IconBriefcase as Briefcase, IconMoon as Moon, IconWifiOff as WifiOff } 
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { textMatchesQuery } from "@/features/dashboard-v2/format";
 
 type AgentPresence = "ONLINE" | "AWAY" | "OFFLINE";
 
@@ -28,7 +29,7 @@ const STATUS_META: Record<AgentPresence, { label: string; tone: string; dot: str
   OFFLINE: { label: "Offline",  tone: "text-muted-foreground", dot: "bg-muted-foreground/60" },
 };
 
-export function AgentsOnlineWidget() {
+export function AgentsOnlineWidget({ search = "" }: { search?: string }) {
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ["dashboard-agents-online"],
     queryFn: async () => {
@@ -56,6 +57,11 @@ export function AgentsOnlineWidget() {
   const offline = agents.filter((a) => a.status === "OFFLINE");
   const voiceReady = online.filter((a) => a.availableForVoiceCalls).length;
 
+  const visibleAgents = [...online, ...away].filter((agent) =>
+    textMatchesQuery(agent.name, search),
+  );
+  const shownAgents = visibleAgents.slice(0, 5);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
@@ -73,7 +79,7 @@ export function AgentsOnlineWidget() {
 
       {agents.length > 0 ? (
         <div className="space-y-1.5">
-          {[...online, ...away].slice(0, 5).map((agent) => {
+          {shownAgents.map((agent) => {
             const meta = STATUS_META[agent.status];
             return (
               <div
@@ -105,11 +111,16 @@ export function AgentsOnlineWidget() {
               </div>
             );
           })}
-          {online.length + away.length > 5 && (
+          {visibleAgents.length > 5 && (
             <p className="pt-1 text-center text-[10px] text-muted-foreground">
-              + {online.length + away.length - 5} outros disponíveis
+              + {visibleAgents.length - 5} outros disponíveis
             </p>
           )}
+          {search.trim() && shownAgents.length === 0 ? (
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              Nenhum agente corresponde à busca.
+            </p>
+          ) : null}
         </div>
       ) : (
         <p className="py-4 text-center text-xs text-muted-foreground">

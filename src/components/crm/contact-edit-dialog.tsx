@@ -1,12 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { IconPencil } from "@tabler/icons-react";
 
+import { ButtonGlass } from "@/components/crm/button-glass";
+import { InputGlass } from "@/components/crm/input-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import {
+  FormDialog,
+  FormDialogIcon,
+  formControlClass,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+  formLabelClass,
+} from "@/components/ui/form-dialog";
 import { updateContact, type ContactWriteBody } from "@/features/directory-v2/api";
 
 export interface ContactEditInitial {
@@ -22,6 +31,9 @@ interface ContactEditDialogProps {
   trigger?: React.ReactNode;
   /** Chamado após salvar com sucesso (para invalidações extras do caller). */
   onSaved?: () => void;
+  /** Se informado, o dialog fica controlado (sem trigger). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -29,8 +41,21 @@ interface ContactEditDialogProps {
  * Usado em: ContactAside (inbox), DealDetailPanel (pipeline) e onde mais
  * for preciso editar o contato sem sair do fluxo.
  */
-export function ContactEditDialog({ contactId, initial, trigger, onSaved }: ContactEditDialogProps) {
-  const [open, setOpen] = useState(false);
+export function ContactEditDialog({
+  contactId,
+  initial,
+  trigger,
+  onSaved,
+  open: openProp,
+  onOpenChange,
+}: ContactEditDialogProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [name, setName] = useState(initial.name);
   const [email, setEmail] = useState(initial.email ?? "");
   const [phone, setPhone] = useState(initial.phone ?? "");
@@ -61,15 +86,6 @@ export function ContactEditDialog({ contactId, initial, trigger, onSaved }: Cont
     }
   }, [open, initial.name, initial.email, initial.phone]);
 
-  useEffect(() => {
-    if (!open || typeof window === "undefined") return;
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [open]);
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const n = name.trim();
@@ -88,99 +104,62 @@ export function ContactEditDialog({ contactId, initial, trigger, onSaved }: Cont
   const triggerNode = trigger ?? (
     <TooltipGlass label="Editar contato" side="left">
       <span className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)]">
-        <IconPencil size={14} />
+        <Pencil className="size-3.5" />
       </span>
     </TooltipGlass>
   );
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center bg-transparent p-0"
-        aria-label="Editar contato"
+      {controlled ? null : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center bg-transparent p-0"
+          aria-label="Editar contato"
+        >
+          {triggerNode}
+        </button>
+      )}
+
+      <FormDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Editar contato"
+        description={name || initial.name}
+        icon={
+          <FormDialogIcon>
+            <Pencil className="size-4" />
+          </FormDialogIcon>
+        }
+        size="md"
+        busy={mutation.isPending}
+        footer={
+          <>
+            <ButtonGlass variant="glass" size="sm" type="button" onClick={() => setOpen(false)} disabled={mutation.isPending} className={formDialogCancelClass}>
+              Cancelar
+            </ButtonGlass>
+            <ButtonGlass variant="primary" size="sm" type="submit" form="contact-quick-edit-form" disabled={!name.trim() || mutation.isPending} className={formDialogPrimaryClass}>
+              {mutation.isPending ? "Salvando..." : "Salvar"}
+            </ButtonGlass>
+          </>
+        }
       >
-        {triggerNode}
-      </button>
-
-      {open && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-(--z-popover) flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm"
-              onClick={() => setOpen(false)}
-            >
-              <form
-                onClick={(e) => e.stopPropagation()}
-                onSubmit={handleSubmit}
-                className="w-[420px] max-w-[90vw] rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] p-5 shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
-              >
-                <h3 className="mb-4 font-display text-base font-bold text-[var(--text-primary)]">
-                  Editar contato
-                </h3>
-
-                <label className="mb-3 block">
-                  <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                    Nome *
-                  </span>
-                  <input
-                    type="text"
-                    autoFocus
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-[var(--radius-md)] border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-                  />
-                </label>
-
-                <label className="mb-3 block">
-                  <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                    E-mail
-                  </span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="maria@empresa.com"
-                    className="w-full rounded-[var(--radius-md)] border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-                  />
-                </label>
-
-                <label className="mb-4 block">
-                  <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                    Telefone
-                  </span>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(11) 99999-9999"
-                    className="w-full rounded-[var(--radius-md)] border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-                  />
-                </label>
-
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    disabled={mutation.isPending}
-                    className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-4 py-1.5 font-display text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--glass-bg-strong)] disabled:opacity-60"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!name.trim() || mutation.isPending}
-                    className="rounded-full bg-[var(--brand-primary)] px-4 py-1.5 font-display text-xs font-semibold text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] transition-all hover:-translate-y-px hover:bg-[var(--brand-primary-dark)] disabled:opacity-60"
-                  >
-                    {mutation.isPending ? "Salvando..." : "Salvar"}
-                  </button>
-                </div>
-              </form>
-            </div>,
-            document.body,
-          )
-        : null}
+        <form id="contact-quick-edit-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="block">
+            <span className={formLabelClass}>Nome *</span>
+            <InputGlass type="text" autoFocus required value={name} onChange={(e) => setName(e.target.value)} className={formControlClass} />
+          </label>
+          <label className="block">
+            <span className={formLabelClass}>E-mail</span>
+            <InputGlass type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maria@empresa.com" className={formControlClass} />
+          </label>
+          <label className="block">
+            <span className={formLabelClass}>Telefone</span>
+            <InputGlass type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" className={formControlClass} />
+          </label>
+        </form>
+      </FormDialog>
     </>
   );
 }

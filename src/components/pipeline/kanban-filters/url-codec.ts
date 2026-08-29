@@ -72,6 +72,8 @@ export const DEAL_FILTER_URL_KEYS = [
   "logic",
   "cf",
   "ccf",
+  "exception",
+  "stalledDays",
 ] as const;
 
 /** Param legado com o JSON inteiro em base64url. Só leitura. */
@@ -166,6 +168,9 @@ export function dealFiltersToUrlParams(
     logic: f.logic === "OR" ? "or" : null,
     cf: encodeJsonParam(f.dealCustomFields?.length ? f.dealCustomFields : null),
     ccf: encodeJsonParam(f.contactCustomFields?.length ? f.contactCustomFields : null),
+    exception: f.exception ?? null,
+    stalledDays:
+      f.exception === "stalled" ? String(f.stalledDays ?? 7) : null,
   };
 }
 
@@ -249,6 +254,16 @@ export function dealFiltersFromUrlParams(
   if (Array.isArray(cf) && cf.length) out.dealCustomFields = cf;
   const ccf = decodeJsonParam<CustomFieldFilter[]>(params.get("ccf"));
   if (Array.isArray(ccf) && ccf.length) out.contactCustomFields = ccf;
+
+  const exception = decodeEnum(params.get("exception"), [
+    "no_task",
+    "stalled",
+    "overdue",
+    "empty_value",
+  ] as const);
+  if (exception) out.exception = exception;
+  const stalledDays = decodeNumber(params.get("stalledDays"), { min: 1, max: 365 });
+  if (stalledDays != null) out.stalledDays = stalledDays;
 
   return out;
 }

@@ -29,7 +29,9 @@ import {
   decodeCsv,
   decodeEnum,
   decodeNumber,
+  decodeRange,
   encodeCsv,
+  encodeRange,
   readLiveParams,
   useUrlPopstate,
 } from "@/lib/url-state";
@@ -41,6 +43,7 @@ import { hasInboxServerFilters, normalizeInboxFilters } from "../api/types";
 const NONE = "none";
 /** Sentinela do backend para contatos sem origem. */
 const SOURCE_NONE = "__none__";
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export const INBOX_TAB_IDS = [
   "todos",
@@ -73,6 +76,9 @@ const FILTER_PARAMS = [
   "expires",
   "dir",
   "sort",
+  "last",
+  "created",
+  "painel",
 ] as const;
 
 /** Ordenações da lista (espelha SORT_OPTIONS do painel de filtros). */
@@ -135,7 +141,11 @@ function writeStoredFilters(filters: InboxFilters) {
       !normalized.sortBy &&
       !normalized.sortOrder &&
       !normalized.windowState &&
-      !normalized.lastMessageDirection;
+      !normalized.lastMessageDirection &&
+      !normalized.lastMessageFrom &&
+      !normalized.lastMessageTo &&
+      !normalized.createdFrom &&
+      !normalized.createdTo;
     if (empty) {
       localStorage.removeItem(INBOX_FILTERS_STORAGE_KEY);
       return;
@@ -166,6 +176,9 @@ export function inboxFiltersToUrlParams(
     expires: f.sessionExpiresWithinHours != null ? String(f.sessionExpiresWithinHours) : null,
     dir: f.lastMessageDirection ?? null,
     sort: sort === "recent" ? null : sort,
+    last: encodeRange(f.lastMessageFrom, f.lastMessageTo),
+    created: encodeRange(f.createdFrom, f.createdTo),
+    painel: f.painelException ?? null,
   };
 }
 
@@ -203,6 +216,21 @@ export function inboxFiltersFromUrlParams(params: URLSearchParams): InboxFilters
     out.sortBy = SORT_BY_ID[sort].sortBy;
     out.sortOrder = SORT_BY_ID[sort].sortOrder;
   }
+
+  const last = decodeRange(params.get("last"));
+  if (last?.from && ISO_DAY.test(last.from)) out.lastMessageFrom = last.from;
+  if (last?.to && ISO_DAY.test(last.to)) out.lastMessageTo = last.to;
+  const created = decodeRange(params.get("created"));
+  if (created?.from && ISO_DAY.test(created.from)) out.createdFrom = created.from;
+  if (created?.to && ISO_DAY.test(created.to)) out.createdTo = created.to;
+
+  const painel = decodeEnum(params.get("painel"), [
+    "no_reply",
+    "open_24h",
+    "unassigned",
+    "send_failure",
+  ] as const);
+  if (painel) out.painelException = painel;
 
   return normalizeInboxFilters(out);
 }

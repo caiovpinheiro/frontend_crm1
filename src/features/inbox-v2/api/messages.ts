@@ -126,7 +126,11 @@ export async function sendAttachment(
     /** Mesma semântica do `channelId` em `sendMessage` (override por mensagem). */
     channelId?: string | null;
   },
-): Promise<{ message: InboxMessageDto; reopenedConversationId?: string }> {
+): Promise<{
+  message: InboxMessageDto;
+  reopenedConversationId?: string;
+  audioDelivery?: "voice" | "audio" | "document";
+}> {
   const form = new FormData();
   form.append(
     "file",
@@ -152,7 +156,11 @@ export async function sendAttachment(
       `Salvo localmente, mas falhou via WhatsApp: ${data.metaError}`,
     );
   }
-  return data as { message: InboxMessageDto; reopenedConversationId?: string };
+  return data as {
+    message: InboxMessageDto;
+    reopenedConversationId?: string;
+    audioDelivery?: "voice" | "audio" | "document";
+  };
 }
 
 /** POST /api/messages/:id/reactions */

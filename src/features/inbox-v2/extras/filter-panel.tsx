@@ -156,6 +156,7 @@ function countActive(f: InboxFilters): number {
   if (f.sessionExpiresWithinHours != null) n += 1;
   if (f.windowState) n += 1;
   if (f.lastMessageDirection) n += 1;
+  if (f.painelException) n += 1;
   if (sortIdFromFilters(f) !== DEFAULT_SORT_ID) n += 1;
   return n;
 }
@@ -688,6 +689,19 @@ function InboxActiveFilterChips({
       label: `Última msg: ${label}`,
       onRemove: () =>
         onChange({ ...filters, lastMessageDirection: undefined }),
+    });
+  }
+
+  if (filters.painelException) {
+    const labels = {
+      no_reply: "Sem resposta > 1h comercial",
+      open_24h: "Abertas > 24h",
+      unassigned: "Sem atendente",
+      send_failure: "Falha de envio",
+    } as const;
+    chips.push({
+      label: labels[filters.painelException],
+      onRemove: () => onChange({ ...filters, painelException: undefined }),
     });
   }
 

@@ -15,6 +15,11 @@ import { cn } from "@/lib/utils";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { useSendAttachment } from "@/features/inbox-v2/hooks";
 import { ensureMicrophonePermission } from "@/lib/native/permissions";
+import {
+  pickVoiceRecorderMime,
+  voiceRecorderFileExt,
+  VOICE_RECORDER_AUDIO_CONSTRAINTS,
+} from "@/lib/voice-recorder-format";
 
 // ─────────────────────────────────────────────────────────────────
 // Types (exported so Composer can track state)
@@ -29,19 +34,6 @@ export type AudioRecordState = "idle" | "recording" | "preview";
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, "0")}`;
-}
-
-function bestMime() {
-  for (const m of [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
-    "audio/ogg",
-    "audio/mp4",
-  ]) {
-    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m)) return m;
-  }
-  return "audio/webm";
 }
 
 // Static bar heights for a WhatsApp-like waveform pattern
@@ -166,13 +158,15 @@ export function AudioRecorderButton({
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
+      });
       streamRef.current = stream;
       chunksRef.current = [];
       discardingRef.current = false;
       finalizedRef.current = false;
 
-      const mime = bestMime();
+      const mime = pickVoiceRecorderMime();
       mimeRef.current = mime;
       const rec = new MediaRecorder(stream, { mimeType: mime });
 
@@ -249,10 +243,16 @@ export function AudioRecorderButton({
       const ok = await beforeSend();
       if (!ok) return;
     }
+    const ext = voiceRecorderFileExt(blob.type || mimeRef.current);
     sendAttachment.mutate(
-      { file: blob, fileName: `audio-${Date.now()}.webm` },
+      { file: blob, fileName: `audio-${Date.now()}.${ext}` },
       {
-        onSuccess: () => discard(),
+        onSuccess: (data) => {
+          if (data.audioDelivery && data.audioDelivery !== "voice") {
+            toast("Enviado como áudio (não como nota de voz)");
+          }
+          discard();
+        },
         onError: (err) => toast.error(err.message || "Falha ao enviar áudio"),
       },
     );

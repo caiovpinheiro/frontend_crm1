@@ -58,16 +58,30 @@ interface BlockMeta {
 
 /** Paleta de acentos: cor sólida do ícone + fundo suave do chip */
 export const blockPalette: Record<BlockColor, { fg: string; bg: string }> = {
-  indigo: { fg: "var(--color-primary)", bg: "rgba(91,111,245,0.12)" },
-  blue: { fg: "#2f6df6", bg: "rgba(47,109,246,0.12)" },
-  teal: { fg: "#0d9488", bg: "rgba(13,148,136,0.12)" },
-  green: { fg: "#16a34a", bg: "rgba(22,163,74,0.12)" },
-  red: { fg: "var(--color-destructive)", bg: "rgba(239,68,68,0.12)" },
-  amber: { fg: "#d97706", bg: "rgba(217,119,6,0.14)" },
-  violet: { fg: "#7c3aed", bg: "rgba(124,58,237,0.12)" },
-  pink: { fg: "#db2777", bg: "rgba(219,39,119,0.12)" },
-  orange: { fg: "var(--color-orange)", bg: "rgba(249,115,22,0.13)" },
-  slate: { fg: "#475569", bg: "rgba(71,85,105,0.12)" },
+  indigo: { fg: "var(--color-chip-blue)", bg: "var(--color-chip-blue-soft)" },
+  blue: { fg: "var(--color-chip-blue)", bg: "var(--color-chip-blue-soft)" },
+  teal: { fg: "var(--color-chip-green)", bg: "var(--color-chip-green-soft)" },
+  green: { fg: "var(--color-chip-green)", bg: "var(--color-chip-green-soft)" },
+  red: { fg: "var(--color-chip-red)", bg: "var(--color-chip-red-soft)" },
+  amber: { fg: "var(--color-chip-orange)", bg: "var(--color-chip-orange-soft)" },
+  violet: { fg: "var(--color-chip-violet)", bg: "var(--color-chip-violet-soft)" },
+  pink: { fg: "var(--color-chip-violet)", bg: "var(--color-chip-violet-soft)" },
+  orange: { fg: "var(--color-chip-orange)", bg: "var(--color-chip-orange-soft)" },
+  slate: { fg: "var(--color-muted-foreground)", bg: "var(--color-muted)" },
+}
+
+/** Classes Tailwind do chip (mesmo mapa da paleta, sem cor direta no JSX). */
+export const blockChipClasses: Record<BlockColor, string> = {
+  indigo: "bg-chip-blue-soft text-chip-blue",
+  blue: "bg-chip-blue-soft text-chip-blue",
+  teal: "bg-chip-green-soft text-chip-green",
+  green: "bg-chip-green-soft text-chip-green",
+  red: "bg-chip-red-soft text-chip-red",
+  amber: "bg-chip-orange-soft text-chip-orange",
+  violet: "bg-chip-violet-soft text-chip-violet",
+  pink: "bg-chip-violet-soft text-chip-violet",
+  orange: "bg-chip-orange-soft text-chip-orange",
+  slate: "bg-muted text-muted-foreground",
 }
 
 const categoryTone: Record<BlockCategory, BlockMeta["tone"]> = {
@@ -183,6 +197,11 @@ export function blockChipStyle(type: string): CSSProperties {
   return { color: p.fg, backgroundColor: p.bg }
 }
 
+/** Classes do chip de ícone por bloco (preferir a inline style em JSX novo). */
+export function blockChipClass(type: string): string {
+  return blockChipClasses[getBlockMeta(type).color]
+}
+
 /** Apenas a cor sólida do bloco (para barras de acento, traços, etc.) */
 export function blockAccent(type: string): string {
   return blockPalette[getBlockMeta(type).color].fg
@@ -217,8 +236,8 @@ export const blockCategories: { id: BlockCategory; label: string; types: string[
 
 /** Classes do "chip" de ícone por tom — mantido para componentes legados (mini-flow, etc.) */
 export const toneIconClasses: Record<BlockMeta["tone"], string> = {
-  trigger: "bg-[var(--glass-bg)] text-white",
-  action: "bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]",
-  salesbot: "bg-[rgba(167,139,250,0.18)] text-[var(--brand-secondary)]",
-  final: "bg-[rgba(239,68,68,0.14)] text-[var(--color-danger)]",
+  trigger: "bg-chip-blue-soft text-chip-blue",
+  action: "bg-chip-blue-soft text-chip-blue",
+  salesbot: "bg-chip-violet-soft text-chip-violet",
+  final: "bg-chip-red-soft text-chip-red",
 }

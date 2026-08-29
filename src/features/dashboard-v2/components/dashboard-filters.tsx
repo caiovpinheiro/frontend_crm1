@@ -1,325 +1,409 @@
 "use client";
 
 /*
- * Barra de filtros do dashboard comercial (Fase 1).
- *
- * Filtros: período, pipeline, etapa, tags, origem e consultor.
- * - Período e pipeline: DropdownGlass (single-select).
- * - Etapa/tags/origem/consultor: MultiSelectPopover.
- * - Chips de filtros ativos + "Limpar filtros" + contador.
- *
- * O estado mora na URL (useDashboardFilters); aqui só renderizamos e
- * disparamos `onPatch`/`onClear`.
+ * Busca + popover Filtrar do dashboard.
+ * Período mora no PeriodCalendarButton do header — não duplicar aqui.
  */
 
-import { IconCalendar, IconFilter, IconX } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 
-import { cn, tagPillStyle } from "@/lib/utils";
-import { DropdownGlass, type DropdownOption } from "@/components/crm/dropdown-glass";
+import { cn } from "@/lib/utils";
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
+import {
+  FilterPopoverBody,
+  FilterPopoverHeader,
+  FilterPopoverPanel,
+  FilterSegmentedTabs,
+} from "@/components/crm/filter-popover";
+import { formLabelClass } from "@/components/ui/form-dialog";
 import type { FilterOptionsResponse } from "@/components/pipeline/kanban-filters/types";
-
 import {
   SOURCE_NONE,
   type DashboardFiltersState,
-  type PeriodKey,
 } from "@/features/dashboard-v2/api";
-import { countActiveDashboardFilters } from "@/features/dashboard-v2/use-dashboard-filters";
-import {
-  MultiSelectPopover,
-  type MultiSelectOption,
-} from "@/features/dashboard-v2/components/multi-select-popover";
+import { countStructuralDashboardFilters } from "@/features/dashboard-v2/use-dashboard-filters";
 
-const PERIOD_OPTIONS: { value: PeriodKey; label: string }[] = [
-  { value: "today", label: "Hoje" },
-  { value: "yesterday", label: "Ontem" },
-  { value: "last_7", label: "Últimos 7 dias" },
-  { value: "last_30", label: "Últimos 30 dias" },
-  { value: "this_month", label: "Este mês" },
-  { value: "last_month", label: "Mês passado" },
-  { value: "custom", label: "Personalizado" },
+type FilterTab =
+  | "pipeline"
+  | "etapa"
+  | "tags"
+  | "origem"
+  | "consultor"
+  | "usuario"
+  | "departamento";
+
+const DEAL_TABS: { id: FilterTab; label: string }[] = [
+  { id: "pipeline", label: "Pipeline" },
+  { id: "etapa", label: "Etapa" },
+  { id: "tags", label: "Tags" },
+  { id: "origem", label: "Origem" },
+  { id: "consultor", label: "Consultor" },
+  { id: "usuario", label: "Usuário" },
 ];
 
-const PERIOD_LABELS: Record<PeriodKey, string> = Object.fromEntries(
-  PERIOD_OPTIONS.map((o) => [o.value, o.label]),
-) as Record<PeriodKey, string>;
+const TABULATION_TABS: { id: FilterTab; label: string }[] = [
+  { id: "usuario", label: "Usuário" },
+  { id: "departamento", label: "Depto" },
+];
 
-function todayISODate(): string {
-  return new Date().toISOString().split("T")[0];
-}
-
-interface DashboardFiltersBarProps {
-  filters: DashboardFiltersState;
-  onPatch: (partial: Partial<DashboardFiltersState>) => void;
-  onClear: () => void;
-  options?: FilterOptionsResponse;
-  /** Pipeline em uso (selecionado ou o resolvido pelo backend). */
-  effectivePipelineId?: string;
-  /** Em "Atendimento" só mostramos o período. */
-  showStructural: boolean;
-}
-
-export function DashboardFilters({
+export function DashboardSearchFilterBar({
+  search,
+  onSearch,
   filters,
   onPatch,
-  onClear,
   options,
   effectivePipelineId,
-  showStructural,
-}: DashboardFiltersBarProps) {
-  const activeCount = countActiveDashboardFilters(filters);
+  variant,
+  actorUserId = "",
+  onActorUserIdChange,
+  departmentId = "",
+  onDepartmentIdChange,
+  userOptions = [],
+  liveUserOptions = [],
+  departmentOptions = [],
+}: {
+  search: string;
+  onSearch: (value: string) => void;
+  filters: DashboardFiltersState;
+  onPatch: (partial: Partial<DashboardFiltersState>) => void;
+  options?: FilterOptionsResponse;
+  effectivePipelineId?: string;
+  variant: "deals" | "service" | "tabulations";
+  actorUserId?: string;
+  onActorUserIdChange?: (id: string) => void;
+  departmentId?: string;
+  onDepartmentIdChange?: (id: string) => void;
+  userOptions?: { value: string; label: string }[];
+  /** Usuários vistos no funil/uso — o filtro de Negócios se atualiza sozinho. */
+  liveUserOptions?: { value: string; label: string }[];
+  departmentOptions?: { value: string; label: string }[];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const tabs = variant === "tabulations" ? TABULATION_TABS : DEAL_TABS;
+  const [tab, setTab] = useState<FilterTab>(tabs[0].id);
 
-  const periodOptions: DropdownOption[] = PERIOD_OPTIONS.map((o) => ({
-    value: o.value,
-    label: o.label,
-    icon: <IconCalendar size={15} />,
-  }));
+  const structuralCount = countStructuralDashboardFilters(filters);
+  const tabulationCount =
+    (actorUserId ? 1 : 0) + (departmentId ? 1 : 0);
+  const activeCount = variant === "tabulations" ? tabulationCount : structuralCount;
+  const showFilter = variant !== "service";
+
+  useEffect(() => {
+    setTab(tabs[0].id);
+  }, [variant]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
 
   const pipelines = options?.pipelines ?? [];
-  const pipelineOptions: DropdownOption[] = pipelines.map((p) => ({
-    value: p.id,
-    label: p.name,
-    icon: <IconFilter size={15} />,
-  }));
-
-  const activePipeline = pipelines.find((p) => p.id === effectivePipelineId);
-  const stageOptions: MultiSelectOption[] = (activePipeline?.stages ?? [])
-    .slice()
-    .sort((a, b) => a.position - b.position)
-    .map((s) => ({ value: s.id, label: s.name, color: s.color }));
-
-  const tagOptions: MultiSelectOption[] = (options?.tags ?? []).map((t) => ({
+  const selectedPipelineIds = filters.pipelineIds?.length
+    ? filters.pipelineIds
+    : effectivePipelineId
+      ? [effectivePipelineId]
+      : [];
+  const stageOptions = (() => {
+    const seen = new Set<string>();
+    const rows: { value: string; label: string; color: string }[] = [];
+    for (const p of pipelines) {
+      if (selectedPipelineIds.length && !selectedPipelineIds.includes(p.id)) continue;
+      for (const s of [...(p.stages ?? [])].sort((a, b) => a.position - b.position)) {
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        rows.push({ value: s.id, label: s.name, color: s.color });
+      }
+    }
+    return rows;
+  })();
+  const tagOptions = (options?.tags ?? []).map((t) => ({
     value: t.id,
     label: t.name,
     color: t.color,
   }));
-
-  const sourceOptions: MultiSelectOption[] = [
+  const sourceOptions = [
     { value: SOURCE_NONE, label: "Sem origem" },
     ...(options?.sources ?? []).map((s) => ({ value: s, label: s })),
   ];
-
-  const ownerOptions: MultiSelectOption[] = (options?.users ?? []).map((u) => ({
+  const ownerOptions = (options?.users ?? []).map((u) => ({
     value: u.id,
     label: u.name,
     sub: u.role,
   }));
 
-  // Mapas para os labels dos chips.
-  const stageName = new Map(stageOptions.map((s) => [s.value, s.label]));
-  const tagInfo = new Map(tagOptions.map((t) => [t.value, t]));
-  const ownerName = new Map(ownerOptions.map((o) => [o.value, o.label]));
-
-  function handlePeriod(value: PeriodKey) {
-    if (value === "custom") {
-      onPatch({
-        period: "custom",
-        startDate: filters.startDate ?? todayISODate(),
-        endDate: filters.endDate ?? todayISODate(),
-      });
-    } else {
-      onPatch({ period: value, startDate: undefined, endDate: undefined });
+  function handleClear() {
+    if (variant === "tabulations") {
+      onActorUserIdChange?.("");
+      onDepartmentIdChange?.("");
+      return;
     }
+    onPatch({
+      pipelineId: undefined,
+      pipelineIds: [],
+      userIds: [],
+      stageIds: [],
+      tagIds: [],
+      ownerIds: [],
+      sources: [],
+    });
+  }
+
+  function tabBadge(id: FilterTab): number {
+    if (id === "pipeline") return filters.pipelineIds?.length || filters.pipelineId ? 1 : 0;
+    if (id === "etapa") return filters.stageIds.length;
+    if (id === "tags") return filters.tagIds.length;
+    if (id === "origem") return filters.sources.length;
+    if (id === "consultor") return filters.ownerIds.length;
+    if (id === "usuario") {
+      return variant === "deals" ? (filters.userIds?.length ?? 0) : actorUserId ? 1 : 0;
+    }
+    if (id === "departamento") return departmentId ? 1 : 0;
+    return 0;
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <DropdownGlass
-          options={periodOptions}
-          value={filters.period}
-          onValueChange={(v) => handlePeriod(v as PeriodKey)}
-          menuLabel="Período"
-          triggerClassName="min-w-[160px]"
-        />
+    <div ref={ref} className="relative w-full">
+      <SearchFilterBar
+        value={search}
+        onChange={onSearch}
+        placeholder="Pesquisar e filtrar..."
+        ariaLabel="Buscar no dashboard"
+        withFilter={showFilter}
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => setOpen((o) => !o)}
+      />
 
-        {filters.period === "custom" && (
-          <div className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-primary)]/40 bg-[var(--glass-bg-overlay)] px-2.5 py-1.5 shadow-[var(--glass-shadow-sm)] backdrop-blur-sm">
-            <IconCalendar size={15} className="shrink-0 text-[var(--text-muted)]" />
-            <input
-              type="date"
-              value={filters.startDate ?? ""}
-              max={filters.endDate}
-              onChange={(e) => onPatch({ startDate: e.target.value })}
-              className="h-6 border-0 bg-transparent font-display text-[12px] font-semibold text-[var(--text-primary)] outline-none"
-            />
-            <span className="text-[12px] text-[var(--text-muted)]">—</span>
-            <input
-              type="date"
-              value={filters.endDate ?? ""}
-              min={filters.startDate}
-              onChange={(e) => onPatch({ endDate: e.target.value })}
-              className="h-6 border-0 bg-transparent font-display text-[12px] font-semibold text-[var(--text-primary)] outline-none"
-            />
-          </div>
-        )}
-
-        {showStructural && (
-          <>
-            {pipelineOptions.length > 0 && (
-              <DropdownGlass
-                options={pipelineOptions}
-                value={effectivePipelineId}
-                onValueChange={(v) => onPatch({ pipelineId: v, stageIds: [] })}
-                placeholder="Pipeline"
-                menuLabel="Pipeline"
-                triggerClassName="min-w-[150px]"
+      {open && showFilter ? (
+        <FilterPopoverPanel>
+          <FilterPopoverHeader
+            count={activeCount}
+            onClear={handleClear}
+            clearDisabled={activeCount === 0}
+          />
+          <FilterSegmentedTabs
+            value={tab}
+            onChange={setTab}
+            tabs={tabs.map((t) => ({
+              id: t.id,
+              label: t.label,
+              badge: tabBadge(t.id),
+            }))}
+          />
+          <FilterPopoverBody>
+            {tab === "pipeline" ? (
+              <OptionList
+                label="Funis"
+                hint="Nenhum selecionado = todos (soma)."
+                options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
+                selected={filters.pipelineIds?.length ? filters.pipelineIds : effectivePipelineId ? [effectivePipelineId] : []}
+                onToggle={(id) => {
+                  const current = filters.pipelineIds?.length
+                    ? filters.pipelineIds
+                    : effectivePipelineId
+                      ? [effectivePipelineId]
+                      : [];
+                  onPatch({
+                    pipelineIds: toggleId(current, id),
+                    pipelineId: undefined,
+                    stageIds: [],
+                  });
+                }}
+                emptyLabel="Nenhum funil"
               />
-            )}
-
-            <MultiSelectPopover
-              label="Etapa"
-              icon={<IconFilter size={14} />}
-              options={stageOptions}
-              selected={filters.stageIds}
-              onChange={(stageIds) => onPatch({ stageIds })}
-              emptyLabel="Selecione um pipeline"
-            />
-
-            <MultiSelectPopover
-              label="Tags"
-              options={tagOptions}
-              selected={filters.tagIds}
-              onChange={(tagIds) => onPatch({ tagIds })}
-              emptyLabel="Nenhuma tag cadastrada"
-            />
-
-            <MultiSelectPopover
-              label="Origem"
-              options={sourceOptions}
-              selected={filters.sources}
-              onChange={(sources) => onPatch({ sources })}
-            />
-
-            <MultiSelectPopover
-              label="Consultor"
-              options={ownerOptions}
-              selected={filters.ownerIds}
-              onChange={(ownerIds) => onPatch({ ownerIds })}
-              emptyLabel="Nenhum consultor disponível"
-            />
-          </>
-        )}
-
-        {activeCount > 0 && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="ml-auto flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 font-display text-[12px] font-semibold text-[var(--text-secondary)] shadow-[var(--glass-shadow-sm)] transition-colors hover:border-[var(--color-danger)]/40 hover:text-[var(--color-danger)]"
-          >
-            <IconX size={14} />
-            Limpar filtros
-            <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-white">
-              {activeCount}
-            </span>
-          </button>
-        )}
-      </div>
-
-      {/* Chips de filtros ativos */}
-      {activeCount > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {filters.period !== "this_month" && (
-            <Chip
-              label="Período"
-              value={
-                filters.period === "custom" && filters.startDate && filters.endDate
-                  ? `${filters.startDate} — ${filters.endDate}`
-                  : PERIOD_LABELS[filters.period]
-              }
-              onRemove={() =>
-                onPatch({ period: "this_month", startDate: undefined, endDate: undefined })
-              }
-            />
-          )}
-          {showStructural && filters.pipelineId && activePipeline && (
-            <Chip
-              label="Pipeline"
-              value={activePipeline.name}
-              onRemove={() => onPatch({ pipelineId: undefined, stageIds: [] })}
-            />
-          )}
-          {showStructural && filters.stageIds.length > 0 && (
-            <Chip
-              label="Etapas"
-              value={filters.stageIds
-                .map((id) => stageName.get(id) ?? id)
-                .join(", ")}
-              onRemove={() => onPatch({ stageIds: [] })}
-            />
-          )}
-          {showStructural &&
-            filters.tagIds.length > 0 &&
-            filters.tagIds.map((id) => {
-              const tag = tagInfo.get(id);
-              return (
-                <span
-                  key={id}
-                  className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-2 py-0.5 font-display text-[11px] font-semibold"
-                  style={tagPillStyle(tag?.label ?? "", tag?.color)}
-                >
-                  {tag?.label ?? id}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onPatch({ tagIds: filters.tagIds.filter((t) => t !== id) })
-                    }
-                    aria-label="Remover tag"
-                    className="opacity-70 transition-opacity hover:opacity-100"
-                  >
-                    <IconX size={12} />
-                  </button>
-                </span>
-              );
-            })}
-          {showStructural && filters.sources.length > 0 && (
-            <Chip
-              label="Origem"
-              value={filters.sources
-                .map((s) => (s === SOURCE_NONE ? "Sem origem" : s))
-                .join(", ")}
-              onRemove={() => onPatch({ sources: [] })}
-            />
-          )}
-          {showStructural && filters.ownerIds.length > 0 && (
-            <Chip
-              label="Consultor"
-              value={filters.ownerIds
-                .map((id) => ownerName.get(id) ?? id)
-                .join(", ")}
-              onRemove={() => onPatch({ ownerIds: [] })}
-            />
-          )}
-        </div>
-      )}
-    </section>
+            ) : null}
+            {tab === "etapa" ? (
+              <OptionList
+                label="Etapa"
+                options={stageOptions}
+                selected={filters.stageIds}
+                onToggle={(id) =>
+                  onPatch({
+                    stageIds: toggleId(filters.stageIds, id),
+                  })
+                }
+                emptyLabel="Nenhuma etapa"
+              />
+            ) : null}
+            {tab === "tags" ? (
+              <OptionList
+                label="Tags"
+                options={tagOptions}
+                selected={filters.tagIds}
+                onToggle={(id) =>
+                  onPatch({ tagIds: toggleId(filters.tagIds, id) })
+                }
+                emptyLabel="Nenhuma tag cadastrada"
+              />
+            ) : null}
+            {tab === "origem" ? (
+              <OptionList
+                label="Origem"
+                options={sourceOptions}
+                selected={filters.sources}
+                onToggle={(id) =>
+                  onPatch({ sources: toggleId(filters.sources, id) })
+                }
+              />
+            ) : null}
+            {tab === "consultor" ? (
+              <OptionList
+                label="Consultor"
+                options={ownerOptions}
+                selected={filters.ownerIds}
+                onToggle={(id) =>
+                  onPatch({ ownerIds: toggleId(filters.ownerIds, id) })
+                }
+                emptyLabel="Nenhum consultor disponível"
+              />
+            ) : null}
+            {tab === "usuario" ? (
+              variant === "deals" ? (
+                <OptionList
+                  label="Usuário"
+                  hint="Atualiza com quem aparece no funil e no uso do sistema."
+                  options={mergeUserOptions(userOptions, liveUserOptions)}
+                  selected={filters.userIds ?? []}
+                  onToggle={(id) =>
+                    onPatch({ userIds: toggleId(filters.userIds ?? [], id) })
+                  }
+                  emptyLabel="Nenhum usuário"
+                />
+              ) : (
+                <OptionList
+                  label="Usuário"
+                  options={userOptions}
+                  selected={actorUserId ? [actorUserId] : []}
+                  onToggle={(id) =>
+                    onActorUserIdChange?.(id === actorUserId ? "" : id)
+                  }
+                  single
+                  emptyLabel="Nenhum usuário"
+                />
+              )
+            ) : null}
+            {tab === "departamento" ? (
+              <OptionList
+                label="Departamento"
+                options={departmentOptions}
+                selected={departmentId ? [departmentId] : []}
+                onToggle={(id) =>
+                  onDepartmentIdChange?.(id === departmentId ? "" : id)
+                }
+                single
+                emptyLabel="Nenhum departamento"
+              />
+            ) : null}
+          </FilterPopoverBody>
+        </FilterPopoverPanel>
+      ) : null}
+    </div>
   );
 }
 
-function Chip({
+function mergeUserOptions(
+  catalog: { value: string; label: string }[],
+  live: { value: string; label: string }[],
+) {
+  const map = new Map<string, string>();
+  for (const u of [...catalog, ...live]) {
+    if (!map.has(u.value)) map.set(u.value, u.label);
+  }
+  return [...map.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+}
+
+function toggleId(current: string[], id: string): string[] {
+  return current.includes(id)
+    ? current.filter((x) => x !== id)
+    : [...current, id];
+}
+
+function OptionList({
   label,
-  value,
-  onRemove,
+  hint,
+  options,
+  selected,
+  onToggle,
+  single,
+  emptyLabel = "Nenhuma opção",
 }: {
   label: string;
-  value: string;
-  onRemove: () => void;
+  hint?: string;
+  options: { value: string; label: string; color?: string; sub?: string }[];
+  selected: string[];
+  onToggle: (id: string) => void;
+  single?: boolean;
+  emptyLabel?: string;
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex max-w-[280px] items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-1 font-display text-[11px] font-semibold text-[var(--text-secondary)]",
+    <div>
+      <span className={formLabelClass}>{label}</span>
+      {hint ? <p className="mb-2 text-xs text-muted-foreground">{hint}</p> : null}
+      {options.length === 0 ? (
+        <p className="py-3 text-center text-sm italic text-muted-foreground">
+          {emptyLabel}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-0.5">
+          {options.map((opt) => {
+            const on = selected.includes(opt.value);
+            return (
+              <li key={opt.value}>
+                <button
+                  type="button"
+                  onClick={() => onToggle(opt.value)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm transition-colors",
+                    on
+                      ? "bg-primary/10 text-foreground"
+                      : "text-foreground hover:bg-secondary",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex size-4 shrink-0 items-center justify-center rounded border",
+                      single ? "rounded-full" : "rounded",
+                      on
+                        ? "border-primary bg-primary"
+                        : "border-border bg-card",
+                    )}
+                  >
+                    {on ? (
+                      <span
+                        className={cn(
+                          "bg-primary-foreground",
+                          single ? "size-1.5 rounded-full" : "size-2 rounded-[1px]",
+                        )}
+                      />
+                    ) : null}
+                  </span>
+                  {opt.color ? (
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ background: opt.color }}
+                    />
+                  ) : null}
+                  <span className="min-w-0 flex-1 truncate font-semibold">
+                    {opt.label}
+                  </span>
+                  {opt.sub ? (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {opt.sub}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    >
-      <span className="text-[var(--text-muted)]">{label}:</span>
-      <span className="truncate text-[var(--text-primary)]">{value}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remover filtro ${label}`}
-        className="shrink-0 text-[var(--text-muted)] transition-colors hover:text-[var(--color-danger)]"
-      >
-        <IconX size={12} />
-      </button>
-    </span>
+    </div>
   );
 }

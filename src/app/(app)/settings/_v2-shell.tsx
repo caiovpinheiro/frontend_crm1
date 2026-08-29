@@ -63,7 +63,7 @@ export function SettingsV2Shell({
   icon?: React.ReactNode;
   /** Voltar ao hub ou seção pai (opcional). */
   back?: PageHeaderBack;
-  /** Busca opcional, renderizada no centro do PageHeader. */
+  /** Busca opcional, renderizada à direita no PageHeader (slot `center`). */
   center?: React.ReactNode;
   /** Controles/ações opcionais, renderizados à direita do PageHeader. */
   actions?: React.ReactNode;

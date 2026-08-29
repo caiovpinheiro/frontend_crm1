@@ -13,7 +13,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { IconDots } from "@tabler/icons-react";
+import { Ellipsis } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import {
@@ -286,7 +286,7 @@ function MobileBottomNavClassic() {
             aria-expanded={moreOpen}
             className={cn(itemClass(moreOpen), "shrink-0")}
           >
-            <IconDots size={20} stroke={1.8} />
+            <Ellipsis size={20} strokeWidth={1.8} />
             <span className="max-w-[4.5rem] truncate">Mais</span>
           </button>
         </div>

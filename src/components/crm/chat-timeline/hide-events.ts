@@ -6,14 +6,14 @@ const STORAGE_KEY = "crm.chat.hideEvents"
 const CHANGE_EVENT = "crm:chat-hide-events"
 
 /** Eventos de timeline que o olho oculta (`sip_call` / `whatsapp_call`).
- *  Gravação com áudio (`whatsapp_call_recording` + mediaUrl) fica visível. */
+ *  Gravação com áudio (`whatsapp_call_recording` / `sip_call` + mediaUrl) fica visível. */
 export function isHideableChatEvent(message: {
   kind?: string | null
   messageType?: string | null
   mediaUrl?: string | null
 }): boolean {
   const mt = String(message.messageType ?? "").toLowerCase()
-  if (mt === "whatsapp_call_recording" && message.mediaUrl) return false
+  if ((mt === "whatsapp_call_recording" || mt === "sip_call") && message.mediaUrl) return false
   if (mt === "sip_call" || mt === "whatsapp_call") return true
   if (mt === "whatsapp_call_recording") return true
   if (message.kind === "event") return true

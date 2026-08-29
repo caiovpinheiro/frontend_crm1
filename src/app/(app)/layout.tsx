@@ -22,7 +22,6 @@ import { WhatsappIncomingCallWidget } from "@/components/inbox/whatsapp-incoming
 import { ChatThemeApplier } from "@/components/providers/chat-theme-applier";
 import { MobileBottomNav } from "@/components/crm/mobile-bottom-nav";
 import { NavRailV2 } from "@/components/crm/nav-rail-v2";
-import { RouteTransition } from "@/components/crm/route-transition";
 import { MobileStartRoute } from "@/components/layout/mobile-start-route";
 import { SystemPresenceHeartbeat } from "@/components/layout/system-presence-heartbeat";
 import { NativeFcmBootstrap } from "@/components/layout/native-fcm-bootstrap";
@@ -42,17 +41,14 @@ export default function AppLayout({
       <ChatThemeApplier />
       <SystemPresenceHeartbeat />
       <div className="v2-root v2-min-screen">
-        {/* Trilho de navegação ÚNICO e PERSISTENTE. Vive aqui (fora do
-            RouteTransition) para NÃO remontar ao navegar — antes cada página
-            renderizava o seu, e a troca de rota (key do RouteTransition +
-            troca do componente de página) remontava o trilho, fazendo os
-            ícones/avatar piscarem. Posição fixa sobre a 1ª coluna do grid
+        {/* Trilho de navegação ÚNICO e PERSISTENTE. Vive no layout para
+            NÃO remontar ao navegar. Posição fixa sobre a 1ª coluna do grid
             (que as páginas reservam via `--nav-rail-w` + <NavRailSpacer/>),
-            colada à esquerda da viewport (`left: 0`; inset só no eixo Y). */}
+            colada à esquerda da viewport (`left: 0`, altura total). */}
         <div className="v2-nav-rail-fixed fixed z-40 max-md:hidden">
           <NavRailV2 />
         </div>
-        <RouteTransition>{children}</RouteTransition>
+        {children}
         <UpdateAvailableBanner />
         <MobileAppUpdateDialog />
         <SoftphoneWidget />

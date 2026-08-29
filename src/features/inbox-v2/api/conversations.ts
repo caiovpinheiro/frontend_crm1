@@ -46,6 +46,7 @@ function appendInboxServerFilters(
   if (p.windowState === "open" || p.windowState === "closed") {
     q.set("windowState", p.windowState);
   }
+  if (p.painelException) q.set("painel", p.painelException);
 }
 
 function buildConversationsUrl(p: ListConversationsParams): string {

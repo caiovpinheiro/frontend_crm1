@@ -10,7 +10,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { IconBriefcase as Briefcase, IconCalendarStats as CalendarRange, IconAdjustmentsHorizontal as SlidersHorizontal, IconTag as TagIcon, IconUsers as UsersIcon, IconWand as Wand2, IconBolt as Zap, IconX as X } from "@tabler/icons-react";
+import { IconBriefcase as Briefcase, IconAdjustmentsHorizontal as SlidersHorizontal, IconTag as TagIcon, IconUsers as UsersIcon, IconWand as Wand2, IconBolt as Zap, IconX as X } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,6 @@ import {
   ActiveCountBadge,
   ContactCustomFieldsSection,
   ContactSection,
-  DatesPeriodSection,
   DealCustomFieldsSection,
   FilterHeaderActions,
   OwnersSection,
@@ -35,12 +34,11 @@ import {
 import type { AdvancedDealFilters } from "../types";
 import type { VariantProps } from "./types";
 
-type GroupId = "quick" | "deal" | "dates" | "people" | "tags" | "custom";
+type GroupId = "quick" | "deal" | "people" | "tags" | "custom";
 
 const GROUPS: { id: GroupId; label: string; icon: React.ElementType; hint: string }[] = [
   { id: "quick", label: "Atalhos", icon: Zap, hint: "Filtros rápidos e salvos" },
   { id: "deal", label: "Negócio", icon: Briefcase, hint: "Nome, status, etapa, valor" },
-  { id: "dates", label: "Datas", icon: CalendarRange, hint: "Criação, fechamento, interação" },
   { id: "people", label: "Pessoas", icon: UsersIcon, hint: "Responsável e contato" },
   { id: "tags", label: "Tags", icon: TagIcon, hint: "Etiquetas do negócio" },
   { id: "custom", label: "Personalizados", icon: Wand2, hint: "Campos de negócio e contato" },
@@ -55,10 +53,6 @@ function groupCount(id: GroupId, f: AdvancedDealFilters): number {
       if (f.stageIds?.length) n++;
       if (f.sources?.length || f.withoutSource) n++;
       if (f.valueFrom != null || f.valueTo != null) n++;
-      break;
-    case "dates":
-      if (f.createdAt?.from || f.createdAt?.to) n++;
-      if (f.closedAt?.from || f.closedAt?.to) n++;
       break;
     case "people":
       if (f.ownerIds?.length || f.withoutOwner) n++;
@@ -207,11 +201,6 @@ export function FilterModalTwoCol({
                 <StagesSection {...section} />
                 <SourcesSection {...section} />
                 <ValueSection {...section} />
-              </>
-            )}
-            {group === "dates" && (
-              <>
-                <DatesPeriodSection {...section} />
               </>
             )}
             {group === "people" && (

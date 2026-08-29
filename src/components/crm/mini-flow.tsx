@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils"
-import { getBlockMeta, blockChipStyle } from "./flow-block-icon"
-import { TooltipGlass } from "@/components/crm/tooltip-glass"
+import { FlowChip } from "./flow-chip"
 
 export interface MiniFlowStep {
   blockType: string
@@ -17,70 +16,32 @@ interface MiniFlowProps {
 }
 
 /**
- * Visualização compacta de um fluxo: ícones por etapa conectados por traços.
- * Usada nos cards da galeria de automações.
+ * Visualização compacta de um fluxo: um chip colorido por tipo de passo.
  */
 export function MiniFlow({
   steps,
   max = 5,
-  size = "md",
   connected = true,
   className,
 }: MiniFlowProps) {
-  const dims =
-    size === "sm"
-      ? { node: "h-[30px] w-[30px]", icon: 15, gap: "gap-1.5", line: "w-3" }
-      : { node: "h-8 w-8", icon: 16, gap: "gap-0", line: "w-4" }
-
   const visible = steps.slice(0, max)
   const overflow = steps.length - visible.length
 
   return (
-    <div className={cn("flex items-center", dims.gap, className)}>
-      {visible.map((step, i) => {
-        const meta = getBlockMeta(step.blockType)
-        const Icon = meta.Icon
-        return (
-          <div key={i} className="flex items-center">
-            <TooltipGlass label={meta.label} side="top">
-              <span
-                className={cn(
-                  "flex shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] shadow-[var(--glass-shadow-sm)]",
-                  dims.node,
-                  step.blockType === "trigger" && "bg-[var(--brand-primary)] text-white",
-                )}
-                style={step.blockType === "trigger" ? undefined : blockChipStyle(step.blockType)}
-              >
-                <Icon size={dims.icon} />
-              </span>
-            </TooltipGlass>
-            {connected && i < visible.length - 1 && (
-              <span
-                className={cn(
-                  "h-px shrink-0 bg-gradient-to-r from-[var(--brand-primary)]/40 to-[var(--brand-secondary)]/40",
-                  dims.line,
-                )}
-                aria-hidden
-              />
-            )}
-          </div>
-        )
-      })}
+    <div className={cn("flex items-center gap-1.5", className)}>
+      {visible.map((step, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <FlowChip type={step.blockType} />
+          {connected && i < visible.length - 1 && (
+            <span className="h-px w-3 shrink-0 bg-border" aria-hidden />
+          )}
+        </div>
+      ))}
 
       {overflow > 0 && (
-        <>
-          {connected && (
-            <span className={cn("h-px shrink-0 bg-[var(--glass-border)]", dims.line)} aria-hidden />
-          )}
-          <span
-            className={cn(
-              "flex shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] font-mono text-[11.5px] font-semibold text-[var(--text-muted)] px-2",
-              connected ? dims.node : "h-[30px]",
-            )}
-          >
-            +{overflow}
-          </span>
-        </>
+        <span className="flex h-9 items-center rounded-xl border border-border bg-card px-2.5 text-xs font-semibold text-muted-foreground">
+          +{overflow}
+        </span>
       )}
     </div>
   )

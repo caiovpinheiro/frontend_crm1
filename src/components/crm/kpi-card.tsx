@@ -3,11 +3,13 @@
 import { cn } from "@/lib/utils";
 
 export const KPI_TONES = {
-  brand: "bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]",
-  violet: "bg-[rgba(167,139,250,0.18)] text-[var(--brand-secondary)]",
-  success: "bg-[var(--color-success-bg)] text-[var(--color-success)]",
-  warning: "bg-[var(--color-lead-bg)] text-[var(--color-warning)]",
-  neutral: "bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]",
+  brand: "bg-chip-blue-soft text-chip-blue",
+  violet: "bg-chip-violet-soft text-chip-violet",
+  success: "bg-success-soft text-success",
+  warning: "bg-warning-soft text-warning",
+  orange: "bg-chip-orange-soft text-chip-orange",
+  red: "bg-chip-red-soft text-chip-red",
+  neutral: "bg-secondary text-muted-foreground",
 } as const;
 
 export type KpiTone = keyof typeof KPI_TONES;
@@ -17,6 +19,8 @@ type KpiCardProps = {
   value: React.ReactNode;
   /** Texto auxiliar ao lado do valor (ex.: "de 5"). */
   hint?: string;
+  /** Rótulo de estado presente ao lado do título (ex.: "hoje"). */
+  badge?: string;
   icon: React.ReactNode;
   tone?: KpiTone;
   /** Quando true, destaca o card (filtro/segmento ativo). */
@@ -29,13 +33,14 @@ type KpiCardProps = {
 };
 
 /**
- * Mini-KPI do padrão Automações: ícone à esquerda + label uppercase + valor.
+ * Mini-KPI do padrão Automações: ícone à esquerda + label sentence-case + valor.
  * Usado em Automações, Contatos e Empresas.
  */
 export function KpiCard({
   label,
   value,
   hint,
+  badge,
   icon,
   tone = "brand",
   active = false,
@@ -44,15 +49,15 @@ export function KpiCard({
   compact = false,
 }: KpiCardProps) {
   const classNames = cn(
-    "flex items-center gap-3.5 rounded-[var(--radius-xl)] border px-4.5 py-4 text-left shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all",
-    "max-sm:gap-2.5 max-sm:px-3 max-sm:py-3",
-    compact && "gap-2.5 px-3 py-3",
+    "flex items-center gap-3.5 rounded-xl border p-4 text-left transition-all",
+    "max-sm:gap-2.5 max-sm:p-3",
+    compact && "gap-2.5 p-3",
     active
-      ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] shadow-[0_8px_24px_rgba(91,111,245,0.12)]"
-      : "border-[var(--glass-border)] bg-[var(--glass-bg-base)]",
+      ? "border-primary bg-primary/10"
+      : "border-border bg-card",
     onClick &&
       !active &&
-      "cursor-pointer hover:-translate-y-0.5 hover:border-[var(--brand-primary)]/30 hover:shadow-[var(--glass-shadow)]",
+      "cursor-pointer hover:border-primary/30 hover:bg-secondary/50",
     className,
   );
 
@@ -60,28 +65,31 @@ export function KpiCard({
     <>
       <span
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-md)]",
-          "max-sm:h-9 max-sm:w-9",
-          compact && "h-9 w-9",
+          "flex size-11 shrink-0 items-center justify-center rounded-xl",
+          "max-sm:size-9",
+          compact && "size-9",
           KPI_TONES[tone],
         )}
       >
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="font-body text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--text-muted)]">
-          {label}
+        <p className="flex items-baseline gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground">
+          <span>{label}</span>
+          {badge ? (
+            <span className="font-medium text-muted-foreground/80">{badge}</span>
+          ) : null}
         </p>
         <p
           className={cn(
-            "flex min-w-0 items-baseline gap-1.5 font-display text-[24px] font-extrabold leading-tight tracking-tight text-[var(--text-primary)]",
-            "max-sm:text-[20px]",
-            compact && "text-[20px]",
+            "mt-0.5 flex min-w-0 items-baseline gap-1.5 text-2xl font-bold tracking-tight",
+            "max-sm:text-xl",
+            compact && "text-xl",
           )}
         >
           <span className="min-w-0 truncate">{value}</span>
           {hint && (
-            <small className="shrink-0 text-[13px] font-semibold text-[var(--text-muted)]">
+            <small className="shrink-0 text-lg font-medium text-muted-foreground">
               {hint}
             </small>
           )}
@@ -138,10 +146,10 @@ export function KpiSquareScroll({
     <div className={cn(KPI_SQUARE_SCROLL_CLASS, className)}>
       {items.map((item) => {
         const classNames = cn(
-          "flex aspect-square w-[104px] shrink-0 flex-col justify-between rounded-[var(--radius-xl)] border p-2.5 text-left shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-colors",
+          "flex aspect-square w-[104px] shrink-0 flex-col justify-between rounded-xl border p-2.5 text-left transition-colors",
           item.active
-            ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)]"
-            : "border-[var(--glass-border)] bg-[var(--glass-bg-base)]",
+            ? "border-primary bg-primary/10"
+            : "border-border bg-card",
           item.onClick && !item.active && "cursor-pointer",
         );
 
@@ -175,7 +183,7 @@ export function KpiSquareScroll({
             {iconWrap}
             <div className="min-w-0">
               <div className="flex items-baseline gap-1">
-                <p className="truncate font-display text-[18px] font-extrabold leading-none tabular-nums text-[var(--text-primary)]">
+                <p className="truncate text-lg font-extrabold leading-none tabular-nums text-foreground">
                   {item.value}
                 </p>
                 {item.percent !== undefined && (
@@ -187,7 +195,7 @@ export function KpiSquareScroll({
                   </span>
                 )}
               </div>
-              <p className="mt-1 truncate font-display text-[10px] font-semibold uppercase leading-tight tracking-[0.02em] text-[var(--text-muted)]">
+              <p className="mt-1 truncate text-[10px] font-semibold leading-tight tracking-wide text-muted-foreground">
                 {item.label}
               </p>
             </div>

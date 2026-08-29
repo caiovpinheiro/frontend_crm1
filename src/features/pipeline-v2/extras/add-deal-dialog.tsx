@@ -11,12 +11,23 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { Briefcase } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { ButtonGlass } from "@/components/crm/button-glass";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
-import { Input } from "@/components/ui/input";
+import { InputGlass } from "@/components/crm/input-glass";
+import {
+  FormDialog,
+  FormDialogGlyphPlus,
+  FormDialogIcon,
+  formControlClass,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+  formLabelClass,
+} from "@/components/ui/form-dialog";
+import { cn } from "@/lib/utils";
 
 import { apiUrl } from "@/lib/api";
 import { normalizePhone } from "@/lib/phone";
@@ -44,9 +55,6 @@ interface DealFieldDef {
   options?: string[];
   required?: boolean;
 }
-
-const labelCls =
-  "mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]";
 
 export function AddDealDialog({
   open,
@@ -127,17 +135,6 @@ export function AddDealDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultStageId]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") onOpenChange(false);
-    }
-    if (open) {
-      window.addEventListener("keydown", onEsc);
-      return () => window.removeEventListener("keydown", onEsc);
-    }
-  }, [open, onOpenChange]);
-
   const pending = saving || createDeal.isPending || createContact.isPending;
 
   const canSubmit = useMemo(() => {
@@ -147,8 +144,6 @@ export function AddDealDialog({
     if (contactMode === "new" && !newName.trim()) return false;
     return true;
   }, [stageId, contactMode, newName]);
-
-  if (!open || typeof document === "undefined") return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -209,272 +204,290 @@ export function AddDealDialog({
     }
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-(--z-popover) flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
-      onClick={() => onOpenChange(false)}
-    >
-      <form
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={handleSubmit}
-        className="flex max-h-[88vh] w-[460px] max-w-[92vw] flex-col rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
-      >
-        <h3 className="border-b border-[var(--glass-border)] px-5 py-4 font-display text-base font-bold text-[var(--text-primary)]">
-          Novo negócio
-        </h3>
-
-        <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-          <label className="block">
-            <span className={labelCls}>Título</span>
-            <Input
-              type="text"
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Opcional — vira “Negócio - #id” se vazio"
-            />
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className={labelCls}>Valor (R$)</span>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="0,00"
-              />
-            </label>
-            <label className="block">
-              <span className={labelCls}>Estágio *</span>
-              <DropdownGlass
-                options={stages.map((s) => ({ value: s.id, label: s.name }))}
-                value={stageId}
-                onValueChange={setStageId}
-                triggerClassName="w-full"
-              />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className={labelCls}>Responsável</span>
-              <DropdownGlass
-                options={[
-                  { value: "", label: "Sem responsável" },
-                  ...users.map((u) => ({ value: u.id, label: u.name })),
-                ]}
-                value={ownerId}
-                onValueChange={setOwnerId}
-                triggerClassName="w-full"
-              />
-            </label>
-            <label className="block">
-              <span className={labelCls}>Fechamento esperado</span>
-              <Input
-                type="date"
-                value={expectedClose}
-                onChange={(e) => setExpectedClose(e.target.value)}
-              />
-            </label>
-          </div>
-
-          {/* Contato */}
-          <div className="rounded-[var(--radius-md)] border border-[var(--glass-border)] p-3">
-            <span className={labelCls}>Contato</span>
-            <div className="mb-2 flex gap-1">
-              {(
-                [
-                  { id: "none", label: "Sem contato" },
-                  { id: "search", label: "Buscar" },
-                  { id: "new", label: "Novo" },
-                ] as const
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setContactMode(m.id)}
-                  className={`rounded-full px-3 py-1 font-display text-[11px] font-semibold transition-colors ${
-                    contactMode === m.id
-                      ? "bg-[var(--brand-primary)] text-white"
-                      : "bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)]"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
-            {contactMode === "search" ? (
-              <div>
-                {selectedContact ? (
-                  <div className="flex items-center justify-between rounded-[var(--radius-md)] bg-[var(--glass-bg-overlay)] px-3 py-2 text-[13px]">
-                    <span className="font-medium text-[var(--text-primary)]">
-                      {selectedContact.name}
-                    </span>
-                    <button
-                      type="button"
-                      className="text-[12px] text-[var(--brand-primary)] underline"
-                      onClick={() => setSelectedContact(null)}
-                    >
-                      trocar
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <Input
-                      type="text"
-                      value={contactSearch}
-                      onChange={(e) => setContactSearch(e.target.value)}
-                      placeholder="Buscar por nome, e-mail…"
-                    />
-                    <div className="mt-1 max-h-40 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--glass-border)]">
-                      {contactsLoading ? (
-                        <p className="p-2 text-[12px] text-[var(--text-muted)]">
-                          Buscando…
-                        </p>
-                      ) : contacts.length === 0 ? (
-                        <p className="p-2 text-[12px] text-[var(--text-muted)]">
-                          Nenhum contato encontrado.
-                        </p>
-                      ) : (
-                        <ul>
-                          {contacts.map((c) => (
-                            <li key={c.id}>
-                              <button
-                                type="button"
-                                className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-[13px] hover:bg-[var(--glass-bg-strong)]"
-                                onClick={() => {
-                                  setSelectedContact({ id: c.id, name: c.name });
-                                  setContactSearch("");
-                                }}
-                              >
-                                <span className="font-medium text-[var(--text-primary)]">
-                                  {c.name}
-                                </span>
-                                {c.email ? (
-                                  <span className="text-[11px] text-[var(--text-muted)]">
-                                    {c.email}
-                                  </span>
-                                ) : null}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : null}
-
-            {contactMode === "new" ? (
-              <div className="space-y-2">
-                <Input
-                  type="text"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Nome do contato *"
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="tel"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    onBlur={(e) => {
-                      const raw = e.target.value.trim();
-                      if (!raw) return;
-                      const normalized = normalizePhone(raw);
-                      if (normalized && normalized !== raw) setNewPhone(normalized);
-                    }}
-                    placeholder="Telefone (ex.: 11987654321)"
-                  />
-                  <Input
-                    type="email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    placeholder="E-mail"
-                  />
-                </div>
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  O contato é criado e atribuído ao negócio automaticamente.
-                </p>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Custom fields */}
-          {fieldDefs.length > 0 ? (
-            <div className="space-y-3 border-t border-[var(--glass-border)] pt-3">
-              {fieldDefs.map((f) => {
-                const v = cfValues[f.id] ?? "";
-                const onChange = (val: string) =>
-                  setCfValues((prev) => ({ ...prev, [f.id]: val }));
-                const type = (f.type || "").toLowerCase();
-                return (
-                  <label key={f.id} className="block">
-                    <span className={labelCls}>
-                      {f.label}
-                      {f.required ? " *" : ""}
-                    </span>
-                    {f.options && f.options.length > 0 ? (
-                      <DropdownGlass
-                        options={f.options.map((opt) => ({ value: opt, label: opt }))}
-                        value={v || undefined}
-                        onValueChange={onChange}
-                        placeholder="Selecione…"
-                        triggerClassName="w-full"
-                      />
-                    ) : type === "date" ? (
-                      <Input
-                        type="date"
-                        value={v}
-                        onChange={(e) => onChange(e.target.value)}
-                      />
-                    ) : type === "number" ? (
-                      <Input
-                        type="number"
-                        value={v}
-                        onChange={(e) => onChange(e.target.value)}
-                      />
-                    ) : (
-                      <Input
-                        type="text"
-                        value={v}
-                        onChange={(e) => onChange(e.target.value)}
-                      />
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-          ) : null}
-
-          {error ? (
-            <p className="text-[12px] text-[var(--color-danger)]">{error}</p>
-          ) : null}
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-[var(--glass-border)] px-5 py-3">
-          <button
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Novo negócio"
+      description="Preencha os dados para criar o negócio no pipeline."
+      icon={
+        <FormDialogIcon>
+          <FormDialogGlyphPlus>
+            <Briefcase className="size-4" />
+          </FormDialogGlyphPlus>
+        </FormDialogIcon>
+      }
+      size="md"
+      busy={pending}
+      footer={
+        <>
+          <ButtonGlass
+            variant="glass"
+            size="sm"
             type="button"
             onClick={() => onOpenChange(false)}
-            className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-4 py-1.5 font-display text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--glass-bg-strong)]"
+            disabled={pending}
+            className={formDialogCancelClass}
           >
             Cancelar
-          </button>
-          <button
+          </ButtonGlass>
+          <ButtonGlass
+            variant="primary"
+            size="sm"
             type="submit"
+            form="add-deal-form"
             disabled={!canSubmit || pending}
-            className="rounded-full bg-[var(--brand-primary)] px-4 py-1.5 font-display text-xs font-semibold text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] hover:bg-[var(--brand-primary-dark)] disabled:opacity-60"
+            className={formDialogPrimaryClass}
           >
             {pending ? "Criando…" : "Criar negócio"}
-          </button>
+          </ButtonGlass>
+        </>
+      }
+    >
+      <form id="add-deal-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <label className="block">
+          <span className={formLabelClass}>Título</span>
+          <InputGlass
+            type="text"
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Opcional — vira “Negócio - #id” se vazio"
+            className={formControlClass}
+          />
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className={formLabelClass}>Valor (R$)</span>
+            <InputGlass
+              type="number"
+              min="0"
+              step="0.01"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="0,00"
+              className={formControlClass}
+            />
+          </label>
+          <label className="block">
+            <span className={formLabelClass}>Estágio *</span>
+            <DropdownGlass
+              options={stages.map((s) => ({ value: s.id, label: s.name }))}
+              value={stageId}
+              onValueChange={setStageId}
+              triggerClassName={cn(formControlClass, "w-full")}
+            />
+          </label>
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className={formLabelClass}>Responsável</span>
+            <DropdownGlass
+              options={[
+                { value: "", label: "Sem responsável" },
+                ...users.map((u) => ({ value: u.id, label: u.name })),
+              ]}
+              value={ownerId}
+              onValueChange={setOwnerId}
+              triggerClassName={cn(formControlClass, "w-full")}
+            />
+          </label>
+          <label className="block">
+            <span className={formLabelClass}>Fechamento esperado</span>
+            <InputGlass
+              type="date"
+              value={expectedClose}
+              onChange={(e) => setExpectedClose(e.target.value)}
+              className={formControlClass}
+            />
+          </label>
+        </div>
+
+        {/* Contato */}
+        <div className="rounded-xl border border-border p-3">
+          <span className={formLabelClass}>Contato</span>
+          <div className="mb-2 flex gap-1">
+            {(
+              [
+                { id: "none", label: "Sem contato" },
+                { id: "search", label: "Buscar" },
+                { id: "new", label: "Novo" },
+              ] as const
+            ).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setContactMode(m.id)}
+                className={cn(
+                  "rounded-full px-3 py-1 font-display text-[11px] font-semibold transition-colors",
+                  contactMode === m.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {contactMode === "search" ? (
+            <div>
+              {selectedContact ? (
+                <div className="flex items-center justify-between rounded-xl bg-secondary px-3 py-2 text-[13px]">
+                  <span className="font-medium text-foreground">
+                    {selectedContact.name}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-[12px] text-primary underline"
+                    onClick={() => setSelectedContact(null)}
+                  >
+                    trocar
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <InputGlass
+                    type="text"
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    placeholder="Buscar por nome, e-mail…"
+                    className={formControlClass}
+                  />
+                  <div className="mt-1 max-h-40 overflow-y-auto rounded-xl border border-border">
+                    {contactsLoading ? (
+                      <p className="p-2 text-[12px] text-muted-foreground">
+                        Buscando…
+                      </p>
+                    ) : contacts.length === 0 ? (
+                      <p className="p-2 text-[12px] text-muted-foreground">
+                        Nenhum contato encontrado.
+                      </p>
+                    ) : (
+                      <ul>
+                        {contacts.map((c) => (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-[13px] hover:bg-secondary"
+                              onClick={() => {
+                                setSelectedContact({ id: c.id, name: c.name });
+                                setContactSearch("");
+                              }}
+                            >
+                              <span className="font-medium text-foreground">
+                                {c.name}
+                              </span>
+                              {c.email ? (
+                                <span className="text-[11px] text-muted-foreground">
+                                  {c.email}
+                                </span>
+                              ) : null}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+
+          {contactMode === "new" ? (
+            <div className="space-y-2">
+              <InputGlass
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Nome do contato *"
+                className={formControlClass}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <InputGlass
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  onBlur={(e) => {
+                    const raw = e.target.value.trim();
+                    if (!raw) return;
+                    const normalized = normalizePhone(raw);
+                    if (normalized && normalized !== raw) setNewPhone(normalized);
+                  }}
+                  placeholder="Telefone (ex.: 11987654321)"
+                  className={formControlClass}
+                />
+                <InputGlass
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="E-mail"
+                  className={formControlClass}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                O contato é criado e atribuído ao negócio automaticamente.
+              </p>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Custom fields */}
+        {fieldDefs.length > 0 ? (
+          <div className="space-y-4 border-t border-border pt-4">
+            {fieldDefs.map((f) => {
+              const v = cfValues[f.id] ?? "";
+              const onChange = (val: string) =>
+                setCfValues((prev) => ({ ...prev, [f.id]: val }));
+              const type = (f.type || "").toLowerCase();
+              return (
+                <label key={f.id} className="block">
+                  <span className={formLabelClass}>
+                    {f.label}
+                    {f.required ? " *" : ""}
+                  </span>
+                  {f.options && f.options.length > 0 ? (
+                    <DropdownGlass
+                      options={f.options.map((opt) => ({ value: opt, label: opt }))}
+                      value={v || undefined}
+                      onValueChange={onChange}
+                      placeholder="Selecione…"
+                      triggerClassName={cn(formControlClass, "w-full")}
+                    />
+                  ) : type === "date" ? (
+                    <InputGlass
+                      type="date"
+                      value={v}
+                      onChange={(e) => onChange(e.target.value)}
+                      className={formControlClass}
+                    />
+                  ) : type === "number" ? (
+                    <InputGlass
+                      type="number"
+                      value={v}
+                      onChange={(e) => onChange(e.target.value)}
+                      className={formControlClass}
+                    />
+                  ) : (
+                    <InputGlass
+                      type="text"
+                      value={v}
+                      onChange={(e) => onChange(e.target.value)}
+                      className={formControlClass}
+                    />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {error ? (
+          <p className="text-[12px] text-destructive">{error}</p>
+        ) : null}
       </form>
-    </div>,
-    document.body,
+    </FormDialog>
   );
 }

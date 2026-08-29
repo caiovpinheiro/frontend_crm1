@@ -17,8 +17,6 @@ import {
   IconX,
   IconPhone,
   IconMail,
-  IconTable,
-  IconLayoutList,
   IconColumns,
   IconRotateClockwise,
   IconAdjustmentsHorizontal,
@@ -29,23 +27,36 @@ import {
   IconArrowMerge,
   IconLoader2,
   IconArrowsSort,
-  IconCalendarEvent,
   IconTag,
-  IconSparkles,
   IconTrophy,
   IconUserPlus,
   IconUserOff,
   IconMessageCircle,
 } from "@tabler/icons-react";
+import { Building2, Check, LayoutList, Pencil, Search, Table2, UserPlus, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 import { useCan } from "@/hooks/use-my-permissions";
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
-import { PageHeader } from "@/components/crm/page-header";
-import { pagePrimaryButtonClass, PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
-import { ListColumnLabel, SortableHeader, listTableHeadRowClass, type SortDir } from "@/components/crm/sortable-header";
+import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
+import {
+  PeriodCalendarButton,
+  PeriodIsoRangePanel,
+} from "@/components/crm/period-calendar-button";
+import { PageActionsMenu } from "@/components/crm/page-toolbar";
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
+import {
+  FilterApplyButton,
+  FilterPopoverBody,
+  FilterPopoverFooter,
+  FilterPopoverHeader,
+  FilterPopoverPanel,
+  FilterRadioRow,
+  FilterSegmentedTabs,
+} from "@/components/crm/filter-popover";
+import { ListColumnLabel, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, listTableHeadRowClass, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
   parseWidthClass,
@@ -60,12 +71,6 @@ import { Chip } from "@/components/crm/chip";
 import { InputGlass } from "@/components/crm/input-glass";
 import { KpiCard, KPI_TONES, type KpiTone } from "@/components/crm/kpi-card";
 import { ListHScroll } from "@/components/crm/list-hscroll";
-import { DatePicker } from "@/components/ui/date-picker";
-import {
-  dateRangeFromPreset,
-  detectPreset,
-  type DatePresetKey,
-} from "@/components/pipeline/kanban-filters/date-presets";
 import { cn } from "@/lib/utils";
 import { formatPhoneDisplay } from "@/lib/phone";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
@@ -86,7 +91,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FormDialog } from "@/components/ui/form-dialog";
+import {
+  FormDialog,
+  FormDialogIcon,
+  formControlClass,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+  formLabelClass,
+} from "@/components/ui/form-dialog";
 import { ImportPanel, downloadFromApi } from "@/features/pipeline-v2/import-export";
 import { apiUrl } from "@/lib/api";
 
@@ -169,11 +181,10 @@ const SORT_OPTIONS = [
   { value: "updatedAt:desc", label: "Modificados recentemente" },
 ] as const;
 
-type FilterPanelTab = "ordenar" | "periodo" | "tags";
+type FilterPanelTab = "ordenar" | "tags";
 
 const FILTER_TABS: { id: FilterPanelTab; label: string; icon: React.ReactNode }[] = [
   { id: "ordenar", label: "Ordenar", icon: <IconArrowsSort size={14} stroke={2.2} /> },
-  { id: "periodo", label: "Período", icon: <IconCalendarEvent size={14} stroke={2.2} /> },
   { id: "tags", label: "Tags", icon: <IconTag size={14} stroke={2.2} /> },
 ];
 
@@ -263,11 +274,6 @@ function tagChipStyle(color: string | null | undefined, selected: boolean): CSSP
         background: `color-mix(in srgb, ${color} 10%, transparent)`,
       };
 }
-
-const VIEW_ITEMS = [
-  { value: "cards", label: <span className="flex items-center gap-1.5"><IconLayoutList size={14} />Cards</span> },
-  { value: "tabela", label: <span className="flex items-center gap-1.5"><IconTable size={14} />Tabela</span> },
-] as const;
 
 export default function V2ContactsClientPage() {
   const { status } = useSession();
@@ -447,18 +453,12 @@ export default function V2ContactsClientPage() {
     enabled: isAuthenticated,
   });
 
-  // Contador de filtros ativos do painel (tags + intervalos de data).
-  const activeFilterCount =
-    tagIds.length +
-    (createdFrom || createdTo ? 1 : 0) +
-    (updatedFrom || updatedTo ? 1 : 0);
+  // Contador de filtros ativos do painel (tags). Período vive no calendário.
+  const activeFilterCount = tagIds.length;
+  const periodActive = !!(createdFrom || createdTo || updatedFrom || updatedTo);
 
   function clearPanelFilters() {
     setTagIds([]);
-    setCreatedFrom("");
-    setCreatedTo("");
-    setUpdatedFrom("");
-    setUpdatedTo("");
   }
 
   /** Alterna a ordenação por uma coluna (usado pelos cabeçalhos da Tabela). */
@@ -528,81 +528,101 @@ export default function V2ContactsClientPage() {
   const hasError = !!query.error;
 
   return (
-    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+    <div className="v2-screen v2-page-scroll grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-y-auto p-4">
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
-        <PageHeader
-          icon={<IconUsers size={22} stroke={2.2} />}
+      <main className="flex min-w-0 flex-col gap-4">
+        <SectionHeader
+          icon={Users}
           title="Contatos"
-          center={
-            <div className="flex w-full justify-start">
-              <SearchFilterBar
-                search={search}
-                onSearch={setSearch}
-                tags={tagsQuery.data ?? []}
-                tagIds={tagIds}
-                createdFrom={createdFrom}
-                createdTo={createdTo}
-                updatedFrom={updatedFrom}
-                updatedTo={updatedTo}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                activeCount={activeFilterCount}
-                onClear={clearPanelFilters}
-                onPick={handlePickSearchContact}
-                onApply={(next) => {
-                  setSortBy(next.sortBy);
-                  setSortOrder(next.sortOrder);
-                  setTagIds(next.tagIds);
-                  setCreatedFrom(next.createdFrom);
-                  setCreatedTo(next.createdTo);
-                  setUpdatedFrom(next.updatedFrom);
-                  setUpdatedTo(next.updatedTo);
+          searchSlot={
+            <ContactsSearchFilterBar
+              search={search}
+              onSearch={setSearch}
+              tags={tagsQuery.data ?? []}
+              tagIds={tagIds}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              activeCount={activeFilterCount}
+              onClear={clearPanelFilters}
+              onPick={handlePickSearchContact}
+              onApply={(next) => {
+                setSortBy(next.sortBy);
+                setSortOrder(next.sortOrder);
+                setTagIds(next.tagIds);
+              }}
+            />
+          }
+          period={
+            <PeriodCalendarButton active={periodActive}>
+              <PeriodIsoRangePanel
+                from={createdFrom}
+                to={createdTo}
+                onChange={({ from, to }) => {
+                  setCreatedFrom(from);
+                  setCreatedTo(to);
+                }}
+                rangeLabel="Criação"
+                secondary={{
+                  label: "Modificação",
+                  from: updatedFrom,
+                  to: updatedTo,
+                  onChange: ({ from, to }) => {
+                    setUpdatedFrom(from);
+                    setUpdatedTo(to);
+                  },
+                }}
+                allowClear
+                onClear={() => {
+                  setCreatedFrom("");
+                  setCreatedTo("");
+                  setUpdatedFrom("");
+                  setUpdatedTo("");
                 }}
               />
-            </div>
+            </PeriodCalendarButton>
           }
           actions={
-            <div className="flex items-center gap-2">
-              <PageSegmentedControl
-                items={VIEW_ITEMS}
-                value={view}
-                onChange={(v) => setView(v as ViewMode)}
-                aria-label="Modo de visualização"
-                size="compact"
-              />
-              <ActionsMenu
-                canCreate={canCreateContact}
-                canImport={canImportContact}
-                canExport={canExportContact}
-                onAdd={() => {
-                  if (!canCreateContact) {
-                    toast.error("Sem permissão para criar contato.");
-                    return;
-                  }
-                  setCreateOpen(true);
-                }}
-                onExport={() => {
-                  if (!canExportContact) {
-                    toast.error("Sem permissão para exportar contatos.");
-                    return;
-                  }
-                  void downloadFromApi(apiUrl("/api/contacts/export"), "contatos.csv")
-                    .then(() => toast.success("Exportação concluída. Verifique seus downloads."))
-                    .catch((e) => toast.error(e instanceof Error ? e.message : "Erro ao exportar."));
-                }}
-                onImport={() => {
-                  if (!canImportContact) {
-                    toast.error("Sem permissão para importar contatos.");
-                    return;
-                  }
-                  setImportOpen(true);
-                }}
-                onColumns={() => setColumnsOpen(true)}
-                onDupes={() => setDupesOpen(true)}
-              />
-            </div>
+            <HeaderPillToggle
+              options={[
+                { key: "cards", label: "Cards", icon: LayoutList },
+                { key: "tabela", label: "Tabela", icon: Table2 },
+              ]}
+              value={view}
+              onChange={(v) => setView(v as ViewMode)}
+            />
+          }
+          menuSlot={
+            <ActionsMenu
+              canCreate={canCreateContact}
+              canImport={canImportContact}
+              canExport={canExportContact}
+              onAdd={() => {
+                if (!canCreateContact) {
+                  toast.error("Sem permissão para criar contato.");
+                  return;
+                }
+                setCreateOpen(true);
+              }}
+              onExport={() => {
+                if (!canExportContact) {
+                  toast.error("Sem permissão para exportar contatos.");
+                  return;
+                }
+                void downloadFromApi(apiUrl("/api/contacts/export"), "contatos.csv")
+                  .then(() => toast.success("Exportação concluída. Verifique seus downloads."))
+                  .catch((e) => toast.error(e instanceof Error ? e.message : "Erro ao exportar."));
+              }}
+              onImport={() => {
+                if (!canImportContact) {
+                  toast.error("Sem permissão para importar contatos.");
+                  return;
+                }
+                setImportOpen(true);
+              }}
+              onColumns={() => setColumnsOpen(true)}
+              onDupes={() => setDupesOpen(true)}
+            />
           }
         />
 
@@ -639,7 +659,7 @@ export default function V2ContactsClientPage() {
                     <p className="truncate font-display text-[18px] font-extrabold leading-none tabular-nums text-[var(--text-primary)]">
                       {val === undefined ? "—" : val.toLocaleString("pt-BR")}
                     </p>
-                    <p className="mt-1 truncate font-display text-[10px] font-semibold uppercase leading-tight tracking-[0.02em] text-[var(--text-muted)]">
+                    <p className="mt-1 truncate font-display text-[10px] font-semibold leading-tight tracking-wide text-muted-foreground">
                       {seg.id === "sem-resp" ? "Sem resp." : seg.label}
                     </p>
                   </div>
@@ -805,51 +825,21 @@ export default function V2ContactsClientPage() {
 
 // ── Busca + painel de filtros segmentado (DS v2) ─────────────────────────────
 
-const FILTER_INPUT_CLASS =
-  "h-9 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] px-3 font-body text-[13px] text-[var(--text-primary)] shadow-none outline-none transition-colors hover:bg-[var(--color-primary-soft)] focus:border-[var(--brand-primary)]/40 focus:ring-2 focus:ring-[var(--brand-primary)]/20";
-
-const DATE_TRIGGER_CLASS =
-  "h-9 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] px-3 shadow-none hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]";
-
-const CREATED_PRESETS: { key: DatePresetKey; label: string }[] = [
-  { key: "today", label: "Hoje" },
-  { key: "last_7", label: "Últimos 7 dias" },
-  { key: "last_30", label: "Últimos 30 dias" },
-  { key: "this_month", label: "Este mês" },
-];
-
-function FilterCountBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 font-display text-[10px] font-bold leading-none text-white">
-      {count}
-    </span>
-  );
-}
 
 type ContactFilterDraft = {
   sortBy: SortField;
   sortOrder: "asc" | "desc";
   tagIds: string[];
-  createdFrom: string;
-  createdTo: string;
-  updatedFrom: string;
-  updatedTo: string;
 };
 
-function SearchFilterBar({
+function ContactsSearchFilterBar({
   search, onSearch, tags, tagIds,
-  createdFrom, createdTo, updatedFrom, updatedTo,
   sortBy, sortOrder, activeCount, onClear, onApply, onPick,
 }: {
   search: string;
   onSearch: (v: string) => void;
   tags: TagWithCountDto[];
   tagIds: string[];
-  createdFrom: string;
-  createdTo: string;
-  updatedFrom: string;
-  updatedTo: string;
   sortBy: SortField;
   sortOrder: "asc" | "desc";
   activeCount: number;
@@ -861,7 +851,7 @@ function SearchFilterBar({
   const [tab, setTab] = useState<FilterPanelTab>("ordenar");
   const [tagQuery, setTagQuery] = useState("");
   const [draft, setDraft] = useState<ContactFilterDraft>({
-    sortBy, sortOrder, tagIds, createdFrom, createdTo, updatedFrom, updatedTo,
+    sortBy, sortOrder, tagIds,
   });
   const ref = useRef<HTMLDivElement>(null);
   const hits = useContactsOmnisearch(search, search.trim().length >= 3);
@@ -874,9 +864,9 @@ function SearchFilterBar({
 
   useEffect(() => {
     if (!open) return;
-    setDraft({ sortBy, sortOrder, tagIds, createdFrom, createdTo, updatedFrom, updatedTo });
+    setDraft({ sortBy, sortOrder, tagIds });
     setTagQuery("");
-  }, [open, sortBy, sortOrder, tagIds, createdFrom, createdTo, updatedFrom, updatedTo]);
+  }, [open, sortBy, sortOrder, tagIds]);
 
   useEffect(() => {
     if (!open) return;
@@ -893,26 +883,8 @@ function SearchFilterBar({
   const tagSet = new Set(draft.tagIds);
   const sortKey = `${draft.sortBy}:${draft.sortOrder}`;
 
-  const createdActive = !!(draft.createdFrom || draft.createdTo);
-  const updatedActive = !!(draft.updatedFrom || draft.updatedTo);
-  const periodCount = (createdActive ? 1 : 0) + (updatedActive ? 1 : 0);
   const tagsCount = draft.tagIds.length;
-  const draftActiveCount = tagsCount + periodCount;
-
-  const createdPreset = detectPreset({
-    from: draft.createdFrom || null,
-    to: draft.createdTo || null,
-  });
-
-  function applyCreatedPreset(key: DatePresetKey) {
-    const range = dateRangeFromPreset(key);
-    if (!range) return;
-    setDraft((prev) => ({
-      ...prev,
-      createdFrom: range.from ?? "",
-      createdTo: range.to ?? "",
-    }));
-  }
+  const draftActiveCount = tagsCount;
 
   function toggleDraftTag(id: string) {
     setDraft((prev) => ({
@@ -927,10 +899,6 @@ function SearchFilterBar({
     setDraft((prev) => ({
       ...prev,
       tagIds: [],
-      createdFrom: "",
-      createdTo: "",
-      updatedFrom: "",
-      updatedTo: "",
     }));
     onClear();
   }
@@ -941,7 +909,6 @@ function SearchFilterBar({
   }
 
   const tabBadge = (id: FilterPanelTab) => {
-    if (id === "periodo") return periodCount;
     if (id === "tags") return tagsCount;
     return 0;
   };
@@ -949,11 +916,17 @@ function SearchFilterBar({
   return (
     <div ref={ref} className="relative w-full">
       <div ref={menu.wrapRef}>
-      <IconSearch size={15} className="absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-[var(--text-muted)]" />
-      <input
-        type="search"
+      <SearchFilterBar
         value={search}
-        onChange={(e) => onSearch(e.target.value)}
+        onChange={onSearch}
+        placeholder="Pesquisar e filtrar..."
+        ariaLabel="Buscar e filtrar contatos"
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => {
+          menu.close();
+          setOpen((o) => !o);
+        }}
         onFocus={() => menu.setFocused(true)}
         onKeyDown={(e) =>
           menu.onInputKeyDown(e, () => {
@@ -961,9 +934,6 @@ function SearchFilterBar({
             if (c) pickContact(c);
           })
         }
-        placeholder="Pesquisar e filtrar..."
-        aria-label="Buscar e filtrar contatos"
-        className="h-10 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-9 pr-24 font-body text-[13px] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] outline-none placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--input-ring-focus)]"
       />
       </div>
       {menu.showHits && menu.coords && typeof document !== "undefined" && (
@@ -1013,107 +983,37 @@ function SearchFilterBar({
           </OmnisearchSection>
         </OmnisearchResultsPanel>
       )}
-      <button
-        type="button"
-        onClick={() => {
-          menu.close();
-          setOpen((o) => !o);
-        }}
-        aria-label="Filtros"
-        className={cn(
-          "absolute right-1.5 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 transition-colors",
-          activeCount > 0 || open
-            ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]",
-        )}
-      >
-        <IconAdjustmentsHorizontal size={15} />
-        <span className="font-display text-[11px] font-semibold leading-none">
-          Filtrar
-        </span>
-        {activeCount > 0 && (
-          <span className="font-display text-[10px] font-bold leading-none tabular-nums">
-            {activeCount}
-          </span>
-        )}
-      </button>
 
       {open && (
-        <div
-          className={cn(
-            "absolute left-0 top-[calc(100%+8px)] z-40 flex w-[min(100vw-2rem,380px)] flex-col rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md",
-            tab === "periodo" ? "overflow-visible" : "max-h-[min(78vh,560px)] overflow-hidden",
-          )}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-            <div className="flex items-center gap-2">
-              <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">Filtros</span>
-              <FilterCountBadge count={draftActiveCount || activeCount} />
-            </div>
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={draftActiveCount === 0 && activeCount === 0}
-              className="flex items-center gap-1 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-40"
-            >
-              <IconRotateClockwise size={13} /> Limpar
-            </button>
-          </div>
+        <FilterPopoverPanel>
+          <FilterPopoverHeader
+            count={draftActiveCount || activeCount}
+            onClear={handleClear}
+            clearDisabled={draftActiveCount === 0 && activeCount === 0}
+          />
+          <FilterSegmentedTabs
+            value={tab}
+            onChange={setTab}
+            tabs={FILTER_TABS.map((t) => ({
+              id: t.id,
+              label: t.label,
+              icon: t.icon,
+              badge: tabBadge(t.id),
+            }))}
+          />
 
-          {/* Segmented tabs */}
-          <div className="px-4 pb-3">
-            <div
-              role="tablist"
-              aria-label="Seções do filtro"
-              className="flex items-center gap-0.5 rounded-full bg-[var(--glass-bg-strong)] p-1"
-            >
-              {FILTER_TABS.map((t) => {
-                const active = tab === t.id;
-                const badge = tabBadge(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setTab(t.id)}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 font-display text-[12px] font-bold transition-all",
-                      active
-                        ? "bg-[var(--glass-bg-modal,#fff)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)]"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    )}
-                  >
-                    <span className={active ? "text-[var(--brand-primary)]" : undefined}>{t.icon}</span>
-                    {t.label}
-                    <FilterCountBadge count={badge} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Body */}
-          <div
-            className={cn(
-              "px-4 pb-3",
-              tab === "periodo" ? "overflow-visible" : "min-h-0 flex-1 overflow-y-auto",
-            )}
-          >
+          <FilterPopoverBody>
             {tab === "ordenar" && (
-              <div className="flex flex-col gap-2" role="listbox" aria-label="Ordenar por">
-                <p className="mb-0.5 font-display text-[12px] font-semibold text-[var(--text-muted)]">
+              <div className="flex flex-col gap-0.5" role="listbox" aria-label="Ordenar por">
+                <p className="mb-2 text-xs font-semibold text-muted-foreground">
                   Ordenar resultados por
                 </p>
                 {SORT_OPTIONS.map((opt) => {
                   const selected = sortKey === opt.value;
                   return (
-                    <button
+                    <FilterRadioRow
                       key={opt.value}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
+                      selected={selected}
                       onClick={() => {
                         const [f, o] = opt.value.split(":");
                         setDraft((prev) => ({
@@ -1122,150 +1022,28 @@ function SearchFilterBar({
                           sortOrder: o as "asc" | "desc",
                         }));
                       }}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-2.5 text-left font-display text-[13px] font-semibold transition-colors",
-                        selected
-                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--text-primary)]"
-                          : "border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-[var(--text-secondary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
-                      )}
                     >
-                      <span
-                        className={cn(
-                          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2",
-                          selected
-                            ? "border-[var(--brand-primary)]"
-                            : "border-[var(--glass-border)]",
-                        )}
-                      >
-                        {selected && (
-                          <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)]" />
-                        )}
-                      </span>
                       {opt.label}
-                    </button>
+                    </FilterRadioRow>
                   );
                 })}
-              </div>
-            )}
-
-            {tab === "periodo" && (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <p className="mb-2 font-display text-[11px] font-semibold text-[var(--text-muted)]">
-                    Atalhos rápidos (data de criação)
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CREATED_PRESETS.map((p) => {
-                      const on = createdPreset === p.key;
-                      return (
-                        <button
-                          key={p.key}
-                          type="button"
-                          onClick={() => applyCreatedPreset(p.key)}
-                          className={cn(
-                            "rounded-full px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                            on
-                              ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.3)]"
-                              : "border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-[var(--text-secondary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
-                          )}
-                        >
-                          {p.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Criação */}
-                <div
-                  className={cn(
-                    "rounded-[16px] border p-3",
-                    createdActive
-                      ? "border-[var(--brand-primary)]/35 bg-[var(--color-primary-soft)]"
-                      : "border-[var(--glass-border)] bg-[var(--glass-bg-strong)]",
-                  )}
-                >
-                  <div className="mb-2.5 flex items-center gap-1.5">
-                    <IconSparkles
-                      size={14}
-                      className={createdActive ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"}
-                    />
-                    <span className="font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      Criação
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <DatePicker
-                      value={draft.createdFrom || null}
-                      onChange={(v) => setDraft((p) => ({ ...p, createdFrom: v }))}
-                      placeholder="dd/mm/aaaa"
-                      className="min-w-0 flex-1"
-                      triggerClassName={DATE_TRIGGER_CLASS}
-                    />
-                    <span className="shrink-0 font-body text-[12px] text-[var(--text-muted)]">até</span>
-                    <DatePicker
-                      value={draft.createdTo || null}
-                      onChange={(v) => setDraft((p) => ({ ...p, createdTo: v }))}
-                      placeholder="dd/mm/aaaa"
-                      className="min-w-0 flex-1"
-                      triggerClassName={DATE_TRIGGER_CLASS}
-                    />
-                  </div>
-                </div>
-
-                {/* Modificação */}
-                <div
-                  className={cn(
-                    "rounded-[16px] border p-3",
-                    updatedActive
-                      ? "border-[var(--brand-primary)]/35 bg-[var(--color-primary-soft)]"
-                      : "border-[var(--glass-border)] bg-[var(--glass-bg-strong)]",
-                  )}
-                >
-                  <div className="mb-2.5 flex items-center gap-1.5">
-                    <IconPencil
-                      size={14}
-                      className={updatedActive ? "text-[var(--brand-primary)]" : "text-[var(--text-muted)]"}
-                    />
-                    <span className="font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      Modificação
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <DatePicker
-                      value={draft.updatedFrom || null}
-                      onChange={(v) => setDraft((p) => ({ ...p, updatedFrom: v }))}
-                      placeholder="dd/mm/aaaa"
-                      className="min-w-0 flex-1"
-                      triggerClassName={DATE_TRIGGER_CLASS}
-                    />
-                    <span className="shrink-0 font-body text-[12px] text-[var(--text-muted)]">até</span>
-                    <DatePicker
-                      value={draft.updatedTo || null}
-                      onChange={(v) => setDraft((p) => ({ ...p, updatedTo: v }))}
-                      placeholder="dd/mm/aaaa"
-                      className="min-w-0 flex-1"
-                      triggerClassName={DATE_TRIGGER_CLASS}
-                    />
-                  </div>
-                </div>
               </div>
             )}
 
             {tab === "tags" && (
               <div>
                 <div className="relative mb-2.5">
-                  <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                  <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     value={tagQuery}
                     onChange={(e) => setTagQuery(e.target.value)}
                     placeholder="Localizar tags..."
-                    className={`${FILTER_INPUT_CLASS} pl-8`}
+                    className={cn(formControlClass, "h-9 pl-8 text-sm")}
                   />
                 </div>
                 <div className="flex max-h-52 flex-wrap gap-1.5 overflow-y-auto">
                   {visibleTags.length === 0 ? (
-                    <span className="px-1 py-1 font-body text-[12px] text-[var(--text-muted)]">Nenhuma tag.</span>
+                    <span className="px-1 py-1 text-sm text-muted-foreground">Nenhuma tag.</span>
                   ) : visibleTags.map((t) => {
                     const on = tagSet.has(t.id);
                     const colored = Boolean(t.color);
@@ -1277,35 +1055,29 @@ function SearchFilterBar({
                         aria-pressed={on}
                         style={tagChipStyle(t.color, on)}
                         className={cn(
-                          "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 font-display text-[12px] font-semibold transition-colors",
+                          "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-sm font-semibold transition-colors",
                           !colored &&
                             (on
-                              ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                              : "border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-[var(--text-secondary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]"),
+                              ? "border-primary bg-primary/10 text-foreground"
+                              : "border-border bg-card text-muted-foreground hover:bg-secondary"),
                         )}
                       >
                         {on ? <IconCheck size={13} stroke={2.6} /> : <IconPlus size={13} stroke={2.4} />}
                         {t.name}
-                        <span className={colored ? "opacity-70" : on ? "text-[var(--brand-primary)]/70" : "text-[var(--text-muted)]"}>{t.contactCount}</span>
+                        <span className={colored ? "opacity-70" : "text-muted-foreground"}>{t.contactCount}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Footer */}
-          <div className="border-t border-[var(--glass-border-subtle)] px-4 py-3">
-            <button
-              type="button"
-              onClick={handleApply}
-              className={`${pagePrimaryButtonClass} h-10 w-full justify-center text-[14px]`}
-            >
+          </FilterPopoverBody>
+          <FilterPopoverFooter>
+            <FilterApplyButton onClick={handleApply} className="w-full justify-center">
               {draftActiveCount > 0 ? `Aplicar (${draftActiveCount})` : "Aplicar"}
-            </button>
-          </div>
-        </div>
+            </FilterApplyButton>
+          </FilterPopoverFooter>
+        </FilterPopoverPanel>
       )}
     </div>
   );
@@ -1640,13 +1412,13 @@ function TabelaView({
   const dirFor = (f: SortField): SortDir => (sortBy === f ? sortOrder : null);
   const nameW = getWidth(NAME_COL_KEY, 240);
   return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-1.5 backdrop-blur-md shadow-[var(--glass-shadow)]">
-      {/* Scroll X+Y com fades + scrollbar evidente (ListHScroll). */}
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+      {/* Scroll horizontal; a página rola no eixo Y. */}
       <ListHScroll>
-        <div className="flex w-max min-w-full flex-col">
+        <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
           <div
             className={listTableHeadRowClass(
-              "sticky top-0 z-[1] flex w-max min-w-full items-center gap-3 px-3 py-2",
+              "hidden w-max min-w-full items-center lg:flex",
             )}
           >
             <span className="w-9 shrink-0">
@@ -1681,7 +1453,11 @@ function TabelaView({
               tabIndex={0}
               onClick={() => onEdit(c)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
-              className={`flex w-max min-w-full cursor-pointer items-center gap-3 border-b border-[var(--glass-border-subtle)] px-3 py-2.5 transition-colors last:border-b-0 hover:bg-[var(--glass-bg-overlay)] ${selected.has(c.id) ? "bg-[var(--color-primary-soft)]" : ""}`}
+              className={cn(
+                "flex w-max min-w-full cursor-pointer items-center gap-3",
+                LIST_CARD_ROW_CLASS,
+                selected.has(c.id) && "border-primary bg-primary/10",
+              )}
             >
               <span className="w-9 shrink-0" onClick={(e) => e.stopPropagation()}>
                 <CheckboxGlass checked={selected.has(c.id)} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} />
@@ -1753,22 +1529,22 @@ function CardsView({
 
   return (
     <ListHScroll scrollerClassName="pb-1">
-    <div className="flex w-max min-w-full flex-col gap-2">
+    <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
       <div
-        className={listTableHeadRowClass("grid gap-3 border border-transparent px-4 py-2")}
+        className={listTableHeadRowClass("hidden gap-3 lg:grid")}
         style={{ gridTemplateColumns: gridTemplate }}
       >
         <span>
           <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todos" />
         </span>
-        <div className="relative min-w-0 overflow-hidden pr-1">
+        <div className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
           <SortableHeader label="Contato" sort={dirFor("name")} onSort={() => onSort("name")} />
           <ColumnResizer value={nameW} onChange={(px) => setWidth(NAME_COL_KEY, px)} min={160} max={420} />
         </div>
         {columns.map((col) => {
           const w = getWidth(col.key, parseWidthClass(col.width));
           return (
-            <div key={col.key} className="relative min-w-0 overflow-hidden pr-1">
+            <div key={col.key} className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
               {col.sortField ? (
                 <SortableHeader
                   label={col.label}
@@ -1795,10 +1571,9 @@ function CardsView({
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
             style={{ gridTemplateColumns: gridTemplate }}
             className={cn(
-              "group grid cursor-pointer items-center gap-3 rounded-[var(--radius-xl)] border px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]",
-              isSelected
-                ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)]"
-                : "border-[var(--glass-border)] bg-[var(--glass-bg-base)]",
+              "group grid cursor-pointer items-center gap-3",
+              LIST_CARD_ROW_CLASS,
+              isSelected && "border-primary bg-primary/10",
             )}
           >
             <span onClick={(e) => e.stopPropagation()}>
@@ -1866,7 +1641,7 @@ function CardsView({
 
 // ── Dialogs (inalterados) ────────────────────────────────────────────────────
 
-function ConfirmDeleteDialog({ open, count, pending, onCancel, onConfirm }: {
+export function ConfirmDeleteDialog({ open, count, pending, onCancel, onConfirm }: {
   open: boolean; count: number; pending: boolean; onCancel: () => void; onConfirm: () => void;
 }) {
   return (
@@ -1896,7 +1671,7 @@ function ConfirmDeleteDialog({ open, count, pending, onCancel, onConfirm }: {
   );
 }
 
-function ContactFormDialog({
+export function ContactFormDialog({
   open, contact, availableTags, onOpenChange,
 }: {
   open: boolean;
@@ -2000,50 +1775,56 @@ function ContactFormDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? "Editar contato" : "Novo contato"}
-      size="xl"
+      description={isEdit ? name || contact?.name : "Cadastre um contato e vincule empresa e tags."}
+      icon={
+        <FormDialogIcon>
+          {isEdit ? <Pencil className="size-4" /> : <UserPlus className="size-4" />}
+        </FormDialogIcon>
+      }
+      size="md"
       busy={pending}
       footer={
         <>
-          <ButtonGlass variant="glass" size="sm" type="button" onClick={() => onOpenChange(false)} disabled={pending}>Cancelar</ButtonGlass>
-          <ButtonGlass variant="primary" size="sm" type="submit" form="contact-form-sheet" disabled={!name.trim() || pending}>
+          <ButtonGlass variant="glass" size="sm" type="button" onClick={() => onOpenChange(false)} disabled={pending} className={formDialogCancelClass}>Cancelar</ButtonGlass>
+          <ButtonGlass variant="primary" size="sm" type="submit" form="contact-form-sheet" disabled={!name.trim() || pending} className={formDialogPrimaryClass}>
             {pending ? "Salvando..." : isEdit ? "Salvar" : "Criar"}
           </ButtonGlass>
         </>
       }
     >
-      <form id="contact-form-sheet" onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <form id="contact-form-sheet" onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="block">
-          <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Nome *</span>
-          <InputGlass type="text" autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Maria Silva" />
+          <span className={formLabelClass}>Nome *</span>
+          <InputGlass type="text" autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Maria Silva" className={formControlClass} />
         </label>
         <label className="block">
-          <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">E-mail</span>
-          <InputGlass type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maria@empresa.com" />
+          <span className={formLabelClass}>E-mail</span>
+          <InputGlass type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maria@empresa.com" className={formControlClass} />
         </label>
         <label className="block">
-          <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Telefone</span>
-          <InputGlass type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" />
+          <span className={formLabelClass}>Telefone</span>
+          <InputGlass type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" className={formControlClass} />
         </label>
         <div>
-          <span className="mb-1 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Empresa</span>
+          <span className={formLabelClass}>Empresa</span>
           <CompanyPicker valueId={companyId} valueName={companyName} onChange={(id, nm) => { setCompanyId(id); setCompanyName(nm); }} />
         </div>
         <div>
-          <span className="mb-1.5 block font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <span className={formLabelClass}>
             Tags{selectedTagIds.length > 0 ? ` (${selectedTagIds.length})` : ""}
           </span>
-          <div className="relative mb-2">
-            <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <div className="relative mb-2.5">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={tagQuery}
               onChange={(e) => setTagQuery(e.target.value)}
               placeholder="Localizar tags..."
-              className="h-9 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-8 pr-3 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+              className={cn(formControlClass, "w-full pl-9 pr-3 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20")}
             />
           </div>
           <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
             {visibleTags.length === 0 ? (
-              <span className="px-1 py-1 font-body text-[12px] text-[var(--text-muted)]">Nenhuma tag.</span>
+              <span className="px-1 py-1 text-[12px] text-muted-foreground">Nenhuma tag.</span>
             ) : visibleTags.map((t) => {
               const on = tagSet.has(t.id);
               const colored = Boolean(t.color);
@@ -2055,15 +1836,14 @@ function ContactFormDialog({
                   aria-pressed={on}
                   style={tagChipStyle(t.color, on)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 font-display text-[12px] font-semibold transition-colors",
+                    "flex items-center gap-1 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors",
                     !colored &&
                       (on
-                        ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                        : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]"),
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card text-muted-foreground hover:bg-secondary"),
                   )}
                 >
-                  {on ? <IconCheck size={13} stroke={2.6} /> : <IconPlus size={13} stroke={2.4} />}
-                  {t.name}
+                  {on ? t.name : `+ ${t.name}`}
                 </button>
               );
             })}
@@ -2092,34 +1872,51 @@ function CompanyPicker({ valueId, valueName, onChange }: {
 
   return (
     <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--input-border,var(--glass-border,rgba(0,0,0,0.08)))] bg-[var(--input-bg,#fff)] px-3 py-2 text-left text-[13px] outline-none focus:border-[var(--brand-primary,#5b6ff5)]">
-        <span className="flex min-w-0 items-center gap-2">
-          <IconBuilding size={15} className="flex-shrink-0 text-[var(--text-muted,#718096)]" />
-          <span className={`truncate ${valueName ? "text-[var(--text-primary,#1a202c)]" : "text-[var(--text-muted,#718096)]"}`}>{valueName ?? "Sem empresa vinculada"}</span>
-        </span>
-        {valueId && (
-          <span role="button" tabIndex={0} aria-label="Remover vínculo de empresa" onClick={(e) => { e.stopPropagation(); onChange(null, null); }} className="flex-shrink-0 rounded-full p-0.5 text-[var(--text-muted,#718096)] hover:bg-[color-mix(in_srgb,var(--text-primary)_8%,transparent)] hover:text-[var(--color-danger,#e11d48)]">
-            <IconX size={14} />
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(formControlClass, "flex w-full items-center justify-start gap-2 px-3 text-left outline-none focus:border-primary focus:ring-2 focus:ring-primary/20")}
+      >
+        {valueName ? (
+          <span className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[13px] text-foreground">
+            <Building2 className="size-3.5 shrink-0 text-primary" />
+            <span className="truncate">{valueName}</span>
+            {valueId ? (
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Remover vínculo de empresa"
+                onClick={(e) => { e.stopPropagation(); onChange(null, null); }}
+                className="flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-destructive"
+              >
+                <X className="size-3" />
+              </span>
+            ) : null}
+          </span>
+        ) : (
+          <span className="flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
+            <Building2 className="size-4 shrink-0" />
+            Sem empresa vinculada
           </span>
         )}
       </button>
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-10 max-h-56 overflow-hidden rounded-[var(--radius-md)] border border-[var(--glass-border,rgba(0,0,0,0.08))] bg-[var(--glass-bg-modal,#fff)] shadow-xl">
-          <div className="flex items-center gap-2 border-b border-[var(--glass-border,rgba(0,0,0,0.06))] px-2.5 py-2">
-            <IconSearch size={14} className="text-[var(--text-muted,#718096)]" />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar empresa..." className="w-full bg-transparent text-[13px] text-[var(--text-primary,#1a202c)] outline-none" />
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-10 max-h-56 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+          <div className="flex items-center gap-2 border-b border-border px-2.5 py-2">
+            <Search className="size-3.5 text-muted-foreground" />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar empresa..." className="w-full bg-transparent text-[13px] text-foreground outline-none" />
           </div>
           <div className="max-h-44 overflow-y-auto py-1">
             {isLoading ? (
-              <div className="px-3 py-2 text-[12px] text-[var(--text-muted,#718096)]">Carregando...</div>
+              <div className="px-3 py-2 text-[12px] text-muted-foreground">Carregando...</div>
             ) : options.length === 0 ? (
-              <div className="px-3 py-2 text-[12px] text-[var(--text-muted,#718096)]">{debounced ? "Nenhuma empresa encontrada." : "Digite para buscar."}</div>
+              <div className="px-3 py-2 text-[12px] text-muted-foreground">{debounced ? "Nenhuma empresa encontrada." : "Digite para buscar."}</div>
             ) : options.map((co) => {
               const active = co.id === valueId;
               return (
-                <button key={co.id} type="button" onClick={() => { onChange(co.id, co.name); setOpen(false); setQ(""); }} className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[13px] text-[var(--text-primary,#1a202c)] hover:bg-[var(--brand-primary,#5b6ff5)]/8">
+                <button key={co.id} type="button" onClick={() => { onChange(co.id, co.name); setOpen(false); setQ(""); }} className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[13px] text-foreground hover:bg-secondary">
                   <span className="truncate">{co.name}</span>
-                  {active && <IconCheck size={14} className="flex-shrink-0 text-[var(--brand-primary,#5b6ff5)]" />}
+                  {active && <Check className="size-3.5 shrink-0 text-primary" />}
                 </button>
               );
             })}

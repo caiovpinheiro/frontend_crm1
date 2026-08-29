@@ -5,12 +5,12 @@ import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import {
-  IconCircleCheck,
-  IconCoffee,
-  IconWifi,
-  IconWifiOff,
-  type Icon,
-} from "@tabler/icons-react";
+  CircleCheck,
+  Coffee,
+  Wifi,
+  WifiOff,
+  type LucideIcon,
+} from "lucide-react";
 
 import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ interface StatusMeta {
   value: AgentOnlineStatus;
   label: string;
   description: string;
-  icon: Icon;
+  icon: LucideIcon;
   /** Cor sólida do ponto/indicador. */
   color: string;
   /** Classe Tailwind do ponto colorido. */
@@ -35,7 +35,7 @@ export const AGENT_STATUS_META: Record<AgentOnlineStatus, StatusMeta> = {
     value: "ONLINE",
     label: "Online",
     description: "Disponível para receber leads",
-    icon: IconWifi,
+    icon: Wifi,
     color: "var(--color-online)",
     dot: "bg-[var(--color-online)]",
     hover: "hover:bg-[var(--color-success-bg)]",
@@ -44,7 +44,7 @@ export const AGENT_STATUS_META: Record<AgentOnlineStatus, StatusMeta> = {
     value: "AWAY",
     label: "Ausente",
     description: "Pausado — não recebe novos leads",
-    icon: IconCoffee,
+    icon: Coffee,
     color: "var(--color-warning)",
     dot: "bg-[var(--color-warning)]",
     hover: "hover:bg-[var(--color-warn-bg)]",
@@ -53,7 +53,7 @@ export const AGENT_STATUS_META: Record<AgentOnlineStatus, StatusMeta> = {
     value: "OFFLINE",
     label: "Offline",
     description: "Indisponível — fora do expediente",
-    icon: IconWifiOff,
+    icon: WifiOff,
     color: "var(--text-muted)",
     dot: "bg-[var(--text-muted)]",
     hover: "hover:bg-[var(--glass-bg-subtle)]",
@@ -277,7 +277,7 @@ export function AgentStatusPopup({
       >
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-secondary)] shadow-[0_10px_30px_rgba(91,111,245,0.45)]">
-            <IconWifi className="size-8 text-white" />
+            <Wifi className="size-8 text-white" />
           </div>
           <h3 className="font-display text-xl font-bold text-foreground">
             Definir Status
@@ -342,7 +342,7 @@ export function AgentStatusPopup({
                   </p>
                 </div>
                 {isActive && (
-                  <IconCircleCheck className="size-5 text-[var(--brand-primary)]" />
+                  <CircleCheck className="size-5 text-[var(--brand-primary)]" />
                 )}
               </button>
             );

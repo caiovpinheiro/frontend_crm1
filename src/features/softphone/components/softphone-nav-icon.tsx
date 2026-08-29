@@ -9,7 +9,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { IconPhone } from "@tabler/icons-react";
+import { Phone } from "lucide-react";
 
 import { toast } from "sonner";
 
@@ -101,7 +101,7 @@ export function SoftphoneNavIcon({
 
   const icon = (
     <span className="relative inline-flex items-center justify-center">
-      <IconPhone size={20} strokeWidth={2.2} className={iconColorClass} />
+      <Phone size={20} strokeWidth={2.2} className={iconColorClass} />
       {statusDot}
     </span>
   );

@@ -6,11 +6,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  IconAdjustmentsHorizontal,
   IconAlertTriangle,
   IconArrowsShuffle,
   IconBuilding,
-  IconCalendarEvent,
   IconCheck,
   IconChevronDown,
   IconCircleCheck,
@@ -23,7 +21,6 @@ import {
   IconPhone,
   IconPlayerPlay,
   IconRefresh,
-  IconRobot,
   IconRotateClockwise,
   IconSearch,
   IconSettings,
@@ -33,6 +30,7 @@ import {
   IconUsers,
   IconX,
 } from "@tabler/icons-react";
+import { Shuffle } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -47,11 +45,29 @@ import {
 import { DistributionIcon } from "@/components/icons/distribution-icon";
 import { RestrictedScreen } from "@/components/crm/restricted-screen";
 import { useRequireManager } from "@/hooks/use-user-role";
-import { PageHeader } from "@/components/crm/page-header";
-import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
+import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
+import { FilterChip } from "@/components/crm/filter-popover";
+import {
+  PeriodCalendarButton,
+  PeriodIsoRangePanel,
+} from "@/components/crm/period-calendar-button";
+import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { PageDemoBanner } from "@/components/crm/page-demo-banner";
+import { Chip } from "@/components/crm/chip";
 import { EmptyState } from "@/components/crm/empty-state";
-import { ListColumnLabel, listTableHeadRowClass } from "@/components/crm/sortable-header";
+import { ListHScroll } from "@/components/crm/list-hscroll";
+import { ListColumnLabel, CARD_SURFACE_CLASS, LIST_CARD_HEAD_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, listTableHeadRowClass, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
+import { ChatAvatar } from "@/components/inbox/chat-avatar";
+import { AVATAR_SIZE } from "@/lib/avatar";
+import {
+  colorForQueueDepartment,
+  pendingToQueueItem,
+  queueItems,
+  sortQueueItems,
+  type QueueSortKey,
+} from "@/lib/distribution-data";
+import { KpiCard, KpiSquareScroll, type KpiTone } from "@/components/crm/kpi-card";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
 import { useWidgets } from "@/features/widgets/hooks";
@@ -184,6 +200,8 @@ export default function DistributionClientPage({
   const [coverageSearch, setCoverageSearch] = useState("");
   const [coverageDeptIds, setCoverageDeptIds] = useState<string[]>([]);
   const [coverageShowHidden, setCoverageShowHidden] = useState(false);
+  const [logDateFrom, setLogDateFrom] = useState("");
+  const [logDateTo, setLogDateTo] = useState("");
 
   const realResponsibles = respQuery.data?.responsibles ?? [];
   const realPending = pendingQuery.data?.pending ?? [];
@@ -306,14 +324,15 @@ export default function DistributionClientPage({
     !(!useDemo && respQuery.error);
 
   return (
-    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4">
+    <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
       {navRail ?? <NavRailSpacer />}
 
-      <main className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden pb-3 sm:gap-4 sm:pb-4">
-        <PageHeader
-          icon={<IconArrowsShuffle size={22} />}
+      <main className="flex min-w-0 flex-col gap-3 pb-3 sm:gap-4 sm:pb-4">
+        <SectionHeader
+          icon={Shuffle}
           title="Distribuição"
-          center={
+          search={(smartInstalled && view === "team") || view === "coverage"}
+          searchSlot={
             smartInstalled && view === "team" ? (
               <DistributionSearchFilterBar
                 search={search}
@@ -338,43 +357,34 @@ export default function DistributionClientPage({
               />
             ) : undefined
           }
+          period={
+            view === "logs" ? (
+              <PeriodCalendarButton active={Boolean(logDateFrom || logDateTo)}>
+                <PeriodIsoRangePanel
+                  from={logDateFrom}
+                  to={logDateTo}
+                  onChange={({ from, to }) => {
+                    setLogDateFrom(from);
+                    setLogDateTo(to);
+                  }}
+                  allPeriodLabel="Todo o período"
+                  showToday
+                />
+              </PeriodCalendarButton>
+            ) : undefined
+          }
           actions={
             smartInstalled || view === "coverage" ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <PageSegmentedControl
-                  size="compact"
-                  aria-label="Visão da distribuição"
-                  items={[
-                    {
-                      value: "team",
-                      label: (
-                        <SegLabel label="Equipe" count={teamListCount} />
-                      ),
-                    },
-                    {
-                      // Grade de expedientes/gaps — antes vivia em
-                      // /settings/coverage, agora ao lado de "Equipe"
-                      // (a cobertura é o que define quem está elegível).
-                      value: "coverage",
-                      label: <span>Cobertura</span>,
-                    },
-                    {
-                      value: "queue",
-                      label: (
-                        <SegLabel
-                          label="Fila de espera"
-                          count={pending.length}
-                          tone={pending.length > 0 ? "warn" : "muted"}
-                        />
-                      ),
-                    },
-                    {
-                      value: "logs",
-                      label: <span>Logs</span>,
-                    },
+              <div className="flex flex-wrap items-center gap-2">
+                <HeaderTabs
+                  tabs={[
+                    { key: "team", label: "Equipe", badge: teamListCount },
+                    { key: "coverage", label: "Cobertura" },
+                    { key: "queue", label: "Fila de espera", badge: useDemo ? queueItems.length : pending.length },
+                    { key: "logs", label: "Logs" },
                   ]}
                   value={view}
-                  onChange={(v) => setView(v as DistributionView)}
+                  onChange={(v) => setView(v)}
                 />
                 {adminCount > 0 && (
                   <button
@@ -383,8 +393,8 @@ export default function DistributionClientPage({
                     className={cn(
                       "inline-flex size-8 cursor-pointer items-center justify-center rounded-full border transition-colors",
                       showAdmins
-                        ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
-                        : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground",
                     )}
                     title={
                       showAdmins
@@ -399,22 +409,25 @@ export default function DistributionClientPage({
                     {showAdmins ? <IconEye size={16} /> : <IconEyeOff size={16} />}
                   </button>
                 )}
-                <DistributionActionsMenu
-                  onTest={handleTest}
-                  testing={simulateMut.isPending}
-                  onRetry={handleRetry}
-                  retrying={retryMut.isPending}
-                  canRetry={pending.length > 0}
-                  hasFilters={hasFilters}
-                  onClearFilters={clearFilters}
-                  onDepartmentsConfig={
-                    canManage && !useDemo
-                      ? () => setDeptConfigOpen(true)
-                      : undefined
-                  }
-                />
               </div>
             ) : undefined
+          }
+          menu={smartInstalled || view === "coverage"}
+          menuSlot={
+            <DistributionActionsMenu
+              onTest={handleTest}
+              testing={simulateMut.isPending}
+              onRetry={handleRetry}
+              retrying={retryMut.isPending}
+              canRetry={pending.length > 0}
+              hasFilters={hasFilters}
+              onClearFilters={clearFilters}
+              onDepartmentsConfig={
+                canManage && !useDemo
+                  ? () => setDeptConfigOpen(true)
+                  : undefined
+              }
+            />
           }
         />
 
@@ -422,16 +435,12 @@ export default function DistributionClientPage({
             de expedientes valia para qualquer org quando morava em
             /settings/coverage. Fica fora do gating pra não perder acesso. */}
         {view === "coverage" ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <CoverageBoard
-                search={coverageSearch}
-                deptIds={coverageDeptIds}
-                showHidden={coverageShowHidden}
-                onShowHiddenChange={setCoverageShowHidden}
-              />
-            </div>
-          </div>
+          <CoverageBoard
+            search={coverageSearch}
+            deptIds={coverageDeptIds}
+            showHidden={coverageShowHidden}
+            onShowHiddenChange={setCoverageShowHidden}
+          />
         ) : widgetsQuery.isLoading ? (
           <SkeletonState />
         ) : !smartInstalled ? (
@@ -442,7 +451,7 @@ export default function DistributionClientPage({
           <ErrorState message={respQuery.error.message} />
         ) : (
           showContent && (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden sm:gap-4">
+            <div className="flex flex-col gap-3 sm:gap-4">
               {useDemo && (
                 <PageDemoBanner>
                   Dados de exemplo — equipe, fila e elegibilidade ilustrativas para o módulo de distribuição.
@@ -474,6 +483,7 @@ export default function DistributionClientPage({
               ) : view === "queue" ? (
                 <PendingQueueCards
                   pending={pending}
+                  illustrative={useDemo}
                   onRetry={handleRetry}
                   retrying={retryMut.isPending}
                   loading={pendingQuery.isLoading}
@@ -481,6 +491,8 @@ export default function DistributionClientPage({
               ) : (
                 <DistributionLogsList
                   enabled={isAuthenticated && (isPageMockMode() || smartInstalled)}
+                  dateFrom={logDateFrom}
+                  dateTo={logDateTo}
                 />
               )}
             </div>
@@ -514,35 +526,6 @@ export default function DistributionClientPage({
         <DepartmentsDistributionPanel />
       </FormDialog>
     </div>
-  );
-}
-
-// ── Label das pills (com contador) ──────────────────────────────────────
-function SegLabel({
-  label,
-  count,
-  tone = "brand",
-}: {
-  label: string;
-  count: number;
-  tone?: "brand" | "warn" | "muted";
-}) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {label}
-      <span
-        className={cn(
-          "inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1.5 font-display text-[10px] font-bold leading-none",
-          tone === "warn"
-            ? "bg-[var(--color-warn,#d97706)] text-white"
-            : tone === "muted"
-              ? "bg-[var(--glass-border-subtle)] text-[var(--text-muted)]"
-              : "bg-[var(--brand-primary)] text-white",
-        )}
-      >
-        {count}
-      </span>
-    </span>
   );
 }
 
@@ -580,7 +563,7 @@ function DistributionMiniDash({
     shortLabel: string;
     value: number;
     percent?: number;
-    accent: string;
+    tone: KpiTone;
     icon: React.ReactNode;
   }[] = [
     {
@@ -589,24 +572,24 @@ function DistributionMiniDash({
       shortLabel: "Elegíveis",
       value: stats.eligible,
       percent: stats.coverage,
-      accent: "var(--color-success)",
-      icon: <IconUserCheck size={16} />,
+      tone: "success",
+      icon: <IconUserCheck size={20} stroke={2.2} />,
     },
     {
       key: "blocked",
       label: "Indisponíveis",
       shortLabel: "Indisponíveis",
       value: stats.blocked,
-      accent: "var(--color-danger, #dc2626)",
-      icon: <IconAlertTriangle size={16} />,
+      tone: "red",
+      icon: <IconAlertTriangle size={20} stroke={2.2} />,
     },
     {
       key: "inService",
       label: "Aguardando resposta",
       shortLabel: "Em atendimento",
       value: stats.inService,
-      accent: "var(--brand-primary)",
-      icon: <IconUsers size={16} />,
+      tone: "brand",
+      icon: <IconUsers size={20} stroke={2.2} />,
     },
     {
       key: "waiting",
@@ -614,86 +597,33 @@ function DistributionMiniDash({
       shortLabel: "Na fila",
       value: stats.waiting,
       percent: stats.successRate,
-      accent: "var(--color-warn, #d97706)",
-      icon: <IconClockExclamation size={16} />,
+      tone: "warning",
+      icon: <IconClockExclamation size={20} stroke={2.2} />,
     },
   ];
 
   return (
     <>
-      {/* Mobile / APK: 4 quadrados em h-scroll */}
-      <div className="-mx-1 flex shrink-0 gap-2 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden lg:hidden">
+      <KpiSquareScroll
+        items={cards.map((c) => ({
+          key: c.key,
+          label: c.shortLabel,
+          value: c.value.toLocaleString("pt-BR"),
+          icon: c.icon,
+          tone: c.tone,
+          percent: c.percent,
+        }))}
+      />
+      <div className="hidden gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
         {cards.map((c) => (
-          <div
+          <KpiCard
             key={c.key}
-            className="flex aspect-square w-[104px] shrink-0 flex-col justify-between rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-2.5 shadow-[var(--glass-shadow-sm)] backdrop-blur-md"
-          >
-            <span
-              className="flex size-7 items-center justify-center rounded-full"
-              style={{
-                background: `color-mix(in srgb, ${c.accent} 14%, transparent)`,
-                color: c.accent,
-              }}
-            >
-              {c.icon}
-            </span>
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-1">
-                <span className="font-display text-[20px] font-bold leading-none tabular-nums text-[var(--text-primary)]">
-                  {c.value.toLocaleString("pt-BR")}
-                </span>
-                {c.percent !== undefined && (
-                  <span
-                    className="font-display text-[10px] font-bold tabular-nums"
-                    style={{ color: c.accent }}
-                  >
-                    {c.percent}%
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 truncate font-display text-[10px] font-semibold leading-tight text-[var(--text-muted)]">
-                {c.shortLabel}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Desktop: grid completo */}
-      <div className="hidden shrink-0 gap-3 sm:grid-cols-2 lg:grid lg:grid-cols-4">
-        {cards.map((c) => (
-          <div
-            key={c.key}
-            className="flex items-center gap-3 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md"
-          >
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-              style={{
-                background: `color-mix(in srgb, ${c.accent} 14%, transparent)`,
-                color: c.accent,
-              }}
-            >
-              {c.icon}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-display text-[11.5px] font-semibold tracking-[0.01em] text-[var(--text-muted)]">
-                {c.label}
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-display text-[22px] font-bold leading-none tabular-nums text-[var(--text-primary)]">
-                  {c.value.toLocaleString("pt-BR")}
-                </span>
-                {c.percent !== undefined && (
-                  <span
-                    className="font-display text-[12px] font-bold tabular-nums"
-                    style={{ color: c.accent }}
-                  >
-                    {c.percent}%
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+            label={c.label}
+            value={c.value.toLocaleString("pt-BR")}
+            hint={c.percent !== undefined ? `${c.percent}%` : undefined}
+            icon={c.icon}
+            tone={c.tone}
+          />
         ))}
       </div>
     </>
@@ -729,7 +659,7 @@ function ResponsiblesCardList({
 }) {
   if (total === 0) {
     return (
-      <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-[var(--glass-shadow)] backdrop-blur-md">
+      <div className={CARD_SURFACE_CLASS}>
         <EmptyState
           icon={<DistributionIcon size={28} />}
           title="Nenhum responsável disponível"
@@ -741,7 +671,7 @@ function ResponsiblesCardList({
 
   if (responsibles.length === 0) {
     return (
-      <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-[var(--glass-shadow)] backdrop-blur-md">
+      <div className={CARD_SURFACE_CLASS}>
         <EmptyState
           icon={<IconSearch size={28} />}
           title="Nenhum responsável encontrado"
@@ -751,7 +681,7 @@ function ResponsiblesCardList({
               <button
                 type="button"
                 onClick={onClearFilters}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-4 py-2 font-display text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 font-display text-[13px] font-bold text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
               >
                 <IconRotateClockwise size={14} /> Limpar filtros
               </button>
@@ -765,7 +695,7 @@ function ResponsiblesCardList({
   return (
     <>
       {/* Mobile / APK: lista de cards empilhados — sem scroll horizontal forçado. */}
-      <ul className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] md:hidden">
+      <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
         {responsibles.map((r) => (
           <ResponsibleMobileCard
             key={r.userId}
@@ -780,13 +710,13 @@ function ResponsiblesCardList({
       </ul>
 
       {/* Desktop: grid tabular com scroll horizontal se necessário. */}
-      <div className="scrollbar-thin hidden min-h-0 flex-1 overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch] md:flex md:flex-col">
-        <div className="flex min-w-[1040px] flex-col gap-1.5">
-          <div className={listTableHeadRowClass(cn(RESP_GRID, "gap-2.5 border border-transparent px-3 py-1.5"))}>
+      <div className="hidden overflow-x-auto md:flex md:flex-col">
+        <div className={cn("min-w-[1040px]", LIST_CARD_STACK_CLASS)}>
+          <div className={listTableHeadRowClass(cn(RESP_GRID, "border border-transparent"))}>
             <ListColumnLabel>Responsável</ListColumnLabel>
             <ListColumnLabel>Presença</ListColumnLabel>
-            <ListColumnLabel className="text-center">Fila</ListColumnLabel>
-            <ListColumnLabel className="text-center">Volume</ListColumnLabel>
+            <ListColumnLabel align="center">Fila</ListColumnLabel>
+            <ListColumnLabel align="center">Volume</ListColumnLabel>
             <ListColumnLabel>Elegibilidade</ListColumnLabel>
             <ListColumnLabel align="right">Ações</ListColumnLabel>
           </div>
@@ -840,7 +770,7 @@ function InlineQueueLimit({
 
   if (!canEdit) {
     return (
-      <span className="font-display text-[15px] font-extrabold text-[var(--text-primary)]">
+      <span className="font-display text-lg font-bold tabular-nums text-[var(--text-primary)]">
         {value}
       </span>
     );
@@ -869,7 +799,7 @@ function InlineQueueLimit({
       }}
       aria-label="Volume (limite de fila)"
       title="Editar volume"
-      className="mx-auto w-14 rounded-[var(--radius-md)] border border-transparent bg-transparent px-1 py-0.5 text-center font-display text-[15px] font-extrabold tabular-nums text-[var(--text-primary)] outline-none transition-colors hover:border-[var(--glass-border)] hover:bg-[var(--glass-bg-overlay)] focus:border-[var(--brand-primary)] focus:bg-[var(--glass-bg-overlay)] disabled:opacity-60"
+      className="mx-auto w-14 rounded-[var(--radius-md)] border border-transparent bg-transparent px-1 py-0.5 text-center font-display text-lg font-bold tabular-nums text-[var(--text-primary)] outline-none transition-colors hover:border-border hover:bg-secondary focus:border-primary focus:bg-secondary disabled:opacity-60"
     />
   );
 }
@@ -902,12 +832,7 @@ function ResponsibleCard({
   };
 
   return (
-    <div
-      className={cn(
-        "grid items-center gap-2.5 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3 py-2 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-px hover:shadow-[var(--glass-shadow)]",
-        RESP_GRID,
-      )}
-    >
+    <div className={cn("grid items-center gap-4", LIST_CARD_ROW_CLASS, RESP_GRID)}>
       {/* Responsável */}
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="relative isolate shrink-0">
@@ -931,8 +856,8 @@ function ResponsibleCard({
             borderColor="var(--glass-bg-base)"
           />
         </span>
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 truncate font-display text-[13px] font-bold leading-tight text-[var(--text-primary)]">
+        <div className="min-w-0 leading-tight">
+          <p className="flex items-center gap-1.5 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
             <span className="truncate">{r.name ?? "Sem nome"}</span>
             {/* Bolinha azul = CRM aberto (não confundir com Online da Distribuição). */}
             <SystemPresenceIndicator
@@ -940,15 +865,15 @@ function ResponsibleCard({
               lastSeenAt={r.lastSeenAt}
             />
           </p>
-          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[10.5px] leading-tight">
-            <span className="min-w-0 truncate font-body text-[var(--text-muted)]">
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 whitespace-nowrap font-body text-[12px] leading-tight text-muted-foreground">
+            <span className="min-w-0 truncate">
               {r.email ?? "—"}
             </span>
-            <span className="shrink-0 font-mono text-[9.5px] text-[var(--text-secondary)]">
+            <span className="shrink-0">
               · {r.role}
             </span>
             <span
-              className="min-w-0 truncate border-l border-[var(--glass-border)] pl-1.5 font-display font-semibold text-[var(--text-secondary)]"
+              className="min-w-0 truncate border-l border-border pl-1.5 font-semibold"
               title={
                 r.departments && r.departments.length > 0
                   ? r.departments.map((d) => d.name).join(", ")
@@ -972,7 +897,7 @@ function ResponsibleCard({
               type="button"
               onClick={togglePresence}
               disabled={statusMut.isPending}
-              className="shrink-0 cursor-pointer rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-0.5 font-display text-[10.5px] font-bold text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+              className="shrink-0 cursor-pointer rounded-full border border-border bg-card px-2 py-0.5 font-display text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-primary disabled:opacity-50"
             >
               {statusMut.isPending ? "…" : isOnline ? "Ficar offline" : "Ficar online"}
             </button>
@@ -982,29 +907,29 @@ function ResponsibleCard({
       </div>
 
       {/* Fila */}
-      <div className="text-center font-display text-[15px] font-extrabold text-[var(--text-primary)]">
+      <div className="text-center font-display text-lg font-bold tabular-nums text-[var(--text-primary)]">
         {r.queueCount}
       </div>
 
       {/* Volume */}
-      <div className="text-center font-body text-[18px] leading-none text-[var(--text-muted)]">
+      <div className="text-center font-body text-lg leading-none text-muted-foreground">
         <InlineQueueLimit userId={r.userId} value={r.queueLimit} canEdit={canManage} />
       </div>
 
       {/* Elegibilidade */}
       <div className="flex min-w-0 flex-col gap-0.5">
         {r.eligible ? (
-          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--color-success-bg)] px-2 py-0.5 font-display text-[11px] font-bold text-[var(--color-success-dark,#0f7a5a)]">
+          <span className="inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 font-display text-[12px] font-bold text-success">
             <IconCircleCheck size={13} /> Elegível
           </span>
         ) : (
           <>
-            <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[var(--color-danger-bg)] px-2 py-0.5 font-display text-[11px] font-bold text-[var(--color-danger-text)]">
+            <span className="inline-flex w-fit items-center gap-1 rounded-full bg-chip-red-soft px-2 py-0.5 font-display text-[12px] font-bold text-chip-red">
               <IconAlertTriangle size={13} /> Indisponível
             </span>
             {r.blockedReasons.length > 0 && (
               <span
-                className="min-w-0 truncate pl-0.5 font-body text-[10.5px] leading-tight text-[var(--text-muted)]"
+                className="min-w-0 truncate pl-0.5 font-body text-[12px] leading-tight text-muted-foreground"
                 title={r.blockedReasons.map((b) => BLOCK_REASON_LABELS[b]).join(" · ")}
               >
                 {r.blockedReasons.map((b) => BLOCK_REASON_LABELS[b]).join(" · ")}
@@ -1020,7 +945,7 @@ function ResponsibleCard({
           <button
             type="button"
             onClick={() => onRedistribute(r)}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-1 font-display text-[11.5px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 font-display text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             title="Redistribuir fila deste consultor"
           >
             <IconArrowsShuffle size={13} /> Redistribuir
@@ -1030,7 +955,7 @@ function ResponsibleCard({
           <button
             type="button"
             onClick={() => onEdit(r)}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-1 font-display text-[11.5px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]"
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 font-display text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10"
           >
             <IconPencil size={13} /> Editar
           </button>
@@ -1095,14 +1020,14 @@ function ResponsibleMobileCard({
   const toggleAria = isOnline ? "Ficar offline" : "Ficar online";
 
   return (
-    <li className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-2 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-colors hover:bg-[var(--glass-bg-overlay)] active:bg-[var(--glass-bg-overlay)]">
+    <li className={LIST_CARD_ROW_CLASS}>
       {/* Cabeçalho: identidade + presença/toggle + ações */}
-      <div className="flex min-w-0 items-start gap-1.5">
+      <div className="flex min-w-0 items-start gap-2.5">
         <span className="relative isolate mt-0.5 shrink-0">
           <UserAvatar
             name={r.name ?? r.email}
             imageUrl={r.avatarUrl ?? (isCurrentUser ? currentUserImage : null)}
-            size={28}
+            size={36}
           />
           <AgentStatusDot
             status={
@@ -1114,14 +1039,14 @@ function ResponsibleMobileCard({
                     ? "ONLINE"
                     : "OFFLINE") satisfies AgentOnlineStatus
             }
-            size={9}
+            size={12}
             borderWidth={2}
             borderColor="var(--glass-bg-base)"
           />
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1">
-            <p className="min-w-0 truncate font-display text-[12px] font-bold leading-tight text-[var(--text-primary)]">
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="min-w-0 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
               {r.name ?? "Sem nome"}
             </p>
             <SystemPresenceIndicator
@@ -1129,21 +1054,19 @@ function ResponsibleMobileCard({
               lastSeenAt={r.lastSeenAt}
             />
             {isCurrentUser && (
-              <span className="shrink-0 rounded-full bg-[var(--color-primary-soft)] px-1 py-px font-display text-[8px] font-bold uppercase tracking-wider text-[var(--brand-primary)]">
+              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-px font-display text-[10px] font-bold uppercase tracking-wider text-primary">
                 Você
               </span>
             )}
           </div>
           <p
-            className="mt-px truncate font-body text-[9px] leading-tight text-[var(--text-muted)]"
+            className="mt-0.5 truncate font-body text-[12px] text-muted-foreground"
             title={metaLine}
           >
             {metaLine}
           </p>
-          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1">
-            <span className="origin-left scale-90">
-              <PresenceBadge status={r.status} paused={r.paused} participates={r.participates} />
-            </span>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+            <PresenceBadge status={r.status} paused={r.paused} participates={r.participates} />
             {canTogglePresence && r.participates && (
               <button
                 type="button"
@@ -1151,7 +1074,7 @@ function ResponsibleMobileCard({
                 disabled={statusMut.isPending}
                 title={toggleAria}
                 aria-label={toggleAria}
-                className="touch-target shrink-0 cursor-pointer rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-1.5 py-px font-display text-[9px] font-bold text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+                className="touch-target shrink-0 cursor-pointer rounded-full border border-border bg-card px-2 py-0.5 font-display text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-primary disabled:opacity-50"
               >
                 {statusMut.isPending ? "…" : toggleLabel}
               </button>
@@ -1164,7 +1087,7 @@ function ResponsibleMobileCard({
               <button
                 type="button"
                 onClick={() => onRedistribute(r)}
-                className="touch-target inline-flex size-8 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]"
+                className="touch-target inline-flex size-8 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
                 title="Redistribuir fila deste consultor"
                 aria-label="Redistribuir fila deste consultor"
               >
@@ -1174,7 +1097,7 @@ function ResponsibleMobileCard({
             <button
               type="button"
               onClick={() => onEdit(r)}
-              className="touch-target inline-flex size-8 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]"
+              className="touch-target inline-flex size-8 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
               title="Editar responsável"
               aria-label="Editar responsável"
             >
@@ -1186,7 +1109,7 @@ function ResponsibleMobileCard({
 
       {hintParts.length > 0 && (
         <p
-          className="mt-1 truncate font-body text-[8.5px] leading-tight text-[var(--text-muted)]"
+          className="mt-1.5 truncate font-body text-[12px] leading-tight text-muted-foreground"
           title={hintTitle}
         >
           {hintParts.join(" · ")}
@@ -1194,32 +1117,32 @@ function ResponsibleMobileCard({
       )}
 
       {/* Métricas — faixa full-width centralizada */}
-      <div className="mt-1.5 grid w-full grid-cols-3 divide-x divide-[var(--glass-border)] rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] py-1.5">
+      <div className="mt-2 grid w-full grid-cols-3 divide-x divide-border rounded-xl border border-border bg-secondary/40 py-2">
         <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
-          <p className="text-[8px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+          <p className="text-xs font-semibold text-muted-foreground">
             Fila
           </p>
-          <p className="font-display text-[12px] font-extrabold leading-none text-[var(--text-primary)]">
+          <p className="font-display text-[14px] font-bold leading-none text-[var(--text-primary)]">
             {r.queueCount}
           </p>
         </div>
         <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
-          <p className="text-[8px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+          <p className="text-xs font-semibold text-muted-foreground">
             Volume
           </p>
           <InlineQueueLimit userId={r.userId} value={r.queueLimit} canEdit={canManage} />
         </div>
         <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
-          <p className="text-[8px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+          <p className="text-xs font-semibold text-muted-foreground">
             Elegibilidade
           </p>
           {r.eligible ? (
-            <span className="inline-flex max-w-full items-center justify-center gap-0.5 font-display text-[12px] font-bold leading-none text-[var(--color-success-dark,#0f7a5a)]">
+            <span className="inline-flex max-w-full items-center justify-center gap-0.5 font-display text-[12px] font-bold leading-none text-success">
               <IconCircleCheck size={12} className="shrink-0" />
               <span className="truncate">Elegível</span>
             </span>
           ) : (
-            <span className="inline-flex max-w-full items-center justify-center gap-0.5 font-display text-[12px] font-bold leading-none text-[var(--color-danger-text)]">
+            <span className="inline-flex max-w-full items-center justify-center gap-0.5 font-display text-[12px] font-bold leading-none text-chip-red">
               <IconAlertTriangle size={12} className="shrink-0" />
               <span className="truncate">Indisp.</span>
             </span>
@@ -1254,7 +1177,7 @@ function SchedulePresenceHint({
 
   return (
     <span
-      className="min-w-0 truncate font-body text-[10px] font-semibold leading-tight text-[var(--brand-primary)]"
+      className="min-w-0 truncate font-body text-[12px] font-semibold leading-tight text-primary"
       title={alert.title}
     >
       {alert.label}
@@ -1450,32 +1373,6 @@ function CountBadge({ count }: { count: number }) {
   );
 }
 
-function FilterChip({
-  selected,
-  onClick,
-  children,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-        selected
-          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-          : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-      )}
-    >
-      {selected && <IconCheck size={12} stroke={2.4} />}
-      {children}
-    </button>
-  );
-}
-
 function DistributionSearchFilterBar({
   search,
   onSearch,
@@ -1533,40 +1430,15 @@ function DistributionSearchFilterBar({
 
   return (
     <div ref={ref} className="relative w-full">
-      <IconSearch
-        size={15}
-        className="absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-[var(--text-muted)]"
-      />
-      <input
-        type="search"
+      <SearchFilterBar
         value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        onFocus={() => setOpen(true)}
+        onChange={onSearch}
         placeholder="Pesquisar e filtrar responsáveis..."
-        aria-label="Buscar e filtrar responsáveis"
-        className="h-10 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-9 pr-24 font-body text-[13px] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] outline-none placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--input-ring-focus)]"
+        ariaLabel="Buscar e filtrar responsáveis"
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => setOpen((o) => !o)}
       />
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Filtros"
-        className={cn(
-          "absolute right-1.5 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 transition-colors",
-          activeCount > 0 || open
-            ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]",
-        )}
-      >
-        <IconAdjustmentsHorizontal size={15} />
-        <span className="font-display text-[11px] font-semibold leading-none">
-          Filtrar
-        </span>
-        {activeCount > 0 && (
-          <span className="font-display text-[10px] font-bold leading-none tabular-nums">
-            {activeCount}
-          </span>
-        )}
-      </button>
 
       {open && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-40 flex w-[min(100vw-2rem,380px)] flex-col overflow-visible rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md">
@@ -1796,105 +1668,74 @@ function SimulationPanel({
 
 // ── Fila de espera (aba complementar) ────────────────────────────────────
 
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const min = Math.floor(diff / 60_000);
-  if (min < 1) return "há minutos";
-  if (min < 60) return `há ${min} min`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `há ${h} h`;
-  const d = Math.floor(h / 24);
-  return `há ${d} d`;
-}
-
-/** Rótulo + cor (CSS var) por canal de origem da conversa. */
-const CHANNEL_META: Record<string, { label: string; color: string }> = {
-  WHATSAPP: { label: "WhatsApp", color: "var(--color-success)" },
-  INSTAGRAM: { label: "Instagram", color: "var(--brand-primary)" },
-  FACEBOOK: { label: "Facebook", color: "var(--brand-secondary)" },
-  EMAIL: { label: "E-mail", color: "var(--color-warn)" },
-  WEBCHAT: { label: "Webchat", color: "var(--text-muted)" },
-};
-
-function channelMeta(channel: string): { label: string; color: string } | null {
-  if (!channel) return null;
-  const key = channel.toUpperCase();
-  return (
-    CHANNEL_META[key] ?? {
-      label: channel.charAt(0) + channel.slice(1).toLowerCase(),
-      color: "var(--text-muted)",
-    }
-  );
-}
-
-function ChannelBadge({ channel }: { channel: string }) {
-  const meta = channelMeta(channel);
-  if (!meta) return null;
-  return (
-    <span
-      className="hidden shrink-0 items-center rounded-full px-2 py-0.5 font-display text-[11px] font-semibold sm:inline-flex"
-      style={{
-        backgroundColor: `color-mix(in srgb, ${meta.color} 14%, transparent)`,
-        color: meta.color,
-      }}
-    >
-      {meta.label}
-    </span>
-  );
-}
-
-function isAiAgentTrigger(triggerSource: string | null | undefined): boolean {
-  if (!triggerSource) return false;
-  return triggerSource
-    .split("+")
-    .map((s) => s.trim().toUpperCase())
-    .some((p) => p === "AI_AGENT" || p === "AI");
-}
-
-function AiAgentBadge() {
-  return (
-    <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-display text-[11px] font-semibold"
-      style={{
-        backgroundColor:
-          "color-mix(in srgb, var(--brand-primary) 14%, transparent)",
-        color: "var(--brand-primary)",
-      }}
-      title="Distribuição solicitada pelo agente de IA"
-    >
-      <IconRobot size={12} stroke={2} />
-      Agente IA
-    </span>
-  );
-}
+const QUEUE_COLUMN_CLASS =
+  "grid items-center gap-3 grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_110px_minmax(140px,0.9fr)_minmax(160px,1.2fr)]";
 
 function PendingQueueCards({
   pending,
+  illustrative = false,
   onRetry,
   retrying,
   loading = false,
 }: {
   pending: PendingDistributionDto[];
+  illustrative?: boolean;
   onRetry: () => void;
   retrying: boolean;
   loading?: boolean;
 }) {
+  const [sortKey, setSortKey] = useState<QueueSortKey>("waitingMin");
+  const [sortDir, setSortDir] = useState<Exclude<SortDir, null>>("desc");
+  const deptsQuery = useDepartments();
+  const departments = deptsQuery.data ?? [];
+
+  const hrefById = useMemo(() => {
+    const map = new Map<string, string>();
+    if (illustrative) return map;
+    for (const p of pending) {
+      map.set(p.id, inboxConversationHref(p.number, p.id));
+    }
+    return map;
+  }, [pending, illustrative]);
+
+  const rows = useMemo(() => {
+    if (illustrative) return queueItems;
+    if (pending.length > 0) return pending.map((p) => pendingToQueueItem(p));
+    if (loading) return [];
+    return queueItems;
+  }, [illustrative, pending, loading]);
+
+  const sorted = useMemo(
+    () => sortQueueItems(rows, sortKey, sortDir),
+    [rows, sortKey, sortDir],
+  );
+
+  const dirFor = (key: QueueSortKey): SortDir => (sortKey === key ? sortDir : null);
+
+  function toggleSort(key: QueueSortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === "contact" || key === "department" ? "asc" : "desc");
+  }
+
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-      {/* Header */}
-      <div className="flex shrink-0 flex-col gap-3 border-b border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="flex flex-col">
+      <div className="mb-2.5 flex shrink-0 flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-warn)_15%,transparent)] text-[var(--color-warn)]">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning-soft text-warning">
             <IconClockExclamation size={20} />
           </div>
           <div className="min-w-0">
-            <h2 className="flex items-center gap-2 font-display text-[14px] font-bold text-[var(--text-primary)]">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
               Aguardando distribuição
-              <span className="rounded-full bg-[color-mix(in_srgb,var(--color-warn)_15%,transparent)] px-2 py-0.5 font-display text-[11px] font-bold text-[var(--color-warn)] tabular-nums">
-                {pending.length}
+              <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-bold tabular-nums text-warning">
+                {rows.length}
               </span>
             </h2>
-            <p className="mt-0.5 text-pretty font-body text-[12px] leading-snug text-[var(--text-muted)]">
+            <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
               Atendimentos sem responsável elegível. Redistribuídos automaticamente quando alguém fica elegível, libera capacidade ou pelo job de segurança.
             </p>
           </div>
@@ -1903,7 +1744,7 @@ function PendingQueueCards({
           type="button"
           onClick={onRetry}
           disabled={retrying || pending.length === 0}
-          className="inline-flex w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 self-start rounded-full border border-[var(--color-warn)]/50 bg-[color-mix(in_srgb,var(--color-warn)_8%,transparent)] px-3 py-1.5 font-display text-[12px] font-bold text-[var(--color-warn)] transition-colors hover:brightness-95 disabled:opacity-50 sm:w-auto sm:self-auto"
+          className="inline-flex w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 self-start rounded-full border border-warning/50 bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning transition-colors hover:opacity-90 disabled:opacity-50 sm:w-auto sm:self-auto"
         >
           {retrying ? (
             <IconLoader2 size={14} className="animate-spin" />
@@ -1914,57 +1755,114 @@ function PendingQueueCards({
         </button>
       </div>
 
-      {/* Lista / vazio */}
-      {pending.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-16 text-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-[var(--glass-bg-strong)] text-[var(--text-muted)]">
+          <div className="flex size-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
             <IconPhone size={24} />
           </div>
-          <p className="font-display text-[13.5px] font-bold text-[var(--text-primary)]">
+          <p className="font-display text-[14px] font-bold text-foreground">
             {loading ? "Carregando fila…" : "Nenhum atendimento na fila"}
           </p>
-          <p className="font-body text-[12px] text-[var(--text-muted)]">
+          <p className="font-body text-[12px] text-muted-foreground">
             {loading
               ? "Buscando atendimentos sem responsável."
               : "Tudo distribuído. Novos contatos aparecerão aqui."}
           </p>
         </div>
       ) : (
-        <ul className="scrollbar-thin flex min-h-0 flex-1 flex-col divide-y divide-[var(--glass-border)] overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-          {pending.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={inboxConversationHref(p.number, p.id)}
-                className="group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--glass-bg-overlay)]"
-                title="Abrir conversa no inbox"
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-warn)_10%,transparent)] text-[var(--color-warn)]">
-                  <IconClockExclamation size={16} />
-                </span>
-                <span className="min-w-0 flex-1 truncate">
-                  <span className="font-mono text-[13px] font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand-primary)]">
-                    {p.label}
+        <ListHScroll scrollerClassName="pb-1">
+          <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
+            <div className={listTableHeadRowClass(QUEUE_COLUMN_CLASS)}>
+              <SortableHeader
+                label="Contato"
+                sort={dirFor("contact")}
+                onSort={() => toggleSort("contact")}
+              />
+              <SortableHeader
+                label="Departamento"
+                sort={dirFor("department")}
+                onSort={() => toggleSort("department")}
+              />
+              <SortableHeader
+                label="Espera"
+                sort={dirFor("waitingMin")}
+                onSort={() => toggleSort("waitingMin")}
+              />
+              <SortableHeader
+                label="Entrou em"
+                sort={dirFor("enteredAt")}
+                onSort={() => toggleSort("enteredAt")}
+              />
+              <ListColumnLabel>Motivo</ListColumnLabel>
+            </div>
+            {sorted.map((item) => {
+              const href = hrefById.get(item.id);
+              const waitTone =
+                item.waitingMin >= 30
+                  ? "bg-chip-red-soft text-chip-red"
+                  : "bg-chip-orange-soft text-chip-orange";
+              const deptColor = colorForQueueDepartment(item, departments);
+              const rowClass = cn(
+                QUEUE_COLUMN_CLASS,
+                LIST_CARD_ROW_CLASS,
+                href && "cursor-pointer no-underline",
+              );
+              const cells = (
+                <>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <ChatAvatar
+                      user={{ id: item.id, name: item.contact }}
+                      phone={item.phone || null}
+                      channel={item.phone ? "whatsapp" : null}
+                      size={AVATAR_SIZE.md}
+                    />
+                    <div className="min-w-0 flex-1 leading-tight">
+                      <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+                        {item.contact}
+                      </p>
+                      <div className="truncate font-body text-[12px] tabular-nums text-[var(--text-muted)]">
+                        {item.phone || "—"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <Chip color={deptColor} className="max-w-full">
+                      {item.department}
+                    </Chip>
+                  </div>
+                  <span
+                    className={cn(
+                      "inline-flex w-fit items-center rounded-full px-2 py-0.5 font-display text-[12px] font-bold tabular-nums",
+                      waitTone,
+                    )}
+                  >
+                    {item.waitingMin} min
                   </span>
-                  {p.departmentName ? (
-                    <span className="ml-2 font-body text-[12px] font-medium text-[var(--text-muted)]">
-                      {p.departmentName}
-                    </span>
-                  ) : null}
-                </span>
-                {isAiAgentTrigger(p.triggerSource) ? <AiAgentBadge /> : null}
-                <ChannelBadge channel={p.channel} />
-                <span className="ml-auto shrink-0 font-body text-[11px] tabular-nums text-[var(--text-muted)]">
-                  {p.attempts > 1 ? `${p.attempts}x · ` : ""}
-                  {relativeTime(p.createdAt)}
-                </span>
-                <IconExternalLink
-                  size={14}
-                  className="shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100"
-                />
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  <span className="block truncate font-display text-[13px] tabular-nums text-[var(--text-secondary)]">
+                    {item.enteredLabel}
+                  </span>
+                  <span className="block truncate font-display text-[13px] text-[var(--text-secondary)]">
+                    {item.reason}
+                  </span>
+                </>
+              );
+              return href ? (
+                <Link
+                  key={item.id}
+                  href={href}
+                  className={rowClass}
+                  title="Abrir conversa no inbox"
+                >
+                  {cells}
+                </Link>
+              ) : (
+                <div key={item.id} className={rowClass}>
+                  {cells}
+                </div>
+              );
+            })}
+          </div>
+        </ListHScroll>
       )}
     </section>
   );
@@ -1991,9 +1889,30 @@ function fmtDateTime(iso: string): string {
 }
 
 type LogResultFilter = "all" | "success" | "failure";
-type LogPeriodFilter = "all" | "today" | "7d";
 
-function DistributionLogsList({ enabled }: { enabled: boolean }) {
+function logInIsoRange(createdAt: string, from: string, to: string): boolean {
+  const t = new Date(createdAt).getTime();
+  if (Number.isNaN(t)) return true;
+  if (from) {
+    const start = new Date(`${from}T00:00:00`).getTime();
+    if (!Number.isNaN(start) && t < start) return false;
+  }
+  if (to) {
+    const end = new Date(`${to}T23:59:59.999`).getTime();
+    if (!Number.isNaN(end) && t > end) return false;
+  }
+  return true;
+}
+
+function DistributionLogsList({
+  enabled,
+  dateFrom,
+  dateTo,
+}: {
+  enabled: boolean;
+  dateFrom: string;
+  dateTo: string;
+}) {
   const q = useDistributionLogs(enabled);
   const deptStatsQ = useDistributionDepartmentStats(enabled);
   const items = useMemo(
@@ -2004,7 +1923,6 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
   const loading = q.isLoading;
   const [logSearch, setLogSearch] = useState("");
   const [result, setResult] = useState<LogResultFilter>("all");
-  const [period, setPeriod] = useState<LogPeriodFilter>("all");
   const [origin, setOrigin] = useState("all");
   const [department, setDepartment] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -2041,13 +1959,6 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
 
   const filteredItems = useMemo(() => {
     const query = logSearch.trim().toLocaleLowerCase("pt-BR");
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    ).getTime();
-    const sevenDaysAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
 
     return items.filter((log) => {
       const searchable = [
@@ -2073,18 +1984,14 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
           .filter(Boolean);
         if (!parts.includes(origin) && log.triggerSource !== origin) return false;
       }
-
-      const createdAt = new Date(log.createdAt).getTime();
-      if (period === "today" && createdAt < startOfToday) return false;
-      if (period === "7d" && createdAt < sevenDaysAgo) return false;
+      if (!logInIsoRange(log.createdAt, dateFrom, dateTo)) return false;
       return true;
     });
-  }, [department, items, logSearch, origin, period, result]);
+  }, [dateFrom, dateTo, department, items, logSearch, origin, result]);
 
   const clearFilters = () => {
     setLogSearch("");
     setResult("all");
-    setPeriod("all");
     setOrigin("all");
     setDepartment("all");
   };
@@ -2097,18 +2004,17 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
   }, [department, deptStats]);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-      {/* Cabeçalho compacto e fixo: título + busca/filtros (não compete com a lista) */}
-      <div className="flex shrink-0 flex-col gap-2.5 border-b border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-3 sm:gap-3 sm:p-4">
+    <section className="flex flex-col">
+      <div className="mb-2.5 flex shrink-0 flex-col gap-2.5 px-1 sm:gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--color-primary)_15%,transparent)] text-[var(--color-primary)] sm:size-9">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:size-9">
             <DistributionIcon size={18} />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="font-display text-[14px] font-bold text-[var(--text-primary)]">
+            <h2 className="text-sm font-bold text-foreground">
               Logs de distribuição
             </h2>
-            <p className="hidden text-pretty font-body text-[12px] leading-snug text-[var(--text-muted)] sm:mt-0.5 sm:block">
+            <p className="hidden text-pretty text-xs leading-snug text-muted-foreground sm:mt-0.5 sm:block">
               Histórico operacional com departamento, resultado, responsável, origem e horário.
             </p>
           </div>
@@ -2121,28 +2027,25 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
 
         {!loading && items.length > 0 && (
           <LogsSearchFilterBar
-            search={logSearch}
-            onSearch={setLogSearch}
-            result={result}
-            period={period}
-            origin={origin}
-            department={department}
-            origins={origins}
-            departmentOptions={departmentOptions}
-            activeCount={
-              (result !== "all" ? 1 : 0) +
-              (period !== "all" ? 1 : 0) +
-              (origin !== "all" ? 1 : 0) +
-              (department !== "all" ? 1 : 0)
-            }
-            onClear={clearFilters}
-            onApply={({ result: r, period: p, origin: o, department: d }) => {
-              setResult(r);
-              setPeriod(p);
-              setOrigin(o);
-              setDepartment(d);
-            }}
-          />
+                search={logSearch}
+                onSearch={setLogSearch}
+                result={result}
+                origin={origin}
+                department={department}
+                origins={origins}
+                departmentOptions={departmentOptions}
+                activeCount={
+                  (result !== "all" ? 1 : 0) +
+                  (origin !== "all" ? 1 : 0) +
+                  (department !== "all" ? 1 : 0)
+                }
+                onClear={clearFilters}
+                onApply={({ result: r, origin: o, department: d }) => {
+                  setResult(r);
+                  setOrigin(o);
+                  setDepartment(d);
+                }}
+              />
         )}
       </div>
 
@@ -2162,20 +2065,20 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
           <div className="flex size-12 items-center justify-center rounded-full bg-[var(--glass-bg-strong)] text-[var(--text-muted)]">
             <DistributionIcon size={24} />
           </div>
-          <p className="font-display text-[13.5px] font-bold text-[var(--text-primary)]">
+          <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
             Nenhuma distribuição registrada
           </p>
-          <p className="font-body text-[12px] text-[var(--text-muted)]">
+          <p className="font-body text-[12px] text-muted-foreground">
             Assim que a Distribuição Inteligente rodar, o histórico aparece aqui.
           </p>
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-16 text-center">
           <IconSearch size={24} className="text-[var(--text-muted)]" />
-          <p className="font-display text-[13.5px] font-bold text-[var(--text-primary)]">
+          <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
             Nenhum log encontrado
           </p>
-          <p className="font-body text-[12px] text-[var(--text-muted)]">
+          <p className="font-body text-[12px] text-muted-foreground">
             Ajuste os filtros ou limpe a busca para ver outros registros.
           </p>
           <button
@@ -2187,7 +2090,7 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
           </button>
         </div>
       ) : (
-        <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+        <div className="flex flex-col">
           {/* Contadores por dept. dentro do scroll — chips horizontais no mobile */}
           {(deptStats.length > 0 || deptStatsQ.isLoading) && (
             <div className="sticky top-0 z-[5] border-b border-[var(--glass-border)] bg-[var(--glass-bg-base)]/95 px-3 py-2 backdrop-blur-sm sm:px-4 md:static md:bg-transparent md:backdrop-blur-none">
@@ -2239,7 +2142,7 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
           )}
 
           {/* Mobile / APK: cards */}
-          <ul className="flex flex-col gap-2 p-3 md:hidden">
+          <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
             {filteredItems.map((log) => {
               const resultLabel =
                 DIST_REASON_LABELS[log.reason] ??
@@ -2258,46 +2161,36 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
             })}
           </ul>
 
-          {/* Desktop: tabela */}
-          <table className="hidden w-full min-w-[820px] border-collapse md:table">
-            <thead className="sticky top-0 z-10 bg-[var(--glass-bg-modal,#fff)] shadow-[0_1px_0_var(--glass-border)]">
-              <tr>
-                {[
-                  "Contato",
-                  "Departamento",
-                  "Resultado",
-                  "Responsável / motivo",
-                  "Origem",
-                  "Quando",
-                ].map((label) => (
-                  <th
-                    key={label}
-                    scope="col"
-                    className="px-4 py-2.5 text-left font-display text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]"
-                  >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.map((log) => {
-                const expanded = expandedId === log.id;
-                const resultLabel =
-                  DIST_REASON_LABELS[log.reason] ??
-                  (log.success ? "Distribuído" : log.reason);
-                return (
-                  <LogTableRows
-                    key={log.id}
-                    log={log}
-                    expanded={expanded}
-                    resultLabel={resultLabel}
-                    onToggle={() => setExpandedId(expanded ? null : log.id)}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="hidden min-w-[820px] flex-col gap-2.5 md:flex">
+            <div
+              className={cn(
+                LIST_CARD_HEAD_CLASS,
+                "lg:grid-cols-[minmax(160px,1.2fr)_minmax(140px,1fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(120px,0.8fr)_140px]",
+              )}
+            >
+              <ListColumnLabel>Contato</ListColumnLabel>
+              <ListColumnLabel>Departamento</ListColumnLabel>
+              <ListColumnLabel>Resultado</ListColumnLabel>
+              <ListColumnLabel>Responsável / motivo</ListColumnLabel>
+              <ListColumnLabel>Origem</ListColumnLabel>
+              <ListColumnLabel>Quando</ListColumnLabel>
+            </div>
+            {filteredItems.map((log) => {
+              const expanded = expandedId === log.id;
+              const resultLabel =
+                DIST_REASON_LABELS[log.reason] ??
+                (log.success ? "Distribuído" : log.reason);
+              return (
+                <LogTableRows
+                  key={log.id}
+                  log={log}
+                  expanded={expanded}
+                  resultLabel={resultLabel}
+                  onToggle={() => setExpandedId(expanded ? null : log.id)}
+                />
+              );
+            })}
+          </div>
 
           {q.hasNextPage && (
             <div className="flex shrink-0 justify-center border-t border-[var(--glass-border)] p-3">
@@ -2324,12 +2217,11 @@ function DistributionLogsList({ enabled }: { enabled: boolean }) {
 
 type LogsFilterDraft = {
   result: LogResultFilter;
-  period: LogPeriodFilter;
   origin: string;
   department: string;
 };
 
-type LogsFilterTab = "resultado" | "periodo" | "origem" | "departamento";
+type LogsFilterTab = "resultado" | "origem" | "departamento";
 
 function LogsFilterCountBadge({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -2348,7 +2240,6 @@ function LogsSearchFilterBar({
   search,
   onSearch,
   result,
-  period,
   origin,
   department,
   origins,
@@ -2360,7 +2251,6 @@ function LogsSearchFilterBar({
   search: string;
   onSearch: (v: string) => void;
   result: LogResultFilter;
-  period: LogPeriodFilter;
   origin: string;
   department: string;
   origins: string[];
@@ -2374,14 +2264,13 @@ function LogsSearchFilterBar({
   const [tab, setTab] = useState<LogsFilterTab>("resultado");
   const [draft, setDraft] = useState<LogsFilterDraft>({
     result,
-    period,
     origin,
     department,
   });
 
   useEffect(() => {
-    if (open) setDraft({ result, period, origin, department });
-  }, [open, result, period, origin, department]);
+    if (open) setDraft({ result, origin, department });
+  }, [open, result, origin, department]);
 
   useEffect(() => {
     if (!open) return;
@@ -2394,20 +2283,17 @@ function LogsSearchFilterBar({
 
   const draftCount =
     (draft.result !== "all" ? 1 : 0) +
-    (draft.period !== "all" ? 1 : 0) +
     (draft.origin !== "all" ? 1 : 0) +
     (draft.department !== "all" ? 1 : 0);
 
   const tabs: { id: LogsFilterTab; label: string; icon: React.ReactNode }[] = [
     { id: "resultado", label: "Resultado", icon: <IconCircleCheck size={14} stroke={2.2} /> },
-    { id: "periodo", label: "Período", icon: <IconCalendarEvent size={14} stroke={2.2} /> },
     { id: "origem", label: "Origem", icon: <IconSourceCode size={14} stroke={2.2} /> },
     { id: "departamento", label: "Dept.", icon: <IconBuilding size={14} stroke={2.2} /> },
   ];
 
   const tabBadge = (id: LogsFilterTab) => {
     if (id === "resultado") return draft.result !== "all" ? 1 : 0;
-    if (id === "periodo") return draft.period !== "all" ? 1 : 0;
     if (id === "origem") return draft.origin !== "all" ? 1 : 0;
     if (id === "departamento") return draft.department !== "all" ? 1 : 0;
     return 0;
@@ -2416,7 +2302,6 @@ function LogsSearchFilterBar({
   function handleClear() {
     const empty: LogsFilterDraft = {
       result: "all",
-      period: "all",
       origin: "all",
       department: "all",
     };
@@ -2468,37 +2353,15 @@ function LogsSearchFilterBar({
 
   return (
     <div ref={ref} className="relative w-full">
-      <IconSearch
-        size={15}
-        className="absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-[var(--text-muted)]"
-      />
-      <input
-        type="search"
+      <SearchFilterBar
         value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        onFocus={() => setOpen(true)}
+        onChange={onSearch}
         placeholder="Pesquisar e filtrar..."
-        aria-label="Buscar e filtrar logs"
-        className="h-10 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-9 pr-11 font-body text-[13px] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] outline-none placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--input-ring-focus)]"
+        ariaLabel="Buscar e filtrar logs"
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => setOpen((o) => !o)}
       />
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Filtros"
-        className={cn(
-          "absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
-          activeCount > 0 || open
-            ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]",
-        )}
-      >
-        <IconAdjustmentsHorizontal size={15} />
-        {activeCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-[var(--color-warn)] font-display text-[8px] font-bold text-white">
-            {activeCount}
-          </span>
-        )}
-      </button>
 
       {open && (
         <div className="absolute left-0 top-[calc(100%+8px)] z-40 flex max-h-[min(78vh,560px)] w-[min(100vw-1.5rem,380px)] flex-col overflow-hidden rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md">
@@ -2568,24 +2431,6 @@ function LogsSearchFilterBar({
                     selected={draft.result === opt.value}
                     label={opt.label}
                     onClick={() => setDraft((prev) => ({ ...prev, result: opt.value }))}
-                  />
-                ))}
-              </div>
-            )}
-            {tab === "periodo" && (
-              <div className="flex flex-col gap-2" role="listbox" aria-label="Período">
-                {(
-                  [
-                    { value: "all", label: "Todo o período" },
-                    { value: "today", label: "Hoje" },
-                    { value: "7d", label: "Últimos 7 dias" },
-                  ] as const
-                ).map((opt) => (
-                  <OptionButton
-                    key={opt.value}
-                    selected={draft.period === opt.value}
-                    label={opt.label}
-                    onClick={() => setDraft((prev) => ({ ...prev, period: opt.value }))}
                   />
                 ))}
               </div>
@@ -2680,8 +2525,9 @@ function LogMobileCard({
         onClick={onToggle}
         aria-expanded={expanded}
         className={cn(
-          "w-full rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-3 text-left transition-colors",
-          expanded && "bg-[var(--glass-bg-overlay)]",
+          "w-full text-left",
+          LIST_CARD_ROW_CLASS,
+          expanded && "border-primary/40 bg-secondary/40",
         )}
       >
         <div className="flex items-start gap-2.5">
@@ -2698,16 +2544,16 @@ function LogMobileCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate font-display text-[13px] font-bold text-[var(--text-primary)]">
+                <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
                   {log.contactName || log.contactPhone || "Atendimento"}
                 </p>
                 {log.contactName && log.contactPhone ? (
-                  <p className="truncate font-mono text-[11px] text-[var(--text-muted)]">
+                  <p className="truncate font-body text-[12px] text-muted-foreground">
                     {log.contactPhone}
                   </p>
                 ) : null}
               </div>
-              <span className="inline-flex shrink-0 items-center gap-1 font-body text-[10.5px] tabular-nums text-[var(--text-muted)]">
+              <span className="inline-flex shrink-0 items-center gap-1 font-body text-[12px] tabular-nums text-muted-foreground">
                 {fmtDateTime(log.createdAt)}
                 <IconChevronDown
                   size={13}
@@ -2739,22 +2585,22 @@ function LogMobileCard({
               </span>
             </div>
 
-            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-body text-[11px]">
+            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-body text-[12px]">
               <div className="min-w-0">
-                <p className="text-[9.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+                <p className="text-xs font-semibold text-muted-foreground">
                   Responsável
                 </p>
-                <p className="truncate font-semibold text-[var(--text-secondary)]">
+                <p className="truncate font-semibold text-foreground">
                   {log.success
                     ? log.selectedUserName ?? "Responsável"
                     : resultLabel}
                 </p>
               </div>
               <div className="min-w-0">
-                <p className="text-[9.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+                <p className="text-xs font-semibold text-muted-foreground">
                   Origem
                 </p>
-                <p className="truncate font-semibold text-[var(--text-secondary)]">
+                <p className="truncate font-semibold text-foreground">
                   {log.triggerSource || "—"}
                 </p>
               </div>
@@ -2764,7 +2610,7 @@ function LogMobileCard({
       </button>
 
       {expanded && (
-        <div className="mt-1.5 grid gap-2 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-3">
+        <div className="mt-1.5 grid gap-2 rounded-xl border border-border bg-card p-3">
           <LogDetail
             label="Departamento"
             value={log.departmentName || "Sem departamento"}
@@ -2818,41 +2664,45 @@ function LogTableRows({
 
   return (
     <>
-      <tr
+      <div
+        role="button"
+        tabIndex={0}
         className={cn(
-          "cursor-pointer border-b border-[var(--glass-border)] transition-colors hover:bg-[var(--glass-bg-overlay)]",
-          expanded && "bg-[var(--glass-bg-overlay)]",
+          "grid cursor-pointer items-center gap-4 lg:grid-cols-[minmax(160px,1.2fr)_minmax(140px,1fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(120px,0.8fr)_140px]",
+          LIST_CARD_ROW_CLASS,
+          expanded && "border-primary/40 bg-secondary/40",
         )}
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
         aria-expanded={expanded}
       >
-        <td className="px-4 py-3">
-          <div className="min-w-0">
-            <p className="max-w-[220px] truncate font-body text-[12.5px] font-semibold text-[var(--text-primary)]">
+        <div className="min-w-0">
+            <p className="max-w-[220px] truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
               {primaryName}
             </p>
             {showPhoneUnderName ? (
-              <p className="mt-0.5 max-w-[220px] truncate font-mono text-[11px] text-[var(--text-muted)]">
+              <p className="mt-0.5 max-w-[220px] truncate font-body text-[12px] text-muted-foreground">
                 {log.contactPhone}
               </p>
             ) : null}
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <span className="inline-flex max-w-[160px] items-center gap-1 truncate rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2 py-1 font-body text-[11px] font-medium text-[var(--text-secondary)]">
+        </div>
+        <span className="inline-flex max-w-[160px] items-center gap-1 truncate rounded-md border border-border bg-secondary px-2 py-1 text-xs font-medium text-muted-foreground">
             <IconTag size={12} className="shrink-0 opacity-60" />
             <span className="truncate">
               {log.departmentName || "Sem departamento"}
             </span>
-          </span>
-        </td>
-        <td className="px-4 py-3">
-          <span
+        </span>
+        <span
             className={cn(
-              "inline-flex max-w-[200px] items-center gap-1.5 rounded-md border px-2 py-1 font-body text-[11px] font-medium",
+              "inline-flex max-w-[200px] items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium",
               log.success
-                ? "border-[color-mix(in_srgb,var(--color-success)_28%,var(--glass-border))] bg-[color-mix(in_srgb,var(--color-success)_8%,transparent)] text-[var(--color-success)]"
-                : "border-[var(--glass-border)] bg-[var(--glass-bg-strong)] text-[var(--text-secondary)]",
+                ? "border-success/30 bg-success-soft text-success"
+                : "border-border bg-secondary text-muted-foreground",
             )}
           >
             {log.success ? (
@@ -2861,22 +2711,16 @@ function LogTableRows({
               <IconClockExclamation size={13} className="shrink-0 opacity-70" />
             )}
             <span className="truncate">{resultLabel}</span>
-          </span>
-        </td>
-        <td className="max-w-[220px] px-4 py-3 font-body text-[12px] text-[var(--text-primary)]">
-          <span className="block truncate">
+        </span>
+        <span className="block max-w-[220px] truncate text-sm text-foreground">
             {log.success
               ? log.selectedUserName ?? "Responsável"
               : "—"}
-          </span>
-        </td>
-        <td className="max-w-[160px] px-4 py-3">
-          <span className="block truncate font-body text-[11px] text-[var(--text-muted)]">
+        </span>
+        <span className="block max-w-[160px] truncate text-xs text-muted-foreground">
             {log.triggerSource || "—"}
-          </span>
-        </td>
-        <td className="whitespace-nowrap px-4 py-3">
-          <span className="inline-flex items-center gap-2 font-body text-[11px] tabular-nums text-[var(--text-muted)]">
+        </span>
+        <span className="inline-flex items-center gap-2 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
             {fmtDateTime(log.createdAt)}
             <IconChevronDown
               size={13}
@@ -2885,12 +2729,10 @@ function LogTableRows({
                 expanded && "rotate-180",
               )}
             />
-          </span>
-        </td>
-      </tr>
+        </span>
+      </div>
       {expanded && (
-        <tr className="border-b border-[var(--glass-border)] bg-[var(--glass-bg-subtle)]">
-          <td colSpan={6} className="px-4 py-3">
+        <div className="px-5 py-3 text-sm">
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.2fr_auto]">
               <LogDetail
                 label="Departamento"
@@ -2915,8 +2757,7 @@ function LogTableRows({
                 <LogDetail label="Conversa" value="Não vinculada" />
               )}
             </div>
-          </td>
-        </tr>
+        </div>
       )}
     </>
   );
@@ -2933,12 +2774,12 @@ function LogDetail({
 }) {
   return (
     <div className="min-w-0 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3 py-2">
-      <p className="font-display text-[9.5px] font-bold uppercase tracking-[0.05em] text-[var(--text-muted)]">
+      <p className="text-[9.5px] font-semibold tracking-wide text-muted-foreground">
         {label}
       </p>
       <p
         className={cn(
-          "mt-1 truncate text-[11.5px] font-semibold text-[var(--text-primary)]",
+          "mt-1 truncate text-[12px] font-semibold text-[var(--text-primary)]",
           mono ? "font-mono" : "font-body",
         )}
         title={value}
@@ -3753,12 +3594,12 @@ function AutoOnInboundToggle() {
   const autoOnInbound = settingsQuery.data?.autoOnInbound ?? true;
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
+    <div className={cn("flex items-center justify-between gap-3", LIST_CARD_ROW_CLASS)}>
       <div className="min-w-0">
-        <p className="font-display text-[13px] font-bold text-[var(--text-primary)]">
+        <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
           Distribuir cada conversa nova automaticamente
         </p>
-        <p className="font-body text-[11.5px] text-[var(--text-muted)]">
+        <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
           {autoOnInbound
             ? "Ligado: toda mensagem inbound sem responsável entra na fila de espera, mesmo sem passo na automação."
             : "Desligado: só entra na fila quem passar pelo passo Executar distribuição (automação, IA ou redistribuição manual)."}

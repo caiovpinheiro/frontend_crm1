@@ -104,16 +104,27 @@ export function useCampaignRecipients(
   });
 }
 
-export function useCampaignAction(id: string) {
+export function useCampaignActions() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (action: CampaignAction) => runCampaignAction(id, action),
+    mutationFn: ({ id, action }: { id: string; action: CampaignAction }) =>
+      runCampaignAction(id, action),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "detail", id] });
-      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "stats", id] });
+      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "detail"] });
+      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "stats"] });
+      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "recipients"] });
       qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "list"] });
     },
   });
+}
+
+export function useCampaignAction(id: string) {
+  const actions = useCampaignActions();
+  return {
+    ...actions,
+    mutate: (action: CampaignAction) => actions.mutate({ id, action }),
+    mutateAsync: (action: CampaignAction) => actions.mutateAsync({ id, action }),
+  };
 }
 
 export function useCreateCampaign() {

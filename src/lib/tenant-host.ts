@@ -29,6 +29,29 @@ export const RESERVED_TENANT_SLUGS = new Set([
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
+/**
+ * CRM num único origin (EasyPanel / localhost) — sem wildcard `{slug}.base`.
+ * Nesses hosts o login é e-mail+senha no mesmo endereço; não redirecionar
+ * para `{slug}.bwipo.com` (produção).
+ */
+export function isSingleHostCrm(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().split(":")[0] ?? "";
+  if (!host) return false;
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") {
+    return true;
+  }
+  if (host.endsWith(".localhost")) return true;
+  return host === "easypanel.host" || host.endsWith(".easypanel.host");
+}
+
+/** Apex de marketing (`bwipo.com` / `www`) — identifica org pelo e-mail. */
+export function isMarketingApexHost(hostname: string): boolean {
+  if (isSingleHostCrm(hostname)) return false;
+  const host = hostname.trim().toLowerCase().split(":")[0] ?? "";
+  const base = getTenantBaseDomain();
+  return host === base || host === `www.${base}`;
+}
+
 export type TenantHostResolution =
   | { kind: "apex" }
   | { kind: "tenant"; slug: string }

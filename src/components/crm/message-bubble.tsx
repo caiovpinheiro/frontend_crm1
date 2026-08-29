@@ -73,7 +73,7 @@ function resolveMediaUrl(url: string | null | undefined): string | null {
 /** Deriva o tipo de mídia a partir do messageType e, como fallback, da extensão da URL. */
 function detectMediaKind(messageType: string | undefined, mediaUrl: string | null | undefined): MediaKind {
   const mt = String(messageType ?? "").toLowerCase()
-  if (mt === "whatsapp_call_recording" && mediaUrl) return "audio"
+  if ((mt === "whatsapp_call_recording" || mt === "sip_call") && mediaUrl) return "audio"
   if (mt === "image" || mt === "sticker") return "image"
   if (mt === "audio" || mt === "ptt" || mt === "voice") return "audio"
   if (mt === "video") return "video"
@@ -1435,7 +1435,7 @@ export function MessageBubble({
   // Gravação WhatsApp COM mediaUrl cai no fluxo de áudio (detectMediaKind).
   const callType = String(message.messageType ?? "").toLowerCase()
   const isVoiceCallEvent =
-    callType === "sip_call" ||
+    (callType === "sip_call" && !message.mediaUrl) ||
     callType === "whatsapp_call" ||
     (callType === "whatsapp_call_recording" && !message.mediaUrl)
   if (isVoiceCallEvent) {

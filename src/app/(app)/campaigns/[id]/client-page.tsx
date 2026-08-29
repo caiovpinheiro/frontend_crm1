@@ -5,42 +5,57 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  IconRocket,
-  IconPlayerPause,
-  IconPlayerPlay,
-  IconX,
-  IconLoader2,
-  IconSend,
-  IconCircleCheck,
-  IconEye,
-  IconMessage2,
-  IconAlertTriangle,
-  IconUsers,
-  IconExternalLink,
-} from "@tabler/icons-react";
+  ArrowLeft,
+  CircleCheck,
+  CircleX,
+  Eye,
+  ExternalLink,
+  MessageSquareReply,
+  Pause,
+  Play,
+  Rocket,
+  Send,
+  TriangleAlert,
+  Users,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
+import { KpiCard } from "@/components/crm/kpi-card";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
-import { PageHeader } from "@/components/crm/page-header";
-import { EmptyState } from "@/components/crm/empty-state";
-import { KpiSquareScroll } from "@/components/crm/kpi-card";
+import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
+import { cn } from "@/lib/utils";
+import { rewriteNumericPath } from "@/lib/public-path";
 
 import {
   useAudienceOptions,
   useCampaign,
-  useCampaignAction,
+  useCampaignActions,
   useCampaignRecipients,
   useCampaignStats,
 } from "@/features/campaigns/hooks";
 import {
+  RECIPIENT_CHIP_CLASS,
   RECIPIENT_META,
+  STATUS_CHIP_CLASS,
   STATUS_META,
-  TONE_CLASSES,
 } from "@/features/campaigns/constants";
 import type { CampaignAction, CampaignDetail } from "@/features/campaigns/types";
-import { rewriteNumericPath } from "@/lib/public-path";
+import { nf, rate } from "@/features/campaigns/viz";
 
 const ACTIVE = ["SCHEDULED", "PROCESSING", "SENDING"];
+const RECIPIENT_PER_PAGE = 25;
+
+const RECIPIENT_FILTERS = [
+  { value: "", label: "Todos" },
+  { value: "SENT", label: "Enviado" },
+  { value: "DELIVERED", label: "Entregue" },
+  { value: "READ", label: "Lido" },
+  { value: "FAILED", label: "Falhou" },
+  { value: "PENDING", label: "Pendente" },
+] as const;
 
 function fmtDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -65,15 +80,6 @@ function formatCampaignTag(
   return ids.map((id) => byId.get(id) ?? id).join(", ");
 }
 
-const RECIPIENT_FILTERS = [
-  { value: "", label: "Todos" },
-  { value: "SENT", label: "Enviado" },
-  { value: "DELIVERED", label: "Entregue" },
-  { value: "READ", label: "Lido" },
-  { value: "FAILED", label: "Falhou" },
-  { value: "PENDING", label: "Pendente" },
-];
-
 export default function CampaignDetailClientPage() {
   const { id } = useParams<{ id: string }>();
   const { status: authStatus } = useSession();
@@ -93,10 +99,12 @@ export default function CampaignDetailClientPage() {
 
   const campaignQuery = useCampaign(id, isAuth);
   const campaign = campaignQuery.data;
+  const campaignId = campaign?.id ?? id;
 
   useEffect(() => {
     if (campaign?.number != null) rewriteNumericPath("/campaigns", id, campaign.number);
   }, [campaign?.number, id]);
+
   const isActive = campaign ? ACTIVE.includes(campaign.status) : false;
   const audienceOptionsQuery = useAudienceOptions(isAuth);
   const tagLabel = useMemo(
@@ -107,16 +115,16 @@ export default function CampaignDetailClientPage() {
     [campaign, audienceOptionsQuery.data?.tags],
   );
 
-  const statsQuery = useCampaignStats(id, isActive, isAuth && !!campaign);
+  const statsQuery = useCampaignStats(campaignId, isActive, isAuth && !!campaign);
   const stats = statsQuery.data;
 
   const recipientsQuery = useCampaignRecipients(
-    id,
-    { status: recipientFilter || undefined, page, perPage: 20 },
-    isAuth && !!campaign && (campaign?.totalRecipients ?? 0) > 0,
+    campaignId,
+    { status: recipientFilter || undefined, page, perPage: RECIPIENT_PER_PAGE },
+    !!campaign,
   );
 
-  const action = useCampaignAction(id);
+  const action = useCampaignActions();
 
   if (campaignQuery.isLoading) {
     return (
@@ -129,19 +137,18 @@ export default function CampaignDetailClientPage() {
   if (!campaign) {
     return (
       <Shell>
-        <EmptyState
-          icon={<IconUsers size={28} />}
-          title="Campanha não encontrada"
-          description="Ela pode ter sido removida."
-          action={
-            <Link
-              href="/campaigns"
-              className="font-display text-[12px] font-semibold text-[var(--brand-primary)] hover:underline"
-            >
+        <div className={cn(CARD_SURFACE_CLASS, "flex min-h-[280px] items-center justify-center")}>
+          <div className="flex flex-col items-center px-6 py-16 text-center">
+            <span className="flex size-16 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+              <Users className="size-7" aria-hidden="true" />
+            </span>
+            <p className="mt-4 text-lg font-bold">Campanha não encontrada</p>
+            <p className="mt-1 text-sm text-muted-foreground">Ela pode ter sido removida.</p>
+            <Link href="/campaigns" className="mt-4 text-sm font-semibold text-primary hover:underline">
               Ir para campanhas
             </Link>
-          }
-        />
+          </div>
+        </div>
       </Shell>
     );
   }
@@ -149,9 +156,17 @@ export default function CampaignDetailClientPage() {
   const meta = STATUS_META[campaign.status] ?? STATUS_META.DRAFT;
   const total = stats?.totalRecipients ?? campaign.totalRecipients;
   const sent = stats?.sentCount ?? campaign.sentCount;
+  const delivered = stats?.deliveredCount ?? campaign.deliveredCount;
+  const read = stats?.readCount ?? campaign.readCount;
+  const replied = stats?.repliedCount ?? campaign.repliedCount ?? 0;
   const failed = stats?.failedCount ?? campaign.failedCount;
-  const pctSent = total ? Math.round((sent / total) * 100) : 0;
-  const pctFailed = total ? Math.round((failed / total) * 100) : 0;
+  const pending = stats?.pendingCount ?? Math.max(0, total - sent);
+  const sentPct = rate(sent, total);
+  const deliveredPct = rate(delivered, sent);
+  const readPct = rate(read, sent);
+  const repliedPct = rate(replied, sent);
+  const failedPct = rate(failed, sent || total);
+  const highFailure = failedPct >= 5;
 
   const canPause = campaign.status === "SENDING" || campaign.status === "PROCESSING";
   const canResume = campaign.status === "PAUSED";
@@ -163,279 +178,258 @@ export default function CampaignDetailClientPage() {
     "PAUSED",
   ].includes(campaign.status);
 
-  const run = (a: CampaignAction) => action.mutate(a);
+  const run = (a: CampaignAction) => {
+    action.mutate(
+      { id: campaignId, action: a },
+      {
+        onSuccess: (res) => toast.success(res?.message ?? "Campanha atualizada."),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : "Erro ao executar ação na campanha."),
+      },
+    );
+  };
 
-  const funnelStats: {
-    key: string;
-    label: string;
-    value: number;
-    icon: React.ReactNode;
-    accent: string;
-    tone?: string;
-    rate?: number;
-  }[] = [
-    {
-      key: "total",
-      label: "Total",
-      value: total,
-      icon: <IconUsers size={18} />,
-      accent: "var(--text-muted)",
-    },
-    {
-      key: "sent",
-      label: "Enviados",
-      value: sent,
-      icon: <IconSend size={18} />,
-      accent: "var(--color-success)",
-      tone: "text-[var(--color-success-text)]",
-    },
-    {
-      key: "delivered",
-      label: "Entregues",
-      value: stats?.deliveredCount ?? campaign.deliveredCount,
-      icon: <IconCircleCheck size={18} />,
-      accent: "var(--color-success)",
-      tone: "text-[var(--color-success-text)]",
-      rate: stats?.deliveryRate,
-    },
-    {
-      key: "read",
-      label: "Lidos",
-      value: stats?.readCount ?? campaign.readCount,
-      icon: <IconEye size={18} />,
-      accent: "var(--brand-primary)",
-      tone: "text-[var(--brand-primary)]",
-      rate: stats?.readRate,
-    },
-    {
-      key: "replied",
-      label: "Responderam",
-      value: stats?.repliedCount ?? campaign.repliedCount ?? 0,
-      icon: <IconMessage2 size={18} />,
-      accent: "var(--color-sky)",
-      tone: "text-[var(--color-sky)]",
-      rate: stats?.replyRate,
-    },
-    {
-      key: "failed",
-      label: "Falhas",
-      value: failed,
-      icon: <IconAlertTriangle size={18} />,
-      accent: "var(--color-danger, #dc2626)",
-      tone: "text-[var(--color-danger-text)]",
-    },
-  ];
+  const recipients = recipientsQuery.data?.items ?? [];
+  const recipientTotal = recipientsQuery.data?.total ?? 0;
+  const recipientPages = Math.max(1, recipientsQuery.data?.totalPages ?? 1);
 
   return (
-    <Shell
-      header={
-        <div className="flex items-center gap-2">
+    <Shell>
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link
+            href="/campaigns"
+            aria-label="Voltar para Campanhas"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+          >
+            <ArrowLeft className="size-5" aria-hidden="true" />
+          </Link>
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border bg-card text-primary">
+            <Rocket className="size-6" aria-hidden="true" />
+          </span>
+          <h1 className="min-w-0 truncate text-3xl font-bold tracking-tight text-balance">
+            {campaign.name}
+          </h1>
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-3 py-1 text-sm font-semibold",
+              STATUS_CHIP_CLASS[campaign.status],
+            )}
+          >
+            {meta.label}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
           {campaign.status === "DRAFT" ? (
-            <HeaderBtn onClick={() => run("launch")} disabled={action.isPending}>
-              <IconRocket size={15} /> Lançar
-            </HeaderBtn>
+            <HeaderPill onClick={() => run("launch")} disabled={action.isPending}>
+              <Rocket className="size-4" aria-hidden="true" /> Lançar
+            </HeaderPill>
           ) : null}
           {canPause ? (
-            <HeaderBtn onClick={() => run("pause")} disabled={action.isPending}>
-              <IconPlayerPause size={15} /> Pausar
-            </HeaderBtn>
+            <HeaderPill onClick={() => run("pause")} disabled={action.isPending}>
+              <Pause className="size-4" aria-hidden="true" /> Pausar
+            </HeaderPill>
           ) : null}
           {canResume ? (
-            <HeaderBtn onClick={() => run("resume")} disabled={action.isPending}>
-              <IconPlayerPlay size={15} /> Retomar
-            </HeaderBtn>
+            <HeaderPill onClick={() => run("resume")} disabled={action.isPending}>
+              <Play className="size-4" aria-hidden="true" /> Retomar
+            </HeaderPill>
           ) : null}
           {canCancel ? (
-            <HeaderBtn danger onClick={() => run("cancel")} disabled={action.isPending}>
-              <IconX size={15} /> Cancelar
-            </HeaderBtn>
+            <HeaderPill danger onClick={() => run("cancel")} disabled={action.isPending}>
+              <X className="size-4" aria-hidden="true" /> Encerrar
+            </HeaderPill>
           ) : null}
         </div>
-      }
-      title={campaign.name}
-      badge={
-        <span
-          className={`rounded-full border px-2.5 py-0.5 font-display text-[11px] font-bold ${TONE_CLASSES[meta.tone]}`}
-        >
-          {meta.label}
-        </span>
-      }
-      subtitle={`${campaign.channel?.name ?? "—"} · ${
-        campaign.type === "TEMPLATE"
-          ? `Template: ${campaign.templateName ?? "—"}`
-          : "Texto livre"
-      }`}
-    >
-      {action.error ? (
-        <p className="font-body text-[12.5px] text-[var(--color-danger-text)]">
-          {(action.error as Error).message}
-        </p>
-      ) : null}
+      </header>
 
-      {/* Funil */}
-      <section className="shrink-0" aria-label="Indicadores da campanha">
-        <KpiSquareScroll
-          items={funnelStats.map((s) => ({
-            key: s.key,
-            label: s.label,
-            value: s.value.toLocaleString("pt-BR"),
-            icon: s.icon,
-            accent: s.accent,
-            percent: s.rate,
-          }))}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <KpiCard icon={<Users className="size-5" />} label="Total" value={nf(total)} tone="neutral" />
+        <KpiCard icon={<Send className="size-5" />} label="Enviados" value={nf(sent)} tone="brand" />
+        <KpiCard
+          icon={<CircleCheck className="size-5" />}
+          label={`Entregues · ${deliveredPct}%`}
+          value={<span className="text-success">{nf(delivered)}</span>}
+          tone="success"
         />
-        <div className="hidden gap-3 lg:grid lg:grid-cols-3 xl:grid-cols-6">
-          {funnelStats.map((s) => (
-            <StatCard
-              key={s.key}
-              icon={s.icon}
-              label={s.label}
-              value={s.value}
-              tone={s.tone}
-              rate={s.rate}
-            />
-          ))}
-        </div>
-      </section>
+        <KpiCard
+          icon={<Eye className="size-5" />}
+          label={`Lidos · ${readPct}%`}
+          value={<span className="text-chip-blue">{nf(read)}</span>}
+          tone="brand"
+        />
+        <KpiCard
+          icon={<MessageSquareReply className="size-5" />}
+          label={`Responderam · ${repliedPct}%`}
+          value={<span className="text-chip-violet">{nf(replied)}</span>}
+          tone="violet"
+        />
+        <KpiCard
+          icon={<TriangleAlert className="size-5" />}
+          label="Falhas"
+          value={<span className="text-destructive">{nf(failed)}</span>}
+          tone="red"
+        />
+      </div>
 
       {total > 0 ? (
-        <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-4 shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-          <div className="flex h-3 overflow-hidden rounded-full bg-[var(--glass-bg-subtle)]">
+        <div className={cn(CARD_SURFACE_CLASS, "p-5")}>
+          <div className="h-2.5 overflow-hidden rounded-full bg-muted">
             <div
-              className="bg-[var(--color-success)] transition-all duration-500"
-              style={{ width: `${pctSent}%` }}
-            />
-            <div
-              className="bg-[var(--color-danger)] transition-all duration-500"
-              style={{ width: `${pctFailed}%` }}
+              className="h-full rounded-full bg-success"
+              style={{ width: `${sentPct}%` }}
             />
           </div>
-          <div className="mt-1.5 flex justify-between font-body text-[11.5px] text-[var(--text-muted)]">
-            <span>{pctSent}% enviado</span>
-            <span>{stats?.pendingCount ?? 0} pendentes</span>
+          <div className="mt-2 flex items-center justify-between text-sm text-muted-foreground">
+            <span>{sentPct}% enviado</span>
+            <span className="tabular-nums">{nf(pending)} pendentes</span>
           </div>
         </div>
       ) : null}
 
-      {/* Motivos de falha */}
-      {stats?.failureReasons && stats.failureReasons.length > 0 ? (
-        <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-4 shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-          <p className="mb-2 font-display text-[13px] font-bold text-[var(--text-primary)]">
-            Motivos de falha
-          </p>
-          <div className="space-y-1">
-            {stats.failureReasons.map((r) => (
-              <div
-                key={r.reason}
-                className="flex items-center justify-between gap-3 font-body text-[12px]"
-              >
-                <span className="truncate text-[var(--text-secondary)]">{r.reason}</span>
-                <span className="shrink-0 rounded-full border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 px-2 py-0.5 font-display text-[11px] font-bold text-[var(--color-danger-text)]">
-                  {r.count}
-                </span>
-              </div>
-            ))}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <section className={cn(CARD_SURFACE_CLASS, "p-5")}>
+          <h2 className="text-lg font-bold tracking-tight">Funil de conversão</h2>
+          <div className="mt-4 flex flex-col gap-4">
+            <FunnelBar label="Enviado" count={sent} pct={sentPct} color="bg-foreground/70" />
+            <FunnelBar label="Lido" count={read} pct={readPct} color="bg-success" />
+            <FunnelBar label="Respondido" count={replied} pct={repliedPct} color="bg-primary" />
+            <FunnelBar label="Falha" count={failed} pct={failedPct} color="bg-destructive" />
           </div>
-        </div>
-      ) : null}
 
-      {/* Destinatários */}
-      {total > 0 ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-[var(--glass-shadow)] backdrop-blur-md">
-          <div className="flex items-center justify-between gap-2 border-b border-[var(--glass-border-subtle)] p-3">
-            <p className="font-display text-[13px] font-bold text-[var(--text-primary)]">
-              Destinatários
+          <div className="mt-5 rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CircleX className="size-4" aria-hidden="true" />
+              <span className="text-xs font-semibold tracking-wide">Falhas</span>
+            </div>
+            <p className="mt-2 text-2xl font-bold tabular-nums text-destructive">
+              {nf(failed)} · {failedPct}%
             </p>
-            <div className="flex flex-wrap gap-1">
-              {RECIPIENT_FILTERS.map((f) => (
+            <p className="mt-1 text-sm text-muted-foreground">mensagens não entregues</p>
+          </div>
+
+          {highFailure ? (
+            <div className="mt-4 flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+              <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+              Taxa de falha alta: {failedPct}%
+            </div>
+          ) : null}
+
+          {stats?.failureReasons && stats.failureReasons.length > 0 ? (
+            <div className="mt-4 flex flex-col gap-1.5">
+              {stats.failureReasons.map((reason) => (
+                <div key={reason.reason} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate text-muted-foreground">{reason.reason}</span>
+                  <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-bold tabular-nums text-destructive">
+                    {reason.count}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        <section className={cn(CARD_SURFACE_CLASS, "flex min-h-[420px] flex-col p-5")}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-bold tracking-tight">Destinatários</h2>
+            <div className="flex flex-wrap items-center gap-1 rounded-full border border-border p-1">
+              {RECIPIENT_FILTERS.map((filter) => (
                 <button
-                  key={f.value || "all"}
+                  key={filter.value || "all"}
                   type="button"
                   onClick={() => {
-                    setRecipientFilter(f.value);
+                    setRecipientFilter(filter.value);
                     setPage(1);
                   }}
-                  className={`rounded-full border px-2.5 py-1 font-display text-[11px] font-semibold transition-colors ${
-                    recipientFilter === f.value
-                      ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
-                      : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)]"
-                  }`}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
+                    recipientFilter === filter.value
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  {f.label}
+                  {filter.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="mt-4 flex min-h-0 flex-1 flex-col">
             {recipientsQuery.isLoading ? (
-              <div className="space-y-2 p-3">
+              <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-9 animate-pulse rounded-[var(--radius-md)] bg-[var(--glass-bg-subtle)]"
-                  />
+                  <div key={i} className="h-12 animate-pulse rounded-xl bg-secondary" />
                 ))}
               </div>
-            ) : (recipientsQuery.data?.items ?? []).length === 0 ? (
-              <EmptyState
-                icon={<IconUsers size={26} />}
-                title="Nenhum destinatário"
-                description="Nenhum contato com esse status."
-              />
+            ) : recipients.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
+                <span className="flex size-16 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                  <Users className="size-7" aria-hidden="true" />
+                </span>
+                <p className="mt-4 text-lg font-bold">Nenhum destinatário</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {total > 0
+                    ? "Nenhum contato com esse status."
+                    : "Esta campanha ainda não tem destinatários."}
+                </p>
+              </div>
             ) : (
-              <div className="divide-y divide-[var(--glass-border-subtle)]">
-                {(recipientsQuery.data?.items ?? []).map((r) => {
-                  const rmeta = RECIPIENT_META[r.status] ?? RECIPIENT_META.PENDING;
+              <div className="divide-y divide-border">
+                {recipients.map((recipient) => {
+                  const rmeta = RECIPIENT_META[recipient.status] ?? RECIPIENT_META.PENDING;
                   return (
-                    <div key={r.id} className="px-3 py-2">
+                    <div key={recipient.id} className="py-2.5">
                       <div className="flex items-center justify-between gap-3">
                         <Link
-                          href={`/contacts/${r.contact.id}`}
-                          className="min-w-0 flex-1 rounded-[var(--radius-sm)] outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                          href={`/contacts/${recipient.contact.id}`}
+                          className="min-w-0 flex-1 rounded-lg outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
                           title="Abrir lead"
                         >
-                          <p className="truncate font-display text-[12.5px] font-semibold text-[var(--text-primary)] hover:text-[var(--brand-primary)]">
-                            {r.contact.name}
+                          <p className="truncate font-semibold text-foreground hover:text-primary">
+                            {recipient.contact.name}
                           </p>
-                          <p className="truncate font-body text-[11px] text-[var(--text-muted)]">
-                            {r.contact.phone ?? "—"}
+                          <p className="truncate text-xs text-muted-foreground">
+                            {recipient.contact.phone ?? "—"}
                           </p>
                         </Link>
                         <div className="flex shrink-0 items-center gap-2">
-                          {r.errorMessage ? (
+                          {recipient.errorMessage ? (
                             <button
                               type="button"
-                              onClick={() => toggleError(r.id)}
-                              title={r.errorMessage}
-                              className="max-w-[180px] truncate font-body text-[10.5px] text-[var(--color-danger-text)] underline-offset-2 hover:underline"
+                              onClick={() => toggleError(recipient.id)}
+                              title={recipient.errorMessage}
+                              className="max-w-[180px] truncate text-xs text-destructive underline-offset-2 hover:underline"
                             >
-                              {r.errorMessage}
+                              {recipient.errorMessage}
                             </button>
                           ) : null}
-                          {r.repliedAt ? (
-                            <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 font-display text-[10px] font-bold text-[var(--color-sky)]">
+                          {recipient.repliedAt ? (
+                            <span className="rounded-full bg-chip-violet-soft px-2 py-0.5 text-xs font-bold text-chip-violet">
                               Respondeu
                             </span>
                           ) : null}
                           <span
-                            className={`rounded-full border px-2 py-0.5 font-display text-[10px] font-bold ${TONE_CLASSES[rmeta.tone]}`}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-xs font-bold",
+                              RECIPIENT_CHIP_CLASS[recipient.status],
+                            )}
                           >
                             {rmeta.label}
                           </span>
                           <Link
-                            href={`/contacts/${r.contact.id}`}
-                            className="inline-flex size-7 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                            href={`/contacts/${recipient.contact.id}`}
+                            className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:text-primary"
                             title="Abrir lead"
-                            aria-label={`Abrir lead ${r.contact.name}`}
+                            aria-label={`Abrir lead ${recipient.contact.name}`}
                           >
-                            <IconExternalLink size={14} />
+                            <ExternalLink className="size-3.5" />
                           </Link>
                         </div>
                       </div>
-                      {r.errorMessage && expandedErrors.has(r.id) ? (
-                        <p className="mt-1.5 whitespace-pre-wrap break-words rounded-[var(--radius-md)] border border-[var(--color-danger)]/20 bg-[var(--color-danger)]/5 px-2.5 py-1.5 font-body text-[11px] leading-relaxed text-[var(--color-danger-text)]">
-                          {r.errorMessage}
+                      {recipient.errorMessage && expandedErrors.has(recipient.id) ? (
+                        <p className="mt-1.5 whitespace-pre-wrap break-words rounded-xl border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
+                          {recipient.errorMessage}
                         </p>
                       ) : null}
                     </div>
@@ -444,113 +438,54 @@ export default function CampaignDetailClientPage() {
               </div>
             )}
           </div>
+        </section>
+      </div>
 
-          {(recipientsQuery.data?.totalPages ?? 1) > 1 ? (
-            <div className="flex items-center justify-center gap-2 border-t border-[var(--glass-border-subtle)] p-2">
-              <PageBtn disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                Anterior
-              </PageBtn>
-              <span className="font-body text-[12px] text-[var(--text-muted)]">
-                {page} / {recipientsQuery.data?.totalPages}
-              </span>
-              <PageBtn
-                disabled={page >= (recipientsQuery.data?.totalPages ?? 1)}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Próximo
-              </PageBtn>
-            </div>
-          ) : null}
-        </div>
+      {recipientPages > 1 ? (
+        <PaginationGlass
+          total={recipientTotal}
+          entityLabel="destinatários"
+          page={page}
+          lastPage={recipientPages}
+          canPrev={page > 1}
+          canNext={page < recipientPages}
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(recipientPages, p + 1))}
+          perPage={RECIPIENT_PER_PAGE}
+        />
       ) : null}
 
-      {/* Detalhes */}
-      <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-4 shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-        <DetailRow label="Criado em" value={fmtDateTime(campaign.createdAt)} />
+      <div className={cn(CARD_SURFACE_CLASS, "px-5 py-1")}>
+        <MetaRow label="Criado em" value={fmtDateTime(campaign.createdAt)} />
         {campaign.startedAt ? (
-          <DetailRow label="Iniciado em" value={fmtDateTime(campaign.startedAt)} />
+          <MetaRow label="Iniciado em" value={fmtDateTime(campaign.startedAt)} />
         ) : null}
         {campaign.completedAt ? (
-          <DetailRow label="Concluído em" value={fmtDateTime(campaign.completedAt)} />
+          <MetaRow label="Concluído em" value={fmtDateTime(campaign.completedAt)} />
         ) : null}
         {campaign.scheduledAt ? (
-          <DetailRow label="Agendado para" value={fmtDateTime(campaign.scheduledAt)} />
+          <MetaRow label="Agendado para" value={fmtDateTime(campaign.scheduledAt)} />
         ) : null}
-        <DetailRow label="Velocidade" value={`${campaign.sendRate} msgs/s`} />
-        <DetailRow label="Tag" value={tagLabel} />
-        {campaign.segment ? (
-          <DetailRow label="Segmento" value={campaign.segment.name} />
-        ) : null}
+        <MetaRow label="Velocidade" value={`${campaign.sendRate} msgs/s`} />
+        <MetaRow label="Tag" value={tagLabel} />
+        {campaign.segment ? <MetaRow label="Segmento" value={campaign.segment.name} /> : null}
       </div>
     </Shell>
   );
 }
 
-function Shell({
-  children,
-  header,
-  title,
-  subtitle,
-  badge,
-}: {
-  children: React.ReactNode;
-  header?: React.ReactNode;
-  title?: string;
-  subtitle?: string;
-  badge?: React.ReactNode;
-}) {
+function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+    <div className="v2-screen v2-screen-fill v2-page-scroll grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-y-auto bg-background">
       <NavRailSpacer />
-      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
-        <PageHeader
-          back={{ href: "/campaigns", label: "Campanhas" }}
-          icon={<IconRocket size={22} />}
-          title={title ?? "Campanha"}
-          description={subtitle}
-          center={badge ? <div>{badge}</div> : undefined}
-          actions={header}
-        />
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
-          {children}
-        </div>
+      <main className="flex min-w-0 flex-col">
+        <div className="flex w-full flex-col gap-5 px-4 py-5">{children}</div>
       </main>
     </div>
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  tone,
-  rate,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  tone?: string;
-  rate?: number;
-}) {
-  return (
-    <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-      <div className="flex items-center gap-2">
-        <span className={tone ?? "text-[var(--text-muted)]"}>{icon}</span>
-        <div>
-          <p className={`font-display text-[18px] font-bold leading-none ${tone ?? "text-[var(--text-primary)]"}`}>
-            {value.toLocaleString("pt-BR")}
-          </p>
-          <p className="mt-0.5 font-body text-[10.5px] uppercase tracking-wide text-[var(--text-muted)]">
-            {label}
-            {rate !== undefined ? ` · ${rate}%` : ""}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HeaderBtn({
+function HeaderPill({
   children,
   onClick,
   disabled,
@@ -566,43 +501,52 @@ function HeaderBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 font-display text-[12.5px] font-semibold transition-colors disabled:opacity-50 ${
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50",
         danger
-          ? "border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 text-[var(--color-danger-text)] hover:bg-[var(--color-danger)]/20"
-          : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)] hover:border-[var(--brand-primary)]/35"
-      }`}
+          ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20"
+          : "border-border bg-card text-foreground hover:bg-secondary",
+      )}
     >
       {children}
     </button>
   );
 }
 
-function PageBtn({
-  children,
-  onClick,
-  disabled,
+function FunnelBar({
+  label,
+  count,
+  pct,
+  color,
 }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
+  label: string;
+  count: number;
+  pct: number;
+  color: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-1.5 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--brand-primary)]/35 disabled:opacity-40"
-    >
-      {children}
-    </button>
+    <div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="tabular-nums text-muted-foreground">
+          {nf(count)} · {pct}%
+        </span>
+      </div>
+      <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn("h-full rounded-full", color)}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
+      </div>
+    </div>
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function MetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 py-1 font-body text-[12.5px]">
-      <span className="text-[var(--text-muted)]">{label}</span>
-      <span className="font-semibold text-[var(--text-primary)]">{value}</span>
+    <div className="flex items-center justify-between gap-4 border-b border-border py-3 last:border-b-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium tabular-nums text-foreground">{value}</span>
     </div>
   );
 }

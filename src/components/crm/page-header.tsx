@@ -1,12 +1,11 @@
 /**
- * @deprecated DS-012 — componente legado (v1). O canônico é
- * `components/ui/page-header.tsx`. Não adicionar novos imports.
- * Remoção física após aposentadoria das rotas que ainda o usam.
+ * Cabeçalho canônico das páginas do app (`/settings` é a referência visual).
+ * Identidade à esquerda; busca + Filtrar + calendário + hamburger à direita.
  */
 "use client"
 
 import Link from "next/link"
-import { IconChevronLeft } from "@tabler/icons-react"
+import { ChevronLeft } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -17,21 +16,26 @@ export type PageHeaderBack = {
 }
 
 /**
- * Cabeçalho de página DS v2 — identidade (ícone tile 44px + título 22px bold).
+ * Cabeçalho de página DS v2 — identidade (ícone tile 44px + título 22px bold)
+ * à esquerda; busca + Filtrar + calendário + hamburger sempre à direita.
  *
- * Mobile (< lg): título numa linha; busca + ações numa faixa
- * `toolbar-hscroll` (mesmo padrão do Pipeline / kanban).
- * Desktop (lg+): identidade com largura fixa → busca flexível (encolhe até
- * caber, até um máximo) → spacer → ações. Assim a barra começa sempre na
- * mesma coluna, independente do tamanho do título, e as ações nunca são
- * recortadas.
+ * Uma única faixa `flex-wrap`: se o cluster não couber, ele desce para a
+ * segunda linha alinhado ao fim (`ml-auto` / `justify-end`) — não como bloco
+ * `w-full` à esquerda sob o título. A pílula tem altura `h-10` e largura
+ * canônica `32rem` (encolhe antes de recortar as ações).
+ *
+ * Um único mount (sem duplicar desktop `lg:flex` + mobile `lg:hidden`) para
+ * portais de menu no `actions` / `menuSlot` não duplicarem.
  * Descrições de página foram removidas do padrão NavRail.
  */
 
-/** Largura da coluna de identidade (ícone + título) — alinha a busca entre páginas. */
-const IDENTITY_COL = "w-[18rem]"
-/** Largura máxima da barra de busca no header — encolhe antes de recortar as ações. */
-const SEARCH_COL = "min-w-0 flex-1 max-w-[32rem]"
+/** Cluster de busca + ações — sempre à direita, wrap alinhado ao fim. */
+export const PAGE_HEADER_CONTROLS_CLASS =
+  "ml-auto flex min-w-0 w-max max-w-full flex-wrap items-center justify-end gap-2"
+
+/** Slot da pílula — largura canônica 32rem; `h-10` vem do input. */
+export const PAGE_HEADER_SEARCH_SLOT_CLASS =
+  "min-w-0 w-[32rem] max-w-full [&_.relative]:w-full"
 
 interface PageHeaderProps {
   icon: React.ReactNode
@@ -43,13 +47,12 @@ interface PageHeaderProps {
   /** Elemento renderizado ao lado do título (ex.: dropdown de funis). */
   titleAccessory?: React.ReactNode
   /**
-   * Busca — alinhada à ESQUERDA (logo após o título) em desktop;
-   * na faixa rolável no mobile. Tipicamente um `<SearchInput />`.
+   * Busca — à DIREITA, no cluster com calendário e hamburger.
+   * Tipicamente um `<SearchFilterBar />` (`h-10 rounded-full`).
    */
   center?: React.ReactNode
   /**
-   * Outros controles — à DIREITA em desktop; na faixa rolável no mobile.
-   * Filtros, switchers de view, botões de ação.
+   * Calendário, switchers e hamburger — à DIREITA, depois da busca.
    */
   actions?: React.ReactNode
   className?: string
@@ -67,14 +70,14 @@ function Identity({
   titleAccessory?: React.ReactNode
 }) {
   return (
-    <div className="flex min-w-0 w-full items-center gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       {back ? (
         <Link
           href={back.href}
           aria-label={`Voltar para ${back.label}`}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)]"
         >
-          <IconChevronLeft size={20} stroke={2.2} />
+          <ChevronLeft size={20} strokeWidth={2} />
         </Link>
       ) : null}
 
@@ -104,43 +107,18 @@ export function PageHeader({
   const hasControls = Boolean(center || actions)
 
   return (
-    <div className={cn("flex flex-col gap-2 px-1", className)}>
-      {/* Desktop: identidade (largura fixa) → busca (flexível, até max-w) → spacer → ações */}
-      <div className="hidden items-center gap-4 lg:flex">
-        <div className={cn(center ? cn(IDENTITY_COL, "shrink-0") : "min-w-0 shrink-0")}>
-          <Identity icon={icon} title={title} back={back} titleAccessory={titleAccessory} />
-        </div>
-        {center ? (
-          <div className={cn(SEARCH_COL, "[&>.relative]:!w-full [&>.relative]:!max-w-none")}>
-            {center}
-          </div>
-        ) : null}
-        <div className="min-w-0 flex-1" />
-        {actions ? (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
-        ) : null}
-      </div>
-
-      {/* Mobile / tablet: título + faixa horizontal rolável */}
-      <div className="flex flex-col gap-2 lg:hidden">
+    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 px-1", className)}>
+      <div className="min-w-0 shrink">
         <Identity icon={icon} title={title} back={back} titleAccessory={titleAccessory} />
-        {hasControls ? (
-          <div className="flex min-w-0 max-w-full flex-col gap-2">
-            {center ? (
-              <div className="min-w-0 w-full [&>.relative]:!w-full [&>.relative]:!max-w-none">
-                {center}
-              </div>
-            ) : null}
-            {actions ? (
-              <div className="toolbar-hscroll flex max-w-full flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
-                <div className="flex shrink-0 flex-nowrap items-center gap-2">
-                  {actions}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
       </div>
+      {hasControls ? (
+        <div className={PAGE_HEADER_CONTROLS_CLASS}>
+          {center ? <div className={PAGE_HEADER_SEARCH_SLOT_CLASS}>{center}</div> : null}
+          {actions ? (
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

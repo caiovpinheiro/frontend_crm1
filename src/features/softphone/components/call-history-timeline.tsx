@@ -272,12 +272,14 @@ export function CallHistoryTimeline({
 
       {total > perPage && (
         <PaginationGlass
-          label={`${total.toLocaleString("pt-BR")} chamada${total !== 1 ? "s" : ""} — página ${page} de ${lastPage}`}
+          total={total}
+          entityLabel="chamadas"
+          page={page}
+          lastPage={lastPage}
           canPrev={page > 1}
           canNext={page < lastPage}
           onPrev={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(lastPage, p + 1))}
-          perPage={perPage}
         />
       )}
     </div>

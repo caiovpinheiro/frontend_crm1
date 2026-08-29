@@ -12,9 +12,13 @@ function lastMessageDirection(row: ConversationListRow): "in" | "out" | null {
 /**
  * Fila canônica da conversa (a mais específica). Usado ao abrir um hit
  * da busca para mudar a aba da inbox junto com o ticket.
+ *
+ * Encerradas = conversa de fato fechada (`RESOLVED` / `closedAt`). Deal
+ * GANHO/PERDIDO com ticket ainda OPEN fica na aba que o status implica
+ * (Aguardando, Entrada, …) — estágio do funil não fecha conversa.
  */
 export function inboxQueueTabFor(row: ConversationListRow): InboxTab {
-  if (row.status === "RESOLVED") return "finalizados";
+  if (row.status === "RESOLVED" || row.closedAt) return "finalizados";
   if (row.hasError) return "erro";
 
   const assigneeType = (row.assignedTo?.type ?? "").toUpperCase();

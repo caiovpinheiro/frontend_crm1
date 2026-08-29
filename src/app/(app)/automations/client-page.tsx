@@ -5,32 +5,33 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
-  IconActivity,
-  IconAdjustmentsHorizontal,
-  IconBolt,
-  IconCheck,
-  IconCircleCheck,
-  IconClock,
-  IconLoader2,
-  IconPlus,
-  IconRobot,
-  IconRotateClockwise,
-  IconSearch,
-  IconUpload,
-} from "@tabler/icons-react"
+  Activity,
+  Bot,
+  CircleCheck,
+  Clock,
+  LoaderCircle,
+  Plus,
+  Upload,
+  Zap,
+} from "lucide-react"
 
 import { AppLoading } from "@/components/crm/app-loading"
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer"
 import { RestrictedScreen } from "@/components/crm/restricted-screen"
 import { useRequireManager } from "@/hooks/use-user-role"
-import { PageHeader } from "@/components/crm/page-header"
-import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar"
-import { PageDemoBanner } from "@/components/crm/page-demo-banner"
+import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
+import { SearchFilterBar } from "@/components/crm/search-filter-bar"
+import {
+  FilterChip,
+  FilterPopoverBody,
+  FilterPopoverHeader,
+  FilterPopoverPanel,
+} from "@/components/crm/filter-popover"
+import { PageActionsMenu } from "@/components/crm/page-toolbar"
 import { AutomationsGallery } from "@/components/crm/automations-gallery"
 import { EmptyState } from "@/components/crm/empty-state"
 import { PaginationGlass } from "@/components/crm/pagination-glass"
 import { KpiCard, type KpiTone } from "@/components/crm/kpi-card"
-import { cn } from "@/lib/utils"
 import {
   useAutomations,
   useAutomationsSummary,
@@ -317,10 +318,11 @@ export default function V2AutomationsClientPage() {
   if (ready && !isManagerUp) return <RestrictedScreen />
 
   return (
-    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+    <div className="v2-screen v2-screen-fill v2-page-scroll grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-y-auto bg-background">
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-4 overflow-hidden">
+      <main className="flex min-w-0 flex-col">
+        <div className="flex w-full flex-col gap-4 px-4 py-5">
         <input
           ref={importInputRef}
           type="file"
@@ -329,48 +331,44 @@ export default function V2AutomationsClientPage() {
           onChange={handleImportFile}
         />
 
-        <PageHeader
-          icon={<IconRobot size={22} stroke={2.2} />}
+        <SectionHeader
+          icon={Bot}
           title="Automações"
-          center={
-            <div className="flex w-full justify-start">
-              <AutomationsSearchFilterBar
-                search={query}
-                onSearch={setQuery}
-                filter={filter}
-                onFilterChange={(v) => setFilter(v as StatusFilter)}
-                counts={{
-                  all: summary.total,
-                  active: summary.active,
-                  paused: summary.paused,
-                }}
-                onClearAll={() => {
-                  setQuery("")
-                  setFilter(0)
-                }}
-              />
-            </div>
+          searchSlot={
+            <AutomationsSearchFilterBar
+              search={query}
+              onSearch={setQuery}
+              filter={filter}
+              onFilterChange={(v) => setFilter(v as StatusFilter)}
+              counts={{
+                all: summary.total,
+                active: summary.active,
+                paused: summary.paused,
+              }}
+              onClearAll={() => {
+                setQuery("")
+                setFilter(0)
+              }}
+            />
           }
           actions={
-            <div className="flex items-center gap-2">
-              <PageSegmentedControl
-                size="compact"
-                aria-label="Automações e campanhas"
-                items={[
-                  { value: "automations", label: "Automações" },
-                  { value: "campaigns", label: "Campanhas" },
-                ]}
-                value="automations"
-                onChange={(v) => {
-                  if (v === "campaigns") router.push("/campaigns")
-                }}
-              />
-              <AutomationsActionsMenu
-                onNew={() => router.push("/automations/new")}
-                onImport={handleImportClick}
-                importing={isImporting}
-              />
-            </div>
+            <HeaderPillToggle
+              options={[
+                { key: "automations", label: "Automações" },
+                { key: "campaigns", label: "Campanhas" },
+              ]}
+              value="automations"
+              onChange={(v) => {
+                if (v === "campaigns") router.push("/campaigns")
+              }}
+            />
+          }
+          menuSlot={
+            <AutomationsActionsMenu
+              onNew={() => router.push("/automations/new")}
+              onImport={handleImportClick}
+              importing={isImporting}
+            />
           }
         />
 
@@ -380,40 +378,34 @@ export default function V2AutomationsClientPage() {
           onFilterChange={(v) => setFilter(v)}
         />
 
-        {isDemo && (
-          <PageDemoBanner>
-            Dados de exemplo — fluxos ilustrativos com métricas e mini-fluxo para visualizar a lista.
-          </PageDemoBanner>
-        )}
-
         {isLoading ? (
-          <AppLoading variant="inline" className="min-h-[400px]" />
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : isError ? (
-          <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
             {listQuery.error instanceof Error
               ? listQuery.error.message
               : "Erro ao carregar automações."}
           </div>
         ) : isEmpty ? (
-          <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border bg-card">
             <EmptyState
-              icon={<IconRobot size={28} />}
+              icon={<Bot size={28} />}
               title="Nenhuma automação ainda"
               description="Crie sua primeira automação ou importe um fluxo em .json."
               action={
                 <Link
                   href="/automations/new"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 py-2 font-display text-[13px] font-bold text-white transition-colors hover:bg-[var(--brand-primary-dark)]"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
                 >
-                  <IconPlus size={16} /> Nova automação
+                  <Plus size={16} /> Nova automação
                 </Link>
               }
             />
           </div>
         ) : isEmptyFiltered ? (
-          <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border bg-card">
             <EmptyState
-              icon={<IconRobot size={28} />}
+              icon={<Bot size={28} />}
               title="Nenhum resultado"
               description={
                 debounced
@@ -446,6 +438,7 @@ export default function V2AutomationsClientPage() {
             setPage(1)
           }}
         />
+        </div>
       </main>
 
       {confirmDialog}
@@ -484,37 +477,37 @@ function AutomationsKpis({
       label: "Ativas",
       value: summary.active.toLocaleString("pt-BR"),
       hint: `de ${summary.total.toLocaleString("pt-BR")}`,
-      tone: "violet",
-      icon: <IconBolt size={20} stroke={2.2} />,
+      tone: "brand",
+      icon: <Zap size={20} strokeWidth={2} />,
       segment: 1,
     },
     {
       key: "runs",
       label: "Execuções hoje",
       value: summary.runsToday.toLocaleString("pt-BR"),
-      tone: "brand",
-      icon: <IconActivity size={20} stroke={2.2} />,
+      tone: "violet",
+      icon: <Activity size={20} strokeWidth={2} />,
     },
     {
       key: "success",
       label: "Taxa média de sucesso",
       value: `${summary.avgSuccess}%`,
       tone: "success",
-      icon: <IconCircleCheck size={20} stroke={2.2} />,
+      icon: <CircleCheck size={20} strokeWidth={2} />,
     },
     {
       key: "paused",
       label: "Pausadas",
       value: summary.paused.toLocaleString("pt-BR"),
       tone: "neutral",
-      icon: <IconClock size={20} stroke={2.2} />,
+      icon: <Clock size={20} strokeWidth={2} />,
       segment: 2,
     },
   ]
 
   return (
     <section
-      className="grid shrink-0 grid-cols-2 gap-2.5 sm:gap-3.5 lg:grid-cols-4"
+      className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       aria-label="Indicadores"
     >
       {cards.map((c) => (
@@ -539,15 +532,6 @@ function AutomationsKpis({
 }
 
 // ── Busca + popover de filtros (status) ──────────────────────────────────
-
-function CountBadge({ count }: { count: number }) {
-  if (count <= 0) return null
-  return (
-    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 font-display text-[10px] font-bold leading-none text-white">
-      {count}
-    </span>
-  )
-}
 
 function AutomationsSearchFilterBar({
   search,
@@ -581,95 +565,41 @@ function AutomationsSearchFilterBar({
 
   return (
     <div ref={ref} className="relative w-full">
-      <IconSearch
-        size={15}
-        className="absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-[var(--text-muted)]"
-      />
-      <input
-        type="search"
+      <SearchFilterBar
         value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        onFocus={() => setOpen(true)}
+        onChange={onSearch}
         placeholder="Pesquisar e filtrar..."
-        aria-label="Buscar e filtrar automações"
-        className="h-10 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] pl-9 pr-24 font-body text-[13px] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] outline-none placeholder:text-[var(--text-muted)] transition-colors focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--input-ring-focus)]"
+        ariaLabel="Buscar e filtrar automações"
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => setOpen((o) => !o)}
+        onFocus={() => setOpen(true)}
       />
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="Filtros"
-        className={cn(
-          "absolute right-1.5 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 transition-colors",
-          activeCount > 0 || open
-            ? "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-            : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]",
-        )}
-      >
-        <IconAdjustmentsHorizontal size={15} />
-        <span className="font-display text-[11px] font-semibold leading-none">
-          Filtrar
-        </span>
-        {activeCount > 0 && (
-          <span className="font-display text-[10px] font-bold leading-none tabular-nums">
-            {activeCount}
-          </span>
-        )}
-      </button>
 
-      {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 flex w-[min(100vw-2rem,380px)] flex-col overflow-visible rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md">
-          <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-            <div className="flex items-center gap-2">
-              <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">
-                Filtrar por status
-              </span>
-              <CountBadge count={activeCount} />
-            </div>
-            <button
-              type="button"
-              onClick={onClearAll}
-              disabled={activeCount === 0 && !search}
-              className="flex items-center gap-1 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-40"
-            >
-              <IconRotateClockwise size={13} /> Limpar
-            </button>
-          </div>
-
-          <div className="max-h-[min(60vh,420px)] overflow-y-auto px-4 pb-4">
+      {open ? (
+        <FilterPopoverPanel>
+          <FilterPopoverHeader
+            title="Filtros"
+            count={activeCount}
+            onClear={onClearAll}
+            clearDisabled={activeCount === 0 && !search}
+          />
+          <FilterPopoverBody>
             <div className="flex flex-wrap gap-1.5">
-              {FILTERS.map((label, index) => {
-                const selected = filter === index
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => onFilterChange(index)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
-                      selected
-                        ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
-                        : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-                    )}
-                  >
-                    {selected && <IconCheck size={12} stroke={2.4} />}
-                    {label}
-                    <span
-                      className={cn(
-                        "min-w-[18px] rounded-full px-1.5 text-center text-[10px] font-bold",
-                        selected
-                          ? "bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]"
-                          : "bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]",
-                      )}
-                    >
-                      {countFor(index)}
-                    </span>
-                  </button>
-                )
-              })}
+              {FILTERS.map((label, index) => (
+                <FilterChip
+                  key={label}
+                  selected={filter === index}
+                  onClick={() => onFilterChange(index)}
+                  count={countFor(index)}
+                >
+                  {label}
+                </FilterChip>
+              ))}
             </div>
-          </div>
-        </div>
-      )}
+          </FilterPopoverBody>
+        </FilterPopoverPanel>
+      ) : null}
     </div>
   )
 }
@@ -689,16 +619,16 @@ function AutomationsActionsMenu({
     <PageActionsMenu
       items={[
         {
-          icon: <IconPlus size={14} stroke={2.6} />,
+          icon: <Plus size={14} strokeWidth={2.6} />,
           label: "Nova automação",
           onClick: onNew,
           primary: true,
         },
         {
           icon: importing ? (
-            <IconLoader2 size={13} className="animate-spin" />
+            <LoaderCircle size={13} className="animate-spin" />
           ) : (
-            <IconUpload size={13} />
+            <Upload size={13} />
           ),
           label: importing ? "Importando…" : "Importar .json",
           onClick: onImport,

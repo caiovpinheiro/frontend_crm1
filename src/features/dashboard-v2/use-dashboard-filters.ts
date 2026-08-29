@@ -5,22 +5,30 @@
  * (legível e compartilhável). Recarregar a página mantém os filtros.
  *
  * Exemplo:
- *   /dashboard?period=last_30&pipeline=12&stages=negociacao,proposta&tags=t1
+ *   /dashboard?period=last_30&pipeline=12,8&stages=negociacao&user=u1,u2
  *
- * Sem query string → padrão "Este mês" (this_month).
- * `pipeline` na URL é o number da org; `stages` continuam slugs.
- * Estado interno e API usam CUID.
+ * Sem query string → padrão "Últimos 30 dias" + todos os funis (soma).
+ * `pipeline` na URL é CSV de numbers da org; `stages` continuam slugs.
+ * `user` = filtro de usuário do painel Negócios.
  */
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   findPipelineByUrlParam,
   pipelineUrlParam,
 } from "@/features/pipeline-v2/hooks/use-pipeline-url-sync";
+import {
+  readJsonWithFallback,
+  scopedKey,
+  useDashboardStorageScope,
+  writeJson,
+} from "@/features/dashboard-v2/dashboard-persist";
 
 import type { DashboardFiltersState, PeriodKey } from "./api";
+
+export const DASHBOARD_FILTERS_KEY_PREFIX = "dashboard-filters";
 
 const VALID_PERIODS: PeriodKey[] = [
   "today",
@@ -51,10 +59,11 @@ type UrlFilterKeys = {
   period: PeriodKey;
   startDate?: string;
   endDate?: string;
-  pipelineKey?: string;
+  pipelineKeys: string[];
   stageKeys: string[];
   tagIds: string[];
   ownerIds: string[];
+  userIds: string[];
   sources: string[];
 };
 
@@ -63,16 +72,17 @@ function readUrlKeys(sp: URLSearchParams): UrlFilterKeys {
   const period: PeriodKey =
     periodRaw && VALID_PERIODS.includes(periodRaw as PeriodKey)
       ? (periodRaw as PeriodKey)
-      : "this_month";
+      : "last_30";
+  const pipelineRaw = sp.get("pipeline") ?? sp.get("pipelineId") ?? "";
   return {
     period,
     startDate: sp.get("startDate") ?? undefined,
     endDate: sp.get("endDate") ?? undefined,
-    // Novo: `pipeline=<number>`; legado: slug/nome, ou `pipelineId=<cuid>`.
-    pipelineKey: sp.get("pipeline") ?? sp.get("pipelineId") ?? undefined,
+    pipelineKeys: parseCsv(pipelineRaw),
     stageKeys: parseCsv(sp.get("stages")),
     tagIds: parseCsv(sp.get("tags")),
     ownerIds: parseCsv(sp.get("owners")),
+    userIds: parseCsv(sp.get("user")),
     sources: parseCsv(sp.get("sources")),
   };
 }
@@ -81,25 +91,32 @@ function resolveToIds(
   keys: UrlFilterKeys,
   pipelines: DashboardPipelineOption[] | undefined,
 ): DashboardFiltersState {
-  let pipelineId: string | undefined;
-  let stageIds: string[] = [];
-
-  if (keys.pipelineKey && pipelines?.length) {
-    const p = findPipelineByUrlParam(pipelines, keys.pipelineKey);
-    pipelineId = p?.id;
-    if (p && keys.stageKeys.length) {
-      const stages = p.stages ?? [];
-      stageIds = keys.stageKeys
-        .map(
-          (k) =>
-            stages.find((s) => s.slug === k)?.id ??
-            stages.find((s) => s.id === k)?.id,
-        )
-        .filter((id): id is string => !!id);
+  const pipelineIds: string[] = [];
+  if (keys.pipelineKeys.length && pipelines?.length) {
+    for (const key of keys.pipelineKeys) {
+      const p = findPipelineByUrlParam(pipelines, key);
+      if (p?.id && !pipelineIds.includes(p.id)) pipelineIds.push(p.id);
     }
-  } else if (keys.pipelineKey && /^[a-z][a-z0-9]{20,}$/i.test(keys.pipelineKey)) {
-    // Opções ainda não carregaram: CUID legado continua válido na API.
-    pipelineId = keys.pipelineKey;
+  } else if (keys.pipelineKeys.length) {
+    for (const key of keys.pipelineKeys) {
+      if (/^[a-z][a-z0-9]{20,}$/i.test(key) && !pipelineIds.includes(key)) {
+        pipelineIds.push(key);
+      }
+    }
+  }
+
+  let stageIds: string[] = [];
+  if (pipelineIds.length && pipelines?.length && keys.stageKeys.length) {
+    const selected = pipelines.filter((p) => pipelineIds.includes(p.id));
+    const stages = selected.flatMap((p) => p.stages ?? []);
+    stageIds = keys.stageKeys
+      .map(
+        (k) =>
+          stages.find((s) => s.slug === k)?.id ??
+          stages.find((s) => s.id === k)?.id,
+      )
+      .filter((id): id is string => !!id);
+  } else if (keys.pipelineKeys.length && keys.stageKeys.length) {
     stageIds = keys.stageKeys.filter((k) => /^[a-z][a-z0-9]{20,}$/i.test(k));
   }
 
@@ -107,7 +124,9 @@ function resolveToIds(
     period: keys.period,
     startDate: keys.startDate,
     endDate: keys.endDate,
-    pipelineId,
+    pipelineId: pipelineIds[0],
+    pipelineIds,
+    userIds: keys.userIds,
     stageIds,
     tagIds: keys.tagIds,
     ownerIds: keys.ownerIds,
@@ -118,21 +137,28 @@ function resolveToIds(
 function toSearchParams(
   f: DashboardFiltersState,
   pipelines: DashboardPipelineOption[] | undefined,
+  current?: URLSearchParams,
 ): string {
   const sp = new URLSearchParams();
-  if (f.period && f.period !== "this_month") sp.set("period", f.period);
+  if (f.period && f.period !== "last_30") sp.set("period", f.period);
   if (f.period === "custom") {
     if (f.startDate) sp.set("startDate", f.startDate);
     if (f.endDate) sp.set("endDate", f.endDate);
   }
-  if (f.pipelineId) {
-    const p = pipelines?.find((x) => x.id === f.pipelineId);
-    const urlVal = pipelineUrlParam(p);
-    if (urlVal) sp.set("pipeline", urlVal);
+  const ids = f.pipelineIds.length
+    ? f.pipelineIds
+    : f.pipelineId
+      ? [f.pipelineId]
+      : [];
+  if (ids.length) {
+    const refs = ids
+      .map((id) => pipelineUrlParam(pipelines?.find((x) => x.id === id)))
+      .filter((s): s is string => !!s);
+    if (refs.length) sp.set("pipeline", refs.join(","));
   }
-  if (f.stageIds.length && f.pipelineId) {
-    const p = pipelines?.find((x) => x.id === f.pipelineId);
-    const stages = p?.stages ?? [];
+  if (f.stageIds.length && ids.length) {
+    const selected = pipelines?.filter((x) => ids.includes(x.id)) ?? [];
+    const stages = selected.flatMap((p) => p.stages ?? []);
     const slugs = f.stageIds
       .map((id) => stages.find((s) => s.id === id)?.slug)
       .filter((s): s is string => !!s);
@@ -140,29 +166,62 @@ function toSearchParams(
   }
   if (f.tagIds.length) sp.set("tags", f.tagIds.join(","));
   if (f.ownerIds.length) sp.set("owners", f.ownerIds.join(","));
+  if (f.userIds.length) sp.set("user", f.userIds.join(","));
   if (f.sources.length) sp.set("sources", f.sources.join(","));
+  const mock = current?.get("mock");
+  if (mock === "1" || mock === "0") sp.set("mock", mock);
   return sp.toString();
 }
 
-/** Conta filtros ativos para o badge "Limpar filtros". */
-export function countActiveDashboardFilters(f: DashboardFiltersState): number {
+/** Conta filtros estruturais (sem período — o calendário do header cuida disso). */
+export function countStructuralDashboardFilters(f: DashboardFiltersState): number {
   let n = 0;
-  if (f.period !== "this_month") n++;
-  if (f.pipelineId) n++;
+  if (f.pipelineIds.length || f.pipelineId) n++;
   if (f.stageIds.length) n++;
   if (f.tagIds.length) n++;
   if (f.ownerIds.length) n++;
+  if (f.userIds.length) n++;
   if (f.sources.length) n++;
   return n;
 }
 
+/** Conta filtros ativos para o badge "Limpar filtros". */
+export function countActiveDashboardFilters(f: DashboardFiltersState): number {
+  return countStructuralDashboardFilters(f) + (f.period !== "last_30" ? 1 : 0);
+}
+
 export const DEFAULT_DASHBOARD_FILTERS: DashboardFiltersState = {
-  period: "this_month",
+  period: "last_30",
+  pipelineIds: [],
+  userIds: [],
   stageIds: [],
   tagIds: [],
   ownerIds: [],
   sources: [],
 };
+
+const FILTER_URL_KEYS = [
+  "period",
+  "startDate",
+  "endDate",
+  "pipeline",
+  "pipelineId",
+  "stages",
+  "tags",
+  "owners",
+  "user",
+  "sources",
+] as const;
+
+function urlHasDashboardFilters(sp: URLSearchParams): boolean {
+  return FILTER_URL_KEYS.some((key) => Boolean(sp.get(key)));
+}
+
+function isFiltersState(v: unknown): v is DashboardFiltersState {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return typeof o.period === "string" && Array.isArray(o.pipelineIds ?? []);
+}
 
 /** @deprecated use read via hook — mantido para testes/leituras sem resolve. */
 export function readDashboardFilters(
@@ -178,8 +237,10 @@ export function useDashboardFilters(
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { ready, userId, keyPart } = useDashboardStorageScope();
+  const restoredRef = useRef(false);
 
-  const filters = useMemo(
+  const urlFilters = useMemo(
     () =>
       resolveToIds(
         readUrlKeys(new URLSearchParams(searchParams.toString())),
@@ -188,11 +249,35 @@ export function useDashboardFilters(
     [searchParams, pipelines],
   );
 
+  const [optimistic, setOptimistic] = useState<DashboardFiltersState | null>(null);
+  const filters = optimistic ?? urlFilters;
+
   useEffect(() => {
-    if (!pipelines?.length || !filters.pipelineId) return;
-    const p = pipelines.find((x) => x.id === filters.pipelineId);
-    const want = pipelineUrlParam(p);
-    if (!want) return;
+    function onPop() {
+      setOptimistic(null);
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
+    if (!optimistic) return;
+    if (
+      toSearchParams(optimistic, pipelines, searchParams) ===
+      searchParams.toString()
+    ) {
+      setOptimistic(null);
+    }
+  }, [optimistic, pipelines, searchParams]);
+
+  useEffect(() => {
+    const ids = filters.pipelineIds;
+    if (!pipelines?.length || !ids.length) return;
+    const refs = ids
+      .map((id) => pipelineUrlParam(pipelines.find((x) => x.id === id)))
+      .filter((s): s is string => !!s);
+    if (!refs.length) return;
+    const want = refs.join(",");
     const current = searchParams.get("pipeline");
     const hasLegacyId = searchParams.has("pipelineId");
     if (current === want && !hasLegacyId) return;
@@ -201,19 +286,73 @@ export function useDashboardFilters(
     sp.delete("pipelineId");
     const qs = sp.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [pipelines, filters.pipelineId, searchParams, pathname, router]);
+  }, [pipelines, filters.pipelineIds, searchParams, pathname, router]);
 
   const setFilters = useCallback(
     (next: DashboardFiltersState) => {
-      const qs = toSearchParams(next, pipelines);
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      const pipelineIds = next.pipelineIds ?? [];
+      const normalized: DashboardFiltersState = {
+        ...next,
+        pipelineIds,
+        pipelineId: pipelineIds[0],
+        userIds: next.userIds ?? [],
+        stageIds: next.stageIds ?? [],
+        tagIds: next.tagIds ?? [],
+        ownerIds: next.ownerIds ?? [],
+        sources: next.sources ?? [],
+      };
+      setOptimistic(normalized);
+      if (keyPart) writeJson(scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart), normalized);
+      const qs = toSearchParams(normalized, pipelines, searchParams);
+      const url = qs ? `${pathname}?${qs}` : pathname;
+      if (typeof window !== "undefined") {
+        window.history.replaceState(window.history.state ?? {}, "", url);
+      }
+      router.replace(url, { scroll: false });
     },
-    [router, pathname, pipelines],
+    [keyPart, pathname, pipelines, router, searchParams],
   );
+
+  useEffect(() => {
+    if (!pipelines?.length || !filters.pipelineIds.length) return;
+    const valid = filters.pipelineIds.filter((id) =>
+      pipelines.some((p) => p.id === id),
+    );
+    if (valid.length === filters.pipelineIds.length) return;
+    setFilters({
+      ...filters,
+      pipelineIds: valid,
+      pipelineId: valid[0],
+      stageIds: valid.length ? filters.stageIds : [],
+    });
+  }, [pipelines, filters.pipelineIds, filters.stageIds, setFilters]);
+
+  useEffect(() => {
+    if (!ready || !keyPart || !userId || restoredRef.current) return;
+    restoredRef.current = true;
+    const sp = new URLSearchParams(searchParams.toString());
+    if (urlHasDashboardFilters(sp)) {
+      writeJson(scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart), urlFilters);
+      return;
+    }
+    const saved = readJsonWithFallback<unknown>(
+      DASHBOARD_FILTERS_KEY_PREFIX,
+      keyPart,
+      userId,
+    );
+    if (!isFiltersState(saved)) return;
+    setFilters(saved);
+  }, [ready, keyPart, userId, searchParams, urlFilters, setFilters]);
 
   const patch = useCallback(
     (partial: Partial<DashboardFiltersState>) => {
-      setFilters({ ...filters, ...partial });
+      const next = { ...filters, ...partial };
+      if (partial.pipelineIds) {
+        next.pipelineId = partial.pipelineIds[0];
+      } else if (partial.pipelineId !== undefined && partial.pipelineIds === undefined) {
+        next.pipelineIds = partial.pipelineId ? [partial.pipelineId] : [];
+      }
+      setFilters(next);
     },
     [filters, setFilters],
   );
@@ -258,11 +397,11 @@ export function periodToRangeISO(f: DashboardFiltersState): {
       to.setHours(23, 59, 59, 999);
       break;
     case "last_7":
-      from.setDate(from.getDate() - 7);
+      from.setDate(from.getDate() - 6);
       from.setHours(0, 0, 0, 0);
       break;
     case "last_30":
-      from.setDate(from.getDate() - 30);
+      from.setDate(from.getDate() - 29);
       from.setHours(0, 0, 0, 0);
       break;
     case "last_month": {
@@ -276,5 +415,14 @@ export function periodToRangeISO(f: DashboardFiltersState): {
       from.setHours(0, 0, 0, 0);
       break;
   }
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+export function todayRangeISO(): { from: string; to: string } {
+  const now = new Date();
+  const from = new Date(now);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(now);
+  to.setHours(23, 59, 59, 999);
   return { from: from.toISOString(), to: to.toISOString() };
 }

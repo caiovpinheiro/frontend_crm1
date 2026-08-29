@@ -27,6 +27,7 @@ import { ChartCard } from "@/components/crm/chart-card"
 import { HeatmapGrid } from "@/components/crm/heatmap-grid"
 import { AvatarGlass } from "@/components/crm/avatar-glass"
 import type { DonutDatum, ServiceOverview as ServiceOverviewData } from "@/features/dashboard-v2/api"
+import { textMatchesQuery } from "@/features/dashboard-v2/format"
 
 const AVATAR_COLORS: Array<"pink" | "blue" | "teal" | "orange" | "purple" | "coral"> = [
   "pink",
@@ -71,20 +72,36 @@ const EMPTY_SUMMARY: ServiceOverviewData["summary"] = {
   resolutionRate: { value: "0%", delta: 0 },
 }
 
-export function ServiceOverview({ data }: { data: ServiceOverviewData }) {
+export function ServiceDashboardWidget({
+  id,
+  data,
+  search,
+}: {
+  id: string
+  data: ServiceOverviewData
+  search: string
+}) {
   const summary = data?.summary ?? EMPTY_SUMMARY
   const volumeByDay = data?.volumeByDay ?? []
   const responseTimeSeries = data?.responseTimeSeries ?? []
-  const byConnection = data?.byConnection ?? []
-  const byAttendant = data?.byAttendant ?? []
+  const byConnection = (data?.byConnection ?? []).filter((d) =>
+    textMatchesQuery(d.name, search),
+  )
+  const byAttendant = (data?.byAttendant ?? []).filter((d) =>
+    textMatchesQuery(d.name, search),
+  )
   const byPlatform = data?.byPlatform ?? { rows: [], platforms: [] }
   const heatmap = data?.heatmap ?? { cells: [], xLabels: [], yLabels: [] }
-  const attendantRanking = data?.attendantRanking ?? []
+  const attendantRanking = (data?.attendantRanking ?? []).filter(
+    (row) =>
+      textMatchesQuery(row.name, search) ||
+      textMatchesQuery(row.avgResponse, search),
+  )
 
-  return (
-    <div className="flex flex-col gap-4">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+  switch (id) {
+    case "kpis":
+      return (
+    <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         <StatCard
           icon={<IconMessages size={18} />}
           label="Atendimentos"
@@ -120,8 +137,9 @@ export function ServiceOverview({ data }: { data: ServiceOverviewData }) {
           caption="tickets resolvidos"
         />
       </div>
-
-      {/* Volume por dia + Tempo de resposta */}
+      )
+    case "volume":
+      return (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ChartCard
           title="Volume de mensagens"
@@ -181,8 +199,9 @@ export function ServiceOverview({ data }: { data: ServiceOverviewData }) {
           </div>
         </ChartCard>
       </div>
-
-      {/* Heatmap full width */}
+      )
+    case "heatmap":
+      return (
       <ChartCard title="Atendimentos por horário" subtitle="Concentração por hora e dia da semana">
         <HeatmapGrid
           data={heatmap.cells}
@@ -191,8 +210,9 @@ export function ServiceOverview({ data }: { data: ServiceOverviewData }) {
           formatValue={(v) => `${v} msg`}
         />
       </ChartCard>
-
-      {/* Donuts + plataforma */}
+      )
+    case "distribution":
+      return (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ChartCard title="Por conexão" subtitle="Distribuição de atendimentos">
           <DonutChart data={byConnection} />
@@ -234,8 +254,9 @@ export function ServiceOverview({ data }: { data: ServiceOverviewData }) {
           </div>
         </ChartCard>
       </div>
-
-      {/* Ranking de atendentes */}
+      )
+    case "ranking":
+      return (
       <ChartCard title="Ranking de atendentes" subtitle="Desempenho no período" bodyClassName="p-0">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-collapse">
@@ -290,8 +311,10 @@ export function ServiceOverview({ data }: { data: ServiceOverviewData }) {
           </table>
         </div>
       </ChartCard>
-    </div>
-  )
+      )
+    default:
+      return null
+  }
 }
 
 function EmptyChart() {

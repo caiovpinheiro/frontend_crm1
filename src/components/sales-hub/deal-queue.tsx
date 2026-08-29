@@ -686,7 +686,7 @@ export function DealQueue({
           )}
           {!isStageSwitching && visibleDeals.length === 0 && (
             isLoading ? (
-              <AppLoading variant="inline" label="Carregando fila" />
+              <AppLoading variant="inline" />
             ) : (
               <p className="px-2 py-8 text-center text-xs text-[var(--text-muted)]">
                 Nenhum deal encontrado

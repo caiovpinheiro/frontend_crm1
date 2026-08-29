@@ -92,14 +92,12 @@ export default function CallsClientPage({ navRail }: CallsClientPageProps = {}) 
           icon={<IconPhone size={22} stroke={2.2} />}
           title="Chamadas"
           center={
-            <div className="flex w-full justify-start">
-              <CallsSearchFilterBar
-                search={search}
-                onSearch={setSearch}
-                filters={filters}
-                onFiltersChange={setFilters}
-              />
-            </div>
+            <CallsSearchFilterBar
+              search={search}
+              onSearch={setSearch}
+              filters={filters}
+              onFiltersChange={setFilters}
+            />
           }
           actions={
             <div className="flex shrink-0 items-center gap-2">

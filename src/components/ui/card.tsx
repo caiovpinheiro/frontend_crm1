@@ -2,7 +2,7 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-// Card glass: superfície translúcida com blur, radius 22px, hover sobe sutil
+// Card: superfície de conteúdo, raio canônico `--radius-xl` (lista/KPI/empty).
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>

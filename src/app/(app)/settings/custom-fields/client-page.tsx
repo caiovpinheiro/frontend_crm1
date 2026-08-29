@@ -1208,7 +1208,7 @@ function AlternativesEditor({
   );
 }
 
-function FieldFormDialog({
+export function FieldFormDialog({
   open,
   onOpenChange,
   mode,

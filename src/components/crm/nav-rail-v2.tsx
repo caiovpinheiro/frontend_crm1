@@ -4,19 +4,19 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
-  IconChevronDown,
-  IconChevronsLeft,
-  IconChevronsRight,
-  IconCopy,
-  IconHome,
-  IconLogout,
-  IconMoon,
-  IconPhoto,
-  IconSettings,
-  IconSun,
-  IconTrash,
-  IconUserCircle,
-} from "@tabler/icons-react";
+  ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
+  CircleUser,
+  Copy,
+  House,
+  Image as ImageIcon,
+  LogOut,
+  Moon,
+  Settings,
+  Sun,
+  Trash2,
+} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { signOutToLogin } from "@/lib/sign-out-to-login";
 import { toast } from "sonner";
@@ -58,6 +58,7 @@ import {
   useUpdateOrganizationLogo,
 } from "@/hooks/use-organization";
 import { SoftphoneNavIcon } from "@/features/softphone/components/softphone-nav-icon";
+import { BwipoMark } from "@/components/bwipo/bwipo-logo";
 
 /**
  * Cache local da preferencia da sidebar. O react-query perde o cache a cada
@@ -128,30 +129,6 @@ function computeActiveHrefs(pathname: string, hrefs: readonly string[]): Set<str
   return new Set(winners);
 }
 
-/**
- * Ponto suave enquanto o nome ainda não chegou. Antes exibíamos "··", que
- * ficava "preso" na tela quando a request falhava e parecia conteúdo real.
- */
-function AvatarPending() {
-  return (
-    <span
-      aria-hidden
-      className="app-loading-halo block size-2 rounded-full"
-      style={{ background: "rgba(255, 255, 255, 0.7)" }}
-    />
-  );
-}
-
-function computeInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "";
-  return parts
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
 export function NavRailV2({ className }: { className?: string }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
@@ -175,7 +152,6 @@ export function NavRailV2({ className }: { className?: string }) {
   // org e o ID da conta (organizationId) copiável no popover. Enquanto a org
   // não carrega, o avatar mostra só um ponto pulsando (nada de texto fake).
   const companyName = organization?.name?.trim() ?? "";
-  const companyInitials = companyName ? computeInitials(companyName) : "";
   const companyLogo = organization?.logoUrl ?? null;
   const accountId =
     organization?.id ??
@@ -363,11 +339,23 @@ export function NavRailV2({ className }: { className?: string }) {
 
   // Classes reutilizadas: item da lista quando expandido — icone + label lado a lado.
   const expandedItemBase =
-    "group flex h-11 w-full shrink-0 items-center gap-3 rounded-[var(--radius-md)] px-3 text-[13px] font-medium transition-colors";
-  const expandedItemIdle =
-    "text-[var(--nav-text-muted)] hover:bg-[var(--nav-text-hover-bg)] hover:text-[var(--nav-text-hover)]";
-  const expandedItemActive =
-    "bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]";
+    "group flex h-11 w-full shrink-0 items-center gap-3 rounded-2xl px-3 text-[13px] font-medium transition-colors";
+    const expandedItemIdle =
+    "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
+    const expandedItemActive =
+    "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/30";
+
+  const isBwipoChat = pathname.startsWith("/rely");
+  const companyMarkClass = cn(
+    "flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl outline-none",
+    companyLogo && "rounded-full font-display text-base font-bold text-accent-foreground ring-1 ring-sidebar-primary/40",
+  );
+  const brandMark = companyLogo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={companyLogo} alt={companyName || "Empresa"} className="size-full object-cover" />
+  ) : (
+    <BwipoMark className="size-12" />
+  );
 
   return (
     <DockProvider
@@ -383,49 +371,23 @@ export function NavRailV2({ className }: { className?: string }) {
         // no `<html>` pelo effect acima. Assim o layout continua no fluxo
         // e o main renderiza normalmente (evita o bug do `fixed` que
         // deixava o miolo aparentemente "sumido").
-        "relative flex h-full w-full flex-col gap-2 bg-[var(--nav-bg)] backdrop-blur-[16px] border border-[var(--nav-border)] rounded-l-none rounded-r-[var(--radius-xl)] py-4 shadow-[var(--glass-shadow)] transition-[width] duration-200",
+        "relative flex h-full w-full flex-col items-center gap-1.5 rounded-r-[32px] bg-sidebar py-5 text-sidebar-foreground shadow-xl shadow-sidebar/20 transition-[width] duration-200",
         // Mobile: rail lateral some — navegação vai para MobileBottomNav.
         "max-md:hidden",
-        expanded ? "items-stretch" : "items-center",
+        expanded ? "items-stretch px-2" : "items-center",
         className,
       )}
     >
-      {/* Botao expand/collapse — pill maior com border-brand e contraste
-          maior no hover pra ficar bem visivel sobre a rail escura. */}
-      <button
-        type="button"
-        onClick={toggleExpanded}
-        aria-label={expanded ? "Recolher navegação" : "Expandir navegação"}
-        className={cn(
-          "absolute -right-3 top-6 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--brand-primary)] bg-white text-[var(--brand-primary)] shadow-[0_2px_8px_rgba(15,23,42,0.25)] transition-all hover:scale-110 hover:bg-[var(--brand-primary)] hover:text-white",
-        )}
-      >
-        {expanded ? <IconChevronsLeft size={14} strokeWidth={2.5} /> : <IconChevronsRight size={14} strokeWidth={2.5} />}
-      </button>
-
-      {/* Avatar da empresa: iniciais do nome da org (estilo Kommo). Ao clicar,
-          abre menu no mesmo padrão do avatar do usuário (header + itens).
-          Gate `mounted` idêntico ao avatar do usuário: no SSR/1o render usamos
-          um Link estático (preserva navegação sem JS) e trocamos pelo dropdown
-          após o mount, evitando hydration mismatch do useId. */}
-      {!mounted ? (
+      {/* Brand mark + chevron de expandir colado no logo (HANDOFF). */}
+      <div className={cn("relative mb-3", expanded && "self-center")}>
+      {!mounted || isBwipoChat ? (
         <Link
-          href="/dashboard"
-          aria-label="Início"
-          className={cn(
-            "mb-2 flex shrink-0 items-center justify-center overflow-hidden font-display text-base font-bold text-white shadow-[0_6px_16px_rgba(91,111,245,0.4)]",
-            companyLogo
-              ? "h-12 w-12 rounded-full"
-              : "h-11 w-11 rounded-[var(--radius-md)] bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-secondary)]",
-            expanded ? "mx-auto" : "",
-          )}
+          href={isBwipoChat ? "/" : "/dashboard"}
+          title={isBwipoChat ? "Voltar ao CRM" : "Início"}
+          aria-label={isBwipoChat ? "Voltar ao CRM" : "Início"}
+          className={cn(companyMarkClass, "rounded-xl transition-opacity hover:opacity-80")}
         >
-          {companyLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={companyLogo} alt={companyName || "Empresa"} className="size-full object-cover" />
-          ) : (
-            companyInitials || <AvatarPending />
-          )}
+          <BwipoMark className="size-12" />
         </Link>
       ) : (
         <DropdownMenu>
@@ -433,36 +395,21 @@ export function NavRailV2({ className }: { className?: string }) {
             title={companyName || "Conta da empresa"}
             aria-label="Conta da empresa"
             className={cn(
-              "mb-2 flex shrink-0 items-center justify-center overflow-hidden font-display text-base font-bold text-white shadow-[0_6px_16px_rgba(91,111,245,0.4)] outline-none transition-all hover:ring-4 hover:ring-[var(--brand-primary)]/25 focus-visible:ring-[3px] focus-visible:ring-[var(--brand-primary)]/25",
-              companyLogo
-                ? "h-12 w-12 rounded-full"
-                : "h-11 w-11 rounded-[var(--radius-md)] bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-secondary)]",
-              expanded ? "mx-auto" : "",
+              companyMarkClass,
+              "transition-shadow hover:ring-2 hover:ring-sidebar-primary/40 focus-visible:ring-2 focus-visible:ring-sidebar-primary/50",
             )}
           >
-            {companyLogo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={companyLogo} alt={companyName || "Empresa"} className="size-full object-cover" />
-            ) : (
-              companyInitials || <AvatarPending />
-            )}
+            {brandMark}
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="start" className={ACCOUNT_MENU_CONTENT}>
             <div className="flex items-center gap-3 px-2 py-2">
-              <div
-                className={cn(
-                  "flex shrink-0 items-center justify-center overflow-hidden font-display text-[13px] font-bold text-white",
-                  companyLogo
-                    ? "h-10 w-10 rounded-full"
-                    : "h-9 w-9 rounded-[var(--radius-md)] bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-secondary)]",
-                )}
-              >
+              <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl">
                 {companyLogo ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={companyLogo} alt={companyName || "Empresa"} className="size-full object-cover" />
                 ) : (
-                  companyInitials || <AvatarPending />
+                  <BwipoMark className="size-10" />
                 )}
               </div>
               <div className="min-w-0">
@@ -482,7 +429,7 @@ export function NavRailV2({ className }: { className?: string }) {
               onClick={() => void copyAccountId()}
               disabled={!accountId}
             >
-              <IconCopy size={16} className="shrink-0" />
+              <Copy size={16} className="shrink-0" />
               <span className="font-medium">Copiar ID da conta</span>
             </DropdownMenuItem>
 
@@ -496,7 +443,7 @@ export function NavRailV2({ className }: { className?: string }) {
                   }}
                   disabled={updateLogo.isPending}
                 >
-                  <IconPhoto size={16} className="shrink-0" />
+                  <ImageIcon size={16} className="shrink-0" />
                   <span className="font-medium">
                     {updateLogo.isPending
                       ? "Enviando…"
@@ -512,7 +459,7 @@ export function NavRailV2({ className }: { className?: string }) {
                     onClick={() => onRemoveLogo()}
                     disabled={removeLogo.isPending}
                   >
-                    <IconTrash size={16} className="shrink-0" />
+                    <Trash2 size={16} className="shrink-0" />
                     <span className="font-medium">
                       {removeLogo.isPending ? "Removendo…" : "Remover ícone"}
                     </span>
@@ -525,7 +472,7 @@ export function NavRailV2({ className }: { className?: string }) {
               className={ACCOUNT_MENU_ITEM}
               onClick={() => router.push("/dashboard")}
             >
-              <IconHome size={16} className="shrink-0" />
+              <House size={16} className="shrink-0" />
               <span className="font-medium">Início</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -540,6 +487,20 @@ export function NavRailV2({ className }: { className?: string }) {
           />
         </DropdownMenu>
       )}
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          title={expanded ? "Recolher navegação" : "Expandir menu"}
+          aria-label={expanded ? "Recolher navegação" : "Expandir menu"}
+          className="absolute -right-1.5 -bottom-0.5 z-10 flex size-6 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground ring-4 ring-sidebar"
+        >
+          {expanded ? (
+            <ChevronsLeft className="size-3.5" aria-hidden="true" />
+          ) : (
+            <ChevronsRight className="size-3.5" aria-hidden="true" />
+          )}
+        </button>
+      </div>
 
       {/* Miolo rolavel — quando ha overflow, chevrons piscantes indicam scroll.
           `overflow-x-clip` permite scroll vertical sem forçar scroll horizontal. */}
@@ -547,7 +508,7 @@ export function NavRailV2({ className }: { className?: string }) {
         {/* Chevron superior — aparece so quando ha conteudo acima */}
         {scrollState.top && (
           <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex justify-center pb-1 pt-0.5">
-            <IconChevronDown size={12} className="rotate-180 animate-pulse text-[var(--nav-text-muted)]" />
+            <ChevronDown size={12} className="rotate-180 animate-pulse text-[var(--nav-text-muted)]" />
           </div>
         )}
         <div
@@ -559,7 +520,7 @@ export function NavRailV2({ className }: { className?: string }) {
             // espaço para o 1º/último ícone ampliarem sem serem cortados.
             // (overflow-clip-margin não resolve — o Chromium o ignora em
             // scroll containers.)
-            "flex w-full min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-clip px-3 py-3 [scrollbar-width:none] [scrollbar-gutter:stable_both-edges] [&::-webkit-scrollbar]:hidden",
+            "flex w-full min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-clip py-1 [scrollbar-width:none] [scrollbar-gutter:stable_both-edges] [&::-webkit-scrollbar]:hidden",
             expanded ? "items-stretch" : "items-center",
           )}
         >
@@ -601,7 +562,7 @@ export function NavRailV2({ className }: { className?: string }) {
         {/* Chevron inferior — pista visual de que ha mais itens abaixo */}
         {scrollState.bottom && (
           <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 flex justify-center pb-0.5 pt-1">
-            <IconChevronDown size={12} className="animate-pulse text-[var(--nav-text-muted)]" />
+            <ChevronDown size={12} className="animate-pulse text-[var(--nav-text-muted)]" />
           </div>
         )}
       </div>
@@ -649,7 +610,7 @@ export function NavRailV2({ className }: { className?: string }) {
             pathname.startsWith("/settings") && !isProfileActive ? expandedItemActive : expandedItemIdle,
           )}
         >
-          <IconSettings size={20} className="shrink-0" />
+          <Settings size={20} className="shrink-0" />
           <span className="truncate">Configurações</span>
         </Link>
       ) : (
@@ -660,7 +621,7 @@ export function NavRailV2({ className }: { className?: string }) {
             active={pathname.startsWith("/settings") && !isProfileActive}
             disablePop
           >
-            <IconSettings size={20} />
+            <Settings size={20} />
           </DockButton>
         </span>
       )}
@@ -675,7 +636,7 @@ export function NavRailV2({ className }: { className?: string }) {
           aria-label="Abrir menu da conta"
           className={cn(
             "relative rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--brand-primary)]/25",
-            expanded ? "flex w-full items-center gap-3 rounded-[var(--radius-md)] px-2 py-1 hover:bg-[var(--nav-text-hover-bg)]" : "block",
+            expanded ? "flex w-full items-center gap-3 rounded-2xl px-2 py-1 hover:bg-sidebar-accent" : "block",
           )}
         >
           <span className="relative isolate shrink-0">
@@ -683,15 +644,15 @@ export function NavRailV2({ className }: { className?: string }) {
               name={displayName}
               imageUrl={userImage}
               size={44}
-              className={cn(
-                "border-2 transition-all",
-                !expanded && "hover:ring-4 hover:ring-[var(--brand-primary)]/25",
-                isProfileActive
-                  ? "border-[var(--brand-primary)] ring-4 ring-[var(--brand-primary)]/25"
-                  : "border-[var(--glass-bg-strong)]",
-              )}
+              variant="sidebar"
             />
-            <AgentStatusDot status={agentStatus.status} />
+            <AgentStatusDot
+              status={agentStatus.status}
+              size={12}
+              borderWidth={2}
+              borderColor="var(--color-sidebar)"
+              className="right-0 bottom-0"
+            />
           </span>
           {expanded && (
             <span className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold text-[var(--nav-text-hover)]">
@@ -706,7 +667,7 @@ export function NavRailV2({ className }: { className?: string }) {
           aria-label="Abrir menu da conta"
           className={cn(
             "relative rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--brand-primary)]/25",
-            expanded ? "flex w-full items-center gap-3 rounded-[var(--radius-md)] px-2 py-1 text-left hover:bg-[var(--nav-text-hover-bg)]" : "block",
+            expanded ? "flex w-full items-center gap-3 rounded-2xl px-2 py-1 text-left hover:bg-sidebar-accent" : "block",
           )}
         >
           <span className="relative isolate shrink-0">
@@ -714,15 +675,15 @@ export function NavRailV2({ className }: { className?: string }) {
               name={displayName}
               imageUrl={userImage}
               size={44}
-              className={cn(
-                "border-2 transition-all",
-                !expanded && "hover:ring-4 hover:ring-[var(--brand-primary)]/25",
-                isProfileActive
-                  ? "border-[var(--brand-primary)] ring-4 ring-[var(--brand-primary)]/25"
-                  : "border-[var(--glass-bg-strong)]",
-              )}
+              variant="sidebar"
             />
-            <AgentStatusDot status={agentStatus.status} />
+            <AgentStatusDot
+              status={agentStatus.status}
+              size={12}
+              borderWidth={2}
+              borderColor="var(--color-sidebar)"
+              className="right-0 bottom-0"
+            />
           </span>
           {expanded && (
             <div className="min-w-0 flex-1 overflow-hidden">
@@ -769,7 +730,7 @@ export function NavRailV2({ className }: { className?: string }) {
             className={ACCOUNT_MENU_ITEM}
             onClick={() => router.push("/settings/profile")}
           >
-            <IconUserCircle size={16} className="shrink-0" />
+            <CircleUser size={16} className="shrink-0" />
             <span className="font-medium">Meu perfil</span>
           </DropdownMenuItem>
 
@@ -778,9 +739,9 @@ export function NavRailV2({ className }: { className?: string }) {
               a funcionalidade. */}
           <DropdownMenuItem className={ACCOUNT_MENU_ITEM} onClick={toggle}>
             {theme === "light" ? (
-              <IconMoon size={16} className="shrink-0" />
+              <Moon size={16} className="shrink-0" />
             ) : (
-              <IconSun size={16} className="shrink-0" />
+              <Sun size={16} className="shrink-0" />
             )}
             <span className="font-medium">
               {theme === "light" ? "Modo escuro" : "Modo claro"}
@@ -796,7 +757,7 @@ export function NavRailV2({ className }: { className?: string }) {
               "text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive",
             )}
           >
-            <IconLogout size={16} className="shrink-0" />
+            <LogOut size={16} className="shrink-0" />
             <span className="font-medium">Sair</span>
           </DropdownMenuItem>
           </DropdownMenuContent>

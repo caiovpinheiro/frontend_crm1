@@ -180,7 +180,7 @@ function DeptIconBadge({ dept, size = 36 }: { dept: Department; size?: number })
 
 // ─── Create modal ─────────────────────────────────────────────────────────────
 
-function CreateDepartmentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CreateDepartmentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = React.useState("");
   const [color, setColor] = React.useState(DEPT_COLORS[0]);
   const [iconName, setIconName] = React.useState(DEPT_ICONS[0].name);

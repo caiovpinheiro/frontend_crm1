@@ -42,6 +42,7 @@ import {
   normalizeSearchQuery,
 } from "@/lib/search-query";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
+import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
 import { FilterChips } from "@/components/pipeline/kanban-filters/filter-chips";
 import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
@@ -650,6 +651,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
               }}
             />
           }
+          period={<PipelinePeriodCalendar filters={filters} onPatch={patchFilters} />}
           pipelineNameSlot={
             showPipelineName ? (
               <span className="text-[13px] font-semibold text-[var(--text-primary)]">

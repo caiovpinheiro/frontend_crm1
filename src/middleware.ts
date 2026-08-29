@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 
 import { isPreviewMode } from "@/lib/preview-mode";
 import {
+  isSingleHostCrm,
   resolveTenantFromRequest,
   TENANT_SLUG_COOKIE,
   TENANT_SLUG_HEADER,
@@ -102,11 +103,7 @@ function apexOrigin(req: NextRequest): string {
   // Em localhost (dev sem wildcard), volta pra mesma origem da request.
   const host = (req.headers.get("host") ?? "").toLowerCase();
   const hostname = host.split(":")[0] ?? "";
-  if (
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname === "127.0.0.1"
-  ) {
+  if (isSingleHostCrm(hostname)) {
     return req.nextUrl.origin;
   }
   return `${proto}://${base}`;

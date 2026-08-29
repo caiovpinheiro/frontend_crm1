@@ -1,10 +1,24 @@
 "use client";
 
-import { IconActivity as Activity, IconChartBar as BarChart3, IconBuilding as Building2, IconSquareCheck as CheckSquare, IconLayoutDashboard as LayoutDashboard, IconLayoutKanban as Kanban, IconSpeakerphone as Megaphone, IconMessage as MessageSquare, IconArrowsShuffle as Shuffle, IconSettings as Settings, IconUserCircle as UserCircle2, IconUsers as Users, IconBolt as Zap } from "@tabler/icons-react"
-import type { Icon as LucideIcon } from "@tabler/icons-react";
+import {
+  Activity,
+  BarChart3,
+  Building2,
+  CircleUser,
+  Kanban,
+  LayoutDashboard,
+  Megaphone,
+  MessageSquare,
+  Settings,
+  Shuffle,
+  SquareCheck,
+  Users,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
- * Resolvedor de iconName (string PascalCase) -> componente.
+ * Resolvedor de iconName (string PascalCase) -> componente Lucide.
  * Centralizado pra que o catalogo `MOBILE_MODULES` em `/lib` permaneça
  * server-safe (sem import de lucide-react). Front faz a resolução.
  *
@@ -14,7 +28,7 @@ const REGISTRY: Record<string, LucideIcon> = {
   LayoutDashboard,
   MessageSquare,
   Kanban,
-  CheckSquare,
+  CheckSquare: SquareCheck,
   Users,
   Building2,
   Megaphone,
@@ -23,7 +37,7 @@ const REGISTRY: Record<string, LucideIcon> = {
   BarChart3,
   Activity,
   Settings,
-  UserCircle2,
+  UserCircle2: CircleUser,
 };
 
 export function MobileModuleIcon({

@@ -2,14 +2,14 @@
 
 import { useMemo, type ReactNode } from "react";
 import {
-  IconAlertTriangle,
-  IconCircleCheck,
-  IconMessageReply,
-  IconSend,
-  IconSpeakerphone,
-} from "@tabler/icons-react";
+  CircleCheck,
+  MessageSquareReply,
+  Send,
+  Megaphone,
+  TriangleAlert,
+} from "lucide-react";
 
-import { KpiSquareScroll } from "@/components/crm/kpi-card";
+import { KpiCard, KpiSquareScroll, type KpiTone } from "@/components/crm/kpi-card";
 
 import type { CampaignListItem, CampaignStatus } from "./types";
 import { nf, rate } from "./viz";
@@ -46,53 +46,70 @@ export function CampaignsMiniDash({ items }: { items: CampaignListItem[] }) {
     key: string;
     label: string;
     shortLabel: string;
-    value: number;
-    percent?: number;
-    accent: string;
+    value: ReactNode;
+    tone: KpiTone;
     icon: ReactNode;
   }[] = [
     {
       key: "total",
       label: "Total de campanhas",
       shortLabel: "Campanhas",
-      value: stats.total,
-      accent: "var(--brand-primary)",
-      icon: <IconSpeakerphone size={16} />,
+      value: nf(stats.total),
+      tone: "brand",
+      icon: <Megaphone className="size-5" aria-hidden="true" />,
     },
     {
       key: "sending",
       label: "Em envio agora",
       shortLabel: "Em envio",
-      value: stats.sending,
-      accent: "var(--color-warning)",
-      icon: <IconSend size={16} />,
+      value: nf(stats.sending),
+      tone: "orange",
+      icon: <Send className="size-5" aria-hidden="true" />,
     },
     {
       key: "sent",
-      label: "Enviadas · taxa de leitura",
+      label: "Enviadas · leitura",
       shortLabel: "Enviadas",
-      value: stats.sent,
-      percent: stats.readRate,
-      accent: "var(--color-success)",
-      icon: <IconCircleCheck size={16} />,
+      value: (
+        <>
+          {nf(stats.sent)}
+          <span className="ml-1.5 text-base font-semibold text-success">
+            {stats.readRate}%
+          </span>
+        </>
+      ),
+      tone: "success",
+      icon: <CircleCheck className="size-5" aria-hidden="true" />,
     },
     {
       key: "replied",
-      label: "Respostas · taxa de resposta",
+      label: "Respostas · resposta",
       shortLabel: "Respostas",
-      value: stats.replied,
-      percent: stats.replyRate,
-      accent: "var(--brand-secondary)",
-      icon: <IconMessageReply size={16} />,
+      value: (
+        <>
+          {nf(stats.replied)}
+          <span className="ml-1.5 text-base font-semibold text-accent">
+            {stats.replyRate}%
+          </span>
+        </>
+      ),
+      tone: "violet",
+      icon: <MessageSquareReply className="size-5" aria-hidden="true" />,
     },
     {
       key: "failed",
-      label: "Falhas · taxa de erro",
+      label: "Falhas · erro",
       shortLabel: "Falhas",
-      value: stats.failed,
-      percent: stats.failRate,
-      accent: "var(--color-danger)",
-      icon: <IconAlertTriangle size={16} />,
+      value: (
+        <>
+          {nf(stats.failed)}
+          <span className="ml-1.5 text-base font-semibold text-chip-red">
+            {stats.failRate}%
+          </span>
+        </>
+      ),
+      tone: "red",
+      icon: <TriangleAlert className="size-5" aria-hidden="true" />,
     },
   ];
 
@@ -102,46 +119,20 @@ export function CampaignsMiniDash({ items }: { items: CampaignListItem[] }) {
         items={cards.map((c) => ({
           key: c.key,
           label: c.shortLabel,
-          value: nf(c.value),
+          value: c.value,
           icon: c.icon,
-          accent: c.accent,
-          percent: c.percent,
+          tone: c.tone,
         }))}
       />
-      <div className="hidden gap-3 lg:grid lg:grid-cols-5">
+      <div className="hidden gap-4 lg:grid lg:grid-cols-5">
         {cards.map((c) => (
-          <div
+          <KpiCard
             key={c.key}
-            className="flex items-center gap-3 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md"
-          >
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-              style={{
-                background: `color-mix(in srgb, ${c.accent} 14%, transparent)`,
-                color: c.accent,
-              }}
-            >
-              {c.icon}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-display text-[11.5px] font-semibold tracking-[0.01em] text-[var(--text-muted)]">
-                {c.label}
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-display text-[22px] font-bold leading-none tabular-nums text-[var(--text-primary)]">
-                  {nf(c.value)}
-                </span>
-                {c.percent !== undefined && (
-                  <span
-                    className="font-display text-[12px] font-bold tabular-nums"
-                    style={{ color: c.accent }}
-                  >
-                    {c.percent}%
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+            label={c.label}
+            value={c.value}
+            icon={c.icon}
+            tone={c.tone}
+          />
         ))}
       </div>
     </section>

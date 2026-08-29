@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -14,34 +15,68 @@ import {
 } from "@/components/ui/dialog";
 
 /**
- * Padrao unificado de modal central para formularios de criacao e edicao.
+ * Padrão unificado de modal central para formulários de criação e edição.
  *
- * API compatível com o antigo drawer lateral para migração drop-in:
  * ```
  * <FormDialog
  *   open={open}
  *   onOpenChange={setOpen}
  *   title="Novo contato"
- *   description="Cadastre um novo contato no CRM"
- *   icon={<IconUser size={20} />}
+ *   description="Cadastre um contato e vincule empresa e tags."
+ *   icon={<FormDialogIcon><UserPlus className="size-4" /></FormDialogIcon>}
  *   size="md"
  *   footer={
  *     <>
- *       <ButtonGlass variant="glass" onClick={onCancel}>Cancelar</ButtonGlass>
- *       <ButtonGlass variant="primary" onClick={onSubmit}>Salvar</ButtonGlass>
+ *       <ButtonGlass variant="glass" className={formDialogCancelClass}>Cancelar</ButtonGlass>
+ *       <ButtonGlass variant="primary" className={formDialogPrimaryClass}>Criar</ButtonGlass>
  *     </>
  *   }
  * >
- *   {formFields}
+ *   <span className={formLabelClass}>Nome *</span>
+ *   <InputGlass className={formControlClass} />
  * </FormDialog>
  * ```
  *
- * Modal central via Dialog. Header e footer fixos; o corpo (children)
- * rola independentemente. Portais de dropdown usam ModalPortalContext
- * do DialogContent.
+ * Header e footer fixos; o corpo (children) rola. Portais de dropdown usam
+ * ModalPortalContext do DialogContent.
  */
 
 type FormDialogSize = "sm" | "md" | "lg" | "xl" | "2xl";
+
+/** Badge circular do header — círculo primary suave, ícone primary. */
+export function FormDialogIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+      {children}
+    </span>
+  );
+}
+
+/** Plus no canto do glifo (empresa / negócio). Contato usa `UserPlus` nativo. */
+export function FormDialogGlyphPlus({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="relative inline-flex size-4 items-center justify-center">
+      {children}
+      <Plus className="absolute -right-1.5 -top-0.5 size-2.5" strokeWidth={2.75} aria-hidden />
+    </span>
+  );
+}
+
+/** Labels de FormDialog: small, ALL-CAPS, muted. Listas continuam sentence-case. */
+export const formLabelClass =
+  "mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+
+/** Inputs / pickers / busca de tags: raio xl, borda muted, fundo card. */
+export const formControlClass =
+  "h-11 w-full rounded-xl border border-border bg-card px-3.5";
+
+/** Cancelar: pill branco com borda. Não é botão-texto. */
+export const formDialogCancelClass =
+  "rounded-full border border-border bg-card px-4 text-foreground shadow-none hover:bg-secondary";
+
+/** Criar / Salvar: pill primary. Sem `text-white`. */
+export const formDialogPrimaryClass =
+  "rounded-full bg-primary px-4 text-primary-foreground shadow-none hover:bg-primary/90 hover:translate-y-0";
 
 /** Mapeia os tamanhos legados para presets do Dialog. */
 const SIZE_TO_DIALOG: Record<FormDialogSize, DialogSize> = {
@@ -61,7 +96,7 @@ export interface FormDialogProps {
   title: React.ReactNode;
   /** Descricao curta abaixo do titulo (opcional). */
   description?: React.ReactNode;
-  /** Icone opcional a esquerda do titulo (ex.: <IconUser size={20} />). */
+  /** Icone opcional a esquerda do titulo (`FormDialogIcon`). */
   icon?: React.ReactNode;
   /** Largura maxima do modal. Default: `md` (~512px). */
   size?: FormDialogSize;
@@ -110,18 +145,18 @@ export function FormDialog({
         panelClassName={cn("relative", className)}
         bodyClassName="flex flex-col gap-0 overflow-hidden p-0"
       >
-        <DialogHeader className="shrink-0 border-b border-[var(--glass-border-subtle)] px-6 py-5 text-left">
-          <div className="flex items-center gap-2 pe-8">
+        <DialogHeader className="shrink-0 px-6 pb-1 pt-5 text-left">
+          <div className="flex items-start gap-3 pe-8">
             {icon ? (
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[var(--text-secondary)]">
-                {icon}
-              </span>
+              <span className="mt-0.5 flex shrink-0 items-center justify-center">{icon}</span>
             ) : null}
-            <DialogTitle>{title}</DialogTitle>
+            <div className="min-w-0">
+              <DialogTitle>{title}</DialogTitle>
+              {description ? (
+                <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+              ) : null}
+            </div>
           </div>
-          {description ? (
-            <p className="text-sm text-[var(--text-muted)]">{description}</p>
-          ) : null}
         </DialogHeader>
 
         <DialogClose
@@ -139,7 +174,7 @@ export function FormDialog({
         </div>
 
         {footer ? (
-          <DialogFooter className="shrink-0 border-t border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)] px-6 py-4 sm:flex-row sm:justify-end">
+          <DialogFooter className="shrink-0 border-t border-border bg-card px-6 py-4 sm:flex-row sm:justify-end">
             {footer}
           </DialogFooter>
         ) : null}

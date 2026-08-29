@@ -188,6 +188,19 @@ export function FilterChips({ filters, options, onPatch, className }: Props) {
     });
   }
 
+  if (filters.exception) {
+    const labels = {
+      no_task: "Sem próxima tarefa",
+      stalled: `Parados > ${filters.stalledDays ?? 7} dias`,
+      overdue: "Fechamento previsto vencido",
+      empty_value: "Sem valor preenchido",
+    } as const;
+    chips.push({
+      label: labels[filters.exception],
+      onRemove: () => onPatch({ exception: undefined, stalledDays: undefined }),
+    });
+  }
+
   for (const cf of filters.dealCustomFields ?? []) {
     const def = options?.dealCustomFields.find((d) => d.name === cf.name);
     const label = def?.label ?? cf.name;
