@@ -1975,10 +1975,13 @@ const PILL_ARM_MS = 450
 export function StickyDayPill({
   date,
   loading = false,
+  paused = false,
 }: {
   date: string | null
   /** Mesmo slot da data — evita overlap com "Carregando histórico...". */
   loading?: boolean
+  /** Pin inicial / troca de conversa — não mostra a pill (evita "Hoje" duplicado). */
+  paused?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [scrolling, setScrolling] = useState(false)
@@ -2029,7 +2032,7 @@ export function StickyDayPill({
         <div
           className={cn(
             "flex justify-center transition-opacity duration-300 ease-out",
-            loading || scrolling ? "opacity-100" : "opacity-0",
+            !paused && (loading || scrolling) ? "opacity-100" : "opacity-0",
           )}
         >
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)]/92 px-2.5 py-0.5 font-display text-[10px] font-semibold text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
