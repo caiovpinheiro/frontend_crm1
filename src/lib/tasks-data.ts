@@ -11,6 +11,9 @@ export type TaskSituationFilter =
   | "done"
   | "open"
 
+/** Origem do evento no CRM — só tipos que a API já devolve com data. */
+export type CalendarEntityKind = "tarefa" | "conversa" | "negocio"
+
 export type Task = {
   id: string
   title: string
@@ -22,6 +25,9 @@ export type Task = {
   status: TaskStatus
   linkLabel?: string
   linkHref?: string
+  entityKind: CalendarEntityKind
+  dealId?: string | null
+  contactId?: string | null
 }
 
 export const TASK_TYPE_ORDER: TaskType[] = ["tarefa", "reuniao", "ligacao", "evento", "email"]
@@ -32,6 +38,12 @@ export const taskTypeMeta: Record<TaskType, { label: string; colorKey: ChipColor
   ligacao: { label: "Ligação", colorKey: "green" },
   evento: { label: "Evento", colorKey: "orange" },
   email: { label: "E-mail", colorKey: "red" },
+}
+
+export const ENTITY_KIND_META: Record<CalendarEntityKind, { label: string; colorKey: ChipColorKey }> = {
+  tarefa: { label: "Tarefa", colorKey: "blue" },
+  conversa: { label: "Conversa", colorKey: "green" },
+  negocio: { label: "Negócio", colorKey: "violet" },
 }
 
 const WEEKDAYS_SHORT = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"] as const
@@ -180,14 +192,14 @@ export function countByType(tasks: Task[]): Record<TaskType, number> {
   return counts
 }
 
-export function tasksForDay(date: Date, source: Task[] = TASKS): Task[] {
+export function tasksForDay(date: Date, source: Task[] = []): Task[] {
   const key = dateKey(date)
   return source
     .filter((t) => dateKey(taskStart(t)) === key)
     .sort((a, b) => taskStart(a).getTime() - taskStart(b).getTime())
 }
 
-export function tasksForWeek(date: Date, source: Task[] = TASKS): Task[] {
+export function tasksForWeek(date: Date, source: Task[] = []): Task[] {
   const start = startOfWeek(date)
   const end = new Date(start)
   end.setDate(end.getDate() + 7)
@@ -199,7 +211,7 @@ export function tasksForWeek(date: Date, source: Task[] = TASKS): Task[] {
     .sort((a, b) => taskStart(a).getTime() - taskStart(b).getTime())
 }
 
-export function tasksForMonth(date: Date, source: Task[] = TASKS): Task[] {
+export function tasksForMonth(date: Date, source: Task[] = []): Task[] {
   const y = date.getFullYear()
   const m = date.getMonth()
   return source
@@ -210,7 +222,7 @@ export function tasksForMonth(date: Date, source: Task[] = TASKS): Task[] {
     .sort((a, b) => taskStart(a).getTime() - taskStart(b).getTime())
 }
 
-export function daysWithTasks(source: Task[] = TASKS): Set<string> {
+export function daysWithTasks(source: Task[] = []): Set<string> {
   const set = new Set<string>()
   for (const t of source) set.add(dateKey(taskStart(t)))
   return set
@@ -235,201 +247,3 @@ export function taskInIsoRange(task: Task, from: string, to: string): boolean {
   return true
 }
 
-function atWeek(weekday: number, hour: number, minute = 0, weekOffset = 0): string {
-  const d = startOfWeek(new Date())
-  d.setDate(d.getDate() + weekday + weekOffset * 7)
-  d.setHours(hour, minute, 0, 0)
-  return toLocalISO(d)
-}
-
-export const TASKS: Task[] = [
-  {
-    id: "t-sun-1",
-    title: "Revisão de pipeline da semana",
-    type: "tarefa",
-    start: atWeek(0, 10, 0),
-    durationMin: 60,
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-mon-1",
-    title: "Ligação — follow-up Acme",
-    type: "ligacao",
-    start: atWeek(1, 9, 0),
-    durationMin: 30,
-    contact: "Marina Alves",
-    createdBy: "Você",
-    status: "pendente",
-    linkLabel: "Acme Ltda",
-    linkHref: "/companies",
-  },
-  {
-    id: "t-mon-2",
-    title: "Reunião de descoberta",
-    type: "reuniao",
-    start: atWeek(1, 14, 0),
-    durationMin: 60,
-    contact: "Carlos Pereira",
-    createdBy: "Ana Souza",
-    status: "concluida",
-  },
-  {
-    id: "t-tue-1",
-    title: "Enviar proposta comercial",
-    type: "tarefa",
-    start: atWeek(2, 8, 30),
-    durationMin: 45,
-    contact: "Tech Solutions",
-    createdBy: "Você",
-    status: "atrasada",
-  },
-  {
-    id: "t-tue-2",
-    title: "E-mail de onboarding",
-    type: "email",
-    start: atWeek(2, 11, 0),
-    durationMin: 30,
-    contact: "Fernanda Lima",
-    createdBy: "Você",
-    status: "concluida",
-  },
-  {
-    id: "t-tue-3",
-    title: "Almoço com cliente",
-    type: "evento",
-    start: atWeek(2, 12, 30),
-    durationMin: 90,
-    contact: "Pedro Castro",
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-wed-1",
-    title: "Demo da plataforma",
-    type: "reuniao",
-    start: atWeek(3, 10, 0),
-    durationMin: 75,
-    contact: "Loja Bella",
-    createdBy: "Você",
-    status: "pendente",
-    linkLabel: "Negócio",
-    linkHref: "/pipeline",
-  },
-  {
-    id: "t-wed-2",
-    title: "Retomada de contato",
-    type: "ligacao",
-    start: atWeek(3, 16, 0),
-    durationMin: 20,
-    contact: "João Mendes",
-    createdBy: "Carlos Pereira",
-    status: "pendente",
-  },
-  {
-    id: "t-thu-1",
-    title: "Atualizar cadastro do lead",
-    type: "tarefa",
-    start: atWeek(4, 9, 30),
-    durationMin: 40,
-    contact: "Restaurante Sabor",
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-thu-2",
-    title: "Webinar: automação de vendas",
-    type: "evento",
-    start: atWeek(4, 15, 0),
-    durationMin: 90,
-    createdBy: "Sistema",
-    status: "pendente",
-  },
-  {
-    id: "t-fri-1",
-    title: "Stand-up comercial",
-    type: "reuniao",
-    start: atWeek(5, 8, 0),
-    durationMin: 30,
-    createdBy: "Você",
-    status: "concluida",
-  },
-  {
-    id: "t-fri-2",
-    title: "Follow-up de proposta",
-    type: "ligacao",
-    start: atWeek(5, 11, 0),
-    durationMin: 25,
-    contact: "Grand Italia",
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-fri-3",
-    title: "Enviar contrato para assinatura",
-    type: "tarefa",
-    start: atWeek(5, 14, 0),
-    durationMin: 45,
-    contact: "Umbrella Edu",
-    createdBy: "Você",
-    status: "pendente",
-    linkLabel: "Contato",
-    linkHref: "/contacts",
-  },
-  {
-    id: "t-fri-4",
-    title: "Responder dúvidas de integração",
-    type: "email",
-    start: atWeek(5, 16, 30),
-    durationMin: 30,
-    contact: "Fernanda Lima",
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-fri-5",
-    title: "Revisar e-mails da semana",
-    type: "email",
-    start: atWeek(5, 18, 0),
-    durationMin: 30,
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-sat-1",
-    title: "Evento: networking Educa+",
-    type: "evento",
-    start: atWeek(6, 10, 0),
-    durationMin: 120,
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-last-1",
-    title: "QBR mensal",
-    type: "reuniao",
-    start: atWeek(3, 9, 0, -1),
-    durationMin: 60,
-    createdBy: "Ana Souza",
-    status: "concluida",
-  },
-  {
-    id: "t-last-2",
-    title: "Cobrar proposta vencida",
-    type: "tarefa",
-    start: atWeek(2, 9, 0, -1),
-    durationMin: 30,
-    contact: "Acme Ltda",
-    createdBy: "Você",
-    status: "pendente",
-  },
-  {
-    id: "t-next-1",
-    title: "Kickoff novo ciclo",
-    type: "reuniao",
-    start: atWeek(1, 9, 30, 1),
-    durationMin: 60,
-    createdBy: "Você",
-    status: "pendente",
-  },
-]

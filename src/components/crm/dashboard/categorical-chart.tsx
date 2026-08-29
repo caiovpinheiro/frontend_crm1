@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import {
   categoricalColor,
   type DashboardChartType,
@@ -26,15 +27,6 @@ export type CategoricalChartRow = {
   name: string;
   value: number;
 };
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 function ChartTooltip({
   active,
@@ -193,63 +185,28 @@ export function CategoricalChart({
     color: categoricalColor(index),
     fill: categoricalColor(index),
   }));
-  const max = Math.max(1, ...colored.map((r) => r.value));
   const total = colored.reduce((sum, row) => sum + row.value, 0);
   const mean = average ?? (colored.length ? total / colored.length : 0);
 
   if (colored.length === 0) return null;
 
-  if (type === "dot") {
+  if (type === "dot" || type === "bar") {
     return (
-      <div data-chart-type="dot" className={cn("flex flex-col gap-2.5", className)}>
-        <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-primary" />
-            Valor por item
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-secondary ring-1 ring-border" />
-            Média ({formatValue(mean)})
-          </span>
-        </div>
-        <ul className="flex flex-col gap-2.5">
-          {colored.map((row) => {
-            const ratio = row.value / max;
-            const meanRatio = mean / max;
-            return (
-              <li key={row.id} className="flex items-center gap-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
-                  {initials(row.name)}
-                </span>
-                <span className="w-28 shrink-0 truncate text-[13px] font-semibold">
-                  {row.name}
-                </span>
-                <div className="relative h-6 min-w-0 flex-1">
-                  <span
-                    className="absolute top-1/2 h-px w-full -translate-y-1/2 bg-border"
-                    aria-hidden
-                  />
-                  <span
-                    className="absolute top-0 bottom-0 w-px border-l border-dashed"
-                    style={{ left: `${meanRatio * 100}%`, borderColor: "var(--color-warning)" }}
-                    aria-hidden
-                  />
-                  <span
-                    className="absolute top-1/2 h-px -translate-y-1/2 bg-primary"
-                    style={{ width: `${ratio * 100}%` }}
-                  />
-                  <span
-                    className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary"
-                    style={{ left: `${ratio * 100}%` }}
-                  />
-                </div>
-                <span className="w-20 shrink-0 text-right text-[12px] font-semibold tabular-nums">
-                  {formatValue(row.value)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+      <div data-chart-type="bar" className={cn("flex flex-col gap-2", className)}>
+        {mean > 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            Média {formatValue(mean)}
+          </p>
+        ) : null}
+        <RankBarList
+          rows={colored.map((row) => ({
+            id: row.id,
+            label: row.name,
+            title: row.name,
+            value: row.value,
+          }))}
+          formatValue={formatValue}
+        />
       </div>
     );
   }
@@ -312,33 +269,6 @@ export function CategoricalChart({
     return (
       <div data-chart-type="treemap" className={className}>
         <HtmlTreemap rows={colored} formatValue={formatValue} />
-      </div>
-    );
-  }
-
-  if (type === "bar") {
-    return (
-      <div data-chart-type="bar" className={cn("h-64 w-full", className)}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={colored} layout="vertical" margin={{ left: 8, right: 12, top: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-            <XAxis type="number" hide />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={88}
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-            />
-            <Tooltip content={<ChartTooltip formatValue={formatValue} />} />
-            <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={14}>
-              {colored.map((row) => (
-                <Cell key={row.id} fill={row.color} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
       </div>
     );
   }

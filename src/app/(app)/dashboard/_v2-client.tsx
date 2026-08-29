@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, Plus } from "lucide-react";
+import { Check, LayoutDashboard, Move, Plus } from "lucide-react";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRail } from "@/components/crm/nav-rail";
@@ -20,7 +20,14 @@ import { OperatorDashboardWidget } from "@/components/crm/dashboard/operator-das
 import { SystemUsageCard } from "@/components/crm/dashboard/system-usage-card";
 import { CustomMetricCard } from "@/components/crm/dashboard/custom-metric-card";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
-import { TabulationsDashboard } from "@/app/(app)/settings/tabulations/tabulations-dashboard";
+import {
+  TABULATION_WIDGET_LABELS,
+  TabulationByUserWidget,
+  TabulationKpiWidget,
+  TabulationLogWidget,
+  TabulationsDashboard,
+  TabulationTopWidget,
+} from "@/app/(app)/settings/tabulations/tabulations-dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { listTeamUsers } from "@/features/pipeline-v2/api/users";
@@ -54,16 +61,20 @@ import {
   DEAL_CORE_WIDGET_IDS,
   isStageWidgetId,
   parseStageWidgetId,
+  TABULATION_BOARD_WIDGET_IDS,
   useNegociosGrid,
   type DealCoreWidgetId,
 } from "@/features/dashboard-v2/use-negocios-grid";
 import {
   OPERATOR_WIDGET_IDS,
   SERVICE_WIDGET_IDS,
+  TABULATION_WIDGET_IDS,
   useDashboardWidgetOrder,
   type OperatorWidgetId,
   type ServiceWidgetId,
 } from "@/features/dashboard-v2/use-dashboard-widget-order";
+import { useTabulationAnalytics } from "@/features/dashboard-v2/use-tabulation-analytics";
+import { textMatchesQuery } from "@/features/dashboard-v2/format";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -82,7 +93,10 @@ const DEAL_LABELS: Record<string, string> = {
   agents: "Ganhos por agente",
   sources: "Origem",
   exceptions: "Exceções",
-  tabulations: "Tabulações",
+  tabKpis: TABULATION_WIDGET_LABELS.kpis,
+  tabTop: TABULATION_WIDGET_LABELS.top,
+  tabByUser: TABULATION_WIDGET_LABELS.byUser,
+  tabLog: TABULATION_WIDGET_LABELS.log,
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -157,6 +171,7 @@ function OperatorHome({
 }) {
   const query = useDashboardMe(isAuthenticated);
   const [search, setSearch] = useState("");
+  const [organizing, setOrganizing] = useState(false);
   const { order, reorder, hydrated: orderHydrated } = useDashboardWidgetOrder(
     "operator",
     OPERATOR_WIDGET_IDS,
@@ -180,6 +195,19 @@ function OperatorHome({
       search={search}
       onSearch={setSearch}
       searchPlaceholder="Pesquisar na fila..."
+      menuSlot={
+        <PageActionsMenu
+          aria-label="Ações do dashboard"
+          items={[
+            {
+              icon: organizing ? <Check className="size-4" /> : <Move className="size-4" />,
+              label: organizing ? "Concluir organização" : "Organizar cards",
+              onClick: () => setOrganizing((value) => !value),
+              active: organizing,
+            },
+          ]}
+        />
+      }
     >
       <QueryState isLoading={query.isLoading} error={query.error} hasData={!!query.data}>
         {query.data ? (
@@ -187,6 +215,7 @@ function OperatorHome({
             ids={order}
             labels={OPERATOR_LABELS}
             onReorder={reorder}
+            organizing={organizing}
             droppableId="dashboard-fila"
             render={(id) => (
               <OperatorDashboardWidget
@@ -229,7 +258,12 @@ function ManagerHome({
   const period = useMemo(() => periodToRangeISO(filters), [filters]);
   const effectivePipelineId = filters.pipelineIds[0] ?? filters.pipelineId;
   const [addCardOpen, setAddCardOpen] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
+  const [tabLogPage, setTabLogPage] = useState(1);
   const grid = useNegociosGrid();
+  const tabOrder = useDashboardWidgetOrder("tabulations", TABULATION_WIDGET_IDS, {
+    allowHide: true,
+  });
   const fieldIds = useMemo(
     () => grid.cards.filter((c) => c.type === "customField" && c.fieldId).map((c) => c.fieldId!),
     [grid.cards],
@@ -247,6 +281,21 @@ function ManagerHome({
   });
 
   const serviceOrder = useDashboardWidgetOrder("service", SERVICE_WIDGET_IDS);
+  const hasDealTabWidgets = grid.widgetIds.some((id) =>
+    (TABULATION_BOARD_WIDGET_IDS as readonly string[]).includes(id),
+  );
+  const tabAnalyticsQuery = useTabulationAnalytics({
+    fromIso: period.from,
+    toIso: period.to,
+    actorUserId: tabActorUserId,
+    departmentId: tabDepartmentId,
+    page: tabLogPage,
+    enabled: isAuthenticated && (isTabulations || (isDeals && hasDealTabWidgets)),
+  });
+
+  useEffect(() => {
+    setTabLogPage(1);
+  }, [period.from, period.to, tabActorUserId, tabDepartmentId]);
 
   useEffect(() => {
     if (!uiScope.ready || !uiScope.keyPart || !uiScope.userId) return;
@@ -392,19 +441,27 @@ function ManagerHome({
         />
       }
       menuSlot={
-        isDeals ? (
-          <PageActionsMenu
-            aria-label="Ações do dashboard"
-            items={[
-              {
-                icon: <Plus className="size-4" />,
-                label: "Adicionar card",
-                onClick: () => setAddCardOpen(true),
-                primary: true,
-              },
-            ]}
-          />
-        ) : undefined
+        <PageActionsMenu
+          aria-label="Ações do dashboard"
+          items={[
+            ...(isDeals || isTabulations
+              ? [
+                  {
+                    icon: <Plus className="size-4" />,
+                    label: "Adicionar card",
+                    onClick: () => setAddCardOpen(true),
+                    primary: true as const,
+                  },
+                ]
+              : []),
+            {
+              icon: organizing ? <Check className="size-4" /> : <Move className="size-4" />,
+              label: organizing ? "Concluir organização" : "Organizar cards",
+              onClick: () => setOrganizing((value) => !value),
+              active: organizing,
+            },
+          ]}
+        />
       }
     >
       {showTabLoader ? (
@@ -415,6 +472,7 @@ function ManagerHome({
             layout={grid.layout}
             onLayoutChange={grid.setLayout}
             persistEnabled={grid.hydrated}
+            organizing={organizing}
             labels={cardLabels}
             onRemove={grid.removeWidget}
             render={(id) => {
@@ -426,17 +484,16 @@ function ManagerHome({
                   />
                 );
               }
-              if (id === "tabulations") {
-                return (
-                  <TabulationsDashboard
-                    period={period}
-                    search={search}
-                    hideLocalFilters
-                    actorUserId={tabActorUserId}
-                    onActorUserIdChange={setTabActorUserId}
-                    departmentId={tabDepartmentId}
-                    onDepartmentIdChange={setTabDepartmentId}
-                  />
+              if ((TABULATION_BOARD_WIDGET_IDS as readonly string[]).includes(id)) {
+                return renderTabBoardWidget(
+                  id,
+                  tabAnalyticsQuery,
+                  search,
+                  tabActorUserId,
+                  tabDepartmentId,
+                  setTabDepartmentId,
+                  tabLogPage,
+                  setTabLogPage,
                 );
               }
               if (isStageWidgetId(id)) {
@@ -508,7 +565,7 @@ function ManagerHome({
             }}
           />
           <AddDashboardCardDialog
-            open={addCardOpen}
+            open={addCardOpen && isDeals}
             onOpenChange={setAddCardOpen}
             fields={options?.dealCustomFields ?? []}
             stages={funnelStages.map((s) => ({ id: s.id, name: s.name }))}
@@ -518,12 +575,28 @@ function ManagerHome({
             onAddStage={(stageId) => grid.restoreWidget(`stage:${stageId}`)}
             onCreate={grid.addCard}
           />
+          <AddDashboardCardDialog
+            open={addCardOpen && isTabulations}
+            onOpenChange={setAddCardOpen}
+            fields={[]}
+            stages={[]}
+            presentIds={tabOrder.order}
+            presets={TABULATION_WIDGET_IDS.map((id) => ({
+              id,
+              label: TABULATION_WIDGET_LABELS[id],
+            }))}
+            presetsOnly
+            onAddPreset={(id) => tabOrder.restore(id)}
+            onAddStage={() => undefined}
+            onCreate={() => undefined}
+          />
         </>
       ) : isService ? (
           <SortableWidgetStack
             ids={serviceOrder.order}
             labels={SERVICE_LABELS}
             onReorder={serviceOrder.reorder}
+            organizing={organizing}
             droppableId="dashboard-atendimento"
           render={(id) =>
             renderServiceWidget(
@@ -542,6 +615,10 @@ function ManagerHome({
           search={search}
           hideLocalFilters
           reorderable
+          organizing={organizing}
+          widgetOrder={tabOrder.order}
+          onReorderWidgets={tabOrder.reorder}
+          onHideWidget={tabOrder.hide}
           actorUserId={tabActorUserId}
           onActorUserIdChange={setTabActorUserId}
           departmentId={tabDepartmentId}
@@ -550,6 +627,63 @@ function ManagerHome({
       )}
     </Shell>
   );
+}
+
+function renderTabBoardWidget(
+  id: string,
+  query: ReturnType<typeof useTabulationAnalytics>,
+  search: string,
+  _actorUserId: string,
+  departmentId: string,
+  setDepartmentId: (id: string) => void,
+  page: number,
+  setPage: (page: number) => void,
+) {
+  const data = query.data;
+  const loadingValue = query.isLoading ? "…" : "—";
+  const byTabulation = (data?.byTabulation ?? []).filter(
+    (row) =>
+      textMatchesQuery(row.path, search) ||
+      textMatchesQuery(row.name, search) ||
+      textMatchesQuery(row.departmentName, search),
+  );
+  const byUser = (data?.byUser ?? []).filter((row) => textMatchesQuery(row.name, search));
+  const logItems = (data?.items ?? []).filter(
+    (row) =>
+      textMatchesQuery(row.actorName, search) ||
+      textMatchesQuery(row.contactName, search) ||
+      textMatchesQuery(row.tabulationPath, search) ||
+      textMatchesQuery(row.departmentName, search),
+  );
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.perPage)) : 1;
+
+  if (id === "tabKpis") return <TabulationKpiWidget data={data} loadingValue={loadingValue} />;
+  if (id === "tabTop") {
+    return (
+      <TabulationTopWidget
+        rows={byTabulation}
+        departmentId={departmentId}
+        onToggleDepartment={(next) => {
+          setDepartmentId(departmentId === next ? "" : next);
+          setPage(1);
+        }}
+      />
+    );
+  }
+  if (id === "tabByUser") return <TabulationByUserWidget rows={byUser} />;
+  if (id === "tabLog") {
+    return (
+      <TabulationLogWidget
+        data={data}
+        items={logItems}
+        page={page}
+        totalPages={totalPages}
+        isLoading={query.isLoading}
+        onPage={setPage}
+      />
+    );
+  }
+  return null;
 }
 
 function renderDealWidget(
@@ -562,7 +696,7 @@ function renderDealWidget(
   userIds?: string[],
   funnelPicker?: ReactNode,
 ) {
-  if (id === "usage" || id === "tabulations") return null;
+  if (id === "usage" || id.startsWith("tab")) return null;
   if (query.error && !query.data) {
     if (id !== "kpis") return <PainelSkeleton className="min-h-48" />;
     return (
@@ -670,7 +804,7 @@ function Shell({
           menu={Boolean(menuSlot)}
           menuSlot={menuSlot}
         />
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">{children}</div>
       </main>
     </div>
   );
