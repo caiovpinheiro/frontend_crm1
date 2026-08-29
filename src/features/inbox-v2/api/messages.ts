@@ -57,7 +57,9 @@ export async function getMessages(
       typeof data?.message === "string" ? data.message : "Erro ao carregar mensagens",
     );
   }
-  const messages = Array.isArray(data.messages) ? data.messages : [];
+  const messages: InboxMessageDto[] = Array.isArray(data.messages)
+    ? data.messages
+    : [];
   const requested = opts?.limit ?? 50;
   return {
     messages,
