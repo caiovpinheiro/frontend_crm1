@@ -217,6 +217,21 @@ export function useToggleConversationResolve(
   });
 }
 
+/** Após abrir/marcar lida, o webhook da Meta pode emitir
+ *  `conversation_updated` e o inbox refetchava lista+counts. */
+let suppressInboxListRefreshUntil = 0;
+let suppressInboxListRefreshId: string | null = null;
+
+export function noteInboxConversationOpened(conversationId: string) {
+  suppressInboxListRefreshId = conversationId;
+  suppressInboxListRefreshUntil = Date.now() + 4000;
+}
+
+export function shouldSuppressInboxListRefresh(conversationId?: string | null) {
+  if (!conversationId || Date.now() >= suppressInboxListRefreshUntil) return false;
+  return conversationId === suppressInboxListRefreshId;
+}
+
 /** Marcar conversa como lida (swipe / ao abrir). */
 export function useMarkConversationRead() {
   const qc = useQueryClient();
@@ -228,6 +243,7 @@ export function useMarkConversationRead() {
   >({
     mutationFn: (conversationId) => markConversationRead(conversationId),
     onMutate: async (conversationId) => {
+      noteInboxConversationOpened(conversationId);
       await qc.cancelQueries({ queryKey: ["inbox-conversations"] });
       const previous = qc.getQueriesData({ queryKey: ["inbox-conversations"] });
       qc.setQueriesData(
@@ -271,20 +287,28 @@ export function useBulkConversationAction() {
       tab?: string;
       search?: string;
       filters?: Record<string, unknown>;
+      /** Folha do modal de tabulação (mesmo id do encerramento individual). */
+      tabulationId?: string | null;
+      /** ADMIN: não dispara automações de encerramento. */
+      skipAutomations?: boolean;
     }
   >({
     mutationFn: (vars) =>
       postBulkAction(
         vars.ids,
         vars.action,
-        vars.allInFilter
-          ? {
-              allInFilter: true,
-              tab: vars.tab,
-              search: vars.search,
-              filters: vars.filters,
-            }
-          : undefined,
+        {
+          ...(vars.allInFilter
+            ? {
+                allInFilter: true,
+                tab: vars.tab,
+                search: vars.search,
+                filters: vars.filters,
+              }
+            : {}),
+          ...(vars.tabulationId ? { tabulationId: vars.tabulationId } : {}),
+          ...(vars.skipAutomations ? { skipAutomations: true } : {}),
+        },
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inbox-conversations"] });

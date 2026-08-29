@@ -13,7 +13,9 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 
+import { AppLoading } from "@/components/crm/app-loading";
 import { GlassCard } from "@/components/crm/glass-card";
+import { STUCK_TIMEOUT_MS } from "@/hooks/use-stuck-timeout";
 import { KpiCard } from "@/components/crm/kpi-card";
 import { KpiStrip } from "@/components/crm/kpi-strip";
 import { DateRangePicker, type DateRange } from "@/components/crm/date-range-picker";
@@ -163,6 +165,17 @@ export function TabulationsDashboard({
     setPage(1);
   }, [fromIso, toIso, actorUserId, departmentId]);
 
+  const [analyticsPainted, setAnalyticsPainted] = useState(false);
+  const analyticsSettled = analyticsQuery.isFetched || analyticsQuery.isError;
+  useEffect(() => {
+    if (analyticsSettled) setAnalyticsPainted(true);
+  }, [analyticsSettled]);
+  useEffect(() => {
+    if (analyticsPainted) return;
+    const id = window.setTimeout(() => setAnalyticsPainted(true), STUCK_TIMEOUT_MS);
+    return () => window.clearTimeout(id);
+  }, [analyticsPainted]);
+
   const data = analyticsQuery.data;
   const totalPages = useMemo(() => {
     if (!data) return 1;
@@ -215,6 +228,10 @@ export function TabulationsDashboard({
   );
   const maxTab = byTabulation[0]?.count ?? 1;
   const maxUser = byUser[0]?.count ?? 1;
+
+  if (hideLocalFilters && !analyticsPainted) {
+    return <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />;
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-4">

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Laptop, MessageCircle } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
+import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { cn } from "@/lib/utils";
 
@@ -315,18 +315,8 @@ function LandingEmpty() {
           "flex w-full max-w-md flex-col items-center px-8 py-12 text-center",
         )}
       >
-        <div className="relative flex h-16 w-20 items-center justify-center text-primary">
-          <Laptop className="size-16" strokeWidth={1.25} aria-hidden />
-          <MessageCircle
-            className="absolute size-6 -translate-y-0.5"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-        </div>
-        <h2 className="mt-6 font-display text-xl font-bold tracking-tight text-foreground">
-          Bwipo Chat
-        </h2>
-        <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
+        <BwipoWordmark />
+        <p className="mt-6 max-w-xs text-sm leading-relaxed text-muted-foreground">
           Selecione uma conversa para ver mensagens, ligações e o histórico do
           time.
         </p>

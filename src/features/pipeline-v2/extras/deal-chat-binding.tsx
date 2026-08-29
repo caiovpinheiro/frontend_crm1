@@ -120,7 +120,7 @@ export function useDealChatBinding(params: {
   // "mensagem minha", e foto fresca por nome (GET /api/users) + foto da sessão.
   const agentName = session?.user?.name?.trim() || "";
   const agentInitials = avatarInitials(agentName) || "·";
-  const { data: teamUsers } = useTeamUsers();
+  const { data: teamUsers } = useTeamUsers(!!conversationId || !!dealId);
   const senderPhotoByName = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const u of teamUsers ?? []) {

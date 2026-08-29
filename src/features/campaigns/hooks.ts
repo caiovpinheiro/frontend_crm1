@@ -14,7 +14,7 @@ import type { FilterOptionsResponse } from "@/components/pipeline/kanban-filters
 import {
   createCampaign,
   deleteCampaign,
-  fetchAudienceOptions,
+  fetchAllCampaigns,
   fetchAutomations,
   fetchCampaign,
   fetchCampaignStats,
@@ -32,6 +32,7 @@ import {
 import type {
   CampaignAction,
   CampaignFilters,
+  CampaignListItem,
   CampaignStatus,
   CreateCampaignBody,
 } from "./types";
@@ -62,6 +63,20 @@ export function useCampaigns(params: FetchCampaignsParams = {}, enabled = true) 
     refetchInterval: (query) =>
       query.state.data &&
       hasActiveCampaign(query.state.data.items.map((c) => c.status))
+        ? 10_000
+        : false,
+  });
+}
+
+/** Lista completa para KPIs e chips de status (pagina o GET existente). */
+export function useAllCampaigns(enabled = true) {
+  return useQuery<CampaignListItem[]>({
+    queryKey: [...CAMPAIGNS_KEY, "all"],
+    queryFn: () => fetchAllCampaigns(),
+    enabled: resolveEnabled(enabled),
+    staleTime: 5_000,
+    refetchInterval: (query) =>
+      query.state.data && hasActiveCampaign(query.state.data.map((c) => c.status))
         ? 10_000
         : false,
   });
@@ -114,6 +129,7 @@ export function useCampaignActions() {
       qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "stats"] });
       qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "recipients"] });
       qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "list"] });
+      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "all"] });
     },
   });
 }
@@ -133,6 +149,7 @@ export function useCreateCampaign() {
     mutationFn: (body: CreateCampaignBody) => createCampaign(body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "list"] });
+      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "all"] });
     },
   });
 }
@@ -143,6 +160,7 @@ export function useDeleteCampaign() {
     mutationFn: (id: string) => deleteCampaign(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "list"] });
+      qc.invalidateQueries({ queryKey: [...CAMPAIGNS_KEY, "all"] });
     },
   });
 }
@@ -199,16 +217,11 @@ export function useTemplates(enabled = true, channelId?: string | null) {
  * `["kanban-filter-options"]` com o fetcher canônico e derivar o shape de
  * audiência via `select` — antes a key própria furava o cache e rebaixava o
  * payload inteiro ao abrir /campaigns/new.
- *
- * Em page-mock-mode mantemos uma key própria: o mock cobre só um subconjunto
- * dos campos e não deve contaminar o cache canônico das páginas de pipeline.
  */
 export function useAudienceOptions(enabled = true) {
-  const mock = isPageMockMode();
-
   return useQuery<FilterOptionsResponse, Error, AudienceFilterOptions>({
-    queryKey: mock ? ["campaigns", "audience-options"] : ["kanban-filter-options"],
-    queryFn: mock ? fetchAudienceOptionsAsFilterOptions : fetchFilterOptions,
+    queryKey: ["kanban-filter-options"],
+    queryFn: fetchFilterOptions,
     select: (data) => ({
       tags: data.tags ?? [],
       pipelines: data.pipelines ?? [],
@@ -217,20 +230,4 @@ export function useAudienceOptions(enabled = true) {
     enabled: resolveEnabled(enabled),
     staleTime: 5 * 60_000,
   });
-}
-
-/** Adapta o mock de audiência ao shape canônico das filter-options. */
-async function fetchAudienceOptionsAsFilterOptions(): Promise<FilterOptionsResponse> {
-  const o = await fetchAudienceOptions();
-  return {
-    tags: o.tags,
-    pipelines: o.pipelines.map((p) => ({
-      ...p,
-      stages: p.stages.map((s, i) => ({ ...s, color: "", position: i })),
-    })),
-    users: o.users.map((u) => ({ ...u, role: "", type: "" })),
-    dealCustomFields: [],
-    contactCustomFields: [],
-    sources: [],
-  };
 }

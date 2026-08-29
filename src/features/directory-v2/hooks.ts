@@ -14,6 +14,7 @@ import {
   deleteCompany,
   deleteContact,
   fetchActivities,
+  fetchAllActivities,
   fetchActivity,
   fetchActivityAlert,
   fetchActivityCommentHistory,
@@ -441,6 +442,37 @@ export function useActivities(params: UseActivitiesParams = {}) {
         contactId: params.contactId,
         page,
         perPage,
+      }),
+    enabled: resolveEnabled(params.enabled),
+    staleTime: 10_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** Lista completa para calendário e resumos (pagina o GET /api/activities). */
+export function useAllActivities(
+  params: Omit<UseActivitiesParams, "page" | "perPage"> = {},
+) {
+  return useQuery<ActivityListPage>({
+    queryKey: [
+      ...activitiesQueryKey({
+        type: params.type,
+        completed: params.completed,
+        scope: params.scope,
+        dealId: params.dealId,
+        contactId: params.contactId,
+        page: 1,
+        perPage: 0,
+      }),
+      "all",
+    ],
+    queryFn: () =>
+      fetchAllActivities({
+        type: params.type,
+        completed: params.completed,
+        scope: params.scope,
+        dealId: params.dealId,
+        contactId: params.contactId,
       }),
     enabled: resolveEnabled(params.enabled),
     staleTime: 10_000,

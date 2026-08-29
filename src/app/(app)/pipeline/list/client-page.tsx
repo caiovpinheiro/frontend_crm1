@@ -174,10 +174,11 @@ export default function V2PipelineListClientPage() {
     setPage(1);
   }, [filters]);
 
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const filterOptionsQuery = useQuery({
     queryKey: ["kanban-filter-options"],
     queryFn: fetchFilterOptions,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && (filterPanelOpen || !isEmptyFilters(filters)),
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -343,6 +344,7 @@ export default function V2PipelineListClientPage() {
               onSortKeyChange={setSortKey}
               placeholder="Buscar por título, contato, CPF, RGM…"
               pipelineId={pipelineId}
+              onFilterPanelOpenChange={setFilterPanelOpen}
               onPickDeal={(deal) => {
                 const dest = deal.stage?.pipelineId;
                 if (dest && dest !== pipelineId) setPipelineId(dest);

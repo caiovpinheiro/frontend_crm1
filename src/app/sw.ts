@@ -50,6 +50,7 @@ function skipFragileRuntime<T extends { matcher: unknown }>(rule: T): T {
     ...rule,
     matcher: (options: { request?: Request; url: URL }) => {
       const request = options.request;
+      if (options.url.pathname.startsWith("/api/")) return false;
       if (isSseRequest(options.url.pathname, request)) return false;
       if (request?.mode === "navigate") return false;
       if (request?.headers.get("RSC") === "1") return false;
@@ -65,35 +66,9 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
-    // NENHUMA rota de /api/ passa por cache. Precisa vir ANTES do
-    // defaultCache, que casa `/api/` em GET com NetworkFirst na cache
-    // "apis" (24h, networkTimeoutSeconds 10). Duas consequências que não
-    // queremos num CRM multi-tenant:
-    //
-    //  1. Resposta autenticada de um tenant fica gravada no Cache Storage
-    //     do navegador por 24h e sobrevive ao logout.
-    //  2. Se a API passa de 10s (deploy, incidente), o worker serve dado
-    //     de até 24h atrás em silêncio, em vez de deixar o erro aparecer.
-    //
-    // SSE (`/api/sse/*`) fica de fora de TODAS as regras: `respondWith`
-    // aborta o EventSource (net::ERR_ABORTED / ERR_FAILED), mesmo com
-    // NetworkOnly. Sem match, o browser fala com a rede direto.
-    {
-      matcher: ({ sameOrigin, request, url: { pathname } }) =>
-        sameOrigin &&
-        pathname.startsWith("/api/") &&
-        !isSseRequest(pathname, request),
-      method: "GET",
-      handler: new NetworkOnly(),
-    },
-    {
-      matcher: ({ sameOrigin, request, url: { pathname } }) =>
-        sameOrigin &&
-        pathname.startsWith("/api/") &&
-        !isSseRequest(pathname, request),
-      method: "POST",
-      handler: new NetworkOnly(),
-    },
+    // /api/* não entra no SW: NetworkOnly ainda gera 2 linhas no HAR
+    // (página + worker) e um hop extra. Sem matcher, o browser fala
+    // com a rede direto — igual SSE. defaultCache já ignora /api/.
     // Rotas de página das chamadas WhatsApp — fora de /api/, então não são
     // cobertas pelas regras acima.
     {

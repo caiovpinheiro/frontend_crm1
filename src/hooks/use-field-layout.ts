@@ -16,7 +16,7 @@ export type FieldLayoutContext =
   | "inbox_lead_v2"
   | "deal_panel_v2";
 
-export function useFieldLayout(context: FieldLayoutContext) {
+export function useFieldLayout(context: FieldLayoutContext, enabled = true) {
   const { data: session } = useSession();
   const role = (session?.user as { role?: string })?.role;
   const isAdmin = role === "ADMIN" || role === "MANAGER";
@@ -30,6 +30,9 @@ export function useFieldLayout(context: FieldLayoutContext) {
       return res.json();
     },
     staleTime: 60_000,
+    enabled,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const adminSections = (data?.admin as SectionConfig[] | null) ?? DEFAULTS[context];

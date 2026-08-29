@@ -233,6 +233,21 @@ export default function KanbanV2ClientPage({
   // URL `?pipeline=<number>` + LS interno; nunca CUID/slug na query.
   const { pipelineId, setPipelineId } = usePipelineUrlSync(pipelines);
 
+  // Board aceita number público (`?pipeline=8`) — não espera a lista
+  // resolver o CUID. Quando o funil selecionado tem `number`, a key
+  // permanece o mesmo dígito e não refetcha.
+  const boardLookupId = useMemo(() => {
+    const selectedNumber = pipelines?.find((p) => p.id === pipelineId)?.number;
+    if (typeof selectedNumber === "number" && Number.isFinite(selectedNumber)) {
+      return String(selectedNumber);
+    }
+    if (typeof window !== "undefined") {
+      const urlKey = new URL(window.location.href).searchParams.get("pipeline");
+      if (urlKey && /^\d+$/.test(urlKey)) return urlKey;
+    }
+    return pipelineId;
+  }, [pipelines, pipelineId]);
+
   const boardSort = useMemo<BoardSortParam | undefined>(() => {
     if (sortKey === "created_newest") return { field: "createdAt", direction: "desc" };
     if (sortKey === "created_oldest") return { field: "createdAt", direction: "asc" };
@@ -269,7 +284,7 @@ export default function KanbanV2ClientPage({
   const [loadingMoreStageId, setLoadingMoreStageId] = useState<string | null>(null);
 
   const boardNormal = useBoard({
-    pipelineId,
+    pipelineId: boardLookupId,
     status,
     sort: boardSort,
     enabled: isAuthenticated && !hasServerBoard,
@@ -277,7 +292,7 @@ export default function KanbanV2ClientPage({
     offsetByStage: boardExtraByStage,
   });
   const boardFiltered = useBoardFiltered({
-    pipelineId,
+    pipelineId: boardLookupId,
     status,
     filters: mergedFilters,
     sort: boardSort,
@@ -295,8 +310,18 @@ export default function KanbanV2ClientPage({
   const [pendingLostMove, setPendingLostMove] = useState<MoveVars | null>(null);
 
   // Key compartilhada com LossReasonDialog / actions-menu / bulk-bar.
-  const lossMetaQuery = usePipelineLossReasons(pipelineId);
-  const lossReasonsActive = Boolean(lossMetaQuery.data?.lossReasonRequired);
+  const lossMetaQuery = usePipelineLossReasons(pipelineId, {
+    enabled: !!pendingLostMove,
+  });
+
+  useEffect(() => {
+    if (!pendingLostMove) return;
+    if (lossMetaQuery.isPending) return;
+    if (!lossMetaQuery.data?.lossReasonRequired) {
+      moveDeal.mutate(pendingLostMove);
+      setPendingLostMove(null);
+    }
+  }, [pendingLostMove, lossMetaQuery.isPending, lossMetaQuery.data, moveDeal]);
 
   const requestMove = useCallback(
     (vars: MoveVars) => {
@@ -309,17 +334,13 @@ export default function KanbanV2ClientPage({
       // atual, não temos como saber isLost/lossReasonRequired sem uma
       // requisição extra. Deixamos o backend validar (LOST_REASON_REQUIRED
       // → toast de erro) e o operador tenta novamente pelo funil destino.
-      if (
-        target?.isLost &&
-        vars.fromStageId !== vars.toStageId &&
-        lossReasonsActive
-      ) {
+      if (target?.isLost && vars.fromStageId !== vars.toStageId) {
         setPendingLostMove(vars);
         return;
       }
       moveDeal.mutate(vars);
     },
-    [board, moveDeal, lossReasonsActive, canChangeStage],
+    [board, moveDeal, canChangeStage],
   );
 
   // ── Seleção em massa (resgatada da versão antiga) ────────────────
@@ -371,12 +392,13 @@ export default function KanbanV2ClientPage({
     setSelectedIds(new Set());
   }, [pipelineId]);
 
-  // Options de filtro: cache RQ compartilhado com Flow (mesmo key).
-  // staleTime alto — lista muda pouco; invalidar após criar tags/campos.
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+
+  // Options de filtro: só quando o modal abre ou já há filtro ativo.
   const filterOptionsQuery = useQuery({
     queryKey: ["kanban-filter-options"],
     queryFn: fetchFilterOptions,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && (filterPanelOpen || !isEmptyFilters(filters)),
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -830,12 +852,12 @@ export default function KanbanV2ClientPage({
   // spinner (query idle/`refetchOnMount: false` não tem isError).
   const pipelinesPending =
     sessionStatus === "loading" ||
-    (isAuthenticated && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
+    (isAuthenticated && !boardLookupId && !pipelinesEmpty && !pipelinesQuery.isError);
   const pipelinesStuck = useStuckTimeout(pipelinesPending);
   const waitingForPipeline = pipelinesPending && !pipelinesStuck;
 
   const boardPending =
-    !!pipelineId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
+    !!boardLookupId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
   const boardStuck = useStuckTimeout(boardPending);
   const waitingForBoard = boardPending && !boardStuck;
 
@@ -846,10 +868,10 @@ export default function KanbanV2ClientPage({
     !boardQuery.isError;
 
   useLayoutEffect(() => {
-    if (!pipelineId || !isAuthenticated) return;
+    if (!boardLookupId || !isAuthenticated) return;
     if (boardIdleUnfetched) void boardQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pipelineId, isAuthenticated, boardIdleUnfetched]);
+  }, [boardLookupId, isAuthenticated, boardIdleUnfetched]);
 
   function handleDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
@@ -906,6 +928,7 @@ export default function KanbanV2ClientPage({
               sortKey={sortKey}
               onSortKeyChange={(k) => setSortKey(k)}
               pipelineId={pipelineId}
+              onFilterPanelOpenChange={setFilterPanelOpen}
               onPickDeal={(deal) => {
                 const dest = deal.stage?.pipelineId;
                 if (dest && dest !== pipelineId) setPipelineId(dest);
@@ -1457,7 +1480,7 @@ export default function KanbanV2ClientPage({
       {/* Tabulação do motivo da perda — abre sempre que um deal vai
           para o estágio Perdido (drag, menu do card ou drawer). */}
       <LossReasonDialog
-        open={!!pendingLostMove}
+        open={!!pendingLostMove && !!lossMetaQuery.data?.lossReasonRequired}
         onOpenChange={(o) => {
           if (!o) setPendingLostMove(null);
         }}

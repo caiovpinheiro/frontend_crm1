@@ -49,6 +49,7 @@ import { formatPhoneDisplay } from "@/lib/phone"
 import { DealProductsSection } from "@/components/pipeline/deal-detail/sidebar"
 import { useSectionOrder } from "@/hooks/use-section-order"
 import { useFieldLayout } from "@/hooks/use-field-layout"
+import { useIdleEnabled } from "@/hooks/use-idle-enabled"
 import { resolveCustomFieldGroups, type CustomFieldDef } from "@/lib/field-layout"
 import { CustomFieldGroupBlock } from "@/components/crm/fields/custom-field-group-block"
 
@@ -682,11 +683,11 @@ export function ContactAside({
     ["contact-sidebar", contact.contactId],
     ["inbox-conversations"],
   ]
-  const { data: contactSources = [] } = useContactSources(!!contact.contactId)
 
   // Estados de modo edição
   const [contactEditMode, setContactEditMode] = useState(false)
   const [dealFieldsEditMode, setDealFieldsEditMode] = useState(false)
+  const { data: contactSources = [] } = useContactSources(contactEditMode)
   const canEditContact = useCan("contact:edit")
   const canEditDeal = useCan("deal:edit")
 
@@ -751,7 +752,11 @@ export function ContactAside({
   // FieldConfigPanel admin (context=inbox_lead_v2). Antes o toggle do
   // "olho" no painel de config nao tinha efeito porque ContactAside
   // ignorava o layout. Mapeamento sectionId interno -> id taxonomia.
-  const { sections: fieldLayoutSections } = useFieldLayout("inbox_lead_v2")
+  const layoutIdle = useIdleEnabled(2000)
+  const { sections: fieldLayoutSections } = useFieldLayout(
+    "inbox_lead_v2",
+    layoutIdle || contactConfigOpen || dealConfigOpen,
+  )
 
   // Agrupamento visual dos campos personalizados (PRD Agrupamento de
   // Campos na Aside). Um memo por entidade — os dois grids (Contato /

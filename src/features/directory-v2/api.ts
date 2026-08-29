@@ -13,8 +13,6 @@
 
 import { apiUrl } from "@/lib/api";
 import { isDirectoryMock, mockCompaniesPage, mockContactsPage } from "./mock";
-import { isPageMockMode } from "@/lib/page-mock-mode";
-import { mockActivitiesPage } from "./mock-activities";
 
 /** Erro HTTP tipado da camada directory-v2 (expõe `status`). */
 export class DirectoryApiError extends Error {
@@ -596,9 +594,6 @@ export interface FetchActivitiesParams {
 export function fetchActivities(
   params: FetchActivitiesParams = {},
 ): Promise<ActivityListPage> {
-  if (isPageMockMode()) {
-    return Promise.resolve(mockActivitiesPage(params));
-  }
   const sp = new URLSearchParams();
   if (params.type) sp.set("type", params.type);
   if (params.completed !== undefined) sp.set("completed", String(params.completed));
@@ -612,6 +607,22 @@ export function fetchActivities(
     `/api/activities${qs ? `?${qs}` : ""}`,
     "Erro ao carregar atividades.",
   );
+}
+
+/** Todas as páginas — calendário e KPIs de Tarefas (backend cap = 100/página). */
+export async function fetchAllActivities(
+  params: Omit<FetchActivitiesParams, "page" | "perPage"> = {},
+): Promise<ActivityListPage> {
+  const first = await fetchActivities({ ...params, page: 1, perPage: 100 });
+  const totalPages = Math.max(1, Math.ceil(first.total / first.perPage) || 1);
+  if (totalPages <= 1) return first;
+  const rest = await Promise.all(
+    Array.from({ length: Math.min(totalPages - 1, 50) }, (_, i) =>
+      fetchActivities({ ...params, page: i + 2, perPage: first.perPage }),
+    ),
+  );
+  const items = first.items.concat(...rest.map((p) => p.items));
+  return { items, total: first.total, page: 1, perPage: items.length };
 }
 
 // ─────────────────────────────────────────────────────────────────

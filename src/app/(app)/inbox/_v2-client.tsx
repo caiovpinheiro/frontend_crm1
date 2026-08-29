@@ -50,6 +50,7 @@ import {
   usePersistentWidth,
 } from "@/components/crm/column-resizer";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 import { COMPOSER_FOCUS_CHAT_EVENT } from "@/lib/composer-insert";
 
 import {
@@ -91,12 +92,16 @@ import {
   ConversationActionsMenu,
   ConversationTimelineTab,
   InboxFilterButton,
+  ResolveConfirmDialog,
+  TabulationDialog,
   TagsPopover,
   TransferPopover,
   WhatsappTemplatePickerModal,
   whatsappTemplateToPending,
   type PendingTemplate,
 } from "@/features/inbox-v2/extras";
+import { pickBulkCloseDepartment } from "@/features/inbox-v2/extras/tabulation-dialog";
+import { useUserRole } from "@/hooks/use-user-role";
 import { InboxSearchFilterBar } from "@/features/inbox-v2/extras/filter-panel";
 import {
   isSessionClosedError,
@@ -267,6 +272,8 @@ export default function InboxV2ClientPage({
   const isDesktop = useIsDesktop();
   const { data: myPermissions } = useMyPermissions();
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const { isSuperAdmin } = useUserRole();
+  const canSkipAutomations = isSuperAdmin || sessionRole === "ADMIN";
 
   const visibleTabs = useMemo(() => {
     const role = sessionRole ?? null;
@@ -375,6 +382,15 @@ export default function InboxV2ClientPage({
   // mesmo `where` da lista e processa no leads-worker.
   const [selectAllFilter, setSelectAllFilter] = useState(false);
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
+  const [bulkTabulationOpen, setBulkTabulationOpen] = useState(false);
+  const [bulkTabulationDeptId, setBulkTabulationDeptId] = useState<string | null>(
+    null,
+  );
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const pendingBulkRef = useRef<{
+    useAllInFilter: boolean;
+    ids: string[];
+  } | null>(null);
   // Encerramento em massa roda no leads-worker (async). Guardamos o id da
   // BulkOperation pra pollar progresso e dar feedback ao terminar.
   const [bulkOpId, setBulkOpId] = useState<string | null>(null);
@@ -769,47 +785,42 @@ export default function InboxV2ClientPage({
   }
   const { features: convFeatures } = useConversationFeatures();
 
-  async function handleBulkAction(action: "resolve" | "reopen") {
-    const ids = [...selectedIds];
-    // "Todas do filtro" só se aplica a Encerrar (reabrir em massa é bloqueado).
-    const useAllInFilter = selectAllFilter && action === "resolve";
+  function executeBulkResolve(extra?: {
+    tabulationId?: string | null;
+    skipAutomations?: boolean;
+  }) {
+    const pending = pendingBulkRef.current;
+    const useAllInFilter = pending?.useAllInFilter ?? false;
+    const ids = pending?.ids ?? [...selectedIds];
     if (!useAllInFilter && ids.length === 0) return;
 
-    const confirmTotal = filterTotal ?? ids.length;
-
-    if (useAllInFilter) {
-      const isAdminRole = sessionRole === "ADMIN";
-      const ok = await confirmDialog({
-        title: `Encerrar ${confirmTotal.toLocaleString("pt-BR")} conversa${confirmTotal > 1 ? "s" : ""}?`,
-        description: isAdminRole
-          ? "Todas as conversas do filtro atual (todas as páginas) serão encerradas em segundo plano, inclusive as que exigem tabulação — sem tabular. Esta ação não pode ser desfeita em massa."
-          : "Todas as conversas do filtro atual (todas as páginas) serão encerradas em segundo plano pelo worker. Conversas que exigem tabulação não entram neste lote. Esta ação não pode ser desfeita em massa.",
-        confirmLabel: "Encerrar todas",
-        destructive: true,
-      });
-      if (!ok) return;
-    }
-
-    const count = useAllInFilter ? confirmTotal : ids.length;
+    const count = useAllInFilter ? (filterTotal ?? ids.length) : ids.length;
     bulkAction.mutate(
       useAllInFilter
         ? {
             ids: [],
-            action,
+            action: "resolve",
             allInFilter: true,
             tab,
             search: "",
             filters: serverFilters as Record<string, unknown>,
+            tabulationId: extra?.tabulationId,
+            skipAutomations: extra?.skipAutomations,
           }
-        : { ids, action },
+        : {
+            ids,
+            action: "resolve",
+            tabulationId: extra?.tabulationId,
+            skipAutomations: extra?.skipAutomations,
+          },
       {
         onSuccess: (result) => {
           const skipped = Array.isArray(result?.skipped)
             ? result.skipped.length
             : 0;
-          // Encerrar roda no worker (async): guarda o operationId pra pollar
-          // e mostra UM único toast. O toast final (sucesso/parcial/falha)
-          // vem do efeito de polling abaixo.
+          setBulkTabulationOpen(false);
+          setBulkConfirmOpen(false);
+          pendingBulkRef.current = null;
           if (result?.operationId) {
             bulkKindRef.current = "resolve";
             bulkSkippedRef.current = skipped;
@@ -817,7 +828,7 @@ export default function InboxV2ClientPage({
             const total = result.total ?? count;
             if (skipped > 0) {
               toast.warning(
-                `Encerrando ${total} conversa${total > 1 ? "s" : ""} em segundo plano. ${skipped} exigem tabulação e não foram encerradas — encerre individualmente.`,
+                `Encerrando ${total} conversa${total > 1 ? "s" : ""} em segundo plano. ${skipped} de outro departamento exigem tabulação e não foram encerradas — encerre individualmente.`,
                 { id: `inbox-bulk-resolve-${result.operationId}` },
               );
             } else {
@@ -829,26 +840,59 @@ export default function InboxV2ClientPage({
             exitSelectionMode();
             return;
           }
-          // Sem operationId → nada a processar (já encerradas / exigem tabulação).
-          if (action === "resolve") {
-            if (skipped > 0) {
-              toast.warning(
-                `${skipped} conversa(s) exigem tabulação e não foram encerradas. Encerre individualmente.`,
-              );
-            } else {
-              toast.warning("Nenhuma conversa para encerrar.");
-            }
-          } else {
-            toast.success(
-              `${count} conversa${count > 1 ? "s" : ""} reaberta${count > 1 ? "s" : ""}`,
+          if (skipped > 0) {
+            toast.warning(
+              `${skipped} conversa(s) de outro departamento exigem tabulação e não foram encerradas. Encerre individualmente.`,
             );
-            // Tickets novos são OPEN — somem da aba Encerradas.
-            setTab((current) => (current === "finalizados" ? "todos" : current));
+          } else {
+            toast.warning("Nenhuma conversa para encerrar.");
           }
           exitSelectionMode();
         },
       },
     );
+  }
+
+  function handleBulkAction(action: "resolve" | "reopen") {
+    const ids = [...selectedIds];
+    const useAllInFilter = selectAllFilter && action === "resolve";
+    if (!useAllInFilter && ids.length === 0) return;
+
+    if (action === "reopen") {
+      bulkAction.mutate(
+        { ids, action },
+        {
+          onSuccess: () => {
+            toast.success(
+              `${ids.length} conversa${ids.length > 1 ? "s" : ""} reaberta${ids.length > 1 ? "s" : ""}`,
+            );
+            setTab((current) => (current === "finalizados" ? "todos" : current));
+            exitSelectionMode();
+          },
+        },
+      );
+      return;
+    }
+
+    pendingBulkRef.current = { useAllInFilter, ids };
+    const picked = pickBulkCloseDepartment(displayRows, selectedIds, {
+      allInFilter: useAllInFilter,
+    });
+    if (picked.mixed && picked.departmentId) {
+      toast.warning(
+        "A tabulação vale para o departamento mais comum da seleção. Conversas de outros departamentos que exigem tabulação ficam de fora.",
+      );
+    }
+    if (picked.departmentId) {
+      setBulkTabulationDeptId(picked.departmentId);
+      setBulkTabulationOpen(true);
+      return;
+    }
+    if (canSkipAutomations) {
+      setBulkConfirmOpen(true);
+      return;
+    }
+    executeBulkResolve();
   }
 
   // ── Polling do encerramento em massa (leads-worker) ─────────────
@@ -989,7 +1033,7 @@ export default function InboxV2ClientPage({
     useChannelSession(
       activeId,
       selectedChannelId,
-      applyWhatsappSession && !!activeId && !!selectedChannelId,
+      applyWhatsappSession && channelOverrideActive,
     );
 
   function handleSelect(id: string) {
@@ -1301,6 +1345,37 @@ export default function InboxV2ClientPage({
             <InboxFilterButton value={filters} onChange={setFilters} />
           )}
           {confirmDialogNode}
+          <TabulationDialog
+            open={bulkTabulationOpen}
+            onOpenChange={(open) => {
+              setBulkTabulationOpen(open);
+              if (!open) pendingBulkRef.current = null;
+            }}
+            departmentId={bulkTabulationDeptId}
+            submitting={bulkAction.isPending}
+            allowSkipAutomations={canSkipAutomations}
+            onConfirm={(tabulationId, extra) => {
+              executeBulkResolve({
+                tabulationId,
+                skipAutomations:
+                  canSkipAutomations && extra?.skipAutomations ? true : undefined,
+              });
+            }}
+          />
+          <ResolveConfirmDialog
+            open={bulkConfirmOpen}
+            onOpenChange={(open) => {
+              setBulkConfirmOpen(open);
+              if (!open) pendingBulkRef.current = null;
+            }}
+            submitting={bulkAction.isPending}
+            onConfirm={(skipAutomations) =>
+              executeBulkResolve({
+                skipAutomations:
+                  canSkipAutomations && skipAutomations ? true : undefined,
+              })
+            }
+          />
         </>
       }
       selectionMode={selectionMode}
@@ -1428,7 +1503,8 @@ export default function InboxV2ClientPage({
   // GET /api/pipelines (~3KB, staleTime 5min).
   const firstDeal = contactAsideView?.deals?.[0] ?? null;
   const firstDealId = firstDeal?.id ?? null;
-  const { data: firstDealDetail } = useDealDetail(firstDealId);
+  const asideIdle = useIdleEnabled(2000);
+  const { data: firstDealDetail } = useDealDetail(asideIdle ? firstDealId : null);
   const dealStage = (
     firstDealDetail as
       | { stage?: { id?: string; pipeline?: { id?: string; name?: string } } }
@@ -1439,7 +1515,7 @@ export default function InboxV2ClientPage({
   const firstDealPipelineName =
     firstDeal?.pipelineName ?? dealStage?.pipeline?.name ?? null;
   const { data: pipelinesLite } = usePipelines(
-    isAuthenticated && !!firstDealPipelineId,
+    isAuthenticated && asideIdle && !!firstDealPipelineId,
   );
   const boardStages: PipelineListStageDto[] = useMemo(() => {
     if (!firstDealPipelineId || !pipelinesLite) return [];

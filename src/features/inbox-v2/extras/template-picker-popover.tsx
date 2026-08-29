@@ -202,6 +202,9 @@ export function TemplatePickerList({
     queryFn: () => listAgentEnabledTemplates(channelId),
     staleTime: 5 * 60_000,
     retry: 1,
+    enabled: !!conversationId,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const visible = useMemo(() => {
@@ -310,6 +313,8 @@ export function WhatsappTemplatePickerModal({
     queryFn: () => listAgentEnabledTemplates(channelId),
     staleTime: 5 * 60_000,
     enabled: open && !!conversationId,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -418,7 +423,7 @@ export function WhatsappTemplatePickerModal({
         </div>
       }
     >
-      {conversationId ? (
+      {open && conversationId ? (
         <TemplatePickerList
           conversationId={conversationId}
           channelId={channelId}

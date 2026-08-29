@@ -136,10 +136,11 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   const [sortMode, setSortMode] = useState<DealQueueSortMode>(readQueueSort);
   const { filters, setFilters, patch: patchFilters, clear: clearFilters } =
     useKanbanFilters();
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const filterOptionsQuery = useQuery({
     queryKey: ["kanban-filter-options"],
     queryFn: fetchFilterOptions,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && (filterPanelOpen || !isEmptyFilters(filters)),
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -626,6 +627,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
               onSortKeyChange={setSortKey}
               placeholder="Buscar no funil…"
               pipelineId={pipelineId}
+              onFilterPanelOpenChange={setFilterPanelOpen}
               onPickDeal={(deal) => {
                 const dest = deal.stage?.pipelineId;
                 if (dest && dest !== pipelineId) setPipelineId(dest);

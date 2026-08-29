@@ -54,6 +54,7 @@ interface PipelineSearchFilterBarProps {
   className?: string;
   pipelineId?: string | null;
   onPickDeal?: (deal: DealListItemDto) => void;
+  onFilterPanelOpenChange?: (open: boolean) => void;
 }
 
 export function PipelineSearchFilterBar({
@@ -71,9 +72,17 @@ export function PipelineSearchFilterBar({
   className,
   pipelineId: _pipelineId,
   onPickDeal,
+  onFilterPanelOpenChange,
 }: PipelineSearchFilterBarProps) {
   void _pipelineId;
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpenState] = React.useState(false);
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      setOpenState(next);
+      onFilterPanelOpenChange?.(next);
+    },
+    [onFilterPanelOpenChange],
+  );
   const [saving, setSaving] = React.useState(false);
 
   const hits = usePipelineOmnisearch(search, search.trim().length >= 3);

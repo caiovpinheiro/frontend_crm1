@@ -12,26 +12,13 @@
  */
 
 import { apiUrl } from "@/lib/api";
-import { isPageMockMode } from "@/lib/page-mock-mode";
-
-import {
-  mockCampaignDetail,
-  mockCampaignRecipients,
-  mockCampaignStats,
-  mockCampaignsPage,
-  mockRunCampaignAction,
-  MOCK_AUDIENCE_OPTIONS,
-  MOCK_AUDIENCE_PREVIEW,
-  MOCK_CHANNELS,
-  MOCK_SEGMENTS,
-  MOCK_TEMPLATES,
-} from "./mock-campaigns";
 
 import type {
   AutomationRow,
   CampaignAction,
   CampaignDetail,
   CampaignFilters,
+  CampaignListItem,
   CampaignStats,
   CampaignsListResponse,
   ChannelRow,
@@ -108,9 +95,6 @@ export interface FetchCampaignsParams {
 export function fetchCampaigns(
   params: FetchCampaignsParams = {},
 ): Promise<CampaignsListResponse> {
-  if (isPageMockMode()) {
-    return Promise.resolve(mockCampaignsPage(params));
-  }
   const sp = new URLSearchParams();
   if (params.status) sp.set("status", params.status);
   if (params.type) sp.set("type", params.type);
@@ -124,11 +108,25 @@ export function fetchCampaigns(
   );
 }
 
+/** Todas as páginas — KPIs e contagens de status (backend cap = 100/página). */
+export async function fetchAllCampaigns(
+  params: Omit<FetchCampaignsParams, "page" | "perPage"> = {},
+): Promise<CampaignListItem[]> {
+  const first = await fetchCampaigns({ ...params, page: 1, perPage: 100 });
+  const totalPages = Math.max(
+    1,
+    first.totalPages || Math.ceil(first.total / first.perPage) || 1,
+  );
+  if (totalPages <= 1) return first.items;
+  const rest = await Promise.all(
+    Array.from({ length: Math.min(totalPages - 1, 50) }, (_, i) =>
+      fetchCampaigns({ ...params, page: i + 2, perPage: 100 }),
+    ),
+  );
+  return first.items.concat(...rest.map((p) => p.items));
+}
+
 export function fetchCampaign(id: string): Promise<CampaignDetail> {
-  const mock = mockCampaignDetail(id);
-  if (mock && (isPageMockMode() || id.startsWith("camp-"))) {
-    return Promise.resolve(mock);
-  }
   return getJson<{ campaign: CampaignDetail }>(
     `/api/campaigns/${id}`,
     "Campanha não encontrada.",
@@ -136,10 +134,6 @@ export function fetchCampaign(id: string): Promise<CampaignDetail> {
 }
 
 export function fetchCampaignStats(id: string): Promise<CampaignStats> {
-  const mock = mockCampaignStats(id);
-  if (mock && (isPageMockMode() || id.startsWith("camp-"))) {
-    return Promise.resolve(mock);
-  }
   return getJson<CampaignStats>(
     `/api/campaigns/${id}/stats`,
     "Erro ao carregar estatísticas.",
@@ -156,10 +150,6 @@ export function fetchRecipients(
   id: string,
   params: FetchRecipientsParams = {},
 ): Promise<RecipientsResponse> {
-  if (isPageMockMode() || id.startsWith("camp-")) {
-    const page = mockCampaignRecipients(id, params);
-    if (page) return Promise.resolve(page);
-  }
   const sp = new URLSearchParams();
   if (params.status) sp.set("status", params.status);
   if (params.page) sp.set("page", String(params.page));
@@ -185,13 +175,6 @@ export function runCampaignAction(
   id: string,
   action: CampaignAction,
 ): Promise<{ message?: string; status?: string }> {
-  if (isPageMockMode() || id.startsWith("camp-")) {
-    try {
-      return Promise.resolve(mockRunCampaignAction(id, action));
-    } catch (error) {
-      return Promise.reject(error);
-    }
-  }
   return sendJson(
     `/api/campaigns/${id}/${action}`,
     "POST",
@@ -212,9 +195,6 @@ export function deleteCampaign(id: string): Promise<{ ok: boolean }> {
 export function previewAudience(
   filters: CampaignFilters,
 ): Promise<PreviewResponse> {
-  if (isPageMockMode()) {
-    return Promise.resolve(MOCK_AUDIENCE_PREVIEW);
-  }
   return sendJson<PreviewResponse>(
     "/api/campaigns/preview",
     "POST",
@@ -226,9 +206,6 @@ export function previewAudience(
 // ── Recursos auxiliares (canais, segmentos, templates, opções) ──
 
 export function fetchChannels(): Promise<ChannelRow[]> {
-  if (isPageMockMode()) {
-    return Promise.resolve(MOCK_CHANNELS);
-  }
   return getJson<{ channels?: ChannelRow[] }>(
     "/api/channels",
     "Erro ao carregar canais.",
@@ -236,9 +213,6 @@ export function fetchChannels(): Promise<ChannelRow[]> {
 }
 
 export function fetchSegments(): Promise<SegmentRow[]> {
-  if (isPageMockMode()) {
-    return Promise.resolve(MOCK_SEGMENTS);
-  }
   return getJson<{ segments?: SegmentRow[] }>(
     "/api/segments",
     "Erro ao carregar segmentos.",
@@ -246,9 +220,6 @@ export function fetchSegments(): Promise<SegmentRow[]> {
 }
 
 export function fetchAutomations(): Promise<AutomationRow[]> {
-  if (isPageMockMode()) {
-    return Promise.resolve([]);
-  }
   return getJson<{ items?: AutomationRow[]; automations?: AutomationRow[] }>(
     "/api/automations?perPage=100",
     "Erro ao carregar automações.",
@@ -256,9 +227,6 @@ export function fetchAutomations(): Promise<AutomationRow[]> {
 }
 
 export async function fetchTemplates(channelId?: string | null): Promise<TemplateRow[]> {
-  if (isPageMockMode()) {
-    return Promise.resolve(MOCK_TEMPLATES);
-  }
   // Templates aprovados vem direto da WABA via Graph (message_templates).
   // A resposta da Meta tem o formato { data: [...], paging: { cursors: { after } } }.
   // Percorremos TODAS as páginas de cursor — sem isso a lista ficava presa na
@@ -291,9 +259,6 @@ export interface AudienceFilterOptions {
 }
 
 export function fetchAudienceOptions(): Promise<AudienceFilterOptions> {
-  if (isPageMockMode()) {
-    return Promise.resolve(MOCK_AUDIENCE_OPTIONS);
-  }
   return getJson<{
     tags?: AudienceFilterOptions["tags"];
     pipelines?: AudienceFilterOptions["pipelines"];

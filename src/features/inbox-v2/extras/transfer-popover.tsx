@@ -49,7 +49,7 @@ export function TransferPopover({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: users = [], isLoading: loadingUsers } = useTeamUsers(open);
-  const { data: departments = [], isLoading: loadingDepts } = useDepartments();
+  const { data: departments = [], isLoading: loadingDepts } = useDepartments(open);
   const transfer = useTransferConversation();
 
   // Reseta a seleção sempre que abre.

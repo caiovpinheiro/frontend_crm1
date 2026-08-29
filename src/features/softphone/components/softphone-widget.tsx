@@ -45,6 +45,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useSoftphone } from "../hooks/use-softphone";
+import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 import { useCallsWidget } from "../hooks/use-calls-widget";
 import { getMyCredentialsOrNull } from "../api/extensions";
 
@@ -64,7 +65,8 @@ export function SoftphoneWidget() {
   // de ver o chip flutuante (e o DealCallButton também desliga via mesmo
   // hook). Enquanto a query carrega, devolvemos `enabled=null` → render
   // nada (evita flash do chip aparecendo e sumindo).
-  const callsWidget = useCallsWidget(isAuthenticated);
+  const idle = useIdleEnabled();
+  const callsWidget = useCallsWidget(isAuthenticated && idle);
 
   // Só busca credenciais quando o usuário está autenticado E o widget
   // está habilitado. 404 (sem ramal) é tratado pelo `getMyCredentials`

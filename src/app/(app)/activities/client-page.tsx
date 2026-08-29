@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import * as Dialog from "@radix-ui/react-dialog"
+import { AppLoading } from "@/components/crm/app-loading"
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer"
 import { ActivityCalendar } from "@/components/crm/activities/activity-calendar"
 import { ActivityRow } from "@/components/crm/activities/activity-row"
@@ -9,10 +10,7 @@ import { ActivityComposer } from "@/components/crm/activities/activity-composer"
 import { ActivityDetailDialog } from "@/components/crm/activities/activity-detail-dialog"
 import { ActivitiesUrgentCard } from "@/components/crm/activities/activities-urgent-card"
 import { ActivitiesWeeklySummary } from "@/components/crm/activities/activities-weekly-summary"
-import {
-  OperationsBaseCard,
-  ProductivityTipCard,
-} from "@/components/crm/activities/activities-static-cards"
+import { ProductivityTipCard } from "@/components/crm/activities/activities-static-cards"
 import {
   ACTIVITY_KINDS,
   ACTIVITY_KIND_ORDER,
@@ -24,7 +22,6 @@ import {
   type ActivityKind,
 } from "@/lib/activities-data"
 import { PageHeader } from "@/components/crm/page-header"
-import { PageDemoBanner } from "@/components/crm/page-demo-banner"
 import {
   PagePrimaryButton,
   PageSegmentedControl,
@@ -32,7 +29,7 @@ import {
 import { cn } from "@/lib/utils"
 import { IconCalendarEvent, IconPlus, IconX } from "@tabler/icons-react"
 import {
-  useActivities,
+  useAllActivities,
   useCreateActivity,
   useDeleteActivity,
   useUpdateActivity,
@@ -42,8 +39,6 @@ import {
   dtoToActivity,
   localDateTimeToIso,
 } from "@/features/directory-v2/activity-adapter"
-import { MOCK_ACTIVITIES_PAGE } from "@/features/directory-v2/mock-activities"
-import { shouldAutoDemoEmpty } from "@/lib/page-mock-mode"
 
 type StatusFilter = "todas" | "pendentes" | "concluidas" | "atrasadas"
 
@@ -79,7 +74,6 @@ function RightColumn({
     <>
       <ActivitiesUrgentCard items={items} onSelect={onSelectDate} />
       <ActivitiesWeeklySummary items={items} />
-      <OperationsBaseCard />
     </>
   )
 }
@@ -94,22 +88,16 @@ export default function V2ActivitiesClientPage() {
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [detailActivity, setDetailActivity] = useState<Activity | null>(null)
 
-  const activitiesQuery = useActivities({ perPage: 200, scope: scopeFilter })
+  const activitiesQuery = useAllActivities({ scope: scopeFilter })
   const createMutation = useCreateActivity()
   const updateMutation = useUpdateActivity()
   const deleteMutation = useDeleteActivity()
 
   const realDtos = activitiesQuery.data?.items ?? []
-  const isDemo = shouldAutoDemoEmpty({
-    realCount: realDtos.length,
-    hasFilters: false,
-    isLoading: activitiesQuery.isLoading,
-    isError: activitiesQuery.isError,
-  })
 
   const items: Activity[] = useMemo(
-    () => (isDemo ? MOCK_ACTIVITIES_PAGE.items : realDtos).map(dtoToActivity).filter((a) => a.start),
-    [isDemo, realDtos],
+    () => realDtos.map(dtoToActivity).filter((a) => a.start),
+    [realDtos],
   )
 
   const calendarItems = useMemo(
@@ -221,12 +209,16 @@ export default function V2ActivitiesClientPage() {
           }
         />
 
-        {isDemo && (
-          <PageDemoBanner>
-            Dados de exemplo — tarefas ilustrativas para visualizar o calendário e a agenda.
-          </PageDemoBanner>
-        )}
-
+        {activitiesQuery.isLoading && items.length === 0 ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : activitiesQuery.isError ? (
+          <div className="flex-1 rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
+            {activitiesQuery.error instanceof Error
+              ? activitiesQuery.error.message
+              : "Erro ao carregar."}
+          </div>
+        ) : (
+        <>
         {/* Seletor de data compacto — só mobile */}
         <button
           type="button"
@@ -542,6 +534,8 @@ export default function V2ActivitiesClientPage() {
             <RightColumn items={items} onSelectDate={selectDate} />
           </div>
         </div>
+        </>
+        )}
       </main>
 
       <ActivityComposer

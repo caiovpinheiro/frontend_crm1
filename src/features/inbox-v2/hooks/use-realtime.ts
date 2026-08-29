@@ -6,6 +6,7 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import { messagesKey } from "./use-messages";
+import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { playInboxPing } from "./use-inbox-sound";
 import type { ConversationListRow } from "../api";
 
@@ -352,7 +353,12 @@ export function useInboxRealtime(options: {
         }
       },
 
-      conversation_updated: () => {
+      conversation_updated: (raw: unknown) => {
+        const id = (raw as { conversationId?: string } | null)?.conversationId;
+        if (shouldSuppressInboxListRefresh(id ?? activeRef.current)) {
+          scheduleDailyStatsRefresh();
+          return;
+        }
         scheduleInboxRefresh();
         scheduleDailyStatsRefresh();
       },

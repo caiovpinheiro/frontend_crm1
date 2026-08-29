@@ -354,11 +354,14 @@ export function useSetDealStatus(pipelineId: string | null, status: StatusFilter
 // tags do deal
 // ─────────────────────────────────────────────────────────────────
 
-export function useDealTags() {
+export function useDealTags(enabled = true) {
   return useQuery<DealTag[]>({
     queryKey: ["deal-tags-v2"],
     queryFn: listTags,
     staleTime: 60_000,
+    enabled,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 
