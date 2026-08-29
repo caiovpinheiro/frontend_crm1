@@ -184,8 +184,8 @@ interface ChatAreaProps {
    */
   floatingCallSlot?: React.ReactNode
 
-  /** Scroll-up: pede mensagens mais antigas. `fill` = só o que cabe na tela. */
-  onLoadOlder?: (opts?: { fill?: boolean }) => void
+  /** Scroll-up: pede a próxima fatia (ticket atual ou histórico). */
+  onLoadOlder?: () => void
   hasOlder?: boolean
   /** Tickets anteriores (não dispara sozinho — botão no topo). */
   hasOlderTickets?: boolean
@@ -374,7 +374,6 @@ export function ChatArea({
   const prevFirstIdRef = useRef<string | null>(null)
   const prevLastIdRef = useRef<string | null>(null)
   const prevScrollHeightRef = useRef(0)
-  const olderSentinelRef = useRef<HTMLDivElement>(null)
   const onLoadOlderRef = useRef(onLoadOlder)
   onLoadOlderRef.current = onLoadOlder
   // history=1 só depois de pin no fim. Sem isto o sentinela (topo) intersecta
@@ -462,37 +461,29 @@ export function ChatArea({
       firstId !== prevFirstIdRef.current &&
       lastId === prevLastIdRef.current
     if (prepended) {
-      if (stickToBottomRef.current) {
-        container.scrollTop = container.scrollHeight
-      } else {
-        container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
-      }
+      container.scrollTop += container.scrollHeight - prevScrollHeightRef.current
     }
     prevScrollHeightRef.current = container.scrollHeight
   }, [messages])
 
   const canLoadOlder = hasOlder || hasOlderTickets
-  // Ticket curto: depois do 1º paint no fim, pede o que falta pra preencher
-  // a viewport (páginas do ticket ou um pedaço de history). Scroll-up pede o resto.
-  useEffect(() => {
-    if (!olderArmed || isLoadingOlder || messagesLoading || !canLoadOlder) return
-    const root = messagesRef.current
-    if (!root) return
-    if (root.scrollHeight > root.clientHeight + 24) return
-    onLoadOlderRef.current?.({ fill: true })
-  }, [olderArmed, isLoadingOlder, messagesLoading, canLoadOlder, messages.length])
-
   useEffect(() => {
     if (!canLoadOlder || isLoadingOlder || !olderArmed) return
     const root = messagesRef.current
     if (!root) return
 
-    const load = () => onLoadOlderRef.current?.()
+    const load = () => {
+      stickToBottomRef.current = false
+      onLoadOlderRef.current?.()
+    }
 
-    // Lista curta (cabe na tela): não dispara sozinho — só se o operador
-    // tentar rolar pra cima. Lista longa: sentinela no topo.
+    // Só o gesto do operador. Pin no fim e sentinela visível não disparam.
     const onWheel = (e: WheelEvent) => {
       if (e.deltaY < 0 && root.scrollTop <= 0) load()
+    }
+    const onScroll = () => {
+      if (stickToBottomRef.current) return
+      if (root.scrollTop <= 48) onLoadOlderRef.current?.()
     }
     const onTouch = (() => {
       let startY = 0
@@ -507,29 +498,17 @@ export function ChatArea({
       }
     })()
     root.addEventListener("wheel", onWheel, { passive: true })
+    root.addEventListener("scroll", onScroll, { passive: true })
     root.addEventListener("touchstart", onTouch.start, { passive: true })
     root.addEventListener("touchmove", onTouch.move, { passive: true })
 
-    const el = olderSentinelRef.current
-    const overflows = root.scrollHeight > root.clientHeight + 16
-    let io: IntersectionObserver | null = null
-    if (el && overflows) {
-      io = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((e) => e.isIntersecting)) load()
-        },
-        { root, rootMargin: "80px 0px 0px 0px" },
-      )
-      io.observe(el)
-    }
-
     return () => {
       root.removeEventListener("wheel", onWheel)
+      root.removeEventListener("scroll", onScroll)
       root.removeEventListener("touchstart", onTouch.start)
       root.removeEventListener("touchmove", onTouch.move)
-      io?.disconnect()
     }
-  }, [canLoadOlder, isLoadingOlder, messages.length, olderArmed])
+  }, [canLoadOlder, isLoadingOlder, olderArmed])
 
   const { hideEvents } = useHideChatEvents()
 
@@ -693,7 +672,7 @@ export function ChatArea({
       })()}
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
-      <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
+      <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [overflow-anchor:none] px-3 pt-6 pb-8 max-md:px-2">
         <StickyDayPill date={stickyDayLabel} loading={isLoadingOlder} paused={!olderArmed} />
         {messagesLoading ? (
           <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
@@ -708,13 +687,9 @@ export function ChatArea({
             Nenhuma mensagem nesta conversa.
           </p>
         ) : (
-        <div className="flex min-h-full flex-col justify-end">
+        <>
+        <div className="min-h-0 flex-1" aria-hidden />
         <ul className="flex list-none flex-col gap-0.5">
-        {canLoadOlder && olderArmed && (
-          <li className="list-none" aria-hidden="true">
-            <div ref={olderSentinelRef} className="h-1 w-full" />
-          </li>
-        )}
         {canLoadOlder && olderArmed && !isLoadingOlder && (
           <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
             ↑ Role para ver mensagens anteriores
@@ -861,7 +836,7 @@ export function ChatArea({
             conversationNumber={conversationNumber}
           />
         )}
-        </div>
+        </>
         )}
       </div>
 

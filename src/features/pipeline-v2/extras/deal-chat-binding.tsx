@@ -452,15 +452,7 @@ export function useDealChatBinding(params: {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
     };
-  }, [findScrollEl, hasOlder, isFetchingOlder, bubbles.length, olderArmed]);
-
-  useEffect(() => {
-    if (!olderArmed || isFetchingOlder || !hasOlder) return;
-    const el = findScrollEl();
-    if (!el) return;
-    if (el.scrollHeight > el.clientHeight + 24) return;
-    void fetchOlderRef.current({ fill: true });
-  }, [findScrollEl, olderArmed, isFetchingOlder, hasOlder, bubbles.length]);
+  }, [findScrollEl, hasOlder, isFetchingOlder, olderArmed]);
 
   const prevFirstIdRef = useRef<string | null>(null);
   const prevLastIdRef = useRef<string | null>(null);
@@ -475,12 +467,7 @@ export function useDealChatBinding(params: {
       firstId !== prevFirstIdRef.current &&
       lastId === prevLastIdRef.current;
     if (prepended) {
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
-      if (nearBottom) {
-        el.scrollTop = el.scrollHeight;
-      } else {
-        el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
-      }
+      el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
     }
     prevScrollHeightRef.current = el.scrollHeight;
   }, [bubbles, findScrollEl]);
@@ -843,8 +830,9 @@ export function useDealChatBinding(params: {
       );
     });
     messagesNode = (
-      <div className="flex min-h-full flex-col justify-end">
+      <div className="flex min-h-full flex-col">
         <StickyDayPill date={stickyDayLabel} loading={isFetchingOlder} paused={!olderArmed} />
+        <div className="min-h-0 flex-1" aria-hidden />
         <ul className="flex list-none flex-col gap-0.5">
           {hasOlder && olderArmed && !isFetchingOlder && (
             <li className="list-none pb-1 text-center text-[11px] text-muted-foreground">
