@@ -68,7 +68,7 @@ interface KanbanColumnProps {
   addFormSlot?: ReactNode
   /**
    * Botão "Carregar mais" ao fim da lista — exibido quando o board pagina
-   * (50/coluna) e a etapa tem mais deals no servidor (`hasMore`).
+   * (10/coluna) e a etapa tem mais deals no servidor (`hasMore`).
    */
   loadMore?: {
     remaining: number

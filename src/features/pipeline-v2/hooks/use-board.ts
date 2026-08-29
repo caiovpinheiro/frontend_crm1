@@ -18,8 +18,8 @@ import { isPreviewMode } from "@/lib/preview-mode";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { normalizeSearchQuery } from "@/lib/search-query";
 
-/** Página de cards por coluna no Kanban ("Carregar mais" soma +50). */
-export const BOARD_PAGE_SIZE = 50;
+/** Página de cards por coluna no Kanban (scroll soma +10). */
+export const BOARD_PAGE_SIZE = 10;
 
 /** Lista de pipelines (dropdown do header) — key canônica compartilhada. */
 export function usePipelines(enabled = true) {
@@ -51,7 +51,7 @@ export function useBoard(params: {
   status?: StatusFilter;
   sort?: BoardSortParam;
   enabled?: boolean;
-  /** Cards por coluna (default: 100 do backend). Kanban v2 passa 50. */
+  /** Cards por coluna (default: 100 do backend). Kanban v2 passa 10. */
   perStage?: number;
   /**
    * Expansões cumulativas por coluna ("Carregar mais"): stageId → extras

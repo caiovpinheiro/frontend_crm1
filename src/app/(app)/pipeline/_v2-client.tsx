@@ -260,7 +260,7 @@ export default function KanbanV2ClientPage({
   const hasServerBoard = hasServerSideFilters(mergedFilters);
 
   // "Carregar mais" por coluna: stageId → extras cumulativos além da
-  // página inicial (50). Com ≥1 expansão o board passa a vir do POST
+  // página inicial (10). Com ≥1 expansão o board passa a vir do POST
   // /board (única rota que aceita offset) — ver `useBoard`.
   const [boardExtraByStage, setBoardExtraByStage] = useState<Record<string, number>>({});
   const [loadingMoreStageId, setLoadingMoreStageId] = useState<string | null>(null);
@@ -579,7 +579,7 @@ export default function KanbanV2ClientPage({
   const { data: dealDetail } = useDealDetail(activeDealId);
   const queryClient = useQueryClient();
 
-  // Expansões "Carregar mais": cada clique soma +50 na coluna e refaz o
+  // Expansões "Carregar mais": cada scroll/clique soma +10 na coluna e refaz o
   // board (POST com offsetByStage — o queryFn já enxerga o estado novo
   // porque o observer é atualizado no render que segue o setState).
   const extrasKey = JSON.stringify(boardExtraByStage);
@@ -594,7 +594,7 @@ export default function KanbanV2ClientPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extrasKey]);
 
-  // Troca de funil/status/ordenação/filtro → colunas expandidas voltam a 50.
+  // Troca de funil/status/ordenação/filtro → colunas expandidas voltam a 10.
   useEffect(() => {
     setBoardExtraByStage({});
     setLoadingMoreStageId(null);

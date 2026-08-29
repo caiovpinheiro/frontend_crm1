@@ -219,7 +219,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     advancedKey !== JSON.stringify(debouncedAdvanced);
 
   // "Carregar mais" da fila: stageId → extras cumulativos além da página
-  // inicial (50). A fila do Flow é FLAT (mistura etapas), então cada
+  // inicial (10). A fila do Flow é FLAT (mistura etapas), então cada
   // disparo expande TODAS as colunas com hasMore de uma vez — mesmo
   // padrão do kanban (`_v2-client`): com ≥1 offset o board passa a vir
   // do POST /board (única rota que aceita offset) na mesma queryKey.
@@ -248,7 +248,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
 
   const queryClient = useQueryClient();
 
-  // Expansões "Carregar mais": cada disparo soma +50 nas etapas com
+  // Expansões "Carregar mais": cada disparo soma +10 nas etapas com
   // hasMore e refaz o board (POST com offsetByStage — o queryFn já
   // enxerga o estado novo no render que segue o setState).
   const extrasKey = JSON.stringify(boardExtraByStage);
@@ -263,7 +263,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extrasKey]);
 
-  // Troca de funil/status/ordenação/filtro → expansões voltam a 50.
+  // Troca de funil/status/ordenação/filtro → expansões voltam a 10.
   useEffect(() => {
     setBoardExtraByStage({});
     setLoadingMoreQueue(false);
