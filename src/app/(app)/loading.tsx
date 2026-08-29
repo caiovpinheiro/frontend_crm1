@@ -1,17 +1,11 @@
+import { RouteLoading } from "@/components/crm/page-loading";
+
 /**
  * Fallback de Suspense do route group `(app)`.
- * Não usa overlay de tela cheia: cada clique na rail disparava o
- * AppLoading em cima do CRM e dava a sensação de que o sistema
- * “recarregou” (ícones/contagens sumindo). A página destino já tem
- * skeleton próprio; aqui só um fio no topo.
+ * Um loader no centro da área de conteúdo (abaixo do NavRail).
+ * A página destino, ao montar, assume o loader do próprio main —
+ * este fallback some e não empilha um segundo.
  */
 export default function Loading() {
-  return (
-    <div
-      className="pointer-events-none fixed inset-x-0 top-0 z-[45] h-0.5 overflow-hidden bg-transparent"
-      aria-hidden
-    >
-      <div className="h-full w-full animate-pulse bg-primary/70" />
-    </div>
-  );
+  return <RouteLoading />;
 }

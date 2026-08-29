@@ -386,10 +386,15 @@ export default function V2CompaniesClientPage() {
   }
 
   return (
-    <div className="v2-screen v2-page-scroll grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-y-auto p-4">
+    <div
+      className={cn(
+        "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4",
+        isLoading ? "overflow-hidden" : "v2-page-scroll overflow-y-auto",
+      )}
+    >
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-4">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
         <SectionHeader
           icon={Building2}
           title="Empresas"
@@ -447,6 +452,10 @@ export default function V2CompaniesClientPage() {
           }
         />
 
+        {isLoading ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : (
+        <>
         <section className="shrink-0" aria-label="Indicadores de empresas">
           <KpiSquareScroll
             items={SEGMENTS.map((seg) => {
@@ -508,9 +517,7 @@ export default function V2CompaniesClientPage() {
           </div>
         )}
 
-        {isLoading ? (
-          <AppLoading />
-        ) : query.error ? (
+        {query.error ? (
           <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {query.error instanceof Error ? query.error.message : "Erro ao carregar."}
           </div>
@@ -574,6 +581,8 @@ export default function V2CompaniesClientPage() {
           perPage={perPage}
           onPerPageChange={(value) => { setPerPage(value); setPage(1); }}
         />
+        </>
+        )}
       </main>
 
       <CreateCompanyDialog open={createOpen} onOpenChange={setCreateOpen} />

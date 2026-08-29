@@ -3,7 +3,7 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { PageLoading } from "@/components/crm/page-loading";
+import { RouteLoading } from "@/components/crm/page-loading";
 import {
   pathForPipelineView,
   readPipelineViewPreference,
@@ -41,7 +41,7 @@ export function PipelineEntryClient({ navRail }: { navRail?: ReactNode }) {
     setShowKanban(true);
   }, [router, searchParams]);
 
-  if (!showKanban) return <PageLoading />;
+  if (!showKanban) return <RouteLoading />;
 
   return (
     <KanbanV2ClientPage navRail={navRail} listHref="/pipeline/list" />

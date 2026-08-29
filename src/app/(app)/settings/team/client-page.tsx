@@ -677,6 +677,10 @@ function TeamContent() {
         />
       ) : (
       <>
+      {isLoading && users.length === 0 ? (
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
+      ) : (
+      <>
       {/* STATS — shrink-0: toolbar-hscroll/overflow em flex-col colapsava a altura
           (~só o topo dos ícones visível). Mobile: 3 mini-cards; desktop: StatCards. */}
       <div className="grid shrink-0 grid-cols-3 gap-2 sm:hidden">
@@ -754,9 +758,7 @@ function TeamContent() {
       ) : null}
 
       {/* LISTA — linha a linha (padrão canônico) */}
-      {isLoading && users.length === 0 ? (
-        <AppLoading />
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <GlassCard variant="panel" className="px-6 py-12 text-center font-body text-[13px] text-[var(--text-muted)]">
           {term || roleFilter !== "all"
             ? "Nenhum usuário encontrado para os filtros atuais."

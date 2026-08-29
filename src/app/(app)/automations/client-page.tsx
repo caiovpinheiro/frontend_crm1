@@ -17,6 +17,7 @@ import {
 
 import { AppLoading } from "@/components/crm/app-loading"
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer"
+import { cn } from "@/lib/utils"
 import { RestrictedScreen } from "@/components/crm/restricted-screen"
 import { useRequireManager } from "@/hooks/use-user-role"
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
@@ -318,11 +319,16 @@ export default function V2AutomationsClientPage() {
   if (ready && !isManagerUp) return <RestrictedScreen />
 
   return (
-    <div className="v2-screen v2-screen-fill v2-page-scroll grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-y-auto bg-background">
+    <div
+      className={cn(
+        "v2-screen v2-screen-fill grid grid-cols-[var(--nav-rail-w,76px)_1fr] bg-background",
+        isLoading ? "overflow-hidden" : "v2-page-scroll overflow-y-auto",
+      )}
+    >
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col">
-        <div className="flex w-full flex-col gap-4 px-4 py-5">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-4 px-4 py-5">
         <input
           ref={importInputRef}
           type="file"
@@ -372,15 +378,17 @@ export default function V2AutomationsClientPage() {
           }
         />
 
+        {isLoading ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : (
+        <>
         <AutomationsKpis
           summary={summary}
           filter={filter}
           onFilterChange={(v) => setFilter(v)}
         />
 
-        {isLoading ? (
-          <AppLoading variant="inline" className="min-h-[240px] flex-1" />
-        ) : isError ? (
+        {isError ? (
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
             {listQuery.error instanceof Error
               ? listQuery.error.message
@@ -438,6 +446,8 @@ export default function V2AutomationsClientPage() {
             setPage(1)
           }}
         />
+        </>
+        )}
         </div>
       </main>
 

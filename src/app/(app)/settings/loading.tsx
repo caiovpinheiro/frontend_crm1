@@ -1,7 +1,6 @@
 import { PageLoading } from "@/components/crm/page-loading";
 
-/** Mesmo overlay de viewport do `(app)/loading.tsx`. Um loader só no
- *  painel (ao lado do rail/sidebar) deslocava a marca no primeiro paint. */
+/** Painel direito de /settings — um loader no centro do container. */
 export default function Loading() {
   return <PageLoading />;
 }
