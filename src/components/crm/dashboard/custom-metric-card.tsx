@@ -1,7 +1,5 @@
 "use client";
 
-import { X } from "lucide-react";
-
 import { CategoricalChart } from "@/components/crm/dashboard/categorical-chart";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { resolveChartType } from "@/features/dashboard-v2/chart-types";
@@ -22,14 +20,12 @@ export function CustomMetricCard({
   unit,
   rows,
   href,
-  onRemove,
 }: {
   def: NegociosCustomCard;
   value: number | null;
   unit: "count" | "money" | "duration";
   rows: CustomMetricRow[];
   href?: string;
-  onRemove?: () => void;
 }) {
   const chartType = resolveChartType(def.chartType);
   const formatted =
@@ -52,20 +48,6 @@ export function CustomMetricCard({
             {formatted}
           </p>
         </div>
-        {onRemove ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
-            aria-label={`Remover ${def.title}`}
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        ) : null}
       </header>
       {rows.length > 0 ? (
         <div data-dashboard-no-drag className="mt-4">

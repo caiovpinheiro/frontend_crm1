@@ -50,6 +50,7 @@ import {
   writeDashboardUiState,
 } from "@/features/dashboard-v2/dashboard-persist";
 import {
+  DEAL_CORE_WIDGET_IDS,
   isStageWidgetId,
   parseStageWidgetId,
   useNegociosGrid,
@@ -341,6 +342,7 @@ function ManagerHome({
             onLayoutChange={grid.setLayout}
             persistEnabled={grid.hydrated}
             labels={cardLabels}
+            onRemove={grid.removeWidget}
             render={(id) => {
               if (id === "stages") return null;
               if (id === "usage") {
@@ -348,7 +350,6 @@ function ManagerHome({
                   <SystemUsageCard
                     rows={usageRows}
                     chartType={grid.usageChartType}
-                    onChartTypeChange={grid.setUsageChartType}
                   />
                 );
               }
@@ -381,7 +382,6 @@ function ManagerHome({
                       unit={data?.unit ?? "count"}
                       rows={rows.map((r) => ({ id: r.id, name: r.name, value: r.value }))}
                       href={data?.href}
-                      onRemove={() => grid.removeCard(def.id)}
                     />
                   );
                 }
@@ -402,7 +402,6 @@ function ManagerHome({
                     value={value}
                     unit={unit}
                     rows={rows}
-                    onRemove={() => grid.removeCard(def.id)}
                   />
                 );
               }
@@ -426,6 +425,11 @@ function ManagerHome({
             open={addCardOpen}
             onOpenChange={setAddCardOpen}
             fields={options?.dealCustomFields ?? []}
+            stages={funnelStages.map((s) => ({ id: s.id, name: s.name }))}
+            presentIds={grid.widgetIds}
+            presets={DEAL_CORE_WIDGET_IDS.map((id) => ({ id, label: DEAL_LABELS[id] ?? id }))}
+            onAddPreset={(id, chartType) => grid.restoreWidget(id, chartType)}
+            onAddStage={(stageId) => grid.restoreWidget(`stage:${stageId}`)}
             onCreate={grid.addCard}
           />
         </>
