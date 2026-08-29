@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckSquare } from "lucide-react"
+import { CheckSquare, Clock } from "lucide-react"
 import { IconSearch, IconX } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { InputGlass } from "@/components/crm/input-glass"
 import { ButtonGlass } from "@/components/crm/button-glass"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Textarea } from "@/components/ui/textarea"
 import {
   FormDialog,
@@ -51,7 +52,15 @@ interface ActivityComposerProps {
 
 const pillOff =
   "border-border bg-card text-muted-foreground hover:bg-secondary"
-const pillOn = "border-primary bg-primary text-primary-foreground"
+const assignPillOn = "border-primary bg-primary text-primary-foreground"
+
+const KIND_PILL_ON: Record<ActivityKind, string> = {
+  tarefa: "border-chip-blue bg-chip-blue text-primary-foreground",
+  reuniao: "border-chip-violet bg-chip-violet text-primary-foreground",
+  ligacao: "border-chip-green bg-chip-green text-primary-foreground",
+  evento: "border-chip-orange bg-chip-orange text-primary-foreground",
+  email: "border-chip-red bg-chip-red text-primary-foreground",
+}
 
 export function ActivityComposer({
   open,
@@ -237,11 +246,28 @@ export function ActivityComposer({
             disabled={!canSubmit}
             onClick={submit}
           >
-            Agendar tarefa
+            Salvar
           </ButtonGlass>
         </>
       }
     >
+      <div>
+        <label htmlFor="ac-title" className={formLabelClass}>
+          Título *
+        </label>
+        <InputGlass
+          id="ac-title"
+          autoFocus
+          placeholder="Adicionar título"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit()
+          }}
+          className={cn(formControlClass, "h-12 text-lg font-semibold")}
+        />
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <span className={formLabelClass}>Tipo</span>
         <div className="flex flex-wrap gap-1.5">
@@ -256,7 +282,7 @@ export function ActivityComposer({
                 onClick={() => setKind(k)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors",
-                  active ? pillOn : pillOff,
+                  active ? KIND_PILL_ON[k] : pillOff,
                 )}
               >
                 <Icon size={15} stroke={2} />
@@ -268,63 +294,39 @@ export function ActivityComposer({
       </div>
 
       <div>
-        <label htmlFor="ac-title" className={formLabelClass}>
-          Título *
-        </label>
-        <InputGlass
-          id="ac-title"
-          autoFocus
-          placeholder="Ex.: Ligar para o cliente"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submit()
-          }}
-          className={formControlClass}
-        />
-      </div>
-
-      <div className={cn("grid gap-3", usesDuration ? "grid-cols-3" : "grid-cols-2")}>
-        <div>
-          <label htmlFor="ac-date" className={formLabelClass}>
-            Data
-          </label>
-          <InputGlass
-            id="ac-date"
-            type="date"
+        <span className={formLabelClass}>Quando</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Clock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <DatePicker
             value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={formControlClass}
+            onChange={setDate}
+            shape="soft"
+            placeholder="Escolher data"
+            className="min-w-[10.5rem] flex-1"
+            triggerClassName={cn(formControlClass, "h-11 justify-between")}
           />
-        </div>
-        <div>
-          <label htmlFor="ac-time" className={formLabelClass}>
-            Hora
-          </label>
           <InputGlass
             id="ac-time"
             type="time"
+            aria-label="Hora"
             value={time}
             onChange={(e) => setTime(e.target.value)}
-            className={formControlClass}
+            className={cn(formControlClass, "w-[7.5rem] shrink-0")}
           />
-        </div>
-        {usesDuration && (
-          <div>
-            <label htmlFor="ac-dur" className={formLabelClass}>
-              Duração (min)
-            </label>
+          {usesDuration && (
             <InputGlass
               id="ac-dur"
               type="number"
               min={5}
               step={5}
+              aria-label="Duração em minutos"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              className={formControlClass}
+              className={cn(formControlClass, "w-[6.5rem] shrink-0")}
+              placeholder="Min"
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className={cn("grid gap-3", usesLocation ? "grid-cols-2" : "grid-cols-1")}>
@@ -455,7 +457,7 @@ export function ActivityComposer({
             onClick={() => setAssignKind("user")}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors",
-              assignKind === "user" ? pillOn : pillOff,
+              assignKind === "user" ? assignPillOn : pillOff,
             )}
           >
             Usuário
@@ -465,7 +467,7 @@ export function ActivityComposer({
             onClick={() => setAssignKind("department")}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition-colors",
-              assignKind === "department" ? pillOn : pillOff,
+              assignKind === "department" ? assignPillOn : pillOff,
             )}
           >
             Departamento

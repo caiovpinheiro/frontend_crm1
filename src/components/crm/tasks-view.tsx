@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   Calendar,
   CalendarDays,
+  CalendarPlus,
   Check,
   CheckSquare,
   ChevronLeft,
@@ -74,19 +75,19 @@ import {
 } from "@/lib/tasks-data"
 
 const CHIP_BLOCK: Record<ChipColorKey, string> = {
-  blue: "bg-chip-blue/15 text-chip-blue border-chip-blue/30",
-  violet: "bg-chip-violet/15 text-chip-violet border-chip-violet/30",
-  green: "bg-chip-green/15 text-chip-green border-chip-green/30",
-  orange: "bg-chip-orange/15 text-chip-orange border-chip-orange/30",
-  red: "bg-chip-red/15 text-chip-red border-chip-red/30",
+  blue: "border-chip-blue bg-chip-blue text-primary-foreground",
+  violet: "border-chip-violet bg-chip-violet text-primary-foreground",
+  green: "border-chip-green bg-chip-green text-primary-foreground",
+  orange: "border-chip-orange bg-chip-orange text-primary-foreground",
+  red: "border-chip-red bg-chip-red text-primary-foreground",
 }
 
 const CHIP_CHECK_ON: Record<ChipColorKey, string> = {
-  blue: "border-chip-blue bg-chip-blue/15 text-chip-blue",
-  violet: "border-chip-violet bg-chip-violet/15 text-chip-violet",
-  green: "border-chip-green bg-chip-green/15 text-chip-green",
-  orange: "border-chip-orange bg-chip-orange/15 text-chip-orange",
-  red: "border-chip-red bg-chip-red/15 text-chip-red",
+  blue: "border-chip-blue bg-chip-blue text-primary-foreground",
+  violet: "border-chip-violet bg-chip-violet text-primary-foreground",
+  green: "border-chip-green bg-chip-green text-primary-foreground",
+  orange: "border-chip-orange bg-chip-orange text-primary-foreground",
+  red: "border-chip-red bg-chip-red text-primary-foreground",
 }
 
 const CHIP_CHECK_OFF: Record<ChipColorKey, string> = {
@@ -1004,6 +1005,11 @@ export function TasksView({
                 label: "Nova tarefa",
                 onClick: () => openCreate(),
                 primary: true,
+              },
+              {
+                icon: <CalendarPlus size={14} strokeWidth={2.6} />,
+                label: "Nova atividade",
+                onClick: () => openCreate(),
               },
             ]}
           />
