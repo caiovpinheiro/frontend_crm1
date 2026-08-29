@@ -1972,7 +1972,14 @@ const PILL_ARM_MS = 450
  * empurrar as bolhas; o texto atualiza via `useStickyDayLabel`.
  * Só aparece enquanto o usuário rola; some com fade após idle.
  */
-export function StickyDayPill({ date }: { date: string | null }) {
+export function StickyDayPill({
+  date,
+  loading = false,
+}: {
+  date: string | null
+  /** Mesmo slot da data — evita overlap com "Carregando histórico...". */
+  loading?: boolean
+}) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [scrolling, setScrolling] = useState(false)
   const lastDateRef = useRef<string | null>(null)
@@ -2018,15 +2025,22 @@ export function StickyDayPill({ date }: { date: string | null }) {
       className="pointer-events-none sticky top-0 z-[15] h-0 min-h-0 w-full shrink-0 overflow-visible"
       aria-hidden
     >
-      {shown ? (
+      {loading || shown ? (
         <div
           className={cn(
             "flex justify-center transition-opacity duration-300 ease-out",
-            scrolling ? "opacity-100" : "opacity-0",
+            loading || scrolling ? "opacity-100" : "opacity-0",
           )}
         >
-          <span className="inline-flex items-center rounded-full border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)]/92 px-2.5 py-0.5 font-display text-[10px] font-semibold text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-            {shown}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)]/92 px-2.5 py-0.5 font-display text-[10px] font-semibold text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
+            {loading ? (
+              <>
+                <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
+                Carregando histórico...
+              </>
+            ) : (
+              shown
+            )}
           </span>
         </div>
       ) : null}

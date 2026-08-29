@@ -810,16 +810,8 @@ export function useDealChatBinding(params: {
     });
     messagesNode = (
       <>
-        <StickyDayPill date={stickyDayLabel} />
+        <StickyDayPill date={stickyDayLabel} loading={isFetchingOlder} />
         <ul className="flex list-none flex-col gap-0.5">
-          {isFetchingOlder && (
-            <li className="list-none flex justify-center py-2">
-              <span className="inline-flex items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
-                Carregando histórico...
-              </span>
-            </li>
-          )}
           {bubbleNodes}
         </ul>
         {isResolved && !hasPersistedClose && (
