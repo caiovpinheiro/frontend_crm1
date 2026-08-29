@@ -10,7 +10,7 @@
  * agora retorna 410 Gone.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { fetchSidebarPreferences } from "./api";
 import type { SidebarPreferencesResponse } from "./types";
@@ -28,6 +28,9 @@ export function useSidebarPreferences(enabled?: boolean) {
     queryKey: SIDEBAR_PREFS_KEY,
     queryFn: fetchSidebarPreferences,
     enabled: resolveEnabled(enabled),
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }

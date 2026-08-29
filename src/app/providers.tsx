@@ -34,7 +34,11 @@ export function Providers({
   );
 
   return (
-    <SessionProvider session={session}>
+    <SessionProvider
+      session={session}
+      refetchOnWindowFocus={false}
+      refetchWhenOffline={false}
+    >
       {/* Tema controlado exclusivamente por `useThemeV2` (toggle Sol/Lua no
           sidebar), que aplica `.v2-dark` + `.dark` no <html>. Persistência
           híbrida: localStorage (`crm-v2-theme`) como cache/anti-FOUC +

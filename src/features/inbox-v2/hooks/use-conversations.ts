@@ -275,6 +275,7 @@ export function useTabCounts(
     staleTime: 45_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    placeholderData: keepPreviousData,
     enabled: isPreviewMode() ? true : enabled,
   });
 }
