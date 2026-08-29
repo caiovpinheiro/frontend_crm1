@@ -22,6 +22,7 @@ export function SortableWidgetStack({
   disabled = false,
   organizing = false,
   onRemove,
+  canRemove,
   droppableId = "dashboard-widgets",
 }: {
   ids: string[];
@@ -31,6 +32,7 @@ export function SortableWidgetStack({
   disabled?: boolean;
   organizing?: boolean;
   onRemove?: (id: string) => void;
+  canRemove?: (id: string) => boolean;
   droppableId?: string;
 }) {
   function handleDragEnd(result: DropResult) {
@@ -95,7 +97,7 @@ export function SortableWidgetStack({
                         </button>
                       }
                       menu={
-                        onRemove ? (
+                        onRemove && (!canRemove || canRemove(id)) ? (
                           <WidgetOverflowMenu
                             label={labels[id] ?? id}
                             onRemove={() => onRemove(id)}

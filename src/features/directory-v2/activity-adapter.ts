@@ -83,6 +83,18 @@ export function activityKindToType(kind: ActivityKind): ActivityTypeDto {
   return KIND_TO_TYPE[kind] ?? "TASK";
 }
 
+/**
+ * IDs persistidos pelo backend são cuid(). Fixtures locais / preview usam
+ * prefixos (`mock-act-1`, `ac-1`, `t-local-*`, `a-<timestamp>`).
+ * Esses IDs não existem em DELETE /api/activities/:id.
+ */
+const LOCAL_OR_MOCK_ACTIVITY_ID =
+  /^(mock[-_]|t-local-|a-\d+$|ac-\d+$)/i;
+
+export function isLiveActivityId(id: string): boolean {
+  return Boolean(id) && !LOCAL_OR_MOCK_ACTIVITY_ID.test(id);
+}
+
 /** Agenda Google Calendar (TasksView) fala `Task`; a API fala `Activity`. */
 export function activityToTask(activity: Activity): Task {
   const mins = activity.durationMin;

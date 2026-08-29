@@ -247,7 +247,6 @@ function Thread({
   const { data, isError, error, refetch } = useTeamChatMessages(room.id);
   const { send, react, pin } = useTeamChatMutations();
   const messages = data?.messages ?? [];
-  const messagesBootstrapping = !data && !isError;
   const messagesError =
     error instanceof Error ? error.message : isError ? "Não foi possível carregar as mensagens." : null;
   const [chatQuery, setChatQuery] = useState("");
@@ -278,7 +277,6 @@ function Thread({
           room={room}
           messages={messages}
           meId={meId}
-          loading={messagesBootstrapping}
           error={messagesError}
           onRetry={() => {
             void refetch();

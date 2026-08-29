@@ -91,7 +91,6 @@ export function MessageList({
   room,
   messages,
   meId,
-  loading,
   error = null,
   onRetry,
   query = "",
@@ -102,7 +101,6 @@ export function MessageList({
   room: TeamChatRoom;
   messages: TeamChatMessage[];
   meId: string;
-  loading: boolean;
   error?: string | null;
   onRetry?: () => void;
   query?: string;
@@ -157,9 +155,7 @@ export function MessageList({
           </div>
         </div>
       )}
-      {loading ? (
-        <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando mensagens" />
-      ) : error ? (
+      {error ? (
         <AppLoading
           variant="inline"
           className="min-h-0 flex-1"

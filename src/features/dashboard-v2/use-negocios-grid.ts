@@ -17,6 +17,7 @@ import {
   useDashboardStorageScope,
   writeJson,
 } from "@/features/dashboard-v2/dashboard-persist";
+import { snapshotNegociosTabulationsIfNeeded } from "@/features/dashboard-v2/use-dashboard-widget-order";
 
 export type LayoutItem = {
   i: string;
@@ -54,14 +55,12 @@ export const DEAL_CORE_WIDGET_IDS = [
   "agents",
   "sources",
   "exceptions",
-  ...TABULATION_BOARD_WIDGET_IDS,
 ] as const;
 
 export type DealCoreWidgetId = (typeof DEAL_CORE_WIDGET_IDS)[number];
 export type TabulationBoardWidgetId = (typeof TABULATION_BOARD_WIDGET_IDS)[number];
 
-/** Core presets that stay off the board until the user adds them. */
-const OPTIONAL_CORE_WIDGET_IDS: readonly DealCoreWidgetId[] = TABULATION_BOARD_WIDGET_IDS;
+const OPTIONAL_CORE_WIDGET_IDS: readonly string[] = [];
 
 export type NegociosCustomCard = {
   id: string;
@@ -93,10 +92,6 @@ const DEFAULT_SIZES: Record<DealCoreWidgetId, { w: number; h: number; minW: numb
   agents: { w: 6, h: 10, minW: 3, minH: 5 },
   sources: { w: 6, h: 8, minW: 3, minH: 4 },
   exceptions: { w: 12, h: 5, minW: 4, minH: 3 },
-  tabKpis: { w: 12, h: 4, minW: 6, minH: 3 },
-  tabTop: { w: 6, h: 10, minW: 3, minH: 5 },
-  tabByUser: { w: 6, h: 10, minW: 3, minH: 5 },
-  tabLog: { w: 12, h: 10, minW: 6, minH: 5 },
 };
 
 const STAGE_DEFAULT = { w: 4, h: 8, minW: 3, minH: 4 };
@@ -186,17 +181,10 @@ export function defaultNegociosLayout(cardIds: string[] = []): Layout {
   return compactNegociosLayout(items);
 }
 
-function expandLegacyTabulations(layout: Layout): Layout {
-  const old = layout.find((item) => item.i === "tabulations");
-  if (!old) return layout;
-  const rest = layout.filter((item) => item.i !== "tabulations");
-  return [
-    ...rest,
-    { i: "tabKpis", x: 0, y: old.y, ...DEFAULT_SIZES.tabKpis },
-    { i: "tabTop", x: 0, y: old.y + DEFAULT_SIZES.tabKpis.h, ...DEFAULT_SIZES.tabTop },
-    { i: "tabByUser", x: 6, y: old.y + DEFAULT_SIZES.tabKpis.h, ...DEFAULT_SIZES.tabByUser },
-    { i: "tabLog", x: 0, y: old.y + DEFAULT_SIZES.tabKpis.h + DEFAULT_SIZES.tabTop.h, ...DEFAULT_SIZES.tabLog },
-  ];
+const NEGOCIOS_TAB_IDS = new Set<string>(["tabulations", ...TABULATION_BOARD_WIDGET_IDS]);
+
+function stripTabulationWidgets(layout: Layout): Layout {
+  return layout.filter((item) => !NEGOCIOS_TAB_IDS.has(item.i));
 }
 
 function hideAutoSyncedStages(layout: Layout, hidden: string[]): { layout: Layout; hidden: string[] } {
@@ -309,11 +297,7 @@ function parseHiddenWidgetIds(value: unknown): string[] {
 }
 
 function expandHiddenIds(hidden: string[]): string[] {
-  if (!hidden.includes("tabulations")) return hidden.filter((id) => id !== "tabulations");
-  return uniqueIds([
-    ...hidden.filter((id) => id !== "tabulations"),
-    ...TABULATION_BOARD_WIDGET_IDS,
-  ]);
+  return hidden.filter((id) => !NEGOCIOS_TAB_IDS.has(id));
 }
 
 function hideOptionalCore(layout: Layout, hidden: string[]): string[] {
@@ -364,7 +348,7 @@ function parseStore(raw: unknown): NegociosGridStore | null {
   const saved = Array.isArray(parsed.layout) ? parsed.layout.filter(isLayoutItem) : [];
   if (!saved.length && !cards.length && parsed.version !== 2) return null;
   const mockStages = isPageMockMode() ? MOCK_FUNNEL_STAGE_IDS : [];
-  const expanded = expandLegacyTabulations(saved);
+  const expanded = stripTabulationWidgets(saved);
   const alreadyFolded = parsed.foldedAutoStages === true;
   const pruned = alreadyFolded
     ? { layout: expanded, hidden: expandHiddenIds(parseHiddenWidgetIds(parsed.hiddenWidgetIds)) }
@@ -457,6 +441,7 @@ export function useNegociosGrid() {
   useEffect(() => {
     if (!ready || !keyPart || !userId) return;
     let cancelled = false;
+    snapshotNegociosTabulationsIfNeeded(keyPart, userId);
     const local = readLocalStore(NEGOCIOS_GRID_KEY_PREFIX, keyPart, userId);
     if (local) {
       setStore(local);

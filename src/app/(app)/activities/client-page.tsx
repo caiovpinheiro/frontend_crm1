@@ -32,6 +32,7 @@ import {
   activityKindToType,
   activityToTask,
   dtoToActivity,
+  isLiveActivityId,
   localDateTimeToIso,
 } from "@/features/directory-v2/activity-adapter"
 
@@ -55,9 +56,11 @@ export default function V2ActivitiesClientPage() {
   const realDtos = activitiesQuery.data?.items ?? []
 
   const items: Activity[] = useMemo(
-    () => realDtos.map(dtoToActivity),
+    () => realDtos.filter((dto) => isLiveActivityId(dto.id)).map(dtoToActivity),
     [realDtos],
   )
+
+  const listReady = activitiesQuery.isFetched || activitiesQuery.isError
 
   const byId = useMemo(() => {
     const map = new Map<string, Activity>()
@@ -131,20 +134,28 @@ export default function V2ActivitiesClientPage() {
   }
 
   const remove = async (id: string) => {
+    if (!isLiveActivityId(id)) {
+      setDetailActivity((cur) => (cur?.id === id ? null : cur))
+      return
+    }
     const ok = await confirm({
       title: "Excluir tarefa?",
       description: "A tarefa some da agenda. Esta ação não pode ser desfeita.",
       confirmLabel: "Excluir",
+      pendingLabel: "Excluindo…",
       destructive: true,
+      action: async () => {
+        try {
+          await deleteMutation.mutateAsync(id)
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Erro ao excluir.")
+          throw e
+        }
+      },
     })
     if (!ok) return
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        setDetailActivity((cur) => (cur?.id === id ? null : cur))
-        toast.success("Tarefa excluída.")
-      },
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao excluir."),
-    })
+    setDetailActivity((cur) => (cur?.id === id ? null : cur))
+    toast.success("Tarefa excluída.")
   }
 
   const create = (a: Activity) => {
@@ -171,32 +182,36 @@ export default function V2ActivitiesClientPage() {
     <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
       <NavRailSpacer />
 
-      <main className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden p-0">
-        <TasksView
-          tasks={calendarTasks}
-          loading={activitiesQuery.isLoading && items.length === 0}
-          error={
-            activitiesQuery.isError
-              ? activitiesQuery.error instanceof Error
-                ? activitiesQuery.error.message
-                : "Erro ao carregar."
-              : null
-          }
-          scope={scopeFilter}
-          onScopeChange={setScopeFilter}
-          onOpenTask={(task) => {
-            const activity = byId.get(task.id)
-            if (activity) setDetailActivity(activity)
-          }}
-          onCreateAt={(date) => {
-            setComposerDate(date)
-            setComposerOpen(true)
-          }}
-          onReschedule={(task, nextStart) => {
-            const activity = byId.get(task.id)
-            if (activity) saveReschedule(activity, nextStart)
-          }}
-        />
+      <main
+        className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden p-0"
+        aria-busy={!listReady}
+      >
+        {listReady ? (
+          <TasksView
+            tasks={calendarTasks}
+            error={
+              activitiesQuery.isError
+                ? activitiesQuery.error instanceof Error
+                  ? activitiesQuery.error.message
+                  : "Erro ao carregar."
+                : null
+            }
+            scope={scopeFilter}
+            onScopeChange={setScopeFilter}
+            onOpenTask={(task) => {
+              const activity = byId.get(task.id)
+              if (activity) setDetailActivity(activity)
+            }}
+            onCreateAt={(date) => {
+              setComposerDate(date)
+              setComposerOpen(true)
+            }}
+            onReschedule={(task, nextStart) => {
+              const activity = byId.get(task.id)
+              if (activity) saveReschedule(activity, nextStart)
+            }}
+          />
+        ) : null}
       </main>
 
       <ActivityComposer
