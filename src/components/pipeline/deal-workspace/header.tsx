@@ -18,7 +18,11 @@ import {
   TransferControl,
   type TransferControlUser,
 } from "@/components/inbox/transfer-control";
-import { WhatsappCallChip } from "@/components/inbox/whatsapp-call-chip";
+import {
+  conversationHasCallingHint,
+  WhatsappCallChip,
+} from "@/components/inbox/whatsapp-call-chip";
+
 import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
 import {
   DropdownMenu,
@@ -215,6 +219,7 @@ export function WorkspaceHeader({
           <DealWorkspaceToolbarMenu
             conversationId={conversation?.id ?? null}
             conversationChannel={conversation?.channel ?? null}
+            hasCalling={conversationHasCallingHint(conversation)}
             contactId={contact?.id ?? null}
             contactName={contact?.name ?? deal.title}
             canManageAssignee={canManageAssignee}
@@ -304,6 +309,7 @@ export function DealHeaderWorkspaceOutcomes({
 export type DealWorkspaceToolbarMenuItemsProps = {
   conversationId: string | null;
   conversationChannel: string | null;
+  hasCalling?: boolean;
   contactId: string | null;
   contactName: string;
   canManageAssignee?: boolean;
@@ -322,6 +328,7 @@ export type DealWorkspaceToolbarMenuItemsProps = {
 export function DealWorkspaceToolbarMenuItems({
   conversationId,
   conversationChannel,
+  hasCalling = false,
   contactId,
   contactName,
   canManageAssignee,
@@ -351,6 +358,7 @@ export function DealWorkspaceToolbarMenuItems({
             conversationId={conversationId!}
             channel={conversationChannel}
             contactName={contactName}
+            hasCalling={hasCalling}
           />
         </div>
       ) : null}

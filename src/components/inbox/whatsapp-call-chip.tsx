@@ -84,6 +84,61 @@ function isCallingMiss(d: CallingContextResult | undefined): d is CallingContext
   return !!d && "noCalling" in d;
 }
 
+/** Campos opcionais do ticket/conversa que autorizam o GET de calling-context. */
+export type CallingHintSource = {
+  hasCalling?: boolean | null;
+  whatsappCallConsentStatus?: string | null;
+  callConsentStatus?: string | null;
+  lastMessagePreview?: { content?: string; messageType?: string } | null;
+  lastMessage?: { preview?: string; content?: string } | null;
+};
+
+function textLooksLikeCalling(raw: string | null | undefined): boolean {
+  const t = (raw ?? "").toLowerCase();
+  if (!t) return false;
+  return (
+    t.includes("call_permission") ||
+    t.includes("permissão de liga") ||
+    t.includes("permissao de liga") ||
+    t.includes("solicitação de voz") ||
+    t.includes("solicitacao de voz") ||
+    ((t.includes("aceitou") || t.includes("recusou")) &&
+      (t.includes("liga") || t.includes("voz") || t.includes("chamad")))
+  );
+}
+
+function messageTypeLooksLikeCalling(type: string | null | undefined): boolean {
+  const t = (type ?? "").toLowerCase();
+  return t === "call" || t === "whatsapp_call" || t === "voice_call";
+}
+
+/** Sem flag/campo de chamada no payload → zero GET. */
+export function conversationHasCallingHint(
+  row: CallingHintSource | null | undefined,
+): boolean {
+  if (!row) return false;
+  if (row.hasCalling === true) return true;
+  const status = row.whatsappCallConsentStatus ?? row.callConsentStatus;
+  if (status && status !== "NONE") return true;
+  if (messageTypeLooksLikeCalling(row.lastMessagePreview?.messageType)) return true;
+  return (
+    textLooksLikeCalling(row.lastMessagePreview?.content) ||
+    textLooksLikeCalling(row.lastMessage?.preview) ||
+    textLooksLikeCalling(row.lastMessage?.content)
+  );
+}
+
+function messagesIndicateCalling(
+  messages: { content?: string; messageType?: string; createdAt?: string }[] | undefined,
+): boolean {
+  if (!messages?.length) return false;
+  if (inferGrantFromMessages(messages)) return true;
+  return messages.some(
+    (m) =>
+      messageTypeLooksLikeCalling(m.messageType) || textLooksLikeCalling(m.content),
+  );
+}
+
 /** Meta bloqueia novo request por 24h depois de um REJECT. */
 const DENY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -218,12 +273,19 @@ export function WhatsappCallChip({
   channel,
   contactName,
   variant = "chip",
+  hasCalling = false,
 }: {
   conversationId: string;
   channel: string | null | undefined;
   contactName?: string | null;
   /** `cta` = green pill in the inbox header. Compact `chip` for deal/sales-hub. */
   variant?: "chip" | "cta";
+  /**
+   * Payload do ticket já indica chamada (consent, aba Ligar, lastMessage).
+   * Sem isto o GET só dispara se a timeline em cache ou um SSE `whatsapp_call`
+   * mostrarem contexto de voz. Conversa WhatsApp comum = zero request.
+   */
+  hasCalling?: boolean;
 }) {
   const isCta = variant === "cta";
   const isWaVoiceChannel = channel === "whatsapp" || channel === "meta";
@@ -232,6 +294,29 @@ export function WhatsappCallChip({
     () => ["calling-context", conversationId] as const,
     [conversationId],
   );
+  const [sseCalling, setSseCalling] = React.useState(false);
+  React.useEffect(() => {
+    setSseCalling(false);
+  }, [conversationId]);
+
+  const [msgTick, bumpMsgs] = React.useState(0);
+  React.useEffect(() => {
+    const cache = queryClient.getQueryCache();
+    return cache.subscribe((ev) => {
+      const k = ev.query.queryKey;
+      if (k[0] === "messages" && k[1] === conversationId) bumpMsgs((n) => n + 1);
+    });
+  }, [queryClient, conversationId]);
+  const cachedMessages = React.useMemo(
+    () => queryClient.getQueryData<MessagesResponse>(messagesKey(conversationId)),
+    [queryClient, conversationId, msgTick],
+  );
+  const hintFromMessages = messagesIndicateCalling(cachedMessages?.messages);
+  const shouldFetchCalling =
+    !!conversationId &&
+    isWaVoiceChannel &&
+    !callingContextMisses.has(conversationId) &&
+    (hasCalling || hintFromMessages || sseCalling);
 
   const { data, isLoading } = useQuery({
     queryKey: key,
@@ -247,8 +332,11 @@ export function WhatsappCallChip({
       if (!r.ok) throw new Error("Erro ao carregar estado de voz");
       return r.json() as Promise<CallingContext>;
     },
-    enabled: !!conversationId && isWaVoiceChannel && !callingContextMisses.has(conversationId),
+    enabled: shouldFetchCalling,
     retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     staleTime: 15_000,
     // Sanity polling quando há chamada ativa: se um webhook `terminate` se
     // perder, o chip se auto-corrige em até 10s ao invés de ficar preso em
@@ -263,19 +351,6 @@ export function WhatsappCallChip({
   const callingUnavailable =
     isCallingMiss(data) || callingContextMisses.has(conversationId);
   const ctx = callingUnavailable ? undefined : data;
-
-  const [msgTick, bumpMsgs] = React.useState(0);
-  React.useEffect(() => {
-    const cache = queryClient.getQueryCache();
-    return cache.subscribe((ev) => {
-      const k = ev.query.queryKey;
-      if (k[0] === "messages" && k[1] === conversationId) bumpMsgs((n) => n + 1);
-    });
-  }, [queryClient, conversationId]);
-  const cachedMessages = React.useMemo(
-    () => queryClient.getQueryData<MessagesResponse>(messagesKey(conversationId)),
-    [queryClient, conversationId, msgTick],
-  );
 
   // Só busca templates quando a modal de envio abre (evita N+1 em inbox cheia).
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -423,6 +498,7 @@ export function WhatsappCallChip({
             callId?: string;
             session?: { sdp_type?: string; sdp?: string };
           };
+          if (p.conversationId === conversationId) setSseCalling(true);
           if (
             p.callId &&
             p.session?.sdp_type?.toLowerCase() === "answer" &&
@@ -588,6 +664,7 @@ export function WhatsappCallChip({
   }, [menuOpen]);
 
   if (!isWaVoiceChannel || callingUnavailable) return null;
+  if (!shouldFetchCalling && !ctx) return null;
   const effectivelyExpired =
     cs === "EXPIRED" || (cs === "GRANTED" && !expiry.isPermanent && expiry.expired);
   const activeCallId = ctx?.activeCallMetaId ?? null;
