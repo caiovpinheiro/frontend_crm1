@@ -436,7 +436,7 @@ function CustomFieldsPage() {
 
       {/* Lista */}
       {isLoading ? (
-        <AppLoading variant="inline" className="min-h-[300px]" />
+        <AppLoading />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-[var(--radius-xl)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-6 py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--glass-bg-strong)]">

@@ -319,7 +319,7 @@ function AccountsList({
       </KpiStrip>
 
       {loading ? (
-        <AppLoading variant="inline" className="min-h-[260px]" />
+        <AppLoading />
       ) : accounts.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-base)] py-16">
           <IconMail size={40} className="text-[var(--text-muted)] opacity-40" />

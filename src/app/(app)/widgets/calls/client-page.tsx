@@ -165,6 +165,6 @@ function NotEnabledState() {
 
 function SkeletonState() {
   return (
-    <AppLoading variant="inline" className="min-h-[280px]" />
+    <AppLoading />
   );
 }
