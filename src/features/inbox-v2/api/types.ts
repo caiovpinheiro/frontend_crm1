@@ -122,6 +122,12 @@ export interface ConversationListRow {
   } | null;
   /** Tabulacao final escolhida ao encerrar (folha). Null enquanto OPEN. */
   tabulationId?: string | null;
+  /**
+   * Opt-in de voz WhatsApp, quando o backend serializar.
+   * Sem este campo (e sem lastMessage de chamada) o chip não pede calling-context.
+   */
+  whatsappCallConsentStatus?: string | null;
+  hasCalling?: boolean;
 }
 
 export interface ConversationListResponse {

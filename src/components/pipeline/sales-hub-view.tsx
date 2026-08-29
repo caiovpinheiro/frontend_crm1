@@ -34,7 +34,10 @@ import {
   type DealQueueSortMode,
 } from "@/components/sales-hub/deal-queue";
 import { SalesHubChat } from "@/components/sales-hub/sales-hub-chat";
-import { WhatsappCallChip } from "@/components/inbox/whatsapp-call-chip";
+import {
+  conversationHasCallingHint,
+  WhatsappCallChip,
+} from "@/components/inbox/whatsapp-call-chip";
 import { ConversationActionsMenu } from "@/features/inbox-v2/extras";
 import { TagsPopover } from "@/features/pipeline-v2/extras";
 import { TagChip } from "@/components/crm/tag-chip";
@@ -924,6 +927,7 @@ export function SalesHubView({
                     channel={
                       activeConversation.channel ?? activeDeal?.channel ?? null
                     }
+                    hasCalling={conversationHasCallingHint(activeConversation)}
                     contactName={
                       activeDeal?.contact?.name ??
                       activeDeal?.title ??

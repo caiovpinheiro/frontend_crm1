@@ -12,7 +12,10 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { DealForm } from "@/components/pipeline/deal-form";
 import type { BoardStage } from "@/components/pipeline/kanban-board";
 import { ConversationHeader, type ConversationHeaderTab } from "@/components/inbox/conversation-header";
-import { WhatsappCallChip } from "@/components/inbox/whatsapp-call-chip";
+import {
+  conversationHasCallingHint,
+  WhatsappCallChip,
+} from "@/components/inbox/whatsapp-call-chip";
 import type { TransferControlUser } from "@/components/inbox/transfer-control";
 import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
 import { TooltipHost } from "@/components/ui/tooltip";
@@ -398,6 +401,7 @@ export function DealWorkspace({
                   conversationId={selectedConv.id}
                   channel={selectedConv.channel}
                   contactName={contact?.name ?? deal.title}
+                  hasCalling={conversationHasCallingHint(selectedConv)}
                 />
               ) : undefined
             }
@@ -405,6 +409,7 @@ export function DealWorkspace({
               <DealWorkspaceToolbarMenuItems
                 conversationId={selectedConv?.id ?? null}
                 conversationChannel={selectedConv?.channel ?? null}
+                hasCalling={conversationHasCallingHint(selectedConv)}
                 contactId={contact?.id ?? null}
                 contactName={contact?.name ?? deal.title}
                 canManageAssignee={canManageAssignee}
