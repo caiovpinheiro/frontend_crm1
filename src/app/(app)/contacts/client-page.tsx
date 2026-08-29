@@ -528,10 +528,15 @@ export default function V2ContactsClientPage() {
   const hasError = !!query.error;
 
   return (
-    <div className="v2-screen v2-page-scroll grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-y-auto p-4">
+    <div
+      className={cn(
+        "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4",
+        isLoading ? "overflow-hidden" : "v2-page-scroll overflow-y-auto",
+      )}
+    >
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-4">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
         <SectionHeader
           icon={Users}
           title="Contatos"
@@ -626,6 +631,10 @@ export default function V2ContactsClientPage() {
           }
         />
 
+        {isLoading ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : (
+        <>
         {/* KPI cards — mobile: 4 quadrados em h-scroll; desktop: grid */}
         <section className="shrink-0" aria-label="Indicadores de contatos">
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden lg:hidden">
@@ -721,10 +730,8 @@ export default function V2ContactsClientPage() {
           </div>
         )}
 
-        {/* Estados: loading / erro / vazio */}
-        {isLoading ? (
-          <AppLoading />
-        ) : hasError ? (
+        {/* Estados: erro / vazio / lista */}
+        {hasError ? (
           <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {query.error instanceof Error ? query.error.message : "Erro ao carregar."}
           </div>
@@ -790,6 +797,8 @@ export default function V2ContactsClientPage() {
           perPage={perPage}
           onPerPageChange={(value) => { setPerPage(value); setPage(1); }}
         />
+        </>
+        )}
       </main>
 
       <ContactFormDialog

@@ -11,6 +11,7 @@ import {
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
+import { cn } from "@/lib/utils";
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import {
@@ -179,11 +180,18 @@ export default function CampaignsClientPage() {
   };
 
   return (
-    <div className="v2-screen v2-screen-fill v2-page-scroll grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-y-auto bg-background">
+    <div
+      className={cn(
+        "v2-screen v2-screen-fill grid grid-cols-[var(--nav-rail-w,76px)_1fr] bg-background",
+        isLoading && allItems.length === 0
+          ? "overflow-hidden"
+          : "v2-page-scroll overflow-y-auto",
+      )}
+    >
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col">
-        <div className="flex w-full flex-col gap-4 px-4 py-5">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-4 px-4 py-5">
         <SectionHeader
           icon={Megaphone}
           title="Campanhas"
@@ -215,12 +223,14 @@ export default function CampaignsClientPage() {
           menuSlot={<CampaignsActionsMenu />}
         />
 
+        {isLoading && allItems.length === 0 ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : (
+        <>
         <CampaignsMiniDash items={dashSource} />
 
         <div className="flex min-h-0 flex-1 flex-col">
-            {isLoading && allItems.length === 0 ? (
-              <AppLoading />
-            ) : error ? (
+            {error ? (
               <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
                 {error instanceof Error ? error.message : "Erro ao carregar."}
               </div>
@@ -275,6 +285,8 @@ export default function CampaignsClientPage() {
             }}
           />
         </div>
+        </>
+        )}
         </div>
       </main>
       {confirmDialog}

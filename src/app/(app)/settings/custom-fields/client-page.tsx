@@ -383,7 +383,11 @@ function CustomFieldsPage() {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3.5">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3.5">
+      {isLoading ? (
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
+      ) : (
+      <>
       {/* Mini-dash KPI */}
       <KpiStrip
         aria-label="Indicadores de campos"
@@ -435,9 +439,7 @@ function CustomFieldsPage() {
       </KpiStrip>
 
       {/* Lista */}
-      {isLoading ? (
-        <AppLoading />
-      ) : filtered.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-[var(--radius-xl)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-6 py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--glass-bg-strong)]">
             <IconLayoutList
@@ -650,6 +652,8 @@ function CustomFieldsPage() {
               </Droppable>
             </DragDropContext>
         </MobileTableScroll>
+      )}
+      </>
       )}
 
       {/* Modais */}

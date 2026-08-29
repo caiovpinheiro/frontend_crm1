@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 
-import { BWIPO_MARK_SRC } from "@/components/bwipo/bwipo-logo";
+import { BWIPO_MARK_LOADER_SRC } from "@/components/bwipo/bwipo-logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -106,12 +106,12 @@ function BrandMark({
       </span>
       {/* A marca não gira — só o anel. Caixa reservada = tamanho final. */}
       <img
-        src={BWIPO_MARK_SRC}
+        src={BWIPO_MARK_LOADER_SRC}
         alt=""
         width={imgPx}
         height={imgPx}
         draggable={false}
-        className="relative object-contain"
+        className="relative h-8 w-8 shrink-0 object-contain"
         style={{
           width: imgPx,
           height: imgPx,

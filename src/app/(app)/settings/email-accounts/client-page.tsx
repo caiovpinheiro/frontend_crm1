@@ -286,7 +286,11 @@ function AccountsList({
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-3.5">
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3.5">
+      {loading ? (
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
+      ) : (
+      <>
       {/* KPI minidash */}
       <KpiStrip
         aria-label="Indicadores de contas"
@@ -318,9 +322,7 @@ function AccountsList({
         />
       </KpiStrip>
 
-      {loading ? (
-        <AppLoading />
-      ) : accounts.length === 0 ? (
+      {accounts.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-base)] py-16">
           <IconMail size={40} className="text-[var(--text-muted)] opacity-40" />
           <p className="text-sm text-[var(--text-muted)]">Nenhuma conta de e-mail conectada ainda.</p>
@@ -435,6 +437,8 @@ function AccountsList({
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );
@@ -620,7 +624,7 @@ function AccountRules({
       )}
 
       {loading ? (
-        <AppLoading variant="inline" className="min-h-[200px]" />
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
       ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-base)] py-12">
           <IconFilter size={32} className="text-[var(--text-muted)] opacity-40" />

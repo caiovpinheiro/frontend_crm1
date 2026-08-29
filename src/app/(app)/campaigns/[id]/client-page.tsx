@@ -129,7 +129,7 @@ export default function CampaignDetailClientPage() {
   if (campaignQuery.isLoading) {
     return (
       <Shell>
-        <AppLoading />
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
       </Shell>
     );
   }

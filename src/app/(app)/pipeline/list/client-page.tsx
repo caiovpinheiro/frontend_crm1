@@ -294,10 +294,17 @@ export default function V2PipelineListClientPage() {
   }
 
   return (
-    <div className="v2-screen v2-page-scroll grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-y-auto p-4">
+    <div
+      className={cn(
+        "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4",
+        waitingForPipeline || waitingForDeals
+          ? "overflow-hidden"
+          : "v2-page-scroll overflow-y-auto",
+      )}
+    >
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-4">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
         <PipelineHeader
           activeView="list"
           onViewChange={(view) => {
@@ -405,7 +412,7 @@ export default function V2PipelineListClientPage() {
         )}
 
         {waitingForPipeline || waitingForDeals ? (
-          <AppLoading variant="inline" className="min-h-[240px] flex-1" />
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : dealsQuery.error ? (
           <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {dealsQuery.error instanceof Error

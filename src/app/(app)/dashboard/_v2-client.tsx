@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { LayoutDashboard, Plus } from "lucide-react";
 
 import { AppLoading } from "@/components/crm/app-loading";
+import { RouteLoading } from "@/components/crm/page-loading";
 import { NavRail } from "@/components/crm/nav-rail";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { PeriodCalendarButton } from "@/components/crm/period-calendar-button";
@@ -114,7 +115,7 @@ export default function DashboardV2ClientPage({
   const { isManagerUp, ready } = useUserRole();
 
   if (!ready) {
-    return <AppLoading variant="inline" className="min-h-[100dvh]" />;
+    return <RouteLoading />;
   }
 
   return isManagerUp ? (
@@ -597,7 +598,7 @@ function QueryState({
   children: React.ReactNode;
 }) {
   if (isLoading && !hasData) {
-    return <AppLoading variant="inline" className="min-h-[240px]" />;
+    return <AppLoading variant="inline" className="min-h-0 flex-1" />;
   }
   if (error) return <QueryError error={error} />;
   return <>{children}</>;
