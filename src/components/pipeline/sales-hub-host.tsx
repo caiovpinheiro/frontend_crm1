@@ -578,38 +578,10 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     return null;
   }
 
-  // `pipelineId` só existe depois de `GET /api/pipelines`. Se essa query
-  // falha (500/timeout) ou volta vazia, não há caminho para o Flow — vira
-  // erro com retry em vez de spinner infinito.
-  if (pipelinesFailed) {
-    return (
-      <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
-        <NavRailSpacer />
-        <AppLoading
-          variant="inline"
-          className="min-h-0 flex-1"
-          error={
-            pipelinesEmpty
-              ? "Nenhum funil configurado nesta organização."
-              : "Não foi possível carregar os funis."
-          }
-          onRetry={() => void pipelinesQuery.refetch()}
-        />
-      </div>
-    );
-  }
-
-  // Só sessão/funil. NÃO esperar isFetched do board — query disabled/idle
-  // nunca fica fetched e o Flow ficava preso no loading para sempre.
-  if (sessionStatus === "loading" || !pipelineId) {
-    return (
-      <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
-        <NavRailSpacer />
-        <AppLoading variant="inline" className="min-h-0 flex-1" />
-      </div>
-    );
-  }
-
+  // Chrome sempre visível. Loader/erro só no body — query idle ou
+  // `GET /pipelines` pendurado não cobre a página inteira.
+  const pendingShell =
+    (sessionStatus === "loading" || !pipelineId) && !pipelinesFailed;
   const hasActiveFilters = !isEmptyFilters(filters) || !!search.trim();
 
   return (
@@ -683,6 +655,21 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
           }
         />
 
+        {pipelinesFailed ? (
+          <AppLoading
+            variant="inline"
+            className="min-h-0 flex-1"
+            error={
+              pipelinesEmpty
+                ? "Nenhum funil configurado nesta organização."
+                : "Não foi possível carregar os funis."
+            }
+            onRetry={() => void pipelinesQuery.refetch()}
+          />
+        ) : pendingShell || !pipelineId ? (
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : (
+          <>
         {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-2 px-0.5">
             <span className="font-display text-[11px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
@@ -771,6 +758,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
             }}
           />
         </div>
+          </>
+        )}
       </main>
     </div>
   );

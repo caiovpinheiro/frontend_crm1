@@ -1,9 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useState, type ReactNode } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useLayoutEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
-import { RouteLoading } from "@/components/crm/page-loading";
 import {
   pathForPipelineView,
   readPipelineViewPreference,
@@ -13,35 +12,31 @@ import {
 import KanbanV2ClientPage from "./_v2-client";
 
 /**
- * Resolve a view salva antes de montar o kanban — evita flash quando a
- * preferência é lista/flow.
+ * Resolve a view salva e redireciona lista/flow. Sempre monta o kanban
+ * como fallback imediato — se `router.replace` ou o localStorage
+ * pendurarem, o chrome do funil já está na tela (nunca um RouteLoading
+ * full-page eterno em `/pipeline`).
  */
 export function PipelineEntryClient({ navRail }: { navRail?: ReactNode }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [showKanban, setShowKanban] = useState(false);
 
   useLayoutEffect(() => {
-    // Deep-link de negócio: permanece no kanban (painel do deal).
-    if (searchParams.get("deal")) {
+    const qs = new URL(window.location.href).searchParams;
+    if (qs.get("deal")) {
       writePipelineViewPreference("kanban");
-      setShowKanban(true);
       return;
     }
 
     const preferred = readPipelineViewPreference();
     if (preferred !== "kanban") {
-      const qs = searchParams.toString();
+      const q = qs.toString();
       const path = pathForPipelineView(preferred);
-      router.replace(qs ? `${path}?${qs}` : path);
+      router.replace(q ? `${path}?${q}` : path);
       return;
     }
 
     writePipelineViewPreference("kanban");
-    setShowKanban(true);
-  }, [router, searchParams]);
-
-  if (!showKanban) return <RouteLoading />;
+  }, [router]);
 
   return (
     <KanbanV2ClientPage navRail={navRail} listHref="/pipeline/list" />
