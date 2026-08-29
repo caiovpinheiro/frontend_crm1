@@ -786,12 +786,8 @@ export function useDealChatBinding(params: {
       }
       const dayLabel = formatChatDayLabel(b.createdAt);
       const isNewDay = Boolean(dayLabel && dayLabel !== lastDayLabel);
-      const showDay = Boolean(
-        isNewDay &&
-        dayLabel &&
-        (stickyDayLabel ? dayLabel !== stickyDayLabel : lastDayLabel !== null),
-      );
       if (isNewDay && dayLabel) lastDayLabel = dayLabel;
+      const showDay = isNewDay && Boolean(dayLabel);
       let connLabel: string | null = null;
       if (showConnSwitches && b.channelId && b.channelId !== lastChannelId) {
         const ref = channelsMap[b.channelId];
@@ -802,13 +798,16 @@ export function useDealChatBinding(params: {
       const isEvent = b.kind === "event";
       const lane: "in" | "out" | "other" =
         isEvent || isNoteBubble ? "other" : b.type === "outgoing" ? "out" : "in";
-      const clusterBreak = !showDay && lastLane !== null && lastLane !== lane;
+      const clusterBreak = !isNewDay && lastLane !== null && lastLane !== lane;
       lastLane = lane;
       return (
         <Fragment key={b.id}>
           {showDay && dayLabel ? (
-            <li className="pointer-events-none list-none" data-day-label={dayLabel}>
-              <DaySeparator date={dayLabel} />
+            <li className="pointer-events-none list-none">
+              <DaySeparator
+                date={dayLabel}
+                occluded={Boolean(stickyDayLabel) && dayLabel === stickyDayLabel}
+              />
             </li>
           ) : null}
         <li className={`list-none${clusterBreak ? " mt-2" : ""}`} data-day-label={dayLabel || undefined}>
@@ -864,8 +863,8 @@ export function useDealChatBinding(params: {
     });
     messagesNode = (
       <div className="flex h-full min-h-0 flex-col">
-        <StickyDayPill date={stickyDayLabel} />
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]">
+        <StickyDayPill date={stickyDayLabel} />
         <div className="min-h-0 flex-1" aria-hidden />
         <ul className="flex list-none flex-col gap-0.5">
           {olderArmed && isFetchingOlder && (

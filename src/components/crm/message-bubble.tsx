@@ -1925,6 +1925,8 @@ interface DaySeparatorProps {
   date: string
   /** Gruda no topo do container rolável até o próximo dia empurrar (WhatsApp). */
   sticky?: boolean
+  /** Reserva altura mas some — o `StickyDayPill` ocupa o mesmo slot. */
+  occluded?: boolean
 }
 
 /** Rótulo de dia no chat: Hoje, Ontem, weekday (últimos 7 dias) ou dd/mm/aaaa. */
@@ -1946,15 +1948,19 @@ export function formatChatDayLabel(iso?: string | null): string | null {
   })
 }
 
-const DAY_PILL_CLASS =
-  "inline-flex items-center rounded-full border border-border bg-card px-3 py-0.5 font-display text-sm font-semibold capitalize text-foreground shadow-[var(--glass-shadow-sm)]"
+export const DAY_PILL_CLASS =
+  "inline-flex items-center rounded-full border border-border bg-card px-2.5 py-0.5 text-[11px] font-semibold capitalize text-foreground"
 
-export function DaySeparator({ date, sticky = false }: DaySeparatorProps) {
+const DAY_SEP_WRAP_CLASS = "flex justify-center py-1.5"
+
+export function DaySeparator({ date, sticky = false, occluded = false }: DaySeparatorProps) {
   return (
     <div
+      data-day-sep={date}
       className={cn(
-        "flex justify-center py-2",
+        DAY_SEP_WRAP_CLASS,
         sticky && "sticky top-1 z-10",
+        occluded && "invisible",
       )}
     >
       <span className={DAY_PILL_CLASS}>{date}</span>
@@ -1965,10 +1971,12 @@ export function DaySeparator({ date, sticky = false }: DaySeparatorProps) {
 /** Atributo nas linhas da timeline p/ o pill sticky rastrear o dia visível. */
 export const DAY_LABEL_ATTR = "data-day-label"
 
+/** Separador in-flow — único alvo do `useStickyDayLabel`. */
+export const DAY_SEP_ATTR = "data-day-sep"
+
 /**
- * Pill fixo no topo da lista rolável. Ocupa a mesma altura do
- * DaySeparator para não cobrir bolhas. O texto atualiza via
- * `useStickyDayLabel`. Loader de histórico fica fora da pill.
+ * Overlay no topo do scroller (altura 0). A pill in-flow do dia atual
+ * reserva o slot; esta só pinta o rótulo. Loader fica fora da pill.
  */
 export function StickyDayPill({
   date,
@@ -1985,14 +1993,13 @@ export function StickyDayPill({
 
   return (
     <div
-      className="pointer-events-none sticky top-0 z-[15] flex w-full shrink-0 justify-center py-2"
+      data-sticky-day-bar
+      className="pointer-events-none sticky top-0 z-[15] h-0 w-full shrink-0 overflow-visible"
       aria-hidden
     >
-      {shown ? (
-        <span className={DAY_PILL_CLASS}>{shown}</span>
-      ) : (
-        <span className={cn(DAY_PILL_CLASS, "invisible")}>Hoje</span>
-      )}
+      <div className={cn(DAY_SEP_WRAP_CLASS, "absolute inset-x-0 top-0 justify-center")}>
+        <span className={cn(DAY_PILL_CLASS, !shown && "invisible")}>{shown ?? "Hoje"}</span>
+      </div>
     </div>
   )
 }
@@ -2003,7 +2010,7 @@ function resolveStickyRoot(
   return typeof root === "function" ? root() : root.current
 }
 
-/** Dia da primeira mensagem visível no container rolável. */
+/** Dia cuja pill in-flow já cruzou por completo a barra sticky. */
 export function useStickyDayLabel(
   root: { current: HTMLElement | null } | (() => HTMLElement | null),
   resetKey: unknown,
@@ -2013,21 +2020,55 @@ export function useStickyDayLabel(
   useEffect(() => {
     let cancelled = false
     let observer: IntersectionObserver | null = null
+    let mutations: MutationObserver | null = null
     let scrollRoot: HTMLElement | null = null
     let retryId = 0
     let rafId = 0
     let attempts = 0
     let onScroll: (() => void) | null = null
+    const seen = new Set<Element>()
 
-    const pickLabel = (items: NodeListOf<HTMLElement>) => {
-      if (!scrollRoot || items.length === 0) return null
-      const top = scrollRoot.getBoundingClientRect().top + 2
+    const stickyLine = () => {
+      if (!scrollRoot) return 0
+      const bar = scrollRoot.querySelector<HTMLElement>("[data-sticky-day-bar]")
+      const slot = bar?.firstElementChild as HTMLElement | null
+      return slot
+        ? slot.getBoundingClientRect().bottom
+        : scrollRoot.getBoundingClientRect().top
+    }
+
+    const pickLabel = () => {
+      if (!scrollRoot) return null
+      const items = scrollRoot.querySelectorAll<HTMLElement>(`[${DAY_SEP_ATTR}]`)
+      if (items.length === 0) return null
+      const line = stickyLine()
+      let current = items[0].getAttribute(DAY_SEP_ATTR)
       for (const el of items) {
-        if (el.getBoundingClientRect().bottom > top) {
-          return el.getAttribute(DAY_LABEL_ATTR)
+        if (el.getBoundingClientRect().bottom <= line + 0.5) {
+          current = el.getAttribute(DAY_SEP_ATTR)
+        } else {
+          break
         }
       }
-      return items[items.length - 1]?.getAttribute(DAY_LABEL_ATTR) ?? null
+      return current
+    }
+
+    const apply = () => {
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        const next = pickLabel()
+        if (next) setLabel((prev) => (prev === next ? prev : next))
+      })
+    }
+
+    const watchSeps = () => {
+      if (!scrollRoot || !observer) return
+      scrollRoot.querySelectorAll<HTMLElement>(`[${DAY_SEP_ATTR}]`).forEach((el) => {
+        if (seen.has(el)) return
+        seen.add(el)
+        observer!.observe(el)
+      })
     }
 
     const bind = () => {
@@ -2037,29 +2078,25 @@ export function useStickyDayLabel(
         if (attempts++ < 16) retryId = requestAnimationFrame(bind)
         return
       }
-      const items = scrollRoot.querySelectorAll<HTMLElement>(`[${DAY_LABEL_ATTR}]`)
-      if (items.length === 0) {
-        setLabel(null)
-        return
-      }
 
-      const apply = () => {
-        if (rafId) return
-        rafId = requestAnimationFrame(() => {
-          rafId = 0
-          const next = pickLabel(items)
-          if (next) setLabel(next)
-        })
-      }
-      onScroll = apply
-
+      const slotH = Math.max(
+        (scrollRoot.querySelector("[data-sticky-day-bar]")?.firstElementChild as HTMLElement | null)
+          ?.offsetHeight ?? 0,
+        28,
+      )
+      const band = Math.max(scrollRoot.clientHeight - slotH - 2, 0)
       observer = new IntersectionObserver(apply, {
         root: scrollRoot,
-        threshold: [0, 0.01],
+        rootMargin: `-${slotH}px 0px -${band}px 0px`,
+        threshold: [0, 1],
       })
-      items.forEach((el) => observer!.observe(el))
+      watchSeps()
+      mutations = new MutationObserver(() => {
+        watchSeps()
+      })
+      mutations.observe(scrollRoot, { childList: true, subtree: true })
+      onScroll = apply
       scrollRoot.addEventListener("scroll", apply, { passive: true })
-      // Depois do auto-scroll ao fim (deal usa 2 rAFs).
       requestAnimationFrame(() => requestAnimationFrame(apply))
     }
 
@@ -2070,6 +2107,7 @@ export function useStickyDayLabel(
       if (retryId) cancelAnimationFrame(retryId)
       if (rafId) cancelAnimationFrame(rafId)
       observer?.disconnect()
+      mutations?.disconnect()
       if (scrollRoot && onScroll) {
         scrollRoot.removeEventListener("scroll", onScroll)
       }
