@@ -62,7 +62,7 @@ function collectSearchHits(
   return hits;
 }
 
-/** Departamento dominante entre as conversas selecionadas para o modal em massa. */
+/** Departamento dominante entre as conversas selecionadas — só escolhe a árvore do modal. A folha vale para o lote inteiro. */
 export function pickBulkCloseDepartment(
   rows: Array<{
     id: string;

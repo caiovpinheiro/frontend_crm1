@@ -43,16 +43,11 @@ function shouldAutoSize(id: string) {
   return id !== "evolution";
 }
 
-const HOVER_ACTION_CLASS = cn(
+const CHROME_ACTION_CLASS = cn(
   "flex size-8 shrink-0 items-center justify-center rounded-lg",
-  "bg-card/90 text-muted-foreground",
-  "opacity-0 transition-opacity",
-  "pointer-events-none",
+  "bg-card text-muted-foreground",
   "hover:bg-secondary hover:text-foreground",
-  "group-hover/widget:pointer-events-auto group-hover/widget:opacity-100",
-  "group-has-[:focus-visible]/widget:pointer-events-auto group-has-[:focus-visible]/widget:opacity-100",
-  "group-has-[[aria-expanded=true]]/widget:pointer-events-auto group-has-[[aria-expanded=true]]/widget:opacity-100",
-  "focus-visible:pointer-events-auto focus-visible:opacity-100",
+  "focus-visible:bg-secondary focus-visible:text-foreground",
 );
 
 function WidgetChromeRow({
@@ -63,7 +58,7 @@ function WidgetChromeRow({
   menu?: ReactNode;
 }) {
   return (
-    <div className="flex h-9 shrink-0 items-center justify-between px-1">
+    <div className="flex h-8 shrink-0 items-center justify-between px-1">
       {grip ?? <span className="size-8" aria-hidden />}
       {menu ?? <span className="size-8" aria-hidden />}
     </div>
@@ -89,7 +84,11 @@ export function SortableWidgetGrid({
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
   const { width, containerRef, mounted } = useContainerWidth();
-  const ids = useMemo(() => layout.map((item) => item.i), [layout]);
+  const visibleLayout = useMemo(
+    () => compactNegociosLayout(layout.filter((item) => item.i !== "stages")),
+    [layout],
+  );
+  const ids = useMemo(() => visibleLayout.map((item) => item.i), [visibleLayout]);
   const layoutRef = useRef(layout);
   const interactingRef = useRef(false);
   const applyingRef = useRef(false);
@@ -172,7 +171,7 @@ export function SortableWidgetGrid({
       <>
         <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-12">
           {ids.map((id) => {
-            const item = layout.find((entry) => entry.i === id);
+            const item = visibleLayout.find((entry) => entry.i === id);
             const span = item?.w ?? 12;
             return (
               <div
@@ -205,7 +204,7 @@ export function SortableWidgetGrid({
       {mounted && width > 0 ? (
         <GridLayout
           width={width}
-          layout={layout}
+          layout={visibleLayout}
           autoSize
           gridConfig={GRID_CONFIG}
           dragConfig={{
@@ -247,7 +246,7 @@ export function SortableWidgetGrid({
                       type="button"
                       className={cn(
                         DASHBOARD_GRID_GRIP_CLASS,
-                        HOVER_ACTION_CLASS,
+                        CHROME_ACTION_CLASS,
                         "cursor-grab active:cursor-grabbing",
                       )}
                       aria-label={`Mover ${labels[id] ?? id}`}
@@ -287,13 +286,16 @@ function WidgetOverflowMenu({
   return (
     <DropdownMenu className="relative z-10">
       <DropdownMenuTrigger
-        className={HOVER_ACTION_CLASS}
+        className={CHROME_ACTION_CLASS}
         aria-label={`Ações de ${label}`}
         data-dashboard-no-drag
       >
         <MoreHorizontal className="size-4" aria-hidden="true" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-40 rounded-xl">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-40 rounded-2xl border-border bg-card text-foreground shadow-lg backdrop-blur-none"
+      >
         <DropdownMenuItem
           onClick={onRemove}
           className="text-destructive focus:text-destructive hover:text-destructive"

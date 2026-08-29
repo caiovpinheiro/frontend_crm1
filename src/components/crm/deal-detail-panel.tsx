@@ -65,6 +65,7 @@ import { formatPhoneDisplay } from "@/lib/phone"
 import { useIsMobile } from "@/hooks/use-media-query"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { COMPOSER_FOCUS_CHAT_EVENT } from "@/lib/composer-insert"
+import { AppLoading } from "@/components/crm/app-loading"
 import { useHideChatEvents } from "@/components/crm/chat-timeline"
 
 // ─── Ordem das seções da sidebar ──────────────────────────────────
@@ -713,14 +714,11 @@ export function DealDetailPanel({
             {!isMobile && <div aria-hidden className="w-2" />}
             <div
               className={cn(
-                "flex h-full min-h-0 flex-col items-center justify-center rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] shadow-[var(--glass-shadow)] backdrop-blur-md",
+                "flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] shadow-[var(--glass-shadow)] backdrop-blur-md",
                 isMobile && "flex-1",
               )}
             >
-              <div className="flex flex-col items-center gap-2 text-[var(--text-muted)]">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--glass-border)] border-t-[var(--brand-primary)]" />
-                <span className="font-display text-[12px]">Carregando negócio…</span>
-              </div>
+              <AppLoading variant="inline" className="min-h-0 flex-1" />
             </div>
           </div>
         </div>

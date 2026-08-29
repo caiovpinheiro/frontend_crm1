@@ -829,7 +829,7 @@ export default function InboxV2ClientPage({
             const total = result.total ?? count;
             if (skipped > 0) {
               toast.warning(
-                `Encerrando ${total} conversa${total > 1 ? "s" : ""} em segundo plano. ${skipped} de outro departamento exigem tabulação e não foram encerradas — encerre individualmente.`,
+                `Encerrando ${total} conversa${total > 1 ? "s" : ""} em segundo plano. ${skipped} exigem tabulação e não foram encerradas — encerre com uma tabulação.`,
                 { id: `inbox-bulk-resolve-${result.operationId}` },
               );
             } else {
@@ -844,7 +844,7 @@ export default function InboxV2ClientPage({
           if (closed > 0) {
             if (skipped > 0) {
               toast.warning(
-                `${closed} encerrada(s). ${skipped} exigem tabulação e não foram encerradas — encerre individualmente.`,
+                `${closed} encerrada(s). ${skipped} exigem tabulação e não foram encerradas — encerre com uma tabulação.`,
               );
             } else {
               toast.success(
@@ -856,9 +856,9 @@ export default function InboxV2ClientPage({
             return;
           }
           if (skipped > 0) {
-            toast.warning(
-              `${skipped} conversa(s) de outro departamento exigem tabulação e não foram encerradas. Encerre individualmente.`,
-            );
+              toast.warning(
+                `${skipped} conversa(s) exigem tabulação e não foram encerradas. Encerre com uma tabulação.`,
+              );
           } else {
             toast.warning("Nenhuma conversa para encerrar.");
           }
@@ -893,11 +893,6 @@ export default function InboxV2ClientPage({
     const picked = pickBulkCloseDepartment(displayRows, selectedIds, {
       allInFilter: useAllInFilter,
     });
-    if (picked.mixed && picked.departmentId) {
-      toast.warning(
-        "A tabulação vale para o departamento mais comum da seleção. Conversas de outros departamentos que exigem tabulação ficam de fora.",
-      );
-    }
     if (picked.departmentId) {
       setBulkTabulationDeptId(picked.departmentId);
       setBulkTabulationOpen(true);
@@ -979,7 +974,7 @@ export default function InboxV2ClientPage({
       if (bulkOpStatus === "COMPLETED") {
         if (kind === "resolve" && skipped > 0) {
           toast.warning(
-            `${d.succeeded} encerrada(s). ${skipped} exigem tabulação e não foram encerradas — encerre individualmente.`,
+            `${d.succeeded} encerrada(s). ${skipped} exigem tabulação e não foram encerradas — encerre com uma tabulação.`,
             { id: toastId },
           );
         } else {
@@ -993,7 +988,7 @@ export default function InboxV2ClientPage({
       } else if (bulkOpStatus === "PARTIAL") {
         toast.warning(
           kind === "resolve" && skipped > 0
-            ? `${d.succeeded} encerrada(s), ${d.failed} falharam. ${skipped} exigem tabulação — encerre individualmente.`
+            ? `${d.succeeded} encerrada(s), ${d.failed} falharam. ${skipped} exigem tabulação — encerre com uma tabulação.`
             : `${d.succeeded} ${doneVerbPlural}, ${d.failed} falharam`,
           { id: toastId },
         );

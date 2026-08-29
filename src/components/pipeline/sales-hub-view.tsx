@@ -881,18 +881,14 @@ export function SalesHubView({
               subtitle="Escolha um card na fila à esquerda para abrir a conversa."
             />
           ) : !activeDeal && !detailDeal ? (
-            <div className="flex flex-1 items-center justify-center bg-[var(--color-chat-bg)]">
-              <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            </div>
+            <AppLoading variant="inline" className="min-h-0 flex-1" />
           ) : !activeContactId ? (
             <SalesHubChatEmptyState
               title="Deal sem contato"
               subtitle="Este deal nao tem contato vinculado — atribua um contato para iniciar a conversa."
             />
           ) : conversationsLoading ? (
-            <div className="flex flex-1 items-center justify-center bg-[var(--color-chat-bg)]">
-              <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            </div>
+            <AppLoading variant="inline" className="min-h-0 flex-1" />
           ) : !activeConversation ? (
             <SalesHubChatEmptyState
               title="Sem conversa aberta"
