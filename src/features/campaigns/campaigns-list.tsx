@@ -4,6 +4,7 @@ import Link from "next/link"
 import { MessageCircle, Pause, Play, TriangleAlert, Trash2 } from "lucide-react"
 
 import { EmptyState } from "@/components/crm/empty-state"
+import { LIST_PAGE_STACK_CLASS } from "@/components/crm/pagination-glass"
 import { ListColumnLabel, LIST_CARD_HEAD_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS } from "@/components/crm/sortable-header"
 import { cn } from "@/lib/utils"
 
@@ -95,7 +96,7 @@ export function CampaignsList({
 
   return (
     <div
-      className={cn("min-w-0", LIST_CARD_STACK_CLASS)}
+      className={cn("min-w-0", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}
       aria-label="Lista de campanhas"
     >
       <div className={cn(columnClass, LIST_CARD_HEAD_CLASS)}>

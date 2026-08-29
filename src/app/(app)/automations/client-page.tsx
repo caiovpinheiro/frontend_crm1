@@ -31,7 +31,7 @@ import {
 import { PageActionsMenu } from "@/components/crm/page-toolbar"
 import { AutomationsGallery } from "@/components/crm/automations-gallery"
 import { EmptyState } from "@/components/crm/empty-state"
-import { PaginationGlass } from "@/components/crm/pagination-glass"
+import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass"
 import { KpiCard, type KpiTone } from "@/components/crm/kpi-card"
 import {
   useAutomations,
@@ -388,6 +388,7 @@ export default function V2AutomationsClientPage() {
           onFilterChange={(v) => setFilter(v)}
         />
 
+        <div className={LIST_PAGE_PANE_CLASS}>
         {isError ? (
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
             {listQuery.error instanceof Error
@@ -446,6 +447,7 @@ export default function V2AutomationsClientPage() {
             setPage(1)
           }}
         />
+        </div>
         </>
         )}
         </div>

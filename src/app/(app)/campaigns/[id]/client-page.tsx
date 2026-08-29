@@ -443,6 +443,7 @@ export default function CampaignDetailClientPage() {
 
       {recipientPages > 1 ? (
         <PaginationGlass
+          className="mt-0"
           total={recipientTotal}
           entityLabel="destinatários"
           page={page}

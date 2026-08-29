@@ -507,6 +507,15 @@ html[data-nav-expanded="true"] {
 .v2-root .v2-screen.v2-page-scroll > * {
   min-height: min-content;
 }
+/* Lista + PaginationGlass: o main tem pelo menos a altura do canvas
+   (min-height, não height) para o rodapé ir ao fundo quando a lista
+   é curta. Conteúdo longo continua rolando a página — sem footer fixed. */
+.v2-root .v2-screen.v2-page-scroll > main {
+  min-height: calc(100dvh / var(--v2-scale, 1) - var(--nav-rail-inset, 0.75rem) * 2);
+}
+.v2-root .v2-screen.v2-screen-fill.v2-page-scroll > main {
+  min-height: calc(100dvh / var(--v2-scale, 1));
+}
 .v2-root .v2-screen.v2-page-scroll:not(.v2-screen-fill) > *:last-child {
   padding-right: var(--page-gutter);
 }

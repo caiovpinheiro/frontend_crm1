@@ -23,7 +23,7 @@ import {
 } from "@/components/crm/filter-popover";
 import { EmptyState } from "@/components/crm/empty-state";
 import { PageActionsMenu, PagePrimaryButton } from "@/components/crm/page-toolbar";
-import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -39,6 +39,31 @@ import { isPageMockMode, shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
 
 const LIST_PER_PAGE = [6, 12, 24] as const;
 const DEFAULT_PER_PAGE = 6;
+const CAMPAIGNS_SORT_LS = "campaigns-list-sort:v1";
+const DEFAULT_SORT: CampaignSortKey = "date";
+
+function isCampaignSortKey(raw: string | null): raw is CampaignSortKey {
+  return !!raw && (SORT_KEYS as readonly string[]).includes(raw);
+}
+
+function readCampaignSort(): CampaignSortKey {
+  if (typeof window === "undefined") return DEFAULT_SORT;
+  try {
+    const raw = localStorage.getItem(CAMPAIGNS_SORT_LS);
+    if (isCampaignSortKey(raw)) return raw;
+  } catch {
+    /* noop */
+  }
+  return DEFAULT_SORT;
+}
+
+function persistCampaignSort(key: CampaignSortKey) {
+  try {
+    localStorage.setItem(CAMPAIGNS_SORT_LS, key);
+  } catch {
+    /* noop */
+  }
+}
 
 export default function CampaignsClientPage() {
   const router = useRouter();
@@ -49,13 +74,24 @@ export default function CampaignsClientPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE);
-  const [sortKey, setSortKey] = useState<CampaignSortKey>("readRate");
+  const [sortKey, setSortKey] = useState<CampaignSortKey>(DEFAULT_SORT);
   const deleteMutation = useDeleteCampaign();
   const campaignActions = useCampaignActions();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [mockEpoch, setMockEpoch] = useState(0);
 
   useEffect(() => subscribeMockCampaigns(() => setMockEpoch((n) => n + 1)), []);
+
+  useEffect(() => {
+    const stored = readCampaignSort();
+    setSortKey(stored);
+    persistCampaignSort(stored);
+  }, []);
+
+  const handleSortChange = (next: CampaignSortKey) => {
+    setSortKey(next);
+    persistCampaignSort(next);
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -202,7 +238,7 @@ export default function CampaignsClientPage() {
               statusFilter={statusFilter}
               onStatusChange={setStatusFilter}
               sortKey={sortKey}
-              onSortChange={setSortKey}
+              onSortChange={handleSortChange}
               statusCounts={statusCounts}
               total={dashSource.length}
               onClearAll={clearFilters}
@@ -229,9 +265,9 @@ export default function CampaignsClientPage() {
         <>
         <CampaignsMiniDash items={dashSource} />
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className={LIST_PAGE_PANE_CLASS}>
             {error ? (
-              <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
+              <div className="flex-1 rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
                 {error instanceof Error ? error.message : "Erro ao carregar."}
               </div>
             ) : visibleItems.length === 0 ? (
