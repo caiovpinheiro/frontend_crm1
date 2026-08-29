@@ -42,7 +42,6 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
-import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { CallHistoryList } from "@/features/softphone/components/call-history-list";
 import {
@@ -533,7 +532,27 @@ export default function LogsClientPage() {
     statsRange,
   );
 
+  const feedBooting =
+    isFeed && isLoading && realItems.length === 0 && !isError && !isDemo;
+  const [feedChromeReady, setFeedChromeReady] = React.useState(false);
+  React.useEffect(() => {
+    if (!feedBooting) setFeedChromeReady(true);
+  }, [feedBooting]);
+
   if (ready && !isManagerUp) return <RestrictedScreen />;
+
+  if (feedBooting && !feedChromeReady) {
+    return (
+      <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
+        <NavRailSpacer />
+        <main
+          className="flex min-h-0 min-w-0 flex-1 flex-col"
+          aria-busy="true"
+          aria-label="Carregando logs"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
@@ -648,8 +667,8 @@ export default function LogsClientPage() {
             )}
 
             <div className={LIST_PAGE_PANE_CLASS}>
-            {isLoading && allItems.length === 0 ? (
-              <AppLoading />
+            {isLoading && allItems.length === 0 && !isError ? (
+              <div className="min-h-[12rem]" aria-busy="true" aria-label="Carregando eventos" />
             ) : isError && !isDemo ? (
               <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
                 Não foi possível carregar o feed.
@@ -748,7 +767,7 @@ export default function LogsClientPage() {
           <SystemUsageTab range={usagePeriod.range} />
         ) : isCalls ? (
           callsWidget.isLoading ? (
-            <AppLoading variant="inline" />
+            <div className="min-h-0 flex-1" aria-busy="true" aria-label="Carregando chamadas" />
           ) : callsWidget.enabled !== true ? (
             <CallsNotEnabledState />
           ) : (
@@ -768,10 +787,7 @@ export default function LogsClientPage() {
         ) : (
           <div className="flex flex-col">
             {statsLoading || !stats ? (
-              <div className="flex items-center justify-center py-16 text-[13px] text-[var(--text-muted)]">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Calculando estatísticas...
-              </div>
+              <div className="min-h-[12rem]" aria-busy="true" aria-label="Carregando estatísticas" />
             ) : (
               <LogsStatsPanel stats={stats} />
             )}

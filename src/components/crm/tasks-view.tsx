@@ -16,7 +16,6 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { AppLoading } from "@/components/crm/app-loading"
 import { ButtonGlass } from "@/components/crm/button-glass"
 import { InputGlass } from "@/components/crm/input-glass"
 import { MiniCalendar } from "@/components/crm/mini-calendar"
@@ -856,7 +855,6 @@ function TasksSearchFilterBar({
 
 export function TasksView({
   tasks,
-  loading = false,
   error = null,
   scope,
   onScopeChange,
@@ -865,7 +863,6 @@ export function TasksView({
   onReschedule,
 }: {
   tasks: Task[]
-  loading?: boolean
   error?: string | null
   scope?: ActivityScopeFilter
   onScopeChange?: (scope: ActivityScopeFilter) => void
@@ -1114,9 +1111,7 @@ export function TasksView({
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto">
-            {loading && tasks.length === 0 ? (
-              <AppLoading variant="inline" className="min-h-[320px]" />
-            ) : error ? (
+            {error ? (
               <div className="flex min-h-[240px] items-center justify-center p-6 text-center text-sm text-destructive">
                 {error}
               </div>

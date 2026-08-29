@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import * as Dialog from "@radix-ui/react-dialog"
+import { CheckSquare } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useUserRole } from "@/hooks/use-user-role"
 import { toast } from "sonner"
@@ -14,12 +14,17 @@ import {
   IconCalendarEvent,
   IconPencil,
   IconTrash,
-  IconX,
 } from "@tabler/icons-react"
 
 import { AvatarGlass } from "@/components/crm/avatar-glass"
 import { ButtonGlass } from "@/components/crm/button-glass"
 import { useConfirm } from "@/components/ui/confirm-dialog"
+import {
+  FormDialog,
+  FormDialogIcon,
+  formDialogCancelClass,
+  formLabelClass,
+} from "@/components/ui/form-dialog"
 import { Textarea } from "@/components/ui/textarea"
 import {
   ACTIVITY_COMMENT_CONTENT_MAX,
@@ -175,53 +180,77 @@ export function ActivityDetailDialog({
       title: "Excluir nota?",
       description: "A nota será marcada como excluída e permanecerá no histórico.",
       confirmLabel: "Excluir",
+      pendingLabel: "Excluindo…",
       destructive: true,
+      action: async () => {
+        try {
+          await deleteMut.mutateAsync({ commentId: comment.id })
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Erro ao excluir nota.")
+          throw e
+        }
+      },
     })
     if (!ok) return
-    try {
-      await deleteMut.mutateAsync({ commentId: comment.id })
-      toast.success("Nota excluída.")
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao excluir nota.")
-    }
+    toast.success("Nota excluída.")
   }
+
+  const footer =
+    activity && (onReschedule || onCancel || onDelete) ? (
+      <>
+        {onReschedule && activity.status !== "concluida" && (
+          <ButtonGlass
+            type="button"
+            variant="glass"
+            className={formDialogCancelClass}
+            onClick={() => onReschedule(activity)}
+          >
+            <IconCalendarEvent size={14} />
+            Remarcar
+          </ButtonGlass>
+        )}
+        {onCancel &&
+          activity.status !== "concluida" &&
+          APPOINTMENT_KINDS.has(activity.kind) && (
+            <ButtonGlass
+              type="button"
+              variant="glass"
+              className={formDialogCancelClass}
+              onClick={() => onCancel(activity)}
+            >
+              <IconBan size={14} />
+              Cancelar
+            </ButtonGlass>
+          )}
+        {onDelete && (
+          <ButtonGlass
+            type="button"
+            variant="danger"
+            className="rounded-full px-4"
+            onClick={() => onDelete(activity)}
+          >
+            <IconTrash size={14} />
+            Excluir
+          </ButtonGlass>
+        )}
+      </>
+    ) : undefined
 
   return (
     <>
-      <Dialog.Root open={open} onOpenChange={handleOpenChange}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-          <Dialog.Content
-            className={cn(
-              "fixed left-1/2 top-1/2 z-50 flex w-[min(560px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col",
-              "max-h-[calc(100vh-2rem)] overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)]",
-              "bg-[var(--glass-bg-overlay)] shadow-[var(--glass-shadow)] backdrop-blur-2xl",
-              "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
-              "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-            )}
-          >
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--glass-border-subtle)] px-5 py-4">
-              <div className="min-w-0 flex-1">
-                <Dialog.Title className="font-display text-[17px] font-bold text-[var(--text-primary)]">
-                  {activity?.title ?? "Detalhes da tarefa"}
-                </Dialog.Title>
-                <Dialog.Description className="mt-0.5 font-body text-[12px] text-[var(--text-muted)]">
-                  Notas e histórico da tarefa
-                </Dialog.Description>
-              </div>
-              <Dialog.Close asChild>
-                <button
-                  type="button"
-                  aria-label="Fechar"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
-                >
-                  <IconX size={18} />
-                </button>
-              </Dialog.Close>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              {/* Cabeçalho / detalhes */}
+      <FormDialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={activity?.title ?? "Detalhes da tarefa"}
+        description="Notas e histórico da tarefa"
+        icon={
+          <FormDialogIcon>
+            <CheckSquare className="size-4" />
+          </FormDialogIcon>
+        }
+        size="lg"
+        footer={footer}
+      >
               {activity && (
                 <section className="mb-5 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-3.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -241,13 +270,13 @@ export function ActivityDetailDialog({
 
                   <dl className="mt-3 grid gap-2 font-body text-[12px] sm:grid-cols-2">
                     <div>
-                      <dt className="font-display text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                      <dt className={formLabelClass}>
                         Criada por
                       </dt>
                       <dd className="mt-0.5 text-[var(--text-primary)]">{creatorName}</dd>
                     </div>
                     <div>
-                      <dt className="font-display text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                      <dt className={formLabelClass}>
                         Responsável
                       </dt>
                       <dd className="mt-0.5 text-[var(--text-primary)]">
@@ -257,7 +286,7 @@ export function ActivityDetailDialog({
                     </div>
                     {(activity.contactName || activity.withWhom) && (
                       <div>
-                        <dt className="font-display text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                        <dt className={formLabelClass}>
                           Contato
                         </dt>
                         <dd className="mt-0.5 text-[var(--text-primary)]">
@@ -267,7 +296,7 @@ export function ActivityDetailDialog({
                     )}
                     {activity.dealTitle && (
                       <div>
-                        <dt className="font-display text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                        <dt className={formLabelClass}>
                           Negócio
                         </dt>
                         <dd className="mt-0.5 text-[var(--text-primary)]">{activity.dealTitle}</dd>
@@ -295,7 +324,7 @@ export function ActivityDetailDialog({
 
               {/* Timeline de notas */}
               <section>
-                <h3 className="mb-2 font-display text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                <h3 className={cn(formLabelClass, "mb-2")}>
                   Notas
                 </h3>
 
@@ -448,7 +477,7 @@ export function ActivityDetailDialog({
                   onClick={() => setHistoryOpen((v) => !v)}
                   className="flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-1 py-1.5 text-left transition-colors hover:bg-[var(--glass-bg-strong)]"
                 >
-                  <span className="font-display text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+                  <span className={formLabelClass}>
                     Histórico de alterações
                   </span>
                   <IconChevronDown
@@ -518,50 +547,7 @@ export function ActivityDetailDialog({
                 )}
               </section>
               )}
-            </div>
-
-            {activity && (onReschedule || onCancel || onDelete) && (
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--glass-border-subtle)] px-5 py-3">
-                {onReschedule && activity.status !== "concluida" && (
-                  <ButtonGlass
-                    type="button"
-                    variant="glass"
-                    className="h-9 rounded-full px-3 text-[12px]"
-                    onClick={() => onReschedule(activity)}
-                  >
-                    <IconCalendarEvent size={14} />
-                    Remarcar
-                  </ButtonGlass>
-                )}
-                {onCancel &&
-                  activity.status !== "concluida" &&
-                  APPOINTMENT_KINDS.has(activity.kind) && (
-                    <ButtonGlass
-                      type="button"
-                      variant="glass"
-                      className="h-9 rounded-full px-3 text-[12px]"
-                      onClick={() => onCancel(activity)}
-                    >
-                      <IconBan size={14} />
-                      Cancelar
-                    </ButtonGlass>
-                  )}
-                {onDelete && (
-                  <ButtonGlass
-                    type="button"
-                    variant="glass"
-                    className="h-9 rounded-full px-3 text-[12px] text-destructive"
-                    onClick={() => onDelete(activity)}
-                  >
-                    <IconTrash size={14} />
-                    Excluir
-                  </ButtonGlass>
-                )}
-              </div>
-            )}
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      </FormDialog>
       {confirmDialog}
     </>
   )
