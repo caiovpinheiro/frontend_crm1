@@ -739,11 +739,11 @@ export function ChatArea({
           <StickyDayPill date={stickyDayLabel} />
         ) : null}
         {messagesLoading ? (
-          <AppLoading variant="inline" className="min-h-[240px]" label="Carregando mensagens" timeoutMs={0} />
+          <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
         ) : messagesError ? (
           <AppLoading
             variant="inline"
-            className="min-h-[240px]"
+            className="min-h-0 flex-1"
             error="Não foi possível carregar as mensagens."
           />
         ) : messages.length === 0 ? (

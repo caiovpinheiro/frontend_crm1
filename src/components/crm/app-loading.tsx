@@ -31,6 +31,12 @@ export type AppLoadingProps = {
    * `inline`: bloco no fluxo, só para refetch com chrome já visível.
    */
   variant?: "screen" | "panel" | "inline";
+  /**
+   * `default` — splash (caixa 88 / marca 52).
+   * `sm` — painel de conversa / inline (~54 / 32).
+   * Inline omite e cai em `sm`.
+   */
+  size?: "default" | "sm";
   /** 0 desliga a rede de segurança (use só onde há outro guard de timeout). */
   timeoutMs?: number;
   /**
@@ -43,17 +49,26 @@ export type AppLoadingProps = {
   className?: string;
 };
 
-const MARK_BOX_PX = 88;
-const MARK_IMG_PX = 52;
+const MARK_SIZE = {
+  default: { box: 88, img: 52 },
+  sm: { box: 54, img: 32 },
+} as const;
 
-function BrandMark({ spinning }: { spinning: boolean }) {
+function BrandMark({
+  spinning,
+  size = "default",
+}: {
+  spinning: boolean;
+  size?: "default" | "sm";
+}) {
   const reactId = React.useId().replace(/:/g, "");
   const gradId = `brand-loader-ring-${reactId}`;
+  const { box: boxPx, img: imgPx } = MARK_SIZE[size];
 
   return (
     <span
       className="relative inline-flex items-center justify-center"
-      style={{ width: MARK_BOX_PX, height: MARK_BOX_PX }}
+      style={{ width: boxPx, height: boxPx }}
     >
       <span
         aria-hidden
@@ -96,11 +111,11 @@ function BrandMark({ spinning }: { spinning: boolean }) {
       <img
         src={BWIPO_MARK_SRC}
         alt=""
-        width={MARK_IMG_PX}
-        height={MARK_IMG_PX}
+        width={imgPx}
+        height={imgPx}
         draggable={false}
         className="relative object-contain"
-        style={{ width: MARK_IMG_PX, height: MARK_IMG_PX }}
+        style={{ width: imgPx, height: imgPx }}
       />
     </span>
   );
@@ -110,10 +125,12 @@ function Body({
   label,
   message,
   onRetry,
+  size = "default",
 }: {
   label: string;
   message: string | null;
   onRetry?: () => void;
+  size?: "default" | "sm";
 }) {
   if (message) {
     return (
@@ -122,7 +139,7 @@ function Body({
         role="alert"
         data-app-loading-state="error"
       >
-        <BrandMark spinning={false} />
+        <BrandMark spinning={false} size={size} />
         <p className="max-w-[260px] text-[13px] font-medium text-muted-foreground">
           {message}
         </p>
@@ -145,7 +162,7 @@ function Body({
       aria-label={label}
       data-app-loading-state="loading"
     >
-      <BrandMark spinning />
+      <BrandMark spinning size={size} />
     </div>
   );
 }
@@ -153,12 +170,14 @@ function Body({
 export function AppLoading({
   label = "Carregando",
   variant = "screen",
+  size,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   error = null,
   onRetry,
   className,
 }: AppLoadingProps) {
   const [timedOut, setTimedOut] = React.useState(false);
+  const resolvedSize = size ?? (variant === "inline" ? "sm" : "default");
 
   React.useEffect(() => {
     if (error || timeoutMs <= 0) return;
@@ -170,23 +189,32 @@ export function AppLoading({
     error ?? (timedOut ? "Não foi possível carregar esta tela." : null);
   const busy = !message;
 
-  const content = (
-    <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-6">
-      <Body label={label} message={message} onRetry={error ? onRetry : undefined} />
-    </div>
+  const body = (
+    <Body
+      label={label}
+      message={message}
+      onRetry={error ? onRetry : undefined}
+      size={resolvedSize}
+    />
   );
 
   if (variant === "inline") {
     return (
-      <div className={cn("flex min-h-[200px] w-full", className)} aria-busy={busy}>
-        {content}
+      <div
+        className={cn(
+          "flex min-h-[200px] w-full flex-1 flex-col items-center justify-center p-6",
+          className,
+        )}
+        aria-busy={busy}
+      >
+        {body}
       </div>
     );
   }
 
   return (
     <ScreenOverlay className={className} busy={busy}>
-      <Body label={label} message={message} onRetry={error ? onRetry : undefined} />
+      {body}
     </ScreenOverlay>
   );
 }

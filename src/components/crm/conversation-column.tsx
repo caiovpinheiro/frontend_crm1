@@ -551,9 +551,9 @@ export function ConversationColumn({
         ref={listScrollRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0.5 [-webkit-overflow-scrolling:touch]"
       >
-        <div className="flex flex-col gap-1.5">
+        <div className="flex min-h-full flex-col gap-1.5">
         {isLoading ? (
-          <AppLoading variant="inline" className="min-h-[280px]" />
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : (
           <>
             {displayed.map((conversation) => {
