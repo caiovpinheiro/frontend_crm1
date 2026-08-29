@@ -5,6 +5,7 @@ import { AutomationCard } from "./automation-card"
 import { EmptyState } from "./empty-state"
 import { cn } from "@/lib/utils"
 import type { Automation } from "@/lib/automations-data"
+import { LIST_PAGE_STACK_CLASS } from "./pagination-glass"
 import { ListColumnLabel, LIST_CARD_HEAD_CLASS, LIST_CARD_STACK_CLASS } from "./sortable-header"
 
 interface AutomationsGalleryProps {
@@ -35,7 +36,7 @@ export function AutomationsGallery({
 
   return (
     <section
-      className={cn("min-w-0", LIST_CARD_STACK_CLASS)}
+      className={cn("min-w-0", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}
       aria-label="Lista de automações"
     >
       <div className={cn(columnClass, LIST_CARD_HEAD_CLASS)}>

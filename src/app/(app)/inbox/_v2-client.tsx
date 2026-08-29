@@ -20,12 +20,14 @@ import {
   IconChevronsUp,
   IconChevronUp,
   IconCircleCheck,
+  IconDeviceLaptop,
   IconMessageCircle,
   IconRotateClockwise,
   IconSquareCheck,
   IconX,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -2157,22 +2159,33 @@ export default function InboxV2ClientPage({
 }
 
 function EmptyChatArea() {
-  // `h-full min-h-0` garante que o card cubra toda a coluna do grid pai
-  // (antes o main colapsava ao tamanho do conteúdo, deixando uma faixa
-  // branca gigante no centro — sensação de "fantasma" no F5).
+  // `h-full min-h-0` cobre a coluna do grid; o card fica no centro do
+  // container de conversa (não da página). Sem isso o main colapsava e
+  // sobrava faixa vazia no F5.
   return (
-    <main className="flex h-full min-h-0 w-full flex-col items-center justify-center rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-10 text-center backdrop-blur-md shadow-[var(--glass-shadow)]">
-      <div className="grid size-16 place-items-center rounded-[var(--radius-lg)] bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-        </svg>
+    <main className="flex h-full min-h-0 w-full flex-col items-center justify-center p-6">
+      <div
+        className={cn(
+          CARD_SURFACE_CLASS,
+          "flex w-full max-w-md flex-col items-center px-8 py-12 text-center",
+        )}
+      >
+        <div className="relative flex h-16 w-20 items-center justify-center text-primary">
+          <IconDeviceLaptop size={64} stroke={1.25} aria-hidden />
+          <IconMessageCircle
+            className="absolute -translate-y-0.5"
+            size={24}
+            stroke={1.75}
+            aria-hidden
+          />
+        </div>
+        <h2 className="mt-6 font-display text-xl font-bold tracking-tight text-foreground">
+          Selecione uma conversa
+        </h2>
+        <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
+          Mensagens, ligações e o histórico do contato aparecem aqui.
+        </p>
       </div>
-      <h2 className="mt-3 font-display text-base font-bold text-[var(--text-primary)]">
-        Selecione uma conversa
-      </h2>
-      <p className="mt-1 max-w-sm text-[13px] text-[var(--text-muted)]">
-        Escolha uma conversa na lista para visualizar mensagens e detalhes do contato.
-      </p>
     </main>
   );
 }

@@ -51,7 +51,7 @@ import {
   ResizableColumnHead,
   useColumnWidths,
 } from "@/components/crm/column-resizer";
-import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import { EmptyState } from "@/components/crm/empty-state";
 import { CheckboxGlass } from "@/components/crm/checkbox-glass";
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -517,12 +517,13 @@ export default function V2CompaniesClientPage() {
           </div>
         )}
 
+        <div className={LIST_PAGE_PANE_CLASS}>
         {query.error ? (
-          <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
+          <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {query.error instanceof Error ? query.error.message : "Erro ao carregar."}
           </div>
         ) : displayItems.length === 0 ? (
-          <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
+          <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
             <EmptyState
               icon={<IconBuilding size={28} />}
               title="Nenhuma empresa encontrada"
@@ -581,6 +582,7 @@ export default function V2CompaniesClientPage() {
           perPage={perPage}
           onPerPageChange={(value) => { setPerPage(value); setPage(1); }}
         />
+        </div>
         </>
         )}
       </main>
@@ -965,7 +967,7 @@ function TabelaView({
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
       <ListHScroll>
-        <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
+        <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
           <div className={listTableHeadRowClass("hidden w-max min-w-full items-center lg:flex")}>
             <span className="w-9 shrink-0">
               <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todas" />
@@ -1072,7 +1074,7 @@ function CardsView({
 
   return (
     <ListHScroll scrollerClassName="pb-1">
-    <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
+    <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
       <div
         className={listTableHeadRowClass("hidden gap-3 lg:grid")}
         style={{ gridTemplateColumns: gridTemplate }}

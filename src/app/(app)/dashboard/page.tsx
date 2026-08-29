@@ -8,14 +8,13 @@
 
 import { Suspense } from "react";
 import DashboardV2ClientPage from "./_v2-client";
-import { RouteLoading } from "@/components/crm/page-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 
 export const dynamic = "force-dynamic";
 
 export default function V2DashboardPage() {
   return (
-    <Suspense fallback={<RouteLoading />}>
+    <Suspense fallback={null}>
       <DashboardV2ClientPage navRail={<NavRailSpacer />} />
     </Suspense>
   );

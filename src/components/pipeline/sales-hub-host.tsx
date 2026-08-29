@@ -583,23 +583,31 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   // erro com retry em vez de spinner infinito.
   if (pipelinesFailed) {
     return (
-      <AppLoading
-        variant="inline"
-        className="min-h-[100dvh]"
-        error={
-          pipelinesEmpty
-            ? "Nenhum funil configurado nesta organização."
-            : "Não foi possível carregar os funis."
-        }
-        onRetry={() => void pipelinesQuery.refetch()}
-      />
+      <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+        <NavRailSpacer />
+        <AppLoading
+          variant="inline"
+          className="min-h-0 flex-1"
+          error={
+            pipelinesEmpty
+              ? "Nenhum funil configurado nesta organização."
+              : "Não foi possível carregar os funis."
+          }
+          onRetry={() => void pipelinesQuery.refetch()}
+        />
+      </div>
     );
   }
 
   // Só sessão/funil. NÃO esperar isFetched do board — query disabled/idle
   // nunca fica fetched e o Flow ficava preso no loading para sempre.
   if (sessionStatus === "loading" || !pipelineId) {
-    return <AppLoading variant="inline" className="min-h-[100dvh]" />;
+    return (
+      <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+        <NavRailSpacer />
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
+      </div>
+    );
   }
 
   const hasActiveFilters = !isEmptyFilters(filters) || !!search.trim();

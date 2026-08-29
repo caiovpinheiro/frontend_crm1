@@ -74,7 +74,7 @@ import {
   PeriodPresetPanel,
 } from "@/components/crm/period-calendar-button";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
-import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import {
   LIST_CARD_ROW_CLASS,
   listTableHeadRowClass,
@@ -539,7 +539,7 @@ export default function LogsClientPage() {
     <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
       <NavRailSpacer />
 
-      <main className="flex min-w-0 flex-col gap-3 sm:gap-4">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 sm:gap-4">
         <SectionHeader
           icon={ClipboardList}
           title="Logs"
@@ -647,14 +647,15 @@ export default function LogsClientPage() {
               </PageDemoBanner>
             )}
 
+            <div className={LIST_PAGE_PANE_CLASS}>
             {isLoading && allItems.length === 0 ? (
               <AppLoading />
             ) : isError && !isDemo ? (
-              <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
+              <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
                 Não foi possível carregar o feed.
               </div>
             ) : allItems.length === 0 ? (
-              <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
+              <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
                 <EmptyState
                   icon={<IconClipboardList size={28} />}
                   title="Nenhum evento encontrado"
@@ -668,7 +669,7 @@ export default function LogsClientPage() {
             ) : (
               /* Layout em cards (padrão Chamadas): cabeçalho solto + linhas
                  individuais com gap. Scroll horizontal se viewport < 960px. */
-              <div className="flex min-w-[960px] flex-col gap-2.5 overflow-x-auto">
+              <div className={cn("flex min-w-[960px] flex-col gap-2.5 overflow-x-auto", LIST_PAGE_STACK_CLASS)}>
                   <div
                     className={listTableHeadRowClass(
                       `${FEED_GRID} gap-3.5 border border-transparent px-4 py-2`,
@@ -741,6 +742,7 @@ export default function LogsClientPage() {
                 onPerPageChange={setLimit}
               />
             )}
+            </div>
           </>
         ) : isUsage ? (
           <SystemUsageTab range={usagePeriod.range} />

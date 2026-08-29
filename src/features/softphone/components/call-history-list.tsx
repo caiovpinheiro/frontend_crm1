@@ -22,7 +22,7 @@ import { ChatAvatar } from "@/components/inbox/chat-avatar";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { AVATAR_SIZE } from "@/lib/avatar";
 import { EmptyState } from "@/components/crm/empty-state";
-import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import {
   ListColumnLabel,
   LIST_CARD_ROW_CLASS,
@@ -276,7 +276,7 @@ function ConversationCallHistory({
         </label>
       </div>
 
-      <div className={cn("min-w-0", LIST_CARD_STACK_CLASS)}>
+      <div className={cn("min-w-0", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
         <div
           className={cn(
             "hidden items-center gap-4 px-5 text-xs font-semibold tracking-wide text-muted-foreground lg:grid",
@@ -584,7 +584,7 @@ function StandaloneCallHistoryList({
       {header}
 
       <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-          <div className={cn("min-w-[960px]", LIST_CARD_STACK_CLASS)}>
+          <div className={cn("min-w-[960px]", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
             <div className={listTableHeadRowClass(`${COLS} gap-3`)}>
               {HeadRow}
             </div>

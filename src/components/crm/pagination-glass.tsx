@@ -28,6 +28,12 @@ interface PaginationGlassProps {
 
 const DEFAULT_PER_PAGE_OPTIONS = [25, 50, 100] as const;
 
+/** Página de lista: preenche o pane para o PaginationGlass ir ao fundo. */
+export const LIST_PAGE_PANE_CLASS = "flex min-h-0 flex-1 flex-col";
+
+/** Stack da lista dentro do pane (cresce; o rodapé fica embaixo). */
+export const LIST_PAGE_STACK_CLASS = "min-h-0 flex-1";
+
 /** Mesma escala da meta esquerda e do rótulo "Por página". */
 const META_TEXT = "text-sm leading-relaxed text-muted-foreground";
 
@@ -56,7 +62,7 @@ export function PaginationGlass({
     <div
       data-pagination-glass
       className={cn(
-        "flex flex-wrap items-center justify-between gap-x-4 gap-y-3 pt-3 pb-6",
+        "mt-auto flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-3 pt-3 pb-6",
         className,
       )}
     >

@@ -10,6 +10,7 @@ import { BadgeGlass } from "./badge-glass";
 import { CheckboxGlass } from "./checkbox-glass";
 import { ColumnResizer, useColumnWidths } from "./column-resizer";
 import { ListHScroll } from "./list-hscroll";
+import { LIST_PAGE_STACK_CLASS } from "./pagination-glass";
 import { SortableHeader, type SortDir, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, listTableHeadRowClass } from "./sortable-header";
 import { StageDot } from "./stage-dot";
 
@@ -249,7 +250,7 @@ export function DealListTable({
   return (
     <ListHScroll className={className} scrollerClassName="pb-1">
       {/* w-max + minmax nas colunas: overflow X real (igual Contatos/Empresas). */}
-      <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
+      <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
         <div
           className={listTableHeadRowClass("hidden gap-3 lg:grid")}
           style={{ gridTemplateColumns: gridTemplate }}

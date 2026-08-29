@@ -31,7 +31,7 @@ import {
   type PageActionsMenuItem,
   PageSegmentedControl,
 } from "@/components/crm/page-toolbar";
-import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import { EmptyState } from "@/components/crm/empty-state";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
 import { PipelineSwitcher, AddDealDialog } from "@/features/pipeline-v2/extras";
@@ -411,16 +411,17 @@ export default function V2PipelineListClientPage() {
           </div>
         )}
 
+        <div className={LIST_PAGE_PANE_CLASS}>
         {waitingForPipeline || waitingForDeals ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : dealsQuery.error ? (
-          <div className="rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
+          <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {dealsQuery.error instanceof Error
               ? dealsQuery.error.message
               : "Erro ao carregar negócios."}
           </div>
         ) : rows.length === 0 ? (
-          <div className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
+          <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] backdrop-blur-md shadow-[var(--glass-shadow)]">
             <EmptyState
               icon={<IconList size={28} />}
               title="Nenhum negócio encontrado"
@@ -433,6 +434,7 @@ export default function V2PipelineListClientPage() {
           </div>
         ) : (
           <DealListTable
+            className="min-h-0 flex-1"
             deals={rows}
             statusTab={statusTab}
             visibleColumns={activeColumnKeys}
@@ -461,6 +463,7 @@ export default function V2PipelineListClientPage() {
             setPage(1);
           }}
         />
+        </div>
       </main>
 
       {pipelineId ? (

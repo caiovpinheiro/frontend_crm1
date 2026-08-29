@@ -33,7 +33,7 @@ import { MobileTableScroll } from "@/components/crm/mobile-table-scroll";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { CheckboxGlass } from "@/components/crm/checkbox-glass";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
-import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
 import {
   SettingsListFilterBar,
@@ -681,6 +681,7 @@ function TeamContent() {
         <AppLoading variant="inline" className="min-h-0 flex-1" />
       ) : (
       <>
+      <div className={cn(LIST_PAGE_PANE_CLASS, "min-h-min")}>
       {/* STATS — shrink-0: toolbar-hscroll/overflow em flex-col colapsava a altura
           (~só o topo dos ícones visível). Mobile: 3 mini-cards; desktop: StatCards. */}
       <div className="grid shrink-0 grid-cols-3 gap-2 sm:hidden">
@@ -933,6 +934,7 @@ function TeamContent() {
           }}
         />
       ) : null}
+      </div>
       </>
       )}
       </>
