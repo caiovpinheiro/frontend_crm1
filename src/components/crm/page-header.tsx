@@ -10,11 +10,41 @@ import { ChevronLeft } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-/** Sticky page chrome — opaque canvas so rows scroll behind, not through. */
-export const PAGE_HEADER_STICKY_CLASS =
-  "sticky top-0 z-20 bg-[var(--bg-base)]"
+/** Page title/search stay outside the Y-scroller (zoom breaks `sticky`). */
+export const PAGE_HEADER_STICKY_CLASS = "bg-[var(--bg-base)]"
 
 export const PAGE_HEADER_STICKY_ATTR = "data-sticky-page-header"
+
+/**
+ * Header fora do overflow. O miolo (`data-page-scroll`) é o único
+ * scrollport — KPIs, linhas e rodapé rolam por baixo do chrome.
+ */
+export function PageChrome({
+  header,
+  children,
+  className,
+  bodyClassName,
+}: {
+  header: React.ReactNode
+  children: React.ReactNode
+  className?: string
+  bodyClassName?: string
+}) {
+  return (
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>
+      <div className="shrink-0 bg-[var(--bg-base)]">{header}</div>
+      <div
+        data-page-scroll=""
+        className={cn(
+          "flex min-h-0 min-w-0 flex-1 flex-col overflow-auto overscroll-contain",
+          bodyClassName,
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
 
 /**
  * Publishes `--page-header-sticky-h` on the nearest page scrollport so

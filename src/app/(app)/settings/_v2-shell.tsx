@@ -3,7 +3,7 @@
 import * as React from "react";
 import { IconSettings } from "@tabler/icons-react";
 
-import { PageHeader, type PageHeaderBack } from "@/components/crm/page-header";
+import { PageChrome, PageHeader, type PageHeaderBack } from "@/components/crm/page-header";
 
 /**
  * Voltar ao hub `/settings`. No desktop o hub redireciona para Perfil;
@@ -78,11 +78,8 @@ export function SettingsV2Shell({
 
   return (
     <SettingsHeaderSlotsContext.Provider value={slotSetters}>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div
-          data-page-scroll=""
-          className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto overscroll-contain pr-1 sm:gap-3.5 [-webkit-overflow-scrolling:touch]"
-        >
+      <PageChrome
+        header={
           <PageHeader
             back={back}
             icon={icon}
@@ -91,9 +88,11 @@ export function SettingsV2Shell({
             center={center ?? slotCenter}
             actions={actions ?? slotActions}
           />
-          {children}
-        </div>
-      </main>
+        }
+        bodyClassName="gap-3 pr-1 sm:gap-3.5 [-webkit-overflow-scrolling:touch]"
+      >
+        {children}
+      </PageChrome>
     </SettingsHeaderSlotsContext.Provider>
   );
 }
