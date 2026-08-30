@@ -1,17 +1,22 @@
 "use client"
 
 import { Bot } from "lucide-react"
+
+import { DataView } from "@/components/automations/data-view"
+import type { CardsTableView } from "@/components/automations/view-toggle"
+import type { Automation } from "@/lib/automations-data"
+import { cn } from "@/lib/utils"
+
 import { AutomationCard } from "./automation-card"
 import { EmptyState } from "./empty-state"
-import { cn } from "@/lib/utils"
-import type { Automation } from "@/lib/automations-data"
 import { LIST_PAGE_STACK_CLASS } from "./pagination-glass"
-import { ListColumnLabel, LIST_CARD_HEAD_CLASS, LIST_CARD_STACK_CLASS } from "./sortable-header"
+import { ListColumnLabel } from "./sortable-header"
 
 interface AutomationsGalleryProps {
   automations: Automation[]
   onToggle: (id: string) => void
   onDelete?: (id: string) => void
+  view?: CardsTableView
 }
 
 const columnClass =
@@ -21,6 +26,7 @@ export function AutomationsGallery({
   automations,
   onToggle,
   onDelete,
+  view = "cards",
 }: AutomationsGalleryProps) {
   if (automations.length === 0) {
     return (
@@ -34,29 +40,32 @@ export function AutomationsGallery({
     )
   }
 
-  return (
-    <section
-      className={cn("min-w-0", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}
-      aria-label="Lista de automações"
-    >
-      <div className={cn(columnClass, LIST_CARD_HEAD_CLASS)}>
-        <ListColumnLabel>Automação / gatilho</ListColumnLabel>
-        <ListColumnLabel>Fluxo</ListColumnLabel>
-        <ListColumnLabel>Sucesso</ListColumnLabel>
-        <ListColumnLabel>Execuções</ListColumnLabel>
-        <ListColumnLabel>Última execução</ListColumnLabel>
-        <ListColumnLabel align="right">Status</ListColumnLabel>
-      </div>
+  const header = (
+    <>
+      <ListColumnLabel>Automação / gatilho</ListColumnLabel>
+      <ListColumnLabel>Fluxo</ListColumnLabel>
+      <ListColumnLabel>Sucesso</ListColumnLabel>
+      <ListColumnLabel>Execuções</ListColumnLabel>
+      <ListColumnLabel>Última execução</ListColumnLabel>
+      <ListColumnLabel align="right">Status</ListColumnLabel>
+    </>
+  )
 
+  return (
+    <DataView
+      view={view}
+      columnClass={columnClass}
+      header={header}
+      className={cn("min-w-0", LIST_PAGE_STACK_CLASS)}
+    >
       {automations.map((a) => (
         <AutomationCard
           key={a.id}
           automation={a}
           onToggle={onToggle}
           onDelete={onDelete}
-          columnClass={columnClass}
         />
       ))}
-    </section>
+    </DataView>
   )
 }

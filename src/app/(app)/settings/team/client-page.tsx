@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { apiUrl } from "@/lib/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,11 +39,12 @@ import {
   SettingsListFilterBar,
   type SettingsFilterGroup,
 } from "@/components/crm/settings-filter-bar";
+import { DataView, DataRow } from "@/components/automations/data-view";
+import { ViewToggle, type CardsTableView } from "@/components/automations/view-toggle";
 import {
   LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
-  listTableHeadRowClass,
   type SortDir,
 } from "@/components/crm/sortable-header";
 import { UserAvatar } from "@/components/crm/user-avatar";
@@ -214,6 +215,7 @@ function TeamContent() {
   const [perPage, setPerPage] = React.useState(DEFAULT_PER_PAGE);
   const [sortBy, setSortBy] = React.useState<"name" | "email">("name");
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
+  const [view, setView] = React.useState<CardsTableView>("cards");
 
   // Expediente tab (busca própria + modal "Novo expediente")
   const [expedienteSearch, setExpedienteSearch] = React.useState("");
@@ -631,6 +633,7 @@ function TeamContent() {
   const actionsNode = React.useMemo(
     () => (
       <div className="flex items-center gap-2">
+        {activeTab === 0 ? <ViewToggle value={view} onChange={setView} /> : null}
         {segmentedControl}
         <PageActionsMenu
           aria-label="Ações da equipe"
@@ -656,7 +659,7 @@ function TeamContent() {
         />
       </div>
     ),
-    [activeTab, segmentedControl],
+    [activeTab, segmentedControl, view],
   );
 
   return (
@@ -768,26 +771,28 @@ function TeamContent() {
         </GlassCard>
       ) : (
         <MobileTableScroll minWidth={780}>
-          {/* Cabeçalho de colunas */}
-          <div
-            className={listTableHeadRowClass("gap-3 border border-transparent px-4")}
+          <DataView
+            view={view}
+            columnClass="grid items-center gap-3"
             style={{ gridTemplateColumns: USER_LIST_GRID }}
+            header={
+              <>
+                <span>
+                  <CheckboxGlass
+                    checked={allChecked}
+                    indeterminate={!allChecked && someChecked}
+                    onChange={toggleAll}
+                    aria-label="Selecionar todos"
+                  />
+                </span>
+                <SortableHeader label="Nome" sort={dirFor("name")} onSort={() => toggleSort("name")} />
+                <SortableHeader label="E-mail" sort={dirFor("email")} onSort={() => toggleSort("email")} />
+                <ListColumnLabel>Função</ListColumnLabel>
+                <ListColumnLabel>Telefonia</ListColumnLabel>
+                <ListColumnLabel align="right">Ações</ListColumnLabel>
+              </>
+            }
           >
-            <span>
-              <CheckboxGlass
-                checked={allChecked}
-                indeterminate={!allChecked && someChecked}
-                onChange={toggleAll}
-                aria-label="Selecionar todos"
-              />
-            </span>
-            <SortableHeader label="Nome" sort={dirFor("name")} onSort={() => toggleSort("name")} />
-            <SortableHeader label="E-mail" sort={dirFor("email")} onSort={() => toggleSort("email")} />
-            <ListColumnLabel>Função</ListColumnLabel>
-            <ListColumnLabel>Telefonia</ListColumnLabel>
-            <ListColumnLabel align="right">Ações</ListColumnLabel>
-          </div>
-
           {visibleUsers.map((u) => {
             const isSelected = selected.has(u.id);
             const fnRole = userFunctionRole(u, adminRole?.id);
@@ -801,14 +806,11 @@ function TeamContent() {
                 ? [{ value: fnRole.id, label: fnLabel }, ...baseRoleOptions]
                 : baseRoleOptions;
             return (
-              <div
+              <DataRow
                 key={u.id}
-                style={{ gridTemplateColumns: USER_LIST_GRID }}
                 className={cn(
-                  "group grid items-center gap-3 rounded-[var(--radius-xl)] border px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:shadow-[var(--glass-shadow)]",
-                  isSelected
-                    ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)]"
-                    : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] hover:border-[var(--input-border-focus)]",
+                  "group",
+                  isSelected && "border-primary bg-primary/10",
                 )}
               >
                 <span>
@@ -915,9 +917,10 @@ function TeamContent() {
                     <span className="font-body text-[12px] text-[var(--text-muted)]">—</span>
                   )}
                 </div>
-              </div>
+              </DataRow>
             );
           })}
+          </DataView>
         </MobileTableScroll>
       )}
 

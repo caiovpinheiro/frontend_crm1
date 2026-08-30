@@ -10,7 +10,7 @@ import { SwitchGlass } from "./switch-glass"
 import { MiniFlow, type MiniFlowStep } from "./mini-flow"
 import { blockKeyForStepType } from "./flow-block-icon"
 import type { Automation } from "@/lib/automations-data"
-import { LIST_CARD_ROW_CLASS } from "./sortable-header"
+import { DataRow } from "@/components/automations/data-view"
 
 interface AutomationCardProps {
   automation: Automation
@@ -22,7 +22,6 @@ interface AutomationCardProps {
    * Opcional para preservar usos legados (ex.: galeria preview).
    */
   onDelete?: (id: string) => void
-  columnClass?: string
 }
 
 function SuccessBadge({ rate }: { rate: number }) {
@@ -46,7 +45,6 @@ export function AutomationCard({
   automation,
   onToggle,
   onDelete,
-  columnClass,
 }: AutomationCardProps) {
   const stepTypes =
     automation.stepTypes && automation.stepTypes.length > 0
@@ -58,13 +56,7 @@ export function AutomationCard({
   ]
 
   return (
-    <div
-      className={cn(
-        "group relative cursor-pointer",
-        LIST_CARD_ROW_CLASS,
-        columnClass,
-      )}
-    >
+    <DataRow className="group relative cursor-pointer">
       <Link
         href={`/automations/${automation.id}`}
         className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -145,6 +137,6 @@ export function AutomationCard({
           </button>
         )}
       </div>
-    </div>
+    </DataRow>
   )
 }

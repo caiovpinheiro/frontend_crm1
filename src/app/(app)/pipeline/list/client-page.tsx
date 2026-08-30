@@ -33,6 +33,7 @@ import {
 } from "@/components/crm/page-toolbar";
 import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import { EmptyState } from "@/components/crm/empty-state";
+import { ViewToggle, type CardsTableView } from "@/components/automations/view-toggle";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
 import { PipelineSwitcher, AddDealDialog } from "@/features/pipeline-v2/extras";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -151,6 +152,7 @@ export default function V2PipelineListClientPage() {
   const [dupesOpen, setDupesOpen] = useState(false);
   const [activeColumnKeys, setActiveColumnKeys] = useState<DealListColumnKey[]>(readStoredColumns);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [view, setView] = useState<CardsTableView>("cards");
 
   const { filters, setFilters, patch: patchFilters, clear: clearFilters } = useKanbanFilters();
 
@@ -352,7 +354,12 @@ export default function V2PipelineListClientPage() {
               }}
             />
           }
-          period={<PipelinePeriodCalendar filters={filters} onPatch={patchFilters} />}
+          period={
+            <>
+              <PipelinePeriodCalendar filters={filters} onPatch={patchFilters} />
+              <ViewToggle value={view} onChange={setView} />
+            </>
+          }
           tabsOverride={
             <PageSegmentedControl
               size="compact"
@@ -455,6 +462,7 @@ export default function V2PipelineListClientPage() {
             visibleColumns={activeColumnKeys}
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
+            view={view}
             onRowClick={(id) => {
               const item = items.find((d) => d.id === id);
               openDeal(id, item?.number);
