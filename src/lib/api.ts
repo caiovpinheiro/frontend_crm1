@@ -42,6 +42,47 @@ export class ApiError extends Error {
 }
 
 /**
+ * Teto do `fetch` same-origin. O rewrite `/api/*` → backend não tem
+ * timeout: se o Node (ou o proxy) trava, o request fica `(pending)`
+ * para sempre e a query nunca vira `isError`.
+ */
+export const DEFAULT_API_TIMEOUT_MS = 12_000;
+
+function isAbortError(e: unknown): boolean {
+  return (
+    (typeof DOMException !== "undefined" &&
+      e instanceof DOMException &&
+      e.name === "AbortError") ||
+    (e instanceof Error && e.name === "AbortError")
+  );
+}
+
+export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs: number = DEFAULT_API_TIMEOUT_MS,
+): Promise<Response> {
+  const timeout =
+    timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
+  const signal =
+    init.signal && timeout
+      ? AbortSignal.any([init.signal, timeout])
+      : (init.signal ?? timeout);
+  try {
+    return await fetch(apiUrl(path), { ...init, signal });
+  } catch (e) {
+    if (timeoutMs > 0 && isAbortError(e) && !init.signal?.aborted) {
+      throw new ApiError(
+        "Servidor não respondeu a tempo.",
+        504,
+        "FETCH_TIMEOUT",
+      );
+    }
+    throw e;
+  }
+}
+
+/**
  * Interpreta a resposta de um `fetch` para a API e devolve o JSON tipado.
  *
  * Por que existe: o `/api/*` passa pelo proxy do EasyPanel/Traefik e pelo

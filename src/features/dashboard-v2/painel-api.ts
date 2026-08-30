@@ -2,7 +2,7 @@
  * Cliente do Painel (GET /api/painel/deals e /api/painel/service).
  */
 
-import { apiUrl, parseApiResponse } from "@/lib/api";
+import { apiFetch, parseApiResponse } from "@/lib/api";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 
 import type { DashboardFiltersState } from "./api";
@@ -263,12 +263,17 @@ export type PainelServiceResult = {
   exceptions: PainelBlock<PainelServiceException[]>;
 };
 
-async function getJson<T>(path: string, errLabel: string, timeoutMs?: number): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    credentials: "include",
-    cache: "no-store",
-    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
-  });
+async function getJson<T>(
+  path: string,
+  errLabel: string,
+  timeoutMs?: number,
+  signal?: AbortSignal,
+): Promise<T> {
+  const res = await apiFetch(
+    path,
+    { credentials: "include", cache: "no-store", signal },
+    timeoutMs,
+  );
   return parseApiResponse<T>(res, errLabel);
 }
 
@@ -308,6 +313,7 @@ export async function fetchPainelDeals(
   filters: DashboardFiltersState,
   section?: string,
   fieldIds?: string[],
+  signal?: AbortSignal,
 ): Promise<PainelDealsResult> {
   if (isPageMockMode()) return Promise.resolve(mockPainelDeals(filters, fieldIds));
   const sp = filterQuery(filters, fieldIds);
@@ -315,13 +321,19 @@ export async function fetchPainelDeals(
   return getJson<PainelDealsResult>(
     `/api/painel/deals?${sp.toString()}`,
     "Erro ao carregar negócios",
+    20_000,
+    signal,
   );
 }
+
+const SERVICE_LIGHT_TIMEOUT_MS = 15_000;
+const SERVICE_HEAVY_TIMEOUT_MS = 30_000;
 
 export async function fetchPainelService(params: {
   filters: DashboardFiltersState;
   clock: "business" | "elapsed";
   section?: string;
+  signal?: AbortSignal;
 }): Promise<PainelServiceResult> {
   if (isPageMockMode()) {
     return Promise.resolve(mockPainelService(params.filters, params.clock));
@@ -329,19 +341,28 @@ export async function fetchPainelService(params: {
   const sp = filterQuery(params.filters);
   sp.set("clock", params.clock);
   if (params.section) sp.set("section", params.section);
+  const light =
+    params.section === "volume,heatmap,connections,exceptions" ||
+    params.section === "agora";
   return getJson<PainelServiceResult>(
     `/api/painel/service?${sp.toString()}`,
     "Erro ao carregar atendimentos",
-    30_000,
+    light ? SERVICE_LIGHT_TIMEOUT_MS : SERVICE_HEAVY_TIMEOUT_MS,
+    params.signal,
   );
 }
 
-export async function fetchPainelAgora(clock: "business" | "elapsed"): Promise<PainelAgora> {
+export async function fetchPainelAgora(
+  clock: "business" | "elapsed",
+  signal?: AbortSignal,
+): Promise<PainelAgora> {
   if (isPageMockMode()) return Promise.resolve(mockPainelAgora(clock));
   const sp = new URLSearchParams({ section: "agora", clock });
   const data = await getJson<PainelServiceResult>(
     `/api/painel/service?${sp.toString()}`,
     "Erro ao carregar Agora",
+    12_000,
+    signal,
   );
   if (!data.agora.ok) throw new Error(data.agora.error);
   return data.agora.data;
