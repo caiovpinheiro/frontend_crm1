@@ -53,7 +53,7 @@ export const LIST_ACTIONS_CELL_CLASS =
 export function listTableHeadRowClass(className?: string) {
   const usesFlex = /(^|\s)flex(\s|$)/.test(className ?? "");
   return cn(
-    "items-center justify-start gap-4 px-5 text-muted-foreground",
+    "min-h-12 items-center justify-start gap-4 px-5 py-3.5 text-muted-foreground",
     LIST_HEAD_PIPES_CLASS,
     !usesFlex && "grid",
     className,

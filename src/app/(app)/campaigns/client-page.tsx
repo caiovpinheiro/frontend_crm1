@@ -12,7 +12,7 @@ import {
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { cn } from "@/lib/utils";
-import { ViewToggle, type CardsTableView } from "@/components/automations/view-toggle";
+import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import {
@@ -74,7 +74,7 @@ export default function CampaignsClientPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE);
   const [sortKey, setSortKey] = useState<CampaignSortKey>(DEFAULT_SORT);
-  const [view, setView] = useState<CardsTableView>("cards");
+  const [view, setView] = useCardsTableView();
   const deleteMutation = useDeleteCampaign();
   const campaignActions = useCampaignActions();
   const { confirm, dialog: confirmDialog } = useConfirm();

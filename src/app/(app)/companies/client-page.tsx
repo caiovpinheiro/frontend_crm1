@@ -23,12 +23,14 @@ import {
   IconArrowsSort,
   IconMapPin,
 } from "@tabler/icons-react";
-import { Building2, LayoutList, Pencil, Table2 } from "lucide-react";
+import { Building2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
-import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
+import { DataView, DataRow } from "@/components/automations/data-view";
+import { ViewToggle, useCardsTableView, type CardsTableView } from "@/components/automations/view-toggle";
+import { SectionHeader } from "@/components/crm/section-header";
 import {
   PeriodCalendarButton,
   PeriodIsoRangePanel,
@@ -44,11 +46,10 @@ import {
   FilterRadioRow,
   FilterSegmentedTabs,
 } from "@/components/crm/filter-popover";
-import { ListColumnLabel, LIST_ACTIONS_CELL_CLASS, LIST_ACTIONS_TRACK, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, listTableHeadRowClass, type SortDir } from "@/components/crm/sortable-header";
+import { ListColumnLabel, LIST_ACTIONS_CELL_CLASS, LIST_ACTIONS_TRACK, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
   parseWidthClass,
-  ResizableColumnHead,
   useColumnWidths,
 } from "@/components/crm/column-resizer";
 import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
@@ -106,7 +107,7 @@ import type {
 } from "@/features/directory-v2/api";
 
 const DEFAULT_PER_PAGE = 25;
-type ViewMode = "cards" | "tabela";
+type ViewMode = CardsTableView;
 
 const SEGMENTS: {
   id: CompanySegment;
@@ -224,7 +225,7 @@ export default function V2CompaniesClientPage() {
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
 
-  const [view, setView] = useState<ViewMode>("cards");
+  const [view, setView] = useCardsTableView();
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [segment, setSegment] = useState<CompanySegment | null>(null);
@@ -434,16 +435,7 @@ export default function V2CompaniesClientPage() {
               />
             </PeriodCalendarButton>
           }
-          actions={
-            <HeaderPillToggle
-              options={[
-                { key: "cards", label: "Cards", icon: LayoutList },
-                { key: "tabela", label: "Tabela", icon: Table2 },
-              ]}
-              value={view}
-              onChange={(v) => setView(v as ViewMode)}
-            />
-          }
+          actions={<ViewToggle value={view} onChange={setView} />}
           menuSlot={
             <ActionsMenu
               onAdd={() => setCreateOpen(true)}
@@ -536,24 +528,9 @@ export default function V2CompaniesClientPage() {
               }
             />
           </div>
-        ) : view === "tabela" ? (
-          <TabelaView
-            items={displayItems}
-            selected={selected}
-            allChecked={allChecked}
-            someChecked={someChecked}
-            onToggleAll={toggleAll}
-            onToggleOne={toggleOne}
-            columns={activeColumns}
-            getWidth={getWidth}
-            setWidth={setWidth}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSort={toggleSort}
-            onEdit={requestEdit}
-          />
         ) : (
           <CardsView
+            view={view}
             items={displayItems}
             selected={selected}
             allChecked={allChecked}
@@ -943,112 +920,11 @@ function ColumnsDialog({
   );
 }
 
-// ── Tabela ───────────────────────────────────────────────────────────────────
-
-function TabelaView({
-  items, selected, allChecked, someChecked, onToggleAll, onToggleOne, columns, getWidth, setWidth, sortBy, sortOrder, onSort, onEdit,
-}: {
-  items: CompanyListItemDto[];
-  selected: Set<string>;
-  allChecked: boolean;
-  someChecked: boolean;
-  onToggleAll: () => void;
-  onToggleOne: (id: string) => void;
-  columns: ColumnDef[];
-  getWidth: (key: string, fallback?: number) => number;
-  setWidth: (key: string, px: number) => void;
-  sortBy: CompanySortField;
-  sortOrder: "asc" | "desc";
-  onSort: (field: CompanySortField) => void;
-  onEdit: (c: CompanyListItemDto) => void;
-}) {
-  const dirFor = (f: CompanySortField): SortDir => (sortBy === f ? sortOrder : null);
-  const nameW = getWidth(NAME_COL_KEY, 240);
-  return (
-    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-      <ListHScroll>
-        <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
-          <div className={listTableHeadRowClass("hidden w-max min-w-full items-center lg:flex")}>
-            <span className="w-9 shrink-0">
-              <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todas" />
-            </span>
-            <ResizableColumnHead width={nameW} onResize={(px) => setWidth(NAME_COL_KEY, px)} min={160} max={420}>
-              <SortableHeader label="Empresa" sort={dirFor("name")} onSort={() => onSort("name")} className="whitespace-nowrap" />
-            </ResizableColumnHead>
-            {columns.map((col) => (
-              <ResizableColumnHead
-                key={col.key}
-                width={getWidth(col.key, parseWidthClass(col.width))}
-                onResize={(px) => setWidth(col.key, px)}
-              >
-                {col.sortField ? (
-                  <SortableHeader
-                    label={col.label}
-                    sort={dirFor(col.sortField)}
-                    onSort={() => onSort(col.sortField!)}
-                    className="whitespace-nowrap"
-                  />
-                ) : (
-                  <ListColumnLabel className="whitespace-nowrap">{col.label}</ListColumnLabel>
-                )}
-              </ResizableColumnHead>
-            ))}
-          </div>
-          {items.map((c) => (
-            <div
-              key={c.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onEdit(c)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
-              className={cn(
-                "flex w-max min-w-full cursor-pointer items-center gap-3",
-                LIST_CARD_ROW_CLASS,
-                selected.has(c.id) && "border-primary bg-primary/10",
-              )}
-            >
-              <span className="w-9 shrink-0" onClick={(e) => e.stopPropagation()}>
-                <CheckboxGlass checked={selected.has(c.id)} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} />
-              </span>
-              <div className="flex shrink-0 items-center gap-2.5 overflow-hidden" style={{ width: nameW, minWidth: nameW, maxWidth: nameW }}>
-                <ChatAvatar
-                  user={{ id: c.id, name: c.name }}
-                  channel={null}
-                  size={AVATAR_SIZE.sm}
-                />
-                <div className="min-w-0 leading-tight">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onEdit(c); }}
-                    className="group/name inline-flex max-w-full items-center gap-1.5 text-left font-display text-[14px] font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--brand-primary)]"
-                  >
-                    <span className="truncate">{c.name}</span>
-                    <IconPencil size={13} className="flex-shrink-0 opacity-0 transition-opacity group-hover/name:opacity-60" />
-                  </button>
-                  <div className="truncate font-body text-[12px] text-[var(--text-muted)]">{c.domain ?? "—"}</div>
-                </div>
-              </div>
-              {columns.map((col) => {
-                const w = getWidth(col.key, parseWidthClass(col.width));
-                return (
-                  <div key={col.key} className="min-w-0 shrink-0 overflow-hidden" style={{ width: w, minWidth: w, maxWidth: w }}>
-                    {col.cell(c)}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </ListHScroll>
-    </div>
-  );
-}
-
-// ── Cards (linhas horizontais — padrão Contatos) ─────────────────────────────
-
 function CardsView({
+  view = "cards",
   items, selected, allChecked, someChecked, onToggleAll, onToggleOne, columns, getWidth, setWidth, sortBy, sortOrder, onSort, onEdit,
 }: {
+  view?: CardsTableView;
   items: CompanyListItemDto[];
   selected: Set<string>;
   allChecked: boolean;
@@ -1072,13 +948,8 @@ function CardsView({
     LIST_ACTIONS_TRACK,
   ].join(" ");
 
-  return (
-    <ListHScroll scrollerClassName="pb-1">
-    <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
-      <div
-        className={listTableHeadRowClass("hidden gap-3 lg:grid")}
-        style={{ gridTemplateColumns: gridTemplate }}
-      >
+  const header = (
+    <>
         <span>
           <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todas" />
         </span>
@@ -1104,20 +975,29 @@ function CardsView({
           );
         })}
         <ListColumnLabel align="right">Ações</ListColumnLabel>
-      </div>
+    </>
+  );
+
+  return (
+    <ListHScroll scrollerClassName="pb-1">
+    <DataView
+      view={view}
+      columnClass="grid items-center justify-start gap-3"
+      header={header}
+      className={cn("w-max min-w-full", LIST_PAGE_STACK_CLASS)}
+      style={{ gridTemplateColumns: gridTemplate }}
+    >
       {items.map((c) => {
         const isSelected = selected.has(c.id);
         return (
-          <div
+          <DataRow
             key={c.id}
             role="button"
             tabIndex={0}
             onClick={() => onEdit(c)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
-            style={{ gridTemplateColumns: gridTemplate }}
             className={cn(
-              "group grid cursor-pointer items-center justify-start gap-3",
-              LIST_CARD_ROW_CLASS,
+              "group cursor-pointer",
               isSelected && "border-primary bg-primary/10",
             )}
           >
@@ -1165,10 +1045,10 @@ function CardsView({
                 <IconPencil size={16} />
               </button>
             </div>
-          </div>
+          </DataRow>
         );
       })}
-    </div>
+    </DataView>
     </ListHScroll>
   );
 }

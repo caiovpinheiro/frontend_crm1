@@ -22,13 +22,14 @@ import { ChatAvatar } from "@/components/inbox/chat-avatar";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { AVATAR_SIZE } from "@/lib/avatar";
 import { EmptyState } from "@/components/crm/empty-state";
+import { DataView, DataRow } from "@/components/automations/data-view";
+import { useCardsTableView, type CardsTableView } from "@/components/automations/view-toggle";
 import { LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import {
   ListColumnLabel,
   LIST_CARD_ROW_CLASS,
   LIST_CARD_STACK_CLASS,
   SortableHeader,
-  listTableHeadRowClass,
   type SortDir,
 } from "@/components/crm/sortable-header";
 import { SEARCH_DEBOUNCE_MS, normalizeSearchQuery } from "@/lib/search-query";
@@ -138,6 +139,7 @@ interface CallHistoryListProps {
   groupByDay?: boolean;
   /** Conteúdo renderizado dentro do card, acima da tabela (banner, toolbar de filtros…). */
   header?: ReactNode;
+  view?: CardsTableView;
 }
 
 const CONV_COLS =
@@ -481,7 +483,10 @@ function StandaloneCallHistoryList({
   contactId,
   groupByDay: groupedRequested = false,
   header,
+  view: viewProp,
 }: CallHistoryListProps) {
+  const [storedView] = useCardsTableView();
+  const view = viewProp ?? storedView;
   const filters = externalFilters ?? { page: 1, perPage: 25, contactId };
   const [playingId, setPlayingId] = useState<string | null>(null);
 
@@ -584,19 +589,27 @@ function StandaloneCallHistoryList({
       {header}
 
       <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-          <div className={cn("min-w-[960px]", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
-            <div className={listTableHeadRowClass(`${COLS} gap-3`)}>
-              {HeadRow}
-            </div>
-
+          <DataView
+            view={view}
+            columnClass={`grid ${COLS} items-center gap-3`}
+            className={cn("min-w-[960px]", LIST_PAGE_STACK_CLASS)}
+            header={HeadRow}
+          >
             {groupingActive
               ? groupByDay(calls).map(([label, rows]) => (
-                  <div key={label} className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between px-1 pt-1">
-                      <span className="shrink-0 font-display text-[11px] font-bold text-[var(--text-secondary)]">
+                  <div key={label}>
+                    <div
+                      className={cn(
+                        "flex items-center justify-between font-display text-[11px]",
+                        view === "tabela"
+                          ? "border-t border-border bg-secondary/50 px-5 py-2"
+                          : "px-1 pt-1",
+                      )}
+                    >
+                      <span className="shrink-0 font-bold text-[var(--text-secondary)]">
                         {label}
                       </span>
-                      <span className="shrink-0 font-display text-[11px] font-medium text-[var(--text-muted)]">
+                      <span className="shrink-0 font-medium text-[var(--text-muted)]">
                         {rows.length} ligaç{rows.length !== 1 ? "ões" : "ão"}
                       </span>
                     </div>
@@ -608,7 +621,6 @@ function StandaloneCallHistoryList({
                         onPlay={() =>
                           setPlayingId(playingId === call.id ? null : call.id)
                         }
-                        variant="card"
                       />
                     ))}
                   </div>
@@ -619,10 +631,9 @@ function StandaloneCallHistoryList({
                     call={call}
                     isPlaying={playingId === call.id}
                     onPlay={() => setPlayingId(playingId === call.id ? null : call.id)}
-                    variant="card"
                   />
                 ))}
-          </div>
+          </DataView>
         </div>
 
       <PaginationGlass
@@ -647,24 +658,15 @@ interface CallTableRowProps {
   call: CallRecord;
   isPlaying: boolean;
   onPlay: () => void;
-  /** "card" = linhas separadas (padrão Contatos); "dense" = tabela embutida. */
-  variant?: "card" | "dense";
 }
 
-function CallTableRow({ call, isPlaying, onPlay, variant = "dense" }: CallTableRowProps) {
+function CallTableRow({ call, isPlaying, onPlay }: CallTableRowProps) {
   const isMissed = call.status === "MISSED" || call.status === "FAILED";
   const isInbound = call.direction === "INBOUND";
   const { label: sLabel, color: sColor } = statusLabel(call.status);
 
   return (
-    <div
-      className={cn(
-        `grid ${COLS} items-center gap-3 transition-all`,
-        variant === "card"
-          ? LIST_CARD_ROW_CLASS
-          : "border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-secondary/40",
-      )}
-    >
+    <DataRow>
         {/* Ícone de direção/status — protótipo: ⤫ perdida/falhou (danger),
             ↙ recebida (success), ↗ realizada (brand) */}
         <span
@@ -794,7 +796,7 @@ function CallTableRow({ call, isPlaying, onPlay, variant = "dense" }: CallTableR
             <span className="h-8 w-8" />
           )}
         </div>
-    </div>
+    </DataRow>
   );
 }
 

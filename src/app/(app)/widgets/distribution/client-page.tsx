@@ -45,6 +45,8 @@ import {
 import { DistributionIcon } from "@/components/icons/distribution-icon";
 import { RestrictedScreen } from "@/components/crm/restricted-screen";
 import { useRequireManager } from "@/hooks/use-user-role";
+import { DataView, DataRow } from "@/components/automations/data-view";
+import { ViewToggle, useCardsTableView, type CardsTableView } from "@/components/automations/view-toggle";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { FilterChip } from "@/components/crm/filter-popover";
@@ -57,7 +59,7 @@ import { PageDemoBanner } from "@/components/crm/page-demo-banner";
 import { Chip } from "@/components/crm/chip";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ListHScroll } from "@/components/crm/list-hscroll";
-import { ListColumnLabel, CARD_SURFACE_CLASS, LIST_ACTIONS_CELL_CLASS, LIST_CARD_HEAD_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, listTableHeadRowClass, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
+import { ListColumnLabel, CARD_SURFACE_CLASS, LIST_ACTIONS_CELL_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
 import { AVATAR_SIZE } from "@/lib/avatar";
 import {
@@ -191,6 +193,7 @@ export default function DistributionClientPage({
   const searchParams = useSearchParams();
   const viewFromUrl = parseViewParam(searchParams.get("tab"));
   const [view, setView] = useState<DistributionView>(viewFromUrl ?? "team");
+  const [listView, setListView] = useCardsTableView();
   const [search, setSearch] = useState("");
   const [presence, setPresence] = useState<PresenceKey[]>([]);
   const [eligibility, setEligibility] = useState<("eligible" | "blocked")[]>([]);
@@ -376,6 +379,9 @@ export default function DistributionClientPage({
           actions={
             smartInstalled || view === "coverage" ? (
               <div className="flex flex-wrap items-center gap-2">
+                {view !== "coverage" && smartInstalled ? (
+                  <ViewToggle value={listView} onChange={setListView} />
+                ) : null}
                 <HeaderTabs
                   tabs={[
                     { key: "team", label: "Equipe", badge: teamListCount },
@@ -470,6 +476,7 @@ export default function DistributionClientPage({
 
               {view === "team" ? (
                 <ResponsiblesCardList
+                  view={listView}
                   responsibles={filteredResponsibles}
                   total={teamListCount}
                   hasFilters={hasFilters}
@@ -482,6 +489,7 @@ export default function DistributionClientPage({
                 />
               ) : view === "queue" ? (
                 <PendingQueueCards
+                  view={listView}
                   pending={pending}
                   illustrative={useDemo}
                   onRetry={handleRetry}
@@ -490,6 +498,7 @@ export default function DistributionClientPage({
                 />
               ) : (
                 <DistributionLogsList
+                  view={listView}
                   enabled={isAuthenticated && (isPageMockMode() || smartInstalled)}
                   dateFrom={logDateFrom}
                   dateTo={logDateTo}
@@ -637,6 +646,7 @@ const RESP_GRID =
   "grid-cols-[minmax(260px,2.6fr)_minmax(200px,1.5fr)_minmax(56px,0.55fr)_minmax(64px,0.65fr)_minmax(170px,1.35fr)_max-content]";
 
 function ResponsiblesCardList({
+  view,
   responsibles,
   total,
   hasFilters,
@@ -647,6 +657,7 @@ function ResponsiblesCardList({
   onEdit,
   onRedistribute,
 }: {
+  view: CardsTableView;
   responsibles: DistributionResponsibleDto[];
   total: number;
   hasFilters: boolean;
@@ -711,15 +722,21 @@ function ResponsiblesCardList({
 
       {/* Desktop: grid tabular com scroll horizontal se necessário. */}
       <div className="hidden overflow-x-auto md:flex md:flex-col">
-        <div className={cn("min-w-[1040px]", LIST_CARD_STACK_CLASS)}>
-          <div className={listTableHeadRowClass(cn(RESP_GRID, "border border-transparent"))}>
-            <ListColumnLabel>Responsável</ListColumnLabel>
-            <ListColumnLabel>Presença</ListColumnLabel>
-            <ListColumnLabel align="center">Fila</ListColumnLabel>
-            <ListColumnLabel align="center">Volume</ListColumnLabel>
-            <ListColumnLabel>Elegibilidade</ListColumnLabel>
-            <ListColumnLabel align="right">Ações</ListColumnLabel>
-          </div>
+        <DataView
+          view={view}
+          columnClass={cn("grid items-center gap-4", RESP_GRID)}
+          className="min-w-[1040px]"
+          header={
+            <>
+              <ListColumnLabel>Responsável</ListColumnLabel>
+              <ListColumnLabel>Presença</ListColumnLabel>
+              <ListColumnLabel align="center">Fila</ListColumnLabel>
+              <ListColumnLabel align="center">Volume</ListColumnLabel>
+              <ListColumnLabel>Elegibilidade</ListColumnLabel>
+              <ListColumnLabel align="right">Ações</ListColumnLabel>
+            </>
+          }
+        >
           {responsibles.map((r) => (
             <ResponsibleCard
               key={r.userId}
@@ -731,7 +748,7 @@ function ResponsiblesCardList({
               onRedistribute={onRedistribute}
             />
           ))}
-        </div>
+        </DataView>
       </div>
     </>
   );
@@ -832,7 +849,7 @@ function ResponsibleCard({
   };
 
   return (
-    <div className={cn("grid items-center gap-4", LIST_CARD_ROW_CLASS, RESP_GRID)}>
+    <DataRow>
       {/* Responsável */}
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="relative isolate shrink-0">
@@ -961,7 +978,7 @@ function ResponsibleCard({
           </button>
         )}
       </div>
-    </div>
+    </DataRow>
   );
 }
 
@@ -1672,12 +1689,14 @@ const QUEUE_COLUMN_CLASS =
   "grid items-center gap-3 grid-cols-[minmax(240px,1.6fr)_minmax(160px,1fr)_110px_minmax(140px,0.9fr)_minmax(160px,1.2fr)]";
 
 function PendingQueueCards({
+  view,
   pending,
   illustrative = false,
   onRetry,
   retrying,
   loading = false,
 }: {
+  view: CardsTableView;
   pending: PendingDistributionDto[];
   illustrative?: boolean;
   onRetry: () => void;
@@ -1771,30 +1790,36 @@ function PendingQueueCards({
         </div>
       ) : (
         <ListHScroll scrollerClassName="pb-1">
-          <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS)}>
-            <div className={listTableHeadRowClass(QUEUE_COLUMN_CLASS)}>
-              <SortableHeader
-                label="Contato"
-                sort={dirFor("contact")}
-                onSort={() => toggleSort("contact")}
-              />
-              <SortableHeader
-                label="Departamento"
-                sort={dirFor("department")}
-                onSort={() => toggleSort("department")}
-              />
-              <SortableHeader
-                label="Espera"
-                sort={dirFor("waitingMin")}
-                onSort={() => toggleSort("waitingMin")}
-              />
-              <SortableHeader
-                label="Entrou em"
-                sort={dirFor("enteredAt")}
-                onSort={() => toggleSort("enteredAt")}
-              />
-              <ListColumnLabel>Motivo</ListColumnLabel>
-            </div>
+          <DataView
+            view={view}
+            columnClass={QUEUE_COLUMN_CLASS}
+            className="w-max min-w-full"
+            header={
+              <>
+                <SortableHeader
+                  label="Contato"
+                  sort={dirFor("contact")}
+                  onSort={() => toggleSort("contact")}
+                />
+                <SortableHeader
+                  label="Departamento"
+                  sort={dirFor("department")}
+                  onSort={() => toggleSort("department")}
+                />
+                <SortableHeader
+                  label="Espera"
+                  sort={dirFor("waitingMin")}
+                  onSort={() => toggleSort("waitingMin")}
+                />
+                <SortableHeader
+                  label="Entrou em"
+                  sort={dirFor("enteredAt")}
+                  onSort={() => toggleSort("enteredAt")}
+                />
+                <ListColumnLabel>Motivo</ListColumnLabel>
+              </>
+            }
+          >
             {sorted.map((item) => {
               const href = hrefById.get(item.id);
               const waitTone =
@@ -1802,11 +1827,6 @@ function PendingQueueCards({
                   ? "bg-chip-red-soft text-chip-red"
                   : "bg-chip-orange-soft text-chip-orange";
               const deptColor = colorForQueueDepartment(item, departments);
-              const rowClass = cn(
-                QUEUE_COLUMN_CLASS,
-                LIST_CARD_ROW_CLASS,
-                href && "cursor-pointer no-underline",
-              );
               const cells = (
                 <>
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -1846,22 +1866,22 @@ function PendingQueueCards({
                   </span>
                 </>
               );
-              return href ? (
-                <Link
+              return (
+                <DataRow
                   key={item.id}
-                  href={href}
-                  className={rowClass}
-                  title="Abrir conversa no inbox"
+                  className={href ? "cursor-pointer" : undefined}
                 >
-                  {cells}
-                </Link>
-              ) : (
-                <div key={item.id} className={rowClass}>
-                  {cells}
-                </div>
+                  {href ? (
+                    <Link href={href} className="contents" title="Abrir conversa no inbox">
+                      {cells}
+                    </Link>
+                  ) : (
+                    cells
+                  )}
+                </DataRow>
               );
             })}
-          </div>
+          </DataView>
         </ListHScroll>
       )}
     </section>
@@ -1905,10 +1925,12 @@ function logInIsoRange(createdAt: string, from: string, to: string): boolean {
 }
 
 function DistributionLogsList({
+  view,
   enabled,
   dateFrom,
   dateTo,
 }: {
+  view: CardsTableView;
   enabled: boolean;
   dateFrom: string;
   dateTo: string;
@@ -2161,35 +2183,37 @@ function DistributionLogsList({
             })}
           </ul>
 
-          <div className="hidden min-w-[820px] flex-col gap-2.5 md:flex">
-            <div
-              className={cn(
-                LIST_CARD_HEAD_CLASS,
-                "lg:grid-cols-[minmax(160px,1.2fr)_minmax(140px,1fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(120px,0.8fr)_140px]",
-              )}
+          <div className="hidden min-w-[820px] flex-col md:flex">
+            <DataView
+              view={view}
+              columnClass="grid items-center gap-4 lg:grid-cols-[minmax(160px,1.2fr)_minmax(140px,1fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(120px,0.8fr)_140px]"
+              header={
+                <>
+                  <ListColumnLabel>Contato</ListColumnLabel>
+                  <ListColumnLabel>Departamento</ListColumnLabel>
+                  <ListColumnLabel>Resultado</ListColumnLabel>
+                  <ListColumnLabel>Responsável / motivo</ListColumnLabel>
+                  <ListColumnLabel>Origem</ListColumnLabel>
+                  <ListColumnLabel>Quando</ListColumnLabel>
+                </>
+              }
             >
-              <ListColumnLabel>Contato</ListColumnLabel>
-              <ListColumnLabel>Departamento</ListColumnLabel>
-              <ListColumnLabel>Resultado</ListColumnLabel>
-              <ListColumnLabel>Responsável / motivo</ListColumnLabel>
-              <ListColumnLabel>Origem</ListColumnLabel>
-              <ListColumnLabel>Quando</ListColumnLabel>
-            </div>
-            {filteredItems.map((log) => {
-              const expanded = expandedId === log.id;
-              const resultLabel =
-                DIST_REASON_LABELS[log.reason] ??
-                (log.success ? "Distribuído" : log.reason);
-              return (
-                <LogTableRows
-                  key={log.id}
-                  log={log}
-                  expanded={expanded}
-                  resultLabel={resultLabel}
-                  onToggle={() => setExpandedId(expanded ? null : log.id)}
-                />
-              );
-            })}
+              {filteredItems.map((log) => {
+                const expanded = expandedId === log.id;
+                const resultLabel =
+                  DIST_REASON_LABELS[log.reason] ??
+                  (log.success ? "Distribuído" : log.reason);
+                return (
+                  <LogTableRows
+                    key={log.id}
+                    log={log}
+                    expanded={expanded}
+                    resultLabel={resultLabel}
+                    onToggle={() => setExpandedId(expanded ? null : log.id)}
+                  />
+                );
+              })}
+            </DataView>
           </div>
 
           {q.hasNextPage && (
@@ -2664,12 +2688,11 @@ function LogTableRows({
 
   return (
     <>
-      <div
+      <DataRow
         role="button"
         tabIndex={0}
         className={cn(
-          "grid cursor-pointer items-center gap-4 lg:grid-cols-[minmax(160px,1.2fr)_minmax(140px,1fr)_minmax(160px,1fr)_minmax(160px,1.1fr)_minmax(120px,0.8fr)_140px]",
-          LIST_CARD_ROW_CLASS,
+          "cursor-pointer",
           expanded && "border-primary/40 bg-secondary/40",
         )}
         onClick={onToggle}
@@ -2730,7 +2753,7 @@ function LogTableRows({
               )}
             />
         </span>
-      </div>
+      </DataRow>
       {expanded && (
         <div className="px-5 py-3 text-sm">
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.2fr_auto]">

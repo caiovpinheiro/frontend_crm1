@@ -40,7 +40,7 @@ import {
   type SettingsFilterGroup,
 } from "@/components/crm/settings-filter-bar";
 import { DataView, DataRow } from "@/components/automations/data-view";
-import { ViewToggle, type CardsTableView } from "@/components/automations/view-toggle";
+import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
 import {
   LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
@@ -215,7 +215,7 @@ function TeamContent() {
   const [perPage, setPerPage] = React.useState(DEFAULT_PER_PAGE);
   const [sortBy, setSortBy] = React.useState<"name" | "email">("name");
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
-  const [view, setView] = React.useState<CardsTableView>("cards");
+  const [view, setView] = useCardsTableView();
 
   // Expediente tab (busca própria + modal "Novo expediente")
   const [expedienteSearch, setExpedienteSearch] = React.useState("");
