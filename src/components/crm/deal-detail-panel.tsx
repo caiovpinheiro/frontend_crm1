@@ -712,14 +712,23 @@ export function DealDetailPanel({
           >
             {loadingAside}
             {!isMobile && <div aria-hidden className="w-2" />}
-            <div
+            <main
+              aria-label="Carregando conversa"
+              aria-busy="true"
               className={cn(
                 "flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] shadow-[var(--glass-shadow)] backdrop-blur-md",
                 isMobile && "flex-1",
               )}
             >
-              <AppLoading variant="inline" className="min-h-0 flex-1" />
-            </div>
+              <TabsBar activeTab="conversa" onChange={() => undefined} />
+              <AppLoading
+                variant="inline"
+                tone="watermark"
+                className="min-h-0 flex-1"
+                label="Carregando conversa"
+                timeoutMs={0}
+              />
+            </main>
           </div>
         </div>
       </div>

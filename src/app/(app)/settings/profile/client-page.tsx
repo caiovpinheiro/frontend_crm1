@@ -1,6 +1,7 @@
 "use client";
 
 import OldProfilePage from "@/features/legacy-v1/settings/profile";
+import { ProfileSidebarCard } from "@/features/sidebar/profile-sidebar-card";
 import { SettingsV2Shell } from "../_v2-shell";
 
 /**
@@ -11,9 +12,10 @@ export default function ProfileV2ClientPage() {
   return (
     <SettingsV2Shell
       title="Perfil"
-      description="Dados pessoais e tokens de acesso"
+      description="Dados pessoais e organização da NavRail"
     >
       <OldProfilePage />
+      <ProfileSidebarCard />
     </SettingsV2Shell>
   );
 }

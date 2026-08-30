@@ -20,6 +20,9 @@ import {
 
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { EmptyState } from "@/components/crm/empty-state";
+import { DataView, DataRow } from "@/components/automations/data-view";
+import { ListColumnLabel } from "@/components/crm/sortable-header";
+import type { CardsTableView } from "@/components/automations/view-toggle";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "@/components/crm/date-range-picker";
 
@@ -56,8 +59,10 @@ function fmtRelative(iso: string | null): string {
 }
 
 export function SystemUsageTab({
+  view,
   range,
 }: {
+  view: CardsTableView;
   range: DateRange;
 }) {
   const fromISO = toISO(range.from);
@@ -130,23 +135,23 @@ export function SystemUsageTab({
         </div>
       ) : (
         <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-          <div className="flex min-w-[880px] flex-col gap-2">
-            <div
-              className={cn(
-                "grid gap-3 border border-transparent px-4 py-2 font-display text-[11px] font-bold uppercase tracking-[0.05em] text-[var(--text-muted)]",
-                USAGE_GRID,
-              )}
-            >
-              <span>Usuário</span>
-              <span>Estado</span>
-              <span>Último uso</span>
-              <span className="text-right">Tempo total</span>
-              <span className="text-right">Sessões</span>
-              <span className="text-right">Duração média</span>
-              <span className="text-right">Interações</span>
-              <span />
-            </div>
-
+          <DataView
+            view={view}
+            columnClass={cn("grid items-center gap-3", USAGE_GRID)}
+            className="min-w-[880px]"
+            header={
+              <>
+                <ListColumnLabel>Usuário</ListColumnLabel>
+                <ListColumnLabel>Estado</ListColumnLabel>
+                <ListColumnLabel>Último uso</ListColumnLabel>
+                <ListColumnLabel align="right">Tempo total</ListColumnLabel>
+                <ListColumnLabel align="right">Sessões</ListColumnLabel>
+                <ListColumnLabel align="right">Duração média</ListColumnLabel>
+                <ListColumnLabel align="right">Interações</ListColumnLabel>
+                <span />
+              </>
+            }
+          >
             {items.map((row) => (
               <UsageRow
                 key={row.userId}
@@ -159,7 +164,7 @@ export function SystemUsageTab({
                 toISO={toISOStr!}
               />
             ))}
-          </div>
+          </DataView>
         </div>
       )}
     </div>
@@ -186,14 +191,18 @@ function UsageRow({
   toISO: string;
 }) {
   return (
-    <div className="flex flex-col rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-      <button
-        type="button"
+    <>
+      <DataRow
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
-        className={cn(
-          "grid items-center gap-3 px-4 py-3 text-left transition-all hover:bg-[var(--glass-bg-strong)]",
-          USAGE_GRID,
-        )}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        className="cursor-pointer text-left"
         aria-expanded={expanded}
       >
         <div className="flex min-w-0 items-center gap-2.5">
@@ -236,7 +245,7 @@ function UsageRow({
             <IconChevronRight size={16} />
           )}
         </span>
-      </button>
+      </DataRow>
 
       {expanded && (
         <UserSessionsPanel
@@ -245,7 +254,7 @@ function UsageRow({
           toISO={toISO}
         />
       )}
-    </div>
+    </>
   );
 }
 

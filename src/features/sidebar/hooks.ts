@@ -1,19 +1,20 @@
 "use client";
 
 /*
- * Hook de leitura das preferencias efetivas de sidebar do usuario autenticado.
+ * Preferencias efetivas da sidebar (papel + overlay pessoal).
  *
- * 14/jul/26: `useSaveSidebarPreferences` foi removido. A edicao da sidebar
- * saiu de /settings/profile (per-user) e virou config de Papel em
- * /settings/permissions — usa `useUpdateRole` diretamente. Ver AGENT.md
- * "Sidebar por Papel". A rota antiga `PATCH /api/profile/preferences/sidebar`
- * agora retorna 410 Gone.
+ * Edicao pessoal: `useSaveSidebarPreferences` / `useResetSidebarPreferences`
+ * em /settings/profile. O teto do papel continua em /settings/permissions.
  */
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchSidebarPreferences } from "./api";
-import type { SidebarPreferencesResponse } from "./types";
+import {
+  fetchSidebarPreferences,
+  resetSidebarPreferences,
+  saveSidebarPreferences,
+} from "./api";
+import type { SidebarItemPreference, SidebarPreferencesResponse } from "./types";
 
 import { isPreviewMode } from "@/lib/preview-mode";
 
@@ -32,5 +33,31 @@ export function useSidebarPreferences(enabled?: boolean) {
     placeholderData: keepPreviousData,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+  });
+}
+
+function writePrefsCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  data: SidebarPreferencesResponse,
+) {
+  queryClient.setQueryData<SidebarPreferencesResponse>(SIDEBAR_PREFS_KEY, (prev) => ({
+    ...prev,
+    ...data,
+  }));
+}
+
+export function useSaveSidebarPreferences() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: SidebarItemPreference[]) => saveSidebarPreferences(items),
+    onSuccess: (data) => writePrefsCache(queryClient, data),
+  });
+}
+
+export function useResetSidebarPreferences() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: resetSidebarPreferences,
+    onSuccess: (data) => writePrefsCache(queryClient, data),
   });
 }

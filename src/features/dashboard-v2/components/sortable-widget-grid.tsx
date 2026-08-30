@@ -43,6 +43,10 @@ function shouldAutoSize(id: string) {
   return id !== "evolution";
 }
 
+/** Matches backend layout h max (50) with room for chrome; stops grow-loops. */
+const MAX_AUTO_ROWS = 40;
+const AUTO_SIZE_DEBOUNCE_MS = 220;
+
 const RAIL_ACTION_CLASS = cn(
   "flex size-7 shrink-0 items-center justify-center rounded-lg",
   "bg-card text-muted-foreground",
@@ -126,26 +130,27 @@ export function SortableWidgetGrid({
   const layoutRef = useRef(layout);
   const interactingRef = useRef(false);
   const applyingRef = useRef(false);
+  const persistEnabledRef = useRef(persistEnabled);
+  const onLayoutChangeRef = useRef(onLayoutChange);
   const pendingHeights = useRef(new Map<string, number>());
   const heightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   layoutRef.current = layout;
+  persistEnabledRef.current = persistEnabled;
+  onLayoutChangeRef.current = onLayoutChange;
 
-  const commit = useCallback(
-    (next: Layout) => {
-      if (!persistEnabled) return;
-      const compacted = compactNegociosLayout(next);
-      if (sameLayout(compacted, layoutRef.current)) return;
-      applyingRef.current = true;
-      onLayoutChange(compacted);
-      queueMicrotask(() => {
-        applyingRef.current = false;
-      });
-    },
-    [onLayoutChange, persistEnabled],
-  );
+  const commit = useCallback((next: Layout) => {
+    if (!persistEnabledRef.current) return;
+    const compacted = compactNegociosLayout(next);
+    if (sameLayout(compacted, layoutRef.current)) return;
+    applyingRef.current = true;
+    onLayoutChangeRef.current(compacted);
+    queueMicrotask(() => {
+      applyingRef.current = false;
+    });
+  }, []);
 
   const flushHeights = useCallback(() => {
-    if (interactingRef.current) return;
+    if (interactingRef.current || applyingRef.current) return;
     const current = layoutRef.current;
     let next = current;
     let changed = false;
@@ -159,23 +164,30 @@ export function SortableWidgetGrid({
     if (changed) commit(next);
   }, [commit]);
 
+  const flushHeightsRef = useRef(flushHeights);
+  flushHeightsRef.current = flushHeights;
+
   useEffect(() => {
     if (disabled) return;
     const observer = new ResizeObserver((entries) => {
+      if (interactingRef.current || applyingRef.current) return;
       for (const entry of entries) {
         const id = (entry.target as HTMLElement).dataset.gridMeasure;
         if (!id || !shouldAutoSize(id)) continue;
         const item = layoutRef.current.find((row) => row.i === id);
-        const rows = gridRowsForPx(
+        if (!item) continue;
+        const measured = gridRowsForPx(
           (entry.target as HTMLElement).offsetHeight,
-          item?.minH ?? 2,
+          item.minH ?? 2,
         );
-        if (!item || item.h === rows) continue;
+        const rows = Math.min(MAX_AUTO_ROWS, measured);
+        // Grow-only + ignore 1-row jitter so measure↔cell cannot oscillate.
+        if (rows <= item.h || rows - item.h < 2) continue;
         pendingHeights.current.set(id, rows);
       }
       if (pendingHeights.current.size === 0) return;
       if (heightTimer.current) clearTimeout(heightTimer.current);
-      heightTimer.current = setTimeout(flushHeights, 80);
+      heightTimer.current = setTimeout(() => flushHeightsRef.current(), AUTO_SIZE_DEBOUNCE_MS);
     });
     const root = containerRef.current;
     if (!root) return undefined;
@@ -186,7 +198,7 @@ export function SortableWidgetGrid({
       observer.disconnect();
       if (heightTimer.current) clearTimeout(heightTimer.current);
     };
-  }, [containerRef, disabled, flushHeights, ids, mounted, width, organizing]);
+  }, [containerRef, disabled, ids, mounted, width, organizing]);
 
   async function requestRemove(id: string) {
     if (!onRemove) return;
@@ -278,7 +290,7 @@ export function SortableWidgetGrid({
         >
           {ids.map((id) => (
             <div key={id} className="min-w-0">
-              <div data-grid-measure={id} className="flex min-w-0 items-stretch gap-1">
+              <div data-grid-measure={id} className="flex h-fit min-w-0 items-start gap-1">
                 {chrome(
                   id,
                   <button

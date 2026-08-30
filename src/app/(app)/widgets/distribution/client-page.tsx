@@ -58,6 +58,7 @@ import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { PageDemoBanner } from "@/components/crm/page-demo-banner";
 import { Chip } from "@/components/crm/chip";
 import { EmptyState } from "@/components/crm/empty-state";
+import { PaginationGlass } from "@/components/crm/pagination-glass";
 import { ListHScroll } from "@/components/crm/list-hscroll";
 import { ListColumnLabel, CARD_SURFACE_CLASS, LIST_ACTIONS_CELL_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
@@ -1948,6 +1949,8 @@ function DistributionLogsList({
   const [origin, setOrigin] = useState("all");
   const [department, setDepartment] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [logPage, setLogPage] = useState(1);
+  const [logPerPage, setLogPerPage] = useState(25);
 
   const origins = useMemo(() => {
     const set = new Set<string>();
@@ -2010,6 +2013,28 @@ function DistributionLogsList({
       return true;
     });
   }, [dateFrom, dateTo, department, items, logSearch, origin, result]);
+
+  useEffect(() => {
+    setLogPage(1);
+  }, [logSearch, result, origin, department, dateFrom, dateTo, logPerPage]);
+
+  const pagedLogs = useMemo(() => {
+    const start = (logPage - 1) * logPerPage;
+    return filteredItems.slice(start, start + logPerPage);
+  }, [filteredItems, logPage, logPerPage]);
+
+  const fetchMoreLogs = q.fetchNextPage;
+  const logsHaveMore = q.hasNextPage;
+  const logsFetchingMore = q.isFetchingNextPage;
+
+  useEffect(() => {
+    if (pagedLogs.length >= logPerPage) return;
+    if (!logsHaveMore || logsFetchingMore) return;
+    void fetchMoreLogs();
+  }, [pagedLogs.length, logPerPage, logsHaveMore, logsFetchingMore, fetchMoreLogs]);
+
+  const distLogLastPage = Math.max(1, Math.ceil(filteredItems.length / logPerPage));
+  const distCanNext = logPage < distLogLastPage || q.hasNextPage;
 
   const clearFilters = () => {
     setLogSearch("");
@@ -2165,7 +2190,7 @@ function DistributionLogsList({
 
           {/* Mobile / APK: cards */}
           <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
-            {filteredItems.map((log) => {
+            {pagedLogs.map((log) => {
               const resultLabel =
                 DIST_REASON_LABELS[log.reason] ??
                 (log.success ? "Distribuído" : log.reason);
@@ -2198,7 +2223,7 @@ function DistributionLogsList({
                 </>
               }
             >
-              {filteredItems.map((log) => {
+              {pagedLogs.map((log) => {
                 const expanded = expandedId === log.id;
                 const resultLabel =
                   DIST_REASON_LABELS[log.reason] ??
@@ -2216,23 +2241,17 @@ function DistributionLogsList({
             </DataView>
           </div>
 
-          {q.hasNextPage && (
-            <div className="flex shrink-0 justify-center border-t border-[var(--glass-border)] p-3">
-              <button
-                type="button"
-                onClick={() => q.fetchNextPage()}
-                disabled={q.isFetchingNextPage}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-3 py-1.5 font-display text-[12px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-50"
-              >
-                {q.isFetchingNextPage ? (
-                  <IconLoader2 size={14} className="animate-spin" />
-                ) : (
-                  <IconRefresh size={14} />
-                )}
-                Carregar mais
-              </button>
-            </div>
-          )}
+          <PaginationGlass
+            label={`${pagedLogs.length} logs · página ${logPage}`}
+            page={logPage}
+            canPrev={logPage > 1}
+            canNext={distCanNext}
+            onPrev={() => setLogPage((p) => Math.max(1, p - 1))}
+            onNext={() => setLogPage((p) => p + 1)}
+            perPage={logPerPage}
+            onPerPageChange={setLogPerPage}
+            totalCapped={q.hasNextPage}
+          />
         </div>
       )}
     </section>

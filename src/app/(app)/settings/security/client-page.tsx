@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,7 +16,7 @@ import { GlassCard } from "@/components/crm/glass-card";
 import OldApiTokensPage from "@/features/legacy-v1/settings/api-tokens";
 
 import { SETTINGS_HUB_BACK, SettingsV2Shell } from "../_v2-shell";
-import { SettingsTabs, type SettingsTab } from "../_components/settings-tabs";
+import { SettingsHeaderNav, type SettingsTab } from "../_components/settings-tabs";
 import { PermissionsPanel, type Selection } from "../permissions/client-page";
 
 type FeatureFlagItem = {
@@ -72,11 +72,14 @@ export function SecurityClientPage() {
     ? (requested as string)
     : "permissions";
 
-  const setActive = (id: string) => {
-    const sp = new URLSearchParams(params.toString());
-    sp.set("tab", id);
-    router.replace(`/settings/security?${sp.toString()}`);
-  };
+  const setActive = useCallback(
+    (id: string) => {
+      const sp = new URLSearchParams(params.toString());
+      sp.set("tab", id);
+      router.replace(`/settings/security?${sp.toString()}`);
+    },
+    [params, router],
+  );
 
   const [selection, setSelection] = useState<Selection>({ kind: "none" });
 
@@ -87,7 +90,7 @@ export function SecurityClientPage() {
       description="Permissões, API e Webhooks e feature flags"
       icon={<IconShield size={22} />}
     >
-      <SettingsTabs tabs={TABS} active={active} onChange={setActive} />
+      <SettingsHeaderNav tabs={TABS} active={active} onChange={setActive} />
 
       {active === "permissions" && (
         <PermissionsPanel

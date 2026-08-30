@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+
+function readDealQuery(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URL(window.location.href).searchParams.get("deal");
+}
 
 function writeDealQuery(num: number, mode: "push" | "replace") {
   if (typeof window === "undefined") return;
@@ -29,7 +34,7 @@ function clearDealQuery() {
  * - History API (push/replace) para não refetch de RSC.
  */
 export function useDealDeepLink() {
-  const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const [activeDealId, setActiveDealId] = useState<string | null>(readDealQuery);
 
   const setActiveDeal = useCallback((id: string | null, num?: number | null) => {
     setActiveDealId(id);
@@ -48,9 +53,9 @@ export function useDealDeepLink() {
     writeDealQuery(num, "replace");
   }, []);
 
-  useEffect(() => {
-    const d = new URL(window.location.href).searchParams.get("deal");
-    if (d) setActiveDealId(d);
+  useLayoutEffect(() => {
+    const d = readDealQuery();
+    if (d) setActiveDealId((cur) => cur ?? d);
   }, []);
 
   useEffect(() => {

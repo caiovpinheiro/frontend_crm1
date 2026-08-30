@@ -7,6 +7,11 @@ export interface SidebarPreferencesResponse {
   sidebar: {
     items: SidebarItemPreference[];
   };
+  /** Teto do papel — o overlay pessoal nao reexibe o que o admin escondeu. */
+  roleSidebar?: {
+    items: SidebarItemPreference[];
+  };
+  availableKeys?: string[];
   appearance?: {
     theme: "light" | "dark" | null;
   };

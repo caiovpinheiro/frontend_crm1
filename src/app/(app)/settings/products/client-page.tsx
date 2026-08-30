@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   IconBoxMultiple,
@@ -16,7 +16,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { canSeeItem, type Viewer } from "@/lib/nav-visibility";
 import { SETTINGS_HUB_BACK, SettingsV2Shell } from "../_v2-shell";
-import { SettingsTabs, type SettingsTab } from "../_components/settings-tabs";
+import { SettingsHeaderNav, type SettingsTab } from "../_components/settings-tabs";
 
 const TAB_META: (SettingsTab & { permission: string })[] = [
   { id: "catalog", label: "Catálogo", icon: IconBoxMultiple, permission: "catalog:view" },
@@ -44,16 +44,21 @@ export default function ProductsV2ClientPage() {
     [viewer],
   );
 
+  const [productMenu, setProductMenu] = useState<ReactNode>(null);
+
   const requested = params.get("tab");
   const active = tabs.some((t) => t.id === requested)
     ? (requested as string)
     : tabs[0]?.id ?? "products";
 
-  const setActive = (id: string) => {
-    const sp = new URLSearchParams(params.toString());
-    sp.set("tab", id);
-    router.replace(`/settings/products?${sp.toString()}`);
-  };
+  const setActive = useCallback(
+    (id: string) => {
+      const sp = new URLSearchParams(params.toString());
+      sp.set("tab", id);
+      router.replace(`/settings/products?${sp.toString()}`);
+    },
+    [params, router],
+  );
 
   return (
     <SettingsV2Shell
@@ -69,9 +74,16 @@ export default function ProductsV2ClientPage() {
         />
       ) : (
         <>
-          <SettingsTabs tabs={tabs} active={active} onChange={setActive} />
+          <SettingsHeaderNav
+            tabs={tabs}
+            active={active}
+            onChange={setActive}
+            trailing={active === "products" ? productMenu : undefined}
+          />
           {active === "catalog" && <CatalogsManager />}
-          {active === "products" && <ProductsV2Page />}
+          {active === "products" && (
+            <ProductsV2Page onHeaderMenu={setProductMenu} />
+          )}
           {active === "cotas" && <QuotasPage />}
         </>
       )}

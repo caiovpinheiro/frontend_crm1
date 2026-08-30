@@ -30,7 +30,7 @@ import {
   type SortDir,
 } from "@/components/crm/sortable-header";
 import { SwitchGlass } from "@/components/crm/switch-glass";
-import { TabsGlass } from "@/components/crm/tabs-glass";
+import { HeaderTabs } from "@/components/crm/section-header";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ConnectEmailModal } from "@/features/email-v2";
 import {
@@ -128,7 +128,11 @@ function EmailAccountsBody() {
   const actionsNode = React.useMemo(
     () => (
       <div className="flex items-center gap-2">
-        <TabsGlass tabs={[...TABS]} activeTab={activeTab} onChange={setActiveTab} />
+        <HeaderTabs
+          tabs={TABS.map((label, index) => ({ key: String(index), label }))}
+          value={String(activeTab)}
+          onChange={(key) => setActiveTab(Number(key))}
+        />
         <PageActionsMenu
           aria-label="Ações de e-mail"
           items={[

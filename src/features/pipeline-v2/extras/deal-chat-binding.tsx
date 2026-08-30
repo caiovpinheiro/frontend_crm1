@@ -673,7 +673,7 @@ export function useDealChatBinding(params: {
     (!!effectiveConversationId && messagesPending && !messagesResp);
   if (messagesBootstrapping) {
     messagesNode = (
-      <AppLoading variant="inline" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
+      <AppLoading variant="inline" tone="watermark" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
     );
   } else if (!effectiveConversationId) {
     messagesNode = (

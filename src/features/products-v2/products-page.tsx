@@ -7,11 +7,13 @@ import {
   IconBriefcase,
   IconLayoutGrid,
   IconPackage,
+  IconDownload,
   IconPencil,
   IconPlus,
   IconSchool,
   IconTool,
   IconTrash,
+  IconUpload,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 
@@ -40,6 +42,9 @@ import {
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
 import { apiUrl } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
+
+import { CsvIoDialog } from "@/features/data-io/csv-io-dialog";
+import { useUserRole } from "@/hooks/use-user-role";
 
 import { ProductDialog } from "./product-dialog";
 import { KIND_LABEL, type ProductKind } from "./types";
@@ -116,8 +121,15 @@ async function deleteProductRequest(id: string) {
   }
 }
 
-export function ProductsV2Page() {
+export function ProductsV2Page({
+  onHeaderMenu,
+}: {
+  onHeaderMenu?: (node: React.ReactNode) => void;
+} = {}) {
   const slots = useSettingsHeaderSlots();
+  const { role } = useUserRole();
+  const canIo = role === "ADMIN" || role === "MANAGER";
+  const [ioMode, setIoMode] = React.useState<"import" | "export" | null>(null);
   const [search, setSearch] = React.useState("");
   const [kindFilter, setKindFilter] = React.useState<ProductKind | "">("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -270,15 +282,40 @@ export function ProductsV2Page() {
             onClick: openCreate,
             primary: true,
           },
+          ...(canIo
+            ? [
+                {
+                  icon: <IconUpload size={16} />,
+                  label: "Importar CSV",
+                  onClick: () => setIoMode("import"),
+                  divider: true,
+                },
+                {
+                  icon: <IconDownload size={16} />,
+                  label: "Exportar CSV",
+                  onClick: () => setIoMode("export"),
+                },
+              ]
+            : []),
         ]}
       />
     ),
-    [openCreate],
+    [openCreate, canIo],
   );
 
   /* Injeta busca (center) + ações (actions) no PageHeader do
-     SettingsV2Shell — padrão canônico. */
+     SettingsV2Shell — padrão canônico. Quando o pai já monta as
+     abas (`onHeaderMenu`), só devolve o hamburger para não sobrescrever. */
   React.useEffect(() => {
+    if (onHeaderMenu) {
+      onHeaderMenu(actionsNode);
+      if (!slots) return;
+      slots.setCenter(searchNode);
+      return () => {
+        onHeaderMenu(null);
+        slots.setCenter(null);
+      };
+    }
     if (!slots) return;
     slots.setCenter(searchNode);
     slots.setActions(actionsNode);
@@ -286,7 +323,7 @@ export function ProductsV2Page() {
       slots.setCenter(null);
       slots.setActions(null);
     };
-  }, [slots, searchNode, actionsNode]);
+  }, [slots, searchNode, actionsNode, onHeaderMenu]);
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-3.5">
@@ -543,6 +580,20 @@ export function ProductsV2Page() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {ioMode ? (
+        <CsvIoDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setIoMode(null);
+          }}
+          entity="products"
+          mode={ioMode}
+          onDone={() => {
+            void queryClient.invalidateQueries({ queryKey: ["products"] });
+          }}
+        />
+      ) : null}
     </div>
   );
 }

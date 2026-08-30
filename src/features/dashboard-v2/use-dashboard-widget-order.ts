@@ -294,7 +294,7 @@ export function useDashboardWidgetOrder(
     setHidden(parsed.hidden ?? []);
     writeJson(scopedKey(prefix, keyPart), persistValue(parsed, allowHide));
     setHydrated(true);
-  }, [allowHide, defaultsKey, enabled, keyPart, pinnedIds, pinnedKey, prefix, ready, tab, userId]);
+  }, [allowHide, defaultsKey, enabled, keyPart, pinnedKey, prefix, ready, tab, userId]);
 
   const write = useCallback(
     (nextOrder: string[], nextHidden: string[]) => {
