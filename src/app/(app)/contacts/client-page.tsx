@@ -532,7 +532,7 @@ export default function V2ContactsClientPage() {
     <div
       className={cn(
         "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4",
-        isLoading ? "overflow-hidden" : "v2-page-scroll overflow-y-auto",
+        isLoading ? "overflow-hidden" : "v2-page-scroll overflow-auto",
       )}
     >
       <NavRailSpacer />
