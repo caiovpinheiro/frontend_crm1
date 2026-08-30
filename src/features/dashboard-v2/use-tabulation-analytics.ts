@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiUrl } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export type TabulationAnalyticsResponse = {
   total: number;
@@ -47,9 +48,21 @@ export function useTabulationAnalytics({
   page: number;
   enabled?: boolean;
 }) {
+  const queryClient = useQueryClient();
+  const rangeStamp = `${fromIso}|${toIso}`;
+
+  useEffect(() => {
+    void queryClient.cancelQueries({
+      predicate: (q) => {
+        if (q.queryKey[0] !== "tabulation-analytics") return false;
+        return q.queryKey[1] !== fromIso || q.queryKey[2] !== toIso;
+      },
+    });
+  }, [rangeStamp, fromIso, toIso, queryClient]);
+
   return useQuery({
     queryKey: ["tabulation-analytics", fromIso, toIso, actorUserIds, departmentIds, page],
-    queryFn: async (): Promise<TabulationAnalyticsResponse> => {
+    queryFn: async ({ signal }): Promise<TabulationAnalyticsResponse> => {
       const sp = new URLSearchParams();
       if (fromIso) sp.set("from", fromIso);
       if (toIso) sp.set("to", toIso);
@@ -65,9 +78,11 @@ export function useTabulationAnalytics({
       }
       sp.set("page", String(page));
       sp.set("perPage", "25");
-      const res = await fetch(apiUrl(`/api/analytics/tabulations?${sp}`), {
-        credentials: "include",
-      });
+      const res = await apiFetch(
+        `/api/analytics/tabulations?${sp}`,
+        { credentials: "include", signal },
+        15_000,
+      );
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as {
           message?: string;

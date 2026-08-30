@@ -53,6 +53,7 @@ import {
 import type {
   PainelAgora,
   PainelAttendantRow,
+  PainelBlock,
   PainelConnectionBlock,
   PainelDelta,
   PainelDeptTableRow,
@@ -62,6 +63,10 @@ import type {
 } from "@/features/dashboard-v2/painel-api";
 import type { ServiceWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
 import { cn } from "@/lib/utils";
+
+function blockPending<T>(block: PainelBlock<T> | undefined): boolean {
+  return !block || (block.ok === false && block.error === "omitido");
+}
 
 function deltaHint(delta: PainelDelta | undefined) {
   if (!delta || delta.hidden) return undefined;
@@ -234,6 +239,7 @@ function ServiceVolume({
   block: PainelServiceResult["volume"];
   onRetry: () => void;
 }) {
+  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const v = block.data;
   if (v.empty) {
@@ -359,6 +365,7 @@ function ServiceTempo({
   onClock: (next: "business" | "elapsed") => void;
   onRetry: () => void;
 }) {
+  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const t = block.data;
   return (
@@ -681,7 +688,9 @@ function ServiceDeptAndHour({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {!byDepartment.ok ? (
+      {blockPending(byDepartment) ? (
+        <PainelSkeleton className="min-h-48" />
+      ) : !byDepartment.ok ? (
         <PainelBlockError message={byDepartment.error} onRetry={onRetryDept} />
       ) : (
         <DailySeriesChart
@@ -694,7 +703,9 @@ function ServiceDeptAndHour({
           variant="stack"
         />
       )}
-      {!heatmap.ok ? (
+      {blockPending(heatmap) ? (
+        <PainelSkeleton className="min-h-48" />
+      ) : !heatmap.ok ? (
         <PainelBlockError message={heatmap.error} onRetry={onRetryHeatmap} />
       ) : !h || h.empty ? (
         <PainelCard
@@ -771,7 +782,9 @@ function ServiceSummaries({
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {!dept.ok ? (
+      {blockPending(dept) ? (
+        <PainelSkeleton className="min-h-48" />
+      ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
       ) : (
         <RankList
@@ -780,7 +793,9 @@ function ServiceSummaries({
           rows={dept.data.summaries.filter((r) => textMatchesQuery(r.label, search))}
         />
       )}
-      {!attendants.ok ? (
+      {blockPending(attendants) ? (
+        <PainelSkeleton className="min-h-48" />
+      ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
       ) : (
         <RankList
@@ -807,6 +822,7 @@ function ServiceConnections({
   block: PainelServiceResult["connections"];
   onRetry: () => void;
 }) {
+  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const c = block.data;
   return (
@@ -863,12 +879,16 @@ function ServiceTables({
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      {!dept.ok ? (
+      {blockPending(dept) ? (
+        <PainelSkeleton className="min-h-48" />
+      ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
       ) : (
         <DeptMetricsTable rows={dept.data.table} search={search} />
       )}
-      {!attendants.ok ? (
+      {blockPending(attendants) ? (
+        <PainelSkeleton className="min-h-48" />
+      ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
       ) : (
         <AttendantMetricsTable
@@ -1098,6 +1118,7 @@ function ServiceChannels({
   search: string;
   onRetry: () => void;
 }) {
+  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const channels = block.data.channels.filter((r) => textMatchesQuery(r.label, search));
   const motivos = block.data.motivos.filter((r) => textMatchesQuery(r.label, search));
@@ -1163,6 +1184,7 @@ function ServiceExceptions({
   block: PainelServiceResult["exceptions"];
   onRetry: () => void;
 }) {
+  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a inbox filtrada">

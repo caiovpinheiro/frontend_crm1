@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -102,23 +103,31 @@ function emptyServiceResult(): PainelServiceResult {
   };
 }
 
-/** Volume/heatmap first — they do not need firstHumanReplyPairs. */
+/** Volume/heatmap first — they do not need reply-pair metrics. */
 const SERVICE_LIGHT_SECTIONS = "volume,heatmap,connections,exceptions";
 const SERVICE_HEAVY_SECTIONS = "tempo,byDepartment,attendants,channels";
 
 export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
   const queryClient = useQueryClient();
   const queryKey = ["painel", "deals", filters] as const;
+  const live = isPreviewMode() || isPageMockMode() ? true : enabled;
+
+  useEffect(() => {
+    if (live) return;
+    void queryClient.cancelQueries({ queryKey: ["painel", "deals"] });
+  }, [live, queryClient]);
+
   const query = useQuery<PainelDealsResult>({
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const acc = emptyDealsResult();
       await Promise.all(
         DEAL_LIVE_SECTIONS.map(async (section) => {
           try {
-            const part = await fetchPainelDeals(filters, section);
+            const part = await fetchPainelDeals(filters, section, undefined, signal);
             Object.assign(acc, pickDefined(part));
           } catch (e) {
+            if (signal.aborted) throw e;
             const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
             Object.assign(acc, { [section]: { ok: false, error } });
           }
@@ -127,7 +136,7 @@ export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
       );
       return acc;
     },
-    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
+    enabled: live,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
   });
@@ -157,11 +166,18 @@ export function usePainelAgora(
 ) {
   return useQuery<PainelAgora>({
     queryKey: ["painel", "agora", clock],
-    queryFn: () => fetchPainelAgora(clock),
+    queryFn: ({ signal }) => fetchPainelAgora(clock, signal),
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
     staleTime: 15_000,
     refetchInterval: 60_000,
   });
+}
+
+function servicePeriodStamp(
+  filters: DashboardFiltersState,
+  clock: "business" | "elapsed",
+) {
+  return `${filters.period}|${filters.startDate ?? ""}|${filters.endDate ?? ""}|${clock}`;
 }
 
 export function usePainelService(
@@ -171,18 +187,37 @@ export function usePainelService(
 ) {
   const queryClient = useQueryClient();
   const queryKey = ["painel", "service", filters, clock] as const;
+  const live = isPreviewMode() || isPageMockMode() ? true : enabled;
+  const stamp = servicePeriodStamp(filters, clock);
+
+  useEffect(() => {
+    if (!live) return;
+    void queryClient.cancelQueries({
+      predicate: (q) => {
+        const key = q.queryKey;
+        if (key[0] !== "painel" || key[1] !== "service") return false;
+        const f = key[2] as DashboardFiltersState | undefined;
+        const c = key[3] as "business" | "elapsed" | undefined;
+        if (!f || !c) return false;
+        return servicePeriodStamp(f, c) !== stamp;
+      },
+    });
+  }, [live, stamp, queryClient]);
+
   const query = useQuery<PainelServiceResult>({
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const acc = emptyServiceResult();
       const apply = (part: PainelServiceResult) => {
         Object.assign(acc, pickDefined(part));
         queryClient.setQueryData<PainelServiceResult>(queryKey, { ...acc });
       };
       for (const section of [SERVICE_LIGHT_SECTIONS, SERVICE_HEAVY_SECTIONS]) {
+        if (signal.aborted) throw new DOMException("Aborted", "AbortError");
         try {
-          apply(await fetchPainelService({ filters, clock, section }));
+          apply(await fetchPainelService({ filters, clock, section, signal }));
         } catch (e) {
+          if (signal.aborted) throw e;
           const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
           for (const key of section.split(",")) {
             Object.assign(acc, { [key]: { ok: false, error } });
@@ -192,9 +227,8 @@ export function usePainelService(
       }
       return acc;
     },
-    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
+    enabled: live,
     staleTime: 30_000,
-    placeholderData: (prev) => prev,
   });
 
   async function retrySection(section: string) {
@@ -258,8 +292,8 @@ export function usePainelCustomFields(
 ) {
   return useQuery<PainelCustomFieldCard[]>({
     queryKey: ["painel", "custom-fields", filters, fieldIds],
-    queryFn: async () => {
-      const data = await fetchPainelDeals(filters, "customFields", fieldIds);
+    queryFn: async ({ signal }) => {
+      const data = await fetchPainelDeals(filters, "customFields", fieldIds, signal);
       if (!data.customFields?.ok) return [];
       return data.customFields.data;
     },
