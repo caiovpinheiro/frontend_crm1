@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -105,7 +105,6 @@ function emptyServiceResult(): PainelServiceResult {
 
 /** Volume alone first so KPIs paint without waiting for heatmap SQL. */
 const SERVICE_VOLUME_SECTION = "volume";
-const SERVICE_LIGHT_REST = "heatmap,connections,exceptions";
 const SERVICE_HEAVY_SECTIONS = "tempo,byDepartment,attendants,channels";
 
 export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
@@ -181,8 +180,29 @@ function servicePeriodStamp(
   return `${filters.period}|${filters.startDate ?? ""}|${filters.endDate ?? ""}|${clock}`;
 }
 
+const SERVICE_REST_SECTIONS = ["heatmap", "connections", "exceptions"] as const;
+const REST_ARM_MS = 2_000;
+const HEAVY_ARM_MS = 6_000;
+
 function isHeavyServiceSection(section: string) {
   return SERVICE_HEAVY_SECTIONS.split(",").some((key) => section.split(",").includes(key));
+}
+
+function isRestServiceSection(section: string) {
+  return SERVICE_REST_SECTIONS.some((key) => section.split(",").includes(key));
+}
+
+function useArmedAfter(ok: boolean, delayMs: number) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!ok) {
+      setArmed(false);
+      return;
+    }
+    const id = window.setTimeout(() => setArmed(true), delayMs);
+    return () => window.clearTimeout(id);
+  }, [ok, delayMs]);
+  return armed;
 }
 
 async function fetchServiceWaves(
@@ -216,10 +236,12 @@ export function usePainelService(
   mode: "full" | "light" = "full",
 ) {
   const queryClient = useQueryClient();
-  const lightKey = ["painel", "service", filters, clock, "light"] as const;
+  const volumeKey = ["painel", "service", filters, clock, "volume"] as const;
+  const restKey = ["painel", "service", filters, clock, "rest"] as const;
   const heavyKey = ["painel", "service", filters, clock, "heavy"] as const;
   const live = isPreviewMode() || isPageMockMode() ? true : enabled;
   const stamp = servicePeriodStamp(filters, clock);
+  const wantCharts = mode === "full";
   const wantHeavy = mode === "full";
 
   useEffect(() => {
@@ -236,20 +258,53 @@ export function usePainelService(
     });
   }, [live, stamp, queryClient]);
 
-  const light = useQuery<PainelServiceResult>({
-    queryKey: lightKey,
+  useEffect(() => {
+    if (live) return;
+    void queryClient.cancelQueries({
+      predicate: (q) => {
+        const key = q.queryKey;
+        return (
+          key[0] === "painel" &&
+          key[1] === "service" &&
+          (key[4] === "rest" || key[4] === "heavy")
+        );
+      },
+    });
+  }, [live, queryClient]);
+
+  const volume = useQuery<PainelServiceResult>({
+    queryKey: volumeKey,
     queryFn: ({ signal }) =>
       fetchServiceWaves(
         filters,
         clock,
-        [SERVICE_VOLUME_SECTION, SERVICE_LIGHT_REST],
+        [SERVICE_VOLUME_SECTION],
         signal,
-        (acc) => queryClient.setQueryData<PainelServiceResult>(lightKey, acc),
+        (acc) => queryClient.setQueryData<PainelServiceResult>(volumeKey, acc),
       ),
     enabled: live,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
+  });
+
+  const volumeOk = volume.data?.volume?.ok === true;
+  const restArmed = useArmedAfter(live && wantCharts && volumeOk, REST_ARM_MS);
+  const heavyArmed = useArmedAfter(live && wantHeavy && volumeOk, HEAVY_ARM_MS);
+
+  const rest = useQuery<PainelServiceResult>({
+    queryKey: restKey,
+    queryFn: ({ signal }) =>
+      fetchServiceWaves(
+        filters,
+        clock,
+        [...SERVICE_REST_SECTIONS],
+        signal,
+        (acc) => queryClient.setQueryData<PainelServiceResult>(restKey, acc),
+      ),
+    enabled: restArmed,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const heavy = useQuery<PainelServiceResult>({
@@ -262,34 +317,40 @@ export function usePainelService(
         signal,
         (acc) => queryClient.setQueryData<PainelServiceResult>(heavyKey, acc),
       ),
-    enabled: live && wantHeavy && light.isSuccess && light.data?.volume?.ok === true,
+    enabled: heavyArmed,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
 
   const data = useMemo(() => {
-    if (!light.data && !heavy.data) return undefined;
+    if (!volume.data && !rest.data && !heavy.data) return undefined;
     return {
       ...emptyServiceResult(),
-      ...pickDefined(light.data ?? emptyServiceResult()),
+      ...pickDefined(volume.data ?? emptyServiceResult()),
+      ...pickDefined(rest.data ?? emptyServiceResult()),
       ...pickDefined(heavy.data ?? emptyServiceResult()),
     };
-  }, [light.data, heavy.data]);
+  }, [volume.data, rest.data, heavy.data]);
 
   async function retrySection(section: string) {
     const next = await fetchPainelService({ filters, clock, section });
-    const key = isHeavyServiceSection(section) ? heavyKey : lightKey;
+    const key = isHeavyServiceSection(section)
+      ? heavyKey
+      : isRestServiceSection(section)
+        ? restKey
+        : volumeKey;
     queryClient.setQueryData<PainelServiceResult>(key, (old) =>
       old ? { ...old, ...pickDefined(next) } : { ...emptyServiceResult(), ...pickDefined(next) },
     );
   }
 
   return {
-    ...light,
+    ...volume,
     data,
-    isFetching: light.isFetching || heavy.isFetching,
+    isFetching: volume.isFetching || rest.isFetching || heavy.isFetching,
     refetch: async () => {
-      const result = await light.refetch();
+      const result = await volume.refetch();
+      if (wantCharts) await rest.refetch();
       if (wantHeavy) await heavy.refetch();
       return result;
     },
