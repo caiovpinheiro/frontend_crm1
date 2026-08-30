@@ -126,6 +126,8 @@ export interface ContactListPage {
   total: number;
   page: number;
   perPage: number;
+  /** Busca bateu o teto de 5000 candidatos — o total é piso, não censo. */
+  hasMore?: boolean;
 }
 
 export interface FetchContactsParams {

@@ -788,6 +788,7 @@ export default function V2ContactsClientPage() {
 
         <PaginationGlass
           total={total}
+          totalCapped={query.data?.hasMore === true}
           entityLabel="contatos"
           page={page}
           lastPage={lastPage}
