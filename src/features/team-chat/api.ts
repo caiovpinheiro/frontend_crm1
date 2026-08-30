@@ -1,4 +1,4 @@
-import { apiUrl, parseApiResponse } from "@/lib/api";
+import { apiFetch, parseApiResponse } from "@/lib/api";
 import type {
   TeamChatAttachment,
   TeamChatDepartment,
@@ -13,7 +13,7 @@ async function json<T>(res: Promise<Response>, fallback: string): Promise<T> {
 }
 
 export async function listTeamChatRooms(): Promise<{ rooms: TeamChatRoom[] }> {
-  return json(fetch(apiUrl("/api/team-chat/rooms")), "Não foi possível carregar o chat.");
+  return json(apiFetch("/api/team-chat/rooms"), "Não foi possível carregar o chat.");
 }
 
 export async function createTeamChatRoom(input: {
@@ -22,7 +22,7 @@ export async function createTeamChatRoom(input: {
   topic?: string;
 }): Promise<{ room: TeamChatRoom; created: boolean }> {
   return json(
-    fetch(apiUrl("/api/team-chat/rooms"), {
+    apiFetch("/api/team-chat/rooms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
@@ -33,14 +33,14 @@ export async function createTeamChatRoom(input: {
 
 export async function listTeamChatMessages(roomId: string): Promise<{ messages: TeamChatMessage[] }> {
   return json(
-    fetch(apiUrl(`/api/team-chat/rooms/${roomId}/messages`)),
+    apiFetch(`/api/team-chat/rooms/${roomId}/messages`),
     "Não foi possível carregar as mensagens.",
   );
 }
 
 export async function pingTeamChatTyping(roomId: string): Promise<void> {
   try {
-    await fetch(apiUrl(`/api/team-chat/rooms/${roomId}/typing`), { method: "POST" });
+    await apiFetch(`/api/team-chat/rooms/${roomId}/typing`, { method: "POST" }, 4_000);
   } catch {
     /* indicador é best-effort */
   }
@@ -51,7 +51,7 @@ export async function sendTeamChatMessage(
   input: { content?: string; attachments?: TeamChatAttachment[] },
 ): Promise<TeamChatMessage> {
   return json(
-    fetch(apiUrl(`/api/team-chat/rooms/${roomId}/messages`), {
+    apiFetch(`/api/team-chat/rooms/${roomId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
@@ -69,10 +69,10 @@ export async function uploadTeamChatAttachment(
   form.append("file", file, options?.fileName ?? (file instanceof File ? file.name : "arquivo.bin"));
   if (options?.asSticker) form.append("sticker", "1");
   const data = await json<{ attachment: TeamChatAttachment }>(
-    fetch(apiUrl(`/api/team-chat/rooms/${roomId}/attachments`), {
+    apiFetch(`/api/team-chat/rooms/${roomId}/attachments`, {
       method: "POST",
       body: form,
-    }),
+    }, 60_000),
     "Não foi possível enviar o anexo.",
   );
   return data.attachment;
@@ -80,7 +80,7 @@ export async function uploadTeamChatAttachment(
 
 export async function addTeamChatMembers(roomId: string, memberIds: string[]): Promise<TeamChatRoom> {
   return json(
-    fetch(apiUrl(`/api/team-chat/rooms/${roomId}/members`), {
+    apiFetch(`/api/team-chat/rooms/${roomId}/members`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ memberIds }),
@@ -93,7 +93,7 @@ export async function listTeamChatColleagues(): Promise<{
   colleagues: TeamChatPerson[];
   departments: TeamChatDepartment[];
 }> {
-  return json(fetch(apiUrl("/api/team-chat/colleagues")), "Não foi possível carregar a equipe.");
+  return json(apiFetch("/api/team-chat/colleagues"), "Não foi possível carregar a equipe.");
 }
 
 export async function reactTeamChatMessage(
@@ -102,7 +102,7 @@ export async function reactTeamChatMessage(
   emoji: string,
 ): Promise<TeamChatMessage> {
   return json(
-    fetch(apiUrl(`/api/team-chat/rooms/${roomId}/messages/${messageId}/react`), {
+    apiFetch(`/api/team-chat/rooms/${roomId}/messages/${messageId}/react`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ emoji }),
@@ -113,18 +113,18 @@ export async function reactTeamChatMessage(
 
 export async function pinTeamChatMessage(roomId: string, messageId: string): Promise<TeamChatMessage> {
   return json(
-    fetch(apiUrl(`/api/team-chat/rooms/${roomId}/messages/${messageId}/pin`), { method: "POST" }),
+    apiFetch(`/api/team-chat/rooms/${roomId}/messages/${messageId}/pin`, { method: "POST" }),
     "Não foi possível fixar a mensagem.",
   );
 }
 
 export async function listTeamChatNotes(roomId: string): Promise<{ notes: TeamChatNote[] }> {
-  return json(fetch(apiUrl(`/api/team-chat/rooms/${roomId}/notes`)), "Não foi possível carregar as notas.");
+  return json(apiFetch(`/api/team-chat/rooms/${roomId}/notes`), "Não foi possível carregar as notas.");
 }
 
 export async function addTeamChatNote(roomId: string, content: string): Promise<TeamChatNote> {
   return json(
-    fetch(apiUrl(`/api/team-chat/rooms/${roomId}/notes`), {
+    apiFetch(`/api/team-chat/rooms/${roomId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
@@ -135,7 +135,7 @@ export async function addTeamChatNote(roomId: string, content: string): Promise<
 
 export async function pinTeamChatNote(noteId: string): Promise<TeamChatNote> {
   return json(
-    fetch(apiUrl(`/api/team-chat/notes/${noteId}`), {
+    apiFetch(`/api/team-chat/notes/${noteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "pin" }),
@@ -146,7 +146,7 @@ export async function pinTeamChatNote(noteId: string): Promise<TeamChatNote> {
 
 export async function deleteTeamChatNote(noteId: string): Promise<{ ok: boolean }> {
   return json(
-    fetch(apiUrl(`/api/team-chat/notes/${noteId}`), { method: "DELETE" }),
+    apiFetch(`/api/team-chat/notes/${noteId}`, { method: "DELETE" }),
     "Não foi possível excluir a nota.",
   );
 }

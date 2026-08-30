@@ -191,7 +191,7 @@ export function AppLoading({
     <Body
       label={label}
       message={message}
-      onRetry={error ? onRetry : undefined}
+      onRetry={onRetry}
       size={resolvedSize}
     />
   );

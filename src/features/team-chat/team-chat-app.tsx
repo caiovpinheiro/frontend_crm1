@@ -105,6 +105,11 @@ export function TeamChatApp() {
       : peopleQuery.error instanceof Error
         ? peopleQuery.error.message
         : null;
+  const retryBoot = () => {
+    void roomsQuery.refetch();
+    void peopleQuery.refetch();
+  };
+  const showBootGate = !selected && (listBootstrapping || !!loadError);
 
   return (
     <div className="team-chat-shell flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
@@ -141,8 +146,13 @@ export function TeamChatApp() {
           selected ? "flex" : "hidden lg:flex",
         )}
       >
-        {listBootstrapping && !selected ? (
-          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        {showBootGate ? (
+          <AppLoading
+            variant="inline"
+            className="min-h-0 flex-1"
+            error={loadError}
+            onRetry={retryBoot}
+          />
         ) : selected ? (
           <Thread
             room={selected}
