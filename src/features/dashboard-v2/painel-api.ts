@@ -263,8 +263,12 @@ export type PainelServiceResult = {
   exceptions: PainelBlock<PainelServiceException[]>;
 };
 
-async function getJson<T>(path: string, errLabel: string): Promise<T> {
-  const res = await fetch(apiUrl(path), { credentials: "include", cache: "no-store" });
+async function getJson<T>(path: string, errLabel: string, timeoutMs?: number): Promise<T> {
+  const res = await fetch(apiUrl(path), {
+    credentials: "include",
+    cache: "no-store",
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+  });
   return parseApiResponse<T>(res, errLabel);
 }
 
@@ -328,6 +332,7 @@ export async function fetchPainelService(params: {
   return getJson<PainelServiceResult>(
     `/api/painel/service?${sp.toString()}`,
     "Erro ao carregar atendimentos",
+    30_000,
   );
 }
 

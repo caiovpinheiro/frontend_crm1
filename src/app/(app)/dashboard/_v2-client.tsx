@@ -151,7 +151,7 @@ export default function DashboardV2ClientPage({
   if (!ready) {
     return (
       <Shell navRail={navRail} title="Dashboard">
-        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
       </Shell>
     );
   }
@@ -184,7 +184,7 @@ function OperatorHome({
   if (!painted) {
     return (
       <Shell navRail={navRail} title="Sua fila">
-        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
       </Shell>
     );
   }
@@ -323,39 +323,9 @@ function ManagerHome({
     });
   }, [uiHydrated, uiScope.keyPart, activeTab, clock, tabActorUserIds, tabDepartmentIds]);
 
-  const optionsSettled = !isAuthenticated || querySettled(optionsQuery);
-  const dealsSettled = !isAuthenticated || querySettled(dealsQuery);
-  const usageSettled = !isAuthenticated || querySettled(usageQuery);
-  const customSettled =
-    fieldIds.length === 0 || !isAuthenticated || querySettled(customFieldsQuery);
-  const serviceSettled =
-    !isAuthenticated || (querySettled(serviceQuery) && querySettled(agoraQuery));
-  const dealsReady = dealsSettled && usageSettled && customSettled && grid.hydrated;
-  const serviceReady = serviceSettled && serviceOrder.hydrated;
-  const primarySettled = !uiHydrated
-    ? false
-    : isDeals
-      ? dealsReady && optionsSettled
-      : serviceReady && optionsSettled;
-  const pagePainted = useLatchedReady(primarySettled);
-
-  const [tabPainted, setTabPainted] = useState<Partial<Record<DashboardTabKey, boolean>>>(
-    {},
-  );
-  const tabReady = isDeals ? dealsReady : serviceReady;
-
-  useEffect(() => {
-    if (!pagePainted || !tabReady) return;
-    setTabPainted((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
-  }, [pagePainted, tabReady, activeTab]);
-
-  useEffect(() => {
-    if (!pagePainted || tabPainted[activeTab]) return;
-    const id = window.setTimeout(() => {
-      setTabPainted((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
-    }, STUCK_TIMEOUT_MS);
-    return () => window.clearTimeout(id);
-  }, [pagePainted, tabPainted, activeTab]);
+  // Chrome + widgets as soon as the saved tab hydrates. Painel/service
+  // can take minutes — widgets already skeleton; do not hold the page.
+  const pagePainted = useLatchedReady(uiHydrated || !isAuthenticated, 1_500);
 
   const liveUserOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -421,7 +391,7 @@ function ManagerHome({
     ...Object.fromEntries(funnelStages.map((s) => [`stage:${s.id}`, s.name])),
   };
 
-  const showTabLoader = !pagePainted || (!tabPainted[activeTab] && !tabReady);
+  const showTabLoader = !pagePainted;
 
   return (
     <Shell
@@ -461,7 +431,7 @@ function ManagerHome({
       }
     >
       {showTabLoader ? (
-        <AppLoading variant="inline" className="min-h-0 flex-1" timeoutMs={0} />
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
       ) : isDeals ? (
         <>
           <SortableWidgetGrid
