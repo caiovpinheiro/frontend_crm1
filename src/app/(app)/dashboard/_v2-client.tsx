@@ -293,7 +293,7 @@ function ManagerHome({
       tabReady &&
       isService &&
       hasServiceTabWidgets &&
-      !!serviceQuery.data?.volume,
+      serviceQuery.data?.volume?.ok === true,
   });
 
   useEffect(() => {

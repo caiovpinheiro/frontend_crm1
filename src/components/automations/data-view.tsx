@@ -45,7 +45,7 @@ export function DataView({
       <div
         className={cn(
           isTabela
-            ? "overflow-hidden rounded-xl border border-border bg-card"
+            ? "rounded-xl border border-border bg-card"
             : LIST_CARD_STACK_CLASS,
           className,
         )}

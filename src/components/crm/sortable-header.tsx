@@ -52,7 +52,7 @@ export const LIST_ACTIONS_CELL_CLASS =
  * `list-col-head` is the hook for H-scroll wrappers that re-parent this row.
  */
 export const LIST_COL_HEAD_STICKY_CLASS =
-  "list-col-head sticky z-10 bg-[var(--bg-base)] top-[var(--page-header-sticky-h,0px)]";
+  "list-col-head sticky top-0 z-10 bg-[var(--bg-base)]";
 
 /** Faixa de cabeçalho de colunas — padrão card por linha.
  *  Default `grid`; passe a classe `flex` para tabelas com scroll-X (contatos).

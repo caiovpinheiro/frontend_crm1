@@ -51,6 +51,7 @@ function skipFragileRuntime<T extends { matcher: unknown }>(rule: T): T {
     matcher: (options: { request?: Request; url: URL }) => {
       const request = options.request;
       if (options.url.pathname.startsWith("/api/")) return false;
+      if (options.url.pathname.startsWith("/_next/static/chunks/")) return false;
       if (isSseRequest(options.url.pathname, request)) return false;
       if (request?.mode === "navigate") return false;
       if (request?.headers.get("RSC") === "1") return false;

@@ -40,6 +40,10 @@ const withSerwist = withSerwistInit({
     /^manifest.*\.js$/,
     /\/api\//,
     /\/_next\/data\//,
+    // Precache of every app page + shared chunk saturates the SW
+    // (HAR: 50 files / 15s blocked) and freezes inbox/pipeline.
+    /\/_next\/static\/chunks\//,
+    /\/_next\/static\/.*Manifest\.js$/,
     /inbox[\\/]page/,
     /contacts[\\/]page/,
     /companies[\\/]page/,
