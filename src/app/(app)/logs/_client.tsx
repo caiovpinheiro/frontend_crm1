@@ -58,6 +58,7 @@ import { RestrictedScreen } from "@/components/crm/restricted-screen";
 import { useRequireManager } from "@/hooks/use-user-role";
 import { DataView, DataRow } from "@/components/automations/data-view";
 import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
+import { PageChrome } from "@/components/crm/page-header";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import {
@@ -556,7 +557,7 @@ export default function LogsClientPage() {
 
   if (feedBooting && !feedChromeReady) {
     return (
-      <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
+      <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4">
         <NavRailSpacer />
         <main
           className="flex min-h-0 min-w-0 flex-1 flex-col"
@@ -568,10 +569,11 @@ export default function LogsClientPage() {
   }
 
   return (
-    <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
+    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4">
       <NavRailSpacer />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 sm:gap-4">
+      <PageChrome
+        header={
         <SectionHeader
           icon={ClipboardList}
           title="Logs"
@@ -671,6 +673,9 @@ export default function LogsClientPage() {
             ) : undefined
           }
         />
+        }
+        bodyClassName="gap-3 sm:gap-4"
+      >
 
         {isFeed ? (
           <>
@@ -797,7 +802,7 @@ export default function LogsClientPage() {
             )}
           </div>
         )}
-      </main>
+      </PageChrome>
     </div>
   );
 }

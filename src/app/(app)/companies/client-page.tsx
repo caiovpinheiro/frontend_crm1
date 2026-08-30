@@ -30,6 +30,7 @@ import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { DataView, DataRow } from "@/components/automations/data-view";
 import { ViewToggle, useCardsTableView, type CardsTableView } from "@/components/automations/view-toggle";
+import { PageChrome } from "@/components/crm/page-header";
 import { SectionHeader } from "@/components/crm/section-header";
 import {
   PeriodCalendarButton,
@@ -389,13 +390,13 @@ export default function V2CompaniesClientPage() {
   return (
     <div
       className={cn(
-        "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4",
-        isLoading ? "overflow-hidden" : "v2-page-scroll overflow-auto",
+        "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4",
       )}
     >
       <NavRailSpacer />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+      <PageChrome
+        header={
         <SectionHeader
           icon={Building2}
           title="Empresas"
@@ -443,6 +444,9 @@ export default function V2CompaniesClientPage() {
             />
           }
         />
+        }
+        bodyClassName="gap-4"
+      >
 
         {isLoading ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
@@ -562,7 +566,7 @@ export default function V2CompaniesClientPage() {
         </div>
         </>
         )}
-      </main>
+      </PageChrome>
 
       <CreateCompanyDialog open={createOpen} onOpenChange={setCreateOpen} />
       <EditCompanyDialog company={editing} onClose={() => setEditing(null)} />

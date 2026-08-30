@@ -13,6 +13,7 @@ import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { cn } from "@/lib/utils";
 import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
+import { PageChrome } from "@/components/crm/page-header";
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import {
@@ -184,16 +185,14 @@ export default function CampaignsClientPage() {
   return (
     <div
       className={cn(
-        "v2-screen v2-screen-fill grid grid-cols-[var(--nav-rail-w,76px)_1fr] bg-background",
-        isLoading && allItems.length === 0
-          ? "overflow-hidden"
-          : "v2-page-scroll overflow-y-auto",
+        "v2-screen v2-screen-fill grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-hidden bg-background",
       )}
     >
       <NavRailSpacer />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex min-h-0 w-full flex-1 flex-col gap-4 px-4 py-5">
+      <PageChrome
+        className="px-4 py-5"
+        header={
         <SectionHeader
           icon={Megaphone}
           title="Campanhas"
@@ -227,6 +226,9 @@ export default function CampaignsClientPage() {
           }
           menuSlot={<CampaignsActionsMenu />}
         />
+        }
+        bodyClassName="gap-4"
+      >
 
         {isLoading && allItems.length === 0 ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
@@ -293,8 +295,7 @@ export default function CampaignsClientPage() {
         </div>
         </>
         )}
-        </div>
-      </main>
+      </PageChrome>
       {confirmDialog}
     </div>
   );
