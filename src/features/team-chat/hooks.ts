@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { subscribeSSEEvents } from "@/hooks/use-sse";
+import { ApiError } from "@/lib/api";
 import {
   addTeamChatMembers,
   addTeamChatNote,
@@ -57,12 +58,18 @@ function patchMessage(qc: ReturnType<typeof useQueryClient>, msg: TeamChatMessag
   });
 }
 
+function retryUnlessTimeout(count: number, err: Error) {
+  if (err instanceof ApiError && err.code === "FETCH_TIMEOUT") return false;
+  return count < 2;
+}
+
 export function useTeamChatRooms(enabled = true) {
   return useQuery({
     queryKey: [ROOMS_KEY],
     queryFn: listTeamChatRooms,
     enabled,
     refetchInterval: 120_000,
+    retry: retryUnlessTimeout,
   });
 }
 
@@ -72,6 +79,7 @@ export function useTeamChatMessages(roomId: string | null) {
     queryFn: () => listTeamChatMessages(roomId as string),
     enabled: !!roomId,
     refetchInterval: 120_000,
+    retry: retryUnlessTimeout,
   });
 }
 
@@ -81,6 +89,7 @@ export function useTeamChatColleagues(enabled = true) {
     queryFn: listTeamChatColleagues,
     enabled,
     staleTime: 15_000,
+    retry: retryUnlessTimeout,
   });
 }
 
@@ -89,6 +98,7 @@ export function useTeamChatNotes(roomId: string | null, enabled = true) {
     queryKey: [NOTES_KEY, roomId],
     queryFn: () => listTeamChatNotes(roomId as string),
     enabled: !!roomId && enabled,
+    retry: retryUnlessTimeout,
   });
 }
 
