@@ -24,6 +24,8 @@ interface PaginationGlassProps {
   perPageOptions?: readonly number[];
   /** Esconde os botões Anterior/Próxima (ex.: listas com scroll infinito). */
   showNav?: boolean;
+  /** Total é piso (ex.: busca de contatos no teto 5000) — badge mostra "5.000+". */
+  totalCapped?: boolean;
 }
 
 const DEFAULT_PER_PAGE_OPTIONS = [25, 50, 100] as const;
@@ -52,6 +54,7 @@ export function PaginationGlass({
   onPerPageChange,
   perPageOptions = DEFAULT_PER_PAGE_OPTIONS,
   showNav = true,
+  totalCapped = false,
 }: PaginationGlassProps) {
   const showPerPage = perPage !== undefined && onPerPageChange !== undefined;
   const hasTotal = typeof total === "number";
@@ -71,6 +74,7 @@ export function PaginationGlass({
           <>
             <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full border border-border bg-card px-2.5 text-sm font-semibold tabular-nums text-foreground">
               {total.toLocaleString("pt-BR")}
+              {totalCapped ? "+" : ""}
             </span>
             <span className={META_TEXT}>
               {paged ? (
