@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList } from "lucide-react";
-import { IconLoader2 as Loader2 } from "@tabler/icons-react";
 import {
   IconAdjustmentsHorizontal,
   IconActivity,
@@ -379,7 +378,9 @@ export default function LogsClientPage() {
   const [q, setQ] = React.useState<string>("");
   const [qDebounced, setQDebounced] = React.useState<string>("");
   const [demo, setDemo] = React.useState<boolean>(false);
-  const [limit, setLimit] = React.useState<number>(50);
+  const [limit, setLimit] = React.useState<number>(25);
+  const [page, setPage] = React.useState(1);
+  const [cursors, setCursors] = React.useState<(string | null)[]>([null]);
   const [feedPeriod, setFeedPeriod] = React.useState<SystemUsagePeriodValue>(
     () => defaultSystemUsagePeriod(),
   );
@@ -411,19 +412,41 @@ export default function LogsClientPage() {
     [entity, actor, qDebounced, feedPeriod, stagePipelineId, stageFrom, stageTo, limit],
   );
 
-  const {
-    data,
-    isLoading,
-    isError,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useActivityFeed(filters);
-
-  const realItems = React.useMemo(
-    () => (data?.pages ?? []).flatMap((p) => p.items),
-    [data],
+  const filterKey = React.useMemo(
+    () =>
+      JSON.stringify({
+        entityType: filters.entityType,
+        actorType: filters.actorType,
+        q: filters.q,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        stagePipelineId: filters.stagePipelineId,
+        stageFrom: filters.stageFrom,
+        stageTo: filters.stageTo,
+      }),
+    [filters],
   );
+
+  React.useEffect(() => {
+    setPage(1);
+    setCursors([null]);
+  }, [filterKey, limit]);
+
+  const cursor = cursors[page - 1] ?? null;
+  const { data, isLoading, isError } = useActivityFeed(filters, cursor);
+
+  const realItems = data?.items ?? [];
+  const nextCursor = data?.nextCursor ?? null;
+
+  React.useEffect(() => {
+    if (!nextCursor) return;
+    setCursors((prev) => {
+      if (prev[page] === nextCursor) return prev;
+      const next = prev.slice(0, page);
+      next[page] = nextCursor;
+      return next;
+    });
+  }, [nextCursor, page]);
 
   const hasFilters =
     entity !== "ALL" ||
@@ -445,7 +468,14 @@ export default function LogsClientPage() {
       isError,
     });
 
-  const allItems = isDemo ? MOCK_FEED : realItems;
+  const mockItems = React.useMemo(() => {
+    const start = (page - 1) * limit;
+    return MOCK_FEED.slice(start, start + limit);
+  }, [page, limit]);
+
+  const allItems = isDemo ? mockItems : realItems;
+  const demoHasNext = isDemo && page * limit < MOCK_FEED.length;
+  const canNextPage = isDemo ? demoHasNext : Boolean(nextCursor);
 
   const [sort, setSort] = React.useState<{ column: SortColumn; dir: Exclude<SortDir, null> }>(
     { column: "data", dir: "desc" },
@@ -496,24 +526,6 @@ export default function LogsClientPage() {
         : { column, dir: column === "data" ? "desc" : "asc" },
     );
   };
-
-  const sentinelRef = React.useRef<HTMLDivElement | null>(null);
-  React.useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !hasNextPage) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting && !isFetchingNextPage) {
-            void fetchNextPage();
-          }
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const statsRange = React.useMemo(
     () => ({
@@ -619,7 +631,9 @@ export default function LogsClientPage() {
           }
           actions={
             <>
-              {isFeed || isCalls ? <ViewToggle value={view} onChange={setView} /> : null}
+              {isFeed || isCalls || isUsage ? (
+                <ViewToggle value={view} onChange={setView} />
+              ) : null}
               <HeaderTabs
                 tabs={LOG_TABS.map((label, index) => ({
                   key: String(index),
@@ -731,37 +745,21 @@ export default function LogsClientPage() {
                   </>
                 }
               >
-                  {!isDefaultSort && hasNextPage && (
-                    <div className="px-1 font-body text-[11px] italic text-[var(--text-muted)]">
-                      Ordenando eventos carregados — role para carregar mais.
-                    </div>
-                  )}
-
                   {sortedFlat.map((ev) => (
                     <EventCard key={ev.id} event={ev} />
                   ))}
-
-                  <div ref={sentinelRef} className="h-1" />
-                  {isFetchingNextPage && (
-                    <div className="flex items-center justify-center py-4 text-[13px] text-[var(--text-muted)]">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Carregando mais...
-                    </div>
-                  )}
-                  {!hasNextPage && allItems.length > 0 && (
-                    <p className="pb-2 pt-2 text-center text-[11px] text-[var(--text-muted)]/70">
-                      Fim do histórico.
-                    </p>
-                  )}
               </DataView>
               </div>
             )}
 
             {!isLoading && !isError && allItems.length > 0 && (
               <PaginationGlass
-                total={allItems.length}
-                entityLabel="eventos"
-                showNav={false}
+                label={`${allItems.length} eventos · página ${page}`}
+                page={page}
+                canPrev={page > 1}
+                canNext={canNextPage}
+                onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => p + 1)}
                 perPage={limit}
                 onPerPageChange={setLimit}
               />
@@ -769,7 +767,7 @@ export default function LogsClientPage() {
             </div>
           </>
         ) : isUsage ? (
-          <SystemUsageTab range={usagePeriod.range} />
+          <SystemUsageTab view={view} range={usagePeriod.range} />
         ) : isCalls ? (
           callsWidget.isLoading ? (
             <div className="min-h-0 flex-1" aria-busy="true" aria-label="Carregando chamadas" />

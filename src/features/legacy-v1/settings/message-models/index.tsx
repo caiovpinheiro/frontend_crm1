@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/api";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconHierarchy as Workflow } from "@tabler/icons-react";
+import { IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconUpload as Upload, IconHierarchy as Workflow } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -24,8 +24,10 @@ import { formatMetaChannelLabel } from "@/lib/meta-whatsapp/meta-cloud-channels"
 import { cn } from "@/lib/utils";
 
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
-import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
+import { PageActionsMenu } from "@/components/crm/page-toolbar";
+import { HeaderTabs } from "@/components/crm/section-header";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
+import { CsvIoDialog } from "@/features/data-io/csv-io-dialog";
 import InternalTemplatesPage from "../templates";
 import WhatsAppTemplatesPage from "../whatsapp-templates";
 import {
@@ -85,6 +87,7 @@ export default function MessageModelsHubPage() {
   const queryClient = useQueryClient();
   const [newOpen, setNewOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
+  const [ioMode, setIoMode] = React.useState<"import" | "export" | null>(null);
 
   const tab = searchParams.get("tab") ?? "overview";
   const validTab = ["overview", "internal", "whatsapp", "flows"].includes(tab) ? tab : "overview";
@@ -282,24 +285,19 @@ export default function MessageModelsHubPage() {
   const flowWithMeta = flows.filter((f) => f.metaFlowId?.trim()).length;
 
   const tabItems = React.useMemo(() => {
-    const withCount = (label: string, count?: number): React.ReactNode =>
-      typeof count === "number" ? (
-        <span className="inline-flex items-center gap-1.5">
-          {label}
-          <span className="min-w-[16px] rounded-full bg-[color-mix(in_srgb,var(--text-muted)_16%,transparent)] px-1 text-center text-[10px] font-bold leading-none">
-            {count}
-          </span>
-        </span>
-      ) : (
-        label
-      );
-    const items: { value: string; label: React.ReactNode }[] = [
-      { value: "overview", label: withCount("Visão geral", totalCount || undefined) },
+    const items: { key: string; label: string; badge?: number }[] = [
+      { key: "overview", label: "Visão geral", badge: totalCount || undefined },
     ];
-    if (canViewTemplates) items.push({ value: "internal", label: withCount("Internos", internalCount) });
+    if (canViewTemplates) {
+      items.push({ key: "internal", label: "Internos", badge: internalCount });
+    }
     if (canSubmitMeta) {
-      items.push({ value: "whatsapp", label: withCount("WhatsApp (Meta)", metaLoaded ? metaCount : undefined) });
-      items.push({ value: "flows", label: withCount("Flows", flowCount) });
+      items.push({
+        key: "whatsapp",
+        label: "WhatsApp",
+        badge: metaLoaded ? metaCount : undefined,
+      });
+      items.push({ key: "flows", label: "Flows", badge: flowCount });
     }
     return items;
   }, [canViewTemplates, canSubmitMeta, totalCount, internalCount, metaLoaded, metaCount, flowCount]);
@@ -388,10 +386,8 @@ export default function MessageModelsHubPage() {
 
   const tabBarNode = React.useMemo(
     () => (
-      <PageSegmentedControl
-        size="compact"
-        aria-label="Abas de modelos de mensagem"
-        items={tabItems}
+      <HeaderTabs
+        tabs={tabItems}
         value={safeTab}
         onChange={(value) => setTab(value, { new: null, create: null })}
       />
@@ -504,6 +500,21 @@ export default function MessageModelsHubPage() {
               label: "Novo modelo",
               onClick: () => setNewOpen(true),
             },
+            ...(isGestor && (safeTab === "overview" || safeTab === "internal")
+              ? [
+                  {
+                    icon: <Upload className="size-4" />,
+                    label: "Importar CSV",
+                    onClick: () => setIoMode("import"),
+                    divider: true,
+                  },
+                  {
+                    icon: <Download className="size-4" />,
+                    label: "Exportar CSV",
+                    onClick: () => setIoMode("export"),
+                  },
+                ]
+              : []),
           ];
     return (
       <div className="flex items-center gap-2">
@@ -511,7 +522,7 @@ export default function MessageModelsHubPage() {
         <ModelsActionsMenu items={menuItems} />
       </div>
     );
-  }, [safeTab, canSubmitMeta, tabBarNode, createFlowMutation, refetchMetaFlows]);
+  }, [safeTab, canSubmitMeta, isGestor, tabBarNode, createFlowMutation, refetchMetaFlows]);
 
   // Injeta busca (centro) + abas/ação (direita) na linha do PageHeader quando
   // rodando dentro do SettingsV2Shell. Sem o shell (rota /old) cai no
@@ -851,6 +862,20 @@ export default function MessageModelsHubPage() {
           )}
         </div>
       )}
+
+      {ioMode ? (
+        <CsvIoDialog
+          open
+          onOpenChange={(next) => {
+            if (!next) setIoMode(null);
+          }}
+          entity="templates"
+          mode={ioMode}
+          onDone={() => {
+            void queryClient.invalidateQueries({ queryKey: ["templates"] });
+          }}
+        />
+      ) : null}
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent size="md">

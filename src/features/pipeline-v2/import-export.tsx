@@ -8,7 +8,7 @@
  *   2) Mapping (mapeamento de colunas → campos do CRM + tag + updateExisting)
  *   3) Result (resumo created/updated/skipped/failed + lista de erros)
  *
- * ExportPanel/useImportExportBump/downloadCsv/downloadFromApi: inalterados.
+ * ExportPanel: CSV com barra de progresso (X-Export-Total + stream).
  */
 
 import * as React from "react";
@@ -287,7 +287,50 @@ export function downloadCsv(filename: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
-export async function downloadFromApi(url: string, fallbackName: string): Promise<void> {
+export type ExportDownloadProgress = {
+  loaded: number;
+  total: number | null;
+};
+
+export type DownloadFromApiOptions = {
+  onProgress?: (progress: ExportDownloadProgress) => void;
+  /** Total conhecido pela UI (filtro) até o header `X-Export-Total` chegar. */
+  estimatedTotal?: number | null;
+};
+
+function parseExportTotal(res: Response, fallback?: number | null): number | null {
+  const raw = res.headers.get("X-Export-Total");
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  if (fallback != null && Number.isFinite(fallback) && fallback >= 0) return fallback;
+  const bytes = Number(res.headers.get("Content-Length"));
+  if (Number.isFinite(bytes) && bytes > 0) return bytes;
+  return null;
+}
+
+function countCrlf(chunk: Uint8Array, prevLastWasCr: boolean): {
+  count: number;
+  lastWasCr: boolean;
+} {
+  let count = 0;
+  let lastWasCr = prevLastWasCr;
+  for (const byte of chunk) {
+    if (lastWasCr && byte === 10) count += 1;
+    lastWasCr = byte === 13;
+  }
+  return { count, lastWasCr };
+}
+
+export async function downloadFromApi(
+  url: string,
+  fallbackName: string,
+  options?: DownloadFromApiOptions,
+): Promise<void> {
+  const onProgress = options?.onProgress;
+  onProgress?.({ loaded: 0, total: options?.estimatedTotal ?? null });
+
   const res = await fetch(url, { method: "GET", credentials: "include" });
   if (!res.ok) {
     let msg = `Falha na exportação (${res.status})`;
@@ -308,10 +351,49 @@ export async function downloadFromApi(url: string, fallbackName: string): Promis
     }
     throw new Error(msg);
   }
-  const blob = await res.blob();
+
+  const total = parseExportTotal(res, options?.estimatedTotal);
+  const useRows = Boolean(res.headers.get("X-Export-Total") || options?.estimatedTotal);
   const cd = res.headers.get("Content-Disposition") ?? "";
   const m = /filename="?([^";]+)"?/.exec(cd);
   const name = m?.[1] ?? fallbackName;
+
+  let blob: Blob;
+  if (!res.body) {
+    blob = await res.blob();
+    onProgress?.({ loaded: total ?? 1, total: total ?? 1 });
+  } else {
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let crlf = 0;
+    let lastWasCr = false;
+    let bytes = 0;
+    let lastEmit = 0;
+
+    const emit = (loaded: number, force = false) => {
+      const now = performance.now();
+      if (!force && now - lastEmit < 80) return;
+      lastEmit = now;
+      onProgress?.({ loaded, total });
+    };
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      bytes += value.byteLength;
+      const counted = countCrlf(value, lastWasCr);
+      crlf += counted.count;
+      lastWasCr = counted.lastWasCr;
+      const loaded = useRows ? Math.max(0, crlf - 1) : bytes;
+      emit(loaded);
+    }
+
+    const loaded = useRows ? Math.max(0, crlf - 1) : bytes;
+    onProgress?.({ loaded: total ?? loaded, total: total ?? loaded });
+    blob = new Blob(chunks as BlobPart[], { type: "text/csv;charset=utf-8" });
+  }
+
   const objUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = objUrl;
@@ -1559,6 +1641,53 @@ function scopeHasFilters(scope?: ExportScope): boolean {
   return !isEmptyFilters(scope.filters);
 }
 
+function ExportProgressBar({
+  loaded,
+  total,
+  entityLabel,
+}: {
+  loaded: number;
+  total: number | null;
+  entityLabel: string;
+}) {
+  const pct =
+    total != null && total > 0
+      ? Math.min(100, Math.round((loaded / total) * 100))
+      : null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="text-muted-foreground tabular-nums">
+          {total != null
+            ? `${loaded.toLocaleString("pt-BR")} de ${total.toLocaleString("pt-BR")} ${entityLabel}`
+            : "Preparando arquivo…"}
+        </span>
+        {pct != null ? (
+          <span className="font-semibold tabular-nums text-foreground">{pct}%</span>
+        ) : null}
+      </div>
+      <div
+        className="relative h-2.5 overflow-hidden rounded-full bg-secondary"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct ?? undefined}
+        aria-busy={pct == null}
+      >
+        {pct == null ? (
+          <div className="absolute inset-0 animate-pulse bg-primary/30" />
+        ) : (
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+            style={{ width: `${Math.max(pct === 0 ? 2 : pct, 2)}%` }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ExportPanel({ scope }: { scope?: ExportScope } = {}) {
   const hasFilters = scopeHasFilters(scope);
   const [pipelineId, setPipelineId] = React.useState<string>(
@@ -1568,6 +1697,9 @@ export function ExportPanel({ scope }: { scope?: ExportScope } = {}) {
     hasFilters ? "filtered" : "all",
   );
   const [busy, setBusy] = React.useState<null | "deals" | "contacts">(null);
+  const [progress, setProgress] = React.useState<ExportDownloadProgress | null>(
+    null,
+  );
 
   const { data: pipelines = [] } = usePipelinesQuery<Pipeline>();
 
@@ -1585,22 +1717,33 @@ export function ExportPanel({ scope }: { scope?: ExportScope } = {}) {
     return qs ? `?${qs}` : "";
   };
 
+  const estimatedDealTotal =
+    hasFilters && dealScope === "filtered"
+      ? scope?.filteredTotal ?? null
+      : scope?.pipelineTotal ?? null;
+
   const runExport = async (kind: "deals" | "contacts") => {
     setBusy(kind);
+    const estimated = kind === "deals" ? estimatedDealTotal : null;
+    setProgress({ loaded: 0, total: estimated });
     try {
       if (kind === "deals") {
         await downloadFromApi(
           apiUrl(`/api/deals/export${buildDealsQuery()}`),
           "negocios.csv",
+          { onProgress: setProgress, estimatedTotal: estimated },
         );
       } else {
-        await downloadFromApi(apiUrl("/api/contacts/export"), "contatos.csv");
+        await downloadFromApi(apiUrl("/api/contacts/export"), "contatos.csv", {
+          onProgress: setProgress,
+        });
       }
       toast.success("Exportação concluída. Verifique seus downloads.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao exportar");
     } finally {
       setBusy(null);
+      setProgress(null);
     }
   };
 
@@ -1694,6 +1837,13 @@ export function ExportPanel({ scope }: { scope?: ExportScope } = {}) {
               triggerClassName="h-10 w-full text-sm"
             />
           </div>
+          {busy === "deals" && progress ? (
+            <ExportProgressBar
+              loaded={progress.loaded}
+              total={progress.total}
+              entityLabel="negócio(s)"
+            />
+          ) : null}
           <Button
             type="button"
             className="gap-1.5"
@@ -1717,7 +1867,14 @@ export function ExportPanel({ scope }: { scope?: ExportScope } = {}) {
             tags e campos personalizados.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {busy === "contacts" && progress ? (
+            <ExportProgressBar
+              loaded={progress.loaded}
+              total={progress.total}
+              entityLabel="contato(s)"
+            />
+          ) : null}
           <Button
             type="button"
             variant="outline"

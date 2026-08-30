@@ -34,7 +34,8 @@ import { SwitchGlass } from "@/components/crm/switch-glass";
 import { CheckboxGlass } from "@/components/crm/checkbox-glass";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
-import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
+import { PageActionsMenu } from "@/components/crm/page-toolbar";
+import { HeaderTabs } from "@/components/crm/section-header";
 import {
   SettingsListFilterBar,
   type SettingsFilterGroup,
@@ -596,23 +597,19 @@ function TeamContent() {
     const tabValue =
       activeTab === 2 ? "departamentos" : activeTab === 1 ? "expediente" : "usuarios";
     return (
-      <div className="toolbar-hscroll min-w-0 max-w-full">
-        <PageSegmentedControl
-          size="compact"
-          aria-label="Abas da equipe"
-          items={[
-            { value: "usuarios", label: "Usuários" },
-            { value: "expediente", label: "Expediente" },
-            ...(canManageDepartments
-              ? [{ value: "departamentos", label: "Departamentos" }]
-              : []),
-          ]}
-          value={tabValue}
-          onChange={(v) =>
-            setActiveTab(v === "departamentos" ? 2 : v === "expediente" ? 1 : 0)
-          }
-        />
-      </div>
+      <HeaderTabs
+        tabs={[
+          { key: "usuarios", label: "Usuários" },
+          { key: "expediente", label: "Expediente" },
+          ...(canManageDepartments
+            ? [{ key: "departamentos" as const, label: "Departamentos" }]
+            : []),
+        ]}
+        value={tabValue}
+        onChange={(v) =>
+          setActiveTab(v === "departamentos" ? 2 : v === "expediente" ? 1 : 0)
+        }
+      />
     );
   }, [activeTab, canManageDepartments]);
 

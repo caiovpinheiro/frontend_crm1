@@ -1135,12 +1135,27 @@
   animation-direction: reverse;
 }
 
+/* Inbox / deal: marca grande e translúcida, sem anel colorido. */
+@keyframes app-loading-watermark {
+  0%, 100% { opacity: 0.1; }
+  50%      { opacity: 0.2; }
+}
+.app-loading-watermark {
+  pointer-events: none;
+  animation: app-loading-watermark 2.8s ease-in-out infinite;
+}
+.app-loading-watermark img {
+  filter: saturate(0.35);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-loading-halo,
-  .brand-loader-ring {
+  .brand-loader-ring,
+  .app-loading-watermark {
     animation: none;
   }
   .app-loading-halo { opacity: 0.5; }
+  .app-loading-watermark { opacity: 0.14; }
 }
 
 /* Modal Telefonia IP — paleta sólida (light/dark) alinhada ao mockup */

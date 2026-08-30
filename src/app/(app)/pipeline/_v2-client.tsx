@@ -168,7 +168,10 @@ export default function KanbanV2ClientPage({
     writePipelineViewPreference("kanban");
   }, []);
 
-  const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const [activeDealId, setActiveDealId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URL(window.location.href).searchParams.get("deal");
+  });
 
   // Deep-link: negócio aberto em `?deal=<número>`. History API (sem RSC refetch).
   // Interno = CUID; URL = só número. Nunca escrever CUID novo na query.
@@ -189,12 +192,12 @@ export default function KanbanV2ClientPage({
     window.history.pushState(window.history.state, "", url.toString());
   }, []);
 
-  // Inicializa a partir da URL no mount.
-  // Aceita tanto número sequencial (?deal=102) quanto CUID (legado).
-  // O backend /api/deals/[id] já faz lookup por ambos.
-  useEffect(() => {
+  // URL no primeiro paint do cliente (inbox → ?deal=). useLayoutEffect
+  // cobre hydrate SSR sem esperar o frame do useEffect — evita spinner
+  // no kanban e depois outro no overlay.
+  useLayoutEffect(() => {
     const d = new URL(window.location.href).searchParams.get("deal");
-    if (d) setActiveDealId(d);
+    if (d) setActiveDealId((cur) => cur ?? d);
   }, []);
 
   // Voltar/avançar do navegador atualiza o negócio aberto.
@@ -1023,7 +1026,7 @@ export default function KanbanV2ClientPage({
         </div>
         )}
 
-        {waitingForPipeline || waitingForBoard ? (
+        {!activeDealId && (waitingForPipeline || waitingForBoard) ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : (
         <DragDropContext onDragEnd={handleDragEnd}>

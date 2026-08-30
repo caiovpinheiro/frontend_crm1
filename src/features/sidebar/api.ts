@@ -1,20 +1,21 @@
 /*
- * Camada de API da sidebar EFETIVA do usuario (derivada dos Roles).
+ * Camada de API da sidebar efetiva do usuario.
  *
- * 14/jul/26: `saveSidebarPreferences` foi removido. A gravacao agora e feita
- * pelo admin em cada Role (via `useUpdateRole` do features/permissions).
- * Ver AGENT.md "Sidebar por Papel".
- *
- * Endpoints (backend):
- *   GET /api/profile/preferences  -> { sidebar, dashboard, appearance }
+ * Leitura: GET /api/profile/preferences (papel + overlay pessoal).
+ * Gravacao pessoal: PATCH /api/profile/preferences/sidebar
+ * Gravacao do teto do papel: admin em /settings/permissions (useUpdateRole).
  */
 
 import { apiUrl } from "@/lib/api";
 
-import type { SidebarPreferencesResponse } from "./types";
+import type { SidebarItemPreference, SidebarPreferencesResponse } from "./types";
 
-async function getJson<T>(path: string, errLabel: string): Promise<T> {
-  const res = await fetch(apiUrl(path));
+async function requestJson<T>(
+  path: string,
+  errLabel: string,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(apiUrl(path), init);
   const text = await res.text();
   if (!res.ok) {
     let message = errLabel;
@@ -37,8 +38,34 @@ async function getJson<T>(path: string, errLabel: string): Promise<T> {
 }
 
 export function fetchSidebarPreferences(): Promise<SidebarPreferencesResponse> {
-  return getJson<SidebarPreferencesResponse>(
+  return requestJson<SidebarPreferencesResponse>(
     "/api/profile/preferences",
     "Erro ao carregar preferências.",
+  );
+}
+
+export function saveSidebarPreferences(
+  items: SidebarItemPreference[],
+): Promise<SidebarPreferencesResponse> {
+  return requestJson<SidebarPreferencesResponse>(
+    "/api/profile/preferences/sidebar",
+    "Erro ao salvar o menu.",
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    },
+  );
+}
+
+export function resetSidebarPreferences(): Promise<SidebarPreferencesResponse> {
+  return requestJson<SidebarPreferencesResponse>(
+    "/api/profile/preferences/sidebar",
+    "Erro ao restaurar o menu.",
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reset: true }),
+    },
   );
 }

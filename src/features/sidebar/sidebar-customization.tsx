@@ -3,12 +3,8 @@
 /*
  * Editor visual dos itens da sidebar (drag/drop + toggle + reset).
  *
- * Contexto (14/jul/26): a personalizacao de sidebar deixou de ser per-user
- * e passou a ser configuracao de Papel (Role). Ver AGENT.md ("Sidebar por
- * Papel"). Este arquivo agora exporta um COMPONENTE CONTROLADO
- * (`SidebarItemsEditor`) que o `RoleEditor` (features/permissions) reutiliza.
- * A UI (drag handle, toggle, botoes de ordenacao, badge "Obrigatorio") e' a
- * mesma; o que muda e a fonte do estado — o pai controla `items` + `onChange`.
+ * Componente CONTROLADO: o pai e o dono do estado. Usado no editor de
+ * Papel (`RoleEditor`) e no overlay pessoal em /settings/profile.
  */
 
 import * as React from "react";
@@ -20,7 +16,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-import { Switch } from "@/components/ui/switch";
+import { SwitchGlass } from "@/components/crm/switch-glass";
+import {
+  LIST_CARD_ROW_CLASS,
+  LIST_CARD_STACK_CLASS,
+} from "@/components/crm/sortable-header";
 import { cn } from "@/lib/utils";
 import {
   SIDEBAR_CATALOG,
@@ -28,6 +28,7 @@ import {
   resolveSidebarItems,
   type SidebarItemPreference,
 } from "@/lib/sidebar-catalog";
+import type { SidebarPreferencesResponse } from "./types";
 
 /** Item do estado local: ordem implicita pela posicao no array. */
 export interface SidebarEditorItem {
@@ -60,6 +61,30 @@ export function toPersistItems(
     enabled: it.enabled,
     order: idx + 1,
   }));
+}
+
+/**
+ * Itens editaveis no Perfil: so o que o papel liberou. O que o admin
+ * escondeu nao entra — o usuario nao reexibe pelo overlay pessoal.
+ */
+export function toPersonalEditorItems(
+  prefs: SidebarPreferencesResponse | undefined,
+): SidebarEditorItem[] {
+  if (!prefs?.sidebar?.items) return [];
+  const roleItems = prefs.roleSidebar?.items ?? prefs.sidebar.items;
+  const roleAllowed = new Set(
+    roleItems
+      .filter((it) => it.enabled || Boolean(getSidebarCatalogItem(it.key)?.locked))
+      .map((it) => it.key),
+  );
+  const available = prefs.availableKeys?.length
+    ? new Set(prefs.availableKeys)
+    : null;
+  return toEditorItems(prefs.sidebar.items).filter((it) => {
+    if (!roleAllowed.has(it.key)) return false;
+    if (available && !available.has(it.key)) return false;
+    return true;
+  });
 }
 
 interface SidebarItemsEditorProps {
@@ -110,7 +135,7 @@ export function SidebarItemsEditor({
 
   return (
     <div className={className}>
-      <ul className="space-y-2">
+      <ul className={LIST_CARD_STACK_CLASS}>
         {items.map((it, idx) => {
           const meta = getSidebarCatalogItem(it.key);
           if (!meta) return null;
@@ -131,15 +156,15 @@ export function SidebarItemsEditor({
                 dragIndex.current = null;
               }}
               className={cn(
-                "flex items-center gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)]/40 px-3 py-2.5 transition-opacity",
+                LIST_CARD_ROW_CLASS,
+                "flex items-center gap-3",
                 !it.enabled && "opacity-60",
                 disabled && "cursor-not-allowed",
               )}
             >
-              {/* Drag handle + botoes de ordenacao (fallback mobile/a11y) */}
               <div className="flex shrink-0 items-center gap-0.5">
                 <span
-                  className="hidden cursor-grab text-[var(--text-faint)] active:cursor-grabbing sm:block"
+                  className="hidden cursor-grab text-muted-foreground active:cursor-grabbing sm:block"
                   aria-hidden
                 >
                   <GripVertical className="size-4" />
@@ -150,7 +175,7 @@ export function SidebarItemsEditor({
                     onClick={() => move(idx, idx - 1)}
                     disabled={disabled || idx === 0}
                     aria-label={`Mover ${meta.title} para cima`}
-                    className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)] disabled:opacity-30"
+                    className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
                   >
                     <ChevronUp className="size-4" />
                   </button>
@@ -159,38 +184,39 @@ export function SidebarItemsEditor({
                     onClick={() => move(idx, idx + 1)}
                     disabled={disabled || idx === items.length - 1}
                     aria-label={`Mover ${meta.title} para baixo`}
-                    className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)] disabled:opacity-30"
+                    className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
                   >
                     <ChevronDown className="size-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-primary">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <Icon size={18} />
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                  <p className="truncate text-sm font-semibold text-foreground">
                     {meta.title}
                   </p>
                   {meta.locked && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--glass-bg-base)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                      <Lock className="size-2.5" />
+                    <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <Lock className="size-3" />
                       Obrigatório
                     </span>
                   )}
                 </div>
-                <p className="truncate text-[12px] text-[var(--color-ink-muted)]">
+                <p className="mt-0.5 truncate text-sm text-muted-foreground">
                   {meta.description}
                 </p>
               </div>
 
-              <Switch
+              <SwitchGlass
                 checked={it.enabled}
                 disabled={disabled || meta.locked}
-                onCheckedChange={() => toggle(it.key)}
+                onChange={() => toggle(it.key)}
+                size="list"
                 aria-label={`Mostrar ${meta.title} no menu lateral`}
               />
             </li>
@@ -204,7 +230,7 @@ export function SidebarItemsEditor({
             type="button"
             onClick={handleReset}
             disabled={disabled}
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 text-xs font-semibold text-[var(--color-ink-soft)] transition-colors hover:bg-[var(--glass-bg-strong)] disabled:opacity-50"
+            className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
           >
             <RotateCcw className="size-3.5" />
             Restaurar padrão

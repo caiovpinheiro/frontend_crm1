@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 /** Alinhado ao `STUCK_TIMEOUT_MS` usado nos gates de tela do Flow. */
 const DEFAULT_TIMEOUT_MS = 12_000;
 
+export type AppLoadingTone = "solid" | "watermark";
+
 export type AppLoadingProps = {
   /** Só para leitores de tela — nada visível ao lado da marca. */
   label?: string;
@@ -29,6 +31,11 @@ export type AppLoadingProps = {
    * `screen` / `panel`: overlay fixo no viewport. `panel` é alias de `screen`.
    */
   variant?: "screen" | "panel" | "inline";
+  /**
+   * `watermark`: marca grande e translúcida (inbox/deal). Sem anel
+   * colorido — menos enjoo ao trocar de card.
+   */
+  tone?: AppLoadingTone;
   /**
    * Sempre marca 32px. `default` é alias de `sm` — splash grande
    * (52–88px) virava o “B fantasma” no F5.
@@ -54,66 +61,77 @@ const MARK_SIZE = {
 function BrandMark({
   spinning,
   size = "default",
+  tone = "solid",
 }: {
   spinning: boolean;
   size?: "default" | "sm";
+  tone?: AppLoadingTone;
 }) {
   const reactId = React.useId().replace(/:/g, "");
   const gradId = `brand-loader-ring-${reactId}`;
-  const { box: boxPx } = MARK_SIZE[size];
+  const watermark = tone === "watermark";
+  const boxPx = watermark ? 88 : MARK_SIZE[size].box;
+  const markPx = watermark ? 52 : 32;
 
   return (
     <span
-      className="relative inline-flex items-center justify-center"
+      className={cn(
+        "relative inline-flex items-center justify-center",
+        watermark && "app-loading-watermark",
+      )}
       style={{ width: boxPx, height: boxPx }}
     >
-      <span
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-0",
-          spinning && "brand-loader-ring",
-        )}
-        data-dir="cw"
-      >
-        <svg viewBox="0 0 80 80" className="size-full">
-          <defs>
-            {/* Cyan → royal → magenta da marca; gira com o SVG. */}
-            <linearGradient
-              id={gradId}
-              x1="40"
-              y1="4"
-              x2="40"
-              y2="76"
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop offset="0%" stopColor="var(--color-sky)" />
-              <stop offset="45%" stopColor="var(--brand-primary)" />
-              <stop offset="100%" stopColor="#d946ef" />
-            </linearGradient>
-          </defs>
-          {/* ~270° de arco (circunferência 2π·36 ≈ 226). */}
-          <circle
-            cx="40"
-            cy="40"
-            r="36"
-            fill="none"
-            stroke={`url(#${gradId})`}
-            strokeWidth="4.75"
-            strokeLinecap="round"
-            strokeDasharray="170 56"
-          />
-        </svg>
-      </span>
-      {/* 32px explícito no atributo e no style — sem w-full / h-auto. */}
+      {!watermark ? (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-0",
+            spinning && "brand-loader-ring",
+          )}
+          data-dir="cw"
+        >
+          <svg viewBox="0 0 80 80" className="size-full">
+            <defs>
+              <linearGradient
+                id={gradId}
+                x1="40"
+                y1="4"
+                x2="40"
+                y2="76"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" stopColor="var(--color-sky)" />
+                <stop offset="45%" stopColor="var(--brand-primary)" />
+                <stop offset="100%" stopColor="#d946ef" />
+              </linearGradient>
+            </defs>
+            <circle
+              cx="40"
+              cy="40"
+              r="36"
+              fill="none"
+              stroke={`url(#${gradId})`}
+              strokeWidth="4.75"
+              strokeLinecap="round"
+              strokeDasharray="170 56"
+            />
+          </svg>
+        </span>
+      ) : null}
       <img
         src={BWIPO_MARK_LOADER_SRC}
         alt=""
-        width={32}
-        height={32}
+        width={markPx}
+        height={markPx}
         draggable={false}
         decoding="async"
         className="relative shrink-0"
-        style={{ width: 32, height: 32, maxWidth: 32, maxHeight: 32 }}
+        style={{
+          width: markPx,
+          height: markPx,
+          maxWidth: markPx,
+          maxHeight: markPx,
+        }}
       />
     </span>
   );
@@ -124,11 +142,13 @@ function Body({
   message,
   onRetry,
   size = "default",
+  tone = "solid",
 }: {
   label: string;
   message: string | null;
   onRetry?: () => void;
   size?: "default" | "sm";
+  tone?: AppLoadingTone;
 }) {
   if (message) {
     return (
@@ -160,7 +180,7 @@ function Body({
       aria-label={label}
       data-app-loading-state="loading"
     >
-      <BrandMark spinning size={size} />
+      <BrandMark spinning size={size} tone={tone} />
     </div>
   );
 }
@@ -168,6 +188,7 @@ function Body({
 export function AppLoading({
   label = "Carregando",
   variant = "inline",
+  tone = "solid",
   size,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   error = null,
@@ -176,6 +197,7 @@ export function AppLoading({
 }: AppLoadingProps) {
   const [timedOut, setTimedOut] = React.useState(false);
   const resolvedSize = size ?? "sm";
+  const resolvedTone = error || timedOut ? "solid" : tone;
 
   React.useEffect(() => {
     if (error || timeoutMs <= 0) return;
@@ -193,6 +215,7 @@ export function AppLoading({
       message={message}
       onRetry={onRetry}
       size={resolvedSize}
+      tone={resolvedTone}
     />
   );
 

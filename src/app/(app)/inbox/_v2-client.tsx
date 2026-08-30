@@ -50,7 +50,6 @@ import {
   usePersistentWidth,
 } from "@/components/crm/column-resizer";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 import { COMPOSER_FOCUS_CHAT_EVENT } from "@/lib/composer-insert";
 
 import {
@@ -116,9 +115,11 @@ import {
 } from "@/features/inbox-v2/hooks/use-inbox-filters-url-sync";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
+  dealDetailKey,
   useDealDetail,
   usePipelines,
 } from "@/features/pipeline-v2/hooks";
+import { getDeal } from "@/features/pipeline-v2/api";
 import { StagePicker } from "@/features/pipeline-v2/extras/stage-picker";
 import { AssigneePopover as DealOwnerPopover } from "@/features/pipeline-v2/extras/assignee-popover";
 import { MoveToStageMenu } from "@/features/pipeline-v2/extras/move-to-stage-menu";
@@ -1070,6 +1071,11 @@ export default function InboxV2ClientPage({
 
   function handlePickSearchDeal(id: string) {
     setSearchInput("");
+    void qc.prefetchQuery({
+      queryKey: dealDetailKey(id),
+      queryFn: () => getDeal(id),
+      staleTime: 30_000,
+    });
     router.push(`/pipeline?deal=${encodeURIComponent(id)}`);
   }
 
@@ -1513,8 +1519,7 @@ export default function InboxV2ClientPage({
   // GET /api/pipelines (~3KB, staleTime 5min).
   const firstDeal = contactAsideView?.deals?.[0] ?? null;
   const firstDealId = firstDeal?.id ?? null;
-  const asideIdle = useIdleEnabled(2000);
-  const { data: firstDealDetail } = useDealDetail(asideIdle ? firstDealId : null);
+  const { data: firstDealDetail } = useDealDetail(firstDealId);
   const dealStage = (
     firstDealDetail as
       | { stage?: { id?: string; pipeline?: { id?: string; name?: string } } }
@@ -1525,7 +1530,7 @@ export default function InboxV2ClientPage({
   const firstDealPipelineName =
     firstDeal?.pipelineName ?? dealStage?.pipeline?.name ?? null;
   const { data: pipelinesLite } = usePipelines(
-    isAuthenticated && asideIdle && !!firstDealPipelineId,
+    isAuthenticated && !!firstDealPipelineId,
   );
   const boardStages: PipelineListStageDto[] = useMemo(() => {
     if (!firstDealPipelineId || !pipelinesLite) return [];
