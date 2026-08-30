@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -103,8 +103,9 @@ function emptyServiceResult(): PainelServiceResult {
   };
 }
 
-/** Volume/heatmap first — they do not need reply-pair metrics. */
-const SERVICE_LIGHT_SECTIONS = "volume,heatmap,connections,exceptions";
+/** Volume alone first so KPIs paint without waiting for heatmap SQL. */
+const SERVICE_VOLUME_SECTION = "volume";
+const SERVICE_LIGHT_REST = "heatmap,connections,exceptions";
 const SERVICE_HEAVY_SECTIONS = "tempo,byDepartment,attendants,channels";
 
 export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
@@ -180,6 +181,34 @@ function servicePeriodStamp(
   return `${filters.period}|${filters.startDate ?? ""}|${filters.endDate ?? ""}|${clock}`;
 }
 
+function isHeavyServiceSection(section: string) {
+  return SERVICE_HEAVY_SECTIONS.split(",").some((key) => section.split(",").includes(key));
+}
+
+async function fetchServiceWaves(
+  filters: DashboardFiltersState,
+  clock: "business" | "elapsed",
+  waves: string[],
+  signal: AbortSignal,
+  onPartial: (acc: PainelServiceResult) => void,
+): Promise<PainelServiceResult> {
+  const acc = emptyServiceResult();
+  for (const section of waves) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    try {
+      Object.assign(acc, pickDefined(await fetchPainelService({ filters, clock, section, signal })));
+    } catch (e) {
+      if (signal.aborted) throw e;
+      const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
+      for (const key of section.split(",")) {
+        Object.assign(acc, { [key]: { ok: false, error } });
+      }
+    }
+    onPartial({ ...acc });
+  }
+  return acc;
+}
+
 export function usePainelService(
   filters: DashboardFiltersState,
   clock: "business" | "elapsed",
@@ -187,9 +216,11 @@ export function usePainelService(
   mode: "full" | "light" = "full",
 ) {
   const queryClient = useQueryClient();
-  const queryKey = ["painel", "service", filters, clock, mode] as const;
+  const lightKey = ["painel", "service", filters, clock, "light"] as const;
+  const heavyKey = ["painel", "service", filters, clock, "heavy"] as const;
   const live = isPreviewMode() || isPageMockMode() ? true : enabled;
   const stamp = servicePeriodStamp(filters, clock);
+  const wantHeavy = mode === "full";
 
   useEffect(() => {
     if (!live) return;
@@ -205,45 +236,65 @@ export function usePainelService(
     });
   }, [live, stamp, queryClient]);
 
-  const query = useQuery<PainelServiceResult>({
-    queryKey,
-    queryFn: async ({ signal }) => {
-      const acc = emptyServiceResult();
-      const apply = (part: PainelServiceResult) => {
-        Object.assign(acc, pickDefined(part));
-        queryClient.setQueryData<PainelServiceResult>(queryKey, { ...acc });
-      };
-      const waves =
-        mode === "light"
-          ? [SERVICE_LIGHT_SECTIONS]
-          : [SERVICE_LIGHT_SECTIONS, SERVICE_HEAVY_SECTIONS];
-      for (const section of waves) {
-        if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-        try {
-          apply(await fetchPainelService({ filters, clock, section, signal }));
-        } catch (e) {
-          if (signal.aborted) throw e;
-          const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
-          for (const key of section.split(",")) {
-            Object.assign(acc, { [key]: { ok: false, error } });
-          }
-          queryClient.setQueryData<PainelServiceResult>(queryKey, { ...acc });
-        }
-      }
-      return acc;
-    },
+  const light = useQuery<PainelServiceResult>({
+    queryKey: lightKey,
+    queryFn: ({ signal }) =>
+      fetchServiceWaves(
+        filters,
+        clock,
+        [SERVICE_VOLUME_SECTION, SERVICE_LIGHT_REST],
+        signal,
+        (acc) => queryClient.setQueryData<PainelServiceResult>(lightKey, acc),
+      ),
     enabled: live,
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
   });
+
+  const heavy = useQuery<PainelServiceResult>({
+    queryKey: heavyKey,
+    queryFn: ({ signal }) =>
+      fetchServiceWaves(
+        filters,
+        clock,
+        [SERVICE_HEAVY_SECTIONS],
+        signal,
+        (acc) => queryClient.setQueryData<PainelServiceResult>(heavyKey, acc),
+      ),
+    enabled: live && wantHeavy && light.isSuccess && light.data?.volume?.ok === true,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const data = useMemo(() => {
+    if (!light.data && !heavy.data) return undefined;
+    return {
+      ...emptyServiceResult(),
+      ...pickDefined(light.data ?? emptyServiceResult()),
+      ...pickDefined(heavy.data ?? emptyServiceResult()),
+    };
+  }, [light.data, heavy.data]);
 
   async function retrySection(section: string) {
     const next = await fetchPainelService({ filters, clock, section });
-    queryClient.setQueryData<PainelServiceResult>(queryKey, (old) =>
-      old ? { ...old, ...pickDefined(next) } : next,
+    const key = isHeavyServiceSection(section) ? heavyKey : lightKey;
+    queryClient.setQueryData<PainelServiceResult>(key, (old) =>
+      old ? { ...old, ...pickDefined(next) } : { ...emptyServiceResult(), ...pickDefined(next) },
     );
   }
 
-  return { ...query, retrySection };
+  return {
+    ...light,
+    data,
+    isFetching: light.isFetching || heavy.isFetching,
+    refetch: async () => {
+      const result = await light.refetch();
+      if (wantHeavy) await heavy.refetch();
+      return result;
+    },
+    retrySection,
+  };
 }
 
 function pickDefined<T extends Record<string, { ok: boolean; error?: string }>>(

@@ -342,7 +342,9 @@ export async function fetchPainelService(params: {
   sp.set("clock", params.clock);
   if (params.section) sp.set("section", params.section);
   const light =
+    params.section === "volume" ||
     params.section === "volume,heatmap,connections,exceptions" ||
+    params.section === "heatmap,connections,exceptions" ||
     params.section === "agora";
   return getJson<PainelServiceResult>(
     `/api/painel/service?${sp.toString()}`,
