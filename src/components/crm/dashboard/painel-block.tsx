@@ -86,6 +86,9 @@ export function PainelBlockError({
   message: string;
   onRetry: () => void;
 }) {
+  if (message === "omitido") {
+    return <PainelSkeleton className="min-h-48" />;
+  }
   return (
     <div
       className={cn(
