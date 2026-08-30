@@ -57,6 +57,8 @@ import {
 import type { ListCallsFilters } from "@/features/softphone/api/types";
 import { RestrictedScreen } from "@/components/crm/restricted-screen";
 import { useRequireManager } from "@/hooks/use-user-role";
+import { DataView, DataRow } from "@/components/automations/data-view";
+import { ViewToggle, type CardsTableView } from "@/components/automations/view-toggle";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import {
@@ -75,8 +77,6 @@ import {
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import {
-  LIST_CARD_ROW_CLASS,
-  listTableHeadRowClass,
   SortableHeader,
   type SortDir,
 } from "@/components/crm/sortable-header";
@@ -271,6 +271,7 @@ export default function LogsClientPage() {
   const { status: sessionStatus } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = React.useState(0);
+  const [view, setView] = React.useState<CardsTableView>("cards");
   const isFeed = activeTab === 0;
   const isCalls = activeTab === 1;
   const isStats = activeTab === 2;
@@ -617,15 +618,18 @@ export default function LogsClientPage() {
             ) : undefined
           }
           actions={
-            <HeaderTabs
-              tabs={LOG_TABS.map((label, index) => ({
-                key: String(index),
-                label,
-                badge: index === 1 && typeof callsTotal === "number" ? callsTotal : undefined,
-              }))}
-              value={String(activeTab)}
-              onChange={(v) => setActiveTab(Number(v))}
-            />
+            <>
+              {isFeed ? <ViewToggle value={view} onChange={setView} /> : null}
+              <HeaderTabs
+                tabs={LOG_TABS.map((label, index) => ({
+                  key: String(index),
+                  label,
+                  badge: index === 1 && typeof callsTotal === "number" ? callsTotal : undefined,
+                }))}
+                value={String(activeTab)}
+                onChange={(v) => setActiveTab(Number(v))}
+              />
+            </>
           }
           menu={isFeed || (isCalls && callsWidget.enabled === true)}
           menuSlot={
@@ -686,14 +690,13 @@ export default function LogsClientPage() {
                 />
               </div>
             ) : (
-              /* Layout em cards (padrão Chamadas): cabeçalho solto + linhas
-                 individuais com gap. Scroll horizontal se viewport < 960px. */
-              <div className={cn("flex min-w-[960px] flex-col gap-2.5 overflow-x-auto", LIST_PAGE_STACK_CLASS)}>
-                  <div
-                    className={listTableHeadRowClass(
-                      `${FEED_GRID} gap-3.5 border border-transparent px-4 py-2`,
-                    )}
-                  >
+              <div className={cn("min-w-0 overflow-x-auto", LIST_PAGE_STACK_CLASS)}>
+              <DataView
+                view={view}
+                columnClass={`grid ${FEED_GRID} items-center gap-3.5`}
+                className="min-w-[960px]"
+                header={
+                  <>
                     <SortableHeader
                       label="Evento"
                       sort={sort.column === "evento" ? sort.dir : null}
@@ -725,8 +728,9 @@ export default function LogsClientPage() {
                       onSort={() => toggleSort("data")}
                       align="right"
                     />
-                  </div>
-
+                  </>
+                }
+              >
                   {!isDefaultSort && hasNextPage && (
                     <div className="px-1 font-body text-[11px] italic text-[var(--text-muted)]">
                       Ordenando eventos carregados — role para carregar mais.
@@ -749,6 +753,7 @@ export default function LogsClientPage() {
                       Fim do histórico.
                     </p>
                   )}
+              </DataView>
               </div>
             )}
 
@@ -951,9 +956,7 @@ function EventCard({ event }: { event: FeedEvent }) {
   const origin = resolveOrigin(event);
 
   return (
-    <div
-      className={`grid ${FEED_GRID} items-center gap-3.5 ${LIST_CARD_ROW_CLASS}`}
-    >
+    <DataRow>
       {/* Coluna: Evento */}
       <div className="flex min-w-0 items-center gap-2">
         <span
@@ -998,7 +1001,7 @@ function EventCard({ event }: { event: FeedEvent }) {
       <div className="text-right">
         <EventDate iso={event.occurredAt} />
       </div>
-    </div>
+    </DataRow>
   );
 }
 

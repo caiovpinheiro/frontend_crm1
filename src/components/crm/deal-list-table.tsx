@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { DataView, DataRow } from "@/components/automations/data-view";
+import type { CardsTableView } from "@/components/automations/view-toggle";
 import { cn } from "@/lib/utils";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
 import { AVATAR_SIZE } from "@/lib/avatar";
@@ -11,7 +13,7 @@ import { CheckboxGlass } from "./checkbox-glass";
 import { ColumnResizer, useColumnWidths } from "./column-resizer";
 import { ListHScroll } from "./list-hscroll";
 import { LIST_PAGE_STACK_CLASS } from "./pagination-glass";
-import { SortableHeader, type SortDir, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, listTableHeadRowClass } from "./sortable-header";
+import { SortableHeader, type SortDir } from "./sortable-header";
 import { StageDot } from "./stage-dot";
 
 export type DealListStatus = "OPEN" | "WON" | "LOST";
@@ -83,6 +85,7 @@ interface DealListTableProps {
   /** Seleção controlada (ações em massa na Lista). */
   selectedIds?: Set<string>;
   onSelectionChange?: (next: Set<string>) => void;
+  view?: CardsTableView;
 }
 
 const statusToTab: Record<DealListStatus, Exclude<DealListTab, "todos">> = {
@@ -120,6 +123,7 @@ export function DealListTable({
   className,
   selectedIds,
   onSelectionChange,
+  view = "cards",
 }: DealListTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -247,42 +251,46 @@ export function DealListTable({
     }
   }
 
+  const header = (
+    <>
+      <span>
+        <CheckboxGlass
+          checked={allChecked}
+          indeterminate={!allChecked && someChecked}
+          onChange={toggleAll}
+          aria-label="Selecionar todos"
+        />
+      </span>
+      {columns.map((col) => {
+        const w = getWidth(col.key, col.minPx);
+        return (
+          <div key={col.key} className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
+            <SortableHeader
+              label={col.label}
+              sort={sortFor(col.key)}
+              onSort={() => handleSort(col.key)}
+            />
+            <ColumnResizer
+              value={w}
+              onChange={(px) => setWidth(col.key, px)}
+              min={col.minPx}
+              max={480}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
+
   return (
     <ListHScroll className={className} scrollerClassName="pb-1">
-      {/* w-max + minmax nas colunas: overflow X real (igual Contatos/Empresas). */}
-      <div className={cn("w-max min-w-full", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}>
-        <div
-          className={listTableHeadRowClass("hidden gap-3 lg:grid")}
-          style={{ gridTemplateColumns: gridTemplate }}
-        >
-          <span>
-            <CheckboxGlass
-              checked={allChecked}
-              indeterminate={!allChecked && someChecked}
-              onChange={toggleAll}
-              aria-label="Selecionar todos"
-            />
-          </span>
-          {columns.map((col) => {
-            const w = getWidth(col.key, col.minPx);
-            return (
-              <div key={col.key} className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
-                <SortableHeader
-                  label={col.label}
-                  sort={sortFor(col.key)}
-                  onSort={() => handleSort(col.key)}
-                />
-                <ColumnResizer
-                  value={w}
-                  onChange={(px) => setWidth(col.key, px)}
-                  min={col.minPx}
-                  max={480}
-                />
-              </div>
-            );
-          })}
-        </div>
-
+      <DataView
+        view={view}
+        columnClass="grid items-center gap-3"
+        header={header}
+        className={cn("w-max min-w-full", LIST_PAGE_STACK_CLASS)}
+        style={{ gridTemplateColumns: gridTemplate }}
+      >
         {filtered.length === 0 ? (
           <p className="py-10 text-center font-body text-[13px] text-[var(--text-muted)]">
             Nenhum negócio neste status nesta página.
@@ -291,7 +299,7 @@ export function DealListTable({
           filtered.map((d) => {
             const isChecked = selected.has(d.id);
             return (
-              <div
+              <DataRow
                 key={d.id}
                 role="button"
                 tabIndex={0}
@@ -302,10 +310,8 @@ export function DealListTable({
                     onRowClick?.(d.id);
                   }
                 }}
-                style={{ gridTemplateColumns: gridTemplate }}
                 className={cn(
-                  "group grid cursor-pointer items-center gap-3",
-                  LIST_CARD_ROW_CLASS,
+                  "group cursor-pointer",
                   isChecked && "border-primary bg-primary/10",
                 )}
               >
@@ -321,11 +327,11 @@ export function DealListTable({
                     {renderCell(d, col.key)}
                   </div>
                 ))}
-              </div>
+              </DataRow>
             );
           })
         )}
-      </div>
+      </DataView>
     </ListHScroll>
   );
 }

@@ -20,6 +20,7 @@ import { NavRailSpacer } from "@/components/crm/nav-rail-spacer"
 import { cn } from "@/lib/utils"
 import { RestrictedScreen } from "@/components/crm/restricted-screen"
 import { useRequireManager } from "@/hooks/use-user-role"
+import { ViewToggle, type CardsTableView } from "@/components/automations/view-toggle"
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
 import { SearchFilterBar } from "@/components/crm/search-filter-bar"
 import {
@@ -60,6 +61,7 @@ export default function V2AutomationsClientPage() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE)
   const [isImporting, setIsImporting] = useState(false)
+  const [view, setView] = useState<CardsTableView>("cards")
   const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -358,16 +360,19 @@ export default function V2AutomationsClientPage() {
             />
           }
           actions={
-            <HeaderPillToggle
-              options={[
-                { key: "automations", label: "Automações" },
-                { key: "campaigns", label: "Campanhas" },
-              ]}
-              value="automations"
-              onChange={(v) => {
-                if (v === "campaigns") router.push("/campaigns")
-              }}
-            />
+            <>
+              <ViewToggle value={view} onChange={setView} />
+              <HeaderPillToggle
+                options={[
+                  { key: "automations", label: "Automações" },
+                  { key: "campaigns", label: "Campanhas" },
+                ]}
+                value="automations"
+                onChange={(v) => {
+                  if (v === "campaigns") router.push("/campaigns")
+                }}
+              />
+            </>
           }
           menuSlot={
             <AutomationsActionsMenu
@@ -428,6 +433,7 @@ export default function V2AutomationsClientPage() {
             automations={listItems}
             onToggle={handleToggle}
             onDelete={handleDelete}
+            view={view}
           />
         )}
 

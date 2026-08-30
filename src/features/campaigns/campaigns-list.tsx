@@ -3,9 +3,11 @@
 import Link from "next/link"
 import { MessageCircle, Pause, Play, TriangleAlert, Trash2 } from "lucide-react"
 
+import { DataView, DataRow } from "@/components/automations/data-view"
+import type { CardsTableView } from "@/components/automations/view-toggle"
 import { EmptyState } from "@/components/crm/empty-state"
 import { LIST_PAGE_STACK_CLASS } from "@/components/crm/pagination-glass"
-import { ListColumnLabel, LIST_CARD_HEAD_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS } from "@/components/crm/sortable-header"
+import { ListColumnLabel } from "@/components/crm/sortable-header"
 import { cn } from "@/lib/utils"
 
 import { STATUS_CHIP_CLASS, STATUS_META } from "./constants"
@@ -75,12 +77,14 @@ export function CampaignsList({
   onPause,
   onResume,
   pendingId,
+  view = "cards",
 }: {
   items: CampaignListItem[]
   onDelete?: (campaign: CampaignListItem) => void
   onPause?: (campaign: CampaignListItem) => void
   onResume?: (campaign: CampaignListItem) => void
   pendingId?: string | null
+  view?: CardsTableView
 }) {
   if (items.length === 0) {
     return (
@@ -94,20 +98,24 @@ export function CampaignsList({
     )
   }
 
-  return (
-    <div
-      className={cn("min-w-0", LIST_CARD_STACK_CLASS, LIST_PAGE_STACK_CLASS)}
-      aria-label="Lista de campanhas"
-    >
-      <div className={cn(columnClass, LIST_CARD_HEAD_CLASS)}>
-        <ListColumnLabel>Campanha / público</ListColumnLabel>
-        <ListColumnLabel>Status</ListColumnLabel>
-        <ListColumnLabel>Leitura</ListColumnLabel>
-        <ListColumnLabel>Lido</ListColumnLabel>
-        <ListColumnLabel>Resp.</ListColumnLabel>
-        <ListColumnLabel>Falha</ListColumnLabel>
-      </div>
+  const header = (
+    <>
+      <ListColumnLabel>Campanha / público</ListColumnLabel>
+      <ListColumnLabel>Status</ListColumnLabel>
+      <ListColumnLabel>Leitura</ListColumnLabel>
+      <ListColumnLabel>Lido</ListColumnLabel>
+      <ListColumnLabel>Resp.</ListColumnLabel>
+      <ListColumnLabel>Falha</ListColumnLabel>
+    </>
+  )
 
+  return (
+    <DataView
+      view={view}
+      columnClass={columnClass}
+      header={header}
+      className={cn("min-w-0", LIST_PAGE_STACK_CLASS)}
+    >
       {items.map((campaign) => {
           const visual = visualStatus(campaign.status)
           const sending = isSendingLike(campaign)
@@ -126,14 +134,7 @@ export function CampaignsList({
           const href = `/campaigns/${campaign.number ?? campaign.id}`
 
           return (
-            <div
-              key={campaign.id}
-              className={cn(
-                "group relative cursor-pointer",
-                LIST_CARD_ROW_CLASS,
-                columnClass,
-              )}
-            >
+            <DataRow key={campaign.id} className="group relative cursor-pointer">
               <Link
                 href={href}
                 className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -303,9 +304,9 @@ export function CampaignsList({
                   ) : null}
                 </div>
               )}
-            </div>
+            </DataRow>
           )
         })}
-    </div>
+    </DataView>
   )
 }
