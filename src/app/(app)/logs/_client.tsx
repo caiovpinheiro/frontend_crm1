@@ -58,7 +58,7 @@ import type { ListCallsFilters } from "@/features/softphone/api/types";
 import { RestrictedScreen } from "@/components/crm/restricted-screen";
 import { useRequireManager } from "@/hooks/use-user-role";
 import { DataView, DataRow } from "@/components/automations/data-view";
-import { ViewToggle, type CardsTableView } from "@/components/automations/view-toggle";
+import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import {
@@ -271,7 +271,7 @@ export default function LogsClientPage() {
   const { status: sessionStatus } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = React.useState(0);
-  const [view, setView] = React.useState<CardsTableView>("cards");
+  const [view, setView] = useCardsTableView();
   const isFeed = activeTab === 0;
   const isCalls = activeTab === 1;
   const isStats = activeTab === 2;
@@ -619,7 +619,7 @@ export default function LogsClientPage() {
           }
           actions={
             <>
-              {isFeed ? <ViewToggle value={view} onChange={setView} /> : null}
+              {isFeed || isCalls ? <ViewToggle value={view} onChange={setView} /> : null}
               <HeaderTabs
                 tabs={LOG_TABS.map((label, index) => ({
                   key: String(index),
@@ -779,6 +779,7 @@ export default function LogsClientPage() {
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <CallsMiniDash stats={callsStats} />
               <CallHistoryList
+                view={view}
                 groupByDay
                 filters={callsListFilters}
                 onFiltersChange={(f) => {
