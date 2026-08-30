@@ -295,7 +295,11 @@ function ServiceVolume({
       </div>
       <PainelCard
         title="Iniciadas vs finalizadas"
-        subtitle={`Barras por dia · ${formatNumber(v.messagesIn)} msgs in · ${formatNumber(v.messagesOut)} out`}
+        subtitle={
+          v.messagesIn > 0 || v.messagesOut > 0
+            ? `Barras por dia · ${formatNumber(v.messagesIn)} msgs in · ${formatNumber(v.messagesOut)} out`
+            : "Barras por dia"
+        }
         info="Acúmulo aparece quando iniciadas superam finalizadas por vários dias. Mensagens e volume respeitam o calendário — diferente do bloco Agora."
       >
         <div className="h-[240px] w-full">

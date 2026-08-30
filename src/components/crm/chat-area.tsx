@@ -8,6 +8,7 @@ import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import { isPreviewMode, PREVIEW_USER } from "@/lib/preview-mode"
 import { AppLoading } from "@/components/crm/app-loading"
+import { ConversationHistoryLoadRing, ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton"
 import { ChatAvatar } from "@/components/inbox/chat-avatar"
 import { AVATAR_SIZE, avatarInitials } from "@/lib/avatar"
 import { MessageBubble, ConnectionDivider, ConversationClosedMarker, TicketDivider, DaySeparator, formatChatDayLabel, StickyDayPill, useStickyDayLabel, type Message } from "./message-bubble"
@@ -739,7 +740,7 @@ export function ChatArea({
           <StickyDayPill date={stickyDayLabel} />
         ) : null}
         {messagesLoading ? (
-          <AppLoading variant="inline" tone="watermark" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
+          <ConversationThreadSkeleton />
         ) : messagesError ? (
           <AppLoading
             variant="inline"
@@ -760,14 +761,12 @@ export function ChatArea({
             ↑ Role para ver mensagens anteriores
           </p>
         ) : null}
+        {isLoadingOlder && messages.length > 0 ? (
+          <ConversationHistoryLoadRing />
+        ) : null}
         {/* Sem spacer flex-1: thread curto preenche de cima. Thread longo
             continua pinado no fim via pinToBottom. */}
         <ul className="flex list-none flex-col gap-0.5">
-        {olderArmed && isLoadingOlder && (
-          <li className="flex list-none justify-center py-2" aria-hidden>
-            <span className="inline-block size-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
-          </li>
-        )}
         {(() => {
           // Pills de dia inline no fluxo. O dia no topo vem do overlay
           // `StickyDayPill` — a pill in-flow do dia atual fica invisible

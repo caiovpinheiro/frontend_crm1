@@ -168,8 +168,8 @@ export function usePainelAgora(
     queryKey: ["painel", "agora", clock],
     queryFn: ({ signal }) => fetchPainelAgora(clock, signal),
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 15_000,
-    refetchInterval: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 120_000,
   });
 }
 
@@ -184,9 +184,10 @@ export function usePainelService(
   filters: DashboardFiltersState,
   clock: "business" | "elapsed",
   enabled = true,
+  mode: "full" | "light" = "full",
 ) {
   const queryClient = useQueryClient();
-  const queryKey = ["painel", "service", filters, clock] as const;
+  const queryKey = ["painel", "service", filters, clock, mode] as const;
   const live = isPreviewMode() || isPageMockMode() ? true : enabled;
   const stamp = servicePeriodStamp(filters, clock);
 
@@ -212,7 +213,11 @@ export function usePainelService(
         Object.assign(acc, pickDefined(part));
         queryClient.setQueryData<PainelServiceResult>(queryKey, { ...acc });
       };
-      for (const section of [SERVICE_LIGHT_SECTIONS, SERVICE_HEAVY_SECTIONS]) {
+      const waves =
+        mode === "light"
+          ? [SERVICE_LIGHT_SECTIONS]
+          : [SERVICE_LIGHT_SECTIONS, SERVICE_HEAVY_SECTIONS];
+      for (const section of waves) {
         if (signal.aborted) throw new DOMException("Aborted", "AbortError");
         try {
           apply(await fetchPainelService({ filters, clock, section, signal }));
@@ -313,9 +318,15 @@ export function usePainelEventCards(
     dateTo: undefined as string | undefined,
   };
   const stats = useActivityStats(enabled && eventCards.length > 0, period);
-  const service = usePainelService(filters, "business", enabled && eventCards.some((c) =>
-    ["messages_in", "messages_out", "avg_response", "queue"].includes(c.eventType ?? ""),
-  ));
+  const service = usePainelService(
+    filters,
+    "business",
+    enabled &&
+      eventCards.some((c) =>
+        ["messages_in", "messages_out", "queue"].includes(c.eventType ?? ""),
+      ),
+    "light",
+  );
 
   return eventCards.map((card) => {
     const type = card.eventType ?? "";

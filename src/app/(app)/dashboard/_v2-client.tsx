@@ -289,7 +289,11 @@ function ManagerHome({
     actorUserIds: tabActorUserIds,
     departmentIds: tabDepartmentIds,
     page: tabLogPage,
-    enabled: tabReady && isService && hasServiceTabWidgets,
+    enabled:
+      tabReady &&
+      isService &&
+      hasServiceTabWidgets &&
+      !!serviceQuery.data?.volume,
   });
 
   useEffect(() => {

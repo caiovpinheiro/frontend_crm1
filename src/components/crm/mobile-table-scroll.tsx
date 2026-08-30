@@ -1,7 +1,6 @@
 "use client";
 
-import * as React from "react";
-
+import { StickyHScroll } from "@/components/crm/list-hscroll";
 import { cn } from "@/lib/utils";
 
 type MobileTableScrollProps = {
@@ -15,6 +14,9 @@ type MobileTableScrollProps = {
  * Envolve listas/tabelas largas (cabeçalho `listTableHeadRowClass` + linhas
  * em `LIST_GRID`) para que, em telas estreitas (APK/mobile), o usuário role
  * horizontalmente em vez de ter colunas cortadas/espremidas.
+ *
+ * Reuses StickyHScroll so the column cabeçalho can pin on the page Y-scroll
+ * (overflow-x alone would otherwise kill `position: sticky`).
  */
 export function MobileTableScroll({
   children,
@@ -22,17 +24,12 @@ export function MobileTableScroll({
   className,
 }: MobileTableScrollProps) {
   return (
-    <div
-      className={cn(
-        // pan-x + pan-y: H-scroll da tabela sem engolir o scroll vertical
-        // da página (touch-pan-x sozinho bloqueava o dedo no mobile/APK).
-        "min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]",
-        className,
-      )}
+    <StickyHScroll
+      className={cn(className)}
+      minWidth={minWidth}
+      fades={false}
     >
-      <div className="flex flex-col gap-2" style={{ minWidth }}>
-        {children}
-      </div>
-    </div>
+      {children}
+    </StickyHScroll>
   );
 }
