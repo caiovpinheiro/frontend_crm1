@@ -128,6 +128,19 @@ function querySettled(query: { isFetched: boolean; isError: boolean }) {
 }
 
 /** Liga uma vez (sucesso, erro ou timeout) e não desliga no refetch. */
+function useArmedAfter(ok: boolean, delayMs: number) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!ok) {
+      setArmed(false);
+      return;
+    }
+    const id = window.setTimeout(() => setArmed(true), delayMs);
+    return () => window.clearTimeout(id);
+  }, [ok, delayMs]);
+  return armed;
+}
+
 function useLatchedReady(ready: boolean, timeoutMs = STUCK_TIMEOUT_MS) {
   const [released, setReleased] = useState(false);
   useEffect(() => {
@@ -283,17 +296,17 @@ function ManagerHome({
     pinnedIds: SERVICE_WIDGET_IDS,
   });
   const hasServiceTabWidgets = serviceOrder.order.some((id) => isTabulationWidgetId(id));
+  const tabulationsArmed = useArmedAfter(
+    tabReady && isService && serviceQuery.data?.volume?.ok === true,
+    2_500,
+  );
   const tabAnalyticsQuery = useTabulationAnalytics({
     fromIso: period.from,
     toIso: period.to,
     actorUserIds: tabActorUserIds,
     departmentIds: tabDepartmentIds,
     page: tabLogPage,
-    enabled:
-      tabReady &&
-      isService &&
-      hasServiceTabWidgets &&
-      serviceQuery.data?.volume?.ok === true,
+    enabled: tabReady && isService && hasServiceTabWidgets && tabulationsArmed,
   });
 
   useEffect(() => {

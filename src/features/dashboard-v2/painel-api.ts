@@ -341,11 +341,10 @@ export async function fetchPainelService(params: {
   const sp = filterQuery(params.filters);
   sp.set("clock", params.clock);
   if (params.section) sp.set("section", params.section);
-  const light =
-    params.section === "volume" ||
-    params.section === "volume,heatmap,connections,exceptions" ||
-    params.section === "heatmap,connections,exceptions" ||
-    params.section === "agora";
+  const heavyKeys = new Set(["tempo", "byDepartment", "attendants", "channels"]);
+  const light = !params.section
+    ?.split(",")
+    .some((key) => heavyKeys.has(key.trim()));
   return getJson<PainelServiceResult>(
     `/api/painel/service?${sp.toString()}`,
     "Erro ao carregar atendimentos",
