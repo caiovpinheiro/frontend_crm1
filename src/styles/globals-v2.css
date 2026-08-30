@@ -627,11 +627,11 @@ html[data-nav-expanded="true"] {
   background: transparent;
 }
 /* Firefox */
-.v2-root *:not(.list-hscroll):not(.v2-page-scroll) {
+.v2-root *:not(.list-hscroll):not(.v2-page-scroll):not([data-page-scroll]) {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
-.v2-root *:not(.list-hscroll):not(.v2-page-scroll):hover {
+.v2-root *:not(.list-hscroll):not(.v2-page-scroll):not([data-page-scroll]):hover {
   scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
 }
 
@@ -645,20 +645,24 @@ html[data-nav-expanded="true"] {
   scrollbar-gutter: auto;
 }
 .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar,
+.v2-root [data-page-scroll]::-webkit-scrollbar,
 .v2-root .list-hscroll::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-track,
+.v2-root [data-page-scroll]::-webkit-scrollbar-track,
 .v2-root .list-hscroll::-webkit-scrollbar-track {
   background: transparent;
 }
 .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb,
+.v2-root [data-page-scroll]::-webkit-scrollbar-thumb,
 .v2-root .list-hscroll::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--text-primary) 22%, transparent);
   border-radius: 9999px;
 }
 .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb:hover,
+.v2-root [data-page-scroll]::-webkit-scrollbar-thumb:hover,
 .v2-root .list-hscroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--text-primary) 38%, transparent);
 }
@@ -669,6 +673,7 @@ html[data-nav-expanded="true"] {
 }
 @-moz-document url-prefix() {
   .v2-root .v2-screen.v2-page-scroll,
+  .v2-root [data-page-scroll],
   .v2-root .list-hscroll {
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--text-primary) 22%, transparent) transparent;
@@ -809,17 +814,19 @@ html.v2-dark body {
 .v2-dark .v2-root *:hover::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.22);
 }
-.v2-dark .v2-root *:not(.list-hscroll):not(.v2-page-scroll) {
+.v2-dark .v2-root *:not(.list-hscroll):not(.v2-page-scroll):not([data-page-scroll]) {
   scrollbar-color: transparent transparent;
 }
-.v2-dark .v2-root *:not(.list-hscroll):not(.v2-page-scroll):hover {
+.v2-dark .v2-root *:not(.list-hscroll):not(.v2-page-scroll):not([data-page-scroll]):hover {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 .v2-dark .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb,
+.v2-dark .v2-root [data-page-scroll]::-webkit-scrollbar-thumb,
 .v2-dark .v2-root .list-hscroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.18);
 }
 .v2-dark .v2-root .v2-screen.v2-page-scroll::-webkit-scrollbar-thumb:hover,
+.v2-dark .v2-root [data-page-scroll]::-webkit-scrollbar-thumb:hover,
 .v2-dark .v2-root .list-hscroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.32);
 }

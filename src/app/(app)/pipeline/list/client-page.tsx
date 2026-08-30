@@ -34,6 +34,7 @@ import {
 import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ViewToggle, useCardsTableView } from "@/components/automations/view-toggle";
+import { PageChrome } from "@/components/crm/page-header";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
 import { PipelineSwitcher, AddDealDialog } from "@/features/pipeline-v2/extras";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -304,15 +305,13 @@ export default function V2PipelineListClientPage() {
   return (
     <div
       className={cn(
-        "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 p-4",
-        waitingForPipeline || waitingForDeals
-          ? "overflow-hidden"
-          : "v2-page-scroll overflow-y-auto",
+        "v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4",
       )}
     >
       <NavRailSpacer />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+      <PageChrome
+        header={
         <PipelineHeader
           activeView="list"
           onViewChange={(view) => {
@@ -390,6 +389,9 @@ export default function V2PipelineListClientPage() {
             />
           }
         />
+        }
+        bodyClassName="gap-4"
+      >
 
         {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-2 px-0.5">
@@ -487,7 +489,7 @@ export default function V2PipelineListClientPage() {
           }}
         />
         </div>
-      </main>
+      </PageChrome>
 
       {pipelineId ? (
         <BulkActionsBar
