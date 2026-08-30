@@ -88,26 +88,44 @@ function emptyDealsResult(): PainelDealsResult {
   };
 }
 
+function emptyServiceResult(): PainelServiceResult {
+  return {
+    agora: { ok: false, error: "omitido" },
+    volume: { ok: false, error: "omitido" },
+    tempo: { ok: false, error: "omitido" },
+    heatmap: { ok: false, error: "omitido" },
+    byDepartment: { ok: false, error: "omitido" },
+    connections: { ok: false, error: "omitido" },
+    attendants: { ok: false, error: "omitido" },
+    channels: { ok: false, error: "omitido" },
+    exceptions: { ok: false, error: "omitido" },
+  };
+}
+
+/** Volume/heatmap first — they do not need firstHumanReplyPairs. */
+const SERVICE_LIGHT_SECTIONS = "volume,heatmap,connections,exceptions";
+const SERVICE_HEAVY_SECTIONS = "tempo,byDepartment,attendants,channels";
+
 export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
   const queryClient = useQueryClient();
   const queryKey = ["painel", "deals", filters] as const;
   const query = useQuery<PainelDealsResult>({
     queryKey,
     queryFn: async () => {
-      const parts = await Promise.all(
+      const acc = emptyDealsResult();
+      await Promise.all(
         DEAL_LIVE_SECTIONS.map(async (section) => {
           try {
-            return await fetchPainelDeals(filters, section);
+            const part = await fetchPainelDeals(filters, section);
+            Object.assign(acc, pickDefined(part));
           } catch (e) {
             const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
-            return { [section]: { ok: false, error } } as Partial<PainelDealsResult>;
+            Object.assign(acc, { [section]: { ok: false, error } });
           }
+          queryClient.setQueryData<PainelDealsResult>(queryKey, { ...acc });
         }),
       );
-      return parts.reduce<PainelDealsResult>(
-        (acc, part) => ({ ...acc, ...pickDefined(part as PainelDealsResult) }),
-        emptyDealsResult(),
-      );
+      return acc;
     },
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
     staleTime: 30_000,
@@ -155,12 +173,25 @@ export function usePainelService(
   const queryKey = ["painel", "service", filters, clock] as const;
   const query = useQuery<PainelServiceResult>({
     queryKey,
-    queryFn: () =>
-      fetchPainelService({
-        filters,
-        clock,
-        section: "volume,tempo,heatmap,byDepartment,connections,attendants,channels,exceptions",
-      }),
+    queryFn: async () => {
+      const acc = emptyServiceResult();
+      const apply = (part: PainelServiceResult) => {
+        Object.assign(acc, pickDefined(part));
+        queryClient.setQueryData<PainelServiceResult>(queryKey, { ...acc });
+      };
+      for (const section of [SERVICE_LIGHT_SECTIONS, SERVICE_HEAVY_SECTIONS]) {
+        try {
+          apply(await fetchPainelService({ filters, clock, section }));
+        } catch (e) {
+          const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
+          for (const key of section.split(",")) {
+            Object.assign(acc, { [key]: { ok: false, error } });
+          }
+          queryClient.setQueryData<PainelServiceResult>(queryKey, { ...acc });
+        }
+      }
+      return acc;
+    },
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
     staleTime: 30_000,
     placeholderData: (prev) => prev,

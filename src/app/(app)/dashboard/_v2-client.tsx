@@ -252,9 +252,10 @@ function ManagerHome({
   const optionsQuery = useDashboardFilterOptions(isAuthenticated);
   const options = optionsQuery.data;
   const { filters, patch } = useDashboardFilters(options?.pipelines);
-  const dealsQuery = usePainelDeals(filters, isAuthenticated && isDeals);
-  const agoraQuery = usePainelAgora(clock, isAuthenticated && isService);
-  const serviceQuery = usePainelService(filters, clock, isAuthenticated && isService);
+  const tabReady = isAuthenticated && uiHydrated;
+  const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
+  const agoraQuery = usePainelAgora(clock, tabReady && isService);
+  const serviceQuery = usePainelService(filters, clock, tabReady && isService);
   const period = useMemo(() => periodToRangeISO(filters), [filters]);
   const effectivePipelineId = filters.pipelineIds[0] ?? filters.pipelineId;
   const [addCardOpen, setAddCardOpen] = useState(false);
@@ -265,16 +266,16 @@ function ManagerHome({
     () => grid.cards.filter((c) => c.type === "customField" && c.fieldId).map((c) => c.fieldId!),
     [grid.cards],
   );
-  const customFieldsQuery = usePainelCustomFields(filters, fieldIds, isAuthenticated && isDeals);
-  const eventCards = usePainelEventCards(filters, grid.cards, isAuthenticated && isDeals);
-  const usageQuery = useSystemUsageToday(isAuthenticated && isDeals);
+  const customFieldsQuery = usePainelCustomFields(filters, fieldIds, tabReady && isDeals);
+  const eventCards = usePainelEventCards(filters, grid.cards, tabReady && isDeals);
+  const usageQuery = useSystemUsageToday(tabReady && isDeals);
 
   const departmentsQuery = useDepartments();
   const usersQuery = useQuery({
     queryKey: ["team-users-tabulations"],
     queryFn: () => listTeamUsers(),
     staleTime: 60_000,
-    enabled: isAuthenticated && isService,
+    enabled: tabReady && isService,
   });
 
   const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {
@@ -288,7 +289,7 @@ function ManagerHome({
     actorUserIds: tabActorUserIds,
     departmentIds: tabDepartmentIds,
     page: tabLogPage,
-    enabled: isAuthenticated && isService && hasServiceTabWidgets,
+    enabled: tabReady && isService && hasServiceTabWidgets,
   });
 
   useEffect(() => {
