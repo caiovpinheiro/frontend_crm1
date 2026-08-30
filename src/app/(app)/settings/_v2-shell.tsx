@@ -81,7 +81,7 @@ export function SettingsV2Shell({
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div
           data-page-scroll=""
-          className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pr-1 sm:gap-3.5 [-webkit-overflow-scrolling:touch]"
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto overscroll-contain pr-1 sm:gap-3.5 [-webkit-overflow-scrolling:touch]"
         >
           <PageHeader
             back={back}

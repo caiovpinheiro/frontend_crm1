@@ -497,7 +497,7 @@ html[data-nav-expanded="true"] {
    align-content:start impede o grid de esticar a row à altura da tela
    (o que recriaria scroll interno nos filhos flex-1). */
 .v2-root .v2-screen.v2-page-scroll {
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   padding-right: 0;
   align-content: start;

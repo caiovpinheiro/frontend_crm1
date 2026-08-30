@@ -1,159 +1,73 @@
 "use client";
 
 /**
- * Lista com overflow-x: a página rola no Y.
- * A barra horizontal usa o mesmo visual 5px cinza da barra vertical da página.
+ * Lista larga: o Y fica no scrollport da página (`v2-page-scroll` /
+ * `[data-page-scroll]`) para o cabeçalho poder ser sticky. O X também
+ * é desse scrollport — header e linhas compartilham a mesma largura
+ * (`w-max` no DataView), então as colunas alinham e a barra horizontal
+ * aparece na base da tela quando o conteúdo sai da viewport.
  *
- * Column cabeçalho is lifted out of the X-scroller (portal / first-child split)
- * so `position: sticky` can pin to the page scrollport. Horizontal scroll is
- * synced between the header track and the body track.
+ * Não criar overflow-x aqui: isso vira containing block, mata o sticky
+ * e, se o header for separado, desalinha o grid (`1fr` / `max-content`).
  */
 
-import {
-  Children,
-  createContext,
-  isValidElement,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-
-type HeaderMount = { mount: HTMLDivElement | null };
-
-const ListHScrollHeaderContext = createContext<HeaderMount | null>(null);
-
-/** Portal target for DataView column heads inside an H-scroll wrapper. */
-export function useListHScrollHeaderMount() {
-  return useContext(ListHScrollHeaderContext);
-}
-
-function isListColHead(node: ReactNode): boolean {
-  if (!isValidElement<{ className?: string }>(node)) return false;
-  return /\blist-col-head\b/.test(node.props.className ?? "");
-}
-
-function splitColHead(children: ReactNode): [ReactNode | null, ReactNode] {
-  const items = Children.toArray(children);
-  const idx = items.findIndex(isListColHead);
-  if (idx < 0) return [null, children];
-  return [items[idx], items.filter((_, i) => i !== idx)];
-}
-
-const HEAD_SCROLL_CLASS =
-  "list-hscroll min-h-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
-
-const BODY_SCROLL_CLASS =
-  "list-hscroll min-h-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch]";
 
 type StickyHScrollProps = {
   children: ReactNode;
   className?: string;
+  /** @deprecated — o X agora é do scrollport da página. */
   scrollerClassName?: string;
-  /** Inner min-width (settings MobileTableScroll). */
+  /** Largura mínima do conteúdo (settings / mobile). */
   minWidth?: number;
-  /** Edge fade when the row can scroll sideways. Default on. */
   fades?: boolean;
 };
 
 export function StickyHScroll({
   children,
   className,
-  scrollerClassName,
   minWidth,
   fades = true,
 }: StickyHScrollProps) {
-  const [directHead, bodyChildren] = useMemo(() => splitColHead(children), [children]);
-  const [headMount, setHeadMount] = useState<HTMLDivElement | null>(null);
-  const headScrollRef = useRef<HTMLDivElement>(null);
-  const bodyScrollRef = useRef<HTMLDivElement>(null);
-  const syncingRef = useRef(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
 
   const updateFades = useCallback(() => {
-    const el = bodyScrollRef.current;
-    if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    const max = scrollWidth - clientWidth;
-    setCanLeft(scrollLeft > 2);
-    setCanRight(max > 2 && scrollLeft < max - 2);
+    const el = wrapRef.current;
+    const port = el?.closest(".v2-page-scroll, [data-page-scroll]") as HTMLElement | null;
+    if (!port) {
+      setCanLeft(false);
+      setCanRight(false);
+      return;
+    }
+    const max = port.scrollWidth - port.clientWidth;
+    setCanLeft(port.scrollLeft > 2);
+    setCanRight(max > 2 && port.scrollLeft < max - 2);
   }, []);
 
-  const syncFrom = useCallback((source: "head" | "body") => {
-    const from = source === "head" ? headScrollRef.current : bodyScrollRef.current;
-    const to = source === "head" ? bodyScrollRef.current : headScrollRef.current;
-    if (!from || !to || syncingRef.current) return;
-    if (to.scrollLeft === from.scrollLeft) return;
-    syncingRef.current = true;
-    to.scrollLeft = from.scrollLeft;
-    syncingRef.current = false;
-    updateFades();
-  }, [updateFades]);
-
   useEffect(() => {
-    const el = bodyScrollRef.current;
-    if (!el) return;
+    const el = wrapRef.current;
+    const port = el?.closest(".v2-page-scroll, [data-page-scroll]") as HTMLElement | null;
+    if (!port) return;
     updateFades();
-    el.addEventListener("scroll", updateFades, { passive: true });
+    port.addEventListener("scroll", updateFades, { passive: true });
     const ro = new ResizeObserver(updateFades);
-    ro.observe(el);
-    const mo = new MutationObserver(updateFades);
-    mo.observe(el, { childList: true, subtree: true, attributes: true });
+    ro.observe(port);
+    if (el) ro.observe(el);
     window.addEventListener("resize", updateFades);
     return () => {
-      el.removeEventListener("scroll", updateFades);
+      port.removeEventListener("scroll", updateFades);
       ro.disconnect();
-      mo.disconnect();
       window.removeEventListener("resize", updateFades);
     };
   }, [updateFades]);
 
-  const innerStyle: CSSProperties | undefined = minWidth
-    ? { minWidth }
-    : undefined;
-
-  const ctx = useMemo<HeaderMount>(() => ({ mount: headMount }), [headMount]);
-
   return (
-    <div className={cn("relative min-w-0", className)}>
-      <ListHScrollHeaderContext.Provider value={ctx}>
-        <div
-          className="sticky z-[15] bg-[var(--bg-base)]"
-          style={{ top: "var(--page-header-sticky-h, 0px)" }}
-        >
-          <div
-            ref={headScrollRef}
-            className={cn(HEAD_SCROLL_CLASS, scrollerClassName)}
-            onScroll={() => syncFrom("head")}
-          >
-            <div style={innerStyle}>
-              {directHead}
-              <div ref={setHeadMount} />
-            </div>
-          </div>
-        </div>
-
-        <div
-          ref={bodyScrollRef}
-          className={cn(BODY_SCROLL_CLASS, scrollerClassName)}
-          onScroll={() => syncFrom("body")}
-        >
-          <div
-            className={minWidth != null ? "flex flex-col gap-2" : undefined}
-            style={innerStyle}
-          >
-            {bodyChildren}
-          </div>
-        </div>
-      </ListHScrollHeaderContext.Provider>
-
+    <div ref={wrapRef} className={cn("relative min-w-0", className)}>
+      <div style={minWidth != null ? { minWidth } : undefined}>{children}</div>
       {fades ? (
         <>
           <div
@@ -179,18 +93,12 @@ export function StickyHScroll({
 type ListHScrollProps = {
   children: ReactNode;
   className?: string;
-  /** Classes do container rolável interno. */
   scrollerClassName?: string;
 };
 
 export function ListHScroll({
   children,
   className,
-  scrollerClassName,
 }: ListHScrollProps) {
-  return (
-    <StickyHScroll className={className} scrollerClassName={scrollerClassName}>
-      {children}
-    </StickyHScroll>
-  );
+  return <StickyHScroll className={className}>{children}</StickyHScroll>;
 }

@@ -1,9 +1,7 @@
 "use client"
 
 import { createContext, useContext, type CSSProperties, type HTMLAttributes, type ReactNode } from "react"
-import { createPortal } from "react-dom"
 
-import { useListHScrollHeaderMount } from "@/components/crm/list-hscroll"
 import {
   LIST_CARD_HEAD_CLASS,
   LIST_CARD_ROW_CLASS,
@@ -41,22 +39,6 @@ export function DataView({
   style?: CSSProperties
 }) {
   const isTabela = view === "tabela"
-  const hScrollHeader = useListHScrollHeaderMount()
-
-  const head = (
-    <div
-      className={cn(
-        columnClass,
-        isTabela
-          ? listTableHeadRowClass("hidden bg-secondary lg:grid")
-          : LIST_CARD_HEAD_CLASS,
-        hScrollHeader ? "w-max min-w-full" : null,
-      )}
-      style={style}
-    >
-      {header}
-    </div>
-  )
 
   return (
     <DataViewContext.Provider value={{ view, columnClass, style }}>
@@ -68,9 +50,17 @@ export function DataView({
           className,
         )}
       >
-        {hScrollHeader
-          ? (hScrollHeader.mount ? createPortal(head, hScrollHeader.mount) : null)
-          : head}
+        <div
+          className={cn(
+            columnClass,
+            isTabela
+              ? listTableHeadRowClass("hidden bg-secondary lg:grid")
+              : LIST_CARD_HEAD_CLASS,
+          )}
+          style={style}
+        >
+          {header}
+        </div>
         {children}
       </div>
     </DataViewContext.Provider>

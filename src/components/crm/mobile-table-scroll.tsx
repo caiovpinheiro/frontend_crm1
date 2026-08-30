@@ -11,12 +11,9 @@ type MobileTableScrollProps = {
 };
 
 /**
- * Envolve listas/tabelas largas (cabeçalho `listTableHeadRowClass` + linhas
- * em `LIST_GRID`) para que, em telas estreitas (APK/mobile), o usuário role
- * horizontalmente em vez de ter colunas cortadas/espremidas.
- *
- * Reuses StickyHScroll so the column cabeçalho can pin on the page Y-scroll
- * (overflow-x alone would otherwise kill `position: sticky`).
+ * Envolve listas/tabelas largas. A largura mínima empurra o overflow-x
+ * para o scrollport da página — header e linhas ficam no mesmo fluxo
+ * (colunas alinhadas + sticky no Y).
  */
 export function MobileTableScroll({
   children,
@@ -24,11 +21,7 @@ export function MobileTableScroll({
   className,
 }: MobileTableScrollProps) {
   return (
-    <StickyHScroll
-      className={cn(className)}
-      minWidth={minWidth}
-      fades={false}
-    >
+    <StickyHScroll className={cn(className)} minWidth={minWidth} fades={false}>
       {children}
     </StickyHScroll>
   );
