@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { IconChevronDown, IconMessageCirclePlus, IconPinFilled, IconX } from "@tabler/icons-react";
 
 import { AppLoading } from "@/components/crm/app-loading";
+import { ConversationHistoryLoadRing } from "@/components/crm/conversation-skeleton";
 import { apiUrl } from "@/lib/api";
 import { avatarInitials } from "@/lib/avatar";
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions";
@@ -871,12 +872,10 @@ export function useDealChatBinding(params: {
             ↑ Role para ver mensagens anteriores
           </p>
         ) : null}
+        {isFetchingOlder && bubbles.length > 0 ? (
+          <ConversationHistoryLoadRing />
+        ) : null}
         <ul className="flex list-none flex-col gap-0.5">
-          {olderArmed && isFetchingOlder && (
-            <li className="flex list-none justify-center py-2" aria-hidden>
-              <span className="inline-block size-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
-            </li>
-          )}
           {bubbleNodes}
         </ul>
         {isResolved && !hasPersistedClose && (

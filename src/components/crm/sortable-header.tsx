@@ -47,6 +47,13 @@ export const LIST_ACTIONS_TRACK = "max-content";
 export const LIST_ACTIONS_CELL_CLASS =
   "flex w-max min-w-max shrink-0 flex-nowrap items-center justify-end gap-1";
 
+/**
+ * Sticky column cabeçalho — opaque canvas, pins just below PageHeader.
+ * `list-col-head` is the hook for H-scroll wrappers that re-parent this row.
+ */
+export const LIST_COL_HEAD_STICKY_CLASS =
+  "list-col-head sticky z-10 bg-[var(--bg-base)] top-[var(--page-header-sticky-h,0px)]";
+
 /** Faixa de cabeçalho de colunas — padrão card por linha.
  *  Default `grid`; passe a classe `flex` para tabelas com scroll-X (contatos).
  *  Pipes entre colunas vêm de `LIST_HEAD_PIPES_CLASS`. */
@@ -54,6 +61,7 @@ export function listTableHeadRowClass(className?: string) {
   const usesFlex = /(^|\s)flex(\s|$)/.test(className ?? "");
   return cn(
     "min-h-12 items-center justify-start gap-4 px-5 py-3.5 text-muted-foreground",
+    LIST_COL_HEAD_STICKY_CLASS,
     LIST_HEAD_PIPES_CLASS,
     !usesFlex && "grid",
     className,

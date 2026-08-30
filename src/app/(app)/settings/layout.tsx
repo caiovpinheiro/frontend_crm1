@@ -39,7 +39,7 @@ export default function SettingsLayout({
   if (isMobile && !isHub) {
     return (
       <div className="v2-screen flex min-w-0 flex-col overflow-hidden p-3 sm:p-4">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip">
           {children}
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function SettingsLayout({
       </div>
 
       <div className="relative flex min-w-0 flex-col overflow-hidden">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip">
           {children}
         </div>
       </div>

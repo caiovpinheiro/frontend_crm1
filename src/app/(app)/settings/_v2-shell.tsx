@@ -78,17 +78,19 @@ export function SettingsV2Shell({
 
   return (
     <SettingsHeaderSlotsContext.Provider value={slotSetters}>
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden sm:gap-3.5">
-        <PageHeader
-          back={back}
-          icon={icon}
-          title={title}
-          description={description ?? "Configurações"}
-          center={center ?? slotCenter}
-          actions={actions ?? slotActions}
-        />
-
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pr-1 sm:gap-3.5 [-webkit-overflow-scrolling:touch]">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div
+          data-page-scroll=""
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pr-1 sm:gap-3.5 [-webkit-overflow-scrolling:touch]"
+        >
+          <PageHeader
+            back={back}
+            icon={icon}
+            title={title}
+            description={description ?? "Configurações"}
+            center={center ?? slotCenter}
+            actions={actions ?? slotActions}
+          />
           {children}
         </div>
       </main>

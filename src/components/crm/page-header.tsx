@@ -4,10 +4,45 @@
  */
 "use client"
 
+import { useLayoutEffect, useRef, type RefObject } from "react"
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+
+/** Sticky page chrome — opaque canvas so rows scroll behind, not through. */
+export const PAGE_HEADER_STICKY_CLASS =
+  "sticky top-0 z-20 bg-[var(--bg-base)]"
+
+export const PAGE_HEADER_STICKY_ATTR = "data-sticky-page-header"
+
+/**
+ * Publishes `--page-header-sticky-h` on the nearest page scrollport so
+ * list column heads can pin just below this chrome.
+ */
+export function usePublishStickyChromeHeight(
+  ref: RefObject<HTMLElement | null>,
+) {
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    if (el.parentElement?.closest(`[${PAGE_HEADER_STICKY_ATTR}]`)) return
+
+    const target = () =>
+      (el.closest(".v2-page-scroll, [data-page-scroll]") as HTMLElement | null) ?? el
+
+    const publish = () => {
+      target().style.setProperty("--page-header-sticky-h", `${el.offsetHeight}px`)
+    }
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      target().style.removeProperty("--page-header-sticky-h")
+    }
+  }, [])
+}
 
 export type PageHeaderBack = {
   href: string
@@ -105,9 +140,19 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   const hasControls = Boolean(center || actions)
+  const ref = useRef<HTMLDivElement>(null)
+  usePublishStickyChromeHeight(ref)
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 px-1", className)}>
+    <div
+      ref={ref}
+      data-sticky-page-header=""
+      className={cn(
+        PAGE_HEADER_STICKY_CLASS,
+        "flex flex-wrap items-center gap-x-4 gap-y-2 px-1 pb-2",
+        className,
+      )}
+    >
       <div className="min-w-0 shrink">
         <Identity icon={icon} title={title} back={back} titleAccessory={titleAccessory} />
       </div>
