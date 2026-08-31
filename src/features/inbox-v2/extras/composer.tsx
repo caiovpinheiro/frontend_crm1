@@ -36,7 +36,11 @@ import {
   SlashCommandMenu,
 } from "@/components/inbox/slash-command-menu";
 import { getContact } from "@/features/inbox-v2/api/misc";
-import { sendAttachment, sendInternalTemplateSequence } from "@/features/inbox-v2/api";
+import {
+  sendAttachment,
+  sendInternalTemplateSequence,
+  mediaNeedsSequence,
+} from "@/features/inbox-v2/api";
 import { messagesKey } from "@/features/inbox-v2/hooks";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import {
@@ -427,20 +431,6 @@ export function Composer({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   }, [value, disabled, noteMode]);
-
-  // Um modelo com múltiplos anexos, ou com `messageBefore` a partir do 2º
-  // anexo, precisa da SEQUÊNCIA (texto → anexo1 → messageBefore → anexo2…)
-  // pra não perder a mensagem intermediária — "encostar tudo e mandar no
-  // Enter" não preserva essa ordem. 1 anexo sem messageBefore continua
-  // editável no composer antes do envio (caminho robusto/antigo).
-  function mediaNeedsSequence(
-    media: Array<{ url: string; name: string | null; messageBefore?: string | null }>,
-  ): boolean {
-    return (
-      media.length > 1 ||
-      media.some((m, i) => i >= 1 && !!m.messageBefore?.trim())
-    );
-  }
 
   // Insere o texto de um modelo interno no campo (editável) e foca o cursor.
   // Se `media` vier junto:

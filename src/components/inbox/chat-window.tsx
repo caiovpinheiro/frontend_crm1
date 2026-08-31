@@ -23,9 +23,19 @@ import {
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
 import { getContact } from "@/features/inbox-v2/api/misc";
 import {
+  mediaNeedsSequence,
+  sendInternalTemplateSequence,
+} from "@/features/inbox-v2/api";
+import {
   emitConversationReopened,
   messagesKey as inboxMessagesKey,
 } from "@/features/inbox-v2/hooks";
+import {
+  isImmediateMediaSrc,
+  LazyChatDocument,
+  LazyChatImage,
+  LazyChatVideo,
+} from "@/components/crm/lazy-chat-media";
 import { ResolveConfirmDialog } from "@/features/inbox-v2/extras/skip-automations-option";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import { Button } from "@/components/ui/button";
@@ -485,6 +495,14 @@ export function ChatWindow({
   const [noteMode, setNoteMode] = React.useState(false);
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("none");
   const [pendingFile, setPendingFile] = React.useState<File | null>(null);
+  const [pendingTemplateMedia, setPendingTemplateMedia] = React.useState<
+    Array<{ url: string; name: string | null; messageBefore?: string | null }>
+  >([]);
+  const pendingTemplateMediaRef = React.useRef(pendingTemplateMedia);
+  pendingTemplateMediaRef.current = pendingTemplateMedia;
+  const draftRef = React.useRef(draft);
+  draftRef.current = draft;
+  const [sequenceSending, setSequenceSending] = React.useState(false);
   // Drag-and-drop: contador de profundidade pra lidar com dragenter/leave
   // disparando em filhos quando o cursor passa por dentro do composer/anexos
   // (sem isso, o overlay pisca enquanto se arrasta). Só consideramos
@@ -1326,15 +1344,35 @@ export function ChatWindow({
     setDraft((d) => d + emoji);
     textareaRef.current?.focus();
   }, []);
+  const flushPendingTemplateMedia = React.useCallback(async () => {
+    const list = pendingTemplateMediaRef.current;
+    if (list.length === 0 || !conversationId) return;
+    setPendingTemplateMedia([]);
+    pendingTemplateMediaRef.current = [];
+    setSequenceSending(true);
+    try {
+      await sendInternalTemplateSequence({
+        conversationId,
+        content: "",
+        attachments: list,
+      });
+      queryClient.invalidateQueries({ queryKey: messagesKey });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    } finally {
+      setSequenceSending(false);
+    }
+  }, [conversationId, queryClient, messagesKey]);
+
   const onSend = React.useCallback(() => {
     const text = draft.trim();
+    const hasParkedMedia = pendingTemplateMediaRef.current.length > 0;
     // NÃO bloqueamos por `sendMutation.isPending` — o agente precisa
     // poder disparar várias mensagens em sequência sem esperar cada
     // request terminar. Cada `mutate()` cria sua própria execução
     // otimista (nova bolha aparece na hora) e o servidor processa em
     // paralelo. O `setDraft("")` síncrono garante que Enters duplos
     // acidentais caiam no `if (!text)` e não duplicam mensagens.
-    if (!text || !conversationId) return;
+    if ((!text && !hasParkedMedia) || !conversationId) return;
     // Assinatura do agente: quando o toggle está ligado e NÃO é nota interna,
     // prefixamos a assinatura em negrito (sintaxe WhatsApp `*nome*`) seguida
     // de dois pontos e UM espaço antes da mensagem. Formato INLINE — padrão
@@ -1362,12 +1400,18 @@ export function ChatWindow({
       shouldSign && !alreadyPrefixed
         ? `*${effectiveSignature}:* ${text}`
         : text;
-    sendMutation.mutate({
-      content: payloadText,
-      asNote: noteMode,
-      replyId: replyTo ? String(replyTo.id) : null,
-    });
+    if (text) {
+      sendMutation.mutate({
+        content: payloadText,
+        asNote: noteMode,
+        replyId: replyTo ? String(replyTo.id) : null,
+      });
+    }
+    if (hasParkedMedia) {
+      void flushPendingTemplateMedia();
+    }
     setDraft("");
+    draftRef.current = "";
     setActivePanel("none");
     setReplyTo(null);
     // Após enviar, o botão "Enviar" desaparece do DOM (condicional ao
@@ -1392,6 +1436,7 @@ export function ChatWindow({
     replyTo,
     signatureEnabled,
     effectiveSignature,
+    flushPendingTemplateMedia,
   ]);
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // CRÍTICO: dar prioridade ao slash menu — quando ele está aberto,
@@ -1707,7 +1752,7 @@ export function ChatWindow({
     },
     [conversationId, attachMutation],
   );
-  const isBusy = sendMutation.isPending || attachMutation.isPending;
+  const isBusy = sendMutation.isPending || attachMutation.isPending || sequenceSending;
   const isResolved = conversationStatus === "RESOLVED";
 
   /** Composer Meta sem sessão ativa (textarea desabilitado) — mesmo critério do `disabled` do textarea. */
@@ -1773,7 +1818,10 @@ export function ChatWindow({
 
   const slash = useSlashMenu({
     draft,
-    setDraft,
+    setDraft: (next) => {
+      draftRef.current = next;
+      setDraft(next);
+    },
     textareaRef,
     templateContext: slashTemplateContext,
     onPickMetaTemplate: handlePickMetaTemplate,
@@ -1782,6 +1830,33 @@ export function ChatWindow({
     // Em modo nota ou com anexo pendente, atalho fica "à toa" — usuário
     // raramente quer template numa nota interna ou junto com mídia.
     disabled: noteMode || !!pendingFile || composeDisabled,
+    onInsertMedia: (media) => {
+      const list = Array.isArray(media) ? media : [media];
+      if (mediaNeedsSequence(list) && conversationId) {
+        const targetConversationId = conversationId;
+        queueMicrotask(() => {
+          const text = draftRef.current;
+          setDraft("");
+          draftRef.current = "";
+          setSequenceSending(true);
+          void (async () => {
+            try {
+              await sendInternalTemplateSequence({
+                conversationId: targetConversationId,
+                content: text,
+                attachments: list,
+              });
+              queryClient.invalidateQueries({ queryKey: messagesKey });
+              queryClient.invalidateQueries({ queryKey: ["conversations"] });
+            } finally {
+              setSequenceSending(false);
+            }
+          })();
+        });
+        return;
+      }
+      setPendingTemplateMedia((prev) => [...prev, ...list]);
+    },
   });
 
   if (!conversationId) return null;
@@ -1938,12 +2013,7 @@ export function ChatWindow({
     if (kind === "video") {
       return (
         <div className="relative">
-          <video
-            controls
-            preload="metadata"
-            src={url}
-            className="mb-2 max-h-56 w-full rounded-xl"
-          />
+          <LazyChatVideo url={url} fileName={fileName} isUploading={isUploading} />
           {isUploading && (
             <UploadingOverlay label="Enviando vídeo…" rounded="rounded-xl" />
           )}
@@ -1953,108 +2023,20 @@ export function ChatWindow({
 
     if (kind === "image") {
       return (
-        <div className="w-full">
-          <div className="relative overflow-hidden rounded-xl border border-black/5 bg-white">
-            {isUploading ? (
-              <img
-                src={url}
-                alt=""
-                className="max-h-[420px] w-full object-cover opacity-70"
-                loading="lazy"
-              />
-            ) : (
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block"
-              >
-                <img
-                  src={url}
-                  alt=""
-                  className="max-h-[420px] w-full object-cover transition-opacity group-hover:opacity-[0.97]"
-                  loading="lazy"
-                />
-              </a>
-            )}
-            {isUploading && (
-              <UploadingOverlay label="Enviando imagem…" rounded="rounded-xl" />
-            )}
-          </div>
+        <div className="relative">
+          <LazyChatImage url={url} fileName={fileName} isUploading={isUploading} />
+          {isUploading && (
+            <UploadingOverlay label="Enviando imagem…" rounded="rounded-xl" />
+          )}
         </div>
       );
     }
 
-    // Preferir extensão extraída do fileName (mais confiável que URL blob/sem extensão)
-    const extractExt = (s: string): string => {
-      const match = s.match(/\.([a-z0-9]{1,6})(?:$|\?)/i);
-      return match ? match[1].toLowerCase() : "";
-    };
-    const ext = extractExt(fileName) || extractExt(url.split("?")[0]);
-    const isPdf = ext === "pdf";
-    const isAudioFile = /^(mp3|wav|ogg|m4a|aac|amr|opus|webm)$/i.test(ext);
-    const typeLabel = isUploading
-      ? "Enviando…"
-      : isPdf
-        ? "Arquivo PDF"
-        : isAudioFile
-          ? `Áudio ${ext.toUpperCase()}`
-          : ext
-            ? `Arquivo ${ext.toUpperCase()}`
-            : "Arquivo";
-    const iconColor = isPdf
-      ? "bg-primary"
-      : isAudioFile
-        ? "bg-warning"
-        : "bg-[var(--color-bg-subtle)]0";
-
     return (
-      <div className="flex items-center gap-3">
-        <div
-          className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-lg text-white",
-            iconColor,
-          )}
-        >
-          {isUploading ? (
-            <Loader2 className="size-5 animate-spin" />
-          ) : (
-            <FileText className="size-5" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1 text-left">
-          <p
-            className={cn(
-              "truncate text-sm font-bold",
-              isUploading ? "text-ink-muted" : "text-foreground",
-            )}
-          >
-            {fileName}
-          </p>
-          <p className="text-[11px] font-bold capitalize text-[var(--color-ink-muted)]">
-            {typeLabel}
-          </p>
-        </div>
-        {isUploading ? (
-          <span
-            className="shrink-0 p-1.5 text-[var(--color-ink-muted)]"
-            aria-label="Enviando"
-          >
-            <Loader2 className="size-[18px] animate-spin" />
-          </span>
-        ) : (
-          <TooltipHost label="Baixar arquivo" side="left">
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              download
-              className="shrink-0 p-1.5 text-[var(--color-ink-muted)] hover:text-[var(--color-ink-soft)]"
-              aria-label="Baixar arquivo"
-            >
-              <Download className="size-[18px]" />
-            </a>
-          </TooltipHost>
+      <div className="relative">
+        <LazyChatDocument url={url} fileName={fileName} />
+        {isUploading && (
+          <UploadingOverlay label="Enviando arquivo…" rounded="rounded-xl" />
         )}
       </div>
     );
@@ -3640,6 +3622,27 @@ export function ChatWindow({
             </div>
           </div>
         )}
+        {pendingTemplateMedia.length > 0 && (
+          <div
+            className={cn(rowMax, compactChrome ? "px-2 pt-1.5" : "px-6 pt-2")}
+          >
+            <div className="flex items-center gap-2 rounded-[var(--radius-xl)] border border-border bg-card px-4 py-2.5">
+              <Paperclip className="size-4 text-muted-foreground" />
+              <span className="max-w-[240px] truncate text-[14px] font-medium text-foreground">
+                {pendingTemplateMedia.length === 1
+                  ? pendingTemplateMedia[0].name || "Mídia do modelo"
+                  : `${pendingTemplateMedia.length} arquivos do modelo`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPendingTemplateMedia([])}
+                className="ml-auto rounded-xl p-1 text-muted-foreground lumen-transition hover:bg-muted hover:text-info"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          </div>
+        )}
         {pendingTemplate && (
           <div
             className={cn(rowMax, compactChrome ? "px-2 pt-2" : "px-6 pt-3")}
@@ -4001,7 +4004,7 @@ export function ChatWindow({
                 <div
                   className={cn(
                     "lumen-transition flex items-center justify-center",
-                    draft.trim() || pendingFile
+                    draft.trim() || pendingFile || pendingTemplateMedia.length > 0
                       ? "relative opacity-100"
                       : "pointer-events-none absolute inset-0 opacity-0",
                   )}
@@ -4009,7 +4012,12 @@ export function ChatWindow({
                   <button
                     type="button"
                     onClick={pendingFile ? sendFile : onSend}
-                    disabled={isBusy || (!pendingFile && !draft.trim())}
+                    disabled={
+                      isBusy ||
+                      (!pendingFile &&
+                        pendingTemplateMedia.length === 0 &&
+                        !draft.trim())
+                    }
                     className="inline-flex size-9 items-center justify-center rounded-full text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] transition-all hover:-translate-y-px hover:shadow-[var(--shadow-indigo-glow)] active:scale-95 disabled:opacity-50"
                     style={{
                       background:
@@ -4027,7 +4035,7 @@ export function ChatWindow({
                 <div
                   className={cn(
                     "lumen-transition flex min-w-0 items-center justify-end",
-                    draft.trim() || pendingFile
+                    draft.trim() || pendingFile || pendingTemplateMedia.length > 0
                       ? "pointer-events-none absolute inset-0 opacity-0"
                       : "relative opacity-100",
                   )}
@@ -4192,7 +4200,7 @@ export function ChatWindow({
                   <div
                     className={cn(
                       "lumen-transition flex items-center justify-center",
-                      draft.trim() || pendingFile
+                      draft.trim() || pendingFile || pendingTemplateMedia.length > 0
                         ? "relative opacity-100"
                         : "pointer-events-none absolute inset-0 opacity-0",
                     )}
@@ -4200,7 +4208,12 @@ export function ChatWindow({
                     <button
                       type="button"
                       onClick={pendingFile ? sendFile : onSend}
-                      disabled={isBusy || (!pendingFile && !draft.trim())}
+                      disabled={
+                      isBusy ||
+                      (!pendingFile &&
+                        pendingTemplateMedia.length === 0 &&
+                        !draft.trim())
+                    }
                       className="inline-flex size-10 items-center justify-center rounded-full text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] transition-all hover:-translate-y-px hover:shadow-[var(--shadow-indigo-glow)] active:scale-95 disabled:opacity-50"
                       style={{
                         background:
@@ -4218,7 +4231,7 @@ export function ChatWindow({
                   <div
                     className={cn(
                       "lumen-transition flex min-w-0 items-center justify-end",
-                      draft.trim() || pendingFile
+                      draft.trim() || pendingFile || pendingTemplateMedia.length > 0
                         ? "pointer-events-none absolute inset-0 opacity-0"
                         : "relative opacity-100",
                     )}
@@ -5066,6 +5079,10 @@ function AudioMessage({
   const [duration, setDuration] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState(0);
   const [ready, setReady] = React.useState(false);
+  const [armed, setArmed] = React.useState(
+    () => isImmediateMediaSrc(url) || isUploading,
+  );
+  const pendingPlayRef = React.useRef(false);
 
   // Velocidade — ciclo via botão. Aplicado no `audio.playbackRate`
   // sempre que muda. `preservesPitch = true` mantém o tom da voz
@@ -5091,7 +5108,7 @@ function AudioMessage({
 
   React.useEffect(() => {
     const a = audioRef.current;
-    if (!a) return;
+    if (!a || !armed) return;
 
     // Áudio gravado em streaming (WhatsApp Voice / MediaRecorder)
     // SEMPRE vem em OGG/WebM com header sem o campo `Duration`
@@ -5156,7 +5173,18 @@ function AudioMessage({
       a.removeEventListener("timeupdate", onTime);
       a.removeEventListener("ended", onEnd);
     };
-  }, [url]);
+  }, [url, armed]);
+
+  React.useEffect(() => {
+    if (!armed || !pendingPlayRef.current) return;
+    const a = audioRef.current;
+    if (!a) return;
+    pendingPlayRef.current = false;
+    a.load();
+    a.play()
+      .then(() => setIsPlaying(true))
+      .catch(() => setIsPlaying(false));
+  }, [armed, url]);
 
   // Aplica a velocidade selecionada ao elemento <audio>.
   // `preservesPitch` é o property name moderno (Chrome/Edge/Firefox);
@@ -5177,6 +5205,11 @@ function AudioMessage({
   }, [rate]);
 
   const togglePlay = React.useCallback(() => {
+    if (!armed) {
+      pendingPlayRef.current = true;
+      setArmed(true);
+      return;
+    }
     const a = audioRef.current;
     if (!a) return;
     if (isPlaying) {
@@ -5187,7 +5220,7 @@ function AudioMessage({
         .then(() => setIsPlaying(true))
         .catch(() => setIsPlaying(false));
     }
-  }, [isPlaying]);
+  }, [isPlaying, armed]);
 
   const cycleRate = React.useCallback(() => {
     setRateIndex((i) => (i + 1) % PLAYBACK_RATES.length);
@@ -5526,11 +5559,15 @@ function AudioMessage({
         </div>
       ) : null}
 
-      <audio ref={audioRef} preload="metadata" className="hidden">
-        <source src={url} />
-        <source src={url} type="audio/ogg" />
-        <source src={url} type="audio/webm" />
-        <source src={url} type="audio/mp4" />
+      <audio ref={audioRef} preload="none" className="hidden">
+        {armed ? (
+          <>
+            <source src={url} />
+            <source src={url} type="audio/ogg" />
+            <source src={url} type="audio/webm" />
+            <source src={url} type="audio/mp4" />
+          </>
+        ) : null}
       </audio>
     </>
   );

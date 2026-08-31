@@ -11,13 +11,12 @@
  */
 import { toast } from "sonner";
 
-import { apiUrl } from "@/lib/api";
 import {
   isSessionClosedError,
   SESSION_CLOSED_TOAST,
 } from "../extras/channel-switch-confirm";
 
-import { sendAttachment, sendMessage } from "./messages";
+import { sendAttachmentReuse, sendMessage } from "./messages";
 
 // 409 SESSION_CLOSED (sessão expirou no meio da sequência) ganha o aviso
 // padronizado em vez da mensagem crua do backend.
@@ -36,6 +35,16 @@ export interface InternalTemplateSequenceAttachment {
   name: string | null;
   /** Texto enviado ANTES deste arquivo (só faz sentido para índice >= 1). */
   messageBefore?: string | null;
+}
+
+/** Multi-anexo ou `messageBefore` no 2º+ exige a sequência imediata. */
+export function mediaNeedsSequence(
+  media: Array<{ url: string; name: string | null; messageBefore?: string | null }>,
+): boolean {
+  return (
+    media.length > 1 ||
+    media.some((m, i) => i >= 1 && !!m.messageBefore?.trim())
+  );
 }
 
 export async function sendInternalTemplateSequence({
@@ -76,10 +85,8 @@ export async function sendInternalTemplateSequence({
     }
 
     try {
-      const res = await fetch(apiUrl(att.url));
-      if (!res.ok) throw new Error("Falha ao baixar o arquivo do modelo");
-      const blob = await res.blob();
-      await sendAttachment(conversationId, blob, {
+      await sendAttachmentReuse(conversationId, {
+        reuseUrl: att.url,
         fileName: att.name ?? undefined,
         channelId,
       });

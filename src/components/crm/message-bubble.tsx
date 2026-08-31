@@ -2,7 +2,12 @@ import { useState, useRef, useEffect, useCallback, useLayoutEffect, type ReactNo
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { ImageLightbox } from "@/components/crm/image-lightbox"
+import {
+  isImmediateMediaSrc,
+  LazyChatDocument,
+  LazyChatImage,
+  LazyChatVideo,
+} from "@/components/crm/lazy-chat-media"
 import { MetaSendErrorBalloon } from "@/components/crm/meta-send-error-balloon"
 import { EmojiPicker } from "@/components/inbox/emoji-picker"
 import { AudioWaveform } from "@/components/inbox/audio-waveform"
@@ -578,6 +583,8 @@ function AudioPlayer({
   const [transcriptExpanded, setTranscriptExpanded] = useState(false)
   const [rate, setRate] = useState(1)
   const [downloading, setDownloading] = useState(false)
+  const [armed, setArmed] = useState(() => isImmediateMediaSrc(url))
+  const pendingPlayRef = useRef(false)
 
   const SPEEDS = [0.5, 1, 1.5, 2] as const
   const cycleSpeed = useCallback(() => {
@@ -597,6 +604,12 @@ function AudioPlayer({
   }, [rate])
 
   const toggle = useCallback(() => {
+    if (!url) return
+    if (!armed) {
+      pendingPlayRef.current = true
+      setArmed(true)
+      return
+    }
     const el = audioRef.current
     if (!el) return
     if (playing) {
@@ -604,11 +617,20 @@ function AudioPlayer({
     } else {
       el.play().catch(() => {})
     }
-  }, [playing])
+  }, [playing, armed, url])
+
+  useEffect(() => {
+    if (!armed || !pendingPlayRef.current) return
+    const el = audioRef.current
+    if (!el) return
+    pendingPlayRef.current = false
+    el.load()
+    el.play().catch(() => {})
+  }, [armed, url])
 
   useEffect(() => {
     const el = audioRef.current
-    if (!el) return
+    if (!el || !armed) return
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
     const onEnded = () => { setPlaying(false); setCurrent(0) }
@@ -663,7 +685,7 @@ function AudioPlayer({
       el.removeEventListener("loadedmetadata", onLoaded)
       el.removeEventListener("durationchange", onDurationChange)
     }
-  }, [url])
+  }, [url, armed])
 
   const handleTranscribe = useCallback(async () => {
     if (!url || transcript.status === "loading") return
@@ -744,7 +766,12 @@ function AudioPlayer({
           Ligação WhatsApp
         </p>
       ) : null}
-      {url && <audio ref={audioRef} src={url} preload="none" aria-hidden="true" />}
+      <audio
+        ref={audioRef}
+        src={armed && url ? url : undefined}
+        preload="none"
+        aria-hidden="true"
+      />
 
       <div className="flex items-center gap-2">
         <button
@@ -963,12 +990,14 @@ function MessageContent({
   // ── Imagem / sticker ───────────────────────────────────────────
   if (kind === "image" && url) {
     return (
-      <ImageMedia
+      <LazyChatImage
         url={url}
-        caption={caption}
-        fileLabel={mediaFileLabel(content, "Imagem")}
-        isOutgoing={isOutgoing}
-        metaReserve={metaReserve}
+        fileName={mediaFileLabel(content, "Imagem")}
+        caption={
+          caption ? (
+            <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
+          ) : undefined
+        }
       />
     )
   }
@@ -976,45 +1005,21 @@ function MessageContent({
   // ── Vídeo ──────────────────────────────────────────────────────
   if (kind === "video" && url) {
     return (
-      <VideoMedia
+      <LazyChatVideo
         url={url}
-        caption={caption}
-        fileLabel={mediaFileLabel(content, "Vídeo")}
-        isOutgoing={isOutgoing}
-        metaReserve={metaReserve}
+        fileName={mediaFileLabel(content, "Vídeo")}
+        caption={
+          caption ? (
+            <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
+          ) : undefined
+        }
       />
     )
   }
 
   // ── Documento ──────────────────────────────────────────────────
   if (kind === "document" && url) {
-    const label = documentLabel(content)
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        download
-        className={cn(
-          "flex min-w-[200px] max-w-[280px] items-center gap-2.5 rounded-[var(--radius-md)] px-3 py-2 transition-colors",
-          isOutgoing ? "bg-[var(--glass-bg-subtle)] hover:bg-[var(--glass-bg)]" : "bg-[var(--glass-bg-strong)] hover:bg-[var(--glass-bg-overlay)]",
-        )}
-      >
-        <div className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)]",
-          isOutgoing ? "bg-[var(--glass-bg-subtle)]" : "bg-[var(--brand-primary)]/10",
-        )}>
-          <IconFile size={18} className={isOutgoing ? "text-white" : "text-[var(--brand-primary)]"} />
-        </div>
-        <span className={cn(
-          "min-w-0 flex-1 truncate font-body text-[12.5px] font-medium",
-          isOutgoing ? "text-white" : "text-[var(--text-primary)]",
-        )}>
-          {label}
-        </span>
-        <IconDownload size={15} className={cn("shrink-0", isOutgoing ? "text-white/70" : "text-[var(--text-muted)]")} />
-      </a>
-    )
+    return <LazyChatDocument url={url} fileName={documentLabel(content)} />
   }
 
   // ── Mídia sem URL (download falhou) — placeholder amigável ──────
@@ -1058,103 +1063,6 @@ function MessageContent({
     <TextWithMeta metaReserve={metaReserve}>
       {formatWhatsapp(content)}
     </TextWithMeta>
-  )
-}
-
-/**
- * Renderiza imagem do chat com clique-para-abrir-lightbox (em vez de abrir
- * em nova aba do navegador — tira o operador do CRM).
- */
-function ImageMedia({
-  url,
-  caption,
-  fileLabel,
-  isOutgoing,
-  metaReserve,
-}: {
-  url: string
-  caption: string
-  fileLabel: string
-  isOutgoing: boolean
-  metaReserve?: ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-  const [failed, setFailed] = useState(false)
-  if (failed) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <MediaFallback kind="image" isOutgoing={isOutgoing} label={fileLabel} href={url} />
-        {caption && (
-          <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
-        )}
-      </div>
-    )
-  }
-  return (
-    <>
-      <div className="flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="group block cursor-zoom-in overflow-hidden rounded-[var(--radius-md)] text-left"
-          aria-label="Ampliar imagem"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={url}
-            alt={caption || "Imagem recebida"}
-            className="max-h-[320px] w-auto max-w-full rounded-[var(--radius-md)] object-cover transition-opacity group-hover:opacity-[0.97]"
-            loading="lazy"
-            onError={() => setFailed(true)}
-          />
-        </button>
-        {caption && (
-          <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
-        )}
-      </div>
-      <ImageLightbox src={url} alt={caption} open={open} onOpenChange={setOpen} />
-    </>
-  )
-}
-
-function VideoMedia({
-  url,
-  caption,
-  fileLabel,
-  isOutgoing,
-  metaReserve,
-}: {
-  url: string
-  caption: string
-  fileLabel: string
-  isOutgoing: boolean
-  metaReserve?: ReactNode
-}) {
-  const [status, setStatus] = useState<"pending" | "ready" | "error">("pending")
-  const showPlayer = status === "ready"
-  return (
-    <div className="flex flex-col gap-1.5">
-      {!showPlayer ? (
-        <MediaFallback kind="video" isOutgoing={isOutgoing} label={fileLabel} href={url} />
-      ) : null}
-      {status !== "error" ? (
-        <video
-          controls={showPlayer}
-          preload="metadata"
-          src={url}
-          onError={() => setStatus("error")}
-          onLoadedMetadata={() => setStatus("ready")}
-          className={
-            showPlayer
-              ? "max-h-[320px] w-full min-w-[220px] rounded-[var(--radius-md)] bg-[var(--glass-bg-strong)]"
-              : "h-0 w-0 overflow-hidden opacity-0"
-          }
-        />
-      ) : null}
-      {caption && (
-        <CaptionText caption={caption} isOutgoing={isOutgoing} metaReserve={metaReserve} />
-      )}
-    </div>
   )
 }
 
