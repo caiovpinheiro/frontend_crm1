@@ -553,8 +553,10 @@ function ManagerHome({
                 filters.userIds,
                 <FunnelPipelinePicker
                   pipelines={(options?.pipelines ?? []).map((p) => ({ id: p.id, name: p.name }))}
-                  selectedIds={filters.pipelineIds}
-                  onChange={(ids) => patch({ pipelineIds: ids, stageIds: [] })}
+                  selectedId={effectivePipelineId}
+                  onSelect={(id) =>
+                    patch({ pipelineIds: [id], pipelineId: id, stageIds: [] })
+                  }
                 />,
               );
             }}

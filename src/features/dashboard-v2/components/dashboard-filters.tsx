@@ -143,8 +143,8 @@ export function DashboardSearchFilterBar({
       return;
     }
     onPatch({
-      pipelineId: undefined,
-      pipelineIds: [],
+      pipelineId: pipelines[0]?.id,
+      pipelineIds: pipelines[0]?.id ? [pipelines[0].id] : [],
       userIds: [],
       stageIds: [],
       tagIds: [],
@@ -154,7 +154,7 @@ export function DashboardSearchFilterBar({
   }
 
   function tabBadge(id: FilterTab): number {
-    if (id === "pipeline") return filters.pipelineIds?.length || filters.pipelineId ? 1 : 0;
+    if (id === "pipeline") return 0;
     if (id === "etapa") return filters.stageIds.length;
     if (id === "tags") return filters.tagIds.length;
     if (id === "origem") return filters.sources.length;
@@ -199,18 +199,19 @@ export function DashboardSearchFilterBar({
             {tab === "pipeline" ? (
               <OptionList
                 label="Funis"
-                hint="Nenhum selecionado = todos (soma)."
+                hint="Um funil por vez — o painel mostra só as etapas e os números daquele pipeline."
                 options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
-                selected={filters.pipelineIds?.length ? filters.pipelineIds : effectivePipelineId ? [effectivePipelineId] : []}
-                onToggle={(id) => {
-                  const current = filters.pipelineIds?.length
-                    ? filters.pipelineIds
+                selected={
+                  filters.pipelineIds?.length
+                    ? filters.pipelineIds.slice(0, 1)
                     : effectivePipelineId
                       ? [effectivePipelineId]
-                      : [];
+                      : []
+                }
+                onToggle={(id) => {
                   onPatch({
-                    pipelineIds: toggleId(current, id),
-                    pipelineId: undefined,
+                    pipelineIds: [id],
+                    pipelineId: id,
                     stageIds: [],
                   });
                 }}

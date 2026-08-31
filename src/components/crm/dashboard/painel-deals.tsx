@@ -238,11 +238,20 @@ function DealFunnel({
           </Link>
         }
       >
-        <PainelEmpty
-          embedded
-          title="Não há dados no período"
-          description="Nenhum negócio entrou em etapa neste recorte. Amplie o período."
-        />
+        <div className={funnelPicker ? "flex min-h-0 items-stretch" : undefined}>
+          {funnelPicker ? (
+            <aside className="w-[196px] shrink-0 border-r border-border py-2">
+              {funnelPicker}
+            </aside>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <PainelEmpty
+              embedded
+              title="Não há dados no período"
+              description="Nenhum negócio entrou em etapa neste recorte. Amplie o período ou escolha outro funil."
+            />
+          </div>
+        </div>
       </PainelCard>
     );
   }
@@ -272,7 +281,7 @@ function DealFunnel({
       pipelineHref={pipelineHref}
       period={period}
       novos={funnel.novos}
-      headerAction={funnelPicker}
+      sidebar={funnelPicker}
     />
   );
 }
