@@ -497,7 +497,12 @@ export function ChatWindow({
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("none");
   const [pendingFile, setPendingFile] = React.useState<File | null>(null);
   const [pendingTemplateMedia, setPendingTemplateMedia] = React.useState<
-    Array<{ url: string; name: string | null; messageBefore?: string | null }>
+    Array<{
+      url: string;
+      name: string | null;
+      mimeType?: string | null;
+      messageBefore?: string | null;
+    }>
   >([]);
   const pendingTemplateMediaRef = React.useRef(pendingTemplateMedia);
   pendingTemplateMediaRef.current = pendingTemplateMedia;

@@ -78,6 +78,7 @@ function toastSendError(err: unknown, fallback: string) {
 export interface InternalTemplateSequenceAttachment {
   url: string;
   name: string | null;
+  mimeType?: string | null;
   /** Texto enviado ANTES deste arquivo. Só faz sentido para índice >= 1. */
   messageBefore?: string | null;
 }
@@ -133,6 +134,7 @@ export async function sendInternalTemplateSequence({
       await sendAttachmentReuse(conversationId, {
         reuseUrl: att.url,
         fileName: att.name ?? undefined,
+        mimeType: att.mimeType ?? undefined,
         channelId,
       });
     } catch (err) {

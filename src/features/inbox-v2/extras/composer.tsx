@@ -251,7 +251,12 @@ export function Composer({
   // multi-anexo ou messageBefore>=1 disparam a sequência na hora (ver
   // `insertTemplateText` / `onInsertMedia` abaixo).
   const [pendingMediaList, setPendingMediaList] = useState<
-    Array<{ url: string; name: string | null; messageBefore?: string | null }>
+    Array<{
+      url: string;
+      name: string | null;
+      mimeType?: string | null;
+      messageBefore?: string | null;
+    }>
   >([]);
   // Ref espelhando `pendingMediaList` — evita stale closure no flush do
   // Enter (performSend/flushPendingMedia podem rodar após re-renders).
@@ -440,7 +445,12 @@ export function Composer({
   //    (texto + anexos), sem depender do Enter.
   function insertTemplateText(
     text: string,
-    media?: Array<{ url: string; name: string | null; messageBefore?: string | null }> | null,
+    media?: Array<{
+      url: string;
+      name: string | null;
+      mimeType?: string | null;
+      messageBefore?: string | null;
+    }> | null,
   ) {
     const list = media && media.length > 0 ? media : [];
     const base = value;

@@ -123,15 +123,30 @@ async function fetchInternalTemplates(): Promise<InternalTemplate[]> {
 
 function getTemplateAttachments(
   tpl: InternalTemplate,
-): Array<{ url: string; name: string | null; messageBefore: string | null }> {
+): Array<{
+  url: string;
+  name: string | null;
+  mimeType: string | null;
+  messageBefore: string | null;
+}> {
   if (Array.isArray(tpl.attachments) && tpl.attachments.length > 0) {
     return tpl.attachments.map((a) => ({
       url: a.url,
       name: a.name ?? null,
+      mimeType: a.mimeType ?? tpl.mediaType ?? null,
       messageBefore: a.messageBefore ?? null,
     }));
   }
-  if (tpl.mediaUrl) return [{ url: tpl.mediaUrl, name: tpl.mediaName ?? null, messageBefore: null }];
+  if (tpl.mediaUrl) {
+    return [
+      {
+        url: tpl.mediaUrl,
+        name: tpl.mediaName ?? null,
+        mimeType: tpl.mediaType ?? null,
+        messageBefore: null,
+      },
+    ];
+  }
   return [];
 }
 
@@ -150,7 +165,12 @@ export function InternalTemplatePickerModal({
   templateContext?: InternalTemplateContext;
   onPick?: (
     text: string,
-    media?: Array<{ url: string; name: string | null; messageBefore: string | null }> | null,
+    media?: Array<{
+      url: string;
+      name: string | null;
+      mimeType?: string | null;
+      messageBefore: string | null;
+    }> | null,
   ) => void;
 }) {
   const [query, setQuery] = React.useState("");

@@ -188,6 +188,7 @@ export async function sendAttachmentReuse(
   options: {
     reuseUrl: string;
     fileName?: string;
+    mimeType?: string;
     caption?: string;
     channelId?: string | null;
   },
@@ -204,6 +205,7 @@ export async function sendAttachmentReuse(
       body: JSON.stringify({
         reuseUrl: options.reuseUrl,
         ...(options.fileName ? { fileName: options.fileName } : {}),
+        ...(options.mimeType ? { mimeType: options.mimeType } : {}),
         ...(options.caption ? { caption: options.caption } : {}),
         ...(options.channelId ? { channelId: options.channelId } : {}),
       }),
