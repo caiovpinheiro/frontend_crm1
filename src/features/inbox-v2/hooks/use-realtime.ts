@@ -25,7 +25,7 @@ import {
  *  - 1 EventSource só, compartilhado pela página.
  *  - new_message / conversation_updated preferem patch do card no cache;
  *    lista inteira só quando o ticket não está nas páginas e não dá pra
- *    inserir (aí invalida só a aba afetada). Counts seguem no debounce 1s.
+ *    inserir (aí invalida só a aba afetada). Counts: debounce ≥8s.
  *  - message_status NÃO invalida lista/counts (só ticks da bolha) — evita
  *    refetch storm em cold-load / rajadas de delivery receipts.
  *  - new_message / whatsapp_call invalidam mensagens da conversa
@@ -453,25 +453,22 @@ export function useInboxRealtime(options: {
       refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = null;
         qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-        qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
-        qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
-        qc.invalidateQueries({ queryKey: ["distribution-pending"] });
       }, 1000);
+      scheduleCountsRefresh();
     }
 
-    // Badges das abas: 1s (antes 5s). Cache Redis do backend acompanha.
+    // Badges das 8 abas: 8s (era 1s). 20 operadores × cada msg virava
+    // 20 scans de counts. Distribuição tem poll 20s/30s + SSE próprio.
     function scheduleCountsRefresh() {
       if (countsTimerRef.current) return;
       countsTimerRef.current = setTimeout(() => {
         countsTimerRef.current = null;
         qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
-        qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
-        qc.invalidateQueries({ queryKey: ["distribution-pending"] });
-      }, 1000);
+      }, 8000);
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a
-    // atualização perceptível vem daqui, com o mesmo debounce dos counts.
+    // atualização perceptível vem daqui (debounce 5s, independente dos counts).
     function scheduleDailyStatsRefresh() {
       if (dailyStatsTimerRef.current) return;
       dailyStatsTimerRef.current = setTimeout(() => {
