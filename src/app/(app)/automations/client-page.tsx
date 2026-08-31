@@ -102,7 +102,10 @@ export default function V2AutomationsClientPage() {
   const isDemo = isPageMockMode() && !hasFilters
 
   const listItems = useMemo(
-    () => (listQuery.data?.items ?? []).map(dtoToAutomation),
+    () =>
+      [...(listQuery.data?.items ?? [])]
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+        .map(dtoToAutomation),
     [listQuery.data?.items],
   )
 
