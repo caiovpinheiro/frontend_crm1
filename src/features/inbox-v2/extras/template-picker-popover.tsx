@@ -19,7 +19,12 @@ import {
   sendTemplate,
   type WhatsappTemplate,
 } from "@/features/inbox-v2/api";
-import { emitConversationReopened, messagesKey, useMessages } from "@/features/inbox-v2/hooks";
+import {
+  applyOutboundPreviewToInboxCaches,
+  emitConversationReopened,
+  messagesKey,
+  useMessages,
+} from "@/features/inbox-v2/hooks";
 import type { InboxMessageDto } from "@/features/inbox-v2/api/types";
 import { cn } from "@/lib/utils";
 
@@ -332,14 +337,20 @@ export function WhatsappTemplatePickerModal({
         languageCode: tpl.language ?? "pt_BR",
         templateGraphId: tpl.metaTemplateId ?? null,
       }),
-    onSuccess: (res) => {
+    onSuccess: (res, tpl) => {
       toast.success("Template enviado");
       if (conversationId) {
         qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
         if (res.reopenedConversationId) {
           qc.invalidateQueries({ queryKey: messagesKey(res.reopenedConversationId) });
           emitConversationReopened(res.reopenedConversationId);
+          qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+          qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+        } else {
+          applyOutboundPreviewToInboxCaches(qc, conversationId, {
+            content: tpl.body,
+            messageType: "template",
+          });
         }
       }
       onClose();

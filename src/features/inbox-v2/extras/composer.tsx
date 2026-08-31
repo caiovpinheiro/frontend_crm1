@@ -41,7 +41,7 @@ import {
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
-import { messagesKey } from "@/features/inbox-v2/hooks";
+import { applyOutboundPreviewToInboxCaches, messagesKey } from "@/features/inbox-v2/hooks";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import {
   clearPendingComposerInsert,
@@ -464,7 +464,9 @@ export function Composer({
             attachments: list,
           });
           qc.invalidateQueries({ queryKey: messagesKey(targetConversationId) });
-          qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+          applyOutboundPreviewToInboxCaches(qc, targetConversationId, {
+            content,
+          });
         } finally {
           setSequenceSending(false);
         }
@@ -556,7 +558,9 @@ export function Composer({
                 attachments: list,
               });
               qc.invalidateQueries({ queryKey: messagesKey(targetConversationId) });
-              qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+              applyOutboundPreviewToInboxCaches(qc, targetConversationId, {
+                content: text,
+              });
             } finally {
               setSequenceSending(false);
             }

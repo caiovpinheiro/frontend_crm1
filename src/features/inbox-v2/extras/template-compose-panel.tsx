@@ -24,7 +24,11 @@ import {
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { sendTemplate, type WhatsappTemplate } from "@/features/inbox-v2/api";
-import { emitConversationReopened, messagesKey } from "@/features/inbox-v2/hooks";
+import {
+  applyOutboundPreviewToInboxCaches,
+  emitConversationReopened,
+  messagesKey,
+} from "@/features/inbox-v2/hooks";
 import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channels";
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
 
@@ -227,11 +231,17 @@ export function TemplateComposePanel({
     onSuccess: (data) => {
       toast.success("Template enviado");
       qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
       // Conversa encerrada reaberta como novo ticket → troca o chat ativo.
       if (data.reopenedConversationId) {
         qc.invalidateQueries({ queryKey: messagesKey(data.reopenedConversationId) });
         emitConversationReopened(data.reopenedConversationId);
+        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+        qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+      } else {
+        applyOutboundPreviewToInboxCaches(qc, conversationId, {
+          content: renderedPreview || template.content,
+          messageType: "template",
+        });
       }
       onSent?.();
     },

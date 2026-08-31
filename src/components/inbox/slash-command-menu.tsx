@@ -53,6 +53,7 @@ import {
 } from "@/lib/internal-template-variables";
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
 import { fetchAgentAutomations } from "@/features/automations-v2/api";
+import { applyOutboundPreviewToInboxCaches } from "@/features/inbox-v2/hooks/apply-outbound-inbox-card";
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -797,7 +798,7 @@ export function useSlashMenu({
           .then((res) => {
             toast.success(`Formulário enviado: ${item.name}`);
             queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-            queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
+            applyOutboundPreviewToInboxCaches(queryClient, conversationId);
             if (res.reopenedConversationId) {
               queryClient.invalidateQueries({
                 queryKey: ["messages", res.reopenedConversationId],

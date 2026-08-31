@@ -75,7 +75,7 @@ export interface ConversationListRow {
   assignedTo: {
     id: string;
     name: string;
-    email: string;
+    email?: string;
     avatarUrl?: string | null;
     /** HUMAN | AI | … — usado para Assumir / Devolver à IA. */
     type?: string | null;
