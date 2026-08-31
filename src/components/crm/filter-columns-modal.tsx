@@ -57,6 +57,8 @@ export function FilterColumnsModal({
     if (!el) return
 
     function onWheel(e: WheelEvent) {
+      const scroller = hScrollRef.current
+      if (!scroller) return
       const col = (e.target as HTMLElement | null)?.closest("[data-filter-col-scroll]")
       if (col instanceof HTMLElement) {
         const canY = col.scrollHeight > col.clientHeight + 1
@@ -65,11 +67,11 @@ export function FilterColumnsModal({
         const atBottom = col.scrollTop + col.clientHeight >= col.scrollHeight - 1
         if (canY && ((dy < 0 && !atTop) || (dy > 0 && !atBottom))) return
       }
-      if (el.scrollWidth <= el.clientWidth + 1) return
+      if (scroller.scrollWidth <= scroller.clientWidth + 1) return
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
       if (delta === 0) return
       e.preventDefault()
-      el.scrollLeft += delta
+      scroller.scrollLeft += delta
     }
 
     el.addEventListener("wheel", onWheel, { passive: false })
