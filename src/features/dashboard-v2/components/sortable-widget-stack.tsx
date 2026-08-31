@@ -52,7 +52,7 @@ export function SortableWidgetStack({
     const label = labels[id] ?? "este card";
     const ok = await confirm({
       title: "Remover card?",
-      description: `Remover “${label}” do dashboard. Os demais cards permanecem.`,
+      description: `Remover "${label}" do dashboard. Os demais cards permanecem.`,
       confirmLabel: "Remover",
       destructive: true,
     });
@@ -94,7 +94,7 @@ export function SortableWidgetStack({
 
   return (
     <>
-    <DragDropContext>
+    <DragDropContext
       onDragStart={() => {
         armSuppressClickAfterDrag();
       }}
