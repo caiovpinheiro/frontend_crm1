@@ -203,7 +203,10 @@ export function InternalTemplatePickerModal({
       applyOutboundPreviewToInboxCaches(qc, conversationId, { content: text });
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || "Falha ao enviar modelo"),
+    onError: (err: Error & { toasted?: boolean }) => {
+      if (err.toasted) return;
+      toast.error(err.message || "Falha ao enviar modelo");
+    },
   });
 
   const items = data ?? [];

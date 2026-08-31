@@ -3,7 +3,7 @@
  * Espelham as linhas 15-22, 28-31, 49-50 do contrato Fase 1.
  */
 
-import { apiUrl, ApiError, parseApiResponse } from "@/lib/api";
+import { apiUrl, apiFetch, ApiError, parseApiResponse } from "@/lib/api";
 
 import type {
   InboxMessageDto,
@@ -196,16 +196,20 @@ export async function sendAttachmentReuse(
   reopenedConversationId?: string;
   audioDelivery?: "voice" | "audio" | "document";
 }> {
-  const res = await fetch(apiUrl(`/api/conversations/${conversationId}/attachments`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      reuseUrl: options.reuseUrl,
-      ...(options.fileName ? { fileName: options.fileName } : {}),
-      ...(options.caption ? { caption: options.caption } : {}),
-      ...(options.channelId ? { channelId: options.channelId } : {}),
-    }),
-  });
+  const res = await apiFetch(
+    `/api/conversations/${conversationId}/attachments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reuseUrl: options.reuseUrl,
+        ...(options.fileName ? { fileName: options.fileName } : {}),
+        ...(options.caption ? { caption: options.caption } : {}),
+        ...(options.channelId ? { channelId: options.channelId } : {}),
+      }),
+    },
+    8_000,
+  );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new ApiError(
