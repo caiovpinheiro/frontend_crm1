@@ -26,6 +26,9 @@ import { sendAttachmentReuse, sendMessage } from "./messages";
 export const TEMPLATE_MEDIA_MISSING_TOAST =
   "Mídia do modelo não está no storage. Abra o modelo e envie o arquivo de novo.";
 
+export const WHATSAPP_VIDEO_TOO_LARGE_TOAST =
+  "Vídeo acima do limite de 16 MB da WhatsApp Cloud API. Compacte o arquivo ou envie um vídeo menor.";
+
 export class TemplateMediaMissingError extends Error {
   readonly code = "TEMPLATE_MEDIA_MISSING";
   readonly toasted = true;
@@ -44,6 +47,14 @@ function isReuseMiss(err: unknown): boolean {
     );
   }
   return err instanceof Error && /não encontrado no storage|não está no storage/i.test(err.message);
+}
+
+function isVideoTooLarge(err: unknown): boolean {
+  if (err instanceof ApiError) {
+    if (err.code === "WHATSAPP_VIDEO_TOO_LARGE") return true;
+    return err.status === 413 && /16 MB|WhatsApp Cloud API/i.test(err.message);
+  }
+  return err instanceof Error && /16 MB.*WhatsApp Cloud API/i.test(err.message);
 }
 
 function reuseMissMessage(err: unknown): string {
@@ -125,6 +136,14 @@ export async function sendInternalTemplateSequence({
         channelId,
       });
     } catch (err) {
+      if (isVideoTooLarge(err)) {
+        const message =
+          err instanceof Error && err.message.trim()
+            ? err.message
+            : WHATSAPP_VIDEO_TOO_LARGE_TOAST;
+        toast.error(message);
+        throw new TemplateMediaMissingError(message);
+      }
       if (isReuseMiss(err)) {
         const message = reuseMissMessage(err);
         toast.error(message);
