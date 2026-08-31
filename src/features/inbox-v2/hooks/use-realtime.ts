@@ -34,8 +34,9 @@ import {
  *    refetch storm em cold-load / rajadas de delivery receipts.
  *  - new_message / whatsapp_call invalidam mensagens da conversa
  *    ativa quando o conversationId casa.
- *  - contact_updated passa pelo mesmo debounce da lista.
- *  - Throttle de 1000ms: rajadas de eventos não viram refetch×N.
+ *  - contact_updated NÃO invalida a lista (só sidebar do contato).
+ *  - Throttle de 8s na lista: aba estacionada + org quente não
+ *    re-bate GET /conversations a cada 1s. document.hidden = skip.
  *  - message_status: update otimista do tick; refetch só em `failed`
  *    (delivered/read não disparam GET messages de novo).
  *  - Reconexão automática com backoff fixo de 5s em onerror.
@@ -583,11 +584,16 @@ export function useInboxRealtime(options: {
     let alive = true;
 
     function scheduleInboxRefresh() {
+      if (typeof document !== "undefined" && document.hidden) return;
       if (refreshTimerRef.current) return;
       refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = null;
-        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-      }, 1000);
+        if (typeof document !== "undefined" && document.hidden) return;
+        qc.invalidateQueries({
+          queryKey: ["inbox-conversations"],
+          refetchType: "active",
+        });
+      }, 8000);
       scheduleCountsRefresh();
     }
 
@@ -699,6 +705,10 @@ export function useInboxRealtime(options: {
           // cacheada; invalidação da lista só quando ela NÃO está
           // (conversa nova/fora da página = mudança estrutural).
           if (patchInboxConversationCard(qc, data)) {
+            scheduleCountsRefresh();
+          } else if (isEventMessageType(data.messageType)) {
+            // Timeline (distribuição, etc.) de ticket fora da 1ª página
+            // não justifica relistar a fila inteira.
             scheduleCountsRefresh();
           } else {
             scheduleInboxRefresh();
@@ -839,7 +849,6 @@ export function useInboxRealtime(options: {
           const data = raw as {
             contactId?: string;
           };
-          scheduleInboxRefresh();
           if (data.contactId) {
             qc.invalidateQueries({ queryKey: ["contact-sidebar", data.contactId] });
           }
