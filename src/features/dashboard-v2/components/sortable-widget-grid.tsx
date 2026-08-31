@@ -44,13 +44,13 @@ function shouldAutoSize(id: string) {
   return id !== "evolution";
 }
 
-/** Matches backend layout h max (50) with room for chrome; stops grow-loops. */
-const MAX_AUTO_ROWS = 40;
+/** Backend layout h max is 50; stay at the ceiling so long agent lists fit. */
+const MAX_AUTO_ROWS = 50;
 const AUTO_SIZE_DEBOUNCE_MS = 220;
 
 const RAIL_ACTION_CLASS = cn(
   "flex size-7 shrink-0 items-center justify-center rounded-lg",
-  "bg-card text-muted-foreground",
+  "border border-border bg-[var(--dropdown-solid-bg)] text-muted-foreground",
   "hover:bg-secondary hover:text-foreground",
   "focus-visible:bg-secondary focus-visible:text-foreground",
 );
@@ -63,7 +63,7 @@ export function WidgetOrganizeRail({
   menu?: ReactNode;
 }) {
   return (
-    <div className="flex w-7 shrink-0 flex-col items-center gap-1 pt-1">
+    <div className="flex shrink-0 flex-col items-center gap-1">
       {grip}
       {menu}
     </div>
@@ -88,7 +88,7 @@ export function WidgetOverflowMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="min-w-40 rounded-2xl border border-border bg-card text-foreground shadow-lg backdrop-blur-none"
+        className="min-w-40 rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg backdrop-blur-none"
       >
         <DropdownMenuItem
           onClick={onRemove}
@@ -234,6 +234,36 @@ export function SortableWidgetGrid({
     );
   }
 
+  function widgetCell(id: string, grip?: ReactNode, fillCell = false) {
+    const rail = chrome(id, grip);
+    return (
+      <div
+        className={cn(
+          "relative min-w-0",
+          fillCell ? "flex h-full min-h-0 flex-col overflow-hidden" : "h-fit",
+        )}
+      >
+        <div
+          className={cn(
+            "min-w-0",
+            fillCell && "min-h-0 flex-1 overflow-y-auto",
+          )}
+        >
+          <div
+            data-grid-measure={id}
+            className={cn(
+              "flex h-fit min-w-0 items-start",
+              organizing ? "gap-1" : null,
+            )}
+          >
+            {rail}
+            <div className={cn("min-w-0", rail ? "flex-1" : "w-full")}>{render(id)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (disabled) {
     return (
       <>
@@ -250,8 +280,7 @@ export function SortableWidgetGrid({
                 )}
                 style={{ gridColumn: `span ${span} / span ${span}` }}
               >
-                {chrome(id)}
-                <div className="min-w-0 flex-1">{render(id)}</div>
+                {widgetCell(id)}
               </div>
             );
           })}
@@ -300,31 +329,23 @@ export function SortableWidgetGrid({
           }}
         >
           {ids.map((id) => (
-            <div key={id} className="min-w-0">
-              <div
-                data-grid-measure={id}
-                className={cn(
-                  "flex h-fit min-w-0 items-start",
-                  organizing ? "gap-1" : null,
-                )}
-              >
-                {chrome(
-                  id,
-                  <button
-                    type="button"
-                    className={cn(
-                      DASHBOARD_GRID_GRIP_CLASS,
-                      DASHBOARD_GRID_DRAG_SURFACE,
-                      RAIL_ACTION_CLASS,
-                      "cursor-grab active:cursor-grabbing",
-                    )}
-                    aria-label={`Mover ${labels[id] ?? id}`}
-                  >
-                    <GripVertical className="size-3.5" aria-hidden="true" />
-                  </button>,
-                )}
-                <div className="min-w-0 flex-1">{render(id)}</div>
-              </div>
+            <div key={id} className="min-h-0 min-w-0">
+              {widgetCell(
+                id,
+                <button
+                  type="button"
+                  className={cn(
+                    DASHBOARD_GRID_GRIP_CLASS,
+                    DASHBOARD_GRID_DRAG_SURFACE,
+                    RAIL_ACTION_CLASS,
+                    "cursor-grab active:cursor-grabbing",
+                  )}
+                  aria-label={`Mover ${labels[id] ?? id}`}
+                >
+                  <GripVertical className="size-3.5" aria-hidden="true" />
+                </button>,
+                true,
+              )}
             </div>
           ))}
         </GridLayout>

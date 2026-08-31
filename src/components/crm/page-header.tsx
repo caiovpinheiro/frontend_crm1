@@ -31,9 +31,8 @@ export function PageChrome({
   className?: string
   bodyClassName?: string
   /**
-   * `body`: header fixo, miolo rola (inbox / painéis).
-   * `page`: a página inteira rola — listas (Contatos, Distribuição).
-   * Evita `overflow-hidden` no canvas, que recortava KPI, tabela e rodapé.
+   * `body`: header fixo, miolo rola (listas / painéis).
+   * `page`: a página inteira rola — só quando o canvas não pode usar overflow.
    */
   scroll?: "body" | "page"
 }) {
@@ -46,7 +45,8 @@ export function PageChrome({
         className,
       )}
     >
-      <div className="w-full shrink-0 bg-[var(--bg-base)]">{header}</div>
+      {/* Acima do list-col-head sticky (z-30) — Filtrar/período sobrepõem a lista. */}
+      <div className="relative z-40 w-full shrink-0 bg-[var(--bg-base)]">{header}</div>
       <div
         data-page-scroll={page ? undefined : ""}
         className={cn(

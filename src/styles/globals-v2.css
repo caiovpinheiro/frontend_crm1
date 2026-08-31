@@ -596,6 +596,12 @@ html[data-nav-expanded="true"] {
   min-height: calc(100dvh / var(--v2-scale, 1));
 }
 
+/* Cabeçalho de colunas (cards e tabela): sempre opaco. `bg-secondary` /
+   `bg-card` no dark são rgba e as linhas da lista aparecem por baixo. */
+.v2-root .list-col-head {
+  background-color: var(--bg-base);
+}
+
 /* ──────────────────────────────────────────────────────────────────
    Scrollbars v2: invisíveis até o hover no container.
    - WebKit: track invisível, thumb 6px só no :hover do scroller.

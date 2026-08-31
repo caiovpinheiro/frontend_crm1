@@ -32,7 +32,7 @@ const PRESETS: { id: Exclude<SystemUsagePreset, "custom">; label: string; days: 
 ]
 
 const DATE_TRIGGER_CLASS =
-  "h-9 rounded-xl border-border bg-card text-foreground shadow-none hover:bg-secondary hover:text-foreground"
+  "h-9 rounded-xl border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-none hover:bg-secondary hover:text-foreground"
 
 export function rangeFromDays(days: number): DateRange {
   return {
@@ -206,7 +206,7 @@ export function PeriodCalendarButton({
                 left: coords?.left ?? 0,
                 visibility: coords ? "visible" : "hidden",
               }}
-              className="z-50 w-[min(100vw-1.5rem,28rem)] overflow-visible rounded-2xl border border-border bg-card p-4 text-foreground shadow-lg"
+              className="z-(--z-popover) w-[min(100vw-1.5rem,28rem)] overflow-visible rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] p-4 text-foreground shadow-lg opacity-100 backdrop-blur-none"
             >
               <p id={labelId} className="mb-3 text-sm font-semibold text-foreground">
                 Período
@@ -238,7 +238,7 @@ function PeriodChip({
         "rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
         pressed
           ? "bg-primary text-primary-foreground"
-          : "border border-border bg-card text-muted-foreground hover:text-foreground",
+          : "border border-border bg-[color-mix(in_srgb,white_8%,var(--dropdown-solid-bg))] text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
@@ -300,7 +300,9 @@ function FromToFields({
     <div
       className={cn(
         "rounded-xl border p-3",
-        filled ? "border-primary/40 bg-primary/5" : "border-border bg-card",
+        filled
+          ? "border-primary/40 bg-primary/5"
+          : "border-border bg-[color-mix(in_srgb,white_8%,var(--dropdown-solid-bg))]",
       )}
     >
       {label ? (

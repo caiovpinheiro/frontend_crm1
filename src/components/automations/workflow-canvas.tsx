@@ -72,6 +72,8 @@ import { TriggerNode } from "./trigger-node";
 import { VariableNode } from "./variable-node";
 
 const TRIGGER_ID = "trigger";
+/** Zoom ao abrir: gatilho no centro, com folga (fitView sem teto chegava perto demais). */
+const OPEN_VIEW_ZOOM = 0.65;
 
 const nodeTypes = {
   trigger: TriggerNode,
@@ -641,7 +643,7 @@ function WorkflowCanvasInner({
   autoAlignVersion,
   className,
 }: InnerProps) {
-  const { screenToFlowPosition, fitView, getIntersectingNodes, setCenter, getZoom } =
+  const { screenToFlowPosition, fitView, getIntersectingNodes, setCenter, getZoom, getNode } =
     useReactFlow();
   const { theme } = useThemeV2();
   const isDark = theme === "dark";
@@ -993,6 +995,33 @@ function WorkflowCanvasInner({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   /** Step recém-solto: seleciona no rebuild pra o editor inline (ex. tags) abrir na hora. */
   const pendingSelectIdRef = useRef<string | null>(null);
+  const didFrameOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (didFrameOpenRef.current || nodes.length === 0) return;
+    let cancelled = false;
+    const run = () => {
+      if (cancelled || didFrameOpenRef.current) return;
+      const trigger = getNode(TRIGGER_ID);
+      if (!trigger) return;
+      didFrameOpenRef.current = true;
+      const w = trigger.measured?.width ?? trigger.width ?? 252;
+      const h = trigger.measured?.height ?? trigger.height ?? 140;
+      void setCenter(trigger.position.x + w / 2, trigger.position.y + h / 2, {
+        zoom: OPEN_VIEW_ZOOM,
+        duration: 0,
+      });
+    };
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+    const timer = window.setTimeout(run, 80);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+      window.clearTimeout(timer);
+    };
+  }, [nodes.length, getNode, setCenter]);
 
   const patchStepConfig = useCallback(
     (stepId: string, next: Record<string, unknown>) => {
@@ -2193,8 +2222,8 @@ function WorkflowCanvasInner({
           onEdgeClick={onEdgeClick}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
+          defaultViewport={{ x: 0, y: 0, zoom: OPEN_VIEW_ZOOM }}
+          fitViewOptions={{ padding: 0.35, maxZoom: 0.75, minZoom: 0.15 }}
           nodeDragThreshold={4}
           deleteKeyCode={null}
           multiSelectionKeyCode="Shift"

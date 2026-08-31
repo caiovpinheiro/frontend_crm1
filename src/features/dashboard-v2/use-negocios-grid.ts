@@ -85,7 +85,7 @@ export type NegociosGridStore = {
 };
 
 const DEFAULT_SIZES: Record<DealCoreWidgetId, { w: number; h: number; minW: number; minH: number }> = {
-  kpis: { w: 12, h: 4, minW: 6, minH: 3 },
+  kpis: { w: 12, h: 3, minW: 6, minH: 3 },
   funnel: { w: 12, h: 8, minW: 6, minH: 5 },
   usage: { w: 6, h: 10, minW: 3, minH: 6 },
   evolution: { w: 6, h: 14, minW: 3, minH: 8 },

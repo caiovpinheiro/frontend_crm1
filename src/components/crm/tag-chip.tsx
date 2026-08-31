@@ -80,9 +80,9 @@ export const TagChip = React.forwardRef<HTMLElement, TagChipProps>(function TagC
               boxShadow: `0 0 0 2px color-mix(in srgb, ${chipColor} 25%, transparent)`,
             }
           : {
-              background: `color-mix(in srgb, ${chipColor} 10%, white)`,
-              borderColor: `color-mix(in srgb, ${chipColor} 35%, #d1d8e6)`,
-              color: `color-mix(in srgb, ${chipColor} 58%, #1a2338)`,
+              background: `color-mix(in srgb, ${chipColor} 18%, var(--color-bg-card))`,
+              borderColor: `color-mix(in srgb, ${chipColor} 40%, var(--color-border))`,
+              color: `color-mix(in srgb, ${chipColor} 45%, var(--color-card-foreground))`,
             }
       }
     >

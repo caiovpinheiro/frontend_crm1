@@ -54,20 +54,27 @@ export const LIST_ACTIONS_CELL_CLASS =
   "flex w-full min-w-0 flex-nowrap items-center justify-end gap-1";
 
 /**
- * Sticky column cabeçalho — opaque canvas, pins just below PageHeader.
- * `list-col-head` is the hook for H-scroll wrappers that re-parent this row.
+ * Sticky column cabeçalho — canvas opaco, gruda abaixo do PageHeader.
+ * Não usar `bg-card`/`bg-secondary`: no dark são rgba e as linhas vazam.
+ * `list-col-head` trava a cor em `globals-v2.css`.
  */
 export const LIST_COL_HEAD_STICKY_CLASS =
   "list-col-head sticky top-0 z-30 bg-[var(--bg-base)]";
 
 /** Faixa de cabeçalho de colunas — padrão card por linha.
  *  Default `grid`; passe a classe `flex` para tabelas com scroll-X (contatos).
- *  Pipes entre colunas vêm de `LIST_HEAD_PIPES_CLASS`. */
-export function listTableHeadRowClass(className?: string) {
+ *  Pipes entre colunas vêm de `LIST_HEAD_PIPES_CLASS`.
+ *  `sticky` só em listas de página: no dashboard o zoom + scroll interno
+ *  desloca a faixa para o meio dos dados. */
+export function listTableHeadRowClass(
+  className?: string,
+  opts?: { sticky?: boolean },
+) {
   const usesFlex = /(^|\s)flex(\s|$)/.test(className ?? "");
+  const sticky = opts?.sticky !== false;
   return cn(
     "min-h-12 items-center justify-start gap-4 px-5 py-3.5 text-muted-foreground",
-    LIST_COL_HEAD_STICKY_CLASS,
+    sticky ? LIST_COL_HEAD_STICKY_CLASS : null,
     LIST_HEAD_PIPES_CLASS,
     !usesFlex && "grid",
     className,
@@ -76,6 +83,11 @@ export function listTableHeadRowClass(className?: string) {
 
 /** Cabeçalho de colunas solto — sem borda, sem caixa alta. Pipes por padrão. */
 export const LIST_CARD_HEAD_CLASS = listTableHeadRowClass("hidden lg:grid");
+
+/** Mesmo DNA, sem sticky — cards de dashboard / painéis embutidos. */
+export const LIST_CARD_HEAD_STATIC_CLASS = listTableHeadRowClass("hidden lg:grid", {
+  sticky: false,
+});
 
 /** Rótulo estático de coluna (sem ordenação). Mesma tipografia do SortableHeader. */
 export function ListColumnLabel({

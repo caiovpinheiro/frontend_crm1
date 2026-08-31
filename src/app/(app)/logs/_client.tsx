@@ -76,6 +76,7 @@ import {
 } from "@/components/crm/period-calendar-button";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
+import { ListHScroll } from "@/components/crm/list-hscroll";
 import {
   SortableHeader,
   type SortDir,
@@ -573,6 +574,7 @@ export default function LogsClientPage() {
       <NavRailSpacer />
 
       <PageChrome
+        className="min-h-0"
         header={
         <SectionHeader
           icon={ClipboardList}
@@ -709,7 +711,7 @@ export default function LogsClientPage() {
                 />
               </div>
             ) : (
-              <div className={cn("min-w-0 overflow-x-auto", LIST_PAGE_STACK_CLASS)}>
+              <ListHScroll className={LIST_PAGE_STACK_CLASS}>
               <DataView
                 view={view}
                 columnClass={`grid ${FEED_GRID} items-center gap-3.5`}
@@ -754,7 +756,7 @@ export default function LogsClientPage() {
                     <EventCard key={ev.id} event={ev} />
                   ))}
               </DataView>
-              </div>
+              </ListHScroll>
             )}
 
             {!isLoading && !isError && allItems.length > 0 && (
@@ -1525,7 +1527,7 @@ function FeedSearchFilterBar({
       />
 
       {open ? (
-        <FilterPopoverPanel className="w-[min(100vw-2rem,420px)]">
+        <FilterPopoverPanel>
           <FilterPopoverHeader
             count={activeCount}
             onClear={clearAll}

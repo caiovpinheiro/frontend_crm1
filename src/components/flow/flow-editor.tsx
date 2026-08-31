@@ -77,7 +77,28 @@ import { FlowSimulator } from "./flow-simulator"
 const nodeTypes = { flowNode: FlowNode }
 const edgeTypes = { deletable: DeletableEdge }
 
+/** Zoom ao abrir: gatilho no centro, com folga (fitView sem maxZoom chegava a 1.6×). */
+const OPEN_VIEW_ZOOM = 0.65
+
 type EdgeData = { routeType: RouteType }
+
+function frameTriggerInView(
+  getNode: (id: string) => Node | undefined,
+  setCenter: (
+    x: number,
+    y: number,
+    opts?: { zoom?: number; duration?: number },
+  ) => unknown,
+) {
+  const trigger = getNode(TRIGGER_NODE_ID)
+  if (!trigger) return
+  const w = trigger.measured?.width ?? trigger.width ?? 320
+  const h = trigger.measured?.height ?? trigger.height ?? 180
+  void setCenter(trigger.position.x + w / 2, trigger.position.y + h / 2, {
+    zoom: OPEN_VIEW_ZOOM,
+    duration: 0,
+  })
+}
 
 function routeTypeFromHandle(
   nodes: Node<FlowNodeData>[],
@@ -116,7 +137,8 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const pendingPosition = useRef<{ x: number; y: number } | null>(null)
   const pendingConn = useRef<{ sourceId: string; sourceHandle: string } | null>(null)
   const connectStartRef = useRef<{ sourceId: string; sourceHandle: string } | null>(null)
-  const { fitView, screenToFlowPosition } = useReactFlow()
+  const shouldFrameOpenRef = useRef(false)
+  const { fitView, screenToFlowPosition, setCenter, getNode } = useReactFlow()
 
   const logsContext = useMemo(
     () => ({ openLogs: (t: LogsTarget) => setLogsTarget(t) }),
@@ -141,7 +163,9 @@ function InnerEditor({ automationId }: { automationId: string }) {
       setNodes((prev) => layoutFlow(prev, edges, dir))
       readyRef.current = true
       setDirty(true)
-      window.requestAnimationFrame(() => fitView({ padding: 0.15, duration: 500 }))
+      window.requestAnimationFrame(() =>
+        fitView({ padding: 0.3, maxZoom: 0.85, minZoom: 0.2, duration: 500 }),
+      )
     },
     [edges, fitView, setNodes],
   )
@@ -173,15 +197,36 @@ function InnerEditor({ automationId }: { automationId: string }) {
     )
     readyRef.current = false
     setDirty(false)
+    shouldFrameOpenRef.current = true
     setNodes(positioned)
     setEdges(graph.edges)
 
-    window.requestAnimationFrame(() => fitView({ padding: 0.15 }))
     const t = window.setTimeout(() => {
       readyRef.current = true
     }, 400)
     return () => window.clearTimeout(t)
-  }, [detail, fitView, setNodes, setEdges])
+  }, [detail, setNodes, setEdges])
+
+  useEffect(() => {
+    if (!shouldFrameOpenRef.current || nodes.length === 0) return
+    let cancelled = false
+    const run = () => {
+      if (cancelled || !shouldFrameOpenRef.current) return
+      const trigger = getNode(TRIGGER_NODE_ID)
+      if (!trigger) return
+      shouldFrameOpenRef.current = false
+      frameTriggerInView(getNode, setCenter)
+    }
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(run)
+    })
+    const timer = window.setTimeout(run, 80)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf1)
+      window.clearTimeout(timer)
+    }
+  }, [nodes.length, getNode, setCenter])
 
   // Telemetria é aplicada DEPOIS da montagem do grafo, nunca dentro do
   // adaptador: os contadores não são persistidos no save e não podem virar
@@ -673,7 +718,8 @@ function InnerEditor({ automationId }: { automationId: string }) {
               {
                 icon: <IconMaximize size={16} stroke={2.2} />,
                 label: "Ajustar à tela",
-                onClick: () => fitView({ padding: 0.15, duration: 500 }),
+                onClick: () =>
+                  fitView({ padding: 0.3, maxZoom: 0.85, minZoom: 0.2, duration: 500 }),
               },
               {
                 icon: showErrors ? <IconEyeOff size={16} stroke={2.2} /> : <IconEye size={16} stroke={2.2} />,
@@ -751,7 +797,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
         zoomOnDoubleClick={false}
         connectionLineType={"smoothstep" as never}
         connectionLineStyle={{ stroke: connectStroke, strokeWidth: 2 }}
-        fitView
+        defaultViewport={{ x: 0, y: 0, zoom: OPEN_VIEW_ZOOM }}
         minZoom={0.2}
         maxZoom={1.6}
         proOptions={{ hideAttribution: true }}

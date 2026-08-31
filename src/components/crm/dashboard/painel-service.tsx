@@ -32,7 +32,7 @@ import {
 import { HeatmapGrid } from "@/components/crm/heatmap-grid";
 import { KpiCard } from "@/components/crm/kpi-card";
 import {
-  LIST_CARD_HEAD_CLASS,
+  LIST_CARD_HEAD_STATIC_CLASS,
   LIST_CARD_ROW_CLASS,
   LIST_CARD_STACK_CLASS,
   ListColumnLabel,
@@ -1075,7 +1075,7 @@ function MetricsTable({
 }) {
   return (
     <>
-      <div className={cn(LIST_CARD_HEAD_CLASS, "hidden lg:grid", TABLE_COLS)}>
+      <div className={cn(LIST_CARD_HEAD_STATIC_CLASS, "hidden lg:grid", TABLE_COLS)}>
         <ListColumnLabel>{nameLabel}</ListColumnLabel>
         <SortableHeader
           label="Finalizados"
@@ -1192,7 +1192,7 @@ function ServiceExceptions({
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a inbox filtrada">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {block.data.map((row) => {
           const copy = SERVICE_EX_COPY[row.key];
           return (
@@ -1207,7 +1207,8 @@ function ServiceExceptions({
                 label={copy.label}
                 value={formatNumber(row.count)}
                 tone={row.count > 0 ? "warning" : "neutral"}
-                className="cursor-pointer hover:border-primary/30 hover:bg-secondary/50"
+                compact
+                className="h-full min-w-0 cursor-pointer hover:border-primary/30 hover:bg-secondary/50"
               />
             </Link>
           );

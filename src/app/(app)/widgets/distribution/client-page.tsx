@@ -50,7 +50,7 @@ import { ViewToggle, useCardsTableView, type CardsTableView } from "@/components
 import { PageChrome } from "@/components/crm/page-header";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterChip, FilterPopoverPanel } from "@/components/crm/filter-popover";
 import {
   PeriodCalendarButton,
   PeriodIsoRangePanel,
@@ -337,11 +337,10 @@ export default function DistributionClientPage({
     !(!useDemo && respQuery.error);
 
   return (
-    <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)]">
+    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
       {navRail ?? <NavRailSpacer />}
 
       <PageChrome
-        scroll="page"
         header={
         <SectionHeader
           icon={Shuffle}
@@ -1482,7 +1481,7 @@ function DistributionSearchFilterBar({
       />
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 flex w-[min(100vw-2rem,380px)] flex-col overflow-visible rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md">
+        <FilterPopoverPanel>
           <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
             <div className="flex items-center gap-2">
               <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">
@@ -1587,7 +1586,7 @@ function DistributionSearchFilterBar({
               </div>
             )}
           </div>
-        </div>
+        </FilterPopoverPanel>
       )}
     </div>
   );
@@ -2483,7 +2482,7 @@ function LogsSearchFilterBar({
       />
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 flex max-h-[min(78vh,560px)] w-[min(100vw-1.5rem,380px)] flex-col overflow-hidden rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-left shadow-[var(--glass-shadow-lg)] backdrop-blur-md">
+        <FilterPopoverPanel>
           <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
             <div className="flex items-center gap-2">
               <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">
@@ -2608,7 +2607,7 @@ function LogsSearchFilterBar({
               Aplicar
             </button>
           </div>
-        </div>
+        </FilterPopoverPanel>
       )}
     </div>
   );
