@@ -138,6 +138,8 @@ export interface ConversationListResponse {
   perPage?: number;
   /** Há mais páginas no servidor. Independente do `total`. */
   hasMore?: boolean;
+  /** Keyset `${sortValMs}_${id}` — scroll infinito prefere isto a `page`. */
+  nextCursor?: string | null;
 }
 
 export interface TabCounts {

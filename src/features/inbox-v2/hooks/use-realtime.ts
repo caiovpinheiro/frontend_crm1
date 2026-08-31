@@ -11,6 +11,7 @@ import { playInboxPing } from "./use-inbox-sound";
 import { rowBelongsToInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
 import {
   getConversation,
+  getConversationsByIds,
   hasInboxServerFilters,
   type ConversationListRow,
   type InboxFilters,
@@ -493,21 +494,27 @@ export function useInboxRealtime(options: {
           return;
         }
         void (async () => {
-          const results = await Promise.allSettled(
-            ids.map((id) => getConversation(id)),
-          );
-          if (!alive) return;
-          for (let i = 0; i < ids.length; i++) {
-            const result = results[i];
-            if (result.status === "fulfilled") {
-              applyConversationRowToInboxCaches(qc, result.value);
-              continue;
+          if (ids.length === 1) {
+            try {
+              const row = await getConversation(ids[0]);
+              if (!alive) return;
+              applyConversationRowToInboxCaches(qc, row);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : "";
+              if (/não encontrada|sem permissão/i.test(msg)) {
+                removeConversationFromInboxCaches(qc, ids[0]);
+              }
             }
-            const msg =
-              result.reason instanceof Error ? result.reason.message : "";
-            if (/não encontrada|sem permissão/i.test(msg)) {
-              removeConversationFromInboxCaches(qc, ids[i]);
+            return;
+          }
+          try {
+            const rows = await getConversationsByIds(ids);
+            if (!alive) return;
+            for (const row of rows) {
+              applyConversationRowToInboxCaches(qc, row);
             }
+          } catch {
+            // Batch falhou: não evicta. Próximo SSE/poll tenta de novo.
           }
         })();
       }, 1000);

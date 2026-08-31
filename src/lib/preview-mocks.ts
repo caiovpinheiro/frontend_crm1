@@ -1011,7 +1011,7 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
       if (tab === "finalizados") items = items.filter((c) => c.status === "RESOLVED");
       if (tab === "erro")        items = items.filter((c) => c.hasError);
       if (search) items = items.filter((c) => c.contact.name.toLowerCase().includes(search));
-      return { items, total: items.length, page: 1, perPage: 60 };
+      return { items, total: items.length, page: 1, perPage: 60, nextCursor: null, hasMore: false };
     },
   },
   {
