@@ -68,6 +68,31 @@ function blockPending<T>(block: PainelBlock<T> | undefined): boolean {
   return !block || (block.ok === false && block.error === "omitido");
 }
 
+/** Pares 2-col: um skeleton enquanto os dois lados carregam; sem esticar card vazio. */
+function ServicePair({
+  pending,
+  empty,
+  emptyTitle,
+  children,
+}: {
+  pending: boolean;
+  empty?: boolean;
+  emptyTitle?: string;
+  children: ReactNode;
+}) {
+  if (pending) return <PainelSkeleton className="min-h-[72px]" />;
+  if (empty) {
+    return (
+      <PainelCard>
+        <PainelEmpty embedded title={emptyTitle ?? "Não há dados no período"} />
+      </PainelCard>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 items-start gap-1.5 lg:grid-cols-2">{children}</div>
+  );
+}
+
 function deltaHint(delta: PainelDelta | undefined) {
   if (!delta || delta.hidden) return undefined;
   const sign = delta.value > 0 ? "+" : "";
@@ -106,7 +131,7 @@ export function PainelAgoraWidget({
       title="Agora"
       subtitle={`agora · atualizado às ${formatAsOf(data.asOf)}`}
     >
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-6">
         <KpiCard
           icon={<Inbox className="size-5" />}
           label="Aguardando resposta"
@@ -170,7 +195,7 @@ export function PainelServiceWidget({
   onClock: (next: "business" | "elapsed") => void;
   onRetry: (section: string) => void;
 }) {
-  if (!data) return <PainelSkeleton className="min-h-48" />;
+  if (!data) return <PainelSkeleton className="min-h-[72px]" />;
 
   switch (id) {
     case "volume":
@@ -239,7 +264,7 @@ function ServiceVolume({
   block: PainelServiceResult["volume"];
   onRetry: () => void;
 }) {
-  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
+  if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const v = block.data;
   if (v.empty) {
@@ -258,8 +283,8 @@ function ServiceVolume({
     label: d.date.slice(5),
   }));
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-4">
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-4">
         <KpiCard
           icon={<Inbox className="size-5" />}
           label="Total de atendimentos"
@@ -302,7 +327,7 @@ function ServiceVolume({
         }
         info="Acúmulo aparece quando iniciadas superam finalizadas por vários dias. Mensagens e volume respeitam o calendário — diferente do bloco Agora."
       >
-        <div className="h-[240px] w-full">
+        <div className="h-[168px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -369,7 +394,7 @@ function ServiceTempo({
   onClock: (next: "business" | "elapsed") => void;
   onRetry: () => void;
 }) {
-  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
+  if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const t = block.data;
   return (
@@ -412,8 +437,8 @@ function ServiceTempo({
           description="Nenhuma resposta humana neste recorte."
         />
       ) : (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-3.5 md:grid-cols-3">
+        <div className="flex flex-col gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5 md:grid-cols-3">
             <TimeKpi
               label="Primeira resposta"
               icon={<Timer className="size-5" />}
@@ -430,7 +455,7 @@ function ServiceTempo({
               stat={t.untilClose}
             />
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2">
             <MsDayChart
               title="Tempo de resposta"
               subtitle="Tempo médio das respostas dentro do período"
@@ -494,7 +519,7 @@ function MsDayChart({
           description="Nenhuma amostra neste recorte. Amplie o período."
         />
       ) : (
-        <div className="h-[220px] w-full">
+        <div className="h-[160px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -558,7 +583,7 @@ function DailySeriesChart({
         />
       ) : (
         <>
-          <div className="h-[240px] w-full">
+          <div className="h-[168px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               {variant === "line" ? (
                 <LineChart data={chartData}>
@@ -690,10 +715,18 @@ function ServiceDeptAndHour({
       ? "var(--brand-primary)"
       : (h?.series.find((s) => s.key === deptKey)?.color ?? "var(--brand-primary)");
 
+  const deptPending = blockPending(byDepartment);
+  const heatPending = blockPending(heatmap);
+  const bothEmpty =
+    byDepartment.ok &&
+    byDepartment.data.empty &&
+    heatmap.ok &&
+    (!h || h.empty);
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {blockPending(byDepartment) ? (
-        <PainelSkeleton className="min-h-48" />
+    <ServicePair pending={deptPending && heatPending} empty={bothEmpty}>
+      {deptPending ? (
+        <PainelSkeleton className="min-h-[72px]" />
       ) : !byDepartment.ok ? (
         <PainelBlockError message={byDepartment.error} onRetry={onRetryDept} />
       ) : (
@@ -707,8 +740,8 @@ function ServiceDeptAndHour({
           variant="stack"
         />
       )}
-      {blockPending(heatmap) ? (
-        <PainelSkeleton className="min-h-48" />
+      {heatPending ? (
+        <PainelSkeleton className="min-h-[72px]" />
       ) : !heatmap.ok ? (
         <PainelBlockError message={heatmap.error} onRetry={onRetryHeatmap} />
       ) : !h || h.empty ? (
@@ -767,7 +800,7 @@ function ServiceDeptAndHour({
           </div>
         </PainelCard>
       )}
-    </div>
+    </ServicePair>
   );
 }
 
@@ -784,10 +817,17 @@ function ServiceSummaries({
   onRetryDept: () => void;
   onRetryAttendants: () => void;
 }) {
+  const deptPending = blockPending(dept);
+  const attPending = blockPending(attendants);
+  const bothEmpty =
+    dept.ok &&
+    attendants.ok &&
+    dept.data.summaries.length === 0 &&
+    attendants.data.rows.length === 0;
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {blockPending(dept) ? (
-        <PainelSkeleton className="min-h-48" />
+    <ServicePair pending={deptPending && attPending} empty={bothEmpty}>
+      {deptPending ? (
+        <PainelSkeleton className="min-h-[72px]" />
       ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
       ) : (
@@ -797,8 +837,8 @@ function ServiceSummaries({
           rows={dept.data.summaries.filter((r) => textMatchesQuery(r.label, search))}
         />
       )}
-      {blockPending(attendants) ? (
-        <PainelSkeleton className="min-h-48" />
+      {attPending ? (
+        <PainelSkeleton className="min-h-[72px]" />
       ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
       ) : (
@@ -815,7 +855,7 @@ function ServiceSummaries({
             }))}
         />
       )}
-    </div>
+    </ServicePair>
   );
 }
 
@@ -826,11 +866,11 @@ function ServiceConnections({
   block: PainelServiceResult["connections"];
   onRetry: () => void;
 }) {
-  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
+  if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const c = block.data;
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <ServicePair empty={c.connections.empty && c.platforms.empty}>
       <LineBlock
         title="Atendimentos por conexão"
         subtitle="Média de atendimentos iniciados por conexão"
@@ -841,7 +881,7 @@ function ServiceConnections({
         subtitle="Média de atendimentos iniciados por plataforma"
         block={c.platforms}
       />
-    </div>
+    </ServicePair>
   );
 }
 
@@ -881,17 +921,24 @@ function ServiceTables({
   onRetryDept: () => void;
   onRetryAttendants: () => void;
 }) {
+  const deptPending = blockPending(dept);
+  const attPending = blockPending(attendants);
+  const bothEmpty =
+    dept.ok &&
+    attendants.ok &&
+    dept.data.table.length === 0 &&
+    attendants.data.rows.length === 0;
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      {blockPending(dept) ? (
-        <PainelSkeleton className="min-h-48" />
+    <ServicePair pending={deptPending && attPending} empty={bothEmpty}>
+      {deptPending ? (
+        <PainelSkeleton className="min-h-[72px]" />
       ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
       ) : (
         <DeptMetricsTable rows={dept.data.table} search={search} />
       )}
-      {blockPending(attendants) ? (
-        <PainelSkeleton className="min-h-48" />
+      {attPending ? (
+        <PainelSkeleton className="min-h-[72px]" />
       ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
       ) : (
@@ -901,7 +948,7 @@ function ServiceTables({
           attribution={attendants.data.attribution}
         />
       )}
-    </div>
+    </ServicePair>
   );
 }
 
@@ -1122,12 +1169,14 @@ function ServiceChannels({
   search: string;
   onRetry: () => void;
 }) {
-  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
+  if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const channels = block.data.channels.filter((r) => textMatchesQuery(r.label, search));
   const motivos = block.data.motivos.filter((r) => textMatchesQuery(r.label, search));
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <ServicePair
+      empty={block.data.channels.length === 0 && block.data.motivos.length === 0}
+    >
       <ShortList
         title="Por canal"
         emptyTitle="Não há dados no período"
@@ -1138,7 +1187,7 @@ function ServiceChannels({
         emptyTitle="Não há tabulações no período"
         rows={motivos}
       />
-    </div>
+    </ServicePair>
   );
 }
 
@@ -1188,11 +1237,11 @@ function ServiceExceptions({
   block: PainelServiceResult["exceptions"];
   onRetry: () => void;
 }) {
-  if (blockPending(block)) return <PainelSkeleton className="min-h-48" />;
+  if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a inbox filtrada">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
         {block.data.map((row) => {
           const copy = SERVICE_EX_COPY[row.key];
           return (
