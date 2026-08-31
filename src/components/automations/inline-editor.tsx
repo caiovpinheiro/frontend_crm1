@@ -68,6 +68,7 @@ import {
   UpdateFieldValueControl,
 } from "./update-field-value"
 import { ActiveChannelMultiSelect } from "./step-channel-picker"
+import { TagStepInput } from "./tag-step-input"
 import { readStepAllowedChannelIds, readStepChannelScope } from "@/lib/automation-workflow"
 
 const CUSTOM_FIELD_SENTINEL = "__custom__"
@@ -199,7 +200,15 @@ function Field({
       return <MediaField label={field.label} config={config} onChange={onChange} />
 
     case "tag":
-      return <TagInput label={field.label} optional={field.optional} value={str(config[field.key])} onChange={(v) => set(field.key, v)} />
+      return (
+        <TagStepInput
+          label={field.label}
+          optional={field.optional}
+          value={str(config[field.key])}
+          onChange={(v) => set(field.key, v)}
+          allowCreate={stepType !== "remove_tag"}
+        />
+      )
 
     case "textarea":
       return (
@@ -687,98 +696,6 @@ function VariableTextarea({
         }}
       />
       <VariablePickerPop open={open} filtered={filtered} onPick={(token) => apply(ref.current, token)} />
-    </div>
-  )
-}
-
-function TagInput({
-  label,
-  optional,
-  value,
-  onChange,
-}: {
-  label: string
-  optional?: boolean
-  value: string
-  onChange: (v: string) => void
-}) {
-  const { options, isLoading } = useTagOptions()
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState<string | null>(null)
-  const closeT = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // query === null → mostra TODAS (foco sem digitar); senão filtra pelo texto.
-  const q = (query ?? "").trim().toLowerCase()
-  const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options
-  const exists = options.some((o) => o.value.toLowerCase() === value.trim().toLowerCase())
-
-  const choose = (v: string) => {
-    onChange(v)
-    setQuery(null)
-    setOpen(false)
-  }
-
-  return (
-    <div className="cfg-field">
-      <span className="cfg-label">
-        {label}
-        {optional && <em className="cfg-opt">opcional</em>}
-      </span>
-      <div className="cfg-combo">
-        <InputGlass
-          className="nodrag"
-          value={value}
-          placeholder={isLoading ? "Carregando tags…" : "Buscar ou criar tag…"}
-          onFocus={() => {
-            if (closeT.current) clearTimeout(closeT.current)
-            setQuery(null)
-            setOpen(true)
-          }}
-          onBlur={() => {
-            closeT.current = setTimeout(() => setOpen(false), 160)
-          }}
-          onChange={(e) => {
-            onChange(e.target.value)
-            setQuery(e.target.value)
-            setOpen(true)
-          }}
-        />
-        {open && (
-          <div className="cfg-pop cfg-pop--inplace nowheel nopan">
-            {isLoading && <div className="cfg-pop-empty">Carregando tags…</div>}
-            {!isLoading && filtered.length === 0 && (
-              <div className="cfg-pop-empty">{value.trim() ? "Nenhuma tag — Enter cria esta." : "Nenhuma tag cadastrada."}</div>
-            )}
-            {filtered.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                className={`cfg-pop-item nodrag${o.value === value ? " on" : ""}`}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  choose(o.value)
-                }}
-              >
-                <span className="cfg-pop-dot" />
-                {o.label}
-              </button>
-            ))}
-            {value.trim() && !exists && (
-              <button
-                type="button"
-                className="cfg-pop-item create nodrag"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  choose(value.trim())
-                }}
-              >
-                + Criar tag “{value.trim()}”
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-      <span className="cfg-hint">Selecione uma tag existente ou digite para criar uma nova.</span>
     </div>
   )
 }

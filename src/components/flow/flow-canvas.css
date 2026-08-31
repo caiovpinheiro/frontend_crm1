@@ -45,8 +45,7 @@
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-.crm-flow-editor .flow-card .cfg-select-wrap,
-.crm-flow-editor .flow-card .cfg-combo {
+.crm-flow-editor .flow-card .cfg-select-wrap {
   display: block;
   height: 36px;
   width: 100%;
@@ -55,9 +54,19 @@
   border-radius: 8px;
   background: #f8fafc;
 }
+/* Combo de tags: a lista fica abaixo do input — não prender em 36px. */
+.crm-flow-editor .flow-card .cfg-combo {
+  display: block;
+  height: auto;
+  min-height: 36px;
+  width: 100%;
+  overflow: visible;
+  border: none;
+  background: transparent;
+}
 .crm-flow-editor .flow-card .cfg-select-wrap button,
-.crm-flow-editor .flow-card .cfg-combo button,
-.crm-flow-editor .flow-card .cfg-field > button:not(.cfg-add):not(.cfg-x) {
+.crm-flow-editor .flow-card .cfg-combo > button,
+.crm-flow-editor .flow-card .cfg-field > button:not(.cfg-add):not(.cfg-x):not(.cfg-pop-item) {
   display: flex !important;
   height: 36px !important;
   min-height: 36px !important;
@@ -85,8 +94,7 @@
 .crm-flow-editor .flow-card input:focus,
 .crm-flow-editor .flow-card textarea:focus,
 .crm-flow-editor .flow-card select:focus,
-.crm-flow-editor .flow-card .cfg-select-wrap:focus-within,
-.crm-flow-editor .flow-card .cfg-combo:focus-within {
+.crm-flow-editor .flow-card .cfg-select-wrap:focus-within {
   border-color: var(--brand-primary) !important;
   background: #fff !important;
   box-shadow: none !important;
