@@ -1112,8 +1112,8 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   AppLoading — marca estática + arco que gira (ver
-   components/crm/app-loading.tsx). Direção CW/CCW via data-dir.
+   AppLoading — marca 3D em cima + anel-cometa embaixo
+   (arte de referência: B + trilha + ponta branca/magenta).
    app-loading-halo ainda pulsa o ponto do mobile-more-sheet.
    ══════════════════════════════════════════════════════════════════ */
 @keyframes app-loading-halo {
@@ -1123,16 +1123,65 @@
 @keyframes brand-loader-spin {
   to { transform: rotate(360deg); }
 }
+@keyframes brand-loader-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.92; transform: scale(1.04); }
+}
 
 .app-loading-halo {
   animation: app-loading-halo 2.4s ease-in-out infinite;
 }
-.brand-loader-ring {
-  transform-origin: 50% 50%;
-  animation: brand-loader-spin 1.15s linear infinite;
+
+.brand-loader {
+  gap: 10px;
 }
-.brand-loader-ring[data-dir="ccw"] {
-  animation-direction: reverse;
+.brand-loader-mark {
+  filter:
+    drop-shadow(0 0 10px color-mix(in srgb, var(--color-sky) 55%, transparent))
+    drop-shadow(0 0 18px color-mix(in srgb, #d946ef 32%, transparent));
+}
+.brand-loader:not(.app-loading-watermark) .brand-loader-mark {
+  transform-origin: 50% 50%;
+  animation: brand-loader-breathe 2.6s ease-in-out infinite;
+}
+
+.brand-loader-orbit {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+.brand-loader-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+.brand-loader-comet {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 76%,
+    #d946ef 88%,
+    #fff 97%,
+    transparent 100%
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.45px),
+    #000 calc(100% - 2.2px)
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 2.45px),
+    #000 calc(100% - 2.2px)
+  );
+  filter: drop-shadow(0 0 4px #d946ef) drop-shadow(0 0 1px #fff);
+  transform-origin: 50% 50%;
+}
+.brand-loader-orbit.is-spinning .brand-loader-comet {
+  animation: brand-loader-spin 1.05s linear infinite;
 }
 
 /* Inbox / deal: marca grande e translúcida, sem anel colorido. */
@@ -1150,7 +1199,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .app-loading-halo,
-  .brand-loader-ring,
+  .brand-loader-orbit.is-spinning .brand-loader-comet,
+  .brand-loader:not(.app-loading-watermark) .brand-loader-mark,
   .app-loading-watermark {
     animation: none;
   }

@@ -329,10 +329,11 @@ export default function DistributionClientPage({
     !(!useDemo && respQuery.error);
 
   return (
-    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4">
+    <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)]">
       {navRail ?? <NavRailSpacer />}
 
       <PageChrome
+        scroll="page"
         header={
         <SectionHeader
           icon={Shuffle}

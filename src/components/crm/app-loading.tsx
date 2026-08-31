@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 /**
  * Estado de carregamento ÚNICO do app.
  *
- * Mesma marca do NavRail (`BWIPO_MARK_SRC`) + arco circular. Só o anel
- * gira (sempre horário — inverter depois do hydrate deslocava o primeiro
- * paint). O loader não imita o layout de destino.
+ * Composição da arte de loader: marca 3D estática em cima + anel-cometa
+ * embaixo (trilha + ponta branca/magenta). Só o cometa gira, sempre
+ * horário. O loader não imita o layout de destino.
  *
  * Segurança: nunca fica girando pra sempre. Passado `timeoutMs` sem o
  * conteúdo assumir, troca para um estado de erro explícito com ação de
@@ -37,8 +37,7 @@ export type AppLoadingProps = {
    */
   tone?: AppLoadingTone;
   /**
-   * Sempre marca 32px. `default` é alias de `sm` — splash grande
-   * (52–88px) virava o “B fantasma” no F5.
+   * Marca ~44–56px + anel embaixo. `default` e `sm` só mudam o B.
    */
   size?: "default" | "sm";
   /** 0 desliga a rede de segurança (use só onde há outro guard de timeout). */
@@ -53,11 +52,6 @@ export type AppLoadingProps = {
   className?: string;
 };
 
-const MARK_SIZE = {
-  default: { box: 54 },
-  sm: { box: 54 },
-} as const;
-
 function BrandMark({
   spinning,
   size = "default",
@@ -67,57 +61,16 @@ function BrandMark({
   size?: "default" | "sm";
   tone?: AppLoadingTone;
 }) {
-  const reactId = React.useId().replace(/:/g, "");
-  const gradId = `brand-loader-ring-${reactId}`;
   const watermark = tone === "watermark";
-  const boxPx = watermark ? 88 : MARK_SIZE[size].box;
-  const markPx = watermark ? 52 : 32;
+  const markPx = watermark ? 52 : size === "default" ? 56 : 44;
 
   return (
     <span
       className={cn(
-        "relative inline-flex items-center justify-center",
+        "brand-loader inline-flex flex-col items-center",
         watermark && "app-loading-watermark",
       )}
-      style={{ width: boxPx, height: boxPx }}
     >
-      {!watermark ? (
-        <span
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-0",
-            spinning && "brand-loader-ring",
-          )}
-          data-dir="cw"
-        >
-          <svg viewBox="0 0 80 80" className="size-full">
-            <defs>
-              <linearGradient
-                id={gradId}
-                x1="40"
-                y1="4"
-                x2="40"
-                y2="76"
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop offset="0%" stopColor="var(--color-sky)" />
-                <stop offset="45%" stopColor="var(--brand-primary)" />
-                <stop offset="100%" stopColor="#d946ef" />
-              </linearGradient>
-            </defs>
-            <circle
-              cx="40"
-              cy="40"
-              r="36"
-              fill="none"
-              stroke={`url(#${gradId})`}
-              strokeWidth="4.75"
-              strokeLinecap="round"
-              strokeDasharray="170 56"
-            />
-          </svg>
-        </span>
-      ) : null}
       <img
         src={BWIPO_MARK_LOADER_SRC}
         alt=""
@@ -125,7 +78,7 @@ function BrandMark({
         height={markPx}
         draggable={false}
         decoding="async"
-        className="relative shrink-0"
+        className="brand-loader-mark relative shrink-0"
         style={{
           width: markPx,
           height: markPx,
@@ -133,6 +86,18 @@ function BrandMark({
           maxHeight: markPx,
         }}
       />
+      {!watermark ? (
+        <span
+          aria-hidden
+          className={cn(
+            "brand-loader-orbit pointer-events-none",
+            spinning && "is-spinning",
+          )}
+        >
+          <span className="brand-loader-track" />
+          <span className="brand-loader-comet" />
+        </span>
+      ) : null}
     </span>
   );
 }
