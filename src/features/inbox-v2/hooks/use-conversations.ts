@@ -87,7 +87,7 @@ export function useConversations(params: {
     },
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
     // SSE (`useInboxRealtime`) patcha o card em new_message /
-    // conversation_updated (GET :id, sem refetch da lista). Polling
+    // conversation_updated (GET :id só do ticket aberto). Polling
     // fica só como safety-net — 120s:
     // o storm de 27 req/s de 28/ago/26 (65k req/40min) derrubou o
     // proxy do droplet por exaustão de memória TCP.

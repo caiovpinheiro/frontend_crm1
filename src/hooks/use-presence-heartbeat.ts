@@ -45,7 +45,7 @@ export function usePresenceHeartbeat(options?: {
       try {
         await fetch(apiUrl("/api/agents/me/ping"), {
           method: "POST",
-          credentials: "same-origin",
+          credentials: "include",
           keepalive: true,
         });
       } catch {

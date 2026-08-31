@@ -112,9 +112,10 @@ const nextConfig: NextConfig = {
    * REWRITES — Frontend separado.
    *
    * O frontend NÃO tem rotas /api/* próprias (exceto preview-login, SSE
-   * e uploads locais), as demais /api/* vão pro backend via rewrite. Isso
-   * evita que código copiado do monolito quebre só por causa de URLs
-   * absolutas e mantém os cookies de auth no mesmo origin do frontend.
+   * e uploads locais), as demais /api/* vão pro backend via rewrite.
+   * Em produção tenant (`{slug}.bwipo.com` + `api.bwipo.com`) o browser
+   * chama o auth API direto (`apiUrl()`); o rewrite fica para
+   * `/api/auth`, uploads, SSR e hosts sem cookie compartilhado.
    *
    * Usamos `afterFiles` para que o Next.js verifique o filesystem local
    * ANTES de aplicar o rewrite. Assim /api/preview-login (rota Next.js

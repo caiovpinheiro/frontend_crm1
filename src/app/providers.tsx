@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { ConfirmProvider } from "@/hooks/use-confirm";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import "@/lib/api";
 
 export function Providers({
   children,

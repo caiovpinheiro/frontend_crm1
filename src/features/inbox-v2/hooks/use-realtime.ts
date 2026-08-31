@@ -26,11 +26,10 @@ import {
  *  - new_message prefere patch do card no cache; lista inteira só quando
  *    o ticket não está nas páginas e não dá pra inserir (aí invalida só
  *    a aba afetada). Counts: debounce ≥8s.
- *  - conversation_updated: GET /:id só se o card JÁ está na lista
- *    cacheada desta aba (ou o ticket está aberto aqui / payload diz
- *    unassigned e a aba é entrada sem filtros). Id ausente das páginas
- *    → não GET (evita 404×N). Poll 120s ou prepend se o payload for
- *    um row completo. 404 fica em cache ~60s.
+ *  - conversation_updated: GET /:id SOMENTE se o ticket está ABERTO
+ *    nesta aba. Card só na lista → patch do payload (se der) ou
+ *    ignora; NUNCA GET. Um SSE não vira 404×N só porque o card está
+ *    no cache de todo mundo. 404 memo ~60s bloqueia até o aberto.
  *  - message_status NÃO invalida lista/counts (só ticks da bolha) — evita
  *    refetch storm em cold-load / rajadas de delivery receipts.
  *  - new_message / whatsapp_call invalidam mensagens da conversa
@@ -295,28 +294,13 @@ function isCachedConversation404(conversationId: string): boolean {
   return true;
 }
 
-function conversationIdInInboxCaches(
-  qc: QueryClient,
-  conversationId: string,
-): boolean {
-  const entries = qc.getQueriesData<InboxListCache>({
-    queryKey: ["inbox-conversations"],
-  });
-  for (const [, cached] of entries) {
-    if (
-      cached?.pages?.some((page) =>
-        page?.items?.some((c) => conversationMatchesId(c, conversationId)),
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
 type ConversationUpdatedPayload = {
   conversationId?: string;
   assignedToId?: string | null;
+  status?: string;
+  closedAt?: string | null;
+  whatsappCallConsentStatus?: string;
+  assignedTo?: { type?: string | null } | null;
 };
 
 /** Payload SSE quase nunca é um card completo — só `{ conversationId }`. */
@@ -341,37 +325,76 @@ function conversationRowFromUpdatedEvent(
   return { ...(r as unknown as ConversationListRow), id };
 }
 
-/**
- * Ticket novo na fila livre: GET :id só se ESTA aba é entrada sem
- * busca/filtros e o payload afirma `assignedToId: null`. Qualquer outro
- * "talvez seja meu" vira 404 no GET (visibilidade por depto/dono).
- */
-function shouldFetchUnassignedForEntradaTab(
-  qc: QueryClient,
-  payload: ConversationUpdatedPayload,
-): boolean {
-  if (payload.assignedToId !== null) return false;
-  const entries = qc.getQueriesData<InboxListCache>({
-    queryKey: ["inbox-conversations", "entrada"],
-  });
-  for (const [queryKey, cached] of entries) {
-    if (!cached?.pages?.length) continue;
-    if (inboxSearchFromQueryKey(queryKey)) continue;
-    if (hasInboxServerFilters(inboxFiltersFromQueryKey(queryKey))) continue;
-    return true;
-  }
-  return false;
-}
-
+/** GET :id só para o ticket ABERTO. Lista cacheada não autoriza fetch. */
 function shouldGetConversationOnUpdated(
-  qc: QueryClient,
   conversationId: string,
   activeId: string | null,
+): boolean {
+  return Boolean(activeId && conversationId === activeId);
+}
+
+function hasPatchableUpdatedFields(payload: ConversationUpdatedPayload): boolean {
+  return (
+    payload.assignedToId !== undefined ||
+    typeof payload.status === "string" ||
+    payload.closedAt !== undefined ||
+    typeof payload.whatsappCallConsentStatus === "string"
+  );
+}
+
+function findCachedConversationRow(
+  qc: QueryClient,
+  conversationId: string,
+): ConversationListRow | null {
+  const entries = qc.getQueriesData<InboxListCache>({
+    queryKey: ["inbox-conversations"],
+  });
+  for (const [, cached] of entries) {
+    for (const page of cached?.pages ?? []) {
+      const hit = page?.items?.find((c) =>
+        conversationMatchesId(c, conversationId),
+      );
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+/** Mescla assignedTo/status/closedAt no card cacheado e reavalia a aba. */
+function applyConversationUpdatedPatch(
+  qc: QueryClient,
   payload: ConversationUpdatedPayload,
 ): boolean {
-  if (conversationIdInInboxCaches(qc, conversationId)) return true;
-  if (activeId && conversationId === activeId) return true;
-  return shouldFetchUnassignedForEntradaTab(qc, payload);
+  const id = payload.conversationId;
+  if (!id || !hasPatchableUpdatedFields(payload)) return false;
+  const existing = findCachedConversationRow(qc, id);
+  if (!existing) return false;
+  const next: ConversationListRow = { ...existing };
+  if (payload.assignedToId !== undefined) {
+    next.assignedToId = payload.assignedToId;
+    if (payload.assignedToId == null) {
+      next.assignedTo = null;
+    } else if (payload.assignedTo && existing.assignedTo) {
+      next.assignedTo = {
+        ...existing.assignedTo,
+        type: payload.assignedTo.type ?? existing.assignedTo.type,
+      };
+    }
+  }
+  if (
+    payload.status === "OPEN" ||
+    payload.status === "RESOLVED" ||
+    payload.status === "PENDING" ||
+    payload.status === "SNOOZED"
+  ) {
+    next.status = payload.status;
+  }
+  if (payload.closedAt !== undefined) next.closedAt = payload.closedAt;
+  if (typeof payload.whatsappCallConsentStatus === "string") {
+    next.whatsappCallConsentStatus = payload.whatsappCallConsentStatus;
+  }
+  applyConversationRowToInboxCaches(qc, next);
+  return true;
 }
 
 function isConversationNotFoundError(err: unknown): boolean {
@@ -588,38 +611,24 @@ export function useInboxRealtime(options: {
       }, 5000);
     }
 
-    // conversation_updated: 1 GET /:id só para tickets que JÁ estão na
-    // lista cacheada desta aba (ou abertos aqui). Nunca GET da lista
-    // inteira; id ausente → poll 120s / prepend se o payload for row.
-    function scheduleConversationCardSync(
-      conversationId: string,
-      payload: ConversationUpdatedPayload,
-    ) {
-      if (isCachedConversation404(conversationId)) {
-        if (!conversationIdInInboxCaches(qc, conversationId)) return;
+    // conversation_updated: GET /:id só do ticket ABERTO. 404 memo
+    // bloqueia mesmo o aberto (~60s). Card só na lista não entra aqui.
+    function scheduleConversationCardSync(conversationId: string) {
+      if (isCachedConversation404(conversationId)) return;
+      if (!shouldGetConversationOnUpdated(conversationId, activeRef.current)) {
+        return;
       }
       if (inFlightCardSyncIdsRef.current.has(conversationId)) return;
       if (pendingCardSyncIdsRef.current.has(conversationId)) return;
-      if (
-        !shouldGetConversationOnUpdated(
-          qc,
-          conversationId,
-          activeRef.current,
-          payload,
-        )
-      ) {
-        return;
-      }
       pendingCardSyncIdsRef.current.add(conversationId);
       if (cardSyncTimerRef.current) return;
       cardSyncTimerRef.current = setTimeout(() => {
         cardSyncTimerRef.current = null;
-        const ids = [...pendingCardSyncIdsRef.current].filter((id) => {
-          if (isCachedConversation404(id) && !conversationIdInInboxCaches(qc, id)) {
-            return false;
-          }
-          return true;
-        });
+        const ids = [...pendingCardSyncIdsRef.current].filter(
+          (id) =>
+            !isCachedConversation404(id) &&
+            shouldGetConversationOnUpdated(id, activeRef.current),
+        );
         pendingCardSyncIdsRef.current.clear();
         if (ids.length === 0) return;
         if (ids.length > CARD_SYNC_BURST_LIMIT) {
@@ -788,7 +797,8 @@ export function useInboxRealtime(options: {
           scheduleDailyStatsRefresh();
           return;
         }
-        if (isCachedConversation404(id) && !conversationIdInInboxCaches(qc, id)) {
+        if (isCachedConversation404(id)) {
+          removeConversationFromInboxCaches(qc, id);
           scheduleCountsRefresh();
           scheduleDailyStatsRefresh();
           return;
@@ -796,10 +806,10 @@ export function useInboxRealtime(options: {
         const completeRow = conversationRowFromUpdatedEvent(raw);
         if (completeRow) {
           applyConversationRowToInboxCaches(qc, completeRow);
-        } else if (
-          shouldGetConversationOnUpdated(qc, id, activeRef.current, payload)
-        ) {
-          scheduleConversationCardSync(id, payload);
+        } else if (applyConversationUpdatedPatch(qc, payload)) {
+          // Card na lista atualizado sem GET :id.
+        } else if (shouldGetConversationOnUpdated(id, activeRef.current)) {
+          scheduleConversationCardSync(id);
         }
         scheduleCountsRefresh();
         scheduleDailyStatsRefresh();
