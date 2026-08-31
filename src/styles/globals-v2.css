@@ -718,7 +718,8 @@ html[data-nav-expanded="true"] {
 }
 
 /* Modal de filtros (portal no body, fora de .v2-root): H no conjunto de
-   colunas; Y só na coluna que transborda. Mesmo thumb 5px das listas. */
+   colunas; Y só na coluna que transborda. Mesmo thumb 5px das listas
+   (`[data-page-scroll]`), visível sem hover. */
 .filter-columns-hscroll,
 [data-filter-col-scroll] {
   scrollbar-gutter: auto;
@@ -730,16 +731,17 @@ html[data-nav-expanded="true"] {
 }
 .filter-columns-hscroll::-webkit-scrollbar-track,
 [data-filter-col-scroll]::-webkit-scrollbar-track {
-  background: transparent;
+  background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  border-radius: 9999px;
 }
 .filter-columns-hscroll::-webkit-scrollbar-thumb,
 [data-filter-col-scroll]::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 28%, transparent);
   border-radius: 9999px;
 }
 .filter-columns-hscroll::-webkit-scrollbar-thumb:hover,
 [data-filter-col-scroll]::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-primary) 38%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 42%, transparent);
 }
 .filter-columns-hscroll::-webkit-scrollbar-button,
 [data-filter-col-scroll]::-webkit-scrollbar-button {
@@ -751,7 +753,8 @@ html[data-nav-expanded="true"] {
   .filter-columns-hscroll,
   [data-filter-col-scroll] {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--text-primary) 22%, transparent) transparent;
+    scrollbar-color: color-mix(in srgb, var(--text-primary) 28%, transparent)
+      color-mix(in srgb, var(--text-primary) 10%, transparent);
   }
 }
 

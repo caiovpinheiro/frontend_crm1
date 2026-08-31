@@ -60,13 +60,7 @@ export function FilterColumnsModal({
       const scroller = hScrollRef.current
       if (!scroller) return
       const col = (e.target as HTMLElement | null)?.closest("[data-filter-col-scroll]")
-      if (col instanceof HTMLElement) {
-        const canY = col.scrollHeight > col.clientHeight + 1
-        const dy = e.deltaY
-        const atTop = col.scrollTop <= 0
-        const atBottom = col.scrollTop + col.clientHeight >= col.scrollHeight - 1
-        if (canY && ((dy < 0 && !atTop) || (dy > 0 && !atBottom))) return
-      }
+      if (col instanceof HTMLElement && col.scrollHeight > col.clientHeight + 1) return
       if (scroller.scrollWidth <= scroller.clientWidth + 1) return
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
       if (delta === 0) return
@@ -100,11 +94,11 @@ export function FilterColumnsModal({
         aria-modal="true"
         aria-label={labelledBy ?? title}
         className={cn(
-          "relative flex max-h-[min(84vh,720px)] w-full flex-col overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg sm:w-max sm:max-w-6xl",
-          tall && "h-[min(84vh,720px)]",
+          "relative grid w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
+          tall ? "h-[min(84vh,720px)]" : "max-h-[min(84vh,720px)]",
         )}
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
+        <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
           <div className="min-w-0 space-y-0.5">
             <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
             {description ? (
@@ -131,21 +125,20 @@ export function FilterColumnsModal({
           </div>
         </header>
 
-        <div
-          ref={hScrollRef}
-          className={cn(
-            "filter-columns-hscroll min-h-0 overflow-x-auto overflow-y-hidden overscroll-x-contain",
-            tall && "flex-1",
-          )}
-        >
-          <div className="inline-flex h-full min-h-0 w-max min-w-full flex-nowrap items-stretch">
-            {children}
+        <div className="min-h-0 overflow-hidden">
+          <div
+            ref={hScrollRef}
+            className="filter-columns-hscroll h-full min-h-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+          >
+            <div className="flex h-full min-h-0 w-max min-w-full flex-nowrap items-stretch">
+              {children}
+            </div>
           </div>
         </div>
 
-        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-secondary/40 px-5 py-3.5 sm:px-6">
-          <p className="text-sm text-muted-foreground">{countLabel}</p>
-          <div className="flex items-center gap-2">
+        <footer className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-[var(--dropdown-solid-bg)] px-5 py-3.5 sm:px-6">
+          <p className="min-w-0 truncate text-sm text-muted-foreground">{countLabel}</p>
+          <div className="flex shrink-0 items-center gap-2">
             <button type="button" onClick={onClose} className={cn(formDialogCancelClass, "h-10")}>
               Cancelar
             </button>
@@ -176,7 +169,7 @@ export function FilterCategoryColumn({
   return (
     <section
       className={cn(
-        "flex h-full min-h-0 w-[min(16rem,85vw)] shrink-0 flex-col gap-3 border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
+        "flex h-full min-h-0 w-[min(16rem,85vw)] shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
         className,
       )}
     >
@@ -192,6 +185,7 @@ export function FilterCategoryColumn({
         {hint ? <p className="text-xs leading-snug text-muted-foreground">{hint}</p> : null}
       </header>
       <div
+        data-page-scroll
         data-filter-col-scroll
         className={cn(
           "flex min-h-0 grow flex-col items-stretch overflow-x-hidden overflow-y-auto overscroll-y-contain",
