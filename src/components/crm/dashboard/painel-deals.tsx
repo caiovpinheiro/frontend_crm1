@@ -485,7 +485,7 @@ function DealAgents({
         <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
         <ListColumnLabel align="right">Ativos hoje</ListColumnLabel>
       </div>
-      <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2")}>
+      <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2 max-h-[320px] overflow-y-auto pr-1")}>
         {rows.map((row) => (
           <AgentRow key={row.id} row={row} />
         ))}

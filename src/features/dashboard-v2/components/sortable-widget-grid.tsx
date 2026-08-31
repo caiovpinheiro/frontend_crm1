@@ -21,6 +21,7 @@ import {
   DASHBOARD_GRID_MARGIN,
   DASHBOARD_GRID_ROW_HEIGHT,
   compactNegociosLayout,
+  gridCellHeightPx,
   gridRowsForPx,
   sameLayout,
   type Layout,
@@ -168,21 +169,25 @@ export function SortableWidgetGrid({
   flushHeightsRef.current = flushHeights;
 
   useEffect(() => {
-    if (disabled || organizing) return;
+    if (disabled || organizing || !persistEnabled) return;
     const observer = new ResizeObserver((entries) => {
       if (interactingRef.current || applyingRef.current) return;
       for (const entry of entries) {
-        const id = (entry.target as HTMLElement).dataset.gridMeasure;
+        const el = entry.target as HTMLElement;
+        const id = el.dataset.gridMeasure;
         if (!id || !shouldAutoSize(id)) continue;
         const item = layoutRef.current.find((row) => row.i === id);
         if (!item) continue;
-        const measured = gridRowsForPx(
-          (entry.target as HTMLElement).offsetHeight,
-          item.minH ?? 2,
+        const contentPx = Math.max(el.scrollHeight, el.offsetHeight);
+        const cellPx = gridCellHeightPx(item.h);
+        const rows = Math.min(
+          MAX_AUTO_ROWS,
+          gridRowsForPx(contentPx, item.minH ?? 2),
         );
-        const rows = Math.min(MAX_AUTO_ROWS, measured);
-        // Ignore 1-row jitter so measure↔cell cannot oscillate.
-        if (Math.abs(rows - item.h) < 2) continue;
+        if (rows === item.h) continue;
+        const overflows = contentPx > cellPx + 8;
+        const leftover = !overflows && item.h - rows >= 2;
+        if (!overflows && !leftover) continue;
         pendingHeights.current.set(id, rows);
       }
       if (pendingHeights.current.size === 0) return;
@@ -198,7 +203,7 @@ export function SortableWidgetGrid({
       observer.disconnect();
       if (heightTimer.current) clearTimeout(heightTimer.current);
     };
-  }, [containerRef, disabled, ids, mounted, width, organizing]);
+  }, [containerRef, disabled, ids, mounted, width, organizing, persistEnabled]);
 
   async function requestRemove(id: string) {
     if (!onRemove) return;
