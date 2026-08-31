@@ -17,6 +17,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CallPermissionTemplateDialog } from "@/components/inbox/call-permission-template-dialog";
+import { applyOutboundPreviewToInboxCaches } from "@/features/inbox-v2/hooks/apply-outbound-inbox-card";
 import { emitConversationReopened, messagesKey } from "@/features/inbox-v2/hooks/use-messages";
 import {
   CALL_PERMISSION_TPL_STORAGE,
@@ -152,10 +153,15 @@ export function ComposerMenu({
         queryClient.invalidateQueries({
           queryKey: messagesKey(j.reopenedConversationId),
         });
+        queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+      } else {
+        applyOutboundPreviewToInboxCaches(queryClient, conversationId, {
+          messageType: "template",
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["calling-context", conversationId] });
       queryClient.invalidateQueries({ queryKey: messagesKey(conversationId) });
-      queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

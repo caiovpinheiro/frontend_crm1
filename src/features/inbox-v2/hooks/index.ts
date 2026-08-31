@@ -1,5 +1,6 @@
 export * from "./use-conversations";
 export * from "./use-inbox-url-sync";
+export * from "./apply-outbound-inbox-card";
 export * from "./use-messages";
 export * from "./use-conversation-actions";
 export * from "./use-conversation-timeline";

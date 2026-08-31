@@ -23,7 +23,7 @@ import {
 } from "@tabler/icons-react";
 
 import { sendInternalTemplateSequence } from "@/features/inbox-v2/api";
-import { messagesKey } from "@/features/inbox-v2/hooks";
+import { applyOutboundPreviewToInboxCaches, messagesKey } from "@/features/inbox-v2/hooks";
 import {
   interpolateInternalTemplate,
   type InternalTemplateContext,
@@ -195,11 +195,12 @@ export function InternalTemplatePickerModal({
       const text = interpolateInternalTemplate(tpl.content, templateContext ?? {});
       const attachments = getTemplateAttachments(tpl);
       await sendInternalTemplateSequence({ conversationId, content: text, attachments });
+      return text;
     },
-    onSuccess: () => {
+    onSuccess: (text) => {
       toast.success("Modelo enviado");
       qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      applyOutboundPreviewToInboxCaches(qc, conversationId, { content: text });
       onClose();
     },
     onError: (err: Error) => toast.error(err.message || "Falha ao enviar modelo"),

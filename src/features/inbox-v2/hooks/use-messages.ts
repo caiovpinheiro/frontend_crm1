@@ -21,6 +21,7 @@ import {
 } from "../api";
 
 import { invalidatePipelineBoards } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { applyOutboundPreviewToInboxCaches } from "./apply-outbound-inbox-card";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
 export function messagesKey(conversationId: string | null | undefined) {
@@ -235,7 +236,7 @@ export function useSendMessage(conversationId: string | null) {
   >({
     mutationFn: (vars) =>
       sendMessage(conversationId as string, vars),
-    onSuccess: (data) => {
+    onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
       // Reabriu como novo ticket: invalida também o histórico do id novo
       // para o chat carregar a linha do tempo já com a mensagem enviada.
@@ -253,9 +254,17 @@ export function useSendMessage(conversationId: string | null) {
         qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
         qc.invalidateQueries({ queryKey: ["deal"] });
         qc.invalidateQueries({ queryKey: ["contact"] });
+        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+        qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+      } else if (!vars.asNote) {
+        // HAR 31/ago: onSuccess relistava 56KB + counts. SSE já patcha o
+        // card; daqui só atualizamos o cache (preview + troca de aba).
+        applyOutboundPreviewToInboxCaches(qc, conversationId, {
+          content: data.message?.content,
+          messageType: data.message?.messageType,
+          timestamp: data.message?.createdAt,
+        });
       }
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-      qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       // Rodapé "aguardando resposta" dos cards vem do board (lastMessage).
       invalidatePipelineBoards(qc);
     },
@@ -429,7 +438,6 @@ export function useSendAttachment(conversationId: string | null) {
       }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
       if (data.reopenedConversationId) {
         qc.invalidateQueries({ queryKey: messagesKey(data.reopenedConversationId) });
         emitConversationReopened(data.reopenedConversationId);
@@ -439,6 +447,14 @@ export function useSendAttachment(conversationId: string | null) {
         qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
         qc.invalidateQueries({ queryKey: ["deal"] });
         qc.invalidateQueries({ queryKey: ["contact"] });
+        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+        qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
+      } else {
+        applyOutboundPreviewToInboxCaches(qc, conversationId, {
+          content: data.message?.content,
+          messageType: data.message?.messageType,
+          timestamp: data.message?.createdAt,
+        });
       }
       invalidatePipelineBoards(qc);
     },
