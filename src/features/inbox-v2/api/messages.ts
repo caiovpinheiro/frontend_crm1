@@ -208,7 +208,7 @@ export async function sendAttachmentReuse(
         ...(options.channelId ? { channelId: options.channelId } : {}),
       }),
     },
-    8_000,
+    20_000,
   );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
