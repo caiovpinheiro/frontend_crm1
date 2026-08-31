@@ -21,6 +21,7 @@ import {
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { EmptyState } from "@/components/crm/empty-state";
 import { DataView, DataRow } from "@/components/automations/data-view";
+import { ListHScroll } from "@/components/crm/list-hscroll";
 import { ListColumnLabel } from "@/components/crm/sortable-header";
 import type { CardsTableView } from "@/components/automations/view-toggle";
 import { cn } from "@/lib/utils";
@@ -134,7 +135,7 @@ export function SystemUsageTab({
           />
         </div>
       ) : (
-        <div className="scrollbar-thin flex min-h-0 flex-1 flex-col overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+        <ListHScroll>
           <DataView
             view={view}
             columnClass={cn("grid items-center gap-3", USAGE_GRID)}
@@ -165,7 +166,7 @@ export function SystemUsageTab({
               />
             ))}
           </DataView>
-        </div>
+        </ListHScroll>
       )}
     </div>
   );

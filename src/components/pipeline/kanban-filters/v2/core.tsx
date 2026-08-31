@@ -184,7 +184,7 @@ export function FieldCard({
         "rounded-xl border p-3 transition-[border-color,background-color,box-shadow]",
         active
           ? "border-[var(--brand-primary)]/30 bg-[var(--color-enterprise-bg)] shadow-[0_1px_3px_rgba(91,111,245,0.08)]"
-          : "border-slate-200/90 bg-slate-50/80 shadow-[0_1px_3px_rgba(15,23,42,0.06)] hover:border-[var(--brand-primary)]/25 hover:bg-white v2-dark:border-white/10 v2-dark:bg-white/5 v2-dark:hover:bg-white/8",
+          : "border-slate-200/90 bg-slate-50/80 shadow-[0_1px_3px_rgba(15,23,42,0.06)] hover:border-[var(--brand-primary)]/25 hover:bg-white v2-dark:border-white/12 v2-dark:bg-[color-mix(in_srgb,white_8%,var(--dropdown-solid-bg))] v2-dark:hover:bg-[color-mix(in_srgb,white_12%,var(--dropdown-solid-bg))]",
         className,
       )}
     >
@@ -1044,7 +1044,7 @@ function CustomFieldRow({
     "h-8 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] px-2 text-[12px] text-[var(--text-primary)] shadow-none outline-none transition-colors hover:bg-[var(--color-primary-soft)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20";
 
   return (
-    <div className="space-y-1.5 rounded-lg border border-[var(--glass-border)] bg-white/70 px-2 py-2">
+    <div className="space-y-1.5 rounded-lg border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)] px-2 py-2">
       <div className="flex items-center gap-1.5">
         <span
           className="min-w-0 flex-1 truncate rounded-md bg-[var(--brand-primary)]/8 px-2 py-1 text-[12px] font-semibold text-[var(--brand-primary)]"

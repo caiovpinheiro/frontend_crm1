@@ -173,7 +173,7 @@ export function DatePicker({
                 visibility: coords ? "visible" : "hidden",
               }}
               className={cn(
-                "z-(--z-radix) w-[17.5rem] overflow-visible border border-border bg-card p-3 text-foreground shadow-lg",
+                "z-(--z-radix) w-[17.5rem] overflow-visible border border-border bg-[var(--dropdown-solid-bg)] p-3 text-foreground shadow-lg",
                 soft ? "rounded-2xl p-4" : "rounded-xl",
               )}
             >

@@ -320,7 +320,7 @@ function EditorInner() {
         setFlowName("receptivo_geral (demo)")
         setAnalysis(null)
         setActive(true)
-        window.requestAnimationFrame(() => fitView({ padding: 0.2, duration: 300 }))
+        window.requestAnimationFrame(() => fitView({ padding: 0.3, maxZoom: 0.75, duration: 300 }))
         return
       }
       const exp = FLOW_FIXTURES[key]
@@ -330,7 +330,7 @@ function EditorInner() {
       setFlowName(exp.name)
       setAnalysis(a)
       setActive(exp.active ?? true)
-      window.requestAnimationFrame(() => fitView({ padding: 0.15, duration: 400 }))
+      window.requestAnimationFrame(() => fitView({ padding: 0.3, maxZoom: 0.75, duration: 400 }))
     },
     [setNodes, setEdges, fitView],
   )
@@ -471,7 +471,7 @@ function EditorInner() {
   const onAutoLayout = useCallback(() => {
     const next = layout(getNodes(), getEdges())
     setNodes(next)
-    window.requestAnimationFrame(() => fitView({ padding: 0.2, duration: 400 }))
+    window.requestAnimationFrame(() => fitView({ padding: 0.3, maxZoom: 0.75, duration: 400 }))
   }, [getNodes, getEdges, setNodes, fitView])
 
   // ---- Export JSON ----
@@ -711,7 +711,7 @@ function EditorInner() {
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.35, maxZoom: 0.75 }}
               deleteKeyCode={["Delete", "Backspace"]}
               minZoom={0.3}
               maxZoom={1.6}

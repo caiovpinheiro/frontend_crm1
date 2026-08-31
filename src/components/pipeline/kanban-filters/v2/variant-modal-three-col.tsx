@@ -276,7 +276,7 @@ function ConversationSegmentation({
         )}
       </div>
 
-      <div className="space-y-3 rounded-[var(--radius-lg)] border border-slate-200/90 bg-slate-50/80 p-2.5 v2-dark:border-white/10 v2-dark:bg-white/5">
+      <div className="space-y-3 rounded-[var(--radius-lg)] border border-slate-200/90 bg-slate-50/80 p-2.5 v2-dark:border-white/12 v2-dark:bg-[color-mix(in_srgb,white_8%,var(--dropdown-solid-bg))]">
         <div>
           <span className="mb-1.5 block font-body text-[10.5px] text-[var(--text-muted)]">
             Status

@@ -532,13 +532,12 @@ export default function V2ContactsClientPage() {
   return (
     <div
       className={cn(
-        "v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)]",
+        "v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4",
       )}
     >
       <NavRailSpacer />
 
       <PageChrome
-        scroll="page"
         header={
         <SectionHeader
           icon={Users}

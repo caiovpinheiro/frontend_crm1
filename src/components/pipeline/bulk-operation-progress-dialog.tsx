@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { apiUrl } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -319,7 +320,8 @@ export function BulkOperationProgressDialog({
   onMinimize,
 }: BulkOperationProgressDialogProps) {
   const open = !!operationId && !minimized;
-  const { data, error, isLoading } = useBulkOperation(operationId);
+  const { data, error, isLoading, refetch } = useBulkOperation(operationId);
+  const [cancelling, setCancelling] = React.useState(false);
 
   const status = data?.status;
   const isFinished = isBulkOperationFinished(status);
@@ -622,6 +624,39 @@ export function BulkOperationProgressDialog({
         </div>
 
         <DialogFooter>
+          {!isFinished && operationId ? (
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={cancelling}
+              onClick={() => {
+                void (async () => {
+                  setCancelling(true);
+                  try {
+                    const res = await fetch(apiUrl(`/api/bulk-operations/${operationId}`), {
+                      method: "POST",
+                    });
+                    if (!res.ok) {
+                      const body = await res.json().catch(() => ({}));
+                      throw new Error(
+                        (body as { message?: string }).message ?? "Falha ao cancelar.",
+                      );
+                    }
+                    toast.message("Cancelando a operação…");
+                    await refetch();
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "Não foi possível cancelar.",
+                    );
+                  } finally {
+                    setCancelling(false);
+                  }
+                })();
+              }}
+            >
+              {cancelling ? "Cancelando…" : "Cancelar operação"}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant={isFinished ? "default" : "outline"}

@@ -61,9 +61,9 @@ export function PainelSkeleton({ className }: { className?: string }) {
 
 export function PainelKpiSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3.5 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <PainelSkeleton key={i} className="h-[88px]" />
+        <PainelSkeleton key={i} className="h-[72px]" />
       ))}
     </div>
   );
@@ -71,9 +71,9 @@ export function PainelKpiSkeleton() {
 
 export function PainelAgoraSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <PainelSkeleton key={i} className="h-[108px]" />
+        <PainelSkeleton key={i} className="h-[72px]" />
       ))}
     </div>
   );
@@ -87,7 +87,7 @@ export function PainelBlockError({
   onRetry: () => void;
 }) {
   if (message === "omitido") {
-    return <PainelSkeleton className="min-h-48" />;
+    return <PainelSkeleton className="min-h-[72px]" />;
   }
   return (
     <div
@@ -122,7 +122,7 @@ export function PainelEmpty({
   return (
     <div
       className={cn(
-        "px-6 py-12 text-center",
+        "px-4 py-5 text-center",
         !embedded && CARD_SURFACE_CLASS,
       )}
     >

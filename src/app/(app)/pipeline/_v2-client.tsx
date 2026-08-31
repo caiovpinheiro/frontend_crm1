@@ -663,13 +663,33 @@ export default function KanbanV2ClientPage({
     window.history.replaceState(window.history.state, "", url.toString());
   }, [dealDetail]);
 
-  // Encontra o stage corrente do deal aberto pra alimentar o header de pills.
+  // Etapa do deal aberto: primeiro o card no board (se já carregou na
+  // página da coluna); senão o GET /deals/:id. Deep-link `?deal=54113`
+  // com sort/página corta o card fora do board — sem este fallback o
+  // dropdown de etapa some e o estágio fica estático.
+  const detailStage = (
+    dealDetail as { stage?: { id?: string; name?: string; pipeline?: { id?: string } } } | undefined
+  )?.stage;
   const activeDealStage = useMemo(() => {
     if (!activeDealId) return undefined;
-    return board.find((s) => s.deals.some((d) => d.id === activeDealId));
-  }, [activeDealId, board]);
-  const activeDealStageName = activeDealStage?.name;
-  const activeDealStageId = activeDealStage?.id ?? null;
+    const realId = dealDetail?.id ?? activeDealId;
+    const onBoard = board.find((s) =>
+      s.deals.some((d) => d.id === realId || d.id === activeDealId),
+    );
+    if (onBoard) return onBoard;
+    if (detailStage?.id) return board.find((s) => s.id === detailStage.id);
+    return undefined;
+  }, [activeDealId, board, dealDetail?.id, detailStage?.id]);
+  const activeDealStageName = activeDealStage?.name ?? detailStage?.name;
+  const activeDealStageId = activeDealStage?.id ?? detailStage?.id ?? null;
+  const stagePickerDealId = dealDetail?.id ?? (activeDealId && !/^\d+$/.test(activeDealId) ? activeDealId : null);
+
+  // Deep-link pode abrir um deal de outro funil (`?pipeline=1` vs funil real).
+  useEffect(() => {
+    const pipeId = detailStage?.pipeline?.id;
+    if (!pipeId || !pipelineId || pipeId === pipelineId) return;
+    setPipelineId(pipeId);
+  }, [detailStage?.pipeline?.id, pipelineId, setPipelineId]);
 
   // Seed otimista a partir do card do board — o painel abre no layout final
   // com nome/telefone/etapa já preenchidos, sem esperar GET /deals/:id.
@@ -1118,7 +1138,7 @@ export default function KanbanV2ClientPage({
         deal={dealDetailVm ?? undefined}
         viewersSlot={<DealViewersStack viewers={dealViewers} variant="banner" />}
         stageRibbonSlot={
-          activeDealId && activeDealStageId ? (
+          stagePickerDealId && activeDealStageId ? (
             <div className="flex items-center gap-1">
               {board.map((s, idx) => {
                 const currentIdx = board.findIndex(
@@ -1159,9 +1179,9 @@ export default function KanbanV2ClientPage({
           ) : undefined
         }
         stageDropdownSlot={
-          activeDealId && activeDealStageId ? (
+          stagePickerDealId && activeDealStageId ? (
             <StagePicker
-              dealId={activeDealId}
+              dealId={stagePickerDealId}
               currentStageId={activeDealStageId}
               pipelineId={pipelineId}
               statusFilter={status}

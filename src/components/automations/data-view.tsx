@@ -6,7 +6,6 @@ import {
   LIST_CARD_HEAD_CLASS,
   LIST_CARD_ROW_CLASS,
   LIST_CARD_STACK_CLASS,
-  listTableHeadRowClass,
 } from "@/components/crm/sortable-header"
 import { cn } from "@/lib/utils"
 
@@ -54,9 +53,7 @@ export function DataView({
         <div
           className={cn(
             columnClass,
-            isTabela
-              ? listTableHeadRowClass("hidden bg-secondary lg:grid")
-              : LIST_CARD_HEAD_CLASS,
+            LIST_CARD_HEAD_CLASS,
             "w-full",
           )}
           style={style}

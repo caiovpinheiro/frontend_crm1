@@ -79,7 +79,7 @@ export function SettingsListFilterBar({
   const updateCoords = React.useCallback(() => {
     const rect = ref.current?.getBoundingClientRect();
     if (!rect) return;
-    const width = Math.min(380, window.innerWidth - 16);
+    const width = Math.min(rect.width, window.innerWidth - 16);
     const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
     const top = Math.min(rect.bottom + 8, window.innerHeight - 8);
     setCoords({ top, left, width });

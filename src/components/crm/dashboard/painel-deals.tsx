@@ -29,7 +29,7 @@ import {
 import { KpiCard } from "@/components/crm/kpi-card";
 import { PipelineProgress } from "@/components/pipeline-progress";
 import {
-  LIST_CARD_HEAD_CLASS,
+  LIST_CARD_HEAD_STATIC_CLASS,
   LIST_CARD_ROW_CLASS,
   LIST_CARD_STACK_CLASS,
   ListColumnLabel,
@@ -477,7 +477,7 @@ function DealAgents({
       title="Ganhos por agente"
       subtitle="Ordenado por receita ganha · sem ranking por cor"
     >
-      <div className={LIST_CARD_HEAD_CLASS + " grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))]"}>
+      <div className={LIST_CARD_HEAD_STATIC_CLASS + " grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))]"}>
         <ListColumnLabel>Agente</ListColumnLabel>
         <ListColumnLabel align="right">Receita ganha</ListColumnLabel>
         <ListColumnLabel align="right">Ganhos</ListColumnLabel>
@@ -586,7 +586,7 @@ function DealExceptions({
   }
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a lista filtrada">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {block.data.map((row) => {
           const copy = EXCEPTION_COPY[row.key];
           const label =
@@ -605,7 +605,8 @@ function DealExceptions({
                 label={label}
                 value={formatNumber(row.count)}
                 tone={row.count > 0 ? "warning" : "neutral"}
-                className="cursor-pointer hover:border-primary/30 hover:bg-secondary/50"
+                compact
+                className="h-full min-w-0 cursor-pointer hover:border-primary/30 hover:bg-secondary/50"
               />
             </Link>
           );

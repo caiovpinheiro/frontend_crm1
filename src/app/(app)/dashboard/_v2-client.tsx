@@ -739,7 +739,7 @@ function renderServiceWidget(
     );
   }
   if (serviceQuery.error && !serviceQuery.data) {
-    if (id !== "volume") return <PainelSkeleton className="min-h-48" />;
+    if (id !== "volume") return <PainelSkeleton className="min-h-[72px]" />;
     return (
       <PainelBlockError
         message={

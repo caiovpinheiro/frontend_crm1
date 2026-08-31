@@ -24,6 +24,7 @@ import { AVATAR_SIZE } from "@/lib/avatar";
 import { EmptyState } from "@/components/crm/empty-state";
 import { DataView, DataRow } from "@/components/automations/data-view";
 import { useCardsTableView, type CardsTableView } from "@/components/automations/view-toggle";
+import { ListHScroll } from "@/components/crm/list-hscroll";
 import { LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import {
   ListColumnLabel,
@@ -588,7 +589,7 @@ function StandaloneCallHistoryList({
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {header}
 
-      <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+      <ListHScroll>
           <DataView
             view={view}
             columnClass={`grid ${COLS} items-center gap-3`}
@@ -634,7 +635,7 @@ function StandaloneCallHistoryList({
                   />
                 ))}
           </DataView>
-        </div>
+      </ListHScroll>
 
       <PaginationGlass
           total={total}

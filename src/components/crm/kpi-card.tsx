@@ -74,8 +74,10 @@ export function KpiCard({
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="flex items-baseline gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground">
-          <span>{label}</span>
+        <p className="flex min-w-0 items-baseline gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground">
+          <span className="min-w-0 truncate" title={label}>
+            {label}
+          </span>
           {badge ? (
             <span className="font-medium text-muted-foreground/80">{badge}</span>
           ) : null}

@@ -10,11 +10,12 @@ import { cn } from "@/lib/utils"
 /**
  * Chrome do painel Filtrar — referência Tarefas (`TasksSearchFilterBar`).
  * Shell `rounded-2xl`, header Filtros + Limpar, tabs em pílula, body com
- * `rounded-xl` nas opções. Tokens: `bg-card` / `border-border` / `bg-primary`.
+ * `rounded-xl` nas opções. Overlay: `--dropdown-solid-bg` (opaco no tema
+ * escuro — `bg-card` vaza o conteúdo de baixo).
  */
 
 export const FILTER_POPOVER_PANEL_CLASS =
-  "absolute left-0 top-[calc(100%+8px)] z-40 flex max-h-[min(78vh,560px)] w-[min(100vw-2rem,380px)] flex-col overflow-hidden rounded-[22px] border border-border bg-card text-left shadow-lg"
+  "absolute inset-x-0 top-[calc(100%+8px)] z-(--z-popover) flex max-h-[min(78vh,560px)] w-full flex-col overflow-hidden rounded-[22px] border border-border bg-[var(--dropdown-solid-bg)] text-left text-foreground shadow-lg opacity-100 backdrop-blur-none"
 
 export function FilterPopoverPanel({
   className,
@@ -328,7 +329,7 @@ export function FilterModalShell({
   return (
     <div className="fixed inset-0 z-(--z-popover) flex items-center justify-center p-0 sm:p-4">
       <div
-        className="absolute inset-0 bg-foreground/30 backdrop-blur-md"
+        className="absolute inset-0 bg-background/75 backdrop-blur-[2px]"
         onMouseDown={onClose}
         aria-hidden
       />
@@ -341,7 +342,7 @@ export function FilterModalShell({
         aria-modal="true"
         aria-label={labelledBy ?? title}
         className={cn(
-          "relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-lg",
+          "relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
           wide ? "h-[min(84vh,760px)] max-w-[1120px]" : "h-[min(92dvh,100%)] max-w-lg",
         )}
       >
@@ -373,7 +374,7 @@ export function FilterModalShell({
 
           <div className="min-h-0 flex-1">{children}</div>
 
-          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-4 py-3">
+          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-[var(--dropdown-solid-bg)] px-4 py-3">
             <p className="text-sm text-muted-foreground">
               <span className="font-semibold text-foreground">{count}</span> critérios
             </p>

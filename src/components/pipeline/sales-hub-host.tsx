@@ -486,10 +486,12 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
 
   const activeDealStageName = useMemo(() => {
     if (!resolvedDealId) return undefined;
-    return board.find((s) =>
+    const onBoard = board.find((s) =>
       s.deals.some((d) => d.id === resolvedDealId),
     )?.name;
-  }, [resolvedDealId, board]);
+    if (onBoard) return onBoard;
+    return (dealDetail as { stage?: { name?: string } } | undefined)?.stage?.name;
+  }, [resolvedDealId, board, dealDetail]);
 
   const detailDeal: DealDetail | null = useMemo(() => {
     if (dealDetail) {
