@@ -231,36 +231,38 @@ function OperatorHome({
     >
       <QueryState isLoading={query.isLoading} error={query.error} hasData={!!query.data}>
         {query.data ? (
-          <SortableWidgetStack
-            ids={order}
-            labels={OPERATOR_LABELS}
-            onReorder={reorder}
-            organizing={organizing}
-            droppableId="dashboard-fila"
-            onRemove={hide}
-            render={(id) => (
-              <OperatorDashboardWidget
-                id={id as OperatorWidgetId}
-                data={query.data}
-                search={search}
-              />
-            )}
-          />
-          <AddDashboardCardDialog
-            open={addCardOpen}
-            onOpenChange={setAddCardOpen}
-            fields={[]}
-            stages={[]}
-            presentIds={order}
-            presets={OPERATOR_WIDGET_IDS.map((id) => ({
-              id,
-              label: OPERATOR_LABELS[id] ?? id,
-            }))}
-            presetsOnly
-            onAddPreset={(id) => restore(id)}
-            onAddStage={() => undefined}
-            onCreate={() => undefined}
-          />
+          <>
+            <SortableWidgetStack
+              ids={order}
+              labels={OPERATOR_LABELS}
+              onReorder={reorder}
+              organizing={organizing}
+              droppableId="dashboard-fila"
+              onRemove={hide}
+              render={(id) => (
+                <OperatorDashboardWidget
+                  id={id as OperatorWidgetId}
+                  data={query.data}
+                  search={search}
+                />
+              )}
+            />
+            <AddDashboardCardDialog
+              open={addCardOpen}
+              onOpenChange={setAddCardOpen}
+              fields={[]}
+              stages={[]}
+              presentIds={order}
+              presets={OPERATOR_WIDGET_IDS.map((id) => ({
+                id,
+                label: OPERATOR_LABELS[id] ?? id,
+              }))}
+              presetsOnly
+              onAddPreset={(id) => restore(id)}
+              onAddStage={() => undefined}
+              onCreate={() => undefined}
+            />
+          </>
         ) : null}
       </QueryState>
     </Shell>
