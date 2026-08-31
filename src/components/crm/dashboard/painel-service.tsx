@@ -75,7 +75,7 @@ function ServicePair({
   emptyTitle,
   children,
 }: {
-  pending: boolean;
+  pending?: boolean;
   empty?: boolean;
   emptyTitle?: string;
   children: ReactNode;
