@@ -7,10 +7,12 @@
  * com checkbox/cor de tag.
  */
 
+import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
+import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
 import {
   computePopoverPosition,
   usePortalPopover,
@@ -47,8 +49,19 @@ export function MultiSelectPopover({
 }: MultiSelectPopoverProps) {
   const { open, rect, triggerRef, popoverRef, toggle, close } =
     usePortalPopover();
+  const portalContainer = useModalPortalContainer();
+  const [query, setQuery] = useState("");
 
   const count = selected.length;
+  const visibleOptions = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(needle) ||
+        (opt.sub ?? "").toLowerCase().includes(needle),
+    );
+  }, [options, query]);
 
   function toggleValue(value: string) {
     if (selected.includes(value)) {
@@ -90,7 +103,13 @@ export function MultiSelectPopover({
           <div
             ref={popoverRef}
             style={{ top: position.top, left: position.left, width }}
-            className="fixed z-(--z-popover) overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
+            className={cn(
+              "fixed overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl",
+              // Dentro de <dialog> o painel tem z-50; --z-popover (80) já
+              // cobre, mas forçamos 200 pra o menu nunca ficar atrás do
+              // overflow-hidden do FormDialog (Tags no wizard de campanha).
+              portalContainer ? "z-[200]" : "z-(--z-popover)",
+            )}
           >
             <div className="flex items-center justify-between border-b border-[var(--glass-border-subtle)] px-3 py-2">
               <span className="font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
@@ -107,13 +126,29 @@ export function MultiSelectPopover({
               )}
             </div>
 
+            {options.length > 8 ? (
+              <div className="border-b border-[var(--glass-border-subtle)] px-2 py-1.5">
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={`Buscar ${label.toLowerCase()}…`}
+                  className="h-8 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                />
+              </div>
+            ) : null}
+
             <div className="max-h-[280px] overflow-y-auto p-1.5 [scrollbar-width:thin]">
               {options.length === 0 ? (
                 <p className="px-2 py-3 text-center font-body text-[12px] italic text-[var(--text-muted)]">
                   {emptyLabel}
                 </p>
+              ) : visibleOptions.length === 0 ? (
+                <p className="px-2 py-3 text-center font-body text-[12px] italic text-[var(--text-muted)]">
+                  Nenhuma opção com “{query.trim()}”.
+                </p>
               ) : (
-                options.map((opt) => {
+                visibleOptions.map((opt) => {
                   const checked = selected.includes(opt.value);
                   return (
                     <button
@@ -167,7 +202,7 @@ export function MultiSelectPopover({
               </button>
             </div>
           </div>,
-          document.body,
+          portalContainer ?? document.body,
         )}
     </>
   );

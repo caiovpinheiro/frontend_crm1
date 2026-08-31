@@ -164,9 +164,14 @@ function AutomationPicker({
 
   const items: AutomationListItemDto[] = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (data?.items ?? []).filter(
-      (a) => !q || a.name.toLowerCase().includes(q) || a.triggerType.toLowerCase().includes(q),
-    );
+    return [...(data?.items ?? [])]
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+      .filter(
+        (a) =>
+          !q ||
+          a.name.toLowerCase().includes(q) ||
+          a.triggerType.toLowerCase().includes(q),
+      );
   }, [data?.items, search]);
 
   return (

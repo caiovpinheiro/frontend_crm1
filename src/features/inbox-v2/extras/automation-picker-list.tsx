@@ -26,6 +26,7 @@ type ManualAutomation = {
   active: boolean;
   triggerType: string;
   stepCount: number;
+  createdAt?: string;
 };
 
 type ListResponse = {
@@ -39,7 +40,12 @@ async function fetchManualAutomations(): Promise<ManualAutomation[]> {
   );
   const json = (await res.json().catch(() => ({}))) as Partial<ListResponse>;
   if (!res.ok) throw new Error("Falha ao carregar automações manuais");
-  return Array.isArray(json.items) ? json.items : [];
+  const items = Array.isArray(json.items) ? json.items : [];
+  return [...items].sort((a, b) => {
+    const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
+    const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return tb - ta;
+  });
 }
 
 async function runAutomation(

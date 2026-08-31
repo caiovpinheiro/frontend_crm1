@@ -612,6 +612,8 @@ export default function NewCampaignClientPage() {
                     onValueChange={setAutomationId}
                     placeholder="Selecione uma automação ativa"
                     triggerClassName="w-full"
+                    searchable
+                    searchPlaceholder="Buscar automação…"
                   />
                   <p className="mt-1 text-[11.5px] text-muted-foreground">
                     {useLastConversationChannel

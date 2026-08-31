@@ -139,6 +139,8 @@ export interface AutomationRow {
   id: string;
   name: string;
   active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TemplateRow {

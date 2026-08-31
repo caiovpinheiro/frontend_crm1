@@ -219,11 +219,21 @@ export function fetchSegments(): Promise<SegmentRow[]> {
   ).then((d) => d.segments ?? []);
 }
 
+function sortAutomationsNewestFirst<T extends { createdAt?: string }>(
+  rows: T[],
+): T[] {
+  return [...rows].sort((a, b) => {
+    const ta = a.createdAt ? Date.parse(a.createdAt) : 0;
+    const tb = b.createdAt ? Date.parse(b.createdAt) : 0;
+    return tb - ta;
+  });
+}
+
 export function fetchAutomations(): Promise<AutomationRow[]> {
   return getJson<{ items?: AutomationRow[]; automations?: AutomationRow[] }>(
     "/api/automations?perPage=100",
     "Erro ao carregar automações.",
-  ).then((d) => d.items ?? d.automations ?? []);
+  ).then((d) => sortAutomationsNewestFirst(d.items ?? d.automations ?? []));
 }
 
 export async function fetchTemplates(channelId?: string | null): Promise<TemplateRow[]> {
