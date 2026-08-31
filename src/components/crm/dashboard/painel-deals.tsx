@@ -247,8 +247,8 @@ function DealFunnel({
           <div className="min-w-0 flex-1">
             <PainelEmpty
               embedded
-              title="Não há dados no período"
-              description="Nenhum negócio entrou em etapa neste recorte. Amplie o período ou escolha outro funil."
+              title="Este funil não tem etapas"
+              description="Cadastre etapas no pipeline ou escolha outro funil."
             />
           </div>
         </div>
@@ -318,7 +318,7 @@ function DealStageCards({
   if (stages.length === 0) {
     return (
       <PainelCard title="Etapas" subtitle="Leads e valor por responsável">
-        <PainelEmpty embedded title="Não há etapas no período" description="Amplie o período ou selecione outro funil." />
+        <PainelEmpty embedded title="Não há etapas neste funil" description="Cadastre etapas ou selecione outro funil." />
       </PainelCard>
     );
   }
