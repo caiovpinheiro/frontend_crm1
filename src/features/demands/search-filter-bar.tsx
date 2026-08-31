@@ -4,6 +4,7 @@ import * as React from "react";
 import { IconRotateClockwise } from "@tabler/icons-react";
 
 import { FilterSearchTrigger } from "@/components/crm/filter-search-trigger";
+import { FilterPopoverPanel } from "@/components/crm/filter-popover";
 import { cn } from "@/lib/utils";
 import { kindOptions, priorityOptions } from "./hooks";
 import type { DemandItemKind, DemandPriority } from "./types";
@@ -49,7 +50,7 @@ export function DemandSearchFilterBar({
       />
 
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+8px)] z-40 flex w-[min(100vw-2rem,380px)] flex-col overflow-hidden rounded-[22px] border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] shadow-[var(--glass-shadow-lg)] backdrop-blur-md">
+        <FilterPopoverPanel>
           <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
             <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">
               Filtros
@@ -81,7 +82,7 @@ export function DemandSearchFilterBar({
               options={[{ value: "ALL", label: "Todas" }, ...priorityOptions()]}
             />
           </div>
-        </div>
+        </FilterPopoverPanel>
       ) : null}
     </div>
   );
