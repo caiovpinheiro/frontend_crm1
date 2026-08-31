@@ -1,0 +1,277 @@
+/* Lab local — /showcase/loaders. Não entra no AppLoading de produção. */
+
+.loader-lab {
+  --lab-sky: #22d3ee;
+  --lab-blue: #3b82f6;
+  --lab-magenta: #d946ef;
+  --lab-track: rgb(255 255 255 / 0.12);
+  --lab-bg: #05070d;
+}
+
+.loader-lab-stage {
+  background: var(--lab-bg);
+}
+
+.loader-lab-caption {
+  margin: 0;
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: rgb(255 255 255 / 0.72);
+}
+
+.loader-lab-mark {
+  filter:
+    drop-shadow(0 0 10px color-mix(in srgb, var(--lab-sky) 50%, transparent))
+    drop-shadow(0 0 20px color-mix(in srgb, var(--lab-magenta) 28%, transparent));
+}
+
+.loader-lab-glow {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 64%;
+  height: 18px;
+  translate: -50% 0;
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--lab-blue) 55%, transparent),
+    transparent 70%
+  );
+  filter: blur(6px);
+}
+
+@keyframes loader-lab-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+@keyframes loader-lab-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes loader-lab-dot {
+  0%, 70%, 100% { opacity: 0.22; transform: scale(0.85); }
+  35% { opacity: 1; transform: scale(1); }
+}
+@keyframes loader-lab-cluster {
+  0% { transform: translateX(-8px); }
+  100% { transform: translateX(92px); }
+}
+@keyframes loader-lab-spark {
+  0% { transform: translateX(0); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translateX(132px); opacity: 0.2; }
+}
+@keyframes loader-lab-ripple {
+  0% { transform: translate(-50%, -40%) scale(0.45); opacity: 0.45; }
+  100% { transform: translate(-50%, -40%) scale(1.7); opacity: 0; }
+}
+@keyframes loader-lab-particle {
+  0% { transform: translate(0, 0) scale(1); opacity: 0.9; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+}
+@keyframes loader-lab-wave {
+  0%, 100% { d: path("M0 12 C 16 4, 32 20, 48 12 S 80 4, 96 12 128 20, 144 12"); }
+  50% { d: path("M0 12 C 16 20, 32 4, 48 12 S 80 20, 96 12 128 4, 144 12"); }
+}
+@keyframes loader-lab-scan {
+  0% { transform: translateY(-80%); }
+  100% { transform: translateY(180%); }
+}
+
+.loader-lab-bar-track,
+.loader-lab-line {
+  position: relative;
+  overflow: hidden;
+  width: 9.5rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--lab-track);
+}
+.loader-lab-bar-head {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--lab-sky), var(--lab-magenta));
+  box-shadow: 0 0 10px var(--lab-sky);
+  animation: loader-lab-slide 1.35s linear infinite;
+}
+
+.loader-lab-orbit {
+  position: absolute;
+  inset: -14px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--lab-sky) 38%, transparent);
+  animation: loader-lab-spin 2.4s linear infinite;
+}
+.loader-lab-orb {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: var(--lab-sky);
+  box-shadow: 0 0 10px var(--lab-sky);
+}
+
+.loader-lab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lab-sky);
+  box-shadow: 0 0 8px var(--lab-sky);
+  animation: loader-lab-dot 1.2s ease-in-out infinite;
+}
+
+.loader-lab-ring {
+  position: absolute;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--lab-sky) 28%, transparent);
+  animation: loader-lab-spin var(--spin, 3s) linear infinite;
+}
+.loader-lab-ring .loader-lab-orb {
+  width: 6px;
+  height: 6px;
+}
+
+.loader-lab-ellipse-wrap {
+  position: absolute;
+  inset: -8px -22px;
+  transform: rotateX(68deg) rotateZ(-18deg);
+  transform-style: preserve-3d;
+}
+.loader-lab-ellipse {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--lab-sky) 55%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--lab-sky) 35%, transparent);
+  animation: loader-lab-spin 3.2s linear infinite;
+}
+
+.loader-lab-dots-track {
+  position: relative;
+  width: 7.5rem;
+  height: 8px;
+  overflow: hidden;
+}
+.loader-lab-dots-row {
+  display: flex;
+  gap: 6px;
+  width: max-content;
+}
+.loader-lab-dots-row span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.16);
+}
+.loader-lab-cluster {
+  position: absolute;
+  top: 1.5px;
+  left: 0;
+  display: flex;
+  gap: 6px;
+  animation: loader-lab-cluster 1.6s linear infinite;
+}
+.loader-lab-cluster span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--lab-sky);
+  box-shadow: 0 0 8px var(--lab-sky);
+}
+
+.loader-lab-scan {
+  position: relative;
+  overflow: hidden;
+}
+.loader-lab-scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 3px,
+    rgb(5 7 13 / 0.55) 3px 5px
+  );
+  pointer-events: none;
+}
+.loader-lab-scan-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--lab-sky) 35%, transparent),
+    transparent
+  );
+  animation: loader-lab-scan 2.1s linear infinite;
+  pointer-events: none;
+}
+
+.loader-lab-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--lab-magenta);
+  box-shadow: 0 0 6px var(--lab-sky);
+  animation: loader-lab-particle 1.5s ease-out infinite;
+}
+
+.loader-lab-spark {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 10px var(--lab-sky), 0 0 16px var(--lab-magenta);
+  animation: loader-lab-spark 1.4s linear infinite;
+}
+
+.loader-lab-ripple {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 88px;
+  height: 36px;
+  border: 1.5px solid color-mix(in srgb, var(--lab-sky) 40%, transparent);
+  border-radius: 999px;
+  animation: loader-lab-ripple 2.4s ease-out infinite;
+}
+
+.loader-lab-wave {
+  width: 9.5rem;
+  overflow: visible;
+}
+.loader-lab-wave path {
+  fill: none;
+  stroke: url(#loader-lab-wave-grad);
+  stroke-width: 1.75;
+  filter: drop-shadow(0 0 6px var(--lab-sky));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-lab-bar-head,
+  .loader-lab-orbit,
+  .loader-lab-dot,
+  .loader-lab-ring,
+  .loader-lab-ellipse,
+  .loader-lab-cluster,
+  .loader-lab-scan-beam,
+  .loader-lab-particle,
+  .loader-lab-spark,
+  .loader-lab-ripple {
+    animation: none;
+  }
+}

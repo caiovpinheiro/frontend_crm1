@@ -24,19 +24,36 @@ export function PageChrome({
   children,
   className,
   bodyClassName,
+  scroll = "body",
 }: {
   header: React.ReactNode
   children: React.ReactNode
   className?: string
   bodyClassName?: string
+  /**
+   * `body`: header fixo, miolo rola (inbox / painéis).
+   * `page`: a página inteira rola — listas (Contatos, Distribuição).
+   * Evita `overflow-hidden` no canvas, que recortava KPI, tabela e rodapé.
+   */
+  scroll?: "body" | "page"
 }) {
+  const page = scroll === "page"
   return (
-    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden", className)}>
+    <div
+      className={cn(
+        "flex min-w-0 flex-col",
+        page ? "min-h-min flex-1" : "min-h-0 flex-1 overflow-hidden",
+        className,
+      )}
+    >
       <div className="shrink-0 bg-[var(--bg-base)]">{header}</div>
       <div
-        data-page-scroll=""
+        data-page-scroll={page ? undefined : ""}
         className={cn(
-          "flex min-h-0 min-w-0 flex-1 flex-col overflow-auto overscroll-contain",
+          "flex min-w-0 flex-col",
+          page
+            ? "min-h-min"
+            : "min-h-0 flex-1 overflow-auto overscroll-contain",
           bodyClassName,
         )}
       >
