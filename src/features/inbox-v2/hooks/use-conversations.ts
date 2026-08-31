@@ -31,11 +31,11 @@ import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
 /**
  * Page size pedido por request. O backend tem cap em 200 (ver
- * `_backend/src/services/conversations.ts`). 40 preenche a coluna;
- * lote de 10 deixava o sentinela sempre visível e disparava
- * página atrás de página ("Carregando mais..." sem fim).
+ * `_backend/src/services/conversations.ts`). 50 preenche a coluna
+ * (mesmo lote do first-paint Kommo); lote de 10 deixava o sentinela
+ * sempre visível e disparava página atrás de página.
  */
-const PAGE_SIZE = 40;
+const PAGE_SIZE = 50;
 
 /**
  * Lista paginada (infinite) de conversas da aba ativa.
@@ -55,29 +55,34 @@ export function useConversations(params: {
 }) {
   const query = useInfiniteQuery<ConversationListResponse>({
     queryKey: ["inbox-conversations", params.tab, params.filters, params.search],
-    queryFn: ({ pageParam = 1 }) =>
-      listConversations({
+    queryFn: ({ pageParam }) => {
+      const base = {
         tab: params.tab,
         ...params.filters,
         search: params.search,
-        page: pageParam as number,
         perPage: PAGE_SIZE,
-      }),
-    initialPageParam: 1,
+      };
+      if (typeof pageParam === "string" && pageParam.length > 0) {
+        return listConversations({ ...base, cursor: pageParam });
+      }
+      return listConversations({
+        ...base,
+        page: typeof pageParam === "number" ? pageParam : 1,
+      });
+    },
+    initialPageParam: 1 as string | number,
     getNextPageParam: (last) => {
-      const page = last.page ?? 1;
       const perPage = last.perPage ?? PAGE_SIZE;
       const itemCount = last.items?.length ?? 0;
-      // Página incompleta = fim. Não use `total === perPage+1` (sentinela
-      // antiga: 25+1=26) para parar o scroll — Automação com badge 421
-      // parava na 1ª/2ª página.
       if (itemCount < perPage) return undefined;
       if (last.hasMore === false) return undefined;
-      if (last.hasMore === true) return page + 1;
+      if (last.nextCursor) return last.nextCursor;
+      // Fallback OFFSET (backend velho sem nextCursor).
+      if (last.hasMore === true) return (last.page ?? 1) + 1;
+      const page = last.page ?? 1;
       const total = last.total ?? 0;
       const loaded = page * perPage;
       if (total > perPage + 1) return loaded < total ? page + 1 : undefined;
-      // total ausente ou sentinela (≤ pageSize+1) + página cheia → continua
       return page + 1;
     },
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
@@ -139,6 +144,7 @@ export function useConversations(params: {
       page: last.page,
       perPage: last.perPage,
       hasMore: last.hasMore,
+      nextCursor: last.nextCursor ?? null,
     };
   }, [query.data]);
 

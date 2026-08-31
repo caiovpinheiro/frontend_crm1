@@ -22,6 +22,7 @@ export interface ListConversationsParams extends InboxFilters {
   search?: string;
   perPage?: number;
   page?: number;
+  cursor?: string;
 }
 
 /** Anexa os filtros do funil (responsável, canal, estágio, tags, origem) —
@@ -54,7 +55,8 @@ function buildConversationsUrl(p: ListConversationsParams): string {
     perPage: String(p.perPage ?? 60),
     tab: p.tab,
   });
-  if (p.page && p.page > 1) q.set("page", String(p.page));
+  if (p.cursor) q.set("cursor", p.cursor);
+  else if (p.page && p.page > 1) q.set("page", String(p.page));
   appendInboxServerFilters(q, p);
   if (p.sortBy) q.set("sortBy", p.sortBy);
   if (p.sortOrder) q.set("sortOrder", p.sortOrder);
@@ -117,6 +119,29 @@ export async function getConversation(
     );
   }
   return data as ConversationListRow;
+}
+
+/** GET /api/conversations?ids=a,b,c — hidrata cards em um round-trip (SSE). */
+export async function getConversationsByIds(
+  ids: string[],
+): Promise<ConversationListRow[]> {
+  const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))].slice(0, 80);
+  if (unique.length === 0) return [];
+  const q = new URLSearchParams({
+    ids: unique.join(","),
+    perPage: String(unique.length),
+  });
+  const res = await fetch(apiUrl(`/api/conversations?${q.toString()}`));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof data?.message === "string" ? data.message : "Erro ao hidratar conversas",
+    );
+  }
+  const items = Array.isArray((data as ConversationListResponse).items)
+    ? (data as ConversationListResponse).items
+    : [];
+  return items.filter(Boolean) as ConversationListRow[];
 }
 
 /** GET /api/conversations?perPage=80&sortBy=updatedAt&sortOrder=desc — picker do Forward */
