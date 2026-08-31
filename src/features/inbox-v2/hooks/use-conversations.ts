@@ -88,11 +88,11 @@ export function useConversations(params: {
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
     // SSE (`useInboxRealtime`) patcha o card em new_message /
     // conversation_updated (GET :id só do ticket aberto). Polling
-    // fica só como safety-net — 120s:
-    // o storm de 27 req/s de 28/ago/26 (65k req/40min) derrubou o
-    // proxy do droplet por exaustão de memória TCP.
-    refetchInterval: 120_000,
-    staleTime: 45_000,
+    // fica só como safety-net — 180s (era 120s): aba estacionada
+    // não pode re-bater a lista cara a cada 10–40s.
+    refetchInterval: 180_000,
+    refetchIntervalInBackground: false,
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     // Troca de aba/filtro: mantém a lista anterior no lugar até a
