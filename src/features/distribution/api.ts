@@ -179,12 +179,20 @@ export async function setAgentStatus(
   }
 }
 
-export function fetchPending(): Promise<PendingResponse> {
+export const PENDING_PAGE_SIZE = 50;
+
+export function fetchPending(opts?: {
+  cursor?: string | null;
+  limit?: number;
+}): Promise<PendingResponse> {
   if (isPageMockMode()) {
     return Promise.resolve(MOCK_DISTRIBUTION_PENDING);
   }
+  const sp = new URLSearchParams();
+  sp.set("limit", String(opts?.limit ?? PENDING_PAGE_SIZE));
+  if (opts?.cursor) sp.set("cursor", opts.cursor);
   return getJson<PendingResponse>(
-    "/api/distribution/pending",
+    `/api/distribution/pending?${sp.toString()}`,
     "Erro ao carregar a fila de espera.",
   );
 }

@@ -17,6 +17,7 @@ import {
   fetchDistributionSettings,
   fetchPending,
   fetchResponsibles,
+  PENDING_PAGE_SIZE,
   redistributeResponsible,
   retryPending,
   setAgentStatus,
@@ -48,7 +49,9 @@ export const DISTRIBUTION_DEPT_STATS_KEY = [
 ] as const;
 
 /** Poll de segurança da Fila (SSE cobre o instante; isto cobre gap/reconnect). */
-const QUEUE_POLL_MS = 3_000;
+const QUEUE_POLL_MS = 20_000;
+/** Carga por consultor (`getQueueCounts`) — um pouco mais lenta que a fila. */
+const COUNTS_POLL_MS = 30_000;
 const QUEUE_SSE_DEBOUNCE_MS = 400;
 
 export function useDistributionLogs(enabled = true) {
@@ -99,7 +102,7 @@ export function useDistributionResponsibles(enabled = true) {
     queryFn: fetchResponsibles,
     enabled,
     staleTime: 1_000,
-    refetchInterval: enabled ? QUEUE_POLL_MS : false,
+    refetchInterval: enabled ? COUNTS_POLL_MS : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -296,15 +299,22 @@ export function useExecuteDistribution() {
   });
 }
 
-export function usePendingDistributions(enabled = true) {
+export { PENDING_PAGE_SIZE };
+
+export function usePendingDistributions(
+  enabled = true,
+  cursor: string | null = null,
+) {
   return useQuery<PendingResponse>({
-    queryKey: DISTRIBUTION_PENDING_KEY,
-    queryFn: fetchPending,
+    queryKey: cursor
+      ? ([...DISTRIBUTION_PENDING_KEY, cursor] as const)
+      : DISTRIBUTION_PENDING_KEY,
+    queryFn: () => fetchPending({ cursor, limit: PENDING_PAGE_SIZE }),
     enabled,
     staleTime: 1_000,
-    refetchInterval: enabled ? QUEUE_POLL_MS : false,
+    refetchInterval: enabled && !cursor ? QUEUE_POLL_MS : false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: !cursor,
   });
 }
 

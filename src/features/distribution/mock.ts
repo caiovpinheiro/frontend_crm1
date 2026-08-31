@@ -121,6 +121,8 @@ const MOCK_PENDING_DEPTS = [
 ] as const;
 
 export const MOCK_DISTRIBUTION_PENDING: PendingResponse = {
+  total: MOCK_PENDING_SEED.length,
+  nextCursor: null,
   pending: MOCK_PENDING_SEED.map((s, i) => ({
     id: `mock-pend-${i + 1}`,
     dealId: null,
