@@ -9,6 +9,7 @@ import {
 } from "@hello-pangea/dnd";
 import { GripVertical } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { armSuppressClickAfterDrag } from "@/features/dashboard-v2/click-vs-drag";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,8 @@ export function SortableWidgetStack({
   canRemove?: (id: string) => boolean;
   droppableId?: string;
 }) {
+  const { confirm, dialog: confirmDialog } = useConfirm();
+
   function handleDragEnd(result: DropResult) {
     if (!result.destination) return;
     if (result.destination.index === result.source.index) return;
@@ -44,20 +47,54 @@ export function SortableWidgetStack({
     onReorder(next);
   }
 
+  async function requestRemove(id: string) {
+    if (!onRemove) return;
+    const label = labels[id] ?? "este card";
+    const ok = await confirm({
+      title: "Remover card?",
+      description: `Remover “${label}” do dashboard. Os demais cards permanecem.`,
+      confirmLabel: "Remover",
+      destructive: true,
+    });
+    if (ok) onRemove(id);
+  }
+
+  function chrome(id: string, grip?: ReactNode) {
+    if (!organizing && !onRemove) return null;
+    return (
+      <WidgetOrganizeRail
+        grip={organizing ? grip : undefined}
+        menu={
+          onRemove && (!canRemove || canRemove(id)) ? (
+            <WidgetOverflowMenu
+              label={labels[id] ?? id}
+              onRemove={() => void requestRemove(id)}
+            />
+          ) : undefined
+        }
+      />
+    );
+  }
+
   if (disabled || !organizing) {
     return (
-      <div className="flex min-w-0 flex-col gap-2.5">
-        {ids.map((id) => (
-          <div key={id} className="min-w-0">
-            {render(id)}
-          </div>
-        ))}
-      </div>
+      <>
+        <div className="flex min-w-0 flex-col gap-2.5">
+          {ids.map((id) => (
+            <div key={id} className="flex min-w-0 items-stretch gap-1">
+              {chrome(id)}
+              <div className="min-w-0 flex-1">{render(id)}</div>
+            </div>
+          ))}
+        </div>
+        {confirmDialog}
+      </>
     );
   }
 
   return (
-    <DragDropContext
+    <>
+    <DragDropContext>
       onDragStart={() => {
         armSuppressClickAfterDrag();
       }}
@@ -81,30 +118,21 @@ export function SortableWidgetStack({
                       snapshot.isDragging && "z-20",
                     )}
                   >
-                    <WidgetOrganizeRail
-                      grip={
-                        <button
-                          type="button"
-                          {...dragProvided.dragHandleProps}
-                          aria-label={`Mover ${labels[id] ?? id}`}
-                          className={cn(
-                            "flex size-7 shrink-0 cursor-grab items-center justify-center rounded-lg",
-                            "bg-card text-muted-foreground",
-                            "hover:bg-secondary hover:text-foreground active:cursor-grabbing",
-                          )}
-                        >
-                          <GripVertical className="size-3.5" aria-hidden="true" />
-                        </button>
-                      }
-                      menu={
-                        onRemove && (!canRemove || canRemove(id)) ? (
-                          <WidgetOverflowMenu
-                            label={labels[id] ?? id}
-                            onRemove={() => onRemove(id)}
-                          />
-                        ) : undefined
-                      }
-                    />
+                    {chrome(
+                      id,
+                      <button
+                        type="button"
+                        {...dragProvided.dragHandleProps}
+                        aria-label={`Mover ${labels[id] ?? id}`}
+                        className={cn(
+                          "flex size-7 shrink-0 cursor-grab items-center justify-center rounded-lg",
+                          "bg-card text-muted-foreground",
+                          "hover:bg-secondary hover:text-foreground active:cursor-grabbing",
+                        )}
+                      >
+                        <GripVertical className="size-3.5" aria-hidden="true" />
+                      </button>,
+                    )}
                     <div className="min-w-0 flex-1">{render(id)}</div>
                   </section>
                 )}
@@ -115,5 +143,7 @@ export function SortableWidgetStack({
         )}
       </Droppable>
     </DragDropContext>
+    {confirmDialog}
+    </>
   );
 }

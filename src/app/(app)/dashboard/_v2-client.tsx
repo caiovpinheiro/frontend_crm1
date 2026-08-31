@@ -69,8 +69,6 @@ import {
   isTabulationWidgetId,
   OPERATOR_WIDGET_IDS,
   SERVICE_BOARD_WIDGET_IDS,
-  SERVICE_WIDGET_IDS,
-  TABULATION_WIDGET_IDS,
   useDashboardWidgetOrder,
   type OperatorWidgetId,
   type ServiceWidgetId,
@@ -186,9 +184,11 @@ function OperatorHome({
   const query = useDashboardMe(isAuthenticated);
   const [search, setSearch] = useState("");
   const [organizing, setOrganizing] = useState(false);
-  const { order, reorder, hydrated: orderHydrated } = useDashboardWidgetOrder(
+  const [addCardOpen, setAddCardOpen] = useState(false);
+  const { order, reorder, hide, restore, hydrated: orderHydrated } = useDashboardWidgetOrder(
     "operator",
     OPERATOR_WIDGET_IDS,
+    { allowHide: true },
   );
   const painted = useLatchedReady(
     !isAuthenticated || ((querySettled(query) || Boolean(query.error)) && orderHydrated),
@@ -214,6 +214,12 @@ function OperatorHome({
           aria-label="Ações do dashboard"
           items={[
             {
+              icon: <Plus className="size-4" />,
+              label: "Adicionar card",
+              onClick: () => setAddCardOpen(true),
+              primary: true as const,
+            },
+            {
               icon: organizing ? <Check className="size-4" /> : <Move className="size-4" />,
               label: organizing ? "Concluir organização" : "Organizar cards",
               onClick: () => setOrganizing((value) => !value),
@@ -231,6 +237,7 @@ function OperatorHome({
             onReorder={reorder}
             organizing={organizing}
             droppableId="dashboard-fila"
+            onRemove={hide}
             render={(id) => (
               <OperatorDashboardWidget
                 id={id as OperatorWidgetId}
@@ -238,6 +245,21 @@ function OperatorHome({
                 search={search}
               />
             )}
+          />
+          <AddDashboardCardDialog
+            open={addCardOpen}
+            onOpenChange={setAddCardOpen}
+            fields={[]}
+            stages={[]}
+            presentIds={order}
+            presets={OPERATOR_WIDGET_IDS.map((id) => ({
+              id,
+              label: OPERATOR_LABELS[id] ?? id,
+            }))}
+            presetsOnly
+            onAddPreset={(id) => restore(id)}
+            onAddStage={() => undefined}
+            onCreate={() => undefined}
           />
         ) : null}
       </QueryState>
@@ -293,7 +315,6 @@ function ManagerHome({
 
   const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {
     allowHide: true,
-    pinnedIds: SERVICE_WIDGET_IDS,
   });
   const hasServiceTabWidgets = serviceOrder.order.some((id) => isTabulationWidgetId(id));
   const tabulationsArmed = useArmedAfter(
@@ -557,7 +578,6 @@ function ManagerHome({
             organizing={organizing}
             droppableId="dashboard-atendimento"
             onRemove={serviceOrder.hide}
-            canRemove={isTabulationWidgetId}
             render={(id) =>
               isTabulationWidgetId(id)
                 ? renderTabBoardWidget(
@@ -586,9 +606,9 @@ function ManagerHome({
             fields={[]}
             stages={[]}
             presentIds={serviceOrder.order}
-            presets={TABULATION_WIDGET_IDS.map((id) => ({
+            presets={SERVICE_BOARD_WIDGET_IDS.map((id) => ({
               id,
-              label: TABULATION_WIDGET_LABELS[id],
+              label: SERVICE_LABELS[id] ?? id,
             }))}
             presetsOnly
             onAddPreset={(id) => serviceOrder.restore(id)}

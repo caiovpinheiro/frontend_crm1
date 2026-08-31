@@ -130,7 +130,7 @@ export function ChatAvatar({
 
   return (
     <div
-      className={cn("relative shrink-0 rounded-full", className)}
+      className={cn("relative isolate shrink-0 rounded-full", className)}
       style={{ width: size, height: size }}
     >
       {showUnread && (

@@ -834,8 +834,8 @@ export default function InboxV2ClientPage({
                 { id: `inbox-bulk-resolve-${result.operationId}` },
               );
             } else {
-              toast.success(
-                `Encerrando ${total} conversa${total > 1 ? "s" : ""} em segundo plano…`,
+              toast.loading(
+                `Encerrando ${total} conversa${total > 1 ? "s" : ""}…`,
                 { id: `inbox-bulk-resolve-${result.operationId}` },
               );
             }
@@ -851,6 +851,22 @@ export default function InboxV2ClientPage({
               toast.success(
                 `${closed} conversa${closed > 1 ? "s" : ""} encerrada${closed > 1 ? "s" : ""}`,
               );
+            }
+            if (!useAllInFilter && ids.length > 0) {
+              const closedSet = new Set(ids);
+              qc.setQueriesData<{
+                pages: { items: { id: string }[] }[];
+                pageParams: unknown[];
+              }>({ queryKey: ["inbox-conversations"] }, (old) => {
+                if (!old?.pages) return old;
+                return {
+                  ...old,
+                  pages: old.pages.map((page) => ({
+                    ...page,
+                    items: (page.items ?? []).filter((row) => !closedSet.has(row.id)),
+                  })),
+                };
+              });
             }
             void refreshInboxQueue();
             exitSelectionMode();
@@ -1289,7 +1305,7 @@ export default function InboxV2ClientPage({
   // (bulk API não cobre assign) e não se aplica a "todas do filtro".
   const bulkActionsNode = (
     <div className="flex shrink-0 items-center gap-1.5 @max-[520px]:grid @max-[520px]:w-full @max-[520px]:grid-cols-2">
-      {selectedIds.size > 0 && (
+      {(selectedIds.size > 0 || selectAllFilter) && (
         <>
           <RequirePermission permission="conversation:resolve">
             <ButtonGlass

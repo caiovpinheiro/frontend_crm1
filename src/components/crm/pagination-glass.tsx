@@ -30,11 +30,11 @@ interface PaginationGlassProps {
 
 const DEFAULT_PER_PAGE_OPTIONS = [25, 50, 100] as const;
 
-/** Página de lista: preenche o pane para o PaginationGlass ir ao fundo. */
-export const LIST_PAGE_PANE_CLASS = "flex min-h-0 flex-1 flex-col";
+/** Página de lista: cresce com as linhas; se a lista for curta, empurra o rodapé ao fundo. */
+export const LIST_PAGE_PANE_CLASS = "flex min-h-min flex-1 flex-col";
 
-/** Stack da lista dentro do pane (cresce; o rodapé fica embaixo). */
-export const LIST_PAGE_STACK_CLASS = "min-h-0 flex-1";
+/** Stack da lista dentro do pane — altura pelo conteúdo, sem esmagar as linhas. */
+export const LIST_PAGE_STACK_CLASS = "min-w-0";
 
 /** Mesma escala da meta esquerda e do rótulo "Por página". */
 const META_TEXT = "text-sm leading-relaxed text-muted-foreground";

@@ -213,10 +213,10 @@ export function SortableWidgetGrid({
   }
 
   function chrome(id: string, grip?: ReactNode) {
-    if (!organizing) return null;
+    if (!organizing && !onRemove) return null;
     return (
       <WidgetOrganizeRail
-        grip={grip}
+        grip={organizing ? grip : undefined}
         menu={
           onRemove ? (
             <WidgetOverflowMenu

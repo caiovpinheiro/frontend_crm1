@@ -47,6 +47,7 @@ import { RestrictedScreen } from "@/components/crm/restricted-screen";
 import { useRequireManager } from "@/hooks/use-user-role";
 import { DataView, DataRow } from "@/components/automations/data-view";
 import { ViewToggle, useCardsTableView, type CardsTableView } from "@/components/automations/view-toggle";
+import { PageChrome } from "@/components/crm/page-header";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { FilterChip } from "@/components/crm/filter-popover";
@@ -58,7 +59,7 @@ import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { PageDemoBanner } from "@/components/crm/page-demo-banner";
 import { Chip } from "@/components/crm/chip";
 import { EmptyState } from "@/components/crm/empty-state";
-import { PaginationGlass } from "@/components/crm/pagination-glass";
+import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import { ListHScroll } from "@/components/crm/list-hscroll";
 import { ListColumnLabel, CARD_SURFACE_CLASS, LIST_ACTIONS_CELL_CLASS, LIST_CARD_ROW_CLASS, LIST_CARD_STACK_CLASS, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
@@ -328,10 +329,11 @@ export default function DistributionClientPage({
     !(!useDemo && respQuery.error);
 
   return (
-    <div className="v2-screen v2-page-scroll grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-4">
+    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4">
       {navRail ?? <NavRailSpacer />}
 
-      <main className="flex min-w-0 flex-col gap-3 pb-3 sm:gap-4 sm:pb-4">
+      <PageChrome
+        header={
         <SectionHeader
           icon={Shuffle}
           title="Distribuição"
@@ -437,6 +439,9 @@ export default function DistributionClientPage({
             />
           }
         />
+        }
+        bodyClassName="gap-3 sm:gap-4"
+      >
 
         {/* Cobertura não depende do widget `smart_distribution`: a grade
             de expedientes valia para qualquer org quando morava em
@@ -458,14 +463,16 @@ export default function DistributionClientPage({
           <ErrorState message={respQuery.error.message} />
         ) : (
           showContent && (
-            <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
               {useDemo && (
                 <PageDemoBanner>
                   Dados de exemplo — equipe, fila e elegibilidade ilustrativas para o módulo de distribuição.
                 </PageDemoBanner>
               )}
 
-              <DistributionMiniDash responsibles={responsibles} pending={pending} />
+              <section className="shrink-0" aria-label="Indicadores de distribuição">
+                <DistributionMiniDash responsibles={responsibles} pending={pending} />
+              </section>
 
               {canManage && !useDemo && view === "team" && (
                 <AutoOnInboundToggle />
@@ -476,6 +483,7 @@ export default function DistributionClientPage({
               )}
 
               {view === "team" ? (
+                <div className={LIST_PAGE_PANE_CLASS}>
                 <ResponsiblesCardList
                   view={listView}
                   responsibles={filteredResponsibles}
@@ -488,6 +496,7 @@ export default function DistributionClientPage({
                   onEdit={(r) => setEditing(r)}
                   onRedistribute={(r) => setRedistributing(r)}
                 />
+                </div>
               ) : view === "queue" ? (
                 <PendingQueueCards
                   view={listView}
@@ -508,7 +517,7 @@ export default function DistributionClientPage({
             </div>
           )
         )}
-      </main>
+      </PageChrome>
 
       {editing && (
         <EditResponsibleDialog
@@ -642,9 +651,9 @@ function DistributionMiniDash({
 
 // ── Lista de responsáveis em cards ───────────────────────────────────────
 
-// 6 colunas: responsável, presença (+ horário), fila, volume, elegibilidade, ações
+// 6 colunas: responsável, presença, fila, volume, elegibilidade, ações
 const RESP_GRID =
-  "grid-cols-[minmax(260px,2.6fr)_minmax(200px,1.5fr)_minmax(56px,0.55fr)_minmax(64px,0.65fr)_minmax(170px,1.35fr)_max-content]";
+  "grid-cols-[minmax(220px,2.2fr)_minmax(132px,1fr)_3.5rem_3.5rem_minmax(148px,1.15fr)_max-content]";
 
 function ResponsiblesCardList({
   view,
@@ -721,18 +730,18 @@ function ResponsiblesCardList({
         ))}
       </ul>
 
-      {/* Desktop: grid tabular com scroll horizontal se necessário. */}
-      <div className="hidden overflow-x-auto md:flex md:flex-col">
+      <div className="hidden md:block">
+        <ListHScroll>
         <DataView
           view={view}
           columnClass={cn("grid items-center gap-4", RESP_GRID)}
-          className="min-w-[1040px]"
+          className={cn("w-max min-w-full", LIST_PAGE_STACK_CLASS)}
           header={
             <>
               <ListColumnLabel>Responsável</ListColumnLabel>
               <ListColumnLabel>Presença</ListColumnLabel>
-              <ListColumnLabel align="center">Fila</ListColumnLabel>
-              <ListColumnLabel align="center">Volume</ListColumnLabel>
+              <ListColumnLabel>Fila</ListColumnLabel>
+              <ListColumnLabel>Volume</ListColumnLabel>
               <ListColumnLabel>Elegibilidade</ListColumnLabel>
               <ListColumnLabel align="right">Ações</ListColumnLabel>
             </>
@@ -750,6 +759,7 @@ function ResponsiblesCardList({
             />
           ))}
         </DataView>
+        </ListHScroll>
       </div>
     </>
   );
@@ -788,7 +798,7 @@ function InlineQueueLimit({
 
   if (!canEdit) {
     return (
-      <span className="font-display text-lg font-bold tabular-nums text-[var(--text-primary)]">
+      <span className="block w-full font-display text-[15px] font-bold tabular-nums text-foreground">
         {value}
       </span>
     );
@@ -817,7 +827,7 @@ function InlineQueueLimit({
       }}
       aria-label="Volume (limite de fila)"
       title="Editar volume"
-      className="mx-auto w-14 rounded-[var(--radius-md)] border border-transparent bg-transparent px-1 py-0.5 text-center font-display text-lg font-bold tabular-nums text-[var(--text-primary)] outline-none transition-colors hover:border-border hover:bg-secondary focus:border-primary focus:bg-secondary disabled:opacity-60"
+      className="w-full min-w-0 rounded-[var(--radius-md)] border border-transparent bg-transparent px-0 py-0.5 text-left font-display text-[15px] font-bold tabular-nums text-foreground outline-none transition-colors hover:border-border hover:bg-secondary focus:border-primary focus:bg-secondary disabled:opacity-60"
     />
   );
 }
@@ -906,31 +916,26 @@ function ResponsibleCard({
         </div>
       </div>
 
-      {/* Presença + resumo de expediente/almoço */}
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
-          <PresenceBadge status={r.status} paused={r.paused} participates={r.participates} />
-          {canTogglePresence && r.participates && (
-            <button
-              type="button"
-              onClick={togglePresence}
-              disabled={statusMut.isPending}
-              className="shrink-0 cursor-pointer rounded-full border border-border bg-card px-2 py-0.5 font-display text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-primary disabled:opacity-50"
-            >
-              {statusMut.isPending ? "…" : isOnline ? "Ficar offline" : "Ficar online"}
-            </button>
-          )}
-        </div>
+      <div className="flex min-w-0 flex-col items-start gap-1">
+        <PresenceBadge status={r.status} paused={r.paused} participates={r.participates} />
+        {canTogglePresence && r.participates && (
+          <button
+            type="button"
+            onClick={togglePresence}
+            disabled={statusMut.isPending}
+            className="cursor-pointer font-display text-[12px] font-semibold text-primary transition-colors hover:underline disabled:opacity-50"
+          >
+            {statusMut.isPending ? "…" : isOnline ? "Ficar offline" : "Ficar online"}
+          </button>
+        )}
         <SchedulePresenceHint schedule={r.schedule} preLunchStopMinutes={r.preLunchStopMinutes} />
       </div>
 
-      {/* Fila */}
-      <div className="text-center font-display text-lg font-bold tabular-nums text-[var(--text-primary)]">
+      <div className="w-full font-display text-[15px] font-bold tabular-nums text-foreground">
         {r.queueCount}
       </div>
 
-      {/* Volume */}
-      <div className="text-center font-body text-lg leading-none text-muted-foreground">
+      <div className="w-full leading-none">
         <InlineQueueLimit userId={r.userId} value={r.queueLimit} canEdit={canManage} />
       </div>
 
@@ -3636,7 +3641,7 @@ function AutoOnInboundToggle() {
   const autoOnInbound = settingsQuery.data?.autoOnInbound ?? true;
 
   return (
-    <div className={cn("flex items-center justify-between gap-3", LIST_CARD_ROW_CLASS)}>
+    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
       <div className="min-w-0">
         <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
           Distribuir cada conversa nova automaticamente
