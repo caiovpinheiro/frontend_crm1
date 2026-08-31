@@ -38,7 +38,7 @@ export const STAGE_WIDGET_PREFIX = "stage:";
 
 export const DASHBOARD_GRID_COLS = 12;
 export const DASHBOARD_GRID_ROW_HEIGHT = 20;
-export const DASHBOARD_GRID_MARGIN = [6, 6] as const;
+export const DASHBOARD_GRID_MARGIN = [4, 4] as const;
 
 export const TABULATION_BOARD_WIDGET_IDS = [
   "tabKpis",
@@ -89,9 +89,9 @@ const DEFAULT_SIZES: Record<DealCoreWidgetId, { w: number; h: number; minW: numb
   funnel: { w: 12, h: 8, minW: 6, minH: 5 },
   usage: { w: 6, h: 10, minW: 3, minH: 6 },
   evolution: { w: 6, h: 14, minW: 3, minH: 8 },
-  agents: { w: 6, h: 10, minW: 3, minH: 5 },
+  agents: { w: 12, h: 10, minW: 6, minH: 5 },
   sources: { w: 6, h: 8, minW: 3, minH: 4 },
-  exceptions: { w: 12, h: 5, minW: 4, minH: 3 },
+  exceptions: { w: 12, h: 7, minW: 4, minH: 5 },
 };
 
 const STAGE_DEFAULT = { w: 4, h: 8, minW: 3, minH: 4 };
@@ -115,9 +115,37 @@ export function gridRowsForPx(px: number, minH = 2): number {
   return Math.max(minH, Math.ceil((px + DASHBOARD_GRID_MARGIN[1]) / unit));
 }
 
+export function gridCellHeightPx(rows: number): number {
+  if (rows <= 0) return 0;
+  return rows * DASHBOARD_GRID_ROW_HEIGHT + Math.max(0, rows - 1) * DASHBOARD_GRID_MARGIN[1];
+}
+
+/** Tabela de agentes precisa da linha inteira; exceções não cabem em h=5. */
+function normalizeCoreItem(item: LayoutItem): LayoutItem {
+  if (item.i === "agents") {
+    return {
+      ...item,
+      x: 0,
+      w: 12,
+      minW: Math.max(item.minW ?? 6, 6),
+      minH: Math.max(item.minH ?? 5, 5),
+    };
+  }
+  if (item.i === "exceptions") {
+    return {
+      ...item,
+      x: 0,
+      w: 12,
+      minH: Math.max(item.minH ?? 5, 5),
+      h: Math.max(item.h, 6),
+    };
+  }
+  return item;
+}
+
 export function compactNegociosLayout(layout: Layout): Layout {
   return verticalCompactor.compact(
-    layout.map((item) => ({ ...item })),
+    layout.map((item) => normalizeCoreItem({ ...item })),
     DASHBOARD_GRID_COLS,
   ) as Layout;
 }
@@ -158,20 +186,21 @@ export function defaultNegociosLayout(cardIds: string[] = []): Layout {
   const kpis = DEFAULT_SIZES.kpis;
   const funnel = DEFAULT_SIZES.funnel;
   const afterFunnel = kpis.h + funnel.h;
+  const afterPair = afterFunnel + Math.max(DEFAULT_SIZES.usage.h, DEFAULT_SIZES.evolution.h);
   const items: LayoutItem[] = [
     { i: "kpis", x: 0, y: 0, w: kpis.w, h: kpis.h, minW: kpis.minW, minH: kpis.minH },
     { i: "funnel", x: 0, y: kpis.h, w: funnel.w, h: funnel.h, minW: funnel.minW, minH: funnel.minH },
     { i: "usage", x: 0, y: afterFunnel, ...DEFAULT_SIZES.usage },
     { i: "evolution", x: 6, y: afterFunnel, ...DEFAULT_SIZES.evolution },
-    { i: "agents", x: 0, y: afterFunnel + DEFAULT_SIZES.usage.h, ...DEFAULT_SIZES.agents },
-    { i: "sources", x: 6, y: afterFunnel + DEFAULT_SIZES.evolution.h, ...DEFAULT_SIZES.sources },
-    { i: "exceptions", x: 0, y: afterFunnel + DEFAULT_SIZES.usage.h + DEFAULT_SIZES.agents.h, ...DEFAULT_SIZES.exceptions },
+    { i: "sources", x: 0, y: afterPair, ...DEFAULT_SIZES.sources },
+    { i: "agents", x: 0, y: afterPair + DEFAULT_SIZES.sources.h, ...DEFAULT_SIZES.agents },
+    { i: "exceptions", x: 0, y: afterPair + DEFAULT_SIZES.sources.h + DEFAULT_SIZES.agents.h, ...DEFAULT_SIZES.exceptions },
   ];
   cardIds.forEach((id, idx) => {
     items.push({
       i: id,
       x: (idx % STAGE_PER_ROW) * 4,
-      y: afterFunnel + DEFAULT_SIZES.usage.h + DEFAULT_SIZES.agents.h + DEFAULT_SIZES.exceptions.h + Math.floor(idx / STAGE_PER_ROW) * CUSTOM_DEFAULT.h,
+      y: afterPair + DEFAULT_SIZES.sources.h + DEFAULT_SIZES.agents.h + DEFAULT_SIZES.exceptions.h + Math.floor(idx / STAGE_PER_ROW) * CUSTOM_DEFAULT.h,
       w: CUSTOM_DEFAULT.w,
       h: CUSTOM_DEFAULT.h,
       minW: CUSTOM_DEFAULT.minW,

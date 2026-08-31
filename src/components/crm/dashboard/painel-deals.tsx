@@ -155,7 +155,7 @@ function DealKpis({
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const k = block.data;
   return (
-    <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-5">
       <KpiCard
         icon={<Banknote className="size-5" />}
         label="Receita ganha"
@@ -238,11 +238,20 @@ function DealFunnel({
           </Link>
         }
       >
-        <PainelEmpty
-          embedded
-          title="Não há dados no período"
-          description="Nenhum negócio entrou em etapa neste recorte. Amplie o período."
-        />
+        <div className={funnelPicker ? "flex min-h-0 items-stretch" : undefined}>
+          {funnelPicker ? (
+            <aside className="w-[196px] shrink-0 border-r border-border py-2">
+              {funnelPicker}
+            </aside>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <PainelEmpty
+              embedded
+              title="Este funil não tem etapas"
+              description="Cadastre etapas no pipeline ou escolha outro funil."
+            />
+          </div>
+        </div>
       </PainelCard>
     );
   }
@@ -272,7 +281,7 @@ function DealFunnel({
       pipelineHref={pipelineHref}
       period={period}
       novos={funnel.novos}
-      headerAction={funnelPicker}
+      sidebar={funnelPicker}
     />
   );
 }
@@ -309,7 +318,7 @@ function DealStageCards({
   if (stages.length === 0) {
     return (
       <PainelCard title="Etapas" subtitle="Leads e valor por responsável">
-        <PainelEmpty embedded title="Não há etapas no período" description="Amplie o período ou selecione outro funil." />
+        <PainelEmpty embedded title="Não há etapas neste funil" description="Cadastre etapas ou selecione outro funil." />
       </PainelCard>
     );
   }
@@ -476,7 +485,7 @@ function DealAgents({
         <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
         <ListColumnLabel align="right">Ativos hoje</ListColumnLabel>
       </div>
-      <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2")}>
+      <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2 max-h-[320px] overflow-y-auto pr-1")}>
         {rows.map((row) => (
           <AgentRow key={row.id} row={row} />
         ))}

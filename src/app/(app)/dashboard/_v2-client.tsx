@@ -553,8 +553,10 @@ function ManagerHome({
                 filters.userIds,
                 <FunnelPipelinePicker
                   pipelines={(options?.pipelines ?? []).map((p) => ({ id: p.id, name: p.name }))}
-                  selectedIds={filters.pipelineIds}
-                  onChange={(ids) => patch({ pipelineIds: ids, stageIds: [] })}
+                  selectedId={effectivePipelineId}
+                  onSelect={(id) =>
+                    patch({ pipelineIds: [id], pipelineId: id, stageIds: [] })
+                  }
                 />,
               );
             }}
@@ -802,7 +804,7 @@ function Shell({
           menu={Boolean(menuSlot)}
           menuSlot={menuSlot}
         />
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">{children}</div>
       </main>
     </div>
   );

@@ -7,7 +7,7 @@
  * Exemplo:
  *   /dashboard?period=last_30&pipeline=12,8&stages=negociacao&user=u1,u2
  *
- * Sem query string → padrão "Últimos 30 dias" + todos os funis (soma).
+ * Sem query string → padrão "Últimos 30 dias" + o primeiro funil (um de cada vez).
  * `pipeline` na URL é CSV de numbers da org; `stages` continuam slugs.
  * `user` = filtro de usuário do painel Negócios.
  */
@@ -176,7 +176,7 @@ function toSearchParams(
 /** Conta filtros estruturais (sem período — o calendário do header cuida disso). */
 export function countStructuralDashboardFilters(f: DashboardFiltersState): number {
   let n = 0;
-  if (f.pipelineIds.length || f.pipelineId) n++;
+  // Funil ativo é navegação do painel (sempre 1), não conta como filtro extra.
   if (f.stageIds.length) n++;
   if (f.tagIds.length) n++;
   if (f.ownerIds.length) n++;
@@ -314,15 +314,18 @@ export function useDashboardFilters(
   );
 
   useEffect(() => {
-    if (!pipelines?.length || !filters.pipelineIds.length) return;
+    if (!pipelines?.length) return;
     const valid = filters.pipelineIds.filter((id) =>
       pipelines.some((p) => p.id === id),
     );
-    if (valid.length === filters.pipelineIds.length) return;
+    const nextId = valid[0] ?? pipelines[0]!.id;
+    if (filters.pipelineIds.length === 1 && filters.pipelineIds[0] === nextId) {
+      return;
+    }
     setFilters({
       ...filters,
-      pipelineIds: valid,
-      pipelineId: valid[0],
+      pipelineIds: [nextId],
+      pipelineId: nextId,
       stageIds: valid.length ? filters.stageIds : [],
     });
   }, [pipelines, filters.pipelineIds, filters.stageIds, setFilters]);

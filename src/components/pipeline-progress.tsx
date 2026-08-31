@@ -304,6 +304,7 @@ export function PipelineProgress({
   period,
   novos,
   headerAction,
+  sidebar,
 }: {
   stages: PipelineProgressStage[];
   summary: PipelineProgressSummary;
@@ -312,6 +313,8 @@ export function PipelineProgress({
   period?: PipelineProgressPeriod;
   novos?: { count: number; value: number };
   headerAction?: ReactNode;
+  /** Lista de funis (Kommo): cálculos à direita são só do pipeline ativo. */
+  sidebar?: ReactNode;
 }) {
   const labelId = useId();
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -424,7 +427,14 @@ export function PipelineProgress({
       role="region"
       aria-labelledby={labelId}
     >
-      <header className="flex items-start justify-between gap-3 border-b border-[var(--pipeline-border)] px-4 py-3.5">
+      <div className={cn(sidebar ? "flex min-h-0 items-stretch" : null)}>
+      {sidebar ? (
+        <aside className="w-[196px] shrink-0 border-r border-[var(--pipeline-border)] bg-[var(--pipeline-surface)]/40 py-2">
+          {sidebar}
+        </aside>
+      ) : null}
+      <div className="min-w-0 flex-1">
+      <header className="flex items-start justify-between gap-3 border-b border-[var(--pipeline-border)] px-3.5 py-2.5">
         <div className="min-w-0">
           <h2
             id={labelId}
@@ -558,6 +568,8 @@ export function PipelineProgress({
           </li>
         </ul>
       ) : null}
+      </div>
+      </div>
     </section>
   );
 }
