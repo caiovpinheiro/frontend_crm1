@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/api";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconUpload as Upload, IconHierarchy as Workflow } from "@tabler/icons-react";
+import { IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconUpload as Upload, IconHierarchy as Workflow, IconTool as Wrench } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -28,6 +28,12 @@ import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { HeaderTabs } from "@/components/crm/section-header";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import { CsvIoDialog } from "@/features/data-io/csv-io-dialog";
+import {
+  FormDialog,
+  FormDialogIcon,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+} from "@/components/ui/form-dialog";
 import InternalTemplatesPage from "../templates";
 import WhatsAppTemplatesPage from "../whatsapp-templates";
 import {
@@ -52,6 +58,15 @@ type MetaRow = {
   status: string;
   category?: string;
   language?: string;
+};
+
+type RepairMediaItem = { kind: "template" | "quick_reply"; name: string; fileName: string };
+type RepairSkippedItem = { kind: "template" | "quick_reply"; name: string; reason: string };
+type RepairMediaResult = {
+  repaired: RepairMediaItem[];
+  missing: RepairMediaItem[];
+  skipped: RepairSkippedItem[];
+  fallbackConfigured?: boolean;
 };
 
 type FlowListRow = {
@@ -88,6 +103,8 @@ export default function MessageModelsHubPage() {
   const [newOpen, setNewOpen] = React.useState(false);
   const [importOpen, setImportOpen] = React.useState(false);
   const [ioMode, setIoMode] = React.useState<"import" | "export" | null>(null);
+  const [repairOpen, setRepairOpen] = React.useState(false);
+  const [repairResult, setRepairResult] = React.useState<RepairMediaResult | null>(null);
 
   const tab = searchParams.get("tab") ?? "overview";
   const validTab = ["overview", "internal", "whatsapp", "flows"].includes(tab) ? tab : "overview";
@@ -102,7 +119,11 @@ export default function MessageModelsHubPage() {
   });
   const perms = new Set(permissionsPanel?.permissionKeys ?? []);
   const role = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = Boolean(
+    (session?.user as { isSuperAdmin?: boolean } | undefined)?.isSuperAdmin,
+  );
   const isGestor = role === "ADMIN" || role === "MANAGER";
+  const canRepairMedia = role === "ADMIN" || isSuperAdmin;
   const canSubmitMeta = isGestor || perms.has("*") || perms.has("template:submit_meta");
   const canViewTemplates = isGestor || perms.has("*") || perms.has("template:view");
 
@@ -208,6 +229,37 @@ export default function MessageModelsHubPage() {
     onSuccess: (out) => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-flow-definitions"] });
       router.push(`/settings/message-models/flows/${out.id}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const repairMediaMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(apiUrl("/api/templates/repair-media"), { method: "POST" });
+      const j = (await r.json().catch(() => ({}))) as RepairMediaResult & { message?: string };
+      if (!r.ok) throw new Error(typeof j.message === "string" ? j.message : "Erro ao reparar mídias.");
+      return j;
+    },
+    onSuccess: (out) => {
+      setRepairResult(out);
+      void queryClient.invalidateQueries({ queryKey: ["templates"] });
+      if (out.repaired.length) {
+        toast.success(
+          out.repaired.length === 1
+            ? "1 mídia reparada."
+            : `${out.repaired.length} mídias reparadas.`,
+        );
+      }
+      if (out.missing.length) {
+        toast.warning(
+          out.missing.length === 1
+            ? "1 modelo ainda sem arquivo — reenvie só esse."
+            : `${out.missing.length} modelos ainda sem arquivo — reenvie só esses.`,
+        );
+      }
+      if (!out.repaired.length && !out.missing.length) {
+        toast.success("Nenhuma mídia pendente nesta organização.");
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -515,6 +567,19 @@ export default function MessageModelsHubPage() {
                   },
                 ]
               : []),
+            ...(canRepairMedia && (safeTab === "overview" || safeTab === "internal")
+              ? [
+                  {
+                    icon: <Wrench className="size-4" />,
+                    label: "Reparar mídias",
+                    onClick: () => {
+                      setRepairResult(null);
+                      setRepairOpen(true);
+                    },
+                    divider: true,
+                  },
+                ]
+              : []),
           ];
     return (
       <div className="flex items-center gap-2">
@@ -522,7 +587,7 @@ export default function MessageModelsHubPage() {
         <ModelsActionsMenu items={menuItems} />
       </div>
     );
-  }, [safeTab, canSubmitMeta, isGestor, tabBarNode, createFlowMutation, refetchMetaFlows]);
+  }, [safeTab, canSubmitMeta, isGestor, canRepairMedia, tabBarNode, createFlowMutation, refetchMetaFlows]);
 
   // Injeta busca (centro) + abas/ação (direita) na linha do PageHeader quando
   // rodando dentro do SettingsV2Shell. Sem o shell (rota /old) cai no
@@ -876,6 +941,101 @@ export default function MessageModelsHubPage() {
           }}
         />
       ) : null}
+
+      <FormDialog
+        open={repairOpen}
+        onOpenChange={(next) => {
+          if (repairMediaMutation.isPending) return;
+          setRepairOpen(next);
+          if (!next) setRepairResult(null);
+        }}
+        title="Reparar mídias"
+        description="Copia arquivos de modelos que ainda existem no disco legado ou no host de fallback para o storage ativo. Modelos que não forem recuperados precisam de reenvio."
+        icon={
+          <FormDialogIcon>
+            <Wrench className="size-4" />
+          </FormDialogIcon>
+        }
+        busy={repairMediaMutation.isPending}
+        footer={
+          repairResult ? (
+            <ButtonGlass
+              variant="primary"
+              className={formDialogPrimaryClass}
+              onClick={() => {
+                setRepairOpen(false);
+                setRepairResult(null);
+              }}
+            >
+              Fechar
+            </ButtonGlass>
+          ) : (
+            <>
+              <ButtonGlass
+                variant="glass"
+                className={formDialogCancelClass}
+                disabled={repairMediaMutation.isPending}
+                onClick={() => setRepairOpen(false)}
+              >
+                Cancelar
+              </ButtonGlass>
+              <ButtonGlass
+                variant="primary"
+                className={formDialogPrimaryClass}
+                disabled={repairMediaMutation.isPending}
+                onClick={() => repairMediaMutation.mutate()}
+              >
+                {repairMediaMutation.isPending ? "Reparando…" : "Reparar"}
+              </ButtonGlass>
+            </>
+          )
+        }
+      >
+        {repairResult ? (
+          <div className="space-y-4 text-sm text-foreground">
+            <p className="text-muted-foreground">
+              {repairResult.repaired.length} reparada(s) · {repairResult.missing.length}{" "}
+              ainda sem arquivo · {repairResult.skipped.length} ignorada(s)
+            </p>
+            {repairResult.missing.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Reenviar só estes
+                </p>
+                <ul className="max-h-40 space-y-1 overflow-auto rounded-xl border border-border bg-card p-3">
+                  {repairResult.missing.map((row) => (
+                    <li key={`${row.kind}-${row.name}-${row.fileName}`}>
+                      {row.name}
+                      <span className="text-muted-foreground"> · {row.fileName}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {repairResult.repaired.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Reparadas
+                </p>
+                <ul className="max-h-32 space-y-1 overflow-auto rounded-xl border border-border bg-card p-3">
+                  {repairResult.repaired.map((row) => (
+                    <li key={`${row.kind}-${row.name}-${row.fileName}`}>
+                      {row.name}
+                      <span className="text-muted-foreground"> · {row.fileName}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Percorre os modelos internos e respostas rápidas desta organização. Não baixa
+            URLs externas. Se ainda faltarem arquivos no Spaces, defina temporariamente
+            STORAGE_FALLBACK_URL no EasyPanel apontando ao host legado e rode de novo.
+          </p>
+        )}
+      </FormDialog>
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent size="md">
