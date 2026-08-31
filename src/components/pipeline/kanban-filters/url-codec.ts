@@ -68,6 +68,7 @@ export const DEAL_FILTER_URL_KEYS = [
   "email",
   "nocontact",
   "conv",
+  "window",
   "dir",
   "logic",
   "cf",
@@ -164,6 +165,7 @@ export function dealFiltersToUrlParams(
     email: encodeBool(f.contactHasEmail),
     nocontact: f.withoutContact ? "1" : null,
     conv: f.conversationStatus ?? null,
+    window: f.windowState ?? null,
     dir: f.lastMessageDirection ?? null,
     logic: f.logic === "OR" ? "or" : null,
     cf: encodeJsonParam(f.dealCustomFields?.length ? f.dealCustomFields : null),
@@ -245,6 +247,8 @@ export function dealFiltersFromUrlParams(
 
   const conv = decodeEnum(params.get("conv"), ["open", "closed"] as const);
   if (conv) out.conversationStatus = conv;
+  const windowState = decodeEnum(params.get("window"), ["open", "closed"] as const);
+  if (windowState) out.windowState = windowState;
   const dir = decodeEnum(params.get("dir"), ["in", "out"] as const);
   if (dir) out.lastMessageDirection = dir;
 

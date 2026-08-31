@@ -40,12 +40,18 @@ export const LIST_HEAD_PIPES_CLASS = [
 export const LIST_CARD_ROW_CLASS =
   "rounded-xl border border-border bg-card px-5 py-3.5 transition-colors hover:border-primary/30 hover:bg-secondary/40";
 
-/** Track da coluna Ações: cabe os ícones, não absorve o stretch do card. */
-export const LIST_ACTIONS_TRACK = "max-content";
+/**
+ * Track da coluna Ações — largura definida, igual no cabeçalho e na linha.
+ * `max-content` desalinha: o label "Ações" é estreito e os botões da linha
+ * são largos, então cada grid (head vs row) resolve a coluna diferente.
+ * 13rem cabe o cluster de ícones (Contatos) e Redistribuir+Editar (Distribuição)
+ * sem absorver o stretch (`1fr` fica na coluna principal).
+ */
+export const LIST_ACTIONS_TRACK = "13rem";
 
-/** Célula Ações: uma linha, não encolhe, não quebra. */
+/** Célula Ações: preenche o track e alinha o cluster à direita (sob o label). */
 export const LIST_ACTIONS_CELL_CLASS =
-  "flex w-max min-w-max shrink-0 flex-nowrap items-center justify-end gap-1";
+  "flex w-full min-w-0 flex-nowrap items-center justify-end gap-1";
 
 /**
  * Sticky column cabeçalho — opaque canvas, pins just below PageHeader.

@@ -13,6 +13,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { StatusTicks } from "@/components/crm/status-ticks"
+import { UserAvatar } from "@/components/crm/user-avatar"
+import { avatarInitials } from "@/lib/avatar"
 import { EventRow, NoteRow, type ConversationEventAction } from "@/components/crm/chat-timeline"
 import { PhoneIncoming, PhoneOff, PhoneOutgoing } from "lucide-react"
 import {
@@ -347,18 +349,16 @@ export interface Message {
 
 export interface MessageBubbleProps {
   message: Message
-  /** Iniciais do agente logado — exibidas no avatar das mensagens outgoing. */
+  /** @deprecated Não usar para avatar — a bolha identifica o REMETENTE
+   *  (`senderName` / `senderImageUrl`), nunca o usuário da sessão. */
   agentInitials?: string
-  /** Nome do agente logado — usado para detectar "mensagem minha" por NOME
-   *  (robusto: independe de iniciais, que divergem entre funções). */
+  /** @deprecated Idem `agentInitials`. Mantido por compat com callers. */
   agentName?: string | null
-  /** Foto do agente logado (User.avatarUrl). Sobrepõe as iniciais no token
-   *  outgoing quando a bolha representa o próprio agente. */
+  /** @deprecated Nunca cair na foto da sessão / "me". Foto só do agente
+   *  que enviou (`senderImageUrl` ou lookup por `senderName`). */
   agentImageUrl?: string | null
-  /** Mapa fresco `nome (lowercase) → avatarUrl` (GET /api/users). Fallback
-   *  confiável quando `senderImageUrl` (match server-side) vem nulo ou a
-   *  sessão está com a foto defasada — garante paridade com o avatar do
-   *  kanban (que lê `avatarUrl` fresco por usuário). */
+  /** Mapa fresco `nome (lowercase) → avatarUrl` (GET /api/users). Foto
+   *  DESTE agente quando `senderImageUrl` vem nulo. Sem foto → iniciais. */
   senderPhotoByName?: Map<string, string | null> | null
   className?: string
   /** Esta nota está fixada na conversa? Exibe indicador âmbar. */
@@ -1508,9 +1508,6 @@ function MenuItem({
 
 export function MessageBubble({
   message,
-  agentInitials,
-  agentName,
-  agentImageUrl,
   senderPhotoByName,
   className,
   isPinned,
@@ -1674,65 +1671,41 @@ export function MessageBubble({
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 cursor-default items-center justify-center overflow-hidden rounded-full font-display text-[11px] font-bold text-white",
-                    !isBot && "bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-secondary)]",
-                  )}
-                  style={
-                    isBot
-                      ? { background: isCampaign ? CAMPAIGN_ACCENT : AUTOMATION_ACCENT }
-                      : undefined
-                  }
-                >
-                  {(() => {
-                    // Prioridade: foto do remetente resolvida no backend
-                    // (`senderImageUrl`, por agente) → foto do usuário logado
-                    // quando a mensagem é dele (iniciais batem ou sem autoria).
-                    // "É minha mensagem?" — detecta por NOME (robusto) ou por
-                    // iniciais/ausência de autoria. O match por nome corrige o
-                    // caso das iniciais divergirem entre funções (ex.: "Marcelo
-                    // Pinha Dev" → getInitials "MP" ≠ avatarInitials "MD").
-                    const norm = (s?: string | null) =>
-                      (s ?? "").trim().toLowerCase()
-                    const isSelf =
-                      !message.senderInitials ||
-                      message.senderInitials === agentInitials ||
-                      (!!agentName &&
-                        !!message.senderName &&
-                        norm(message.senderName) === norm(agentName))
-                    const selfPhoto = isSelf ? agentImageUrl : null
-                    // Foto fresca por nome (mesma fonte do avatar do kanban):
-                    // cobre casos em que o match server-side (`senderImageUrl`)
-                    // falha ou a sessão está com a foto defasada.
-                    const byName =
-                      senderPhotoByName && message.senderName
-                        ? senderPhotoByName.get(
-                            message.senderName.trim().toLowerCase(),
-                          ) ?? null
-                        : null
-                    const photo = message.senderImageUrl || byName || selfPhoto
-                    if (isBot) {
-                      return isCampaign ? (
-                        <IconSpeakerphone size={18} aria-label="Campanha" />
-                      ) : (
-                        <IconRobot size={19} aria-label="Automação" />
-                      )
-                    }
-                    if (photo) {
-                      return (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={photo}
-                          alt={agentInitials ?? "Você"}
-                          className="size-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      )
-                    }
-                    return message.senderInitials || agentInitials || "?"
-                  })()}
-                </div>
+                {isBot ? (
+                  <div
+                    className="flex h-9 w-9 shrink-0 cursor-default items-center justify-center overflow-hidden rounded-full font-display text-[11px] font-bold text-white"
+                    style={{
+                      background: isCampaign ? CAMPAIGN_ACCENT : AUTOMATION_ACCENT,
+                    }}
+                  >
+                    {isCampaign ? (
+                      <IconSpeakerphone size={18} aria-label="Campanha" />
+                    ) : (
+                      <IconRobot size={19} aria-label="Automação" />
+                    )}
+                  </div>
+                ) : (
+                  <span className="inline-flex shrink-0">
+                    <UserAvatar
+                      name={senderName}
+                      initials={
+                        message.senderInitials ||
+                        avatarInitials(senderName) ||
+                        "?"
+                      }
+                      imageUrl={
+                        message.senderImageUrl ||
+                        (senderPhotoByName && senderName
+                          ? senderPhotoByName.get(
+                              senderName.trim().toLowerCase(),
+                            ) ?? null
+                          : null) ||
+                        null
+                      }
+                      size={36}
+                    />
+                  </span>
+                )}
               </TooltipTrigger>
               {senderName && (
                 <TooltipContent side="left" className="font-medium text-[11px]">

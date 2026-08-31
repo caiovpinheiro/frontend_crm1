@@ -97,17 +97,17 @@ export async function fetchTabCounts(
 }
 
 /**
- * GET /api/conversations/:id — só CUID. Ticket `#332843` / `?c=332843`
- * resolve na lista do client (`matchesConversationUrlRef`); não bate na
- * API com ID numérico (404 em produção).
+ * GET /api/conversations/:id — CUID ou número público (`?c=332843`).
+ * O backend resolve dígitos pelo `number` da org (`getConversationById`).
  */
 export async function getConversation(
   conversationId: string,
 ): Promise<ConversationListRow> {
-  if (/^\d+$/.test(conversationId.trim())) {
+  const id = conversationId.trim();
+  if (!id) {
     throw new Error("Conversa não encontrada ou sem permissão");
   }
-  const res = await fetch(apiUrl(`/api/conversations/${conversationId}`));
+  const res = await fetch(apiUrl(`/api/conversations/${encodeURIComponent(id)}`));
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(

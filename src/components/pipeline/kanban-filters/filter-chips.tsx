@@ -178,6 +178,20 @@ export function FilterChips({ filters, options, onPatch, className }: Props) {
     });
   }
 
+  if (filters.conversationStatus) {
+    chips.push({
+      label: `Conversa: ${filters.conversationStatus === "open" ? "aberta" : "fechada"}`,
+      onRemove: () => onPatch({ conversationStatus: undefined }),
+    });
+  }
+
+  if (filters.windowState) {
+    chips.push({
+      label: `Sessão da Meta: ${filters.windowState === "open" ? "aberta" : "fechada"}`,
+      onRemove: () => onPatch({ windowState: undefined }),
+    });
+  }
+
   if (filters.lastMessageDirection) {
     chips.push({
       label:

@@ -47,6 +47,7 @@ describe("URL dos filtros do Pipeline", () => {
       contactHasPhone: true,
       withoutContact: true,
       conversationStatus: "open",
+      windowState: "closed",
       lastMessageDirection: "in",
     };
     expect(dealFiltersFromUrlParams(toParams(dealFiltersToUrlParams(filters)))).toEqual(
@@ -85,6 +86,7 @@ describe("URL dos filtros do Pipeline", () => {
     );
     expect(back).toEqual({});
     expect(hasDealFilterUrlParams(toParams({ status: "OPEN" }))).toBe(true);
+    expect(hasDealFilterUrlParams(toParams({ window: "closed" }))).toBe(true);
     expect(hasDealFilterUrlParams(toParams({ deal: "68626" }))).toBe(false);
   });
 });

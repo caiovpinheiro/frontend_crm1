@@ -517,6 +517,8 @@ html[data-nav-expanded="true"] {
   min-height: calc(100dvh / var(--v2-scale, 1));
 }
 .v2-root .v2-screen.v2-page-scroll:not(.v2-screen-fill) > *:last-child {
+  width: 100%;
+  min-width: 0;
   padding-right: var(--page-gutter);
 }
 @media (min-width: 768px) {

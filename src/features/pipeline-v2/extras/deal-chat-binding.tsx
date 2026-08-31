@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { IconChevronDown, IconMessageCirclePlus, IconPinFilled, IconX } from "@tabler/icons-react";
 
 import { AppLoading } from "@/components/crm/app-loading";
-import { ConversationHistoryLoadRing } from "@/components/crm/conversation-skeleton";
+import { ConversationHistoryLoadRing, ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton";
 import { apiUrl } from "@/lib/api";
 import { avatarInitials } from "@/lib/avatar";
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions";
@@ -116,9 +116,8 @@ export function useDealChatBinding(params: {
   } = params;
 
   const { data: session } = useSession();
-  // Avatar das bolhas outgoing — mesma lógica do ChatArea do inbox: iniciais
-  // via `avatarInitials` (não divergir do `senderInitials`), nome pra detectar
-  // "mensagem minha", e foto fresca por nome (GET /api/users) + foto da sessão.
+  // Avatar das bolhas outgoing — foto/iniciais do REMETENTE (lookup por nome).
+  // Nunca a foto da sessão.
   const agentName = session?.user?.name?.trim() || "";
   const agentInitials = avatarInitials(agentName) || "·";
   const { data: teamUsers } = useTeamUsers(!!conversationId || !!dealId);
@@ -129,10 +128,6 @@ export function useDealChatBinding(params: {
     }
     return map;
   }, [teamUsers]);
-  const selfAgentImage = useMemo(() => {
-    const key = agentName.toLowerCase();
-    return (key ? senderPhotoByName.get(key) : null) ?? session?.user?.image ?? null;
-  }, [agentName, senderPhotoByName, session]);
 
   const { features: convFeatures } = useConversationFeatures();
 
@@ -673,9 +668,7 @@ export function useDealChatBinding(params: {
     (!effectiveConversationId && ensuring) ||
     (!!effectiveConversationId && messagesPending && !messagesResp);
   if (messagesBootstrapping) {
-    messagesNode = (
-      <AppLoading variant="inline" tone="watermark" className="min-h-0 flex-1" label="Carregando mensagens" timeoutMs={0} />
-    );
+    messagesNode = <ConversationThreadSkeleton />;
   } else if (!effectiveConversationId) {
     messagesNode = (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center">
@@ -832,7 +825,6 @@ export function useDealChatBinding(params: {
             message={b}
             agentInitials={agentInitials}
             agentName={agentName}
-            agentImageUrl={selfAgentImage}
             senderPhotoByName={senderPhotoByName}
             isPinned={isNoteBubble && b.id === pinnedNoteId}
             onPinNote={

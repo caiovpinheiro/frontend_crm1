@@ -633,7 +633,7 @@ export default function V2ContactsClientPage() {
         ) : (
         <>
         {/* KPI cards — mobile: 4 quadrados em h-scroll; desktop: grid */}
-        <section className="shrink-0" aria-label="Indicadores de contatos">
+        <section className="w-full shrink-0" aria-label="Indicadores de contatos">
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden lg:hidden">
             {SEGMENTS.map((seg) => {
               const val = seg.value(statsQuery.data);
@@ -674,7 +674,7 @@ export default function V2ContactsClientPage() {
             })}
           </div>
 
-          <div className="hidden gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
+          <div className="hidden w-full gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
             {SEGMENTS.map((seg) => {
               const val = seg.value(statsQuery.data);
               return (
@@ -1447,9 +1447,9 @@ function CardsView({
     <ListHScroll scrollerClassName="pb-1">
     <DataView
       view={view}
-      columnClass="grid items-center justify-start gap-3"
+      columnClass="grid w-full items-center justify-start gap-4"
       header={header}
-      className={cn("w-max min-w-full", LIST_PAGE_STACK_CLASS)}
+      className={LIST_PAGE_STACK_CLASS}
       style={{ gridTemplateColumns: gridTemplate }}
     >
       {items.map((c) => {

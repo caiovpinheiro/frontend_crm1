@@ -453,7 +453,7 @@ export default function V2CompaniesClientPage() {
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : (
         <>
-        <section className="shrink-0" aria-label="Indicadores de empresas">
+        <section className="w-full shrink-0" aria-label="Indicadores de empresas">
           <KpiSquareScroll
             items={SEGMENTS.map((seg) => {
               const val = seg.value(statsQuery.data);
@@ -474,7 +474,7 @@ export default function V2CompaniesClientPage() {
               };
             })}
           />
-          <div className="hidden gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
+          <div className="hidden w-full gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
             {SEGMENTS.map((seg) => {
               const val = seg.value(statsQuery.data);
               return (
@@ -987,9 +987,9 @@ function CardsView({
     <ListHScroll scrollerClassName="pb-1">
     <DataView
       view={view}
-      columnClass="grid items-center justify-start gap-3"
+      columnClass="grid w-full items-center justify-start gap-4"
       header={header}
-      className={cn("w-max min-w-full", LIST_PAGE_STACK_CLASS)}
+      className={LIST_PAGE_STACK_CLASS}
       style={{ gridTemplateColumns: gridTemplate }}
     >
       {items.map((c) => {

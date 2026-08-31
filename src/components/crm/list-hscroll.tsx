@@ -66,8 +66,8 @@ export function StickyHScroll({
   }, [updateFades]);
 
   return (
-    <div ref={wrapRef} className={cn("relative min-w-0", className)}>
-      <div style={minWidth != null ? { minWidth } : undefined}>{children}</div>
+    <div ref={wrapRef} className={cn("relative w-full min-w-0", className)}>
+      <div className="w-full" style={minWidth != null ? { minWidth } : undefined}>{children}</div>
       {fades ? (
         <>
           <div

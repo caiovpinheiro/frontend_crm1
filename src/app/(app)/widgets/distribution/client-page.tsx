@@ -108,13 +108,16 @@ import {
 import { CoverageBoard } from "@/features/settings/coverage/coverage-board";
 import { CoverageSearchFilterBar } from "@/features/settings/coverage/search-filter-bar";
 import { isPageMockMode, shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
+import { inboxConversationDeepLink } from "@/features/inbox-v2/hooks/use-inbox-url-sync";
 
 const SMART_DISTRIBUTION_SLUG = "smart_distribution";
 
-function inboxConversationHref(number: number | null | undefined, fallbackId?: string | null) {
-  if (number != null) return `/inbox?c=${number}`;
-  if (fallbackId) return `/inbox?c=${encodeURIComponent(fallbackId)}`;
-  return "/inbox";
+function inboxConversationHref(
+  number: number | null | undefined,
+  fallbackId?: string | null,
+  tab?: string | null,
+) {
+  return inboxConversationDeepLink({ number, id: fallbackId, tab });
 }
 
 /**
@@ -464,14 +467,14 @@ export default function DistributionClientPage({
           <ErrorState message={respQuery.error.message} />
         ) : (
           showContent && (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 sm:gap-4">
+            <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 sm:gap-4">
               {useDemo && (
                 <PageDemoBanner>
                   Dados de exemplo — equipe, fila e elegibilidade ilustrativas para o módulo de distribuição.
                 </PageDemoBanner>
               )}
 
-              <section className="shrink-0" aria-label="Indicadores de distribuição">
+              <section className="w-full shrink-0" aria-label="Indicadores de distribuição">
                 <DistributionMiniDash responsibles={responsibles} pending={pending} />
               </section>
 
@@ -634,7 +637,7 @@ function DistributionMiniDash({
           percent: c.percent,
         }))}
       />
-      <div className="hidden gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
+      <div className="hidden w-full gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
         {cards.map((c) => (
           <KpiCard
             key={c.key}
@@ -652,9 +655,9 @@ function DistributionMiniDash({
 
 // ── Lista de responsáveis em cards ───────────────────────────────────────
 
-// 6 colunas: responsável, presença, fila, volume, elegibilidade, ações
+// 6 colunas: responsável, presença, fila, volume, elegibilidade, ações (13rem = LIST_ACTIONS_TRACK)
 const RESP_GRID =
-  "grid-cols-[minmax(220px,2.2fr)_minmax(132px,1fr)_3.5rem_3.5rem_minmax(148px,1.15fr)_max-content]";
+  "grid-cols-[minmax(220px,2.2fr)_minmax(132px,1fr)_3.5rem_3.5rem_minmax(148px,1.15fr)_13rem]";
 
 function ResponsiblesCardList({
   view,
@@ -731,12 +734,12 @@ function ResponsiblesCardList({
         ))}
       </ul>
 
-      <div className="hidden md:block">
+      <div className="hidden w-full md:block">
         <ListHScroll>
         <DataView
           view={view}
-          columnClass={cn("grid items-center gap-4", RESP_GRID)}
-          className={cn("w-max min-w-full", LIST_PAGE_STACK_CLASS)}
+          columnClass={cn("grid w-full items-center gap-4", RESP_GRID)}
+          className={LIST_PAGE_STACK_CLASS}
           header={
             <>
               <ListColumnLabel>Responsável</ListColumnLabel>
@@ -1719,7 +1722,7 @@ function PendingQueueCards({
     const map = new Map<string, string>();
     if (illustrative) return map;
     for (const p of pending) {
-      map.set(p.id, inboxConversationHref(p.number, p.id));
+      map.set(p.id, inboxConversationHref(p.number, p.id, "entrada"));
     }
     return map;
   }, [pending, illustrative]);
@@ -1800,7 +1803,7 @@ function PendingQueueCards({
           <DataView
             view={view}
             columnClass={QUEUE_COLUMN_CLASS}
-            className="w-max min-w-full"
+            className={LIST_PAGE_STACK_CLASS}
             header={
               <>
                 <SortableHeader

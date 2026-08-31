@@ -162,14 +162,10 @@ export function useConversations(params: {
  * um 404 (sem acesso / inexistente) propague rápido e o inbox trate o erro.
  */
 export function useConversationById(conversationId: string | null) {
-  const apiId =
-    conversationId && !isInboxConversationNumberParam(conversationId)
-      ? conversationId
-      : null;
   return useQuery<ConversationListRow>({
-    queryKey: ["inbox-conversation", apiId],
-    queryFn: () => getConversation(apiId as string),
-    enabled: Boolean(apiId) && !isPreviewMode(),
+    queryKey: ["inbox-conversation", conversationId],
+    queryFn: () => getConversation(conversationId as string),
+    enabled: Boolean(conversationId) && !isPreviewMode(),
     staleTime: 10_000,
     retry: false,
   });

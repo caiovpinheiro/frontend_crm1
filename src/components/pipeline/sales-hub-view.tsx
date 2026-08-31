@@ -26,6 +26,7 @@ import {
 import type { BoardStage } from "@/components/pipeline/kanban-board";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import { AppLoading } from "@/components/crm/app-loading";
+import { ConversationPaneSkeleton } from "@/components/crm/conversation-skeleton";
 import { useStageUrlSync } from "@/features/pipeline-v2/hooks";
 import { StageRibbon } from "@/components/sales-hub/stage-ribbon";
 import {
@@ -881,14 +882,14 @@ export function SalesHubView({
               subtitle="Escolha um card na fila à esquerda para abrir a conversa."
             />
           ) : !activeDeal && !detailDeal ? (
-            <AppLoading variant="inline" tone="watermark" className="min-h-0 flex-1" />
+            <ConversationPaneSkeleton />
           ) : !activeContactId ? (
             <SalesHubChatEmptyState
               title="Deal sem contato"
               subtitle="Este deal nao tem contato vinculado — atribua um contato para iniciar a conversa."
             />
           ) : conversationsLoading ? (
-            <AppLoading variant="inline" tone="watermark" className="min-h-0 flex-1" />
+            <ConversationPaneSkeleton />
           ) : !activeConversation ? (
             <SalesHubChatEmptyState
               title="Sem conversa aberta"

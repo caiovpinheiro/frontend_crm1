@@ -317,6 +317,7 @@ export default function InboxV2ClientPage({
   const {
     tab,
     setTab,
+    replaceTab,
     tabHydrated,
     filters,
     setFilters,
@@ -328,10 +329,15 @@ export default function InboxV2ClientPage({
   // primeira visível.
   useEffect(() => {
     if (!tabHydrated || visibleTabs.length === 0) return;
+    // Enquanto o RBAC não chegou, `visibleTabs` é um subset — não
+    // reescrever a aba da URL (deep-link `tab=entrada` da fila de espera).
+    if (sessionRole !== "ADMIN" && sessionRole !== "MANAGER" && !myPermissions) {
+      return;
+    }
     if (!visibleTabs.some((t) => t.id === tab)) {
       setTab(visibleTabs[0]?.id ?? DEFAULT_INBOX_TAB);
     }
-  }, [tabHydrated, visibleTabs, tab, setTab]);
+  }, [tabHydrated, visibleTabs, tab, setTab, sessionRole, myPermissions]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -443,7 +449,7 @@ export default function InboxV2ClientPage({
 
   // ── Dados ───────────────────────────────────────────────────────
   // Ordenação e direção da última msg são CLIENT-SIDE (evita refetch).
-  // `windowState` (Aberta/Fechada) vai ao servidor — senão o badge Erro
+  // `windowState` (Sessão da Meta Aberta/Fechada) vai ao servidor — senão o badge Erro
   // conta 233 e a lista filtra no cliente até ficar vazia.
   const {
     sortBy,
@@ -601,14 +607,17 @@ export default function InboxV2ClientPage({
     // Não está na lista: usa a conversa buscada pelo id/número (deep-link).
     if (deepLinkRow && matchesConversationUrlRef(deepLinkRow, activeId)) {
       setStickyRow(deepLinkRow);
+      setPinnedFromSearch(deepLinkRow);
       if (deepLinkRow.id !== activeId) setActiveId(deepLinkRow.id);
+      const queue = pickVisibleInboxTab(inboxQueueTabFor(deepLinkRow), visibleTabs);
+      if (queue && queue !== tab) replaceTab(queue);
       return;
     }
     // Reabrir (novo ticket) / troca de id: não manter header do ticket antigo.
     setStickyRow((prev) =>
       prev && matchesConversationUrlRef(prev, activeId) ? prev : null,
     );
-  }, [activeId, foundActiveRow, deepLinkRow]);
+  }, [activeId, foundActiveRow, deepLinkRow, visibleTabs, tab, replaceTab]);
 
   // Deep-link inválido (id inexistente ou sem permissão): avisa e limpa a
   // seleção/URL para o supervisor cair no estado vazio, sem chat "fantasma".

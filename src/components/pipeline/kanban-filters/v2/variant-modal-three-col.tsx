@@ -242,12 +242,18 @@ function ConversationSegmentation({
     { value: "open" as const, label: "Aberta" },
     { value: "closed" as const, label: "Fechada" },
   ];
+  const sessionOptions = [
+    { value: "open" as const, label: "Aberta" },
+    { value: "closed" as const, label: "Fechada" },
+  ];
   const directionOptions = [
     { value: "out" as const, label: "Agente" },
     { value: "in" as const, label: "Cliente" },
   ];
   const activeCount =
-    (draft.conversationStatus ? 1 : 0) + (draft.lastMessageDirection ? 1 : 0);
+    (draft.conversationStatus ? 1 : 0) +
+    (draft.windowState ? 1 : 0) +
+    (draft.lastMessageDirection ? 1 : 0);
 
   return (
     <div className="mb-4 border-b border-[var(--glass-border-subtle)] pb-4">
@@ -260,6 +266,7 @@ function ConversationSegmentation({
             type="button"
             onClick={() => {
               setDraftField("conversationStatus", undefined);
+              setDraftField("windowState", undefined);
               setDraftField("lastMessageDirection", undefined);
             }}
             className="font-display text-[10px] font-semibold text-[var(--brand-primary)]"
@@ -284,6 +291,37 @@ function ConversationSegmentation({
                   onClick={() =>
                     setDraftField(
                       "conversationStatus",
+                      active ? undefined : option.value,
+                    )
+                  }
+                  className={cn(
+                    "rounded-[var(--radius-md)] px-2 py-1.5 font-display text-[11px] font-semibold transition-colors",
+                    active
+                      ? "bg-[var(--brand-primary)] text-white"
+                      : "bg-[var(--glass-bg-modal)] text-[var(--text-secondary)] hover:text-[var(--brand-primary)]",
+                  )}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block font-body text-[10.5px] text-[var(--text-muted)]">
+            Sessão da Meta
+          </span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {sessionOptions.map((option) => {
+              const active = draft.windowState === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    setDraftField(
+                      "windowState",
                       active ? undefined : option.value,
                     )
                   }

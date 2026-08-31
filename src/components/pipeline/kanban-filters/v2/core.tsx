@@ -508,21 +508,27 @@ const CONVERSATION_STATUS_OPTIONS: { value: "open" | "closed"; label: string }[]
   { value: "open", label: "Aberta" },
   { value: "closed", label: "Fechada" },
 ];
+const META_SESSION_OPTIONS: { value: "open" | "closed"; label: string }[] = [
+  { value: "open", label: "Aberta" },
+  { value: "closed", label: "Fechada" },
+];
 const LAST_DIRECTION_OPTIONS: { value: "in" | "out"; label: string }[] = [
   { value: "out", label: "Agente" },
   { value: "in", label: "Cliente" },
 ];
 
-/** Filtra negócios pela conversa do contato: status + direção da última mensagem. */
+/** Filtra negócios pela conversa do contato: status + sessão Meta + última msg. */
 export function ConversationSection({ draft, setDraftField }: SectionProps) {
   const status = draft.conversationStatus;
+  const session = draft.windowState;
   const dir = draft.lastMessageDirection;
   return (
     <FieldCard
       label="Conversa"
-      active={!!status || !!dir}
+      active={!!status || !!session || !!dir}
       onClear={() => {
         setDraftField("conversationStatus", undefined);
+        setDraftField("windowState", undefined);
         setDraftField("lastMessageDirection", undefined);
       }}
     >
@@ -536,6 +542,18 @@ export function ConversationSection({ draft, setDraftField }: SectionProps) {
             options={CONVERSATION_STATUS_OPTIONS}
             onSelect={(v) =>
               setDraftField("conversationStatus", status === v ? undefined : v)
+            }
+          />
+        </div>
+        <div>
+          <span className="mb-1.5 block text-[11px] font-medium text-[var(--text-muted)]">
+            Sessão da Meta
+          </span>
+          <PillGroup
+            value={session}
+            options={META_SESSION_OPTIONS}
+            onSelect={(v) =>
+              setDraftField("windowState", session === v ? undefined : v)
             }
           />
         </div>

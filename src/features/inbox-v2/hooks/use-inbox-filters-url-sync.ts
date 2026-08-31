@@ -263,6 +263,8 @@ export function inboxViewHref(
 export type UseInboxFilterUrlStateResult = {
   tab: InboxTab;
   setTab: (next: SetStateAction<InboxTab>) => void;
+  /** Troca a aba sem empilhar histórico (deep-link / hidratação). */
+  replaceTab: (next: InboxTab) => void;
   /** Aba já resolvida (URL/localStorage) — trava o fetch da lista até então. */
   tabHydrated: boolean;
   filters: InboxFilters;
@@ -339,6 +341,11 @@ export function useInboxFilterUrlState(): UseInboxFilterUrlStateResult {
     setTabState(next);
   }, []);
 
+  const replaceTab = useCallback((next: InboxTab) => {
+    userEdit.current = false;
+    setTabState(next);
+  }, []);
+
   const setFilters = useCallback((next: SetStateAction<InboxFilters>) => {
     userEdit.current = true;
     setFiltersState(next);
@@ -351,6 +358,7 @@ export function useInboxFilterUrlState(): UseInboxFilterUrlStateResult {
   return {
     tab,
     setTab,
+    replaceTab,
     tabHydrated: hydrated,
     filters,
     setFilters,
