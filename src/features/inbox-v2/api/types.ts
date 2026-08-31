@@ -174,10 +174,10 @@ export interface InboxFilters {
   /** Sessões Meta ainda abertas que expiram entre agora e agora + X horas. */
   sessionExpiresWithinHours?: number;
   /**
-   * Ordenação é client-side. `windowState` (Aberta/Fechada = status
-   * OPEN vs RESOLVED) vai ao backend — lista, badges e bulk usam o
-   * mesmo recorte. `sortBy` aceita "lastInboundAt" (padrão) ou
-   * "unreadCount".
+   * Ordenação é client-side. `windowState` (Sessão da Meta: Aberta/Fechada
+   * = janela 24h WhatsApp Cloud) vai ao backend — lista, badges e bulk
+   * usam o mesmo recorte. Não é status RESOLVED. `sortBy` aceita
+   * "lastInboundAt" (padrão) ou "unreadCount".
    */
   sortBy?: string;
   sortOrder?: "asc" | "desc";

@@ -12,9 +12,27 @@ export function isInboxConversationNumberParam(
   return /^\d+$/.test(raw.trim());
 }
 
+/**
+ * Deep-link do Inbox. `c` = número público; CUID só se o número não existir.
+ * `tab` entra na URL para a lista hidratar na fila certa (ex.: fila de
+ * espera → `entrada`), sem depender da última aba do operador.
+ */
+export function inboxConversationDeepLink(args: {
+  number?: number | null;
+  id?: string | null;
+  tab?: string | null;
+}): string {
+  const params = new URLSearchParams();
+  if (args.tab) params.set("tab", args.tab);
+  if (args.number != null) params.set("c", String(args.number));
+  else if (args.id) params.set("c", args.id);
+  const qs = params.toString();
+  return qs ? `/inbox?${qs}` : "/inbox";
+}
+
 /** Link público da conversa: só o número sequencial, nunca o CUID. */
-export function inboxConversationHref(number: number): string {
-  return `/inbox?c=${encodeURIComponent(String(number))}`;
+export function inboxConversationHref(number: number, tab?: string): string {
+  return inboxConversationDeepLink({ number, tab });
 }
 
 export function matchesConversationUrlRef(

@@ -65,7 +65,7 @@ import { formatPhoneDisplay } from "@/lib/phone"
 import { useIsMobile } from "@/hooks/use-media-query"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { COMPOSER_FOCUS_CHAT_EVENT } from "@/lib/composer-insert"
-import { AppLoading } from "@/components/crm/app-loading"
+import { ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton"
 import { useHideChatEvents } from "@/components/crm/chat-timeline"
 
 // ─── Ordem das seções da sidebar ──────────────────────────────────
@@ -721,13 +721,7 @@ export function DealDetailPanel({
               )}
             >
               <TabsBar activeTab="conversa" onChange={() => undefined} />
-              <AppLoading
-                variant="inline"
-                tone="watermark"
-                className="min-h-0 flex-1"
-                label="Carregando conversa"
-                timeoutMs={0}
-              />
+              <ConversationThreadSkeleton />
             </main>
           </div>
         </div>

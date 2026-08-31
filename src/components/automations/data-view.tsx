@@ -48,6 +48,7 @@ export function DataView({
             ? "rounded-xl border border-border bg-card"
             : LIST_CARD_STACK_CLASS,
           className,
+          "w-full min-w-max",
         )}
       >
         <div
@@ -56,6 +57,7 @@ export function DataView({
             isTabela
               ? listTableHeadRowClass("hidden bg-secondary lg:grid")
               : LIST_CARD_HEAD_CLASS,
+            "w-full",
           )}
           style={style}
         >
@@ -83,6 +85,7 @@ export function DataRow({
         isTabela
           ? "border-t border-border px-5 py-2.5 transition-colors hover:bg-secondary/40"
           : LIST_CARD_ROW_CLASS,
+        "w-full",
         className,
       )}
       style={ctx.style || style ? { ...ctx.style, ...style } : undefined}

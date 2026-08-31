@@ -41,16 +41,16 @@ export function PageChrome({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col",
+        "flex w-full min-w-0 flex-col",
         page ? "min-h-min flex-1" : "min-h-0 flex-1 overflow-hidden",
         className,
       )}
     >
-      <div className="shrink-0 bg-[var(--bg-base)]">{header}</div>
+      <div className="w-full shrink-0 bg-[var(--bg-base)]">{header}</div>
       <div
         data-page-scroll={page ? undefined : ""}
         className={cn(
-          "flex min-w-0 flex-col",
+          "flex w-full min-w-0 flex-col",
           page
             ? "min-h-min"
             : "min-h-0 flex-1 overflow-auto overscroll-contain",

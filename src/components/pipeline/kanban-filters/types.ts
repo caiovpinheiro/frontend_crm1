@@ -70,6 +70,8 @@ export type AdvancedDealFilters = {
   valueTo?: number | null;
   /** Conversa do contato: "open" = aberta (não resolvida) / "closed" = resolvida. */
   conversationStatus?: "open" | "closed";
+  /** Janela 24h da Meta (WhatsApp Cloud). Não é status RESOLVED da conversa. */
+  windowState?: "open" | "closed";
   /** Direção da última mensagem: "out" = nossa / "in" = do cliente. */
   lastMessageDirection?: "in" | "out";
   /** Exceções do Painel → lista filtrada. */
@@ -166,6 +168,7 @@ export function countActiveFilters(f: AdvancedDealFilters | null | undefined): n
   if (f.contactCustomFields?.length) n += f.contactCustomFields.length;
   if (f.valueFrom != null || f.valueTo != null) n++;
   if (f.conversationStatus) n++;
+  if (f.windowState) n++;
   if (f.lastMessageDirection) n++;
   if (f.exception) n++;
   return n;

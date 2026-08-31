@@ -31,10 +31,15 @@ interface PaginationGlassProps {
 const DEFAULT_PER_PAGE_OPTIONS = [25, 50, 100] as const;
 
 /** Página de lista: cresce com as linhas; se a lista for curta, empurra o rodapé ao fundo. */
-export const LIST_PAGE_PANE_CLASS = "flex min-h-min flex-1 flex-col";
+export const LIST_PAGE_PANE_CLASS = "flex w-full min-h-min min-w-0 flex-1 flex-col";
 
-/** Stack da lista dentro do pane — altura pelo conteúdo, sem esmagar as linhas. */
-export const LIST_PAGE_STACK_CLASS = "min-w-0";
+/**
+ * Stack da lista: ocupa a coluna de conteúdo (`w-full`) e só cresce além
+ * dela quando as colunas pedem (`min-w-max`, scroll-X da página).
+ * Não usar `min-w-0` aqui — o `cn("w-max min-w-full", …)` das páginas
+ * perdia o `min-w-full` no tailwind-merge e a tabela virava uma ilha.
+ */
+export const LIST_PAGE_STACK_CLASS = "w-full min-w-max";
 
 /** Mesma escala da meta esquerda e do rótulo "Por página". */
 const META_TEXT = "text-sm leading-relaxed text-muted-foreground";

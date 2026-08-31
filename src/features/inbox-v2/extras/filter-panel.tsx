@@ -9,7 +9,7 @@
  *   Col 3 — Tags
  *
  * Backend: ownerId, withoutOwner, channel, channelIds, stageId, tagIds,
- * sources, windowState (Aberta/Fechada).
+ * sources, windowState (Sessão da Meta Aberta/Fechada).
  * Client-side: sort + lastMessageDirection.
  */
 
@@ -166,6 +166,7 @@ function middleTabCount(id: MiddleTab, f: InboxFilters): number {
     return (
       ((f.ownerIds?.length ?? 0) > 0 || f.ownerId || f.withoutOwner ? 1 : 0) +
       (hasChannelFilter(f) ? 1 : 0) +
+      (f.windowState ? 1 : 0) +
       (f.sessionExpiresWithinHours != null ? 1 : 0)
     );
   }
@@ -222,7 +223,7 @@ function ConversationSegmentation({
       <div className="space-y-3 rounded-[var(--radius-lg)] border border-slate-200/90 bg-slate-50/80 p-2.5 v2-dark:border-white/10 v2-dark:bg-white/5">
         <div>
           <span className="mb-1.5 block font-body text-[10.5px] text-[var(--text-muted)]">
-            Status
+            Sessão da Meta
           </span>
           <div className="grid grid-cols-2 gap-1.5">
             {statusOptions.map((option) => {
@@ -676,9 +677,9 @@ function InboxActiveFilterChips({
     });
   }
   if (filters.windowState) {
-    const label = filters.windowState === "open" ? "aberta" : "encerrada";
+    const label = filters.windowState === "open" ? "aberta" : "fechada";
     chips.push({
-      label: `Sessão: ${label}`,
+      label: `Sessão da Meta: ${label}`,
       onRemove: () => onChange({ ...filters, windowState: undefined }),
     });
   }

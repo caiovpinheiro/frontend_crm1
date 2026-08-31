@@ -3172,20 +3172,12 @@ export function ChatWindow({
                       >
                         <ChatAvatar
                           user={{
-                            id:
-                              (session?.user as { id?: string })?.id ??
-                              m.senderName ??
-                              "out",
+                            id: m.senderUserId ?? m.senderName ?? "out",
                             name:
                               agentNameFromWhatsappCallSender(m.senderName) ||
                               m.senderName ||
-                              session?.user?.name ||
-                              "Admin Bwipo",
-                            imageUrl: isBot
-                              ? null
-                              : (m.senderImageUrl ??
-                                session?.user?.image ??
-                                null),
+                              "Agente",
+                            imageUrl: isBot ? null : (m.senderImageUrl ?? null),
                           }}
                           size={28}
                           channel={null}

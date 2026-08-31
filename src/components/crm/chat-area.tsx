@@ -309,12 +309,9 @@ export function ChatArea({
   )
   const [activeTab, setActiveTab] = useState<ChatTabId>("conversa")
 
-  // Iniciais do agente nas bolhas outgoing. Prioridade: usuário
-  // autenticado (NextAuth) > usuário de preview > genérico.
+  // Nome/iniciais do agente logado — só contexto de sessão (composer etc.).
+  // Avatar da bolha NÃO usa isso: identifica o remetente da mensagem.
   const [agentInitials, setAgentInitials] = useState("·")
-  // Nome do agente logado — passado ao balão pra detectar "mensagem minha"
-  // por nome (robusto). Iniciais usam `avatarInitials` (mesma função do
-  // adapter/UserAvatar) pra não divergir do `senderInitials` das bolhas.
   const agentName = useMemo(
     () =>
       session?.user?.name?.trim() ||
@@ -326,10 +323,8 @@ export function ChatArea({
     setAgentInitials(avatarInitials(name) || "?")
   }, [agentName])
 
-  // Mapa fresco `nome (lowercase) → avatarUrl` da equipe (GET /api/users) —
-  // mesma fonte do avatar do kanban. Usado para resolver a foto de QUALQUER
-  // agente nas bolhas outgoing, mesmo quando o match server-side falha ou a
-  // sessão está com a foto defasada (JWT antigo).
+  // Foto do agente que enviou: lookup por nome (GET /api/users). Sem foto
+  // → iniciais daquele agente. Nunca a foto do usuário logado.
   const { data: teamUsers } = useTeamUsers()
   const senderPhotoByName = useMemo(() => {
     const map = new Map<string, string | null>()
@@ -339,13 +334,6 @@ export function ChatArea({
     return map
   }, [teamUsers])
 
-  // Foto do agente logado: prioriza o avatar fresco da equipe (por nome) e cai
-  // na foto da sessão. Corrige o caso do JWT com `picture` defasado.
-  const selfAgentImage = useMemo(() => {
-    const sessionName = session?.user?.name?.trim()?.toLowerCase()
-    const fresh = sessionName ? senderPhotoByName.get(sessionName) : null
-    return fresh ?? session?.user?.image ?? null
-  }, [session, senderPhotoByName])
   const NEAR_BOTTOM_PX = 160
 
   const isNearBottom = (el: HTMLElement) =>
@@ -880,7 +868,6 @@ export function ChatArea({
                       message={message}
                       agentInitials={agentInitials}
                       agentName={agentName}
-                      agentImageUrl={selfAgentImage}
                       senderPhotoByName={senderPhotoByName}
                       onReplyMessage={onReplyMessage}
                       onForwardMessage={onForwardMessage}
