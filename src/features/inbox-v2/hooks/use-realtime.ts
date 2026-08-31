@@ -23,9 +23,14 @@ import {
  * legado (`useSSE` + `scheduleInboxRefresh`):
  *
  *  - 1 EventSource só, compartilhado pela página.
- *  - new_message / conversation_updated preferem patch do card no cache;
- *    lista inteira só quando o ticket não está nas páginas e não dá pra
- *    inserir (aí invalida só a aba afetada). Counts: debounce ≥8s.
+ *  - new_message prefere patch do card no cache; lista inteira só quando
+ *    o ticket não está nas páginas e não dá pra inserir (aí invalida só
+ *    a aba afetada). Counts: debounce ≥8s.
+ *  - conversation_updated: GET /:id só se o card JÁ está na lista
+ *    cacheada desta aba (ou o ticket está aberto aqui / payload diz
+ *    unassigned e a aba é entrada sem filtros). Id ausente das páginas
+ *    → não GET (evita 404×N). Poll 120s ou prepend se o payload for
+ *    um row completo. 404 fica em cache ~60s.
  *  - message_status NÃO invalida lista/counts (só ticks da bolha) — evita
  *    refetch storm em cold-load / rajadas de delivery receipts.
  *  - new_message / whatsapp_call invalidam mensagens da conversa
@@ -269,6 +274,111 @@ function removeConversationFromInboxCaches(
  *  que N× GET /:id (ex.: assign em massa). */
 const CARD_SYNC_BURST_LIMIT = 8;
 
+/** Burst de conversation_updated: não re-GET o mesmo id após 404. */
+const CONVERSATION_404_TTL_MS = 60_000;
+const conversation404UntilMs = new Map<string, number>();
+
+function rememberConversation404(conversationId: string): void {
+  conversation404UntilMs.set(
+    conversationId,
+    Date.now() + CONVERSATION_404_TTL_MS,
+  );
+}
+
+function isCachedConversation404(conversationId: string): boolean {
+  const until = conversation404UntilMs.get(conversationId);
+  if (until == null) return false;
+  if (until <= Date.now()) {
+    conversation404UntilMs.delete(conversationId);
+    return false;
+  }
+  return true;
+}
+
+function conversationIdInInboxCaches(
+  qc: QueryClient,
+  conversationId: string,
+): boolean {
+  const entries = qc.getQueriesData<InboxListCache>({
+    queryKey: ["inbox-conversations"],
+  });
+  for (const [, cached] of entries) {
+    if (
+      cached?.pages?.some((page) =>
+        page?.items?.some((c) => conversationMatchesId(c, conversationId)),
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+type ConversationUpdatedPayload = {
+  conversationId?: string;
+  assignedToId?: string | null;
+};
+
+/** Payload SSE quase nunca é um card completo — só `{ conversationId }`. */
+function conversationRowFromUpdatedEvent(
+  raw: unknown,
+): ConversationListRow | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id =
+    typeof r.id === "string"
+      ? r.id
+      : typeof r.conversationId === "string"
+        ? r.conversationId
+        : "";
+  if (!id) return null;
+  if (typeof r.channel !== "string" || typeof r.status !== "string") {
+    return null;
+  }
+  const contact = r.contact;
+  if (!contact || typeof contact !== "object") return null;
+  if (typeof (contact as { id?: unknown }).id !== "string") return null;
+  return { ...(r as unknown as ConversationListRow), id };
+}
+
+/**
+ * Ticket novo na fila livre: GET :id só se ESTA aba é entrada sem
+ * busca/filtros e o payload afirma `assignedToId: null`. Qualquer outro
+ * "talvez seja meu" vira 404 no GET (visibilidade por depto/dono).
+ */
+function shouldFetchUnassignedForEntradaTab(
+  qc: QueryClient,
+  payload: ConversationUpdatedPayload,
+): boolean {
+  if (payload.assignedToId !== null) return false;
+  const entries = qc.getQueriesData<InboxListCache>({
+    queryKey: ["inbox-conversations", "entrada"],
+  });
+  for (const [queryKey, cached] of entries) {
+    if (!cached?.pages?.length) continue;
+    if (inboxSearchFromQueryKey(queryKey)) continue;
+    if (hasInboxServerFilters(inboxFiltersFromQueryKey(queryKey))) continue;
+    return true;
+  }
+  return false;
+}
+
+function shouldGetConversationOnUpdated(
+  qc: QueryClient,
+  conversationId: string,
+  activeId: string | null,
+  payload: ConversationUpdatedPayload,
+): boolean {
+  if (conversationIdInInboxCaches(qc, conversationId)) return true;
+  if (activeId && conversationId === activeId) return true;
+  return shouldFetchUnassignedForEntradaTab(qc, payload);
+}
+
+function isConversationNotFoundError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : "";
+  return /não encontrada|sem permissão|not found/i.test(msg);
+}
+
 function invalidateInboxQueriesTouching(
   qc: QueryClient,
   ids: string[],
@@ -438,6 +548,7 @@ export function useInboxRealtime(options: {
   const dailyStatsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCardSyncIdsRef = useRef<Set<string>>(new Set());
+  const inFlightCardSyncIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -477,41 +588,71 @@ export function useInboxRealtime(options: {
       }, 5000);
     }
 
-    // conversation_updated: 1 GET /:id por ticket (rajada coalescida),
-    // nunca GET /api/conversations da lista inteira.
-    function scheduleConversationCardSync(conversationId: string) {
+    // conversation_updated: 1 GET /:id só para tickets que JÁ estão na
+    // lista cacheada desta aba (ou abertos aqui). Nunca GET da lista
+    // inteira; id ausente → poll 120s / prepend se o payload for row.
+    function scheduleConversationCardSync(
+      conversationId: string,
+      payload: ConversationUpdatedPayload,
+    ) {
+      if (isCachedConversation404(conversationId)) {
+        if (!conversationIdInInboxCaches(qc, conversationId)) return;
+      }
+      if (inFlightCardSyncIdsRef.current.has(conversationId)) return;
+      if (pendingCardSyncIdsRef.current.has(conversationId)) return;
+      if (
+        !shouldGetConversationOnUpdated(
+          qc,
+          conversationId,
+          activeRef.current,
+          payload,
+        )
+      ) {
+        return;
+      }
       pendingCardSyncIdsRef.current.add(conversationId);
       if (cardSyncTimerRef.current) return;
       cardSyncTimerRef.current = setTimeout(() => {
         cardSyncTimerRef.current = null;
-        const ids = [...pendingCardSyncIdsRef.current];
+        const ids = [...pendingCardSyncIdsRef.current].filter((id) => {
+          if (isCachedConversation404(id) && !conversationIdInInboxCaches(qc, id)) {
+            return false;
+          }
+          return true;
+        });
         pendingCardSyncIdsRef.current.clear();
+        if (ids.length === 0) return;
         if (ids.length > CARD_SYNC_BURST_LIMIT) {
           invalidateInboxQueriesTouching(qc, ids);
           return;
         }
+        for (const id of ids) inFlightCardSyncIdsRef.current.add(id);
         void (async () => {
-          if (ids.length === 1) {
-            try {
-              const row = await getConversation(ids[0]);
-              if (!alive) return;
-              applyConversationRowToInboxCaches(qc, row);
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : "";
-              if (/não encontrada|sem permissão/i.test(msg)) {
-                removeConversationFromInboxCaches(qc, ids[0]);
-              }
-            }
-            return;
-          }
           try {
-            const rows = await getConversationsByIds(ids);
-            if (!alive) return;
-            for (const row of rows) {
-              applyConversationRowToInboxCaches(qc, row);
+            if (ids.length === 1) {
+              try {
+                const row = await getConversation(ids[0]);
+                if (!alive) return;
+                applyConversationRowToInboxCaches(qc, row);
+              } catch (err) {
+                if (isConversationNotFoundError(err)) {
+                  rememberConversation404(ids[0]);
+                  removeConversationFromInboxCaches(qc, ids[0]);
+                }
+              }
+              return;
             }
-          } catch {
-            // Batch falhou: não evicta. Próximo SSE/poll tenta de novo.
+            try {
+              const rows = await getConversationsByIds(ids);
+              if (!alive) return;
+              for (const row of rows) {
+                applyConversationRowToInboxCaches(qc, row);
+              }
+            } catch {
+              // Batch falhou: não evicta. Próximo SSE/poll tenta de novo.
+            }
+          } finally {
+            for (const id of ids) inFlightCardSyncIdsRef.current.delete(id);
           }
         })();
       }, 1000);
@@ -636,17 +777,31 @@ export function useInboxRealtime(options: {
       },
 
       conversation_updated: (raw: unknown) => {
-        const id = (raw as { conversationId?: string } | null)?.conversationId;
+        const payload = (raw ?? {}) as ConversationUpdatedPayload;
+        const id = payload.conversationId;
         if (shouldSuppressInboxListRefresh(id ?? activeRef.current)) {
           scheduleDailyStatsRefresh();
           return;
         }
-        if (id) {
-          scheduleConversationCardSync(id);
-          scheduleCountsRefresh();
-        } else {
+        if (!id) {
           scheduleInboxRefresh();
+          scheduleDailyStatsRefresh();
+          return;
         }
+        if (isCachedConversation404(id) && !conversationIdInInboxCaches(qc, id)) {
+          scheduleCountsRefresh();
+          scheduleDailyStatsRefresh();
+          return;
+        }
+        const completeRow = conversationRowFromUpdatedEvent(raw);
+        if (completeRow) {
+          applyConversationRowToInboxCaches(qc, completeRow);
+        } else if (
+          shouldGetConversationOnUpdated(qc, id, activeRef.current, payload)
+        ) {
+          scheduleConversationCardSync(id, payload);
+        }
+        scheduleCountsRefresh();
         scheduleDailyStatsRefresh();
       },
 
@@ -743,6 +898,7 @@ export function useInboxRealtime(options: {
       if (cardSyncTimerRef.current) clearTimeout(cardSyncTimerRef.current);
       cardSyncTimerRef.current = null;
       pendingCardSyncIdsRef.current.clear();
+      inFlightCardSyncIdsRef.current.clear();
     };
   }, [enabled, qc]);
 }
