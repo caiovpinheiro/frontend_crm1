@@ -34,6 +34,49 @@ export function inboxQueueTabFor(row: ConversationListRow): InboxTab {
   return "entrada";
 }
 
+/**
+ * A conversa cabe nesta aba da inbox? Usado pelo SSE para mover o card
+ * entre caches sem refetch da lista. `ligar` e `todos`/`abertas` são
+ * sobreposições (o ticket também vive na fila canônica).
+ *
+ * Automação não dá pra afirmar pelo row (falta contexto RUNNING) — ver
+ * `rowStaysOnAutomacaoTab`.
+ */
+export function rowBelongsToInboxTab(
+  row: ConversationListRow,
+  tab: InboxTab,
+): boolean {
+  const resolved = row.status === "RESOLVED" || Boolean(row.closedAt);
+  if (tab === "finalizados") return resolved;
+  if (resolved) return tab === "todos";
+
+  if (tab === "todos") return true;
+  if (tab === "abertas") return !row.hasError;
+  if (tab === "erro") return Boolean(row.hasError);
+  if (row.hasError) return false;
+
+  if (tab === "ligar") {
+    return row.channel === "whatsapp" && row.whatsappCallConsentStatus === "GRANTED";
+  }
+  if (tab === "automacao") return false;
+
+  const canonical = inboxQueueTabFor(row);
+  if (tab === "entrada") {
+    if (canonical !== "entrada") return false;
+    // Sem dono e sem inbound = órfão/robô — não é Entrada (tabToWhere).
+    if (!row.assignedToId && !row.lastInboundAt) return false;
+    return true;
+  }
+  return canonical === tab;
+}
+
+/** Card já listado em Automação permanece até haver dono, inbound ou encerrar. */
+export function rowStaysOnAutomacaoTab(row: ConversationListRow): boolean {
+  if (row.status === "RESOLVED" || row.closedAt || row.hasError) return false;
+  if (row.assignedToId || row.lastInboundAt) return false;
+  return true;
+}
+
 export function pickVisibleInboxTab(
   preferred: InboxTab,
   visible: readonly { id: InboxTab }[],

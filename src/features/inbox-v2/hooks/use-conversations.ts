@@ -81,8 +81,9 @@ export function useConversations(params: {
       return page + 1;
     },
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
-    // SSE (`useInboxRealtime`) já invalida esta query em new_message /
-    // conversation_updated. Polling fica só como safety-net — 120s:
+    // SSE (`useInboxRealtime`) patcha o card em new_message /
+    // conversation_updated (GET :id, sem refetch da lista). Polling
+    // fica só como safety-net — 120s:
     // o storm de 27 req/s de 28/ago/26 (65k req/40min) derrubou o
     // proxy do droplet por exaustão de memória TCP.
     refetchInterval: 120_000,
@@ -267,8 +268,8 @@ export function useTabCounts(
     queryKey: ["conversations", "tab-counts", filterKey, searchKey],
     queryFn: () => fetchTabCounts(filters, searchKey),
     // `?counts=1` agrega sobre todas as conversas da org (300ms-1.6s no
-    // servidor). O SSE (`useInboxRealtime`) já invalida esta query em
-    // new_message/conversation_updated, então o polling é só safety-net.
+    // servidor). O SSE (`useInboxRealtime`) invalida counts em
+    // new_message/conversation_updated; o polling é só safety-net.
     // 180s (era 30s): o counts=1 foi o endpoint mais chamado no storm de
     // 28/ago/26 (11,6k req/40min) que derrubou o proxy do droplet por
     // exaustão de memória TCP. O backend tem cache Redis de 45s.
