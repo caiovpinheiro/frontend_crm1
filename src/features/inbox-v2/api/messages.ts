@@ -178,6 +178,54 @@ export async function sendAttachment(
   };
 }
 
+/**
+ * POST /api/conversations/:id/attachments — JSON `{ reuseUrl }`.
+ * Reutiliza um arquivo já no storage da org (modelos / automation-media).
+ * Não baixa nem reenvia bytes.
+ */
+export async function sendAttachmentReuse(
+  conversationId: string,
+  options: {
+    reuseUrl: string;
+    fileName?: string;
+    caption?: string;
+    channelId?: string | null;
+  },
+): Promise<{
+  message: InboxMessageDto;
+  reopenedConversationId?: string;
+  audioDelivery?: "voice" | "audio" | "document";
+}> {
+  const res = await fetch(apiUrl(`/api/conversations/${conversationId}/attachments`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      reuseUrl: options.reuseUrl,
+      ...(options.fileName ? { fileName: options.fileName } : {}),
+      ...(options.caption ? { caption: options.caption } : {}),
+      ...(options.channelId ? { channelId: options.channelId } : {}),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(
+      typeof data?.message === "string" ? data.message : "Erro ao reutilizar anexo",
+      res.status,
+      typeof data?.code === "string" ? data.code : undefined,
+    );
+  }
+  if (data.metaError) {
+    throw new Error(
+      `Salvo localmente, mas falhou via WhatsApp: ${data.metaError}`,
+    );
+  }
+  return data as {
+    message: InboxMessageDto;
+    reopenedConversationId?: string;
+    audioDelivery?: "voice" | "audio" | "document";
+  };
+}
+
 /** POST /api/messages/:id/reactions */
 export async function sendReaction(
   messageId: string,
