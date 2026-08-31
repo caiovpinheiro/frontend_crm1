@@ -81,6 +81,7 @@ import {
   useDistributionQueueRealtime,
   useDistributionResponsibles,
   useDistributionSettings,
+  PENDING_PAGE_SIZE,
   usePendingDistributions,
   useRedistributeResponsible,
   useRetryPending,
@@ -213,6 +214,7 @@ export default function DistributionClientPage({
 
   const realResponsibles = respQuery.data?.responsibles ?? [];
   const realPending = pendingQuery.data?.pending ?? [];
+  const realPendingTotal = pendingQuery.data?.total ?? realPending.length;
   // Dados de exemplo (EduIT ilustrativo) SÓ em DEV/mock. Em PRODUÇÃO nunca
   // exibimos dados fictícios: mostramos os dados reais (ou o erro/estado real).
   // `isDevDemoEnv` casa localhost / host de DEV (crm-dev-*) / mock explícito
@@ -236,6 +238,9 @@ export default function DistributionClientPage({
     ? MOCK_DISTRIBUTION_RESPONSIBLES.responsibles
     : realResponsibles;
   const pending = useDemo ? MOCK_DISTRIBUTION_PENDING.pending : realPending;
+  const pendingTotal = useDemo
+    ? (MOCK_DISTRIBUTION_PENDING.total ?? pending.length)
+    : realPendingTotal;
 
   const typeOptions = useMemo(
     () =>
@@ -393,7 +398,7 @@ export default function DistributionClientPage({
                   tabs={[
                     { key: "team", label: "Equipe", badge: teamListCount },
                     { key: "coverage", label: "Cobertura" },
-                    { key: "queue", label: "Fila de espera", badge: useDemo ? queueItems.length : pending.length },
+                    { key: "queue", label: "Fila de espera", badge: useDemo ? queueItems.length : pendingTotal },
                     { key: "logs", label: "Logs" },
                   ]}
                   value={view}
@@ -432,7 +437,7 @@ export default function DistributionClientPage({
               testing={simulateMut.isPending}
               onRetry={handleRetry}
               retrying={retryMut.isPending}
-              canRetry={pending.length > 0}
+              canRetry={pendingTotal > 0}
               hasFilters={hasFilters}
               onClearFilters={clearFilters}
               onDepartmentsConfig={
@@ -475,7 +480,11 @@ export default function DistributionClientPage({
               )}
 
               <section className="w-full shrink-0" aria-label="Indicadores de distribuição">
-                <DistributionMiniDash responsibles={responsibles} pending={pending} />
+                <DistributionMiniDash
+                  responsibles={responsibles}
+                  pending={pending}
+                  waitingCount={useDemo ? queueItems.length : pendingTotal}
+                />
               </section>
 
               {canManage && !useDemo && view === "team" && (
@@ -505,10 +514,13 @@ export default function DistributionClientPage({
                 <PendingQueueCards
                   view={listView}
                   pending={pending}
+                  total={pendingTotal}
+                  nextCursor={useDemo ? null : (pendingQuery.data?.nextCursor ?? null)}
                   illustrative={useDemo}
                   onRetry={handleRetry}
                   retrying={retryMut.isPending}
                   loading={pendingQuery.isLoading}
+                  live={!useDemo && queueLive}
                 />
               ) : (
                 <DistributionLogsList
@@ -557,16 +569,18 @@ export default function DistributionClientPage({
 function DistributionMiniDash({
   responsibles,
   pending,
+  waitingCount,
 }: {
   responsibles: DistributionResponsibleDto[];
   pending: PendingDistributionDto[];
+  waitingCount?: number;
 }) {
   const stats = useMemo(() => {
     const participating = responsibles.filter((r) => r.participates);
     const eligible = responsibles.filter((r) => r.eligible).length;
     const blocked = participating.length - eligible;
     const inService = responsibles.reduce((acc, r) => acc + (r.queueCount ?? 0), 0);
-    const waiting = pending.length;
+    const waiting = waitingCount ?? pending.length;
     // Taxa de cobertura: elegíveis / participantes (capacidade de receber agora).
     const coverage =
       participating.length > 0
@@ -578,7 +592,7 @@ function DistributionMiniDash({
         ? Math.round((inService / (inService + waiting)) * 100)
         : 100;
     return { eligible, blocked, inService, waiting, coverage, successRate };
-  }, [responsibles, pending]);
+  }, [responsibles, pending, waitingCount]);
 
   const cards: {
     key: string;
@@ -1701,38 +1715,62 @@ const QUEUE_COLUMN_CLASS =
 function PendingQueueCards({
   view,
   pending,
+  total: totalProp,
+  nextCursor: nextCursorProp = null,
   illustrative = false,
   onRetry,
   retrying,
   loading = false,
+  live = false,
 }: {
   view: CardsTableView;
   pending: PendingDistributionDto[];
+  total?: number;
+  nextCursor?: string | null;
   illustrative?: boolean;
   onRetry: () => void;
   retrying: boolean;
   loading?: boolean;
+  live?: boolean;
 }) {
   const [sortKey, setSortKey] = useState<QueueSortKey>("waitingMin");
   const [sortDir, setSortDir] = useState<Exclude<SortDir, null>>("desc");
+  const [page, setPage] = useState(1);
+  const [cursors, setCursors] = useState<(string | null)[]>([null]);
+  const pageCursor = cursors[page - 1] ?? null;
+  const extraQuery = usePendingDistributions(live && !!pageCursor, pageCursor);
+  const pagePending = pageCursor
+    ? (extraQuery.data?.pending ?? [])
+    : pending;
+  const pageNextCursor = pageCursor
+    ? (extraQuery.data?.nextCursor ?? null)
+    : nextCursorProp;
+  const pageTotal = extraQuery.data?.total ?? totalProp ?? pagePending.length;
+  const pageLoading = Boolean(pageCursor) && extraQuery.isLoading;
+  const lastPage = Math.max(1, Math.ceil(pageTotal / PENDING_PAGE_SIZE));
+
+  useEffect(() => {
+    if (page > lastPage) setPage(lastPage);
+  }, [page, lastPage]);
+
   const deptsQuery = useDepartments();
   const departments = deptsQuery.data ?? [];
 
   const hrefById = useMemo(() => {
     const map = new Map<string, string>();
     if (illustrative) return map;
-    for (const p of pending) {
+    for (const p of pagePending) {
       map.set(p.id, inboxConversationHref(p.number, p.id, "entrada"));
     }
     return map;
-  }, [pending, illustrative]);
+  }, [pagePending, illustrative]);
 
   const rows = useMemo(() => {
     if (illustrative) return queueItems;
-    if (pending.length > 0) return pending.map((p) => pendingToQueueItem(p));
-    if (loading) return [];
+    if (pagePending.length > 0) return pagePending.map((p) => pendingToQueueItem(p));
+    if (loading || pageLoading) return [];
     return queueItems;
-  }, [illustrative, pending, loading]);
+  }, [illustrative, pagePending, loading, pageLoading]);
 
   const sorted = useMemo(
     () => sortQueueItems(rows, sortKey, sortDir),
@@ -1750,8 +1788,24 @@ function PendingQueueCards({
     setSortDir(key === "contact" || key === "department" ? "asc" : "desc");
   }
 
+  function goPrev() {
+    setPage((p) => Math.max(1, p - 1));
+  }
+
+  function goNext() {
+    if (!pageNextCursor) return;
+    setCursors((prev) => {
+      const next = prev.slice();
+      next[page] = pageNextCursor;
+      return next;
+    });
+    setPage((p) => p + 1);
+  }
+
+  const listLoading = loading || pageLoading;
+
   return (
-    <section className="flex flex-col">
+    <section className={LIST_PAGE_PANE_CLASS}>
       <div className="mb-2.5 flex shrink-0 flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning-soft text-warning">
@@ -1761,7 +1815,7 @@ function PendingQueueCards({
             <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
               Aguardando distribuição
               <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-bold tabular-nums text-warning">
-                {rows.length}
+                {illustrative ? rows.length : pageTotal}
               </span>
             </h2>
             <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
@@ -1772,7 +1826,7 @@ function PendingQueueCards({
         <button
           type="button"
           onClick={onRetry}
-          disabled={retrying || pending.length === 0}
+          disabled={retrying || (illustrative ? pending.length === 0 : pageTotal === 0)}
           className="inline-flex w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 self-start rounded-full border border-warning/50 bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning transition-colors hover:opacity-90 disabled:opacity-50 sm:w-auto sm:self-auto"
         >
           {retrying ? (
@@ -1790,10 +1844,10 @@ function PendingQueueCards({
             <IconPhone size={24} />
           </div>
           <p className="font-display text-[14px] font-bold text-foreground">
-            {loading ? "Carregando fila…" : "Nenhum atendimento na fila"}
+            {listLoading ? "Carregando fila…" : "Nenhum atendimento na fila"}
           </p>
           <p className="font-body text-[12px] text-muted-foreground">
-            {loading
+            {listLoading
               ? "Buscando atendimentos sem responsável."
               : "Tudo distribuído. Novos contatos aparecerão aqui."}
           </p>
@@ -1894,6 +1948,19 @@ function PendingQueueCards({
           </DataView>
         </ListHScroll>
       )}
+
+      {!illustrative && pageTotal > 0 ? (
+        <PaginationGlass
+          total={pageTotal}
+          entityLabel="atendimentos"
+          page={page}
+          lastPage={lastPage}
+          canPrev={page > 1}
+          canNext={Boolean(pageNextCursor)}
+          onPrev={goPrev}
+          onNext={goNext}
+        />
+      ) : null}
     </section>
   );
 }

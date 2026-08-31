@@ -112,6 +112,8 @@ export interface PendingDistributionDto {
 
 export interface PendingResponse {
   pending: PendingDistributionDto[];
+  total?: number;
+  nextCursor?: string | null;
 }
 
 export interface RetryResult {
