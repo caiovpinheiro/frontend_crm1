@@ -19,7 +19,7 @@ import {
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines"
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users"
 
-export type Opt = { value: string; label: string; group?: string }
+export type Opt = { value: string; label: string; group?: string; color?: string }
 
 /** Mantém o id salvo visível no select mesmo se o catálogo ainda carrega ou o item sumiu. */
 export function optionsWithSaved(
@@ -160,7 +160,7 @@ export function useAiAgentOptions(by: "id" | "userId" = "id") {
   return { options, isLoading: q.isLoading }
 }
 
-type RawTag = { id: string; name: string }
+type RawTag = { id: string; name: string; color?: string }
 
 export function useTagOptions() {
   const q = useQuery({
@@ -168,10 +168,14 @@ export function useTagOptions() {
     staleTime: STALE,
     queryFn: async (): Promise<Opt[]> => {
       const list = asArray(await getJson("/api/tags")) as RawTag[]
-      return list.map((t) => ({ value: t.name, label: t.name }))
+      return list.map((t) => ({
+        value: t.name,
+        label: t.name,
+        color: t.color,
+      }))
     },
   })
-  return { options: q.data ?? [], isLoading: q.isLoading }
+  return { options: q.data ?? [], isLoading: q.isLoading, isError: q.isError }
 }
 
 type RawChannel = { id: string; name?: string; type?: string; status?: string }

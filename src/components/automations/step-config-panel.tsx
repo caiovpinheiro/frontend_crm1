@@ -33,6 +33,7 @@ import {
 } from "@/lib/automation-condition";
 import { WebhookStepConfig } from "@/components/automations/webhook-step-config";
 import { ProductPicker } from "@/components/automations/send-product-config";
+import { TagStepInput } from "@/components/automations/tag-step-input";
 import { useCustomFieldConditionMeta } from "@/components/automations/editor-data";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
@@ -844,12 +845,12 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
           )}
 
           {(step.type === "add_tag" || step.type === "remove_tag") && (
-            <div className="space-y-2">
-              <Label htmlFor="sc-tag">Nome da tag</Label>
-              <Input
-                id="sc-tag"
+            <div className="ds-flow ds-flow--node-inline">
+              <TagStepInput
+                label="Nome da tag"
                 value={String(draft.tagName ?? "")}
-                onChange={(e) => setDraft((d) => ({ ...d, tagName: e.target.value }))}
+                onChange={(tagName) => setDraft((d) => ({ ...d, tagName }))}
+                allowCreate={step.type !== "remove_tag"}
               />
             </div>
           )}

@@ -991,6 +991,8 @@ function WorkflowCanvasInner({
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  /** Step recém-solto: seleciona no rebuild pra o editor inline (ex. tags) abrir na hora. */
+  const pendingSelectIdRef = useRef<string | null>(null);
 
   const patchStepConfig = useCallback(
     (stepId: string, next: Record<string, unknown>) => {
@@ -1287,6 +1289,7 @@ function WorkflowCanvasInner({
         const x = lastPos ? lastPos.x + GAP_X : START_X + cur.length * GAP_X;
         config.__rfPos = { x, y: NODE_Y };
         const step: AutomationStep = { id, type: stepType, config };
+        pendingSelectIdRef.current = id;
 
         if (lastStep && lastStep.type !== "condition" && lastStep.type !== "round_robin") {
           const prevCfg = { ...(lastStep.config as Record<string, unknown>), nextStepId: id };
@@ -1302,6 +1305,7 @@ function WorkflowCanvasInner({
         const x = afterPos ? afterPos.x + GAP_X : START_X + (idx + 1) * GAP_X;
         config.__rfPos = { x, y: NODE_Y };
         const step: AutomationStep = { id, type: stepType, config };
+        pendingSelectIdRef.current = id;
 
         if (idx < 0) {
           onStepsChange([...cur, step]);
@@ -1338,6 +1342,12 @@ function WorkflowCanvasInner({
       const selectedIds = new Set(
         prev.filter((n) => n.selected).map((n) => n.id)
       );
+      const pendingSelect = pendingSelectIdRef.current;
+      if (pendingSelect) {
+        pendingSelectIdRef.current = null;
+        selectedIds.clear();
+        selectedIds.add(pendingSelect);
+      }
       const prevById = new Map(prev.map((n) => [n.id, n]));
       const built = buildNodes(steps, removeStep, addStepAfter);
 
@@ -1652,6 +1662,7 @@ function WorkflowCanvasInner({
       // disparava passo do ramo vizinho por engano).
       if (stepType !== "condition" && stepType !== "round_robin") config.nextStepId = NONE;
       const step: AutomationStep = { id, type: stepType, config };
+      pendingSelectIdRef.current = id;
       const cur = stepsRef.current;
 
       // Origem = GATILHO: o novo bloco vira a ENTRADA (1º passo) e
@@ -2099,6 +2110,7 @@ function WorkflowCanvasInner({
       config.__rfPos = { x: dropPos.x, y: dropPos.y };
       config.__hasExplicitEdges = true;
       const step: AutomationStep = { id, type: stepType, config };
+      pendingSelectIdRef.current = id;
 
       const cur = stepsRef.current;
       const lastStep = cur[cur.length - 1];
