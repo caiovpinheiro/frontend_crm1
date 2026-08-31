@@ -282,7 +282,8 @@ export interface BulkActionResult {
   skipped?: string[];
   /**
    * Presente quando a acao roda de forma ASSINCRONA no leads-worker
-   * (encerramento em massa). O frontend pollar `/api/bulk-operations/[id]`.
+   * (lote acima do teto sync). O frontend polla `/api/bulk-operations/[id]`
+   * e usa toast.loading até o persist.
    */
   operationId?: string;
   /** Total de conversas que serao processadas pelo worker (modo async). */

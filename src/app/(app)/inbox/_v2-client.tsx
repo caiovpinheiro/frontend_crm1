@@ -1310,8 +1310,8 @@ export default function InboxV2ClientPage({
   );
 
   // Ações da barra de seleção — Encerrar/Reabrir/Reatribuir (protegidas por
-  // permissão) + Cancelar (sempre visível). Reatribuir usa assign individual
-  // (bulk API não cobre assign) e não se aplica a "todas do filtro".
+  // permissão) + Cancelar (sempre visível). Reatribuir/remover responsável
+  // usa POST /api/conversations/bulk (assign), inclusive "todas do filtro".
   const bulkActionsNode = (
     <div className="flex shrink-0 items-center gap-1.5 @max-[520px]:grid @max-[520px]:w-full @max-[520px]:grid-cols-2">
       {(selectedIds.size > 0 || selectAllFilter) && (
@@ -1350,9 +1350,42 @@ export default function InboxV2ClientPage({
               onQueued={(operationId, total, unassign) => {
                 bulkKindRef.current = unassign ? "unassign" : "assign";
                 setBulkOpId(operationId);
-                toast.success(
-                  `${unassign ? "Removendo responsável de" : "Reatribuindo"} ${total.toLocaleString("pt-BR")} conversa${total > 1 ? "s" : ""} em segundo plano…`,
+                toast.loading(
+                  `${unassign ? "Removendo responsável de" : "Reatribuindo"} ${total.toLocaleString("pt-BR")} conversa${total > 1 ? "s" : ""}…`,
                   { id: `inbox-bulk-assign-${operationId}` },
+                );
+              }}
+              onPersisted={(updated, skipped, unassign) => {
+                if (updated > 0) {
+                  const verb = unassign
+                    ? "sem responsável"
+                    : updated > 1
+                      ? "reatribuídas"
+                      : "reatribuída";
+                  if (skipped > 0) {
+                    toast.warning(
+                      `${updated} conversa${updated > 1 ? "s" : ""} ${verb}. ${skipped} não puderam ser ${unassign ? "liberadas" : "reatribuídas"}.`,
+                    );
+                  } else {
+                    toast.success(
+                      `${updated} conversa${updated > 1 ? "s" : ""} ${verb}`,
+                    );
+                  }
+                  void refreshInboxQueue();
+                  return;
+                }
+                if (skipped > 0) {
+                  toast.warning(
+                    unassign
+                      ? "Nenhuma conversa pôde ter o responsável removido."
+                      : "Nenhuma conversa pôde ser reatribuída.",
+                  );
+                  return;
+                }
+                toast.warning(
+                  unassign
+                    ? "Nenhuma conversa para remover responsável."
+                    : "Nenhuma conversa para reatribuir.",
                 );
               }}
               onDone={exitSelectionMode}

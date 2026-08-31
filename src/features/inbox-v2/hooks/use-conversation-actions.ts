@@ -322,7 +322,8 @@ export function useBulkConversationAction() {
 
 /**
  * Reatribuir / remover responsável em massa via POST /api/conversations/bulk.
- * O worker processa o lote; a UI acompanha pelo `operationId`.
+ * Lotes pequenos persistem na API (`updated`); só lotes enormes devolvem
+ * `operationId` para a UI acompanhar com toast.loading.
  */
 export function useBulkAssignConversations() {
   const qc = useQueryClient();
