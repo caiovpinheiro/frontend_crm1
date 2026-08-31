@@ -71,7 +71,6 @@ import { useContactSidebar } from "@/features/inbox-v2/hooks";
 import {
   useBoard,
   useBoardFiltered,
-  boardKey,
   BOARD_PAGE_SIZE,
   useDealDetail,
   useEntityViewers,
@@ -607,18 +606,17 @@ export default function KanbanV2ClientPage({
   const { data: dealDetail } = useDealDetail(activeDealId);
   const queryClient = useQueryClient();
 
-  // Expansões "Carregar mais": cada scroll/clique soma +10 na coluna e refaz o
-  // board (POST com offsetByStage — o queryFn já enxerga o estado novo
-  // porque o observer é atualizado no render que segue o setState).
+  // Expansões "Carregar mais": cada scroll/clique soma +10 na coluna e
+  // refaz o board (POST com offsetByStage). Usar `boardNormal.refetch()`
+  // — NÃO `refetchQueries({ queryKey: boardKey(pipelineId) })`.
+  // `useBoard` chaveia com `boardLookupId` (number público, ex. "8");
+  // `pipelineId` é CUID. `exact: true` no CUID não achava a query →
+  // clique e auto-scroll pareciam mortos.
   const extrasKey = JSON.stringify(boardExtraByStage);
+  const refetchBoard = boardNormal.refetch;
   useEffect(() => {
     if (Object.keys(boardExtraByStage).length === 0) return;
-    queryClient
-      .refetchQueries({
-        queryKey: boardKey(pipelineId ?? "pl-1", status, boardSort),
-        exact: true,
-      })
-      .finally(() => setLoadingMoreStageId(null));
+    void refetchBoard().finally(() => setLoadingMoreStageId(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extrasKey]);
 
