@@ -83,6 +83,7 @@ export type SlashItem = SlashItemHighlight &
       category: string | null;
       channelType: string | null;
       mediaUrl: string | null;
+      mediaType: string | null;
       mediaName: string | null;
       attachments?: InternalAttachment[] | null;
     }
@@ -193,6 +194,7 @@ type InternalRow = {
   status?: string;
   channelType: string | null;
   mediaUrl?: string | null;
+  mediaType?: string | null;
   mediaName?: string | null;
   /** Multi-anexo (com messageBefore opcional a partir do 2º). */
   attachments?: InternalAttachment[] | null;
@@ -416,8 +418,18 @@ export type UseSlashMenuOptions = {
    */
   onInsertMedia?: (
     media:
-      | { url: string; name: string | null; messageBefore?: string | null }
-      | Array<{ url: string; name: string | null; messageBefore?: string | null }>,
+      | {
+          url: string;
+          name: string | null;
+          mimeType?: string | null;
+          messageBefore?: string | null;
+        }
+      | Array<{
+          url: string;
+          name: string | null;
+          mimeType?: string | null;
+          messageBefore?: string | null;
+        }>,
   ) => void;
   /**
    * Conversa/contato atuais — necessários para a seção "Automações".
@@ -544,6 +556,7 @@ export function useSlashMenu({
           category: t.category,
           channelType: t.channelType,
           mediaUrl: t.mediaUrl ?? null,
+          mediaType: t.mediaType ?? null,
           mediaName: t.mediaName ?? null,
           attachments: Array.isArray(t.attachments) ? t.attachments : null,
           favorite: p.favorite,
@@ -859,13 +872,18 @@ export function useSlashMenu({
               .map((a) => ({
                 url: a.url.trim(),
                 name: a.name ?? null,
+                mimeType: a.mimeType ?? item.mediaType ?? null,
                 messageBefore: a.messageBefore ?? null,
               }))
           : [];
         if (fromAtt.length > 0) {
           onInsertMedia?.(fromAtt);
         } else if (item.mediaUrl) {
-          onInsertMedia?.({ url: item.mediaUrl, name: item.mediaName ?? null });
+          onInsertMedia?.({
+            url: item.mediaUrl,
+            name: item.mediaName ?? null,
+            mimeType: item.mediaType ?? null,
+          });
         }
       } else if (item.attachmentUrl) {
         onInsertMedia?.({ url: item.attachmentUrl, name: null });
