@@ -1,30 +1,155 @@
+import { getTenantBaseDomain } from "@/lib/tenant-url";
+
 /**
- * Base URL do backend separado.
+ * Base URL do backend separado (auth API — api.bwipo.com — nunca api-public).
  *
- * NOTA: este helper é exposto APENAS para os poucos casos que precisam
- * de URL absoluta (ex.: abrir um WebSocket, montar um link externo). Para
- * fetches normais em client components, use `apiUrl()` e deixe o rewrite
- * do Next (`next.config.ts > rewrites()`) cuidar do proxy — assim a
- * chamada fica same-origin com o domínio do frontend e o cookie de
- * sessão (SameSite=Lax) viaja junto, sem precisar de CORS no backend.
+ * No browser, `apiUrl()` prefixa este host quando a página e a API
+ * compartilham o tenant (cookie Domain=`.bwipo.com`, SameSite=Lax).
+ * Login / NextAuth continua no origin do frontend (`/api/auth/*`).
  */
 export function getApiBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim().replace(/\/$/, "");
 }
 
 /**
- * Retorna o path relativo (ex.: `/api/deals`) para uso em `fetch` de
- * client components. O rewrite do `next.config.ts` mapeia `/api/*` pro
- * backend separado em runtime, mantendo a chamada same-origin com o
- * frontend — necessário para que o browser anexe o cookie `authjs.session-token`
- * (SameSite=Lax não viaja em fetches cross-site).
- *
- * Para chamadas SSR / Route Handler / Server Action, use `apiServerFetch`
- * de `@/lib/api-server` (URL absoluta + cookies forward).
+ * Rotas que DEVEM ficar no origin do frontend:
+ *  - NextAuth + CSRF host-only (`__Host-` / rewrite /api/auth)
+ *  - handlers locais do Next (preview, transcribe, revision, WA call)
+ *  - multipart fora do matcher CORS do backend (`/api/uploads`)
  */
-export function apiUrl(path: string): string {
+const SAME_ORIGIN_API_PREFIXES = [
+  "/api/auth",
+  "/api/preview-login",
+  "/api/wa-call-permission",
+  "/api/wa-whatsapp-call",
+  "/api/transcribe",
+  "/api/app-revision",
+  "/api/mobile-release",
+  "/api/uploads",
+  "/api/academic-records/upload",
+] as const;
+
+function normalizeApiPath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
+
+function isSameOriginFrontendApi(path: string): boolean {
+  const p = normalizeApiPath(path);
+  return SAME_ORIGIN_API_PREFIXES.some(
+    (prefix) => p === prefix || p.startsWith(`${prefix}/`) || p.startsWith(`${prefix}?`),
+  );
+}
+
+function hostOnTenantBase(hostname: string, tenantBase: string): boolean {
+  const host = hostname.toLowerCase();
+  const base = tenantBase.toLowerCase();
+  return host === base || host.endsWith(`.${base}`);
+}
+
+function directBrowserApiEnabled(): boolean {
+  const flag = (process.env.NEXT_PUBLIC_DIRECT_BROWSER_API ?? "").trim().toLowerCase();
+  return flag !== "0" && flag !== "false" && flag !== "off";
+}
+
+/**
+ * Browser em `{slug}.bwipo.com` → `api.bwipo.com` é same-site (não
+ * cross-site). Cookie Domain=`.bwipo.com` + Lax viaja. EasyPanel /
+ * localhost / hosts distintos → false (mantém rewrite same-origin).
+ */
+export function shouldDirectBrowserApi(pageHostname?: string): boolean {
+  if (!directBrowserApiEnabled()) return false;
+  const base = getApiBaseUrl();
+  if (!base) return false;
+  let apiHost: string;
+  try {
+    apiHost = new URL(base).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  const tenantBase = getTenantBaseDomain();
+  if (!hostOnTenantBase(apiHost, tenantBase)) return false;
+
+  const pageHost = (
+    pageHostname ??
+    (typeof window !== "undefined" ? window.location.hostname : "")
+  )
+    .toLowerCase()
+    .split(":")[0];
+  if (!pageHost) return false;
+  if (!hostOnTenantBase(pageHost, tenantBase)) return false;
+  return apiHost !== pageHost;
+}
+
+function isDirectApiAbsoluteUrl(url: string): boolean {
+  const base = getApiBaseUrl();
+  if (!base) return false;
+  return url === base || url.startsWith(`${base}/`);
+}
+
+/**
+ * Client: URL absoluta do auth API quando o cookie pode viajar (prod
+ * tenant). SSR / dev / auth local: path relativo → rewrite do Next.
+ */
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const p = normalizeApiPath(path);
+  ensureDirectApiFetchCredentials();
+  if (typeof window === "undefined") return p;
+  if (isSameOriginFrontendApi(p)) return p;
+  if (!shouldDirectBrowserApi()) return p;
+  const base = getApiBaseUrl();
+  return base ? `${base}${p}` : p;
+}
+
+function requestHref(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.href;
+  return input.url;
+}
+
+/** Reescreve `/api/*` same-origin (e URL já absoluta da API) para o auth host. */
+function rewriteToDirectApi(url: string): string | null {
+  const base = getApiBaseUrl();
+  if (!base || typeof window === "undefined") return null;
+  if (!shouldDirectBrowserApi()) {
+    return isDirectApiAbsoluteUrl(url) ? url : null;
+  }
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (parsed.origin === base || parsed.href.startsWith(`${base}/`)) {
+      return parsed.href;
+    }
+    if (parsed.origin !== window.location.origin) return null;
+    const path = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (!path.startsWith("/api/")) return null;
+    if (isSameOriginFrontendApi(path)) return null;
+    return `${base}${path}`;
+  } catch {
+    return null;
+  }
+}
+
+function ensureDirectApiFetchCredentials(): void {
+  if (typeof window === "undefined") return;
+  const w = window as Window & { __crmDirectApiFetch?: boolean };
+  if (w.__crmDirectApiFetch) return;
+  w.__crmDirectApiFetch = true;
+  const original = window.fetch.bind(window);
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const dest = rewriteToDirectApi(requestHref(input));
+    if (!dest) return original(input, init);
+    if (input instanceof Request) {
+      return original(new Request(dest, input), {
+        ...init,
+        credentials: "include",
+        mode: "cors",
+      });
+    }
+    return original(dest, { ...init, credentials: "include", mode: "cors" });
+  };
+}
+
+ensureDirectApiFetchCredentials();
 
 /**
  * Erro tipado de chamada à API. Preserva `status` e `code` para que a UI
@@ -69,7 +194,11 @@ export async function apiFetch(
       ? AbortSignal.any([init.signal, timeout])
       : (init.signal ?? timeout);
   try {
-    return await fetch(apiUrl(path), { ...init, signal });
+    return await fetch(apiUrl(path), {
+      credentials: "include",
+      ...init,
+      signal,
+    });
   } catch (e) {
     if (timeoutMs > 0 && isAbortError(e) && !init.signal?.aborted) {
       throw new ApiError(

@@ -576,7 +576,7 @@ export function useActivityAlert(enabled = true) {
     queryKey: ACTIVITY_ALERT_KEY,
     queryFn: fetchActivityAlert,
     enabled: resolveEnabled(enabled),
-    refetchInterval: 60_000,
+    refetchInterval: 120_000,
     refetchIntervalInBackground: false,
     retry: false,
     staleTime: 0,

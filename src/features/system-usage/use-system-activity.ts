@@ -11,10 +11,10 @@ import {
 } from "./activity-target";
 
 /**
- * Janela de agregação: envia no máximo um pulso a cada 30s.
+ * Janela de agregação: envia no máximo um pulso a cada 90s.
  * O primeiro pulso vai imediatamente para abrir a sessão no backend.
  */
-const AGGREGATE_WINDOW_MS = 30_000;
+const AGGREGATE_WINDOW_MS = 90_000;
 
 /**
  * Rastreador global de USO REAL.
@@ -53,7 +53,7 @@ export function useSystemActivity(enabled = true) {
         void fetch(apiUrl("/api/agents/me/activity"), {
           method: "POST",
           keepalive: true,
-          credentials: "same-origin",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ interactionCount: count }),
         }).catch(() => {
@@ -72,7 +72,7 @@ export function useSystemActivity(enabled = true) {
     /**
      * Registra uma interação. Se é a primeira do ciclo, dispara flush
      * imediato para abrir a sessão no backend. As demais aguardam o
-     * término da janela de 30s.
+     * término da janela de 90s.
      */
     function record() {
       if (typeof document === "undefined") return;
@@ -85,7 +85,7 @@ export function useSystemActivity(enabled = true) {
         // Envia imediatamente e abre janela para acumular as próximas.
         // Coloca 1 no buffer via increment já feito → flush envia 1.
         flush();
-        // Reinicia janela para acumular novas ações dos próximos 30s.
+        // Reinicia janela para acumular novas ações dos próximos 90s.
         timerRef.current = setTimeout(flush, AGGREGATE_WINDOW_MS);
       } else {
         scheduleFlush();
@@ -152,7 +152,7 @@ export function useSystemActivity(enabled = true) {
           void fetch(apiUrl("/api/agents/me/activity"), {
             method: "POST",
             keepalive: true,
-            credentials: "same-origin",
+            credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ interactionCount: remaining }),
           }).catch(() => {
@@ -185,7 +185,7 @@ export function useSystemActivity(enabled = true) {
       void fetch(apiUrl("/api/agents/me/activity"), {
         method: "POST",
         keepalive: true,
-        credentials: "same-origin",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ interactionCount: 1 }),
       }).catch(() => {

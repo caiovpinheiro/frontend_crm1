@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/api";
 import { useEffect, useRef } from "react";
 
 export type SSEHandler = (event: string, data: unknown) => void;
@@ -71,7 +72,7 @@ class SharedSSEConnection {
 
   private connect(): void {
     if (this.es) return;
-    const es = new EventSource(this.url);
+    const es = new EventSource(this.url, { withCredentials: true });
     this.es = es;
     this.attachMissing();
     es.onerror = () => {
@@ -164,7 +165,7 @@ export function subscribeSSE(
   events: Iterable<string>,
   handler: SSEHandler,
 ): () => void {
-  return connectionFor(url).subscribe(events, handler);
+  return connectionFor(apiUrl(url)).subscribe(events, handler);
 }
 
 /**
