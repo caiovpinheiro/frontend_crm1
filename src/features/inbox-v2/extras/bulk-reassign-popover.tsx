@@ -2,7 +2,8 @@
 
 /*
  * BulkReassignPopover — ação em massa "Reatribuir" / "Sem responsável"
- * na barra de seleção do Inbox. Enfileira POST /api/conversations/bulk.
+ * na barra de seleção do Inbox. POST /api/conversations/bulk (assign).
+ * Lotes pequenos persistem na API; só acima do teto enfileira o worker.
  */
 
 import { useMemo, useState } from "react";
@@ -20,6 +21,7 @@ import {
   useBulkAssignConversations,
   useTeamUsers,
 } from "@/features/inbox-v2/hooks";
+import { useCan } from "@/hooks/use-my-permissions";
 import {
   computePopoverPosition,
   usePortalPopover,
@@ -36,6 +38,8 @@ interface BulkReassignPopoverProps {
   search?: string;
   filters?: Record<string, unknown>;
   onQueued?: (operationId: string, total: number, unassign: boolean) => void;
+  /** Persistiu na API (sem worker). `skipped` = IDs sem permissão / não encontrados. */
+  onPersisted?: (updated: number, skipped: number, unassign: boolean) => void;
   onDone?: () => void;
 }
 
@@ -49,6 +53,7 @@ export function BulkReassignPopover({
   search,
   filters,
   onQueued,
+  onPersisted,
   onDone,
 }: BulkReassignPopoverProps) {
   const { open, rect, triggerRef, popoverRef, toggle, close } =
@@ -58,6 +63,7 @@ export function BulkReassignPopover({
 
   const { data: users = [], isLoading } = useTeamUsers(open);
   const bulkAssign = useBulkAssignConversations();
+  const canUnassign = useCan("conversation:reassign_others");
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -78,7 +84,7 @@ export function BulkReassignPopover({
     const confirmed = await confirm({
       title: unassign ? "Remover responsável" : "Confirmar reatribuição",
       description: allInFilter
-        ? `${unassign ? "Remover o responsável de" : "Reatribuir"} ${count.toLocaleString("pt-BR")} conversa${count === 1 ? "" : "s"} do filtro atual${unassign ? "" : ` para ${assigneeName}`}? A ação roda em segundo plano.`
+        ? `${unassign ? "Remover o responsável de" : "Reatribuir"} ${count.toLocaleString("pt-BR")} conversa${count === 1 ? "" : "s"} do filtro atual${unassign ? "" : ` para ${assigneeName}`}?`
         : `${unassign ? "Remover o responsável de" : "Reatribuir"} ${count} conversa${count === 1 ? "" : "s"}${unassign ? "" : ` para ${assigneeName}`}?`,
       confirmLabel: unassign ? "Remover" : "Reatribuir",
     });
@@ -108,6 +114,10 @@ export function BulkReassignPopover({
             onDone?.();
             return;
           }
+          const skipped = Array.isArray(result.skipped)
+            ? result.skipped.length
+            : 0;
+          onPersisted?.(result.updated ?? 0, skipped, unassign);
           onDone?.();
         },
         onError: () => setFilter(""),
@@ -184,19 +194,21 @@ export function BulkReassignPopover({
                 className="mb-1.5 w-full rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-1.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]/40"
               />
               <ul className="max-h-64 overflow-y-auto">
-                <li>
-                  <button
-                    type="button"
-                    disabled={bulkAssign.isPending}
-                    onClick={() => void handleSelect(null, "Sem responsável")}
-                    className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-[12.5px] text-[var(--color-warning)] transition-colors hover:bg-[var(--color-warning)]/10"
-                  >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--glass-bg-strong)] text-[var(--text-muted)]">
-                      <IconUserOff size={13} stroke={2.2} />
-                    </span>
-                    Sem responsável
-                  </button>
-                </li>
+                {canUnassign && (
+                  <li>
+                    <button
+                      type="button"
+                      disabled={bulkAssign.isPending}
+                      onClick={() => void handleSelect(null, "Sem responsável")}
+                      className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-[12.5px] text-[var(--color-warning)] transition-colors hover:bg-[var(--color-warning)]/10"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--glass-bg-strong)] text-[var(--text-muted)]">
+                        <IconUserOff size={13} stroke={2.2} />
+                      </span>
+                      Sem responsável
+                    </button>
+                  </li>
+                )}
                 {isLoading && (
                   <li className="px-2 py-2 text-[12px] text-[var(--text-muted)]">
                     Carregando…
