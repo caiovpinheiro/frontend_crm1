@@ -274,8 +274,8 @@ export function useTabCounts(
     queryKey: ["conversations", "tab-counts", filterKey, searchKey],
     queryFn: () => fetchTabCounts(filters, searchKey),
     // `?counts=1` agrega sobre todas as conversas da org (300ms-1.6s no
-    // servidor). O SSE (`useInboxRealtime`) invalida counts em
-    // new_message/conversation_updated; o polling é só safety-net.
+    // servidor). O SSE (`useInboxRealtime`) invalida counts no debounce
+    // de 8s; o polling é só safety-net.
     // 180s (era 30s): o counts=1 foi o endpoint mais chamado no storm de
     // 28/ago/26 (11,6k req/40min) que derrubou o proxy do droplet por
     // exaustão de memória TCP. O backend tem cache Redis de 45s.
