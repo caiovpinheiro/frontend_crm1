@@ -3,13 +3,14 @@
 import { cn } from "@/lib/utils"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import {
+  IconLoader2,
   IconPlus,
   IconSquare,
   IconSquareCheckFilled,
   IconSquareMinus,
 } from "@tabler/icons-react"
 import type { HTMLAttributes, ReactNode } from "react"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { DealCard, type Deal } from "./deal-card"
 
 export type ColumnColor = "novo" | "quali" | "proposta" | "nego" | "fecha"
@@ -116,29 +117,43 @@ export function KanbanColumn({
     selection.enabled !== false
 
   // Auto-load: sentinel no fim da lista dispara o "Carregar mais" ao
-  // entrar no viewport (200px de margem). O botão manual permanece como
-  // fallback acessível. Refs evitam recriar o observer a cada render
-  // (onClick é inline no pai) e bloqueiam double-fire durante o fetch.
+  // entrar no viewport da coluna (200px de margem). O botão manual
+  // permanece como fallback. Refs evitam recriar o observer a cada
+  // render (onClick é inline no pai). Recria quando a lista cresce
+  // para encadear a próxima página se o fundo ainda estiver visível.
   const loadMoreOnClickRef = useRef(loadMore?.onClick)
   loadMoreOnClickRef.current = loadMore?.onClick
   const loadMoreLoadingRef = useRef(loadMore?.loading ?? false)
   loadMoreLoadingRef.current = loadMore?.loading ?? false
   const hasLoadMore = !!loadMore && loadMore.remaining > 0
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const dealsContainerRefStable = useRef(dealsContainerRef)
+  dealsContainerRefStable.current = dealsContainerRef
+  const setDealsEl = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el
+    dealsContainerRefStable.current?.(el)
+  }, [])
+
+  const requestLoadMore = useCallback(() => {
+    if (loadMoreLoadingRef.current) return
+    loadMoreLoadingRef.current = true
+    loadMoreOnClickRef.current?.()
+  }, [])
+
   useEffect(() => {
     const el = sentinelRef.current
-    if (!el || !hasLoadMore) return
+    const root = scrollRef.current
+    if (!el || !root || !hasLoadMore) return
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && !loadMoreLoadingRef.current) {
-          loadMoreOnClickRef.current?.()
-        }
+        if (entries[0]?.isIntersecting) requestLoadMore()
       },
-      { root: el.parentElement, rootMargin: "200px" },
+      { root, rootMargin: "200px 0px" },
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasLoadMore])
+  }, [hasLoadMore, deals.length, requestLoadMore])
 
   // Cor efetiva do estágio: hex do backend > preset. Badge usa
   // color-mix inline para gerar background 15% da cor do estágio
@@ -252,10 +267,12 @@ export function KanbanColumn({
           (= soma dos filhos) e estoura. Com min-h-0, ele respeita o
           espaco restante e o overflow-y-auto passa a funcionar. */}
       <div
-        ref={dealsContainerRef}
         {...dealsContainerProps}
+        ref={setDealsEl}
         // pt extra: hover -translate-y do 1º card não clipa no header da coluna.
-        className="kanban-scroll flex min-h-[120px] flex-1 flex-col gap-1.5 overflow-x-clip overflow-y-auto px-2 pb-2 pt-3"
+        // overflow-x-hidden (não clip): IO reconhece o scrollport Y com
+        // mais consistência do que overflow-x-clip em alguns browsers.
+        className="kanban-scroll flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto px-2 pb-2 pt-3"
       >
         {/* Formulário inline de criação — renderizado no TOPO da fase,
             acima dos cards. Disparado pelo "+" no header da coluna. */}
@@ -278,14 +295,20 @@ export function KanbanColumn({
           <button
             type="button"
             disabled={loadMore.loading}
-            onClick={loadMore.onClick}
+            onClick={requestLoadMore}
             className="mt-0.5 flex shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-dashed border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/5 py-2 text-[11px] font-medium text-[var(--brand-primary)] transition-colors hover:border-[var(--brand-primary)]/50 hover:bg-[var(--brand-primary)]/10 disabled:opacity-60"
           >
-            {loadMore.loading ? "Carregando..." : `Carregar mais (${loadMore.remaining})`}
+            {loadMore.loading ? (
+              <>
+                <IconLoader2 size={13} className="animate-spin" aria-hidden />
+                Carregando...
+              </>
+            ) : (
+              `Carregar mais (${loadMore.remaining})`
+            )}
           </button>
         ) : null}
       </div>
     </section>
   )
 }
-// DEBUG ONLY

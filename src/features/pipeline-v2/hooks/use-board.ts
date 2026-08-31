@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -66,19 +67,29 @@ export function useBoard(params: {
   const sort = params.sort;
   const perStage = params.perStage;
   const offsetByStage = params.offsetByStage;
-  const hasOffsets = !!offsetByStage && Object.keys(offsetByStage).length > 0;
+  // Refs: o "Carregar mais" refaz a mesma queryKey. Sem isto o queryFn
+  // capturado no observer pode ficar com extras/perStage velhos no tick
+  // do refetch (CUID vs number na key já foi uma fonte de no-op).
+  const offsetByStageRef = useRef(offsetByStage);
+  offsetByStageRef.current = offsetByStage;
+  const perStageRef = useRef(perStage);
+  perStageRef.current = perStage;
   const preview = isPreviewMode();
   return useQuery<BoardStageDto[]>({
     queryKey: boardKey(params.pipelineId ?? "pl-1", status, sort),
-    queryFn: () =>
-      hasOffsets
+    queryFn: () => {
+      const offsets = offsetByStageRef.current;
+      const limit = perStageRef.current;
+      const useOffsets = !!offsets && Object.keys(offsets).length > 0;
+      return useOffsets
         ? getBoardFiltered(params.pipelineId ?? "pl-1", {
             status,
             sort,
-            perStage,
-            offsetByStage,
+            perStage: limit,
+            offsetByStage: offsets,
           })
-        : getBoard(params.pipelineId ?? "pl-1", status, sort, perStage),
+        : getBoard(params.pipelineId ?? "pl-1", status, sort, limit);
+    },
     enabled: preview ? true : ((params.enabled ?? true) && !!params.pipelineId),
     // Alinhado ao cache Redis do board (45s) + padrão inbox-v2.
     // SSE (`usePipelineRealtime`) invalida em new_message/conversation_updated;
