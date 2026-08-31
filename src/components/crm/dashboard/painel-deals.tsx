@@ -155,7 +155,7 @@ function DealKpis({
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const k = block.data;
   return (
-    <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-5">
       <KpiCard
         icon={<Banknote className="size-5" />}
         label="Receita ganha"

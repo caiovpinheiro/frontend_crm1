@@ -38,7 +38,7 @@ export const STAGE_WIDGET_PREFIX = "stage:";
 
 export const DASHBOARD_GRID_COLS = 12;
 export const DASHBOARD_GRID_ROW_HEIGHT = 20;
-export const DASHBOARD_GRID_MARGIN = [6, 6] as const;
+export const DASHBOARD_GRID_MARGIN = [4, 4] as const;
 
 export const TABULATION_BOARD_WIDGET_IDS = [
   "tabKpis",

@@ -21,9 +21,9 @@ export function PainelCard({
   className?: string;
 }) {
   return (
-    <section className={cn(CARD_SURFACE_CLASS, "p-5", className)}>
+    <section className={cn(CARD_SURFACE_CLASS, "p-3.5", className)}>
       {(title || action) && (
-        <header className="mb-4 flex items-start justify-between gap-3">
+        <header className="mb-2.5 flex items-start justify-between gap-3">
           <div className="min-w-0">
             {title ? (
               <h3 className="flex items-center gap-1.5 text-[15px] font-bold text-foreground">

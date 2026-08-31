@@ -60,10 +60,10 @@ export function SortableWidgetStack({
   }
 
   function chrome(id: string, grip?: ReactNode) {
-    if (!organizing && !onRemove) return null;
+    if (!organizing) return null;
     return (
       <WidgetOrganizeRail
-        grip={organizing ? grip : undefined}
+        grip={grip}
         menu={
           onRemove && (!canRemove || canRemove(id)) ? (
             <WidgetOverflowMenu
@@ -79,11 +79,10 @@ export function SortableWidgetStack({
   if (disabled || !organizing) {
     return (
       <>
-        <div className="flex min-w-0 flex-col gap-2.5">
+        <div className="flex min-w-0 flex-col gap-1.5">
           {ids.map((id) => (
-            <div key={id} className="flex min-w-0 items-stretch gap-1">
-              {chrome(id)}
-              <div className="min-w-0 flex-1">{render(id)}</div>
+            <div key={id} className="min-w-0">
+              {render(id)}
             </div>
           ))}
         </div>
@@ -105,7 +104,7 @@ export function SortableWidgetStack({
           <div
             ref={dropProvided.innerRef}
             {...dropProvided.droppableProps}
-            className="flex min-w-0 flex-col gap-2.5"
+            className="flex min-w-0 flex-col gap-1.5"
           >
             {ids.map((id, index) => (
               <Draggable key={id} draggableId={id} index={index}>

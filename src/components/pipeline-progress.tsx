@@ -434,7 +434,7 @@ export function PipelineProgress({
         </aside>
       ) : null}
       <div className="min-w-0 flex-1">
-      <header className="flex items-start justify-between gap-3 border-b border-[var(--pipeline-border)] px-4 py-3.5">
+      <header className="flex items-start justify-between gap-3 border-b border-[var(--pipeline-border)] px-3.5 py-2.5">
         <div className="min-w-0">
           <h2
             id={labelId}

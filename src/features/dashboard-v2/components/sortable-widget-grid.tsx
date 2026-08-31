@@ -168,7 +168,7 @@ export function SortableWidgetGrid({
   flushHeightsRef.current = flushHeights;
 
   useEffect(() => {
-    if (disabled) return;
+    if (disabled || organizing) return;
     const observer = new ResizeObserver((entries) => {
       if (interactingRef.current || applyingRef.current) return;
       for (const entry of entries) {
@@ -181,8 +181,8 @@ export function SortableWidgetGrid({
           item.minH ?? 2,
         );
         const rows = Math.min(MAX_AUTO_ROWS, measured);
-        // Grow-only + ignore 1-row jitter so measure↔cell cannot oscillate.
-        if (rows <= item.h || rows - item.h < 2) continue;
+        // Ignore 1-row jitter so measure↔cell cannot oscillate.
+        if (Math.abs(rows - item.h) < 2) continue;
         pendingHeights.current.set(id, rows);
       }
       if (pendingHeights.current.size === 0) return;
@@ -213,10 +213,10 @@ export function SortableWidgetGrid({
   }
 
   function chrome(id: string, grip?: ReactNode) {
-    if (!organizing && !onRemove) return null;
+    if (!organizing) return null;
     return (
       <WidgetOrganizeRail
-        grip={organizing ? grip : undefined}
+        grip={grip}
         menu={
           onRemove ? (
             <WidgetOverflowMenu
@@ -232,14 +232,17 @@ export function SortableWidgetGrid({
   if (disabled) {
     return (
       <>
-        <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-12">
+        <div className="grid grid-cols-1 gap-1.5 xl:grid-cols-12">
           {ids.map((id) => {
             const item = visibleLayout.find((entry) => entry.i === id);
             const span = item?.w ?? 12;
             return (
               <div
                 key={id}
-                className="flex min-w-0 items-stretch gap-1"
+                className={cn(
+                  "flex min-w-0 items-start",
+                  organizing ? "gap-1" : null,
+                )}
                 style={{ gridColumn: `span ${span} / span ${span}` }}
               >
                 {chrome(id)}
@@ -254,7 +257,10 @@ export function SortableWidgetGrid({
   }
 
   return (
-    <div ref={containerRef} className="negocios-grid min-w-0">
+    <div
+      ref={containerRef}
+      className={cn("negocios-grid min-w-0", organizing && "is-organizing")}
+    >
       {mounted && width > 0 ? (
         <GridLayout
           width={width}
@@ -290,7 +296,13 @@ export function SortableWidgetGrid({
         >
           {ids.map((id) => (
             <div key={id} className="min-w-0">
-              <div data-grid-measure={id} className="flex h-fit min-w-0 items-start gap-1">
+              <div
+                data-grid-measure={id}
+                className={cn(
+                  "flex h-fit min-w-0 items-start",
+                  organizing ? "gap-1" : null,
+                )}
+              >
                 {chrome(
                   id,
                   <button
