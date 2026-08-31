@@ -79,7 +79,11 @@ export function FilterSegmentedTablist<T extends string>({
   "aria-label"?: string
 }) {
   return (
-    <div role="tablist" aria-label={ariaLabel} className="flex items-center gap-0.5 rounded-full bg-secondary p-1">
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className="flex items-center gap-0.5 overflow-x-auto rounded-full bg-secondary p-1 [-webkit-overflow-scrolling:touch]"
+    >
       {tabs.map((t) => {
         const active = value === t.id
         return (
@@ -90,7 +94,7 @@ export function FilterSegmentedTablist<T extends string>({
             aria-selected={active}
             onClick={() => onChange(t.id)}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-bold transition-colors",
+              "flex shrink-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-bold transition-colors",
               active
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
@@ -252,30 +256,62 @@ export function FilterChip({
   onClick,
   children,
   count,
+  tone = "soft",
+  dot,
+  dotColor,
 }: {
   selected: boolean
   onClick: () => void
   children: ReactNode
   count?: number
+  /** `fill` = variação 2 (etiqueta sólida). */
+  tone?: "soft" | "fill"
+  dot?: string
+  /** Cor da bolinha (hex do cadastro de tags/etapas). */
+  dotColor?: string
 }) {
+  const fill = tone === "fill"
+  const showDot = Boolean(dot || dotColor)
   return (
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={selected}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition-colors",
-        selected
-          ? "border-primary bg-primary/10 text-foreground"
-          : "border-border bg-card text-muted-foreground hover:bg-secondary",
+        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors",
+        fill
+          ? selected
+            ? "border-primary bg-primary font-medium text-primary-foreground"
+            : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+          : selected
+            ? "border-primary bg-primary/10 text-foreground"
+            : "border-border bg-card text-muted-foreground hover:bg-secondary",
       )}
     >
-      {selected ? <Check className="size-3" strokeWidth={2.4} aria-hidden="true" /> : null}
-      {children}
+      {showDot ? (
+        <span
+          className={cn(
+            "size-2 shrink-0 rounded-full",
+            selected && fill ? "bg-primary-foreground" : dot,
+          )}
+          style={
+            dotColor && !(selected && fill) ? { backgroundColor: dotColor } : undefined
+          }
+          aria-hidden
+        />
+      ) : !fill && selected ? (
+        <Check className="size-3" strokeWidth={2.4} aria-hidden="true" />
+      ) : null}
+      <span className="min-w-0 truncate">{children}</span>
       {typeof count === "number" ? (
         <span
           className={cn(
             "min-w-4 rounded-full px-1.5 text-center text-xs font-bold tabular-nums",
-            selected ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground",
+            selected
+              ? fill
+                ? "bg-primary-foreground/20 text-primary-foreground"
+                : "bg-primary/15 text-primary"
+              : "bg-secondary text-muted-foreground",
           )}
         >
           {count}

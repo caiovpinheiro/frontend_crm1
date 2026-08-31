@@ -50,7 +50,8 @@ import { ViewToggle, useCardsTableView, type CardsTableView } from "@/components
 import { PageChrome } from "@/components/crm/page-header";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import { FilterChip, FilterPopoverPanel } from "@/components/crm/filter-popover";
+import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import {
   PeriodCalendarButton,
   PeriodIsoRangePanel,
@@ -1390,28 +1391,17 @@ function PresenceBadge({
 
 // ── Busca + popover de filtros (padrão Logs/Contatos) ────────────────────
 
-type DistFilterTab = "presenca" | "elegibilidade" | "tipo";
-
-const PRESENCE_OPTIONS: { value: PresenceKey; label: string }[] = [
-  { value: "ONLINE", label: "Online" },
-  { value: "AWAY", label: "Em pausa / ausente" },
-  { value: "OFFLINE", label: "Offline" },
-  { value: "INACTIVE", label: "Inativo" },
+const PRESENCE_OPTIONS: { value: PresenceKey; label: string; dot: string }[] = [
+  { value: "ONLINE", label: "Online", dot: "bg-emerald-500" },
+  { value: "AWAY", label: "Em pausa / ausente", dot: "bg-amber-500" },
+  { value: "OFFLINE", label: "Offline", dot: "bg-muted-foreground" },
+  { value: "INACTIVE", label: "Inativo", dot: "bg-muted-foreground" },
 ];
 
 const ELIGIBILITY_OPTIONS: { value: "eligible" | "blocked"; label: string }[] = [
   { value: "eligible", label: "Elegível" },
   { value: "blocked", label: "Indisponível" },
 ];
-
-function CountBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 font-display text-[10px] font-bold leading-none text-white">
-      {count}
-    </span>
-  );
-}
 
 function DistributionSearchFilterBar({
   search,
@@ -1438,35 +1428,13 @@ function DistributionSearchFilterBar({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<DistFilterTab>("presenca");
 
   const activeCount =
     presence.length + (eligibility.length === 1 ? 1 : 0) + types.length;
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
   const toggle = <T,>(current: T[], val: T, setter: (v: T[]) => void) => {
     setter(current.includes(val) ? current.filter((x) => x !== val) : [...current, val]);
   };
-
-  const tabBadge = (id: DistFilterTab) => {
-    if (id === "presenca") return presence.length;
-    if (id === "elegibilidade") return eligibility.length === 1 ? 1 : 0;
-    return types.length;
-  };
-
-  const TABS: { id: DistFilterTab; label: string; icon: React.ReactNode }[] = [
-    { id: "presenca", label: "Presença", icon: <IconUsers size={14} stroke={2.2} /> },
-    { id: "elegibilidade", label: "Elegibilidade", icon: <IconUserCheck size={14} stroke={2.2} /> },
-    { id: "tipo", label: "Tipo", icon: <IconTag size={14} stroke={2.2} /> },
-  ];
 
   return (
     <div ref={ref} className="relative w-full">
@@ -1478,116 +1446,75 @@ function DistributionSearchFilterBar({
         filterOpen={open}
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
+        chips={[
+          ...(presence.length
+            ? [{ id: "presence", title: "Presença", count: presence.length, onRemove: () => onPresenceChange([]) }]
+            : []),
+          ...(eligibility.length === 1
+            ? [{ id: "elig", title: "Elegibilidade", count: 1, onRemove: () => onEligibilityChange([]) }]
+            : []),
+          ...(types.length
+            ? [{ id: "type", title: "Tipo", count: types.length, onRemove: () => onTypesChange([]) }]
+            : []),
+        ]}
       />
 
-      {open && (
-        <FilterPopoverPanel>
-          <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-            <div className="flex items-center gap-2">
-              <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">
-                Filtros
-              </span>
-              <CountBadge count={activeCount} />
-            </div>
-            <button
-              type="button"
-              onClick={onClearAll}
-              disabled={activeCount === 0 && !search}
-              className="flex items-center gap-1 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-40"
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={onClearAll}
+        onApply={() => setOpen(false)}
+        count={activeCount}
+        clearDisabled={activeCount === 0 && !search}
+        title="Filtrar responsáveis"
+        labelledBy="Filtros de responsáveis"
+      >
+        <FilterCategoryColumn title="Presença" hint="Disponibilidade" icon={<IconUsers size={16} stroke={2.2} />}>
+          {PRESENCE_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              dot={opt.dot}
+              selected={presence.includes(opt.value)}
+              onClick={() => toggle(presence, opt.value, onPresenceChange)}
             >
-              <IconRotateClockwise size={13} /> Limpar
-            </button>
-          </div>
-
-          <div className="px-4 pb-3">
-            <div
-              role="tablist"
-              aria-label="Seções do filtro"
-              className="flex items-center gap-0.5 rounded-full bg-[var(--glass-bg-strong)] p-1"
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Elegibilidade" hint="Aptidão à fila" icon={<IconUserCheck size={16} stroke={2.2} />}>
+          {ELIGIBILITY_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              selected={eligibility.includes(opt.value)}
+              onClick={() => {
+                onEligibilityChange(eligibility.includes(opt.value) ? [] : [opt.value]);
+              }}
             >
-              {TABS.map((t) => {
-                const active = tab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setTab(t.id)}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 font-display text-[12px] font-bold transition-all",
-                      active
-                        ? "bg-[var(--glass-bg-modal,#fff)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)]"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    )}
-                  >
-                    <span className={active ? "text-[var(--brand-primary)]" : undefined}>
-                      {t.icon}
-                    </span>
-                    {t.label}
-                    <CountBadge count={tabBadge(t.id)} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="max-h-[min(60vh,420px)] overflow-y-auto px-4 pb-4">
-            {tab === "presenca" && (
-              <div className="flex flex-wrap gap-1.5">
-                {PRESENCE_OPTIONS.map((opt) => (
-                  <FilterChip
-                    key={opt.value}
-                    selected={presence.includes(opt.value)}
-                    onClick={() => toggle(presence, opt.value, onPresenceChange)}
-                  >
-                    {opt.label}
-                  </FilterChip>
-                ))}
-              </div>
-            )}
-
-            {tab === "elegibilidade" && (
-              <div className="flex flex-wrap gap-1.5">
-                {ELIGIBILITY_OPTIONS.map((opt) => (
-                  <FilterChip
-                    key={opt.value}
-                    selected={eligibility.includes(opt.value)}
-                    onClick={() => {
-                      // Exclusivo: selecionar um limpa o outro.
-                      onEligibilityChange(
-                        eligibility.includes(opt.value) ? [] : [opt.value],
-                      );
-                    }}
-                  >
-                    {opt.label}
-                  </FilterChip>
-                ))}
-              </div>
-            )}
-
-            {tab === "tipo" && (
-              <div className="flex flex-wrap gap-1.5">
-                {typeOptions.length === 0 ? (
-                  <p className="rounded-[10px] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-3 py-3 text-center font-body text-[11.5px] text-[var(--text-muted)]">
-                    Nenhum tipo/segmento cadastrado nos responsáveis.
-                  </p>
-                ) : (
-                  typeOptions.map((t) => (
-                    <FilterChip
-                      key={t}
-                      selected={types.includes(t)}
-                      onClick={() => toggle(types, t, onTypesChange)}
-                    >
-                      {t}
-                    </FilterChip>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </FilterPopoverPanel>
-      )}
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Tipo" hint="Categoria do responsável" icon={<IconTag size={16} stroke={2.2} />}>
+          {typeOptions.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border bg-secondary px-3 py-3 text-sm text-muted-foreground">
+              Nenhum tipo/segmento cadastrado nos responsáveis.
+            </p>
+          ) : (
+            typeOptions.map((t) => (
+              <FilterChip
+                key={t}
+                tone="fill"
+                selected={types.includes(t)}
+                onClick={() => toggle(types, t, onTypesChange)}
+              >
+                {t}
+              </FilterChip>
+            ))
+          )}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   );
 }
@@ -2339,17 +2266,6 @@ type LogsFilterDraft = {
   department: string;
 };
 
-type LogsFilterTab = "resultado" | "origem" | "departamento";
-
-function LogsFilterCountBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 font-display text-[10px] font-bold leading-none text-white">
-      {count}
-    </span>
-  );
-}
-
 /**
  * Busca + painel de filtros — mesmo padrão Contatos/Chamadas:
  * input pill com botão de ajustes à direita e popover segmentado.
@@ -2379,7 +2295,6 @@ function LogsSearchFilterBar({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<LogsFilterTab>("resultado");
   const [draft, setDraft] = useState<LogsFilterDraft>({
     result,
     origin,
@@ -2390,32 +2305,10 @@ function LogsSearchFilterBar({
     if (open) setDraft({ result, origin, department });
   }, [open, result, origin, department]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
   const draftCount =
     (draft.result !== "all" ? 1 : 0) +
     (draft.origin !== "all" ? 1 : 0) +
     (draft.department !== "all" ? 1 : 0);
-
-  const tabs: { id: LogsFilterTab; label: string; icon: React.ReactNode }[] = [
-    { id: "resultado", label: "Resultado", icon: <IconCircleCheck size={14} stroke={2.2} /> },
-    { id: "origem", label: "Origem", icon: <IconSourceCode size={14} stroke={2.2} /> },
-    { id: "departamento", label: "Dept.", icon: <IconBuilding size={14} stroke={2.2} /> },
-  ];
-
-  const tabBadge = (id: LogsFilterTab) => {
-    if (id === "resultado") return draft.result !== "all" ? 1 : 0;
-    if (id === "origem") return draft.origin !== "all" ? 1 : 0;
-    if (id === "departamento") return draft.department !== "all" ? 1 : 0;
-    return 0;
-  };
 
   function handleClear() {
     const empty: LogsFilterDraft = {
@@ -2432,43 +2325,6 @@ function LogsSearchFilterBar({
     setOpen(false);
   }
 
-  function OptionButton({
-    selected,
-    label,
-    onClick,
-  }: {
-    selected: boolean;
-    label: string;
-    onClick: () => void;
-  }) {
-    return (
-      <button
-        type="button"
-        role="option"
-        aria-selected={selected}
-        onClick={onClick}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-2.5 text-left font-display text-[13px] font-semibold transition-colors",
-          selected
-            ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--text-primary)]"
-            : "border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] text-[var(--text-secondary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
-        )}
-      >
-        <span
-          className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded-full border",
-            selected
-              ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
-              : "border-[var(--glass-border)] text-transparent",
-          )}
-        >
-          <IconCheck size={12} stroke={3} />
-        </span>
-        <span className="min-w-0 truncate">{label}</span>
-      </button>
-    );
-  }
-
   return (
     <div ref={ref} className="relative w-full">
       <SearchFilterBar
@@ -2479,139 +2335,105 @@ function LogsSearchFilterBar({
         filterOpen={open}
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
+        chips={[
+          ...(result !== "all"
+            ? [{
+                id: "result",
+                title: "Resultado",
+                count: 1,
+                onRemove: () => onApply({ result: "all", origin, department }),
+              }]
+            : []),
+          ...(origin !== "all"
+            ? [{
+                id: "origin",
+                title: "Origem",
+                count: 1,
+                onRemove: () => onApply({ result, origin: "all", department }),
+              }]
+            : []),
+          ...(department !== "all"
+            ? [{
+                id: "dept",
+                title: "Departamento",
+                count: 1,
+                onRemove: () => onApply({ result, origin, department: "all" }),
+              }]
+            : []),
+        ]}
       />
 
-      {open && (
-        <FilterPopoverPanel>
-          <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-            <div className="flex items-center gap-2">
-              <span className="font-display text-[14px] font-bold text-[var(--text-primary)]">
-                Filtros
-              </span>
-              <LogsFilterCountBadge count={draftCount || activeCount} />
-            </div>
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={draftCount === 0 && activeCount === 0 && !search}
-              className="flex items-center gap-1 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-40"
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={handleClear}
+        onApply={handleApply}
+        count={draftCount || activeCount}
+        clearDisabled={draftCount === 0 && activeCount === 0 && !search}
+        title="Filtros"
+        labelledBy="Filtros de logs"
+      >
+        <FilterCategoryColumn title="Resultado" icon={<IconCircleCheck size={16} stroke={2.2} />}>
+          {(
+            [
+              { value: "all", label: "Todos" },
+              { value: "success", label: "Sucesso" },
+              { value: "failure", label: "Falha" },
+            ] as const
+          ).map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              selected={draft.result === opt.value}
+              onClick={() => setDraft((prev) => ({ ...prev, result: opt.value }))}
             >
-              <IconRotateClockwise size={13} /> Limpar
-            </button>
-          </div>
-
-          <div className="px-3 pb-3 sm:px-4">
-            <div
-              role="tablist"
-              aria-label="Seções do filtro"
-              className="flex items-center gap-0.5 overflow-x-auto rounded-full bg-[var(--glass-bg-strong)] p-1 [-webkit-overflow-scrolling:touch]"
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Origem" icon={<IconSourceCode size={16} stroke={2.2} />}>
+          <FilterChip
+            tone="fill"
+            selected={draft.origin === "all"}
+            onClick={() => setDraft((prev) => ({ ...prev, origin: "all" }))}
+          >
+            Todas
+          </FilterChip>
+          {origins.map((value) => (
+            <FilterChip
+              key={value}
+              tone="fill"
+              selected={draft.origin === value}
+              onClick={() => setDraft((prev) => ({ ...prev, origin: value }))}
             >
-              {tabs.map((t) => {
-                const active = tab === t.id;
-                const badge = tabBadge(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setTab(t.id)}
-                    className={cn(
-                      "flex shrink-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-1.5 font-display text-[11px] font-bold transition-all sm:gap-1.5 sm:text-[12px]",
-                      active
-                        ? "bg-[var(--glass-bg-modal,#fff)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)]"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    )}
-                  >
-                    <span className={active ? "text-[var(--brand-primary)]" : undefined}>
-                      {t.icon}
-                    </span>
-                    {t.label}
-                    <LogsFilterCountBadge count={badge} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
-            {tab === "resultado" && (
-              <div className="flex flex-col gap-2" role="listbox" aria-label="Resultado">
-                {(
-                  [
-                    { value: "all", label: "Todos os resultados" },
-                    { value: "success", label: "Sucesso" },
-                    { value: "failure", label: "Falha" },
-                  ] as const
-                ).map((opt) => (
-                  <OptionButton
-                    key={opt.value}
-                    selected={draft.result === opt.value}
-                    label={opt.label}
-                    onClick={() => setDraft((prev) => ({ ...prev, result: opt.value }))}
-                  />
-                ))}
-              </div>
-            )}
-            {tab === "origem" && (
-              <div className="flex flex-col gap-2" role="listbox" aria-label="Origem">
-                <OptionButton
-                  selected={draft.origin === "all"}
-                  label="Todas as origens"
-                  onClick={() => setDraft((prev) => ({ ...prev, origin: "all" }))}
-                />
-                {origins.map((value) => (
-                  <OptionButton
-                    key={value}
-                    selected={draft.origin === value}
-                    label={value}
-                    onClick={() => setDraft((prev) => ({ ...prev, origin: value }))}
-                  />
-                ))}
-              </div>
-            )}
-            {tab === "departamento" && (
-              <div className="flex flex-col gap-2" role="listbox" aria-label="Departamento">
-                <OptionButton
-                  selected={draft.department === "all"}
-                  label="Todos os departamentos"
-                  onClick={() => setDraft((prev) => ({ ...prev, department: "all" }))}
-                />
-                {departmentOptions.map((opt) => (
-                  <OptionButton
-                    key={opt.value}
-                    selected={draft.department === opt.value}
-                    label={opt.label}
-                    onClick={() =>
-                      setDraft((prev) => ({ ...prev, department: opt.value }))
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 border-t border-[var(--glass-border)] px-4 py-3">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="h-10 flex-1 rounded-full border border-[var(--glass-border)] font-display text-[13px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-strong)]"
+              {value}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Departamento" icon={<IconBuilding size={16} stroke={2.2} />}>
+          <FilterChip
+            tone="fill"
+            selected={draft.department === "all"}
+            onClick={() => setDraft((prev) => ({ ...prev, department: "all" }))}
+          >
+            Todos
+          </FilterChip>
+          {departmentOptions.map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              selected={draft.department === opt.value}
+              onClick={() => setDraft((prev) => ({ ...prev, department: opt.value }))}
             >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleApply}
-              className="h-10 flex-1 rounded-full bg-[var(--brand-primary)] font-display text-[13px] font-bold text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)] transition-opacity hover:opacity-95"
-            >
-              Aplicar
-            </button>
-          </div>
-        </FilterPopoverPanel>
-      )}
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   );
 }
+
 
 function LogMobileCard({
   log,

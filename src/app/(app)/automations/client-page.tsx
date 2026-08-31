@@ -24,12 +24,8 @@ import { ViewToggle, useCardsTableView } from "@/components/automations/view-tog
 import { PageChrome } from "@/components/crm/page-header"
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
 import { SearchFilterBar } from "@/components/crm/search-filter-bar"
-import {
-  FilterChip,
-  FilterPopoverBody,
-  FilterPopoverHeader,
-  FilterPopoverPanel,
-} from "@/components/crm/filter-popover"
+import { FilterChip } from "@/components/crm/filter-popover"
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal"
 import { PageActionsMenu } from "@/components/crm/page-toolbar"
 import { AutomationsGallery } from "@/components/crm/automations-gallery"
 import { EmptyState } from "@/components/crm/empty-state"
@@ -580,15 +576,6 @@ function AutomationsSearchFilterBar({
   const countFor = (index: number) =>
     index === 0 ? counts.all : index === 1 ? counts.active : counts.paused
 
-  useEffect(() => {
-    if (!open) return
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", onDown)
-    return () => document.removeEventListener("mousedown", onDown)
-  }, [open])
-
   return (
     <div ref={ref} className="relative w-full">
       <SearchFilterBar
@@ -600,32 +587,37 @@ function AutomationsSearchFilterBar({
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
         onFocus={() => setOpen(true)}
+        chips={
+          filter !== 0
+            ? [{ id: "status", title: "Status", count: 1, onRemove: () => onFilterChange(0) }]
+            : undefined
+        }
       />
 
-      {open ? (
-        <FilterPopoverPanel>
-          <FilterPopoverHeader
-            title="Filtros"
-            count={activeCount}
-            onClear={onClearAll}
-            clearDisabled={activeCount === 0 && !search}
-          />
-          <FilterPopoverBody>
-            <div className="flex flex-wrap gap-1.5">
-              {FILTERS.map((label, index) => (
-                <FilterChip
-                  key={label}
-                  selected={filter === index}
-                  onClick={() => onFilterChange(index)}
-                  count={countFor(index)}
-                >
-                  {label}
-                </FilterChip>
-              ))}
-            </div>
-          </FilterPopoverBody>
-        </FilterPopoverPanel>
-      ) : null}
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={onClearAll}
+        onApply={() => setOpen(false)}
+        count={activeCount}
+        clearDisabled={activeCount === 0 && !search}
+        title="Filtros"
+        labelledBy="Filtros de automações"
+      >
+        <FilterCategoryColumn title="Status">
+          {FILTERS.map((label, index) => (
+            <FilterChip
+              key={label}
+              tone="fill"
+              selected={filter === index}
+              onClick={() => onFilterChange(index)}
+              count={countFor(index)}
+            >
+              {label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   )
 }

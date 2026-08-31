@@ -4,30 +4,14 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconPhoneIncoming, IconPhoneOutgoing, IconStatusChange } from "@tabler/icons-react";
 
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import {
-  FilterApplyButton,
-  FilterChip,
-  FilterPopoverBody,
-  FilterPopoverFooter,
-  FilterPopoverHeader,
-  FilterPopoverPanel,
-  FilterRadioRow,
-  FilterSegmentedTabs,
-} from "@/components/crm/filter-popover";
-import { formDialogCancelClass } from "@/components/ui/form-dialog";
+import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import type { CallDirection, CallStatus, ListCallsFilters } from "../api/types";
 
 export type CallsFilterState = Pick<
   ListCallsFilters,
   "direction" | "status" | "dateFrom" | "dateTo"
 >;
-
-type FilterPanelTab = "direcao" | "status";
-
-const FILTER_TABS: { id: FilterPanelTab; label: string; icon: ReactNode }[] = [
-  { id: "direcao", label: "Direção", icon: <IconPhoneIncoming size={14} stroke={2.2} /> },
-  { id: "status", label: "Status", icon: <IconStatusChange size={14} stroke={2.2} /> },
-];
 
 const DIRECTION_OPTIONS: { value: "" | CallDirection; label: string; icon: ReactNode }[] = [
   { value: "", label: "Todas as direções", icon: null },
@@ -70,7 +54,6 @@ export function CallsSearchFilterBar({
 }: CallsSearchFilterBarProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<FilterPanelTab>("direcao");
   const [draft, setDraft] = useState<CallsFilterState>(filters);
 
   const activeCount = countActive(filters);
@@ -79,15 +62,6 @@ export function CallsSearchFilterBar({
   useEffect(() => {
     if (open) setDraft(filters);
   }, [open, filters]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
 
   function handleClear() {
     const next: CallsFilterState = {
@@ -109,12 +83,6 @@ export function CallsSearchFilterBar({
     setOpen(false);
   }
 
-  const tabBadge = (id: FilterPanelTab) => {
-    if (id === "direcao") return draft.direction ? 1 : 0;
-    if (id === "status") return draft.status ? 1 : 0;
-    return 0;
-  };
-
   return (
     <div ref={ref} className="relative w-full">
       <SearchFilterBar
@@ -126,77 +94,71 @@ export function CallsSearchFilterBar({
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
         onFocus={() => setOpen(true)}
+        chips={[
+          ...(filters.direction
+            ? [{
+                id: "direction",
+                title: "Direção",
+                count: 1,
+                onRemove: () => onFiltersChange({ ...filters, direction: undefined }),
+              }]
+            : []),
+          ...(filters.status
+            ? [{
+                id: "status",
+                title: "Status",
+                count: 1,
+                onRemove: () => onFiltersChange({ ...filters, status: undefined }),
+              }]
+            : []),
+        ]}
       />
 
-      {open ? (
-        <FilterPopoverPanel>
-          <FilterPopoverHeader
-            count={draftCount || activeCount}
-            onClear={handleClear}
-            clearDisabled={draftCount === 0 && activeCount === 0}
-          />
-          <FilterSegmentedTabs
-            value={tab}
-            onChange={setTab}
-            tabs={FILTER_TABS.map((t) => ({
-              id: t.id,
-              label: t.label,
-              icon: t.icon,
-              badge: tabBadge(t.id),
-            }))}
-          />
-          <FilterPopoverBody>
-            {tab === "direcao" ? (
-              <div className="flex flex-col gap-0.5" role="listbox" aria-label="Direção">
-                {DIRECTION_OPTIONS.map((opt) => (
-                  <FilterRadioRow
-                    key={opt.value || "all-dir"}
-                    selected={(draft.direction ?? "") === opt.value}
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        direction: opt.value || undefined,
-                      }))
-                    }
-                  >
-                    <span className="flex items-center gap-2">
-                      {opt.icon}
-                      {opt.label}
-                    </span>
-                  </FilterRadioRow>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {STATUS_OPTIONS.map((opt) => (
-                  <FilterChip
-                    key={opt.value || "all-st"}
-                    selected={(draft.status ?? "") === opt.value}
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        status: opt.value || undefined,
-                      }))
-                    }
-                  >
-                    {opt.label}
-                  </FilterChip>
-                ))}
-              </div>
-            )}
-          </FilterPopoverBody>
-          <FilterPopoverFooter>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className={formDialogCancelClass}
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={handleClear}
+        onApply={handleApply}
+        count={draftCount || activeCount}
+        clearDisabled={draftCount === 0 && activeCount === 0}
+        title="Filtros"
+        labelledBy="Filtros de chamadas"
+      >
+        <FilterCategoryColumn title="Direção" icon={<IconPhoneIncoming size={16} stroke={2.2} />}>
+          {DIRECTION_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value || "all-dir"}
+              tone="fill"
+              selected={(draft.direction ?? "") === opt.value}
+              onClick={() =>
+                setDraft((prev) => ({
+                  ...prev,
+                  direction: opt.value || undefined,
+                }))
+              }
             >
-              Cancelar
-            </button>
-            <FilterApplyButton onClick={handleApply}>Aplicar</FilterApplyButton>
-          </FilterPopoverFooter>
-        </FilterPopoverPanel>
-      ) : null}
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Status" icon={<IconStatusChange size={16} stroke={2.2} />}>
+          {STATUS_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value || "all-st"}
+              tone="fill"
+              selected={(draft.status ?? "") === opt.value}
+              onClick={() =>
+                setDraft((prev) => ({
+                  ...prev,
+                  status: opt.value || undefined,
+                }))
+              }
+            >
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   );
 }

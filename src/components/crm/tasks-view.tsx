@@ -27,13 +27,8 @@ import {
 } from "@/components/crm/period-calendar-button"
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header"
 import { SearchFilterBar } from "@/components/crm/search-filter-bar"
-import {
-  FilterPopoverBody,
-  FilterPopoverHeader,
-  FilterPopoverPanel,
-  FilterRadioRow,
-  FilterSegmentedTabs,
-} from "@/components/crm/filter-popover"
+import { FilterChip } from "@/components/crm/filter-popover"
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal"
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header"
 import {
   FormDialog,
@@ -737,21 +732,6 @@ function TasksSearchFilterBar({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<"tipo" | "situacao">("tipo")
-
-  useEffect(() => {
-    if (!open) return
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", onDown)
-    return () => document.removeEventListener("mousedown", onDown)
-  }, [open])
-
-  const typeBadge = typesAreDefault(enabledTypes)
-    ? 0
-    : TASK_TYPE_ORDER.filter((type) => enabledTypes[type]).length
-  const situationBadge = situation === "all" ? 0 : 1
 
   return (
     <div ref={ref} className="relative w-full">
@@ -763,96 +743,74 @@ function TasksSearchFilterBar({
         filterOpen={open}
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
+        chips={[
+          ...(!typesAreDefault(enabledTypes)
+            ? [{
+                id: "tipo",
+                title: "Tipo",
+                count: TASK_TYPE_ORDER.filter((type) => enabledTypes[type]).length,
+                onRemove: () => {
+                  for (const type of TASK_TYPE_ORDER) {
+                    if (!enabledTypes[type]) onToggleType(type);
+                  }
+                },
+              }]
+            : []),
+          ...(situation !== "all"
+            ? [{
+                id: "situacao",
+                title: "Situação",
+                count: 1,
+                onRemove: () => onSituationChange("all"),
+              }]
+            : []),
+        ]}
       />
 
-      {open ? (
-        <FilterPopoverPanel>
-          <FilterPopoverHeader
-            onClear={onClear}
-            clearDisabled={activeCount === 0}
-            count={activeCount}
-          />
-          <FilterSegmentedTabs
-            value={tab}
-            onChange={setTab}
-            tabs={[
-              { id: "tipo", label: "Tipo", badge: typeBadge },
-              { id: "situacao", label: "Situação", badge: situationBadge },
-            ]}
-          />
-          <FilterPopoverBody>
-            {tab === "tipo" ? (
-              <div>
-                <p className="mb-2 text-xs font-semibold text-muted-foreground">Tipo de tarefa</p>
-                <ul className="flex flex-col gap-0.5">
-                  {TASK_TYPE_ORDER.map((type) => {
-                    const meta = taskTypeMeta[type]
-                    const on = enabledTypes[type]
-                    return (
-                      <li key={type}>
-                        <button
-                          type="button"
-                          role="checkbox"
-                          aria-checked={on}
-                          onClick={() => onToggleType(type)}
-                          className={cn(
-                            "flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left text-sm transition-colors",
-                            on ? "bg-primary/10 text-foreground" : "text-foreground hover:bg-secondary",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "flex size-4 shrink-0 items-center justify-center rounded border",
-                              on ? CHIP_CHECK_ON[meta.colorKey] : CHIP_CHECK_OFF[meta.colorKey],
-                            )}
-                          >
-                            {on ? <Check className="size-3" aria-hidden="true" /> : null}
-                          </span>
-                          <TaskTypeIcon
-                            type={type}
-                            className={cn("size-4 shrink-0", CHIP_ICON[meta.colorKey])}
-                          />
-                          <span className="min-w-0 flex-1 font-semibold">{meta.label}</span>
-                          <span className="text-xs tabular-nums text-muted-foreground">
-                            {typeCounts[type]}
-                          </span>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ) : (
-              <div>
-                <p className="mb-2 text-xs font-semibold text-muted-foreground">Situação</p>
-                <ul className="flex flex-col gap-0.5" role="listbox" aria-label="Situação">
-                  {SITUATION_OPTIONS.map((opt) => {
-                    const selected = situation === opt.id
-                    return (
-                      <li key={opt.id}>
-                        <FilterRadioRow
-                          selected={selected}
-                          onClick={() => onSituationChange(opt.id)}
-                          trailing={
-                            <span className="text-xs tabular-nums text-muted-foreground">
-                              {situationCounts[opt.id]}
-                            </span>
-                          }
-                        >
-                          {opt.label}
-                        </FilterRadioRow>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            )}
-          </FilterPopoverBody>
-        </FilterPopoverPanel>
-      ) : null}
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={onClear}
+        onApply={() => setOpen(false)}
+        count={activeCount}
+        clearDisabled={activeCount === 0}
+        title="Filtros"
+        labelledBy="Filtros de tarefas"
+      >
+        <FilterCategoryColumn title="Tipo" hint="Tipo de tarefa">
+          {TASK_TYPE_ORDER.map((type) => {
+            const meta = taskTypeMeta[type]
+            return (
+              <FilterChip
+                key={type}
+                tone="fill"
+                selected={enabledTypes[type]}
+                onClick={() => onToggleType(type)}
+                count={typeCounts[type]}
+              >
+                {meta.label}
+              </FilterChip>
+            )
+          })}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Situação" hint="Prazo e conclusão">
+          {SITUATION_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.id}
+              tone="fill"
+              selected={situation === opt.id}
+              onClick={() => onSituationChange(opt.id)}
+              count={situationCounts[opt.id]}
+            >
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   )
 }
+
 
 export function TasksView({
   tasks,

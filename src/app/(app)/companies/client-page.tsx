@@ -20,8 +20,6 @@ import {
   IconPhoneOff,
   IconSearch,
   IconAdjustmentsHorizontal,
-  IconArrowsSort,
-  IconMapPin,
 } from "@tabler/icons-react";
 import { Building2, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -38,15 +36,8 @@ import {
 } from "@/components/crm/period-calendar-button";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import {
-  FilterApplyButton,
-  FilterPopoverBody,
-  FilterPopoverFooter,
-  FilterPopoverHeader,
-  FilterPopoverPanel,
-  FilterRadioRow,
-  FilterSegmentedTabs,
-} from "@/components/crm/filter-popover";
+import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import { ListColumnLabel, LIST_ACTIONS_CELL_CLASS, LIST_ACTIONS_TRACK, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
@@ -198,13 +189,6 @@ const SORT_OPTIONS = [
   { value: "createdAt:asc", label: "Mais antigas" },
   { value: "updatedAt:desc", label: "Modificadas recentemente" },
 ] as const;
-
-type FilterPanelTab = "ordenar" | "local";
-
-const FILTER_TABS: { id: FilterPanelTab; label: string; icon: React.ReactNode }[] = [
-  { id: "ordenar", label: "Ordenar", icon: <IconArrowsSort size={14} stroke={2.2} /> },
-  { id: "local", label: "Local", icon: <IconMapPin size={14} stroke={2.2} /> },
-];
 
 type CompanyFilterDraft = {
   sortBy: CompanySortField;
@@ -611,7 +595,6 @@ function CompaniesSearchFilterBar({
   onPick?: (c: CompanyListItemDto) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<FilterPanelTab>("ordenar");
   const [draft, setDraft] = useState<CompanyFilterDraft>({
     sortBy, sortOrder,
     state: stateFilter, city: cityFilter, industry: industryFilter,
@@ -633,15 +616,6 @@ function CompaniesSearchFilterBar({
     });
   }, [open, sortBy, sortOrder, stateFilter, cityFilter, industryFilter]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
   const sortKey = `${draft.sortBy}:${draft.sortOrder}`;
   const localCount = (draft.state ? 1 : 0) + (draft.city ? 1 : 0) + (draft.industry ? 1 : 0);
   const draftActiveCount = localCount;
@@ -658,11 +632,6 @@ function CompaniesSearchFilterBar({
     onApply(draft);
     setOpen(false);
   }
-
-  const tabBadge = (id: FilterPanelTab) => {
-    if (id === "local") return localCount;
-    return 0;
-  };
 
   return (
     <div ref={ref} className="relative w-full">
@@ -685,6 +654,35 @@ function CompaniesSearchFilterBar({
             if (c) pickCompany(c);
           })
         }
+        chips={[
+          ...(stateFilter
+            ? [{
+                id: "state",
+                title: "Estado",
+                count: 1,
+                onRemove: () =>
+                  onApply({ sortBy, sortOrder, state: "", city: cityFilter, industry: industryFilter }),
+              }]
+            : []),
+          ...(cityFilter
+            ? [{
+                id: "city",
+                title: "Cidade",
+                count: 1,
+                onRemove: () =>
+                  onApply({ sortBy, sortOrder, state: stateFilter, city: "", industry: industryFilter }),
+              }]
+            : []),
+          ...(industryFilter
+            ? [{
+                id: "industry",
+                title: "Setor",
+                count: 1,
+                onRemove: () =>
+                  onApply({ sortBy, sortOrder, state: stateFilter, city: cityFilter, industry: "" }),
+              }]
+            : []),
+        ]}
       />
       </div>
       {menu.showHits && menu.coords && typeof document !== "undefined" && (
@@ -730,108 +728,82 @@ function CompaniesSearchFilterBar({
         </OmnisearchResultsPanel>
       )}
 
-      {open && (
-        <FilterPopoverPanel>
-          <FilterPopoverHeader
-            count={draftActiveCount || activeCount}
-            onClear={handleClear}
-            clearDisabled={draftActiveCount === 0 && activeCount === 0}
-          />
-          <FilterSegmentedTabs
-            value={tab}
-            onChange={setTab}
-            tabs={FILTER_TABS.map((t) => ({
-              id: t.id,
-              label: t.label,
-              icon: t.icon,
-              badge: tabBadge(t.id),
-            }))}
-          />
-          <FilterPopoverBody>
-            {tab === "ordenar" && (
-              <div className="flex flex-col gap-0.5" role="listbox" aria-label="Ordenar por">
-                <p className="mb-2 text-xs font-semibold text-muted-foreground">Ordenar resultados por</p>
-                {SORT_OPTIONS.map((opt) => {
-                  const selected = sortKey === opt.value;
-                  return (
-                    <FilterRadioRow
-                      key={opt.value}
-                      selected={selected}
-                      onClick={() => {
-                        const [f, o] = opt.value.split(":");
-                        setDraft((prev) => ({ ...prev, sortBy: f as CompanySortField, sortOrder: o as "asc" | "desc" }));
-                      }}
-                    >
-                      {opt.label}
-                    </FilterRadioRow>
-                  );
-                })}
-              </div>
-            )}
-
-            {tab === "local" && (
-              <div className="flex flex-col gap-3">
-                <FilterSelectField
-                  label="Estado"
-                  value={draft.state}
-                  options={facets?.states ?? []}
-                  placeholder="Todos os estados"
-                  onChange={(v) => setDraft((p) => ({ ...p, state: v }))}
-                />
-                <FilterSelectField
-                  label="Cidade"
-                  value={draft.city}
-                  options={facets?.cities ?? []}
-                  placeholder="Todas as cidades"
-                  onChange={(v) => setDraft((p) => ({ ...p, city: v }))}
-                />
-                <FilterSelectField
-                  label="Setor"
-                  value={draft.industry}
-                  options={facets?.industries ?? []}
-                  placeholder="Todos os setores"
-                  onChange={(v) => setDraft((p) => ({ ...p, industry: v }))}
-                />
-              </div>
-            )}
-          </FilterPopoverBody>
-          <FilterPopoverFooter>
-            <FilterApplyButton onClick={handleApply} className="w-full justify-center">
-              {draftActiveCount > 0 ? `Aplicar (${draftActiveCount})` : "Aplicar"}
-            </FilterApplyButton>
-          </FilterPopoverFooter>
-        </FilterPopoverPanel>
-      )}
-    </div>
-  );
-}
-
-function FilterSelectField({
-  label, value, options, placeholder, onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  placeholder: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className={formLabelClass}>{label}</span>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn(formControlClass, "h-9 appearance-none pr-8 text-sm", value ? "border-primary/50" : "")}
-        >
-          <option value="">{placeholder}</option>
-          {options.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={handleClear}
+        onApply={handleApply}
+        count={draftActiveCount || activeCount}
+        clearDisabled={draftActiveCount === 0 && activeCount === 0}
+        title="Filtros"
+        labelledBy="Filtros de empresas"
+      >
+        <FilterCategoryColumn title="Estado">
+          <FilterChip tone="fill" selected={!draft.state} onClick={() => setDraft((p) => ({ ...p, state: "" }))}>
+            Todos
+          </FilterChip>
+          {(facets?.states ?? []).map((opt) => (
+            <FilterChip
+              key={opt}
+              tone="fill"
+              selected={draft.state === opt}
+              onClick={() => setDraft((p) => ({ ...p, state: p.state === opt ? "" : opt }))}
+            >
+              {opt}
+            </FilterChip>
           ))}
-        </select>
-        <IconMapPin size={13} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      </div>
-    </label>
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Cidade">
+          <FilterChip tone="fill" selected={!draft.city} onClick={() => setDraft((p) => ({ ...p, city: "" }))}>
+            Todas
+          </FilterChip>
+          {(facets?.cities ?? []).map((opt) => (
+            <FilterChip
+              key={opt}
+              tone="fill"
+              selected={draft.city === opt}
+              onClick={() => setDraft((p) => ({ ...p, city: p.city === opt ? "" : opt }))}
+            >
+              {opt}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Setor">
+          <FilterChip tone="fill" selected={!draft.industry} onClick={() => setDraft((p) => ({ ...p, industry: "" }))}>
+            Todos
+          </FilterChip>
+          {(facets?.industries ?? []).map((opt) => (
+            <FilterChip
+              key={opt}
+              tone="fill"
+              selected={draft.industry === opt}
+              onClick={() => setDraft((p) => ({ ...p, industry: p.industry === opt ? "" : opt }))}
+            >
+              {opt}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Ordenar">
+          {SORT_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              selected={sortKey === opt.value}
+              onClick={() => {
+                const [f, o] = opt.value.split(":");
+                setDraft((prev) => ({
+                  ...prev,
+                  sortBy: f as CompanySortField,
+                  sortOrder: o as "asc" | "desc",
+                }));
+              }}
+            >
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
+    </div>
   );
 }
 

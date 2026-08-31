@@ -23,13 +23,17 @@ import type { DealListItemDto } from "@/features/pipeline-v2/api/list";
 import { usePipelines } from "@/features/pipeline-v2/hooks";
 import { usePipelineOmnisearch } from "@/features/pipeline-v2/use-pipeline-omnisearch";
 
-import { countPanelFilters, type AdvancedDealFilters } from "../types";
+import { dealFilterChips } from "../filter-chips";
 import { createSavedFilter } from "../api";
+import {
+  countPanelFilters,
+  type AdvancedDealFilters,
+  type FilterOptionsResponse,
+} from "../types";
 import {
   FilterModalThreeCol,
   type PipelineSortKey,
 } from "./variant-modal-three-col";
-import type { FilterOptionsResponse } from "../types";
 
 export type { PipelineSortKey };
 
@@ -94,6 +98,13 @@ export function PipelineSearchFilterBar({
   const menu = useOmnisearchMenu(search, hits.items.length);
   // Período (criação/fechamento) marca o ícone do calendário, não o Filtrar.
   const activeCount = countPanelFilters(filters) + (search.trim() ? 1 : 0);
+  const chips = React.useMemo(
+    () =>
+      dealFilterChips(filters, options, (partial) =>
+        onApplyFilters({ ...filters, ...partial }),
+      ),
+    [filters, options, onApplyFilters],
+  );
 
   function pickDeal(deal: DealListItemDto) {
     onPickDeal?.(deal);
@@ -142,6 +153,7 @@ export function PipelineSearchFilterBar({
           activeCount={activeCount}
           placeholder={placeholder}
           ariaLabel="Buscar e filtrar negócios"
+          chips={chips}
         />
       </div>
 

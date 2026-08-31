@@ -25,6 +25,7 @@ import {
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
+import type { ActiveFilterChipModel } from "@/components/crm/active-filter-chip";
 import { FilterSearchTrigger } from "@/components/crm/filter-search-trigger";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { TagChip } from "@/components/crm/tag-chip";
@@ -144,6 +145,118 @@ function sortIdFromFilters(f: InboxFilters): string {
     (o) => o.sortBy === f.sortBy && o.sortOrder === (f.sortOrder ?? "desc"),
   );
   return match?.id ?? DEFAULT_SORT_ID;
+}
+
+function inboxFilterChips(
+  filters: InboxFilters,
+  onChange: (next: InboxFilters) => void,
+): ActiveFilterChipModel[] {
+  const chips: ActiveFilterChipModel[] = [];
+
+  if (filters.withoutOwner) {
+    chips.push({
+      id: "owner",
+      title: "Sem responsável",
+      count: 1,
+      onRemove: () =>
+        onChange({ ...filters, withoutOwner: undefined, ownerIds: undefined, ownerId: undefined }),
+    });
+  } else {
+    const ownerIds = filters.ownerIds ?? (filters.ownerId ? [filters.ownerId] : []);
+    if (ownerIds.length > 0) {
+      chips.push({
+        id: "owner",
+        title: "Responsável",
+        count: ownerIds.length,
+        onRemove: () =>
+          onChange({ ...filters, ownerIds: undefined, ownerId: undefined }),
+      });
+    }
+  }
+
+  if (hasChannelFilter(filters)) {
+    const n = selectedChannelIds(filters).length || 1;
+    chips.push({
+      id: "channel",
+      title: "Canal",
+      count: n,
+      onRemove: () =>
+        onChange({ ...filters, channel: undefined, channelIds: undefined }),
+    });
+  }
+
+  const stageIds = filters.stageIds ?? (filters.stageId ? [filters.stageId] : []);
+  if (stageIds.length > 0) {
+    chips.push({
+      id: "stages",
+      title: "Etapas",
+      count: stageIds.length,
+      onRemove: () =>
+        onChange({ ...filters, stageIds: undefined, stageId: undefined }),
+    });
+  }
+
+  if ((filters.tagIds?.length ?? 0) > 0) {
+    chips.push({
+      id: "tags",
+      title: "Tags",
+      count: filters.tagIds!.length,
+      onRemove: () => onChange({ ...filters, tagIds: undefined }),
+    });
+  }
+
+  if ((filters.sources?.length ?? 0) > 0) {
+    chips.push({
+      id: "source",
+      title: "Origem",
+      count: filters.sources!.length,
+      onRemove: () => onChange({ ...filters, sources: undefined }),
+    });
+  }
+
+  if (filters.sessionExpiresWithinHours != null) {
+    chips.push({
+      id: "session-hours",
+      title: "Sessão expira",
+      count: 1,
+      onRemove: () =>
+        onChange({ ...filters, sessionExpiresWithinHours: undefined }),
+    });
+  }
+  if (filters.windowState) {
+    chips.push({
+      id: "window",
+      title: "Sessão da Meta",
+      count: 1,
+      onRemove: () => onChange({ ...filters, windowState: undefined }),
+    });
+  }
+  if (filters.lastMessageDirection) {
+    chips.push({
+      id: "direction",
+      title: "Última msg",
+      count: 1,
+      onRemove: () =>
+        onChange({ ...filters, lastMessageDirection: undefined }),
+    });
+  }
+
+  if (filters.painelException) {
+    const titles = {
+      no_reply: "Sem resposta",
+      open_24h: "Abertas > 24h",
+      unassigned: "Sem atendente",
+      send_failure: "Falha de envio",
+    } as const;
+    chips.push({
+      id: "exception",
+      title: titles[filters.painelException],
+      count: 1,
+      onRemove: () => onChange({ ...filters, painelException: undefined }),
+    });
+  }
+
+  return chips;
 }
 
 function countActive(f: InboxFilters): number {
@@ -465,6 +578,10 @@ export function InboxSearchFilterBar({
 }: InboxSearchFilterBarProps) {
   const [open, setOpen] = React.useState(false);
   const activeCount = countActive(filters);
+  const chips = React.useMemo(
+    () => inboxFilterChips(filters, onChangeFilters),
+    [filters, onChangeFilters],
+  );
   const hits = useInboxOmnisearch(search, search.trim().length >= 3);
   const flatHits = flattenInboxSearchHits(hits.conversations, hits.deals);
   const menu = useOmnisearchMenu(search, flatHits.length);
@@ -488,11 +605,6 @@ export function InboxSearchFilterBar({
     else pickDeal(hit.deal.id);
   }
 
-  // Chips de filtros ativos ficam ABAIXO da pill de busca (mesma UX do
-  // Pipeline v2 — ver `FilterChips` em kanban-filters + render em
-  // `pipeline/_v2-client.tsx`). Antes o inbox só mostrava contador dentro
-  // do botão de filtro, e o operador não sabia quais critérios estavam
-  // ativos sem reabrir o modal.
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <div ref={menu.wrapRef}>
@@ -510,6 +622,7 @@ export function InboxSearchFilterBar({
           placeholder={placeholder}
           ariaLabel="Buscar conversas e negócios"
           tooltipLabel="Filtrar conversas"
+          chips={chips}
         />
       </div>
       {menu.showHits && menu.coords && typeof document !== "undefined" && (
@@ -525,12 +638,6 @@ export function InboxSearchFilterBar({
           onPickDeal={pickDeal}
         />
       )}
-      {activeCount > 0 && (
-        <InboxActiveFilterChips
-          filters={filters}
-          onChange={onChangeFilters}
-        />
-      )}
       <InboxFilterButton
         value={filters}
         onChange={onChangeFilters}
@@ -538,216 +645,6 @@ export function InboxSearchFilterBar({
         onOpenChange={setOpen}
         hideTrigger
       />
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Chips visuais dos filtros ativos do Inbox.
-//
-// Paridade com `FilterChips` do Kanban: cada chip é clicável e remove
-// APENAS o critério dele; um botão "Limpar todos" limpa tudo. Os labels
-// resolvidos usam as MESMAS queries do modal (users/tags/channels/
-// stages/sources) — carregadas quando o inbox monta, com `staleTime`
-// generoso pra não bater no backend a cada re-render.
-// ─────────────────────────────────────────────────────────────
-function InboxActiveFilterChips({
-  filters,
-  onChange,
-}: {
-  filters: InboxFilters;
-  onChange: (next: InboxFilters) => void;
-}) {
-  const hasOwnerish =
-    (filters.ownerIds?.length ?? 0) > 0 || Boolean(filters.ownerId);
-  const hasTags = (filters.tagIds?.length ?? 0) > 0;
-  const hasChannel = hasChannelFilter(filters);
-  const hasStages =
-    (filters.stageIds?.length ?? 0) > 0 || Boolean(filters.stageId);
-  const hasSources = (filters.sources?.length ?? 0) > 0;
-
-  const { data: users = [] } = useTeamUsers(hasOwnerish);
-  const { data: tags = [] } = useQuery({
-    queryKey: ["tags", "filter-chips"],
-    queryFn: listTags,
-    enabled: hasTags,
-    staleTime: 60_000,
-  });
-  const { data: channels = [] } = useQuery({
-    queryKey: ["channels", "inbox-filter"],
-    queryFn: listInboxFilterChannels,
-    enabled: hasChannel,
-    staleTime: 60_000,
-  });
-  const { data: pipelines = [] } = useQuery({
-    queryKey: ["pipelines", "filter-chips"],
-    queryFn: listPipelines,
-    enabled: hasStages,
-    staleTime: 5 * 60_000,
-  });
-  const defaultPipelineId =
-    pipelines.find((p) => p.isDefault)?.id ?? pipelines[0]?.id ?? null;
-  const { data: stages = [] } = useQuery({
-    queryKey: ["pipeline-board", "filter-chips", defaultPipelineId],
-    queryFn: () => getPipelineBoard(defaultPipelineId as string),
-    enabled: hasStages && Boolean(defaultPipelineId),
-    staleTime: 5 * 60_000,
-  });
-
-  const chips: { label: string; onRemove: () => void }[] = [];
-
-  // Responsável
-  if (filters.withoutOwner) {
-    chips.push({
-      label: "Sem responsável",
-      onRemove: () =>
-        onChange({ ...filters, withoutOwner: undefined, ownerIds: undefined, ownerId: undefined }),
-    });
-  } else if (hasOwnerish) {
-    const ids = filters.ownerIds ?? (filters.ownerId ? [filters.ownerId] : []);
-    const names = ids
-      .map((id) => users.find((u) => u.id === id)?.name ?? id.slice(0, 6))
-      .join(", ");
-    chips.push({
-      label: `Responsável: ${names || "—"}`,
-      onRemove: () =>
-        onChange({ ...filters, ownerIds: undefined, ownerId: undefined }),
-    });
-  }
-
-  // Canal
-  if (hasChannel) {
-    const ids = selectedChannelIds(filters);
-    const names = ids
-      .map((id) => {
-        const instance = channels.find((c) => c.id === id);
-        if (instance) return instance.name;
-        return CHANNEL_TYPE_LABELS[id.toLowerCase()] ?? id;
-      })
-      .join(", ");
-    chips.push({
-      label: `Canal: ${names || "—"}`,
-      onRemove: () =>
-        onChange({ ...filters, channel: undefined, channelIds: undefined }),
-    });
-  }
-
-  // Etapa — `getPipelineBoard` já devolve `BoardStage[]` flat (id + name).
-  if (hasStages) {
-    const ids = filters.stageIds ?? (filters.stageId ? [filters.stageId] : []);
-    const names = ids
-      .map((id) => stages.find((s) => s.id === id)?.name ?? id.slice(0, 6))
-      .join(", ");
-    chips.push({
-      label: `Etapas: ${names || "—"}`,
-      onRemove: () =>
-        onChange({ ...filters, stageIds: undefined, stageId: undefined }),
-    });
-  }
-
-  // Tags
-  if (hasTags) {
-    const names = (filters.tagIds ?? [])
-      .map((id) => tags.find((t) => t.id === id)?.name ?? id.slice(0, 6))
-      .join(", ");
-    chips.push({
-      label: `Tags: ${names}`,
-      onRemove: () => onChange({ ...filters, tagIds: undefined }),
-    });
-  }
-
-  // Origens (Contact.source) — `useContactSources` retorna `string[]`;
-  // o próprio valor já é o rótulo (mesmo padrão do modal).
-  if (hasSources) {
-    const names = (filters.sources ?? [])
-      .map((src) => (src === SOURCE_NONE ? "Sem origem" : src))
-      .join(", ");
-    chips.push({
-      label: `Origem: ${names}`,
-      onRemove: () => onChange({ ...filters, sources: undefined }),
-    });
-  }
-
-  // Sessão / janela Meta
-  if (filters.sessionExpiresWithinHours != null) {
-    chips.push({
-      label: `Sessão expira em: ${filters.sessionExpiresWithinHours}h`,
-      onRemove: () =>
-        onChange({ ...filters, sessionExpiresWithinHours: undefined }),
-    });
-  }
-  if (filters.windowState) {
-    const label = filters.windowState === "open" ? "aberta" : "fechada";
-    chips.push({
-      label: `Sessão da Meta: ${label}`,
-      onRemove: () => onChange({ ...filters, windowState: undefined }),
-    });
-  }
-  if (filters.lastMessageDirection) {
-    const label =
-      filters.lastMessageDirection === "in" ? "recebida" : "enviada";
-    chips.push({
-      label: `Última msg: ${label}`,
-      onRemove: () =>
-        onChange({ ...filters, lastMessageDirection: undefined }),
-    });
-  }
-
-  if (filters.painelException) {
-    const labels = {
-      no_reply: "Sem resposta > 1h comercial",
-      open_24h: "Abertas > 24h",
-      unassigned: "Sem atendente",
-      send_failure: "Falha de envio",
-    } as const;
-    chips.push({
-      label: labels[filters.painelException],
-      onRemove: () => onChange({ ...filters, painelException: undefined }),
-    });
-  }
-
-  // Ordenação (só aparece quando não é o default)
-  if (sortIdFromFilters(filters) !== DEFAULT_SORT_ID) {
-    const sortLabel =
-      SORT_OPTIONS.find((o) => o.id === sortIdFromFilters(filters))?.label ??
-      "personalizada";
-    chips.push({
-      label: `Ordem: ${sortLabel}`,
-      onRemove: () =>
-        onChange({ ...filters, sortBy: undefined, sortOrder: undefined }),
-    });
-  }
-
-  if (chips.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 px-0.5">
-      <span className="font-display text-[11px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
-        Filtros ativos
-      </span>
-      {chips.map((chip, idx) => (
-        <TooltipGlass
-          key={`${chip.label}-${idx}`}
-          label="Remover filtro"
-          side="top"
-        >
-          <button
-            type="button"
-            onClick={chip.onRemove}
-            className="group inline-flex items-center gap-1 rounded-full border border-primary/25 bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[11px] font-medium text-primary backdrop-blur-sm transition-all hover:border-[var(--color-danger)]/35 hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
-          >
-            <span>{chip.label}</span>
-            <X className="size-3 opacity-60 group-hover:opacity-100" />
-          </button>
-        </TooltipGlass>
-      ))}
-      <button
-        type="button"
-        onClick={() => onChange({})}
-        className="font-display text-[11px] font-semibold text-[var(--text-muted)] underline-offset-2 hover:text-[var(--brand-primary)] hover:underline"
-      >
-        Limpar todos
-      </button>
     </div>
   );
 }

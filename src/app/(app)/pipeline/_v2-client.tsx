@@ -121,7 +121,6 @@ import { computePopoverPosition } from "@/features/pipeline-v2/extras/use-portal
 import { ContactTagsPopover } from "@/features/inbox-v2/extras/contact-tags-popover";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
-import { FilterChips } from "@/components/pipeline/kanban-filters/filter-chips";
 import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
@@ -1004,45 +1003,6 @@ export default function KanbanV2ClientPage({
           }}
           onClose={() => setKebabOpen(false)}
         />
-
-        {((!filters.search?.trim() && search.trim()) || !isEmptyFilters(filters)) && (
-        <div className="flex flex-wrap items-center gap-2 px-0.5">
-          {/* `filters.search` tem precedência sobre a barra (ver `rawSearch`) e
-              já ganha chip próprio no FilterChips — não duplicar. */}
-          {!filters.search?.trim() && search.trim() && (
-            <TooltipGlass label="Limpar busca" side="top">
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="group inline-flex items-center gap-1 rounded-full border border-primary/25 bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[11px] font-medium text-primary transition-all hover:border-[var(--color-danger)]/35 hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
-              >
-                <span>Buscar: {search.trim()}</span>
-                <IconX className="size-3 opacity-60 group-hover:opacity-100" />
-              </button>
-            </TooltipGlass>
-          )}
-
-          {!isEmptyFilters(filters) && (
-            <>
-              <span className="font-display text-[11px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
-                Filtros ativos
-              </span>
-              <FilterChips
-                filters={filters}
-                options={filterOptions}
-                onPatch={patchFilters}
-              />
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="font-display text-[11px] font-semibold text-[var(--text-muted)] underline-offset-2 hover:text-[var(--brand-primary)] hover:underline"
-              >
-                Limpar todos
-              </button>
-            </>
-          )}
-        </div>
-        )}
 
         {!activeDealId && (waitingForPipeline || waitingForBoard) ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
