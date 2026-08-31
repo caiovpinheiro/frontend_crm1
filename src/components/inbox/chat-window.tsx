@@ -1,6 +1,7 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
+import { resolveChatMediaUrl } from "@/lib/chat-media-url";
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSSE } from "@/hooks/use-sse";
@@ -1882,28 +1883,8 @@ export function ChatWindow({
       </div>
     );
 
-  const META_DOMAINS = [
-    "lookaside.fbsbx.com",
-    "scontent.whatsapp.net",
-    "graph.facebook.com",
-  ];
-  const resolveMediaUrl = (url: string | null | undefined): string | null => {
-    if (!url) return null;
-    if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-    if (url.startsWith("/uploads/") || url.startsWith("/api/")) return url;
-    try {
-      const p = new URL(url, window.location.origin);
-      // Normaliza URLs absolutas do próprio app para paths internos,
-      // pois `/api/media/transcribe` só autoriza `"/..."`.
-      if (p.pathname.startsWith("/uploads/")) return `${p.pathname}${p.search}`;
-      if (p.pathname.startsWith("/api/")) return `${p.pathname}${p.search}`;
-      if (META_DOMAINS.some((d) => p.hostname.endsWith(d))) {
-        return `/api/media/proxy?url=${encodeURIComponent(url)}`;
-      }
-    } catch {}
-    if (url.includes("/uploads/")) return url.slice(url.indexOf("/uploads/"));
-    return url;
-  };
+  const resolveMediaUrl = (url: string | null | undefined): string | null =>
+    resolveChatMediaUrl(url);
   const detectMediaKind = (
     m: InboxMessageDto,
   ): "image" | "audio" | "video" | "document" | null => {
