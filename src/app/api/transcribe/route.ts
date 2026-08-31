@@ -18,11 +18,30 @@ function backendBase(): string {
   return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim().replace(/\/$/, "");
 }
 
+/** Path interno a partir de URL absoluta da API (`api.bwipo.com/api/storage/…`). */
+function toInternalMediaPath(url: string): string {
+  if (url.startsWith("/")) return url;
+  try {
+    const parsed = new URL(url);
+    if (
+      parsed.pathname.startsWith("/api/storage/") ||
+      parsed.pathname.startsWith("/api/media/proxy") ||
+      parsed.pathname.startsWith("/uploads/")
+    ) {
+      return `${parsed.pathname}${parsed.search}`;
+    }
+  } catch {
+    /* mantém a URL original */
+  }
+  return url;
+}
+
 /** Baixa bytes de áudio resolvendo a URL interna. */
 async function fetchAudioBytes(
-  url: string,
+  rawUrl: string,
   cookieHeader: string,
 ): Promise<{ buffer: ArrayBuffer; mime: string; filename: string } | null> {
+  const url = toInternalMediaPath(rawUrl);
   // ── 1. Proxy Meta: /api/media/proxy?url=<encoded> ──────────────────────
   if (url.startsWith("/api/media/proxy")) {
     const qs = url.includes("?") ? url.split("?")[1] : "";

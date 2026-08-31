@@ -20,6 +20,7 @@ import {
 import { StatusTicks } from "@/components/crm/status-ticks"
 import { UserAvatar } from "@/components/crm/user-avatar"
 import { avatarInitials } from "@/lib/avatar"
+import { resolveChatMediaUrl } from "@/lib/chat-media-url"
 import { EventRow, NoteRow, type ConversationEventAction } from "@/components/crm/chat-timeline"
 import { PhoneIncoming, PhoneOff, PhoneOutgoing } from "lucide-react"
 import {
@@ -47,34 +48,9 @@ import {
 
 type MediaKind = "image" | "audio" | "video" | "document" | null
 
-/** Domínios da Meta/WhatsApp cujas URLs expiram — passam pelo proxy do backend. */
-const META_MEDIA_DOMAINS = [
-  "lookaside.fbsbx.com",
-  "scontent.whatsapp.net",
-  "graph.facebook.com",
-]
-
-/**
- * Normaliza a URL de mídia para um path servível pelo frontend.
- * URLs internas (/uploads, /api) passam direto; URLs da CDN da Meta
- * (que expiram) são roteadas pelo proxy autenticado do backend.
- */
+/** Normaliza a URL de mídia para o host da API (mesmo critério do `fetch`). */
 function resolveMediaUrl(url: string | null | undefined): string | null {
-  if (!url) return null
-  if (url.startsWith("blob:") || url.startsWith("data:")) return url
-  if (url.startsWith("/uploads/") || url.startsWith("/api/")) return url
-  try {
-    const p = new URL(url, window.location.origin)
-    if (p.pathname.startsWith("/uploads/")) return `${p.pathname}${p.search}`
-    if (p.pathname.startsWith("/api/")) return `${p.pathname}${p.search}`
-    if (META_MEDIA_DOMAINS.some((d) => p.hostname.endsWith(d))) {
-      return `/api/media/proxy?url=${encodeURIComponent(url)}`
-    }
-  } catch {
-    /* URL relativa malformada — cai no fallback abaixo */
-  }
-  if (url.includes("/uploads/")) return url.slice(url.indexOf("/uploads/"))
-  return url
+  return resolveChatMediaUrl(url)
 }
 
 /** Deriva o tipo de mídia a partir do messageType e, como fallback, da extensão da URL. */
