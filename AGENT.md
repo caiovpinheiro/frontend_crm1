@@ -5,6 +5,18 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-08-31 — Seletor de org no login (mesmo e-mail)
+
+**Decisão.** Depois do e-mail no apex, se `tenant-lookup` devolver 2+ orgs, o login troca o form pela tela “Selecione uma conta”. 1 org continua o redirect atual. Em host único (localhost / EasyPanel) o clique fica no mesmo origin — não manda para `{slug}.bwipo.com`. `?previewOrgs=1` só em development para ver o layout sem dados multi-org.
+
+**Contexto.** O mesmo e-mail vai poder existir em várias orgs; a senha continua no host da org escolhida. Unicidade de e-mail ainda não mudou — users atuais não passam pelo seletor.
+
+**Alternativas descartadas.** Membership (um user, várias orgs). Mostrar o seletor também quando há 1 org (muda o fluxo que já funciona).
+
+**Impacto.** `login/client-page.tsx`, `login/org-account-picker.tsx`. No submit, se o lookup devolver 2+ orgs, abre o seletor e o `signIn` manda `organizationSlug`. 1 org não muda.
+
+---
+
 ### 2026-08-27 — Inbox: aba "Agente IA"
 
 **Decisão.** Nova aba `agente_ia` entre "Ligar" e "Automação" (`TABS`, `INBOX_TAB_IDS`, `INBOX_TAB_BAR_ORDER`, `TabCounts`), com ícone próprio no `statusVisual` (`IconSparkles`, rosa — a IA não é o robô de campanha). `inboxQueueTabFor` passa a mandar qualquer conversa com assignee `type: AI` para essa fila, independente de inbound.
