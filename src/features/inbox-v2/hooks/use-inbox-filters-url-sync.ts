@@ -53,6 +53,7 @@ export const INBOX_TAB_IDS = [
   "ligar",
   "agente_ia",
   "automacao",
+  "resolvidos",
   "finalizados",
   "erro",
 ] as const satisfies readonly InboxTab[];

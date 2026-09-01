@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { getTabulations, type TabulationNode } from "../api/conversations";
+import { ResolveModeToggle, type ResolveMode } from "./resolve-mode-toggle";
 
 function normalizeSearch(s: string) {
   return s
@@ -121,7 +122,7 @@ type Props = {
   /** Callback recebe o id da folha escolhida. */
   onConfirm: (
     tabulationId: string,
-    extra?: { skipAutomations?: boolean },
+    extra?: { skipAutomations?: boolean; followUp?: boolean },
   ) => void;
   /** Se true, permite fechar sem escolher (uso opcional em ambientes que
    *  nao exigem). Default false (exige selecao). */
@@ -155,6 +156,7 @@ export function TabulationDialog({
   // Se o ultimo do path for folha, permite confirmar.
   const [path, setPath] = useState<TabulationNode[]>([]);
   const [skipAutomations, setSkipAutomations] = useState(false);
+  const [mode, setMode] = useState<ResolveMode>("finalize");
   const [search, setSearch] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -162,6 +164,7 @@ export function TabulationDialog({
     if (!open) {
       setPath([]);
       setSkipAutomations(false);
+      setMode("finalize");
       setSearch("");
       return;
     }
@@ -351,6 +354,7 @@ export function TabulationDialog({
             </ul>
           )}
 
+          <ResolveModeToggle value={mode} onChange={setMode} />
           {allowSkipAutomations ? (
             <SkipAutomationsRow
               checked={skipAutomations}
@@ -395,13 +399,19 @@ export function TabulationDialog({
               onClick={() => {
                 const leaf = path[path.length - 1];
                 if (!leaf || leaf.children.length > 0) return;
-                onConfirm(
-                  leaf.id,
-                  allowSkipAutomations ? { skipAutomations } : undefined,
-                );
+                onConfirm(leaf.id, {
+                  skipAutomations: allowSkipAutomations
+                    ? skipAutomations
+                    : undefined,
+                  followUp: mode === "follow_up",
+                });
               }}
             >
-              {submitting ? "Encerrando…" : "Confirmar encerramento"}
+              {submitting
+                ? "Salvando…"
+                : mode === "follow_up"
+                  ? "Acompanhar"
+                  : "Finalizar"}
               {!submitting ? <IconArrowRight size={16} /> : null}
             </Button>
           </div>

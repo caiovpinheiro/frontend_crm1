@@ -292,6 +292,17 @@ const CONVERSATIONS = [
     lastMessagePreview: { content: "Renovamos sim, obrigada!", messageType: "text", mediaUrl: null, direction: "in" },
     unreadCount: 0, tags: [TAGS[1]], hasError: false, pinnedNoteId: null,
   },
+  // RESOLVED + followUpAt — aba "resolvidos"
+  {
+    id: "cv-7b", channel: "whatsapp", status: "RESOLVED",
+    followUpAt: "2026-06-01T09:00:00Z",
+    contact: { id: "ct-7b", name: "Larissa Mendes",     phone: "+5511988880017", email: "larissa@acme.com",      avatarUrl: null },
+    assignedToId: "u-marcelo", assignedTo: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br" },
+    lastInboundAt: "2026-05-29T11:00:00Z", lastMessageAt: "2026-05-29T11:20:00Z",
+    lastMessage: { preview: "Te retorno na próxima semana", direction: "out", status: "READ" },
+    lastMessagePreview: { content: "Te retorno na próxima semana", messageType: "text", mediaUrl: null, direction: "out" },
+    unreadCount: 0, tags: [TAGS[0]], hasError: false, pinnedNoteId: null,
+  },
   // OPEN — sem leitura — lead novo
   {
     id: "cv-8", channel: "whatsapp", status: "OPEN",
@@ -994,7 +1005,9 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
       // `assignedTo` são todos consultores humanos).
       agente_ia:  0,
       automacao:  2,
-      finalizados: CONVERSATIONS.filter((c) => c.status === "RESOLVED").length,
+      abertas:    CONVERSATIONS.filter((c) => c.status === "OPEN").length,
+      resolvidos: CONVERSATIONS.filter((c) => c.status === "RESOLVED" && c.followUpAt).length,
+      finalizados: CONVERSATIONS.filter((c) => c.status === "RESOLVED" && !c.followUpAt).length,
       erro:       CONVERSATIONS.filter((c) => c.hasError).length,
     }),
   },
@@ -1008,7 +1021,8 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
       if (tab === "esperando")   items = items.filter((c) => c.unreadCount > 0);
       if (tab === "respondidas") items = items.filter((c) => c.lastMessage.direction === "out");
       if (tab === "agente_ia")   items = [];
-      if (tab === "finalizados") items = items.filter((c) => c.status === "RESOLVED");
+      if (tab === "resolvidos") items = items.filter((c) => c.status === "RESOLVED" && c.followUpAt);
+      if (tab === "finalizados") items = items.filter((c) => c.status === "RESOLVED" && !c.followUpAt);
       if (tab === "erro")        items = items.filter((c) => c.hasError);
       if (search) items = items.filter((c) => c.contact.name.toLowerCase().includes(search));
       return { items, total: items.length, page: 1, perPage: 60, nextCursor: null, hasMore: false };

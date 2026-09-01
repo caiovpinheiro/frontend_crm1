@@ -106,6 +106,7 @@ export function useToggleConversationResolve(
     onNewConversation?: (newConversationId: string, previousConversationId: string) => void;
     /** Encerrar: caller pode atualizar sticky/status local antes do refetch da lista. */
     onResolved?: (conversationId: string) => void;
+    onFollowedUp?: (conversationId: string) => void;
     /**
      * Departamento exige tabulação e o resolve foi rejeitado (ou a UI
      * não tinha o flag hidratado). Caller abre o TabulationDialog.
@@ -126,6 +127,7 @@ export function useToggleConversationResolve(
       tabulationId?: string | null;
       /** Encerrar sem disparar automações (só ADMIN; backend ignora o resto). */
       skipAutomations?: boolean;
+      followUp?: boolean;
     }
   >({
     mutationFn: (vars) =>
@@ -136,6 +138,7 @@ export function useToggleConversationResolve(
               action: "resolve",
               tabulationId: vars.tabulationId ?? null,
               ...(vars.skipAutomations ? { skipAutomations: true } : {}),
+              ...(vars.followUp ? { followUp: true } : {}),
             }
           : { action: vars.action },
       ),
@@ -149,7 +152,9 @@ export function useToggleConversationResolve(
           ? newId
             ? `Novo ticket #${data.conversation?.number ?? "—"} aberto`
             : "Conversa reaberta"
-          : "Conversa finalizada",
+          : vars.followUp
+            ? "Conversa em acompanhamento"
+            : "Conversa finalizada",
       );
 
       // Reabrir: troca o activeId ANTES das invalidates. Se invalidar primeiro,
@@ -163,16 +168,24 @@ export function useToggleConversationResolve(
         }
         callbacks?.onNewConversation?.(newId, data.previousConversationId);
       } else if (!isReopen) {
+        if (vars.followUp) callbacks?.onFollowedUp?.(vars.conversationId);
         callbacks?.onResolved?.(vars.conversationId);
         // Mantém snapshot local coerente se a conversa sair do filtro da aba.
         qc.setQueryData(
           ["inbox-conversation", vars.conversationId],
-          (old: { status?: string; closedAt?: string | null } | undefined) =>
+          (old: {
+            status?: string;
+            closedAt?: string | null;
+            followUpAt?: string | null;
+          } | undefined) =>
             old
               ? {
                   ...old,
                   status: "RESOLVED",
                   closedAt: old.closedAt ?? new Date().toISOString(),
+                  followUpAt: vars.followUp
+                    ? (old.followUpAt ?? new Date().toISOString())
+                    : null,
                 }
               : old,
         );

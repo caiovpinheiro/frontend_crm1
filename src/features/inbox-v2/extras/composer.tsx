@@ -112,6 +112,7 @@ export function Composer({
   requireTabulationOnClose,
   onReopenNewConversation,
   onResolved,
+  onFollowedUp,
   conversationNumber,
   transferSlot,
   onRequestTemplate,
@@ -185,6 +186,7 @@ export function Composer({
   onReopenNewConversation?: (newConversationId: string) => void;
   /** Após Encerrar — atualiza sticky/status local (evita toast de deep-link). */
   onResolved?: (conversationId: string) => void;
+  onFollowedUp?: (conversationId: string) => void;
   /** Nº do ticket — exibido ao lado de Encerrar/Reabrir. */
   conversationNumber?: number | null;
   /** Slot à esquerda das tabs (ex.: TransferPopover). */
@@ -1122,6 +1124,9 @@ export function Composer({
                   requireTabulationOnClose={requireTabulationOnClose}
                   onReopenNewConversation={onReopenNewConversation}
                   onResolved={onResolved}
+                  onFollowedUp={onFollowedUp}
+                  contactId={contactId}
+                  contactName={contactName}
                   disabled={busy}
                 />
               )}
@@ -1157,6 +1162,7 @@ export function Composer({
               requireTabulationOnClose={requireTabulationOnClose}
               onReopenNewConversation={onReopenNewConversation}
               onResolved={onResolved}
+              onFollowedUp={onFollowedUp}
               outboundDisabled={inputDisabled}
               beforeOutboundSend={confirmChannelSwitchIfNeeded}
               onOutboundBlocked={warnOutboundBlocked}

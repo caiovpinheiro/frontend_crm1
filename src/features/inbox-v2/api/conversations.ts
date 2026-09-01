@@ -79,6 +79,26 @@ export async function listConversations(
   return data as ConversationListResponse;
 }
 
+const EMPTY_TAB_COUNTS: TabCounts = {
+  todos: 0,
+  abertas: 0,
+  entrada: 0,
+  esperando: 0,
+  respondidas: 0,
+  ligar: 0,
+  agente_ia: 0,
+  automacao: 0,
+  resolvidos: 0,
+  finalizados: 0,
+  erro: 0,
+};
+
+function normalizeTabCounts(raw: unknown): TabCounts {
+  const src =
+    raw && typeof raw === "object" ? (raw as Partial<TabCounts>) : {};
+  return { ...EMPTY_TAB_COUNTS, ...src };
+}
+
 /** GET /api/conversations?counts=1 (com filtros do funil + busca, para os
  *  badges refletirem o recorte ativo da lista). */
 export async function fetchTabCounts(
@@ -95,7 +115,7 @@ export async function fetchTabCounts(
     // zerava os badges com a lista ainda visível (keepPreviousData).
     throw new Error("Falha ao carregar contagem das abas.");
   }
-  return res.json() as Promise<TabCounts>;
+  return normalizeTabCounts(await res.json());
 }
 
 /**
@@ -164,6 +184,8 @@ export type ConversationActionPayload =
       tabulationId?: string | null;
       /** Só o backend aceita se o user for ADMIN. Agentes: ignorado. */
       skipAutomations?: boolean;
+      /** Acompanhar: fica na aba Resolvido e mantém o agente. */
+      followUp?: boolean;
     }
   | { action: "reopen" }
   | { action: "assign"; assignedToId: string | null }

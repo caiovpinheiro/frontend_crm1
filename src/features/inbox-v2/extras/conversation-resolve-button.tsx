@@ -19,6 +19,9 @@ export function ConversationResolveButton({
   requireTabulationOnClose,
   onReopenNewConversation,
   onResolved,
+  onFollowedUp,
+  contactId,
+  contactName,
   disabled,
 }: {
   conversationId: string | null;
@@ -28,6 +31,9 @@ export function ConversationResolveButton({
   onReopenNewConversation?: (newConversationId: string) => void;
   /** Após Encerrar — atualiza sticky/status local sem refetch do id. */
   onResolved?: (conversationId: string) => void;
+  onFollowedUp?: (conversationId: string) => void;
+  contactId?: string | null;
+  contactName?: string | null;
   disabled?: boolean;
 }) {
   const { handleToggleResolve, toggleResolve, dialogs } =
@@ -36,8 +42,11 @@ export function ConversationResolveButton({
       isResolved,
       departmentId,
       requireTabulationOnClose,
+      contactId,
+      contactName,
       onReopenNewConversation,
       onResolved,
+      onFollowedUp,
     });
 
   const label = isResolved ? "Reabrir conversa" : "Encerrar conversa";

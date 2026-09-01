@@ -13,6 +13,7 @@ export type InboxTab =
   | "respondidas"
   | "agente_ia"
   | "automacao"
+  | "resolvidos"
   | "finalizados"
   | "erro"
   | "todos"
@@ -27,6 +28,7 @@ export const INBOX_TAB_BAR_ORDER: readonly InboxTab[] = [
   "ligar",
   "agente_ia",
   "automacao",
+  "resolvidos",
   "finalizados",
   "erro",
 ];
@@ -370,6 +372,7 @@ const INBOX_TAB_PERMISSION_KEYS: Record<InboxTab, string> = {
   ligar: "inbox:tab:ligar",
   agente_ia: "inbox:tab:agente_ia",
   automacao: "inbox:tab:automacao",
+  resolvidos: "inbox:tab:resolvidos",
   finalizados: "inbox:tab:finalizados",
   erro: "inbox:tab:erro",
 };
@@ -385,6 +388,7 @@ const LEGACY_INBOX_TAB_REQUIRED_PERMISSION: Record<
   ligar: "conversation:view",
   agente_ia: "conversation:view",
   automacao: "conversation:view",
+  resolvidos: "conversation:view",
   finalizados: "conversation:view",
   erro: "conversation:view",
 };

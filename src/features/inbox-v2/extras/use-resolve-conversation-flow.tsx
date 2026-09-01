@@ -7,31 +7,39 @@ import { useToggleConversationResolve } from "@/features/inbox-v2/hooks";
 
 import { TabulationDialog } from "./tabulation-dialog";
 import { ResolveConfirmDialog } from "./skip-automations-option";
+import { FollowUpTaskDialog } from "./follow-up-task-dialog";
 
 /**
- * Encerrar / reabrir conversa com opção de pular automações (ADMIN).
+ * Encerrar / reabrir conversa.
  *
- * - Não-admin: mesmo fluxo de hoje (tabulação se exigida, senão encerra direto).
- * - Admin sem tabulação: confirm com checkbox.
- * - Admin com tabulação: o mesmo modal de tabulação, com o checkbox.
+ * Toggle Finalizar (Encerradas) vs Acompanhar (Resolvido + tarefa).
+ * Tabulação quando o departamento exige. Admin pode pular automações.
  */
 export function useResolveConversationFlow(opts: {
   conversationId: string | null;
   isResolved?: boolean;
   departmentId?: string | null;
   requireTabulationOnClose?: boolean;
+  contactId?: string | null;
+  contactName?: string | null;
   onReopenNewConversation?: (newConversationId: string) => void;
   onResolved?: (conversationId: string) => void;
+  onFollowedUp?: (conversationId: string) => void;
 }) {
   const { role, isSuperAdmin } = useUserRole();
   const canSkipAutomations = isSuperAdmin || role === "ADMIN";
   const [tabulationOpen, setTabulationOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
   const [tabulationDeptId, setTabulationDeptId] = useState<string | null>(null);
 
   const toggleResolve = useToggleConversationResolve({
     onNewConversation: (newId) => opts.onReopenNewConversation?.(newId),
     onResolved: (id) => opts.onResolved?.(id),
+    onFollowedUp: (id) => {
+      opts.onFollowedUp?.(id);
+      setTaskOpen(true);
+    },
     onTabulationRequired: ({ departmentId: deptFromApi }) => {
       setTabulationDeptId(deptFromApi ?? opts.departmentId ?? null);
       setConfirmOpen(false);
@@ -42,6 +50,7 @@ export function useResolveConversationFlow(opts: {
   function mutateResolve(extra?: {
     tabulationId?: string | null;
     skipAutomations?: boolean;
+    followUp?: boolean;
   }) {
     if (!opts.conversationId) return;
     toggleResolve.mutate(
@@ -51,6 +60,7 @@ export function useResolveConversationFlow(opts: {
         tabulationId: extra?.tabulationId,
         skipAutomations:
           canSkipAutomations && extra?.skipAutomations ? true : undefined,
+        followUp: extra?.followUp === true,
       },
       {
         onSuccess: () => {
@@ -75,11 +85,7 @@ export function useResolveConversationFlow(opts: {
       setTabulationOpen(true);
       return;
     }
-    if (canSkipAutomations) {
-      setConfirmOpen(true);
-      return;
-    }
-    mutateResolve();
+    setConfirmOpen(true);
   }
 
   const dialogs = (
@@ -94,6 +100,7 @@ export function useResolveConversationFlow(opts: {
           mutateResolve({
             tabulationId,
             skipAutomations: extra?.skipAutomations,
+            followUp: extra?.followUp,
           });
         }}
       />
@@ -101,7 +108,16 @@ export function useResolveConversationFlow(opts: {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         submitting={toggleResolve.isPending}
-        onConfirm={(skipAutomations) => mutateResolve({ skipAutomations })}
+        allowSkipAutomations={canSkipAutomations}
+        onConfirm={(skipAutomations, followUp) =>
+          mutateResolve({ skipAutomations, followUp })
+        }
+      />
+      <FollowUpTaskDialog
+        open={taskOpen}
+        onOpenChange={setTaskOpen}
+        contactId={opts.contactId}
+        contactName={opts.contactName}
       />
     </>
   );

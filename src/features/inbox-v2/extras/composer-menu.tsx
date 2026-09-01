@@ -64,6 +64,7 @@ export function ComposerMenu({
   onPickTemplate,
   onReopenNewConversation,
   onResolved,
+  onFollowedUp,
   departmentId,
   requireTabulationOnClose,
   outboundDisabled,
@@ -104,6 +105,7 @@ export function ComposerMenu({
    *  ConversationActionsMenu e useToggleConversationResolve. */
   onReopenNewConversation?: (newConversationId: string) => void;
   onResolved?: (conversationId: string) => void;
+  onFollowedUp?: (conversationId: string) => void;
   /** Departamento vinculado — abre modal de tabulacao quando encerrar. */
   departmentId?: string | null;
   requireTabulationOnClose?: boolean;
@@ -177,8 +179,11 @@ export function ComposerMenu({
       isResolved,
       departmentId,
       requireTabulationOnClose,
+      contactId,
+      contactName,
       onReopenNewConversation,
       onResolved,
+      onFollowedUp,
     });
 
   function closeMenu() {

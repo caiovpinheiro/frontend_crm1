@@ -18,6 +18,7 @@ function lastMessageDirection(row: ConversationListRow): "in" | "out" | null {
  * (Aguardando, Entrada, …) — estágio do funil não fecha conversa.
  */
 export function inboxQueueTabFor(row: ConversationListRow): InboxTab {
+  if (row.followUpAt) return "resolvidos";
   if (row.status === "RESOLVED" || row.closedAt) return "finalizados";
   if (row.hasError) return "erro";
 
@@ -47,7 +48,8 @@ export function rowBelongsToInboxTab(
   tab: InboxTab,
 ): boolean {
   const resolved = row.status === "RESOLVED" || Boolean(row.closedAt);
-  if (tab === "finalizados") return resolved;
+  if (tab === "resolvidos") return Boolean(row.followUpAt) && resolved;
+  if (tab === "finalizados") return resolved && !row.followUpAt;
   if (resolved) return tab === "todos";
 
   if (tab === "todos") return true;

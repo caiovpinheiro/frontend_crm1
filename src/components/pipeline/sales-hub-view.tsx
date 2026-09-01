@@ -964,6 +964,11 @@ export function SalesHubView({
                     conversationId={activeConversation.id}
                     conversationNumber={activeConversation.number}
                     contactId={activeContactId}
+                    contactName={
+                      activeDeal?.contact?.name ??
+                      detailDeal?.name ??
+                      null
+                    }
                     isResolved={activeConversation.status === "RESOLVED"}
                     assigneeId={activeConversation.assignedToId ?? null}
                     onResolved={() => {

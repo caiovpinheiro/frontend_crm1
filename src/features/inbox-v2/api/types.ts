@@ -17,6 +17,7 @@ export type InboxTab =
   | "ligar"
   | "agente_ia"
   | "automacao"
+  | "resolvidos"
   | "finalizados"
   | "erro";
 
@@ -64,6 +65,8 @@ export interface ConversationListRow {
    * exibir "Encerrada em ..." e no filtro de finalizados por data.
    */
   closedAt?: string | null;
+  /** Encerrada em acompanhamento (aba Resolvido). */
+  followUpAt?: string | null;
   contact: {
     id: string;
     name: string;
@@ -151,6 +154,7 @@ export interface TabCounts {
   ligar: number;
   agente_ia: number;
   automacao: number;
+  resolvidos: number;
   finalizados: number;
   erro: number;
 }

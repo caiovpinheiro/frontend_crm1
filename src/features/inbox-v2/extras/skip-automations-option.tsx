@@ -5,6 +5,7 @@ import { IconBolt, IconBoltOff, IconCheck } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { SwitchGlass } from "@/components/crm/switch-glass";
+import { ResolveModeToggle, type ResolveMode } from "./resolve-mode-toggle";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +29,7 @@ export function SkipAutomationsCheckbox({
     <div
       role="group"
       className={cn(
-        "flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3.5 text-left transition-colors",
+        "flex w-full items-center gap-3 rounded-xl border px-3.5 py-3.5 text-left transition-colors",
         checked
           ? "border-[var(--color-warning)] bg-[var(--color-warning)]/12"
           : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]",
@@ -76,23 +77,29 @@ export function SkipAutomationsCheckbox({
 
 /**
  * Confirm de encerrar (quando o departamento não exige tabulação).
- * Só deve ser aberto para ADMIN — o caller faz o gate.
+ * Toggle Finalizar / Acompanhar para qualquer agente.
  */
 export function ResolveConfirmDialog({
   open,
   onOpenChange,
   submitting,
   onConfirm,
+  allowSkipAutomations = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   submitting?: boolean;
-  onConfirm: (skipAutomations: boolean) => void;
+  onConfirm: (skipAutomations: boolean, followUp: boolean) => void;
+  allowSkipAutomations?: boolean;
 }) {
   const [skipAutomations, setSkipAutomations] = useState(false);
+  const [mode, setMode] = useState<ResolveMode>("finalize");
 
   useEffect(() => {
-    if (!open) setSkipAutomations(false);
+    if (!open) {
+      setSkipAutomations(false);
+      setMode("finalize");
+    }
   }, [open]);
 
   return (
@@ -104,7 +111,7 @@ export function ResolveConfirmDialog({
       >
         <AlertDialogHeader className="gap-0 text-left">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#d1fae5] text-[#059669]">
+            <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
               <IconCheck size={18} stroke={2.6} />
             </span>
             <div className="min-w-0">
@@ -112,15 +119,19 @@ export function ResolveConfirmDialog({
                 Encerrar conversa
               </AlertDialogTitle>
               <AlertDialogDescription className="mt-1 text-[13px] leading-relaxed">
-                O atendimento será marcado como resolvido.
+                Finalizar envia para Encerradas. Acompanhar deixa em
+                Resolvido e abre uma tarefa no calendário.
               </AlertDialogDescription>
             </div>
           </div>
         </AlertDialogHeader>
-        <SkipAutomationsCheckbox
-          checked={skipAutomations}
-          onChange={setSkipAutomations}
-        />
+        <ResolveModeToggle value={mode} onChange={setMode} />
+        {allowSkipAutomations ? (
+          <SkipAutomationsCheckbox
+            checked={skipAutomations}
+            onChange={setSkipAutomations}
+          />
+        ) : null}
         <AlertDialogFooter className="gap-2 sm:justify-end">
           <AlertDialogCancel
             onClick={() => onOpenChange(false)}
@@ -129,10 +140,14 @@ export function ResolveConfirmDialog({
             Cancelar
           </AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => onConfirm(skipAutomations)}
+            onClick={() => onConfirm(skipAutomations, mode === "follow_up")}
             disabled={submitting}
           >
-            {submitting ? "Encerrando…" : "Encerrar conversa"}
+            {submitting
+              ? "Salvando…"
+              : mode === "follow_up"
+                ? "Acompanhar"
+                : "Finalizar"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

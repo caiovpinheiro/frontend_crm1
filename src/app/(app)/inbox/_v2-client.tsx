@@ -223,6 +223,7 @@ const TABS: ReadonlyArray<{ id: InboxTab; label: string; title?: string }> = [
     title: "Conversas em atendimento pelo Agente IA",
   },
   { id: "automacao", label: "Automação" },
+  { id: "resolvidos", label: "Resolvido" },
   { id: "finalizados", label: "Encerradas" },
   { id: "erro", label: "Erro" },
 ];
@@ -685,7 +686,23 @@ export default function InboxV2ClientPage({
    */
   function handleReopenNewConversation(newId: string) {
     setActiveId(newId);
-    setTab((current) => (current === "finalizados" ? "todos" : current));
+    setTab((current) =>
+      current === "finalizados" || current === "resolvidos" ? "todos" : current,
+    );
+  }
+
+  function handleFollowedUp(id: string) {
+    setStickyRow((prev) =>
+      prev?.id === id
+        ? {
+            ...prev,
+            status: "RESOLVED",
+            closedAt: new Date().toISOString(),
+            followUpAt: new Date().toISOString(),
+          }
+        : prev,
+    );
+    setTab("resolvidos");
   }
 
   // Envio (texto/anexo/áudio) numa conversa encerrada reabre como NOVO
@@ -696,7 +713,9 @@ export default function InboxV2ClientPage({
       const newId = (e as CustomEvent<{ newId: string }>).detail?.newId;
       if (!newId) return;
       setActiveId(newId);
-      setTab((current) => (current === "finalizados" ? "todos" : current));
+      setTab((current) =>
+      current === "finalizados" || current === "resolvidos" ? "todos" : current,
+    );
     }
     window.addEventListener(CONVERSATION_REOPENED_EVENT, onReopened);
     return () => window.removeEventListener(CONVERSATION_REOPENED_EVENT, onReopened);
@@ -907,7 +926,9 @@ export default function InboxV2ClientPage({
             toast.success(
               `${ids.length} conversa${ids.length > 1 ? "s" : ""} reaberta${ids.length > 1 ? "s" : ""}`,
             );
-            setTab((current) => (current === "finalizados" ? "todos" : current));
+            setTab((current) =>
+      current === "finalizados" || current === "resolvidos" ? "todos" : current,
+    );
             exitSelectionMode();
           },
         },
@@ -1821,6 +1842,10 @@ export default function InboxV2ClientPage({
                     : prev,
                 );
               }}
+              onFollowedUp={handleFollowedUp}
+              contactName={
+                contactAsideView?.name ?? activeRow.contact?.name ?? null
+              }
               departmentId={activeRow.departmentId ?? activeRow.department?.id ?? null}
               requireTabulationOnClose={
                 activeRow.department?.requireTabulationOnClose ?? false
@@ -1895,6 +1920,7 @@ export default function InboxV2ClientPage({
                   : prev,
               );
             }}
+            onFollowedUp={handleFollowedUp}
             conversationNumber={activeRow?.number ?? null}
             enableCallPermission={
               activeRow.channel === "whatsapp" || activeRow.channel === "meta"

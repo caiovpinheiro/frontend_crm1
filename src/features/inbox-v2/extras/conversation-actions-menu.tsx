@@ -50,6 +50,8 @@ interface ConversationActionsMenuProps {
    */
   onReopenNewConversation?: (newConversationId: string) => void;
   onResolved?: (conversationId: string) => void;
+  onFollowedUp?: (conversationId: string) => void;
+  contactName?: string | null;
   /** Departamento vinculado a conversa — usado para o modal de tabulacao. */
   departmentId?: string | null;
   /** Se true, o botao "Encerrar" abre um modal exigindo folha da arvore. */
@@ -82,6 +84,8 @@ export function ConversationActionsMenu({
   onOpenFavorites,
   onReopenNewConversation,
   onResolved,
+  onFollowedUp,
+  contactName,
   departmentId,
   requireTabulationOnClose,
   onDepartmentChanged,
@@ -103,8 +107,11 @@ export function ConversationActionsMenu({
       isResolved,
       departmentId,
       requireTabulationOnClose,
+      contactId,
+      contactName,
       onReopenNewConversation,
       onResolved,
+      onFollowedUp,
     });
   const executeDist = useExecuteDistribution();
   const { hideEvents, toggleHideEvents } = useHideChatEvents();
