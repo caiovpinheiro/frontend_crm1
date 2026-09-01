@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { IconLoader2 as Loader2, IconMail as Mail } from "@tabler/icons-react";
+import { IconLoader2 as Loader2 } from "@tabler/icons-react";
 
+import { AuthSurface } from "@/components/ui/auth-surface";
+import { BlurText } from "@/components/ui/blur-text";
+import { Button } from "@/components/ui/button";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { isMarketingApexHost } from "@/lib/tenant-host";
 import { buildTenantUrl } from "@/lib/tenant-url";
 
@@ -106,27 +111,35 @@ function ForgotForm() {
   return (
     <HeroGeometric color1="#a78bfa" color2="#f472b6" speed={1}>
       <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="glass-overlay w-full max-w-sm rounded-[var(--radius-2xl)] p-8 text-white">
-          <h1 className="mb-1 text-xl font-semibold">Esqueci a senha</h1>
-          <p className="mb-6 text-[13px] text-white/70">
-            Enviamos um link de 30 minutos se existir uma conta com este e-mail.
-          </p>
+        <AuthSurface>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              <BlurText
+                text="Esqueci a senha"
+                delay={70}
+                className="font-bold text-foreground"
+              />
+            </h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enviamos um link de 30 minutos se existir uma conta com este e-mail.
+            </p>
+          </div>
 
           {done ? (
-            <p className="text-sm text-white/85">
+            <p className="text-sm text-foreground">
               Se existir uma conta, as instruções já foram enviadas. Confira a
               caixa de entrada e o spam.
             </p>
           ) : orgs && orgs.length > 1 ? (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-white/80">Selecione a organização:</p>
+              <p className="text-sm text-muted-foreground">Selecione a organização:</p>
               {orgs.map((o) => (
                 <button
                   key={o.slug}
                   type="button"
                   disabled={loading}
                   onClick={() => void pickOrg(o.slug)}
-                  className="rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-left text-sm hover:bg-white/10"
+                  className="rounded-xl border border-border bg-card px-3 py-2 text-left text-sm text-foreground hover:border-primary/40"
                 >
                   {o.name}
                 </button>
@@ -134,38 +147,33 @@ function ForgotForm() {
             </div>
           ) : (
             <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
-              <label className="text-[13px] font-medium text-white/80" htmlFor="fp-email">
-                E-mail
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/40" />
-                <input
+              <div>
+                <Label htmlFor="fp-email">E-mail</Label>
+                <Input
                   id="fp-email"
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 w-full rounded-full border border-white/15 bg-white/5 pl-9 pr-4 text-sm outline-none focus:border-white/40"
+                  className="mt-1.5"
+                  placeholder="seu@email.com"
+                  autoComplete="email"
                 />
               </div>
-              {error ? <p className="text-sm text-red-300">{error}</p> : null}
-              <button
-                type="submit"
-                disabled={loading || !email.trim()}
-                className="flex h-11 items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-zinc-900 disabled:opacity-50"
-              >
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              <Button type="submit" disabled={loading || !email.trim()} className="w-full">
                 {loading ? <Loader2 className="size-4 animate-spin" /> : null}
                 Enviar link
-              </button>
+              </Button>
             </form>
           )}
 
-          <p className="mt-6 text-center text-[13px] text-white/60">
-            <Link href="/login" className="underline-offset-4 hover:underline">
+          <p className="text-center text-xs text-muted-foreground">
+            <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
               Voltar ao login
             </Link>
           </p>
-        </div>
+        </AuthSurface>
       </div>
     </HeroGeometric>
   );

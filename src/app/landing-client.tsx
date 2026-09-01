@@ -3,6 +3,7 @@
 import { apiUrl } from "@/lib/api";
 import Link from "next/link";
 import * as React from "react";
+import { motion } from "framer-motion";
 import { IconArrowRight as ArrowRight, IconCircleCheck as CheckCircle2, IconLayoutKanban as KanbanSquare, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconSparkles as Sparkles, IconUsers as Users } from "@tabler/icons-react";
 
 import { BlurText } from "@/components/ui/blur-text";
@@ -40,14 +41,32 @@ export function LandingClient() {
               />
             </div>
             <h1 className="font-heading text-4xl font-bold leading-[1.05] tracking-tight text-white md:text-5xl lg:text-6xl">
-              Seu CRM, seu funil,<br />seu time — em um lugar só.
+              <BlurText
+                text="Seu CRM, seu funil,"
+                delay={70}
+                className="w-full font-heading font-bold"
+              />
+              <BlurText
+                text="seu time — em um lugar só."
+                delay={70}
+                startDelay={280}
+                className="w-full font-heading font-bold"
+              />
             </h1>
-            <p className="mt-5 max-w-xl text-base text-[var(--color-text-muted)] md:text-lg">
-              Cadastre sua empresa em 30 segundos e comece a centralizar
-              conversas de WhatsApp, pipeline de vendas e equipe no mesmo
-              dashboard.
+            <p className="mt-5 max-w-xl text-base text-white md:text-lg">
+              <BlurText
+                text="Cadastre sua empresa em 30 segundos e comece a centralizar conversas de WhatsApp, pipeline de vendas e equipe no mesmo dashboard."
+                delay={36}
+                startDelay={620}
+                className="text-base md:text-lg"
+              />
             </p>
-            <ul className="mt-8 grid gap-3 text-sm text-white md:grid-cols-2">
+            <motion.ul
+              className="mt-8 grid gap-3 text-sm text-white md:grid-cols-2"
+              initial="hidden"
+              animate="show"
+              variants={featureListVariants}
+            >
               <Feature
                 icon={MessageCircle}
                 label="Inbox unificado"
@@ -68,7 +87,7 @@ export function LandingClient() {
                 label="Zero setup"
                 desc="Crie sua conta e já entra no wizard guiado."
               />
-            </ul>
+            </motion.ul>
           </div>
 
           <SignupCard />
@@ -76,7 +95,7 @@ export function LandingClient() {
       </section>
 
       <footer className="border-t border-[var(--glass-border-subtle)] py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-6 text-center text-xs text-[var(--color-text-muted)] md:flex-row md:justify-between md:text-left">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-6 text-center text-sm text-white md:flex-row md:justify-between md:text-left">
           <span>© {new Date().getFullYear()} Bwipo. Todos os direitos reservados.</span>
           <span>
             Já tem conta?{" "}
@@ -99,18 +118,44 @@ function Header() {
         <img
           src="/logo-bwipo-white.png"
           alt="Bwipo"
-          className="h-8 w-auto max-w-[160px] object-contain"
+          className="h-11 w-auto max-w-[180px] object-contain"
         />
       </div>
       <Link
         href="/login"
-        className="text-sm font-semibold text-[var(--color-text-muted)] hover:text-white"
+        className="text-base font-semibold text-white hover:underline"
       >
         Entrar →
       </Link>
     </header>
   );
 }
+
+const featureListVariants = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.12, delayChildren: 1.15 },
+  },
+};
+
+const featureItemVariants = {
+  hidden: { opacity: 0, y: 18, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  },
+};
+
+const signupFieldVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  },
+};
 
 function Feature({
   icon: Icon,
@@ -122,15 +167,15 @@ function Feature({
   desc: string;
 }) {
   return (
-    <li className="flex gap-3">
+    <motion.li className="flex gap-3" variants={featureItemVariants}>
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/25 text-white">
         <Icon className="size-4" />
       </div>
       <div>
         <div className="font-semibold text-white">{label}</div>
-        <div className="text-xs text-[var(--color-text-muted)]">{desc}</div>
+        <div className="text-xs text-white">{desc}</div>
       </div>
-    </li>
+    </motion.li>
   );
 }
 
@@ -226,18 +271,40 @@ function SignupCard() {
   }
 
   return (
-    <div className="relative">
+    <motion.div
+      className="relative"
+      initial={{ opacity: 0, x: 36, scale: 0.96, filter: "blur(14px)" }}
+      animate={{ opacity: 1, x: 0, scale: 1, filter: "blur(0px)" }}
+      transition={{ duration: 0.7, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+    >
         <div className="absolute -inset-2 rounded-3xl bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
-      <form
+      <motion.form
         onSubmit={submit}
         className="relative flex flex-col gap-4 rounded-2xl border border-border bg-background p-6 text-foreground shadow-xl md:p-8"
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.07, delayChildren: 0.4 } },
+        }}
       >
-        <div>
-          <h2 className="text-xl font-bold text-foreground">Crie sua conta grátis</h2>
+        <motion.div variants={signupFieldVariants}>
+          <h2 className="text-xl font-bold text-foreground">
+            <BlurText
+              text="Crie sua conta grátis"
+              delay={70}
+              className="font-bold text-foreground"
+            />
+          </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Você vira o admin da organização. Sem cartão de crédito.
+            <BlurText
+              text="Você vira o admin da organização. Sem cartão de crédito."
+              delay={40}
+              startDelay={180}
+              className="text-xs text-muted-foreground"
+            />
           </p>
-        </div>
+        </motion.div>
 
         {error ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -245,7 +312,7 @@ function SignupCard() {
           </div>
         ) : null}
 
-        <div>
+        <motion.div variants={signupFieldVariants}>
           <Label htmlFor="org-name">Nome da empresa *</Label>
           <Input
             id="org-name"
@@ -255,9 +322,9 @@ function SignupCard() {
             placeholder="Acme Ltda"
             autoComplete="organization"
           />
-        </div>
+        </motion.div>
 
-        <div>
+        <motion.div variants={signupFieldVariants}>
           <Label htmlFor="slug">
             URL da sua conta
             <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -293,9 +360,9 @@ function SignupCard() {
               {tenantHostPreview(slug)}
             </span>
           </p>
-        </div>
+        </motion.div>
 
-        <div>
+        <motion.div variants={signupFieldVariants}>
           <Label htmlFor="admin-name">Seu nome *</Label>
           <Input
             id="admin-name"
@@ -305,9 +372,9 @@ function SignupCard() {
             placeholder="Marcelo Silva"
             autoComplete="name"
           />
-        </div>
+        </motion.div>
 
-        <div>
+        <motion.div variants={signupFieldVariants}>
           <Label htmlFor="admin-email">Email *</Label>
           <Input
             id="admin-email"
@@ -318,9 +385,9 @@ function SignupCard() {
             placeholder="voce@empresa.com"
             autoComplete="email"
           />
-        </div>
+        </motion.div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <motion.div className="grid gap-3 sm:grid-cols-2" variants={signupFieldVariants}>
           <div>
             <Label htmlFor="password">Senha *</Label>
             <Input
@@ -345,8 +412,9 @@ function SignupCard() {
               autoComplete="new-password"
             />
           </div>
-        </div>
+        </motion.div>
 
+        <motion.div variants={signupFieldVariants}>
         <Button type="submit" disabled={loading} className="mt-2">
           {loading ? (
             <Loader2 className="mr-2 size-4 animate-spin" />
@@ -355,11 +423,12 @@ function SignupCard() {
           )}
           Criar empresa e continuar
         </Button>
+        </motion.div>
 
-        <p className="text-center text-xs text-muted-foreground">
+        <motion.p className="text-center text-xs text-muted-foreground" variants={signupFieldVariants}>
           Ao criar, você concorda com os termos de uso da Bwipo.
-        </p>
-      </form>
-    </div>
+        </motion.p>
+      </motion.form>
+    </motion.div>
   );
 }

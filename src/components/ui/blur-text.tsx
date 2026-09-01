@@ -23,6 +23,8 @@ export type BlurTextProps = {
   text: string;
   /** Atraso entre fragmentos, em ms. */
   delay?: number;
+  /** Atraso extra antes do primeiro fragmento, em ms. */
+  startDelay?: number;
   /** Animar por palavra (padrão) ou por letra. */
   animateBy?: "words" | "letters";
   /** Direção do deslize de entrada. */
@@ -35,6 +37,7 @@ export type BlurTextProps = {
 export function BlurText({
   text,
   delay = 110,
+  startDelay = 0,
   animateBy = "words",
   direction = "top",
   once = true,
@@ -68,7 +71,7 @@ export function BlurText({
           }
           transition={{
             duration: 0.5,
-            delay: (i * delay) / 1000,
+            delay: (startDelay + i * delay) / 1000,
             ease: [0.25, 0.46, 0.45, 0.94],
           }}
         >
