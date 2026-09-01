@@ -1,235 +1,270 @@
 /**
- * Chips visuais dos filtros ativos no Kanban.
- * Cada chip carrega `onRemove` que limpa apenas aquele critério.
+ * Chips Kommo dos filtros de negócio: `Título: N` (sem listar nomes).
+ * Usados dentro da pílula de busca — não numa faixa extra abaixo do header.
  */
 
 "use client";
 
-import * as React from "react";
-import { IconX as X } from "@tabler/icons-react";
-import { TooltipGlass } from "@/components/crm/tooltip-glass";
-
+import { ActiveFilterChip, type ActiveFilterChipModel } from "@/components/crm/active-filter-chip";
 import { cn } from "@/lib/utils";
 
-import { DATE_PRESET_LABELS, detectPreset } from "./date-presets";
-import type { AdvancedDealFilters, FilterOptionsResponse } from "./types";
-import { SOURCE_NONE } from "./types";
+import type { AdvancedDealFilters, CustomFieldFilter, FilterOptionsResponse } from "./types";
 
-type Props = {
-  filters: AdvancedDealFilters;
-  options: FilterOptionsResponse | null;
-  onPatch: (partial: Partial<AdvancedDealFilters>) => void;
-  className?: string;
-};
+type Patch = (partial: Partial<AdvancedDealFilters>) => void;
 
-type Chip = { label: string; onRemove: () => void };
+function customCount(cf: CustomFieldFilter): number {
+  if (Array.isArray(cf.value)) return cf.value.length || 1;
+  return 1;
+}
 
-function nameById<T extends { id: string; name?: string; label?: string }>(
-  list: T[] | undefined,
-  id: string,
+function customTitle(
+  cf: CustomFieldFilter,
+  options: FilterOptionsResponse | null,
+  entity: "deal" | "contact",
 ): string {
-  const item = list?.find((x) => x.id === id);
-  return item?.label ?? item?.name ?? id.slice(0, 6);
+  const defs = entity === "deal" ? options?.dealCustomFields : options?.contactCustomFields;
+  const def = defs?.find((d) => d.name === cf.name);
+  const label = def?.label ?? cf.name;
+  return entity === "contact" ? `Contato · ${label}` : label;
 }
 
-function dateRangeLabel(range: { from?: string | null; to?: string | null } | undefined): string {
-  const preset = detectPreset(range);
-  if (preset !== "custom") return DATE_PRESET_LABELS[preset];
-  if (range?.from && range?.to) return `${range.from} → ${range.to}`;
-  if (range?.from) return `≥ ${range.from}`;
-  if (range?.to) return `≤ ${range.to}`;
-  return "Qualquer";
-}
+/**
+ * @param omitSearch  busca já está no input da pílula
+ * @param omitDates   período vive no calendário do header
+ */
+export function dealFilterChips(
+  filters: AdvancedDealFilters,
+  options: FilterOptionsResponse | null,
+  onPatch: Patch,
+  opts: { omitSearch?: boolean; omitDates?: boolean } = {},
+): ActiveFilterChipModel[] {
+  const omitSearch = opts.omitSearch !== false;
+  const omitDates = opts.omitDates !== false;
+  const chips: ActiveFilterChipModel[] = [];
 
-export function FilterChips({ filters, options, onPatch, className }: Props) {
-  const chips: Chip[] = [];
-
-  if (filters.search?.trim()) {
+  if (!omitSearch && filters.search?.trim()) {
     chips.push({
-      label: `Buscar: ${filters.search}`,
+      id: "search",
+      title: "Busca",
+      count: 1,
       onRemove: () => onPatch({ search: undefined }),
     });
   }
 
   if (filters.stageIds && filters.stageIds.length > 0) {
-    const allStages = options?.pipelines.flatMap((p) => p.stages) ?? [];
-    const names = filters.stageIds
-      .map((id) => allStages.find((s) => s.id === id)?.name ?? id.slice(0, 6))
-      .join(", ");
     chips.push({
-      label: `Etapas: ${names}`,
+      id: "stages",
+      title: "Etapas",
+      count: filters.stageIds.length,
       onRemove: () => onPatch({ stageIds: undefined }),
     });
   }
 
   if (filters.statuses && filters.statuses.length > 0) {
-    const map = { OPEN: "Aberto", WON: "Ganho", LOST: "Perdido" } as const;
     chips.push({
-      label: `Status: ${filters.statuses.map((s) => map[s] ?? s).join(", ")}`,
+      id: "status",
+      title: "Status",
+      count: filters.statuses.length,
       onRemove: () => onPatch({ statuses: undefined }),
     });
   }
 
   if (filters.withoutOwner) {
     chips.push({
-      label: "Sem responsável",
+      id: "owner",
+      title: "Sem responsável",
+      count: 1,
       onRemove: () => onPatch({ withoutOwner: undefined }),
     });
   } else if (filters.ownerIds && filters.ownerIds.length > 0) {
-    const names = filters.ownerIds
-      .filter((id): id is string => !!id)
-      .map((id) => nameById(options?.users, id))
-      .join(", ");
     chips.push({
-      label: `Responsável: ${names || "—"}`,
+      id: "owner",
+      title: "Responsável",
+      count: filters.ownerIds.filter(Boolean).length,
       onRemove: () => onPatch({ ownerIds: undefined }),
     });
   }
 
   if (filters.withoutContact) {
     chips.push({
-      label: "Sem contato",
+      id: "contact",
+      title: "Sem contato",
+      count: 1,
       onRemove: () => onPatch({ withoutContact: undefined }),
     });
   }
 
   if (filters.withoutSource) {
     chips.push({
-      label: "Sem origem",
+      id: "source",
+      title: "Sem origem",
+      count: 1,
       onRemove: () => onPatch({ withoutSource: undefined }),
     });
   } else if (filters.sources && filters.sources.length > 0) {
     chips.push({
-      label: `Origem: ${filters.sources.map((s) => (s === SOURCE_NONE ? "Sem origem" : s)).join(", ")}`,
+      id: "source",
+      title: "Origem",
+      count: filters.sources.length,
       onRemove: () => onPatch({ sources: undefined }),
+    });
+  }
+
+  if (filters.lostReasons && filters.lostReasons.length > 0) {
+    chips.push({
+      id: "lost",
+      title: "Perda",
+      count: filters.lostReasons.length,
+      onRemove: () => onPatch({ lostReasons: undefined }),
     });
   }
 
   if (filters.withoutTags) {
     chips.push({
-      label: "Sem tags",
-      onRemove: () => onPatch({ withoutTags: undefined }),
+      id: "tags",
+      title: "Sem tags",
+      count: 1,
+      onRemove: () => onPatch({ withoutTags: undefined, tagMode: undefined }),
     });
   } else if (filters.tagIds && filters.tagIds.length > 0) {
-    const names = filters.tagIds.map((id) => nameById(options?.tags, id)).join(", ");
-    const modeLabel =
-      filters.tagMode === "all"
-        ? "contém todas"
-        : filters.tagMode === "none"
-          ? "não contém"
-          : "contém";
     chips.push({
-      label: `Tags (${modeLabel}): ${names}`,
+      id: "tags",
+      title: "Tags",
+      count: filters.tagIds.length,
       onRemove: () => onPatch({ tagIds: undefined, tagMode: undefined }),
     });
   }
 
   if (filters.contactSearch?.trim()) {
     chips.push({
-      label: `Contato: ${filters.contactSearch}`,
+      id: "contact-search",
+      title: "Contato",
+      count: 1,
       onRemove: () => onPatch({ contactSearch: undefined }),
     });
   }
   if (filters.contactHasPhone === false) {
     chips.push({
-      label: "Sem telefone",
+      id: "phone",
+      title: "Sem telefone",
+      count: 1,
       onRemove: () => onPatch({ contactHasPhone: undefined }),
     });
   } else if (filters.contactHasPhone === true) {
     chips.push({
-      label: "Com telefone",
+      id: "phone",
+      title: "Com telefone",
+      count: 1,
       onRemove: () => onPatch({ contactHasPhone: undefined }),
     });
   }
   if (filters.contactHasEmail === false) {
     chips.push({
-      label: "Sem e-mail",
+      id: "email",
+      title: "Sem e-mail",
+      count: 1,
       onRemove: () => onPatch({ contactHasEmail: undefined }),
     });
   } else if (filters.contactHasEmail === true) {
     chips.push({
-      label: "Com e-mail",
+      id: "email",
+      title: "Com e-mail",
+      count: 1,
       onRemove: () => onPatch({ contactHasEmail: undefined }),
     });
   }
 
-  if (filters.createdAt && (filters.createdAt.from || filters.createdAt.to)) {
-    chips.push({
-      label: `Criado: ${dateRangeLabel(filters.createdAt)}`,
-      onRemove: () => onPatch({ createdAt: undefined }),
-    });
-  }
-  if (filters.updatedAt && (filters.updatedAt.from || filters.updatedAt.to)) {
-    chips.push({
-      label: `Atualizado: ${dateRangeLabel(filters.updatedAt)}`,
-      onRemove: () => onPatch({ updatedAt: undefined }),
-    });
-  }
-  if (filters.closedAt && (filters.closedAt.from || filters.closedAt.to)) {
-    chips.push({
-      label: `Fechado: ${dateRangeLabel(filters.closedAt)}`,
-      onRemove: () => onPatch({ closedAt: undefined }),
-    });
-  }
-  if (filters.lastInteractionAt && (filters.lastInteractionAt.from || filters.lastInteractionAt.to)) {
-    chips.push({
-      label: `Última interação: ${dateRangeLabel(filters.lastInteractionAt)}`,
-      onRemove: () => onPatch({ lastInteractionAt: undefined }),
-    });
+  if (!omitDates) {
+    if (filters.createdAt && (filters.createdAt.from || filters.createdAt.to)) {
+      chips.push({
+        id: "created",
+        title: "Criado",
+        count: 1,
+        onRemove: () => onPatch({ createdAt: undefined }),
+      });
+    }
+    if (filters.updatedAt && (filters.updatedAt.from || filters.updatedAt.to)) {
+      chips.push({
+        id: "updated",
+        title: "Atualizado",
+        count: 1,
+        onRemove: () => onPatch({ updatedAt: undefined }),
+      });
+    }
+    if (filters.closedAt && (filters.closedAt.from || filters.closedAt.to)) {
+      chips.push({
+        id: "closed",
+        title: "Fechado",
+        count: 1,
+        onRemove: () => onPatch({ closedAt: undefined }),
+      });
+    }
+    if (filters.lastInteractionAt && (filters.lastInteractionAt.from || filters.lastInteractionAt.to)) {
+      chips.push({
+        id: "last-interaction",
+        title: "Última interação",
+        count: 1,
+        onRemove: () => onPatch({ lastInteractionAt: undefined }),
+      });
+    }
   }
 
   if (filters.conversationStatus) {
     chips.push({
-      label: `Conversa: ${filters.conversationStatus === "open" ? "aberta" : "fechada"}`,
+      id: "conversation",
+      title: "Conversa",
+      count: 1,
       onRemove: () => onPatch({ conversationStatus: undefined }),
     });
   }
 
   if (filters.windowState) {
     chips.push({
-      label: `Sessão da Meta: ${filters.windowState === "open" ? "aberta" : "fechada"}`,
+      id: "window",
+      title: "Sessão da Meta",
+      count: 1,
       onRemove: () => onPatch({ windowState: undefined }),
     });
   }
 
   if (filters.lastMessageDirection) {
     chips.push({
-      label:
-        filters.lastMessageDirection === "in"
-          ? "Mensagem recebida"
-          : "Mensagem enviada",
+      id: "direction",
+      title: filters.lastMessageDirection === "in" ? "Mensagem recebida" : "Mensagem enviada",
+      count: 1,
       onRemove: () => onPatch({ lastMessageDirection: undefined }),
     });
   }
 
   if (filters.exception) {
-    const labels = {
+    const titles = {
       no_task: "Sem próxima tarefa",
-      stalled: `Parados > ${filters.stalledDays ?? 7} dias`,
-      overdue: "Fechamento previsto vencido",
-      empty_value: "Sem valor preenchido",
+      stalled: "Parados",
+      overdue: "Fechamento vencido",
+      empty_value: "Sem valor",
     } as const;
     chips.push({
-      label: labels[filters.exception],
+      id: "exception",
+      title: titles[filters.exception],
+      count: 1,
       onRemove: () => onPatch({ exception: undefined, stalledDays: undefined }),
     });
   }
 
-  for (const cf of filters.dealCustomFields ?? []) {
-    const def = options?.dealCustomFields.find((d) => d.name === cf.name);
-    const label = def?.label ?? cf.name;
-    const valueStr =
-      typeof cf.value === "string"
-        ? cf.value
-        : Array.isArray(cf.value)
-          ? cf.value.join(", ")
-          : cf.operator === "filled"
-            ? "preenchido"
-            : cf.operator === "empty"
-              ? "vazio"
-              : "";
+  if (filters.valueFrom != null || filters.valueTo != null) {
     chips.push({
-      label: `${label}${valueStr ? `: ${valueStr}` : ""}`,
+      id: "value",
+      title: "Valor",
+      count: 1,
+      onRemove: () => onPatch({ valueFrom: undefined, valueTo: undefined }),
+    });
+  }
+
+  for (const cf of filters.dealCustomFields ?? []) {
+    chips.push({
+      id: `deal-cf-${cf.name}`,
+      title: customTitle(cf, options, "deal"),
+      count: customCount(cf),
       onRemove: () =>
         onPatch({
           dealCustomFields: (filters.dealCustomFields ?? []).filter((f) => f.name !== cf.name),
@@ -238,20 +273,10 @@ export function FilterChips({ filters, options, onPatch, className }: Props) {
   }
 
   for (const cf of filters.contactCustomFields ?? []) {
-    const def = options?.contactCustomFields.find((d) => d.name === cf.name);
-    const label = `Contato · ${def?.label ?? cf.name}`;
-    const valueStr =
-      typeof cf.value === "string"
-        ? cf.value
-        : Array.isArray(cf.value)
-          ? cf.value.join(", ")
-          : cf.operator === "filled"
-            ? "preenchido"
-            : cf.operator === "empty"
-              ? "vazio"
-              : "";
     chips.push({
-      label: `${label}${valueStr ? `: ${valueStr}` : ""}`,
+      id: `contact-cf-${cf.name}`,
+      title: customTitle(cf, options, "contact"),
+      count: customCount(cf),
       onRemove: () =>
         onPatch({
           contactCustomFields: (filters.contactCustomFields ?? []).filter((f) => f.name !== cf.name),
@@ -259,21 +284,35 @@ export function FilterChips({ filters, options, onPatch, className }: Props) {
     });
   }
 
-  if (chips.length === 0) return null;
+  return chips;
+}
 
+/** @deprecated Prefira chips na pílula via `dealFilterChips` + `SearchFilterBar`. */
+export function FilterChips({
+  filters,
+  options,
+  onPatch,
+  className,
+}: {
+  filters: AdvancedDealFilters;
+  options: FilterOptionsResponse | null;
+  onPatch: Patch;
+  className?: string;
+}) {
+  const chips = dealFilterChips(filters, options, onPatch, {
+    omitSearch: false,
+    omitDates: false,
+  });
+  if (chips.length === 0) return null;
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
-      {chips.map((chip, idx) => (
-        <TooltipGlass key={`${chip.label}-${idx}`} label="Remover filtro" side="top">
-          <button
-            type="button"
-            onClick={chip.onRemove}
-            className="group inline-flex items-center gap-1 rounded-full border border-primary/25 bg-[var(--color-primary-soft)] px-2.5 py-0.5 text-[11px] font-medium text-primary backdrop-blur-sm transition-all hover:border-[var(--color-danger)]/35 hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
-          >
-            <span>{chip.label}</span>
-            <X className="size-3 opacity-60 group-hover:opacity-100" />
-          </button>
-        </TooltipGlass>
+    <div className={cn("flex flex-nowrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
+      {chips.map((chip) => (
+        <ActiveFilterChip
+          key={chip.id}
+          title={chip.title}
+          count={chip.count}
+          onRemove={chip.onRemove}
+        />
       ))}
     </div>
   );

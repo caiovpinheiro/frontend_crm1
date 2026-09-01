@@ -61,14 +61,8 @@ import { ViewToggle, useCardsTableView } from "@/components/automations/view-tog
 import { PageChrome } from "@/components/crm/page-header";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import {
-  FilterChip,
-  FilterPopoverBody,
-  FilterPopoverHeader,
-  FilterPopoverPanel,
-  FilterSectionLabel,
-  FilterSegmentedTabs,
-} from "@/components/crm/filter-popover";
+import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import {
   PeriodCalendarButton,
   PeriodIsoRangePanel,
@@ -1458,7 +1452,6 @@ function FeedSearchFilterBar({
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
-  const [tab, setTab] = React.useState<FeedFilterTab>("entidade");
 
   const stageTransitionActive =
     Boolean(stagePipelineId) || stageFrom.length > 0 || stageTo.length > 0;
@@ -1468,7 +1461,7 @@ function FeedSearchFilterBar({
     (actor !== "ALL" ? 1 : 0) +
     (stageTransitionActive ? 1 : 0);
 
-  const { data: pipelines = [] } = usePipelinesLite(open && tab === "transicao");
+  const { data: pipelines = [] } = usePipelinesLite(open);
   const currentPipeline = React.useMemo(
     () => pipelines.find((p) => p.id === stagePipelineId) ?? null,
     [pipelines, stagePipelineId],
@@ -1481,28 +1474,6 @@ function FeedSearchFilterBar({
   ) => {
     if (current.includes(id)) setter(current.filter((x) => x !== id));
     else setter([...current, id]);
-  };
-
-  React.useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  const tabBadge = (id: FeedFilterTab) => {
-    if (id === "entidade") return entity !== "ALL" ? 1 : 0;
-    if (id === "ator") return actor !== "ALL" ? 1 : 0;
-    if (id === "transicao")
-      return (
-        (stagePipelineId ? 1 : 0) +
-        (stageFrom.length > 0 ? 1 : 0) +
-        (stageTo.length > 0 ? 1 : 0)
-      );
-    return 0;
   };
 
   function clearAll() {
@@ -1524,127 +1495,119 @@ function FeedSearchFilterBar({
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
         onFocus={() => setOpen(true)}
+        chips={[
+          ...(entity !== "ALL"
+            ? [{ id: "entity", title: "Entidade", count: 1, onRemove: () => onEntityChange("ALL") }]
+            : []),
+          ...(actor !== "ALL"
+            ? [{ id: "actor", title: "Ator", count: 1, onRemove: () => onActorChange("ALL") }]
+            : []),
+          ...(stagePipelineId
+            ? [{ id: "funil", title: "Funil", count: 1, onRemove: () => onStagePipelineChange(null) }]
+            : []),
+          ...(stageFrom.length
+            ? [{ id: "from", title: "De", count: stageFrom.length, onRemove: () => onStageFromChange([]) }]
+            : []),
+          ...(stageTo.length
+            ? [{ id: "to", title: "Para", count: stageTo.length, onRemove: () => onStageToChange([]) }]
+            : []),
+        ]}
       />
 
-      {open ? (
-        <FilterPopoverPanel>
-          <FilterPopoverHeader
-            count={activeCount}
-            onClear={clearAll}
-            clearDisabled={activeCount === 0}
-          />
-          <FilterSegmentedTabs
-            value={tab}
-            onChange={setTab}
-            tabs={FEED_FILTER_TABS.map((t) => ({
-              id: t.id,
-              label: t.label,
-              icon: t.icon,
-              badge: tabBadge(t.id),
-            }))}
-          />
-          <FilterPopoverBody>
-            {tab === "entidade" && (
-              <div className="flex flex-wrap gap-1.5">
-                {ENTITY_OPTIONS.map((opt) => (
-                  <FilterChip
-                    key={opt.value}
-                    selected={entity === opt.value}
-                    onClick={() => onEntityChange(opt.value)}
-                  >
-                    {opt.label}
-                  </FilterChip>
-                ))}
-              </div>
-            )}
-
-            {tab === "ator" && (
-              <div className="flex flex-wrap gap-1.5">
-                {ACTOR_OPTIONS.map((opt) => (
-                  <FilterChip
-                    key={opt.value}
-                    selected={actor === opt.value}
-                    onClick={() => onActorChange(opt.value)}
-                  >
-                    {opt.label}
-                  </FilterChip>
-                ))}
-              </div>
-            )}
-
-            {tab === "transicao" && (
-              <div className="flex flex-col gap-3">
-                <div className="rounded-xl border border-border bg-secondary px-3 py-2 text-sm leading-snug text-muted-foreground">
-                  Filtra apenas eventos de <b className="text-foreground">mudança de fase</b>. Combina com
-                  período e ator selecionados. Escolha o funil e, opcionalmente,
-                  as fases de <b className="text-foreground">origem</b> e <b className="text-foreground">destino</b>.
-                </div>
-
-                <div>
-                  <FilterSectionLabel>Funil</FilterSectionLabel>
-                  <div className="flex flex-wrap gap-1.5">
-                    <FilterChip
-                      selected={!stagePipelineId}
-                      onClick={() => {
-                        onStagePipelineChange(null);
-                        onStageFromChange([]);
-                        onStageToChange([]);
-                      }}
-                    >
-                      Todos
-                    </FilterChip>
-                    {pipelines.map((p) => (
-                      <FilterChip
-                        key={p.id}
-                        selected={stagePipelineId === p.id}
-                        onClick={() => {
-                          onStagePipelineChange(p.id);
-                          onStageFromChange([]);
-                          onStageToChange([]);
-                        }}
-                      >
-                        {p.name}
-                      </FilterChip>
-                    ))}
-                  </div>
-                </div>
-
-                {currentPipeline && (
-                  <>
-                    <StagePicker
-                      label="De (fase de origem)"
-                      hint="Vazio = qualquer fase de origem"
-                      stages={currentPipeline.stages}
-                      selected={stageFrom}
-                      onToggle={(id) =>
-                        toggleStageId(stageFrom, id, onStageFromChange)
-                      }
-                      onClear={() => onStageFromChange([])}
-                    />
-                    <StagePicker
-                      label="Para (fase de destino)"
-                      hint="Vazio = qualquer fase de destino"
-                      stages={currentPipeline.stages}
-                      selected={stageTo}
-                      onToggle={(id) =>
-                        toggleStageId(stageTo, id, onStageToChange)
-                      }
-                      onClear={() => onStageToChange([])}
-                    />
-                  </>
-                )}
-
-                {!currentPipeline && pipelines.length > 0 && (
-                  <p className="rounded-xl border border-dashed border-border bg-secondary px-3 py-3 text-center text-sm text-muted-foreground">
-                    Selecione um funil acima para escolher as fases de origem
-                    e destino.
-                  </p>
-                )}
-              </div>
-            )}
-          </FilterPopoverBody>
-        </FilterPopoverPanel>
-      ) : null}
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={clearAll}
+        onApply={() => setOpen(false)}
+        count={activeCount}
+        clearDisabled={activeCount === 0}
+        title="Filtros"
+        labelledBy="Filtros de eventos"
+      >
+        <FilterCategoryColumn title="Entidade" icon={FEED_FILTER_TABS[0].icon}>
+          {ENTITY_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              selected={entity === opt.value}
+              onClick={() => onEntityChange(opt.value)}
+            >
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Ator" icon={FEED_FILTER_TABS[1].icon}>
+          {ACTOR_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              selected={actor === opt.value}
+              onClick={() => onActorChange(opt.value)}
+            >
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn
+          title="Fase"
+          hint="Mudança de fase no funil"
+          icon={FEED_FILTER_TABS[2].icon}
+          stacked
+          className="sm:col-span-2 lg:col-span-1"
+        >
+          <div className="flex flex-wrap gap-2">
+            <FilterChip
+              tone="fill"
+              selected={!stagePipelineId}
+              onClick={() => {
+                onStagePipelineChange(null);
+                onStageFromChange([]);
+                onStageToChange([]);
+              }}
+            >
+              Todos os funis
+            </FilterChip>
+            {pipelines.map((p) => (
+              <FilterChip
+                key={p.id}
+                tone="fill"
+                selected={stagePipelineId === p.id}
+                onClick={() => {
+                  onStagePipelineChange(p.id);
+                  onStageFromChange([]);
+                  onStageToChange([]);
+                }}
+              >
+                {p.name}
+              </FilterChip>
+            ))}
+          </div>
+          {currentPipeline ? (
+            <>
+              <StagePicker
+                label="De (fase de origem)"
+                hint="Vazio = qualquer fase de origem"
+                stages={currentPipeline.stages}
+                selected={stageFrom}
+                onToggle={(id) => toggleStageId(stageFrom, id, onStageFromChange)}
+                onClear={() => onStageFromChange([])}
+              />
+              <StagePicker
+                label="Para (fase de destino)"
+                hint="Vazio = qualquer fase de destino"
+                stages={currentPipeline.stages}
+                selected={stageTo}
+                onToggle={(id) => toggleStageId(stageTo, id, onStageToChange)}
+                onClear={() => onStageToChange([])}
+              />
+            </>
+          ) : pipelines.length > 0 ? (
+            <p className="rounded-xl border border-dashed border-border bg-secondary px-3 py-3 text-sm text-muted-foreground">
+              Selecione um funil para escolher origem e destino.
+            </p>
+          ) : null}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   );
 }
@@ -1682,6 +1645,7 @@ function StagePicker({
         {stages.map((s) => (
           <FilterChip
             key={s.id}
+            tone="fill"
             selected={selected.includes(s.id)}
             onClick={() => onToggle(s.id)}
           >

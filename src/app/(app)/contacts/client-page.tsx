@@ -26,8 +26,6 @@ import {
   IconUsersGroup,
   IconArrowMerge,
   IconLoader2,
-  IconArrowsSort,
-  IconTag,
   IconTrophy,
   IconUserPlus,
   IconUserOff,
@@ -50,15 +48,8 @@ import {
 } from "@/components/crm/period-calendar-button";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import {
-  FilterApplyButton,
-  FilterPopoverBody,
-  FilterPopoverFooter,
-  FilterPopoverHeader,
-  FilterPopoverPanel,
-  FilterRadioRow,
-  FilterSegmentedTabs,
-} from "@/components/crm/filter-popover";
+import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import { ListColumnLabel, LIST_ACTIONS_CELL_CLASS, LIST_ACTIONS_TRACK, SortableHeader, type SortDir } from "@/components/crm/sortable-header";
 import {
   ColumnResizer,
@@ -183,12 +174,11 @@ const SORT_OPTIONS = [
   { value: "updatedAt:desc", label: "Modificados recentemente" },
 ] as const;
 
-type FilterPanelTab = "ordenar" | "tags";
-
-const FILTER_TABS: { id: FilterPanelTab; label: string; icon: React.ReactNode }[] = [
-  { id: "ordenar", label: "Ordenar", icon: <IconArrowsSort size={14} stroke={2.2} /> },
-  { id: "tags", label: "Tags", icon: <IconTag size={14} stroke={2.2} /> },
-];
+type ContactFilterDraft = {
+  sortBy: SortField;
+  sortOrder: "asc" | "desc";
+  tagIds: string[];
+};
 
 function fmtDateBR(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -818,13 +808,6 @@ export default function V2ContactsClientPage() {
 
 // ── Busca + painel de filtros segmentado (DS v2) ─────────────────────────────
 
-
-type ContactFilterDraft = {
-  sortBy: SortField;
-  sortOrder: "asc" | "desc";
-  tagIds: string[];
-};
-
 function ContactsSearchFilterBar({
   search, onSearch, tags, tagIds,
   sortBy, sortOrder, activeCount, onClear, onApply, onPick,
@@ -841,7 +824,6 @@ function ContactsSearchFilterBar({
   onPick?: (c: ContactListItemDto) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<FilterPanelTab>("ordenar");
   const [tagQuery, setTagQuery] = useState("");
   const [draft, setDraft] = useState<ContactFilterDraft>({
     sortBy, sortOrder, tagIds,
@@ -860,15 +842,6 @@ function ContactsSearchFilterBar({
     setDraft({ sortBy, sortOrder, tagIds });
     setTagQuery("");
   }, [open, sortBy, sortOrder, tagIds]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
 
   const visibleTags = (tags ?? [])
     .filter((t) => t.contactCount > 0)
@@ -901,11 +874,6 @@ function ContactsSearchFilterBar({
     setOpen(false);
   }
 
-  const tabBadge = (id: FilterPanelTab) => {
-    if (id === "tags") return tagsCount;
-    return 0;
-  };
-
   return (
     <div ref={ref} className="relative w-full">
       <div ref={menu.wrapRef}>
@@ -926,6 +894,11 @@ function ContactsSearchFilterBar({
             const c = hits.items[menu.activeIndex] ?? hits.items[0];
             if (c) pickContact(c);
           })
+        }
+        chips={
+          tagIds.length
+            ? [{ id: "tags", title: "Tags", count: tagIds.length, onRemove: onClear }]
+            : undefined
         }
       />
       </div>
@@ -977,101 +950,72 @@ function ContactsSearchFilterBar({
         </OmnisearchResultsPanel>
       )}
 
-      {open && (
-        <FilterPopoverPanel>
-          <FilterPopoverHeader
-            count={draftActiveCount || activeCount}
-            onClear={handleClear}
-            clearDisabled={draftActiveCount === 0 && activeCount === 0}
-          />
-          <FilterSegmentedTabs
-            value={tab}
-            onChange={setTab}
-            tabs={FILTER_TABS.map((t) => ({
-              id: t.id,
-              label: t.label,
-              icon: t.icon,
-              badge: tabBadge(t.id),
-            }))}
-          />
-
-          <FilterPopoverBody>
-            {tab === "ordenar" && (
-              <div className="flex flex-col gap-0.5" role="listbox" aria-label="Ordenar por">
-                <p className="mb-2 text-xs font-semibold text-muted-foreground">
-                  Ordenar resultados por
-                </p>
-                {SORT_OPTIONS.map((opt) => {
-                  const selected = sortKey === opt.value;
-                  return (
-                    <FilterRadioRow
-                      key={opt.value}
-                      selected={selected}
-                      onClick={() => {
-                        const [f, o] = opt.value.split(":");
-                        setDraft((prev) => ({
-                          ...prev,
-                          sortBy: f as SortField,
-                          sortOrder: o as "asc" | "desc",
-                        }));
-                      }}
-                    >
-                      {opt.label}
-                    </FilterRadioRow>
-                  );
-                })}
-              </div>
-            )}
-
-            {tab === "tags" && (
-              <div>
-                <div className="relative mb-2.5">
-                  <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    value={tagQuery}
-                    onChange={(e) => setTagQuery(e.target.value)}
-                    placeholder="Localizar tags..."
-                    className={cn(formControlClass, "h-9 pl-8 text-sm")}
-                  />
-                </div>
-                <div className="flex max-h-52 flex-wrap gap-1.5 overflow-y-auto">
-                  {visibleTags.length === 0 ? (
-                    <span className="px-1 py-1 text-sm text-muted-foreground">Nenhuma tag.</span>
-                  ) : visibleTags.map((t) => {
-                    const on = tagSet.has(t.id);
-                    const colored = Boolean(t.color);
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => toggleDraftTag(t.id)}
-                        aria-pressed={on}
-                        style={tagChipStyle(t.color, on)}
-                        className={cn(
-                          "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-sm font-semibold transition-colors",
-                          !colored &&
-                            (on
-                              ? "border-primary bg-primary/10 text-foreground"
-                              : "border-border bg-card text-muted-foreground hover:bg-secondary"),
-                        )}
-                      >
-                        {on ? <IconCheck size={13} stroke={2.6} /> : <IconPlus size={13} stroke={2.4} />}
-                        {t.name}
-                        <span className={colored ? "opacity-70" : "text-muted-foreground"}>{t.contactCount}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </FilterPopoverBody>
-          <FilterPopoverFooter>
-            <FilterApplyButton onClick={handleApply} className="w-full justify-center">
-              {draftActiveCount > 0 ? `Aplicar (${draftActiveCount})` : "Aplicar"}
-            </FilterApplyButton>
-          </FilterPopoverFooter>
-        </FilterPopoverPanel>
-      )}
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={handleClear}
+        onApply={handleApply}
+        count={draftActiveCount || activeCount}
+        clearDisabled={draftActiveCount === 0 && activeCount === 0}
+        title="Filtros"
+        labelledBy="Filtros de contatos"
+      >
+        <FilterCategoryColumn title="Tags" hint="Incluir contatos com estas tags" className="sm:col-span-2">
+          <div className="relative w-full">
+            <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={tagQuery}
+              onChange={(e) => setTagQuery(e.target.value)}
+              placeholder="Localizar tags..."
+              className={cn(formControlClass, "h-9 pl-8 text-sm")}
+            />
+          </div>
+          {visibleTags.length === 0 ? (
+            <span className="px-1 py-1 text-sm text-muted-foreground">Nenhuma tag.</span>
+          ) : visibleTags.map((t) => {
+            const on = tagSet.has(t.id);
+            const colored = Boolean(t.color);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => toggleDraftTag(t.id)}
+                aria-pressed={on}
+                style={tagChipStyle(t.color, on)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-sm font-semibold transition-colors",
+                  !colored &&
+                    (on
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-muted-foreground hover:bg-secondary"),
+                )}
+              >
+                {t.name}
+                <span className={colored || on ? "opacity-70" : "text-muted-foreground"}>{t.contactCount}</span>
+              </button>
+            );
+          })}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Ordenar">
+          {SORT_OPTIONS.map((opt) => (
+            <FilterChip
+              key={opt.value}
+              tone="fill"
+              selected={sortKey === opt.value}
+              onClick={() => {
+                const [f, o] = opt.value.split(":");
+                setDraft((prev) => ({
+                  ...prev,
+                  sortBy: f as SortField,
+                  sortOrder: o as "asc" | "desc",
+                }));
+              }}
+            >
+              {opt.label}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   );
 }

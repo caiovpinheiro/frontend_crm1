@@ -8,6 +8,7 @@
 
 import * as React from "react";
 
+import type { ActiveFilterChipModel } from "@/components/crm/active-filter-chip";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 
 export type FilterSearchTriggerProps = {
@@ -26,6 +27,8 @@ export type FilterSearchTriggerProps = {
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   /** Esconde o texto "Filtrar" (barra compacta mobile). */
   filterLabel?: string | false;
+  /** Chips Kommo (`Título: N`) dentro da pílula. */
+  chips?: ActiveFilterChipModel[];
 };
 
 export function FilterSearchTrigger({
@@ -41,6 +44,7 @@ export function FilterSearchTrigger({
   onFocus,
   onKeyDown,
   filterLabel,
+  chips,
 }: FilterSearchTriggerProps) {
   void _tooltipLabel;
   return (
@@ -58,6 +62,7 @@ export function FilterSearchTrigger({
       onKeyDown={onKeyDown}
       clearable
       filterLabel={filterLabel}
+      chips={chips}
     />
   );
 }

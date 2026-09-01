@@ -16,13 +16,8 @@ import { ViewToggle, useCardsTableView } from "@/components/automations/view-tog
 import { PageChrome } from "@/components/crm/page-header";
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
-import {
-  FilterChip,
-  FilterPopoverBody,
-  FilterPopoverHeader,
-  FilterPopoverPanel,
-  FilterSectionLabel,
-} from "@/components/crm/filter-popover";
+import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import { EmptyState } from "@/components/crm/empty-state";
 import { PageActionsMenu, PagePrimaryButton } from "@/components/crm/page-toolbar";
 import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
@@ -328,15 +323,6 @@ function CampaignsSearchFilterBar({
   const [open, setOpen] = useState(false);
   const activeCount = statusFilter ? 1 : 0;
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
   return (
     <div ref={ref} className="relative w-full">
       <SearchFilterBar
@@ -348,53 +334,53 @@ function CampaignsSearchFilterBar({
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
         onFocus={() => setOpen(true)}
+        chips={
+          statusFilter
+            ? [{ id: "status", title: "Status", count: 1, onRemove: () => onStatusChange("") }]
+            : undefined
+        }
       />
 
-      {open ? (
-        <FilterPopoverPanel>
-          <FilterPopoverHeader
-            title="Filtros"
-            count={activeCount}
-            onClear={onClearAll}
-            clearDisabled={activeCount === 0 && !search}
-          />
-          <FilterPopoverBody>
-            <FilterSectionLabel>Status</FilterSectionLabel>
-            <div className="flex flex-wrap gap-1.5">
-              {CAMPAIGN_STATUS_FILTERS.map((f) => {
-                const count =
-                  f.value === ""
-                    ? total
-                    : statusCounts[f.value as CampaignStatus] ?? 0;
-                return (
-                  <FilterChip
-                    key={f.value || "all"}
-                    selected={statusFilter === f.value}
-                    onClick={() => onStatusChange(f.value)}
-                    count={count}
-                  >
-                    {f.label}
-                  </FilterChip>
-                );
-              })}
-            </div>
-            <div className="mt-4 border-t border-border pt-3">
-              <FilterSectionLabel>Ordenar</FilterSectionLabel>
-              <div className="flex flex-wrap gap-1.5" role="listbox" aria-label="Ordenar campanhas">
-                {SORT_KEYS.map((key) => (
-                  <FilterChip
-                    key={key}
-                    selected={sortKey === key}
-                    onClick={() => onSortChange(key)}
-                  >
-                    {SORT_LABEL[key]}
-                  </FilterChip>
-                ))}
-              </div>
-            </div>
-          </FilterPopoverBody>
-        </FilterPopoverPanel>
-      ) : null}
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={onClearAll}
+        onApply={() => setOpen(false)}
+        count={activeCount}
+        clearDisabled={activeCount === 0 && !search}
+        title="Filtros"
+        labelledBy="Filtros de campanhas"
+      >
+        <FilterCategoryColumn title="Status">
+          {CAMPAIGN_STATUS_FILTERS.map((f) => {
+            const count =
+              f.value === "" ? total : statusCounts[f.value as CampaignStatus] ?? 0;
+            return (
+              <FilterChip
+                key={f.value || "all"}
+                tone="fill"
+                selected={statusFilter === f.value}
+                onClick={() => onStatusChange(f.value)}
+                count={count}
+              >
+                {f.label}
+              </FilterChip>
+            );
+          })}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Ordenar">
+          {SORT_KEYS.map((key) => (
+            <FilterChip
+              key={key}
+              tone="fill"
+              selected={sortKey === key}
+              onClick={() => onSortChange(key)}
+            >
+              {SORT_LABEL[key]}
+            </FilterChip>
+          ))}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   );
 }
