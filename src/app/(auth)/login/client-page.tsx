@@ -4,11 +4,14 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLock as Lock, IconLogin as LogIn, IconMail as Mail } from "@tabler/icons-react";
+import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, IconLoader2 as Loader2, IconLogin as LogIn } from "@tabler/icons-react";
 import { motion } from "framer-motion";
 
-import { cn } from "@/lib/utils";
+import { BlurText } from "@/components/ui/blur-text";
+import { Button } from "@/components/ui/button";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
 import {
@@ -77,6 +80,15 @@ function isApexLoginHost(): boolean {
   if (typeof window === "undefined") return false;
   return isMarketingApexHost(window.location.host);
 }
+
+const loginFieldVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  },
+};
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -434,39 +446,66 @@ function LoginForm() {
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="glass-overlay w-full rounded-[var(--radius-2xl)] p-8"
+        <motion.div
+          className="relative w-full"
+          initial={{ opacity: 0, y: 28, scale: 0.96, filter: "blur(14px)" }}
+          animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.7, delay: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
         >
-          <div className="mb-4">
-            <label htmlFor="email" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden />
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                className="h-11 w-full rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-base)] pl-9 pr-4 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] backdrop-blur transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+          <div className="absolute -inset-2 rounded-3xl bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
+          <motion.form
+            onSubmit={handleSubmit}
+            className="relative flex w-full flex-col gap-4 rounded-2xl border border-border bg-background p-6 text-foreground shadow-xl md:p-8"
+            initial="hidden"
+            animate="show"
+            variants={{
+              hidden: {},
+              show: { transition: { staggerChildren: 0.07, delayChildren: 0.35 } },
+            }}
+          >
+          <motion.div variants={loginFieldVariants}>
+            <h2 className="text-xl font-bold text-foreground">
+              <BlurText
+                text={identifyOnly ? "Encontre sua empresa" : "Entrar na sua conta"}
+                delay={70}
+                className="font-bold text-foreground"
               />
-            </div>
-          </div>
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              <BlurText
+                text={
+                  identifyOnly
+                    ? "Informe seu e-mail para abrir o login da sua empresa."
+                    : "Use o e-mail e a senha da sua organização."
+                }
+                delay={40}
+                startDelay={160}
+                className="text-xs text-muted-foreground"
+              />
+            </p>
+          </motion.div>
+
+          <motion.div variants={loginFieldVariants}>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="seu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              className="mt-1.5"
+            />
+          </motion.div>
 
           {!identifyOnly ? (
-            <div className="mb-2">
-              <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
-                Senha
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden />
-                <input
+            <motion.div variants={loginFieldVariants}>
+              <Label htmlFor="password">Senha</Label>
+              <div className="relative mt-1.5">
+                <Input
                   ref={passwordRef}
                   id="password"
                   name="password"
@@ -479,36 +518,31 @@ function LoginForm() {
                   disabled={loading}
                   aria-invalid={!!error}
                   aria-describedby={error ? "login-error" : undefined}
-                  className={cn(
-                    "h-11 w-full rounded-full border bg-[var(--glass-bg-base)] pl-9 pr-11 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] backdrop-blur transition-all focus:outline-none focus:ring-2 disabled:opacity-50",
-                    error
-                      ? "border-[var(--color-danger)]/40 focus:border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20"
-                      : "border-[var(--glass-border)] focus:border-primary focus:ring-primary/20",
-                  )}
+                  className="pr-11"
                 />
                 <button
                   type="button"
                   tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
-              <div className="mb-6 mt-1.5 flex justify-end">
+              <div className="mt-1.5 flex justify-end">
                 <Link
                   href={
                     email.trim()
                       ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
                       : "/forgot-password"
                   }
-                  className="text-[12px] font-medium text-[var(--text-secondary)] underline-offset-4 hover:text-white hover:underline"
+                  className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                 >
                   Esqueci a senha
                 </Link>
               </div>
-            </div>
+            </motion.div>
           ) : null}
 
           {error ? (
@@ -520,41 +554,33 @@ function LoginForm() {
               initial={{ opacity: 0, x: 0 }}
               animate={{ opacity: 1, x: [0, -8, 8, -6, 6, -3, 3, 0] }}
               transition={{ duration: 0.45, ease: "easeInOut" }}
-              className={cn(
-                "mb-4 flex items-start gap-2 rounded-xl border border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 px-3 py-2 text-[13px] font-medium leading-snug text-[var(--color-danger)] backdrop-blur shadow-[0_4px_12px_-4px_rgba(220,38,38,0.18)]",
-              )}
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
             >
-              <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--color-danger)]" aria-hidden />
+              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
               <span className="flex-1">{error}</span>
             </motion.div>
           ) : null}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-full text-[14px] font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50"
-            style={{
-              background: "linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%)",
-              boxShadow: "0 6px 20px -4px rgba(91,111,245,0.45)",
-            }}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                {identifyOnly ? "Buscando…" : "Entrando…"}
-              </>
-            ) : (
-              <>
-                <LogIn className="size-4" />
-                {identifyOnly ? "Continuar" : "Entrar"}
-              </>
-            )}
-          </button>
+          <motion.div variants={loginFieldVariants}>
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  {identifyOnly ? "Buscando…" : "Entrando…"}
+                </>
+              ) : (
+                <>
+                  <LogIn className="size-4" />
+                  {identifyOnly ? "Continuar" : "Entrar"}
+                </>
+              )}
+            </Button>
+          </motion.div>
 
           {previewAllowed ? (
             <a
               href={`/api/preview-login?redirect=${encodeURIComponent(callbackUrl)}`}
-              className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[var(--color-warning)]/60 bg-[var(--color-warning)]/10 text-[13px] font-medium text-[var(--color-warning)] backdrop-blur transition-all hover:bg-[var(--color-warning)]/20 active:scale-[0.98]"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-warning)]/60 bg-[var(--color-warning)]/10 text-sm font-medium text-[var(--color-warning)] transition-all hover:bg-[var(--color-warning)]/20"
               title="Disponível apenas em ambientes de preview (v0.dev). Pula a autenticação."
             >
               <Eye className="size-4" />
@@ -562,21 +588,22 @@ function LoginForm() {
             </a>
           ) : null}
 
-          <p className="mt-4 text-center text-[13px] text-[var(--text-secondary)]">
+          <motion.p className="text-center text-xs text-muted-foreground" variants={loginFieldVariants}>
             Não tem uma conta?{" "}
             <Link href="/register" className="font-medium text-primary underline-offset-4 hover:underline">
               Criar conta
             </Link>
-          </p>
-          <p className="mt-2 text-center text-[13px] text-[var(--text-secondary)]">
+          </motion.p>
+          <motion.p className="text-center text-xs text-muted-foreground" variants={loginFieldVariants}>
             <Link
               href="/?cadastro=empresa"
               className="font-medium text-primary underline-offset-4 hover:underline"
             >
               Cadastre sua empresa
             </Link>
-          </p>
-        </form>
+          </motion.p>
+          </motion.form>
+        </motion.div>
 
         <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · Bwipo</p>
       </div>
