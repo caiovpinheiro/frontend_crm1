@@ -8,6 +8,7 @@ import { IconArrowRight as ArrowRight, IconCircleCheck as CheckCircle2, IconLayo
 
 import { BlurText } from "@/components/ui/blur-text";
 import { Button } from "@/components/ui/button";
+import { AUTH_CARD_CLASS } from "@/components/ui/auth-surface";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,33 +62,38 @@ export function LandingClient() {
                 className="text-base md:text-lg"
               />
             </p>
-            <motion.ul
-              className="mt-8 grid gap-3 text-sm text-white md:grid-cols-2"
-              initial="hidden"
-              animate="show"
-              variants={featureListVariants}
+            <div
+              className="mt-8 overflow-hidden rounded-xl"
+              style={{ backgroundColor: "#101218" }}
             >
-              <Feature
-                icon={MessageCircle}
-                label="Inbox unificado"
-                desc="WhatsApp, Instagram, e-mail e webchat no mesmo lugar."
-              />
-              <Feature
-                icon={KanbanSquare}
-                label="Kanban de vendas"
-                desc="Funil customizável com automações e metas."
-              />
-              <Feature
-                icon={Users}
-                label="Time colaborativo"
-                desc="Convide gestores e atendentes, defina permissões."
-              />
-              <Feature
-                icon={CheckCircle2}
-                label="Zero setup"
-                desc="Crie sua conta e já entra no wizard guiado."
-              />
-            </motion.ul>
+              <motion.ul
+                className="px-4"
+                initial="hidden"
+                animate="show"
+                variants={featureListVariants}
+              >
+                <Feature
+                  icon={MessageCircle}
+                  label="Inbox unificado"
+                  desc="WhatsApp, Instagram, e-mail e webchat no mesmo lugar."
+                />
+                <Feature
+                  icon={KanbanSquare}
+                  label="Kanban de vendas"
+                  desc="Funil customizável com automações e metas."
+                />
+                <Feature
+                  icon={Users}
+                  label="Time colaborativo"
+                  desc="Convide gestores e atendentes, defina permissões."
+                />
+                <Feature
+                  icon={CheckCircle2}
+                  label="Zero setup"
+                  desc="Crie sua conta e já entra no wizard guiado."
+                />
+              </motion.ul>
+            </div>
           </div>
 
           <SignupCard />
@@ -167,13 +173,26 @@ function Feature({
   desc: string;
 }) {
   return (
-    <motion.li className="flex gap-3" variants={featureItemVariants}>
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/25 text-white">
+    <motion.li
+      className="flex gap-3 border-b border-white/[0.06] py-4 last:border-b-0"
+      variants={featureItemVariants}
+    >
+      <div
+        className="flex size-9 shrink-0 items-center justify-center rounded-md text-white"
+        style={{ backgroundColor: "#181C24" }}
+      >
         <Icon className="size-4" />
       </div>
-      <div>
-        <div className="font-semibold text-white">{label}</div>
-        <div className="text-xs text-white">{desc}</div>
+      <div className="min-w-0">
+        <div className="text-[17px] font-semibold leading-snug text-white">
+          {label}
+        </div>
+        <div
+          className="mt-0.5 text-[15px] leading-[1.5]"
+          style={{ color: "#A7ADB8" }}
+        >
+          {desc}
+        </div>
       </div>
     </motion.li>
   );
@@ -280,7 +299,7 @@ function SignupCard() {
         <div className="absolute -inset-2 rounded-3xl bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
       <motion.form
         onSubmit={submit}
-        className="relative flex flex-col gap-4 rounded-2xl border border-border bg-background p-6 text-foreground shadow-xl md:p-8"
+        className={AUTH_CARD_CLASS}
         initial="hidden"
         animate="show"
         variants={{

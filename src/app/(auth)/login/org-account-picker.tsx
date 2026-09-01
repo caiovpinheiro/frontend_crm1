@@ -9,6 +9,7 @@ import {
 import { motion } from "framer-motion";
 
 import { BlurText } from "@/components/ui/blur-text";
+import { AUTH_CARD_CLASS } from "@/components/ui/auth-surface";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { cn } from "@/lib/utils";
 
@@ -82,7 +83,7 @@ export function OrgAccountPicker({
           >
             <div className="absolute -inset-2 rounded-3xl bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
             <motion.div
-              className="relative flex w-full flex-col gap-4 rounded-2xl border border-border bg-background p-6 text-foreground shadow-xl md:p-8"
+              className={AUTH_CARD_CLASS}
               initial="hidden"
               animate="show"
               variants={{
