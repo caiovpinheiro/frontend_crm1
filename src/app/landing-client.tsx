@@ -128,7 +128,7 @@ function Feature({
       </div>
       <div>
         <div className="font-semibold text-white">{label}</div>
-        <div className="text-xs text-[var(--color-text-muted)]">{desc}</div>
+        <div className="text-xs text-white">{desc}</div>
       </div>
     </li>
   );
