@@ -174,6 +174,9 @@ const PUBLIC_PATHS = new Set([
   "/register",
   "/health",
   "/accept-invite",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
   "/test-bulk-bar",
   "/dev/campaigns-cards-preview",
   // Cockpit: HTML estático; dados via Bearer token ou sessão CRM.
@@ -185,6 +188,8 @@ const PUBLIC_API_PATHS = new Set([
   "/api/app-revision",
   "/api/mobile-release",
   "/api/organization/by-slug",
+  "/api/invites/validate",
+  "/api/invites/accept",
 ]);
 
 const PWA_PUBLIC_PATHS = new Set([

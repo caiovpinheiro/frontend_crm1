@@ -5,6 +5,18 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-09-01 — Convite por e-mail, verificação no signup, esqueci senha
+
+**Decisão.** Equipe deixa de criar usuário com senha e passa a enviar convite (`POST /api/invites`). Signup do primeiro ADMIN redireciona para `/verify-email` em vez de `signIn`. Páginas públicas `/forgot-password`, `/reset-password`, `/verify-email`. Reset admin na Equipe permanece.
+
+**Contexto.** Plano de e-mail transacional aprovado; posse do e-mail no signup e convites hashed no backend.
+
+**Alternativas descartadas.** Manter criação imediata com senha na Equipe. Login automático após signup sem confirmar o e-mail.
+
+**Impacto.** `settings/team/client-page.tsx`, `landing-client.tsx`, login, `accept-invite`, middleware `PUBLIC_PATHS`.
+
+---
+
 ### 2026-08-31 — Seletor de org no login (mesmo e-mail)
 
 **Decisão.** Depois do e-mail no apex, se `tenant-lookup` devolver 2+ orgs, o login troca o form pela tela “Selecione uma conta”. 1 org continua o redirect atual. Em host único (localhost / EasyPanel) o clique fica no mesmo origin — não manda para `{slug}.bwipo.com`. `?previewOrgs=1` só em development para ver o layout sem dados multi-org.

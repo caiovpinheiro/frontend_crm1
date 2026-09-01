@@ -278,6 +278,15 @@ function LoginForm() {
           showError(
             "Esta conta exige MFA. Use o fluxo de código de autenticação (em desenvolvimento no login web).",
           );
+        } else if (result.code === "email_unverified") {
+          const q = new URLSearchParams();
+          if (email.trim()) q.set("email", email.trim());
+          showError(
+            "Confirme seu e-mail para entrar. Enviamos um código de 6 dígitos.",
+          );
+          window.setTimeout(() => {
+            window.location.assign(`/verify-email?${q.toString()}`);
+          }, 800);
         } else {
           // Default: credenciais inválidas (CredentialsSignin) ou qualquer
           // outro erro genérico. Mensagem única evita user-enumeration
@@ -451,7 +460,7 @@ function LoginForm() {
           </div>
 
           {!identifyOnly ? (
-            <div className="mb-6">
+            <div className="mb-2">
               <label htmlFor="password" className="mb-1.5 block text-[13px] font-medium text-[var(--text-secondary)]">
                 Senha
               </label>
@@ -486,6 +495,18 @@ function LoginForm() {
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
+              </div>
+              <div className="mb-6 mt-1.5 flex justify-end">
+                <Link
+                  href={
+                    email.trim()
+                      ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
+                      : "/forgot-password"
+                  }
+                  className="text-[12px] font-medium text-[var(--text-secondary)] underline-offset-4 hover:text-white hover:underline"
+                >
+                  Esqueci a senha
+                </Link>
               </div>
             </div>
           ) : null}

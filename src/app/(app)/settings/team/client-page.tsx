@@ -58,7 +58,6 @@ import {
   CRM_ACTION_KEYS,
   CRM_ACTION_LABELS,
   type CrmActionKey,
-  setCrmActionGrantsForUser,
 } from "@/lib/permissions";
 
 import { useRoles } from "@/features/permissions/hooks";
@@ -225,7 +224,6 @@ function TeamContent() {
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [inviteName, setInviteName] = React.useState("");
   const [inviteEmail, setInviteEmail] = React.useState("");
-  const [invitePassword, setInvitePassword] = React.useState("");
   const [inviteRoleId, setInviteRoleId] = React.useState<string>("");
   const [invitePermissions, setInvitePermissions] = React.useState<CrmPermissionDraft>(
     DEFAULT_INVITE_PERMISSIONS,
@@ -417,72 +415,34 @@ function TeamContent() {
           : inviteIsAdmin
             ? "ADMIN"
             : "MEMBER";
-      const res = await fetch(apiUrl("/api/users"), {
+      const res = await fetch(apiUrl("/api/invites"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: inviteName.trim(),
           email: inviteEmail.trim(),
-          password: invitePassword,
-          // Baseline legado ADMIN/MANAGER/MEMBER. Role customizada (ou
-          // confirmação do preset) é aplicada em seguida via primary-role.
           role: legacyRole,
+          roleId: inviteRoleId || undefined,
+          crmActions: inviteIsAdmin ? undefined : invitePermissions,
         }),
       });
-      if (!res.ok) await parseJsonError(res, "Erro ao convidar membro.");
-      const created = (await res.json()) as { id?: string } & UserRow;
-
-      if (created?.id && inviteRoleId && !inviteIsAdmin) {
-        try {
-          await fetch(apiUrl(`/api/users/${created.id}/primary-role`), {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ roleId: inviteRoleId }),
-          });
-        } catch {
-          toast.warning(
-            "Usuário criado, mas a função não foi aplicada. Ajuste na lista de Equipe.",
-          );
-        }
-      }
-
-      const allTrue = CRM_ACTION_KEYS.every((k) => invitePermissions[k] === true);
-      if (created?.id && !allTrue && !inviteIsAdmin) {
-        try {
-          const cur = await fetch(apiUrl("/api/settings/permissions"));
-          const curData = (await cur.json().catch(() => ({}))) as {
-            scopeGrants?: Record<string, unknown>;
-          };
-          const nextGrants = setCrmActionGrantsForUser(
-            curData?.scopeGrants ?? {},
-            created.id,
-            invitePermissions,
-          );
-          await fetch(apiUrl("/api/settings/permissions"), {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ scopeGrants: nextGrants }),
-          });
-        } catch (err) {
-          toast.warning(
-            "Usuário criado, mas as permissões customizadas não foram salvas. Ajuste em Configurações → Permissões.",
-          );
-          throw err;
-        }
-      }
-      return created;
+      if (!res.ok) await parseJsonError(res, "Erro ao enviar convite.");
+      return (await res.json()) as { id?: string; sent?: boolean; email?: string };
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: TEAM_USERS_QUERY_PREFIX });
-      void qc.invalidateQueries({ queryKey: ["visibility-settings"] });
-      toast.success("Usuário criado com sucesso.");
+    onSuccess: (created) => {
+      toast.success(
+        created?.sent === false
+          ? "Convite criado, mas o e-mail não saiu. Tente convidar de novo para reenviar."
+          : "Convite enviado. O usuário recebe um e-mail para criar a senha.",
+      );
       setInviteOpen(false);
       setInviteName("");
       setInviteEmail("");
-      setInvitePassword("");
       setInviteRoleId("");
       setInvitePermissions(DEFAULT_INVITE_PERMISSIONS);
     },
+    onError: (err) =>
+      toast.error(err instanceof Error ? err.message : "Erro ao enviar convite."),
   });
 
   const deleteUser = useMutation({
@@ -639,7 +599,7 @@ function TeamContent() {
               ? [
                   {
                     icon: <IconPlus size={14} stroke={2.6} />,
-                    label: "Novo usuário",
+                    label: "Convidar",
                     onClick: () => setInviteOpen(true),
                     primary: true,
                   },
@@ -956,19 +916,18 @@ function TeamContent() {
         onOpenChange={setInviteOpen}
         busy={invite.isPending}
         size="lg"
-        title="Criar usuário"
-        description="O usuário é criado na hora e já acessa com o e-mail e a senha definidos abaixo. Nenhum e-mail de convite é enviado."
+        title="Convidar membro"
+        description="Enviamos um e-mail com o link para criar a senha. O usuário só entra depois de aceitar o convite."
         footer={
           <>
             <ButtonGlass type="button" variant="glass" onClick={() => setInviteOpen(false)}>Cancelar</ButtonGlass>
             <ButtonGlass
               type="button"
               variant="primary"
-              disabled={invite.isPending || !inviteName.trim() || !inviteEmail.trim() || invitePassword.length < 6}
+              disabled={invite.isPending || !inviteName.trim() || !inviteEmail.trim()}
               onClick={() => invite.mutate()}
             >
-              {invite.isPending ? <Loader2 className="size-4 animate-spin" /> : <IconPlus size={16} />}
-              Criar usuário
+              {invite.isPending ? "Enviando…" : "Enviar convite"}
             </ButtonGlass>
           </>
         }
@@ -998,29 +957,6 @@ function TeamContent() {
                 placeholder="email@empresa.com"
                 autoComplete="email"
               />
-            </div>
-            <div className="grid gap-1.5">
-              <label htmlFor="invite-password" className="text-sm font-medium">
-                Senha inicial
-              </label>
-              <InputGlass
-                id="invite-password"
-                type="password"
-                value={invitePassword}
-                onChange={(e) => setInvitePassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-              <p
-                className={cn(
-                  "text-[11px]",
-                  invitePassword.length > 0 && invitePassword.length < 6
-                    ? "text-[var(--color-danger,#e11d48)]"
-                    : "text-[var(--text-muted)]",
-                )}
-              >
-                Mínimo de 6 caracteres.
-              </p>
             </div>
             <div className="grid gap-1.5">
               <span className="text-sm font-medium">Função</span>

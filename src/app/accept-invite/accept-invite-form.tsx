@@ -12,9 +12,14 @@ import { Label } from "@/components/ui/label";
 
 type Props = {
   token: string;
-  invite: { email: string; role: "ADMIN" | "MANAGER" | "MEMBER" };
+  invite: {
+    email: string;
+    role: "ADMIN" | "MANAGER" | "MEMBER";
+    inviteeName?: string | null;
+  };
   organization: {
     name: string;
+    slug?: string | null;
     primaryColor: string | null;
     logoUrl: string | null;
   };
@@ -32,7 +37,7 @@ export default function AcceptInviteForm({
   organization,
 }: Props) {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(invite.inviteeName?.trim() ?? "");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +73,7 @@ export default function AcceptInviteForm({
       const signInRes = await signIn("credentials", {
         email: invite.email,
         password,
+        organizationSlug: organization.slug ?? undefined,
         redirect: false,
       });
       if (!signInRes || signInRes.error) {

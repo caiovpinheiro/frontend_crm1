@@ -2,7 +2,6 @@
 
 import { apiUrl } from "@/lib/api";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
 import * as React from "react";
 import { IconArrowRight as ArrowRight, IconCircleCheck as CheckCircle2, IconLayoutKanban as KanbanSquare, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconSparkles as Sparkles, IconUsers as Users } from "@tabler/icons-react";
 
@@ -21,8 +20,8 @@ import { cn } from "@/lib/utils";
 /**
  * Landing publica. Hero + features + form de signup na mesma tela.
  * Ao submeter, chama POST /api/signup (cria Org + User ADMIN em
- * transacao), depois signIn(credentials) pra estabelecer a session, e
- * faz redirect completo para `{tenantUrl}/onboarding` (subdomínio da org).
+ * transacao). O admin confirma o e-mail em `{tenantUrl}/verify-email`
+ * antes de entrar no wizard.
  */
 export function LandingClient() {
   return (
@@ -216,22 +215,8 @@ function SignupCard() {
         (typeof data.tenantUrl === "string" && data.tenantUrl) ||
         buildTenantUrl(resolvedSlug);
 
-      const signInRes = await signIn("credentials", {
-        email: adminEmail.trim().toLowerCase(),
-        password,
-        redirect: false,
-      });
-      if (!signInRes || signInRes.error) {
-        // Conta criada mas signin falhou — manda pro login no tenant.
-        window.location.assign(
-          `${destinationBase.replace(/\/$/, "")}/login?registered=1`,
-        );
-        return;
-      }
-
-      // Full navigation: cookie Domain=`.base` precisa ir no próximo host.
       window.location.assign(
-        `${destinationBase.replace(/\/$/, "")}/onboarding`,
+        `${destinationBase.replace(/\/$/, "")}/verify-email?email=${encodeURIComponent(adminEmail.trim().toLowerCase())}`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado.");
