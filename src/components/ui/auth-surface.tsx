@@ -24,9 +24,9 @@ export function AuthSurface({
   return (
     <motion.div
       className={cn("relative w-full", maxWidthClass, className)}
-      initial={{ opacity: 0, y: 28, scale: 0.96, filter: "blur(14px)" }}
-      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-      transition={{ duration: 0.7, delay: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       <div className="absolute -inset-2 rounded-3xl bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
       <div className={AUTH_CARD_CLASS}>{children}</div>

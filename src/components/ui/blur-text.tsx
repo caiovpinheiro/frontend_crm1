@@ -1,21 +1,12 @@
 "use client";
 
 /**
- * BlurText — efeito de texto animado (estilo React Bits) que revela cada
- * palavra/letra com desfoque → nítido + deslize, disparado quando entra
- * na viewport.
- *
- * Implementado sobre `framer-motion` (já no projeto) em vez do pacote
- * `motion` para evitar duas cópias da mesma lib (são a mesma engine; ter
- * ambas duplica o contexto de animação). API equivalente à do React Bits.
- *
- * Acessibilidade: o texto completo fica no `aria-label` do container e os
- * fragmentos animados são `aria-hidden` — leitores de tela leem a frase
- * uma vez, sem repetir letra a letra.
+ * Reveal de texto por palavra: opacity + translate (sem CSS filter).
+ * `filter: blur()` em dezenas de spans no load trava o compositor.
  */
 
 import * as React from "react";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 
@@ -45,12 +36,17 @@ export function BlurText({
 }: BlurTextProps) {
   const ref = React.useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { amount: 0.3, once });
+  const reduceMotion = useReducedMotion();
 
   const segments = React.useMemo(
     () => (animateBy === "words" ? text.split(" ") : Array.from(text)),
     [text, animateBy],
   );
-  const fromY = direction === "top" ? -14 : 14;
+  const fromY = direction === "top" ? -10 : 10;
+
+  if (reduceMotion) {
+    return <span className={className}>{text}</span>;
+  }
 
   return (
     <span
@@ -62,15 +58,11 @@ export function BlurText({
         <motion.span
           key={`${seg}-${i}`}
           aria-hidden
-          className="inline-block will-change-[transform,opacity,filter]"
-          initial={{ opacity: 0, y: fromY, filter: "blur(10px)" }}
-          animate={
-            inView
-              ? { opacity: 1, y: 0, filter: "blur(0px)" }
-              : { opacity: 0, y: fromY, filter: "blur(10px)" }
-          }
+          className="inline-block"
+          initial={{ opacity: 0, y: fromY }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: fromY }}
           transition={{
-            duration: 0.5,
+            duration: 0.35,
             delay: (startDelay + i * delay) / 1000,
             ease: [0.25, 0.46, 0.45, 0.94],
           }}
