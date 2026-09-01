@@ -118,7 +118,7 @@ function Header() {
         <img
           src="/logo-bwipo-white.png"
           alt="Bwipo"
-          className="h-8 w-auto max-w-[160px] object-contain"
+          className="h-11 w-auto max-w-[180px] object-contain"
         />
       </div>
       <Link
