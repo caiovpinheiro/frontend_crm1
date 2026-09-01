@@ -11,8 +11,23 @@ import { cn } from "@/lib/utils";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
-import { isMarketingApexHost } from "@/lib/tenant-host";
+import {
+  isMarketingApexHost,
+  isSingleHostCrm,
+  resolveTenantFromRequest,
+} from "@/lib/tenant-host";
 import { buildTenantUrl } from "@/lib/tenant-url";
+import {
+  OrgAccountPicker,
+  type TenantOrgChoice,
+} from "./org-account-picker";
+
+const DEV_PREVIEW_ORGS: TenantOrgChoice[] = [
+  { slug: "anhanguera-comercial", name: "ANHANGUERA COMERCIAL", status: "ARCHIVED" },
+  { slug: "cruzeiro-ead", name: "CRUZEIRO ACADÊMICO", status: "ARCHIVED" },
+  { slug: "cruzeiro-comercial", name: "CRUZEIRO COMERCIAL", status: "ACTIVE" },
+  { slug: "uead", name: "UEaD", status: "ARCHIVED" },
+];
 
 function LoginShellFallback() {
   return (
@@ -67,8 +82,14 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = safeInternalPath(searchParams.get("callbackUrl"), "/dashboard");
   const emailFromQuery = (searchParams.get("email") ?? "").trim();
+  const orgFromQuery = (searchParams.get("org") ?? "").trim().toLowerCase();
+  const previewOrgs =
+    process.env.NODE_ENV === "development" &&
+    searchParams.get("previewOrgs") === "1";
 
-  const [email, setEmail] = useState(emailFromQuery);
+  const [email, setEmail] = useState(
+    emailFromQuery || (previewOrgs ? "caio.vinicius@eduit.com.br" : ""),
+  );
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,7 +98,24 @@ function LoginForm() {
   const [identifyOnly, setIdentifyOnly] = useState(false);
   const [previewAllowed, setPreviewAllowed] = useState(false);
   const [errorBump, setErrorBump] = useState(0);
+  const [orgChoices, setOrgChoices] = useState<TenantOrgChoice[] | null>(
+    previewOrgs ? DEV_PREVIEW_ORGS : null,
+  );
+  const [welcomeName, setWelcomeName] = useState<string | null>(
+    previewOrgs ? "Caio" : null,
+  );
+  const [selectedOrgSlug, setSelectedOrgSlug] = useState<string | null>(
+    orgFromQuery || null,
+  );
   const passwordRef = useRef<HTMLInputElement>(null);
+
+  function hostTenantSlug(): string | null {
+    if (typeof window === "undefined") return null;
+    const tenant = resolveTenantFromRequest({
+      hostHeader: window.location.host,
+    });
+    return tenant.kind === "tenant" ? tenant.slug : null;
+  }
 
   useEffect(() => {
     setPreviewAllowed(isPreviewMode() || isV0PreviewHost());
@@ -116,6 +154,32 @@ function LoginForm() {
     requestAnimationFrame(() => passwordRef.current?.focus());
   }
 
+  function goToOrgLogin(slug: string, nextEmail: string) {
+    if (isSingleHostCrm(window.location.host)) {
+      setSelectedOrgSlug(slug);
+      setOrgChoices(null);
+      setIdentifyOnly(false);
+      setError(null);
+      requestAnimationFrame(() => passwordRef.current?.focus());
+      return;
+    }
+    const next = new URL(`${buildTenantUrl(slug)}/login`);
+    next.searchParams.set("email", nextEmail);
+    next.searchParams.set("org", slug);
+    if (callbackUrl && callbackUrl !== "/dashboard") {
+      next.searchParams.set("callbackUrl", callbackUrl);
+    }
+    window.location.assign(next.toString());
+  }
+
+  function handleSelectOrg(org: TenantOrgChoice) {
+    if (org.status !== "ACTIVE") {
+      showError("Esta organização está expirada e não pode ser acessada.");
+      return;
+    }
+    goToOrgLogin(org.slug, email.trim());
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -128,19 +192,26 @@ function LoginForm() {
           body: JSON.stringify({ email: email.trim() }),
         });
         const data = (await res.json().catch(() => null)) as
-          | { ok?: boolean; slug?: string | null; apex?: boolean }
+          | {
+              ok?: boolean;
+              slug?: string | null;
+              apex?: boolean;
+              orgs?: TenantOrgChoice[];
+              displayName?: string | null;
+            }
           | null;
         if (!res.ok || !data?.ok) {
           showError("Não encontramos uma conta com este e-mail.");
           return;
         }
+        const orgs = Array.isArray(data.orgs) ? data.orgs : [];
+        if (orgs.length > 1) {
+          setWelcomeName(data.displayName ?? null);
+          setOrgChoices(orgs);
+          return;
+        }
         if (data.slug) {
-          const next = new URL(`${buildTenantUrl(data.slug)}/login`);
-          next.searchParams.set("email", email.trim());
-          if (callbackUrl && callbackUrl !== "/dashboard") {
-            next.searchParams.set("callbackUrl", callbackUrl);
-          }
-          window.location.assign(next.toString());
+          goToOrgLogin(data.slug, email.trim());
           return;
         }
         setIdentifyOnly(false);
@@ -148,9 +219,35 @@ function LoginForm() {
         return;
       }
 
+      let orgSlug = selectedOrgSlug || hostTenantSlug() || orgFromQuery || "";
+      if (!orgSlug) {
+        const lookupRes = await fetch("/api/auth/tenant-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+        });
+        const lookup = (await lookupRes.json().catch(() => null)) as
+          | {
+              ok?: boolean;
+              orgs?: TenantOrgChoice[];
+              displayName?: string | null;
+              slug?: string | null;
+            }
+          | null;
+        const orgs = Array.isArray(lookup?.orgs) ? lookup.orgs : [];
+        if (lookupRes.ok && lookup?.ok && orgs.length > 1) {
+          setWelcomeName(lookup.displayName ?? null);
+          setOrgChoices(orgs);
+          return;
+        }
+        orgSlug = lookup?.slug ?? orgs[0]?.slug ?? "";
+        if (orgSlug) setSelectedOrgSlug(orgSlug);
+      }
+
       const result = await signIn("credentials", {
         email: email.trim(),
         password,
+        organizationSlug: orgSlug,
         redirect: false,
       });
 
@@ -200,6 +297,27 @@ function LoginForm() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (orgChoices && orgChoices.length > 1) {
+    return (
+      <OrgAccountPicker
+        email={email.trim() || emailFromQuery}
+        displayName={welcomeName}
+        orgs={orgChoices}
+        error={error}
+        onSelect={handleSelectOrg}
+        onExit={() => {
+          setOrgChoices(null);
+          setError(null);
+          if (previewOrgs) {
+            window.location.assign("/login");
+            return;
+          }
+          setIdentifyOnly(isApexLoginHost());
+        }}
+      />
+    );
   }
 
   if (loginSuccess) {
