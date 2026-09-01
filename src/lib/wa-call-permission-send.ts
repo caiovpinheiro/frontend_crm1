@@ -10,24 +10,42 @@ export async function fetchCallPermissionTemplates(): Promise<CallPermissionTemp
   return Array.isArray(j.items) ? j.items : [];
 }
 
+function mapCallPermissionFetchError(e: unknown): Error {
+  const msg = e instanceof Error ? e.message : "";
+  if (
+    e instanceof TypeError ||
+    /failed to fetch|networkerror|load failed/i.test(msg)
+  ) {
+    return new Error(
+      "Não foi possível enviar o template de ligação. Recarregue a página e tente novamente.",
+    );
+  }
+  return e instanceof Error ? e : new Error("Erro ao enviar solicitação");
+}
+
 export async function sendCallPermissionTemplate(args: {
   conversationId: string;
   templateName: string;
   tpl?: CallPermissionTemplate;
 }): Promise<{ pending?: boolean; reopenedConversationId?: string }> {
-  const r = await fetch(apiUrl("/wa-call-permission"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      conversationId: args.conversationId,
-      templateName: args.templateName,
-      languageCode: args.tpl?.language || "pt_BR",
-      bodyText: args.tpl?.bodyText,
-      headerText: args.tpl?.headerText,
-      footerText: args.tpl?.footerText,
-      buttons: args.tpl?.buttons,
-    }),
-  });
+  let r: Response;
+  try {
+    r = await fetch(apiUrl("/wa-call-permission"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationId: args.conversationId,
+        templateName: args.templateName,
+        languageCode: args.tpl?.language || "pt_BR",
+        bodyText: args.tpl?.bodyText,
+        headerText: args.tpl?.headerText,
+        footerText: args.tpl?.footerText,
+        buttons: args.tpl?.buttons,
+      }),
+    });
+  } catch (e) {
+    throw mapCallPermissionFetchError(e);
+  }
   const j = (await r.json().catch(() => ({}))) as {
     message?: string;
     pending?: boolean;
