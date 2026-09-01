@@ -8,7 +8,11 @@ import { isEventMessageType } from "@/components/crm/chat-timeline";
 import { messagesKey } from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { playInboxPing } from "./use-inbox-sound";
-import { rowBelongsToInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
+import {
+  inboxQueueTabFor,
+  rowBelongsToInboxTab,
+  rowStaysOnAutomacaoTab,
+} from "../inbox-queue-tab";
 import {
   getConversation,
   getConversationsByIds,
@@ -25,7 +29,7 @@ import {
  *  - 1 EventSource só, compartilhado pela página.
  *  - new_message prefere patch do card no cache; lista inteira só quando
  *    o ticket não está nas páginas e não dá pra inserir (aí invalida só
- *    a aba afetada). Counts: debounce ≥8s.
+ *    a aba afetada). Counts: só se a fila canônica mudou (debounce ≥8s).
  *  - conversation_updated: GET /:id SOMENTE se o ticket está ABERTO
  *    nesta aba. Card só na lista → patch do payload (se der) ou
  *    ignora; NUNCA GET. Um SSE não vira 404×N só porque o card está
@@ -64,9 +68,9 @@ type NewMessagePayload = {
  * `new_message` atualiza preview/direção/unread do card JÁ carregado em
  * vez de invalidar a lista inteira (35KB) a cada evento da org.
  *
- * Retorna true quando a conversa foi encontrada em alguma página
- * cacheada. Quando não foi (conversa nova ou fora da página/filtro
- * atual), o chamador deve invalidar a lista — é uma mudança estrutural.
+ * `found`: conversa está numa página cacheada.
+ * `tabMoved`: a fila canônica mudou (esperando↔respondidas, entrada→…).
+ * Sem `tabMoved` o badge não precisa de `?counts=1`.
  *
  * Não reordena páginas (risco de quebrar o infinite scroll); a posição
  * do card se ajusta no próximo refetch (poll de 60s / troca de aba).
@@ -74,8 +78,8 @@ type NewMessagePayload = {
 function patchInboxConversationCard(
   qc: QueryClient,
   data: NewMessagePayload,
-): boolean {
-  if (!data.conversationId) return false;
+): { found: boolean; tabMoved: boolean } {
+  if (!data.conversationId) return { found: false, tabMoved: false };
   // Eventos de timeline (distribuição, etc.) não substituem o preview do card.
   if (isEventMessageType(data.messageType)) {
     const entries = qc.getQueriesData<{ pages?: Array<{ items?: ConversationListRow[] }> }>({
@@ -84,10 +88,12 @@ function patchInboxConversationCard(
     for (const [, cached] of entries) {
       if (!cached?.pages) continue;
       for (const page of cached.pages) {
-        if (page?.items?.some((c) => c?.id === data.conversationId)) return true;
+        if (page?.items?.some((c) => c?.id === data.conversationId)) {
+          return { found: true, tabMoved: false };
+        }
       }
     }
-    return false;
+    return { found: false, tabMoved: false };
   }
   const direction =
     data.direction === "in" || data.direction === "out" ? data.direction : null;
@@ -101,6 +107,7 @@ function patchInboxConversationCard(
     queryKey: ["inbox-conversations"],
   });
   let found = false;
+  let tabMoved = false;
   for (const [queryKey, cached] of entries) {
     if (!cached?.pages) continue;
     let touched = false;
@@ -112,6 +119,7 @@ function patchInboxConversationCard(
       found = true;
       touched = true;
       const conv = items[idx];
+      const prevTab = inboxQueueTabFor(conv);
       const nextItems = items.slice();
       nextItems[idx] = {
         ...conv,
@@ -148,11 +156,12 @@ function patchInboxConversationCard(
             }
           : {}),
       };
+      if (inboxQueueTabFor(nextItems[idx]) !== prevTab) tabMoved = true;
       return { ...page, items: nextItems };
     });
     if (touched) qc.setQueryData(queryKey, { ...cached, pages });
   }
-  return found;
+  return { found, tabMoved };
 }
 
 type InboxListPage = {
@@ -704,16 +713,19 @@ export function useInboxRealtime(options: {
           // Patch in-place do card quando a conversa está na página
           // cacheada; invalidação da lista só quando ela NÃO está
           // (conversa nova/fora da página = mudança estrutural).
-          if (patchInboxConversationCard(qc, data)) {
-            scheduleCountsRefresh();
+          const patch = patchInboxConversationCard(qc, data);
+          if (patch.found) {
+            // Mesma fila (cliente já em Aguardando, agente já em
+            // Respondidas): preview basta. counts=1 só quando a aba muda.
+            if (patch.tabMoved) scheduleCountsRefresh();
           } else if (isEventMessageType(data.messageType)) {
-            // Timeline (distribuição, etc.) de ticket fora da 1ª página
-            // não justifica relistar a fila inteira.
-            scheduleCountsRefresh();
+            // Timeline fora da 1ª página: não relista nem re-agrega.
           } else {
             scheduleInboxRefresh();
           }
-          scheduleDailyStatsRefresh();
+          if (!isEventMessageType(data.messageType)) {
+            scheduleDailyStatsRefresh();
+          }
         } catch {
           /* ignore */
         }
