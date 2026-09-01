@@ -1671,7 +1671,11 @@ function PendingQueueCards({
   const pageNextCursor = pageCursor
     ? (extraQuery.data?.nextCursor ?? null)
     : nextCursorProp;
-  const pageTotal = extraQuery.data?.total ?? totalProp ?? pagePending.length;
+  const reportedTotal = extraQuery.data?.total ?? totalProp;
+  const pageTotal =
+    typeof reportedTotal === "number"
+      ? Math.max(reportedTotal, pagePending.length)
+      : pagePending.length;
   const pageLoading = Boolean(pageCursor) && extraQuery.isLoading;
   const lastPage = Math.max(1, Math.ceil(pageTotal / PENDING_PAGE_SIZE));
 
@@ -1694,9 +1698,8 @@ function PendingQueueCards({
   const rows = useMemo(() => {
     if (illustrative) return queueItems;
     if (pagePending.length > 0) return pagePending.map((p) => pendingToQueueItem(p));
-    if (loading || pageLoading) return [];
-    return queueItems;
-  }, [illustrative, pagePending, loading, pageLoading]);
+    return [];
+  }, [illustrative, pagePending]);
 
   const sorted = useMemo(
     () => sortQueueItems(rows, sortKey, sortDir),
