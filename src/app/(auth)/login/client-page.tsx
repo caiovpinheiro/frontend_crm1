@@ -98,6 +98,9 @@ function LoginForm() {
   const previewOrgs =
     process.env.NODE_ENV === "development" &&
     searchParams.get("previewOrgs") === "1";
+  const previewIdentify =
+    process.env.NODE_ENV === "development" &&
+    searchParams.get("identify") === "1";
 
   const [email, setEmail] = useState(
     emailFromQuery || (previewOrgs ? "caio.vinicius@eduit.com.br" : ""),
@@ -107,7 +110,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [identifyOnly, setIdentifyOnly] = useState(false);
+  const [identifyOnly, setIdentifyOnly] = useState(previewIdentify);
   const [previewAllowed, setPreviewAllowed] = useState(false);
   const [errorBump, setErrorBump] = useState(0);
   const [orgChoices, setOrgChoices] = useState<TenantOrgChoice[] | null>(
@@ -131,10 +134,10 @@ function LoginForm() {
 
   useEffect(() => {
     setPreviewAllowed(isPreviewMode() || isV0PreviewHost());
-    if (isApexLoginHost() && !emailFromQuery) {
+    if ((isApexLoginHost() || previewIdentify) && !emailFromQuery) {
       setIdentifyOnly(true);
     }
-  }, [emailFromQuery]);
+  }, [emailFromQuery, previewIdentify]);
 
   useEffect(() => {
     if (!loginSuccess) return;
@@ -335,7 +338,7 @@ function LoginForm() {
             window.location.assign("/login");
             return;
           }
-          setIdentifyOnly(isApexLoginHost());
+          setIdentifyOnly(isApexLoginHost() || previewIdentify);
         }}
       />
     );
