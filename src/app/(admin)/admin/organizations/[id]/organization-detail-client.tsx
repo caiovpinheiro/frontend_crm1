@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { buildTenantUrl } from "@/lib/tenant-url";
 
 type Role = "ADMIN" | "MANAGER" | "MEMBER";
 type Status = "ACTIVE" | "SUSPENDED" | "ARCHIVED";
@@ -31,7 +32,7 @@ type Invite = {
   id: string;
   email: string;
   role: Role;
-  token: string;
+  token: string | null;
   expiresAt: string;
   createdAt: string;
 };
@@ -84,7 +85,18 @@ export default function OrganizationDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  function inviteUrl(invite: Invite): string | null {
+    if (!invite.token) return null;
+    return `${buildTenantUrl(organization.slug)}/accept-invite?token=${invite.token}`;
+  }
+
+  function copyLink(invite: Invite) {
+    const url = inviteUrl(invite);
+    if (!url || !invite.token) return;
+    navigator.clipboard.writeText(url);
+    setCopiedToken(invite.token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  }
 
   async function updateStatus(next: Status) {
     setError(null);
@@ -124,7 +136,7 @@ export default function OrganizationDetailClient({
       if (!res.ok) throw new Error(data?.message ?? "Erro ao criar convite.");
       setInvites((prev) => [
         {
-          id: data.invite.token,
+          id: data.invite.id ?? data.invite.token,
           email: data.invite.email,
           role: inviteRole,
           token: data.invite.token,
@@ -139,14 +151,6 @@ export default function OrganizationDetailClient({
     } finally {
       setBusy(null);
     }
-  }
-
-  function copyLink(invite: Invite) {
-    const path = invite.role === "ADMIN" ? "/onboarding" : "/accept-invite";
-    const url = `${origin}${path}?token=${invite.token}`;
-    navigator.clipboard.writeText(url);
-    setCopiedToken(invite.token);
-    setTimeout(() => setCopiedToken(null), 2000);
   }
 
   async function removeUser(user: User) {
@@ -372,8 +376,7 @@ export default function OrganizationDetailClient({
         ) : (
           <ul className="divide-y divide-border rounded-lg border border-border">
             {invites.map((inv) => {
-              const path = inv.role === "ADMIN" ? "/onboarding" : "/accept-invite";
-              const url = `${origin}${path}?token=${inv.token}`;
+              const url = inviteUrl(inv);
               return (
                 <li
                   key={inv.id}
@@ -386,13 +389,14 @@ export default function OrganizationDetailClient({
                       {new Date(inv.expiresAt).toLocaleDateString("pt-BR")}
                     </span>
                     <span className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                      {url}
+                      {url ?? "Link enviado por e-mail (não fica armazenado)."}
                     </span>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => copyLink(inv)}
+                    disabled={!url}
                   >
                     {copiedToken === inv.token ? (
                       <>

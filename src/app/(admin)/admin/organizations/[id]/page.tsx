@@ -40,7 +40,7 @@ type OrgDetail = {
     id: string;
     email: string;
     role: "ADMIN" | "MANAGER" | "MEMBER";
-    token: string;
+    token: string | null;
     expiresAt: string;
     createdAt: string;
   }>;

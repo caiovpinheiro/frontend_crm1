@@ -6,9 +6,10 @@ type Props = {
 };
 
 type InviteValidation = {
-  invite: { email: string; role: string };
+  invite: { email: string; role: string; inviteeName?: string | null };
   organization: {
     name: string;
+    slug?: string;
     primaryColor?: string | null;
     logoUrl?: string | null;
   };
@@ -49,9 +50,11 @@ export default async function AcceptInvitePage({ searchParams }: Props) {
         invite={{
           email: data.invite.email,
           role: data.invite.role as "ADMIN" | "MANAGER" | "MEMBER",
+          inviteeName: data.invite.inviteeName ?? null,
         }}
         organization={{
           name: data.organization.name,
+          slug: data.organization.slug ?? null,
           primaryColor: data.organization.primaryColor ?? null,
           logoUrl: data.organization.logoUrl ?? null,
         }}
