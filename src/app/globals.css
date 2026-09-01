@@ -713,6 +713,41 @@
   --wa-header:        #202c33;
 }
 
+/* Cards públicos (landing + login/forgot) — sempre tema claro, mesmo com
+   <html class="dark|v2-dark"> (preferência do CRM / SO). */
+.auth-light {
+  color-scheme: light;
+  --color-background: #ffffff;
+  --color-foreground: #1e2a3b;
+  --color-bg-subtle: rgba(255, 255, 255, 0.35);
+  --color-bg-muted: rgba(255, 255, 255, 0.45);
+  --color-border: oklch(0.915 0.012 264);
+  --color-border-soft: oklch(0.94 0.01 264);
+  --color-input: oklch(0.915 0.012 264);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.24 0.045 266);
+  --color-muted: oklch(0.955 0.012 264);
+  --color-muted-foreground: oklch(0.55 0.03 264);
+  --color-destructive: #d64545;
+  --color-destructive-foreground: #ffffff;
+  --dropdown-solid-bg: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #374151;
+  --text-muted: #4b5563;
+  --glass-bg: rgba(255, 255, 255, 0.25);
+  --glass-bg-strong: rgba(255, 255, 255, 0.40);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.12);
+  --glass-bg-overlay: rgba(255, 255, 255, 0.92);
+  --glass-bg-base: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(15, 23, 42, 0.12);
+  --glass-border-subtle: rgba(15, 23, 42, 0.08);
+  --glass-shadow-sm: 0 4px 16px rgba(100, 130, 180, 0.12);
+  --input-bg: #ffffff;
+  --input-border: oklch(0.915 0.012 264);
+  --input-text: #1e2a3b;
+  --input-placeholder: #6b7280;
+}
+
 /* ──────────────────────────────────────────────────────────────────
    DARK MODE — fallback global pra surfaces glass com bg-white/<n>
    ──────────────────────────────────────────────────────────────────
