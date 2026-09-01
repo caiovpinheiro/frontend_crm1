@@ -63,11 +63,11 @@ export function LandingClient() {
               />
             </p>
             <div
-              className="mt-8 overflow-hidden rounded-xl"
-              style={{ backgroundColor: "#101218" }}
+              className="mt-8 overflow-hidden rounded-xl border border-white/[0.06]"
+              style={{ backgroundColor: "rgba(10, 18, 34, 0.88)" }}
             >
               <motion.ul
-                className="px-4"
+                className="px-3.5"
                 initial="hidden"
                 animate="show"
                 variants={featureListVariants}
@@ -174,12 +174,12 @@ function Feature({
 }) {
   return (
     <motion.li
-      className="flex gap-3 border-b border-white/[0.06] py-4 last:border-b-0"
+      className="flex gap-3 border-b border-white/[0.06] py-2.5 last:border-b-0"
       variants={featureItemVariants}
     >
       <div
         className="flex size-9 shrink-0 items-center justify-center rounded-md text-white"
-        style={{ backgroundColor: "#181C24" }}
+        style={{ backgroundColor: "rgba(255, 255, 255, 0.06)" }}
       >
         <Icon className="size-4" />
       </div>
@@ -188,8 +188,8 @@ function Feature({
           {label}
         </div>
         <div
-          className="mt-0.5 text-[15px] leading-[1.5]"
-          style={{ color: "#A7ADB8" }}
+          className="mt-0.5 text-[14px] leading-[1.45]"
+          style={{ color: "rgba(255, 255, 255, 0.72)" }}
         >
           {desc}
         </div>
