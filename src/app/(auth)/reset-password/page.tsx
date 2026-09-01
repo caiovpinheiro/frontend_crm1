@@ -5,7 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { IconLoader2 as Loader2 } from "@tabler/icons-react";
 
+import { AuthSurface } from "@/components/ui/auth-surface";
+import { BlurText } from "@/components/ui/blur-text";
+import { Button } from "@/components/ui/button";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 function ResetForm() {
   const searchParams = useSearchParams();
@@ -53,55 +58,63 @@ function ResetForm() {
   return (
     <HeroGeometric color1="#a78bfa" color2="#f472b6" speed={1}>
       <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="glass-overlay w-full max-w-sm rounded-[var(--radius-2xl)] p-8 text-white">
-          <h1 className="mb-1 text-xl font-semibold">Nova senha</h1>
+        <AuthSurface>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              <BlurText
+                text="Nova senha"
+                delay={70}
+                className="font-bold text-foreground"
+              />
+            </h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Defina uma senha com no mínimo 8 caracteres.
+            </p>
+          </div>
+
           {done ? (
-            <p className="mt-4 text-sm text-white/85">
+            <p className="text-sm text-foreground">
               Senha atualizada.{" "}
-              <Link href="/login" className="underline">
+              <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
                 Entrar
               </Link>
             </p>
           ) : (
-            <form onSubmit={(e) => void onSubmit(e)} className="mt-6 flex flex-col gap-3">
-              <label className="text-[13px]" htmlFor="np">
-                Senha
-              </label>
-              <input
-                id="np"
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-11 rounded-full border border-white/15 bg-white/5 px-4 text-sm outline-none"
-              />
-              <label className="text-[13px]" htmlFor="np2">
-                Confirmar
-              </label>
-              <input
-                id="np2"
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className="h-11 rounded-full border border-white/15 bg-white/5 px-4 text-sm outline-none"
-              />
-              {error ? <p className="text-sm text-red-300">{error}</p> : null}
-              <button
-                type="submit"
-                disabled={loading}
-                className="mt-2 flex h-11 items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-zinc-900 disabled:opacity-50"
-              >
+            <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
+              <div>
+                <Label htmlFor="np">Senha</Label>
+                <Input
+                  id="np"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="np2">Confirmar</Label>
+                <Input
+                  id="np2"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+              <Button type="submit" disabled={loading} className="w-full">
                 {loading ? <Loader2 className="size-4 animate-spin" /> : null}
                 Salvar senha
-              </button>
+              </Button>
             </form>
           )}
-        </div>
+        </AuthSurface>
       </div>
     </HeroGeometric>
   );

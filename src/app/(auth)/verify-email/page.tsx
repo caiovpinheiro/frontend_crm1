@@ -5,7 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { IconLoader2 as Loader2 } from "@tabler/icons-react";
 
+import { AuthSurface } from "@/components/ui/auth-surface";
+import { BlurText } from "@/components/ui/blur-text";
+import { Button } from "@/components/ui/button";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { resolveTenantFromRequest } from "@/lib/tenant-host";
 
 function VerifyForm() {
@@ -73,60 +78,65 @@ function VerifyForm() {
   return (
     <HeroGeometric color1="#a78bfa" color2="#f472b6" speed={1}>
       <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="glass-overlay w-full max-w-sm rounded-[var(--radius-2xl)] p-8 text-white">
-          <h1 className="mb-1 text-xl font-semibold">Confirme seu e-mail</h1>
-          <p className="mb-6 text-[13px] text-white/70">{info}</p>
-          <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-3">
-            <label className="text-[13px]" htmlFor="ve-email">
-              E-mail
-            </label>
-            <input
-              id="ve-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="h-11 rounded-full border border-white/15 bg-white/5 px-4 text-sm outline-none"
-            />
-            <label className="text-[13px]" htmlFor="ve-code">
-              Código
-            </label>
-            <input
-              id="ve-code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="\d{6}"
-              maxLength={6}
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="h-11 rounded-full border border-white/15 bg-white/5 px-4 text-center text-lg tracking-[0.4em] outline-none"
-              placeholder="000000"
-            />
-            {error ? <p className="text-sm text-red-300">{error}</p> : null}
-            <button
-              type="submit"
-              disabled={loading || code.length !== 6}
-              className="mt-2 flex h-11 items-center justify-center gap-2 rounded-full bg-white text-sm font-semibold text-zinc-900 disabled:opacity-50"
-            >
+        <AuthSurface>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              <BlurText
+                text="Confirme seu e-mail"
+                delay={70}
+                className="font-bold text-foreground"
+              />
+            </h1>
+            <p className="mt-1 text-xs text-muted-foreground">{info}</p>
+          </div>
+          <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
+            <div>
+              <Label htmlFor="ve-email">E-mail</Label>
+              <Input
+                id="ve-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="mt-1.5"
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <Label htmlFor="ve-code">Código</Label>
+              <Input
+                id="ve-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="\d{6}"
+                maxLength={6}
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="mt-1.5 text-center text-lg tracking-[0.4em]"
+                placeholder="000000"
+              />
+            </div>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <Button type="submit" disabled={loading || code.length !== 6} className="w-full">
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Confirmar
-            </button>
+            </Button>
           </form>
           <button
             type="button"
             disabled={resending || !email.trim()}
             onClick={() => void resend()}
-            className="mt-4 w-full text-center text-[13px] text-white/70 underline-offset-4 hover:underline disabled:opacity-50"
+            className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
           >
             {resending ? "Enviando…" : "Reenviar código"}
           </button>
-          <p className="mt-4 text-center text-[13px] text-white/60">
-            <Link href="/login" className="hover:underline">
+          <p className="text-center text-xs text-muted-foreground">
+            <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
               Voltar ao login
             </Link>
           </p>
-        </div>
+        </AuthSurface>
       </div>
     </HeroGeometric>
   );
