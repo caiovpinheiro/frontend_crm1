@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
-
 export const metadata: Metadata = {
   title: "Política de privacidade · Bwipo",
   description:
@@ -37,7 +35,7 @@ export default function PoliticaDePrivacidadePage() {
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-10 md:py-14">
-        <article className={`${CARD_SURFACE_CLASS} px-6 py-8 md:px-10 md:py-10`}>
+        <article className="rounded-xl border border-border bg-card px-6 py-8 md:px-10 md:py-10">
           <p className="text-sm text-muted-foreground">Documento público</p>
           <h1 className="mt-1 font-display text-[22px] font-bold leading-tight tracking-tight">
             Política de privacidade
