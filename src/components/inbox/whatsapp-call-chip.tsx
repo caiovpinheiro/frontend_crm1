@@ -2,6 +2,7 @@
 
 import { apiUrl } from "@/lib/api";
 import { postWhatsappCall } from "@/lib/wa-whatsapp-call";
+import { sendCallPermissionTemplate } from "@/lib/wa-call-permission-send";
 /**
  * WhatsappCallChip
  * ─────────────────
@@ -501,38 +502,7 @@ export function WhatsappCallChip({
         );
       }
       const tpl = (templatesQuery.data ?? []).find((t) => t.name === templateName);
-      const r = await fetch(apiUrl("/wa-call-permission"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversationId,
-            templateName,
-            languageCode: tpl?.language || "pt_BR",
-            bodyText: tpl?.bodyText,
-            headerText: tpl?.headerText,
-            footerText: tpl?.footerText,
-            buttons: tpl?.buttons,
-          }),
-        },
-      );
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        const fromApi = typeof j?.message === "string" ? j.message.trim() : "";
-        throw new Error(
-          fromApi ||
-            (r.status === 502 || r.status === 504
-              ? "O servidor não respondeu a tempo ao enviar o template. Tente novamente."
-              : "Erro ao enviar solicitação"),
-        );
-      }
-      // Guarda último template usado para virar default rápido na próxima vez.
-      try {
-        sessionStorage.setItem(TPL_STORAGE, templateName);
-      } catch {
-        /* ignore */
-      }
-      return j as { pending?: boolean; reopenedConversationId?: string };
+      return sendCallPermissionTemplate({ conversationId, templateName, tpl });
     },
     onSuccess: (j) => {
       toast.success(
