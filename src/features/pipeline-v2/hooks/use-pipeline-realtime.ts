@@ -172,7 +172,8 @@ function patchBoardLastMessage(
  * e os ticks enviado/entregue/lido no `DealCard`.
  *
  * - `new_message` → patch in-place do card do contato (sem refetch).
- * - `conversation_updated` → invalida (mudança estrutural: status, etc.).
+ * - `conversation_updated` → ignora (ticket assign/status/consent não
+ *   muda estágio do deal; poll 60s + mutations locais cobrem o board).
  * - `message_status` → patch otimista do `sendStatus` (ticks), sem
  *   recompute do board.
  */
@@ -188,8 +189,9 @@ export function usePipelineRealtime(enabled = true) {
     [],
   );
 
-  // Invalidação debounced do board inteiro — reservada a mudanças
-  // estruturais (conversation_updated) e payloads legados sem contactId.
+  // Invalidação debounced do board — só payload legado sem contactId
+  // em new_message (não dá pra achar o card). conversation_updated
+  // não entra: atribuir/encerrar ticket não muda a coluna do Kanban.
   const scheduleBoardRefresh = useCallback(() => {
     if (timerRef.current) return;
     timerRef.current = setTimeout(() => {
@@ -240,10 +242,8 @@ export function usePipelineRealtime(enabled = true) {
         return;
       }
 
-      if (event !== "conversation_updated") {
-        return;
-      }
-      scheduleBoardRefresh();
+      // conversation_updated: não refetcha o board (~900KB). Ticket
+      // assign/resolve/consent não move deal de coluna.
     },
     [qc, scheduleBoardRefresh],
   );

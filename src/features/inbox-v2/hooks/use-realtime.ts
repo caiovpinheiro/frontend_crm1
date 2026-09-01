@@ -803,7 +803,9 @@ export function useInboxRealtime(options: {
           return;
         }
         if (!id) {
-          scheduleInboxRefresh();
+          // Sem conversationId não dá pra patchar o card. Counts/chips
+          // bastam — relistar a fila inteira × ~20 abas era o rabo.
+          scheduleCountsRefresh();
           scheduleDailyStatsRefresh();
           return;
         }
