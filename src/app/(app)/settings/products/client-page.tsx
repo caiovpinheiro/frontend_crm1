@@ -49,7 +49,9 @@ export default function ProductsV2ClientPage() {
   const requested = params.get("tab");
   const active = tabs.some((t) => t.id === requested)
     ? (requested as string)
-    : tabs[0]?.id ?? "products";
+    : tabs.some((t) => t.id === "products")
+      ? "products"
+      : tabs[0]?.id ?? "products";
 
   const setActive = useCallback(
     (id: string) => {

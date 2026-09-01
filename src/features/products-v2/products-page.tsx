@@ -25,6 +25,7 @@ import { MobileTableScroll } from "@/components/crm/mobile-table-scroll";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import {
+  CARD_SURFACE_CLASS,
   LIST_ACTIONS_CELL_CLASS,
   ListColumnLabel,
   SortableHeader,
@@ -40,7 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 
 import { CsvIoDialog } from "@/features/data-io/csv-io-dialog";
@@ -95,14 +96,15 @@ async function fetchProducts(search: string): Promise<ProductRow[]> {
   while (all.length < total) {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
+    // Tela de gestão precisa ver inativos (soft-delete). Default da API é só ativos.
+    params.set("active", "false");
     params.set("perPage", String(perPage));
     params.set("page", String(page));
-    const res = await fetch(apiUrl(`/api/products?${params}`));
-    if (!res.ok) throw new Error("Erro ao carregar produtos");
-    const data = (await res.json()) as {
+    const res = await apiFetch(`/api/products?${params}`);
+    const data = await parseApiResponse<{
       products?: ProductRow[];
       total?: number;
-    };
+    }>(res, "Erro ao carregar produtos");
     const batch = Array.isArray(data.products) ? data.products : [];
     total = typeof data.total === "number" ? data.total : batch.length;
     all.push(...batch);
@@ -114,11 +116,8 @@ async function fetchProducts(search: string): Promise<ProductRow[]> {
 }
 
 async function deleteProductRequest(id: string) {
-  const res = await fetch(apiUrl(`/api/products/${id}`), { method: "DELETE" });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error((data as { message?: string })?.message ?? "Erro ao excluir produto");
-  }
+  const res = await apiFetch(`/api/products/${id}`, { method: "DELETE" });
+  await parseApiResponse(res, "Erro ao excluir produto");
 }
 
 export function ProductsV2Page({
@@ -141,7 +140,13 @@ export function ProductsV2Page({
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
   const queryClient = useQueryClient();
 
-  const { data: products = [], isLoading } = useQuery({
+  const {
+    data: products = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["products", search],
     queryFn: () => fetchProducts(search),
   });
@@ -377,14 +382,24 @@ export function ProductsV2Page({
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="h-[64px] animate-pulse rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)]"
+              className="h-[64px] animate-pulse rounded-xl border border-border bg-card"
             />
           ))}
         </div>
+      ) : isError ? (
+        <div className={cn(CARD_SURFACE_CLASS, "flex flex-col items-center justify-center gap-3 py-16")}>
+          <IconAlertTriangle size={40} className="text-muted-foreground opacity-40" />
+          <p className="text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : "Erro ao carregar produtos."}
+          </p>
+          <ButtonGlass variant="glass" size="sm" onClick={() => void refetch()}>
+            Tentar de novo
+          </ButtonGlass>
+        </div>
       ) : sorted.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-base)] py-16">
-          <IconPackage size={40} className="text-[var(--text-muted)] opacity-40" />
-          <p className="text-sm text-[var(--text-muted)]">Nenhum produto encontrado.</p>
+        <div className={cn(CARD_SURFACE_CLASS, "flex flex-col items-center justify-center gap-3 border-dashed py-16")}>
+          <IconPackage size={40} className="text-muted-foreground opacity-40" />
+          <p className="text-sm text-muted-foreground">Nenhum produto encontrado.</p>
           <ButtonGlass variant="glass" size="sm" onClick={openCreate}>
             <IconPlus size={14} /> Criar primeiro
           </ButtonGlass>
@@ -500,7 +515,10 @@ export function ProductsV2Page({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         productId={editingId}
-        onCreated={(id) => setEditingId(id)}
+        onCreated={(id) => {
+          setEditingId(id);
+          void queryClient.invalidateQueries({ queryKey: ["products"] });
+        }}
       />
 
       <Dialog open={deleting !== null} onOpenChange={(next) => !next && setDeleting(null)}>
