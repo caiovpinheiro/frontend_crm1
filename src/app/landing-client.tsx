@@ -42,7 +42,7 @@ export function LandingClient() {
             <h1 className="font-heading text-4xl font-bold leading-[1.05] tracking-tight text-white md:text-5xl lg:text-6xl">
               Seu CRM, seu funil,<br />seu time — em um lugar só.
             </h1>
-            <p className="mt-5 max-w-xl text-base text-[var(--color-text-muted)] md:text-lg">
+            <p className="mt-5 max-w-xl text-base text-white md:text-lg">
               Cadastre sua empresa em 30 segundos e comece a centralizar
               conversas de WhatsApp, pipeline de vendas e equipe no mesmo
               dashboard.
