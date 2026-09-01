@@ -17,12 +17,18 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FormDialog } from "@/components/ui/form-dialog";
+import {
+  FormDialog,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+} from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ButtonGlass } from "@/components/crm/button-glass";
 import { DropdownGlass, type DropdownOption } from "@/components/crm/dropdown-glass";
 import { Textarea } from "@/components/ui/textarea";
-import { apiUrl } from "@/lib/api";
+import { apiFetch, parseApiResponse } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCan } from "@/hooks/use-my-permissions";
 import { useCatalogs } from "@/features/catalogs-v2/hooks";
 import { capabilityMeta } from "@/features/catalogs-v2/constants";
@@ -143,6 +149,7 @@ const sectionTitleClass =
 
 export function ProductDialog({ open, onOpenChange, productId, initialCatalogId, onCreated }: Props) {
   const isEdit = !!productId;
+  const queryClient = useQueryClient();
   const { data: detail } = useProductDetail(productId);
   const { data: pipelines = [] } = usePipelinesLite();
   const { data: catalogs = [] } = useCatalogs();
@@ -387,51 +394,43 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
         onOpenChange(false);
       } else {
         // Cria base, depois aplica kind + blocos via PUT.
-        const res = await fetch(apiUrl("/api/products"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name.trim(),
-            kind,
-            type: kind === "SERVICE" ? "SERVICE" : "PRODUCT",
-            price:
-              kind === "COURSE"
-                ? Number(pricingRows[0]?.price) || 0
-                : Number(price) || 0,
-            unit:
-              kind === "SERVICE"
-                ? "serviço"
-                : kind === "COURSE"
-                  ? "matrícula"
-                  : unit,
-            sku: sku.trim() || null,
-            description: description.trim() || null,
-            catalogId: catalogId || null,
-            ...(kind === "COURSE" ? { courseMode } : {}),
+        const created = await parseApiResponse<{ product?: { id?: string } }>(
+          await apiFetch("/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: name.trim(),
+              kind,
+              type: kind === "SERVICE" ? "SERVICE" : "PRODUCT",
+              price:
+                kind === "COURSE"
+                  ? Number(pricingRows[0]?.price) || 0
+                  : Number(price) || 0,
+              unit:
+                kind === "SERVICE"
+                  ? "serviço"
+                  : kind === "COURSE"
+                    ? "matrícula"
+                    : unit,
+              sku: sku.trim() || null,
+              description: description.trim() || null,
+              catalogId: catalogId || null,
+              ...(kind === "COURSE" ? { courseMode } : {}),
+            }),
           }),
-        });
-        const created = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(
-            (typeof created?.message === "string" && created.message) ||
-              (typeof created?.error === "string" && created.error) ||
-              `Erro ao criar (${res.status})`,
-          );
-        }
-        const newId: string = created.product?.id;
+          "Erro ao criar produto.",
+        );
+        const newId: string | undefined = created.product?.id;
         if (!newId) throw new Error("Erro ao criar: resposta sem id do produto.");
-        const putRes = await fetch(apiUrl(`/api/products/${newId}`), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildBlocks()),
-        });
-        if (!putRes.ok) {
-          const putBody = await putRes.json().catch(() => ({}));
-          throw new Error(
-            (typeof putBody?.message === "string" && putBody.message) ||
-              `Produto criado, mas falhou ao salvar detalhes (${putRes.status}).`,
-          );
-        }
+        await parseApiResponse(
+          await apiFetch(`/api/products/${newId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(buildBlocks()),
+          }),
+          "Produto criado, mas falhou ao salvar detalhes.",
+        );
+        await queryClient.invalidateQueries({ queryKey: ["products"] });
         toast.success("Produto criado. Configure ofertas e alocação.");
         onCreated?.(newId);
       }
@@ -468,13 +467,24 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
       description="Escolha Produto ou Serviço. As especializações (vaga, curso…) vêm das capacidades do catálogo."
       footer={
         <>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <ButtonGlass
+            type="button"
+            variant="glass"
+            className={formDialogCancelClass}
+            onClick={() => onOpenChange(false)}
+          >
             {isEdit ? "Fechar" : "Cancelar"}
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !name.trim()}>
+          </ButtonGlass>
+          <ButtonGlass
+            type="button"
+            variant="primary"
+            className={formDialogPrimaryClass}
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+          >
             {saving && <IconLoader2 size={14} className="mr-1.5 animate-spin" />}
             {isEdit ? "Salvar" : "Criar"}
-          </Button>
+          </ButtonGlass>
         </>
       }
     >

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiUrl } from "@/lib/api";
+import { apiFetch, parseApiResponse } from "@/lib/api";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import type {
   InventoryMovement,
@@ -15,17 +15,13 @@ import type {
 } from "./types";
 
 async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), {
+  const res = await apiFetch(path, {
     ...init,
     headers: init?.body
       ? { "Content-Type": "application/json", ...(init?.headers ?? {}) }
       : init?.headers,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error((data as { message?: string })?.message ?? "Erro na requisição");
-  }
-  return data as T;
+  return parseApiResponse<T>(res, "Erro na requisição");
 }
 
 // ── Produto (detalhe multi-tipo) ───────────────────────────────────────────
