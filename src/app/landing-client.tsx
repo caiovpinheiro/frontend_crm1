@@ -97,11 +97,19 @@ export function LandingClient() {
       <footer className="border-t border-[var(--glass-border-subtle)] py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-6 text-center text-sm text-white md:flex-row md:justify-between md:text-left">
           <span>© {new Date().getFullYear()} Bwipo. Todos os direitos reservados.</span>
-          <span>
-            Já tem conta?{" "}
-            <Link href="/login" className="font-semibold text-white hover:underline">
-              Entrar
+          <span className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 md:justify-end">
+            <Link
+              href="/politica-de-privacidade"
+              className="font-semibold text-white hover:underline"
+            >
+              Política de privacidade
             </Link>
+            <span>
+              Já tem conta?{" "}
+              <Link href="/login" className="font-semibold text-white hover:underline">
+                Entrar
+              </Link>
+            </span>
           </span>
         </div>
       </footer>

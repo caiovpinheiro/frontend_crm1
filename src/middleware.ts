@@ -177,6 +177,7 @@ const PUBLIC_PATHS = new Set([
   "/forgot-password",
   "/reset-password",
   "/verify-email",
+  "/politica-de-privacidade",
   "/test-bulk-bar",
   "/dev/campaigns-cards-preview",
   // Cockpit: HTML estático; dados via Bearer token ou sessão CRM.
