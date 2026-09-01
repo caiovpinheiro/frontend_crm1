@@ -919,10 +919,18 @@ export function ChatWindow({
     "/api/sse/messages",
     React.useCallback(
       (event: string, data: unknown) => {
-        // contact_updated tem semantica diferente: nao mexe em mensagens,
-        // so refresha a lista pra pegar avatar/nome novos.
+        // contact_updated: só sidebar/detalhe (nome/avatar). Relistar a
+        // inbox aqui × N chats abertos (pipeline/contatos) re-batia
+        // GET /conversations em toda a org a cada foto/telefone.
         if (event === "contact_updated") {
-          queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
+          const p = data as { contactId?: string };
+          const id = p.contactId ?? contactId;
+          if (id) {
+            queryClient.invalidateQueries({ queryKey: ["contact-sidebar", id] });
+            queryClient.invalidateQueries({
+              queryKey: ["chat-contact-detail", id],
+            });
+          }
           return;
         }
         if (
@@ -934,10 +942,10 @@ export function ChatWindow({
         const p = data as { conversationId?: string };
         if (p.conversationId === conversationId)
           queryClient.invalidateQueries({ queryKey: messagesKey });
-        if (event !== "message_status")
-          queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
+        // Lista: useInboxRealtime já patcha o card. Invalidar
+        // inbox-conversations em todo new_message da org relistava a fila.
       },
-      [conversationId, messagesKey, queryClient],
+      [conversationId, contactId, messagesKey, queryClient],
     ),
     !!conversationId,
   );

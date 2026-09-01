@@ -92,7 +92,7 @@ export function useBoard(params: {
     },
     enabled: preview ? true : ((params.enabled ?? true) && !!params.pipelineId),
     // Alinhado ao cache Redis do board (45s) + padrão inbox-v2.
-    // SSE (`usePipelineRealtime`) invalida em new_message/conversation_updated;
+    // SSE (`usePipelineRealtime`) patcha lastMessage em new_message;
     // polling fica só como safety-net — evita refetch storm no remount.
     staleTime: 45_000,
     refetchInterval: 60_000,
