@@ -50,7 +50,7 @@ export const automationsTour: PageTour = {
       element: "automations-actions",
       title: "Criar ou importar",
       description:
-        "Este menu reúne as formas de criar uma automação. Clique em Criar automação para abrir e ver cada opção.",
+        "Este menu reúne as formas de criar uma automação. Avance para ver cada opção.",
       side: "bottom",
     },
     {
@@ -68,20 +68,6 @@ export const automationsTour: PageTour = {
         "Se você já exportou um fluxo, importe o arquivo .json para recriar a automação sem montar do zero.",
       side: "left",
       openMenu: "automations-actions",
-    },
-  ],
-  ctas: [
-    {
-      label: "Criar automação",
-      onElement: "automations-actions",
-      openMenu: "automations-actions",
-      continueTour: true,
-    },
-    {
-      label: "Abrir assistente",
-      onElement: "automations-import",
-      href: "/automations/new",
-      startTourId: "automations-create",
     },
   ],
 };
