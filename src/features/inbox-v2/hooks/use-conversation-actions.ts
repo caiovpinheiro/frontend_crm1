@@ -9,6 +9,7 @@ import {
   postBulkAction,
   postConversationAction,
   type BulkAction,
+  type ConversationListRow,
 } from "../api";
 import { messagesKey } from "./use-messages";
 
@@ -165,7 +166,32 @@ export function useToggleConversationResolve(
       // está na lista, e o deep-link precisa achar o row imediatamente.
       if (newId && data.previousConversationId) {
         if (data.conversation) {
-          qc.setQueryData(["inbox-conversation", newId], data.conversation);
+          const prev = qc.getQueryData<Record<string, unknown>>([
+            "inbox-conversation",
+            data.previousConversationId,
+          ]);
+          const seeded =
+            prev && typeof prev === "object"
+              ? {
+                  ...prev,
+                  ...data.conversation,
+                  contact:
+                    data.conversation.contact ??
+                    (prev.contact as ConversationListRow["contact"] | undefined),
+                  tags: data.conversation.tags ?? prev.tags,
+                  department:
+                    data.conversation.department ?? prev.department,
+                  departmentId:
+                    data.conversation.departmentId ?? prev.departmentId,
+                }
+              : data.conversation;
+          qc.setQueryData(["inbox-conversation", newId], seeded);
+          if (data.conversation.number != null) {
+            qc.setQueryData(
+              ["inbox-conversation", String(data.conversation.number)],
+              seeded,
+            );
+          }
         }
         callbacks?.onNewConversation?.(newId, data.previousConversationId);
       } else if (!isReopen) {
