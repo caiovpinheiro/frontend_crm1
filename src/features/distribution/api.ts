@@ -22,6 +22,7 @@ import type {
   RetryResult,
   UpdateResponsibleInput,
 } from "./types";
+import { normalizeExecuteDistributionResult } from "./outcome-toast";
 import {
   MOCK_DISTRIBUTION_PENDING,
   MOCK_DISTRIBUTION_RESPONSIBLES,
@@ -134,15 +135,18 @@ export type ExecuteDistributionInput = {
   reassign?: boolean;
 };
 
-export function executeDistribution(
+export async function executeDistribution(
   input: ExecuteDistributionInput,
 ): Promise<DistributionResult> {
-  return sendJson<DistributionResult>(
+  const raw = await sendJson<unknown>(
     "/api/distribution/execute",
     "POST",
     input,
     "Erro ao executar distribuição.",
   );
+  const normalized = normalizeExecuteDistributionResult(raw);
+  if (normalized) return normalized;
+  throw new Error("Erro ao executar distribuição.");
 }
 
 export async function setAgentStatus(
