@@ -20,23 +20,15 @@ function overlayColor(): string {
 function toDriveSteps(
   steps: NonNullable<ReturnType<typeof getTour>>["steps"],
 ): DriveStep[] {
-  return steps.flatMap((step) => {
-    const selector = `[data-tour="${step.element}"]`;
-    if (typeof document !== "undefined" && !document.querySelector(selector)) {
-      return [];
-    }
-    return [
-      {
-        element: selector,
-        popover: {
-          title: step.title,
-          description: step.description,
-          side: step.side ?? "bottom",
-          align: "start",
-        },
-      },
-    ];
-  });
+  return steps.map((step) => ({
+    element: `[data-tour="${step.element}"]`,
+    popover: {
+      title: step.title,
+      description: step.description,
+      side: step.side ?? "bottom",
+      align: "start",
+    },
+  }));
 }
 
 /** Inicia o tour da página. Só chama a partir de um clique do usuário. */
@@ -65,6 +57,7 @@ export function startPageTour(id: string): void {
     prevBtnText: "Voltar",
     doneBtnText: "Concluir",
     skipMissingElement: true,
+    waitForElement: 2500,
     onDestroyed: () => {
       activeTour = null;
     },

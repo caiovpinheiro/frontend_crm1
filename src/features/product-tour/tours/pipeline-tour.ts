@@ -5,44 +5,44 @@ export const pipelineTour: PageTour = {
   steps: [
     {
       element: "pipeline-switcher",
-      title: "Funil atual",
+      title: "Seu Pipeline",
       description:
-        "Troque o funil por este seletor ao lado do título. Cada funil tem as próprias etapas e negócios.",
+        "Visualize os negócios organizados pelas etapas do seu processo comercial. Troque de funil por este seletor.",
       side: "bottom",
     },
     {
       element: "pipeline-search",
-      title: "Busca e filtros",
+      title: "Pesquisar e filtrar",
       description:
-        "Pesquise negócios pelo título ou contato. O botão Filtrar, dentro da mesma pílula, abre filtros avançados.",
+        "Encontre negócios rapidamente ou filtre os resultados exibidos.",
       side: "bottom",
     },
     {
       element: "pipeline-period",
       title: "Período",
       description:
-        "Restrinja o quadro por data de criação ou de fechamento. Os atalhos 7, 30 e 90 dias ficam neste calendário — não no modal de filtros.",
+        "Restrinja o quadro por data de criação ou de fechamento. Os atalhos 7, 30 e 90 dias ficam neste calendário.",
       side: "bottom",
     },
     {
       element: "pipeline-views",
-      title: "Visualização",
+      title: "Kanban, Flow e Lista",
       description:
-        "Alterne entre Kanban, Flow e Lista. A preferência fica nesta página; o tour explica o quadro Kanban.",
+        "Alterne a forma de ver o funil. Este tour apresenta o quadro Kanban.",
       side: "bottom",
     },
     {
       element: "pipeline-kanban",
       title: "Quadro Kanban",
       description:
-        "Cada coluna é uma etapa. Arraste o card para mover o negócio, clique para abrir o detalhe e use o + da coluna para criar naquela fase.",
+        "Cada coluna é uma etapa. Arraste o card para mover, clique para abrir o detalhe.",
       side: "top",
     },
     {
       element: "pipeline-actions",
       title: "Ações do funil",
       description:
-        "Neste menu você cria um negócio, importa, exporta e abre as configurações do funil. Nada é iniciado sozinho — só o que você escolher aqui.",
+        "Crie um negócio, importe, exporte ou abra as configurações do funil.",
       side: "bottom",
     },
   ],
