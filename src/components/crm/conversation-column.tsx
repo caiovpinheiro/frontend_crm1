@@ -12,6 +12,7 @@ import {
   IconInbox,
   IconCornerUpLeft,
   IconCircleCheck,
+  IconCalendarEvent,
   IconRobot,
   IconSparkles,
   IconAlertCircle,
@@ -181,6 +182,12 @@ function statusVisual(label: string | undefined): {
       Icon: IconRobot,
       bg: "rgba(139,92,246,0.14)",
       fg: "rgb(124,58,237)",
+    }
+  if (l.includes("resolvendo") || l.includes("acompanh"))
+    return {
+      Icon: IconCalendarEvent,
+      bg: "var(--color-warn-subtle)",
+      fg: "var(--color-warning)",
     }
   if (l.includes("resolv") || l.includes("finaliz") || l.includes("encerr"))
     return {
