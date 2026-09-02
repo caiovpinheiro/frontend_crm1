@@ -68,7 +68,7 @@ function StageChevron({
         color: active ? "#ffffff" : color,
       }}
       className={cn(
-        "relative flex w-[132px] shrink-0 items-center justify-center gap-1.5 font-display font-semibold tracking-tight transition-[filter,opacity] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1 md:min-w-[132px] md:w-auto md:flex-1 md:basis-[132px]",
+        "relative flex w-[132px] shrink-0 items-center justify-center gap-1.5 font-display font-semibold tracking-tight transition-[filter,opacity] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1",
         first ? "pl-2.5 pr-4 sm:pl-3 sm:pr-5" : "pl-4 pr-4 sm:pl-5 sm:pr-5",
         compact ? "h-8 text-[11.5px] sm:h-9 sm:text-[12px]" : "h-9 text-[12px] sm:h-10 sm:text-[12.5px]",
         active ? "z-[1]" : "hover:brightness-[0.97]",
