@@ -132,6 +132,8 @@ describe("URL dos filtros do Inbox", () => {
 
   it("reconhece aba/busca/filtro na URL e ignora só o deep-link de conversa", () => {
     expect(hasInboxUrlState(toParams({ tab: "todos" }))).toBe(true);
+    expect(hasInboxUrlState(toParams({ tab: "entrada,esperando" }))).toBe(true);
+    expect(hasInboxUrlState(toParams({ tab: "esperando" }))).toBe(true);
     expect(hasInboxUrlState(toParams({ q: "maria" }))).toBe(true);
     expect(hasInboxUrlState(toParams({ window: "closed" }))).toBe(true);
     expect(hasInboxUrlState(toParams({ c: "50424" }))).toBe(false);

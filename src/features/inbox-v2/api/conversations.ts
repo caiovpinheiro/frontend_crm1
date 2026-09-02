@@ -18,7 +18,7 @@ import type {
 } from "./types";
 
 export interface ListConversationsParams extends InboxFilters {
-  tab: InboxTab;
+  tab: InboxTab | readonly InboxTab[];
   search?: string;
   perPage?: number;
   page?: number;
@@ -51,9 +51,10 @@ function appendInboxServerFilters(
 }
 
 function buildConversationsUrl(p: ListConversationsParams): string {
+  const tabParam = typeof p.tab === "string" ? p.tab : p.tab.join(",");
   const q = new URLSearchParams({
     perPage: String(p.perPage ?? 60),
-    tab: p.tab,
+    tab: tabParam,
   });
   if (p.cursor) q.set("cursor", p.cursor);
   else if (p.page && p.page > 1) q.set("page", String(p.page));

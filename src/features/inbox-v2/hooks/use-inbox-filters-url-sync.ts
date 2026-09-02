@@ -102,21 +102,62 @@ export function isInboxTab(raw: string | null | undefined): raw is InboxTab {
   return !!raw && (INBOX_TAB_IDS as readonly string[]).includes(raw);
 }
 
+/** Normaliza a seleção: `todos` é exclusivo; ids inválidos somem; vazio → default. */
+export function normalizeInboxTabs(tabs: readonly InboxTab[]): InboxTab[] {
+  if (tabs.includes("todos")) return ["todos"];
+  const seen = new Set<InboxTab>();
+  const out: InboxTab[] = [];
+  for (const id of INBOX_TAB_IDS) {
+    if (id === "todos" || !tabs.includes(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out.length > 0 ? out : [DEFAULT_INBOX_TAB];
+}
+
+/** `entrada` ou `entrada,esperando` — compatível com o valor único antigo. */
+export function parseInboxTabs(raw: string | null | undefined): InboxTab[] {
+  if (!raw?.trim()) return [];
+  const ids: InboxTab[] = [];
+  for (const part of raw.split(",")) {
+    const id = part.trim();
+    if (isInboxTab(id)) ids.push(id);
+  }
+  return ids.length > 0 ? normalizeInboxTabs(ids) : [];
+}
+
+export function serializeInboxTabs(tabs: readonly InboxTab[]): string {
+  return normalizeInboxTabs(tabs).join(",");
+}
+
+/** Clique numa fila: `todos` limpa o resto; fila específica desmarca `todos`. */
+export function toggleInboxTab(
+  current: readonly InboxTab[],
+  id: InboxTab,
+): InboxTab[] {
+  if (id === "todos") return ["todos"];
+  const withoutTodos = current.filter((t) => t !== "todos");
+  const next = withoutTodos.includes(id)
+    ? withoutTodos.filter((t) => t !== id)
+    : [...withoutTodos, id];
+  return normalizeInboxTabs(next.length > 0 ? next : [id]);
+}
+
 // ── localStorage (fallback quando a URL vem sem filtros) ─────────────
 
-function readStoredTab(): InboxTab {
+function readStoredTabs(): InboxTab[] {
   try {
-    const raw = localStorage.getItem(INBOX_TAB_STORAGE_KEY);
-    if (isInboxTab(raw)) return raw;
+    const parsed = parseInboxTabs(localStorage.getItem(INBOX_TAB_STORAGE_KEY));
+    if (parsed.length > 0) return parsed;
   } catch {
     /* localStorage indisponível */
   }
-  return DEFAULT_INBOX_TAB;
+  return [DEFAULT_INBOX_TAB];
 }
 
-function writeStoredTab(tab: InboxTab) {
+function writeStoredTabs(tabs: readonly InboxTab[]) {
   try {
-    localStorage.setItem(INBOX_TAB_STORAGE_KEY, tab);
+    localStorage.setItem(INBOX_TAB_STORAGE_KEY, serializeInboxTabs(tabs));
   } catch {
     /* localStorage indisponível */
   }
@@ -238,19 +279,19 @@ export function inboxFiltersFromUrlParams(params: URLSearchParams): InboxFilters
 
 /** A URL já descreve uma visão do Inbox (aba, busca ou filtro)? */
 export function hasInboxUrlState(params: URLSearchParams): boolean {
-  if (isInboxTab(params.get(TAB_PARAM))) return true;
+  if (parseInboxTabs(params.get(TAB_PARAM)).length > 0) return true;
   if ((params.get(SEARCH_PARAM) ?? "").trim()) return true;
   return FILTER_PARAMS.some((key) => (params.get(key) ?? "").trim() !== "");
 }
 
 /** Link compartilhável da visão atual do Inbox. */
 export function inboxViewHref(
-  tab: InboxTab,
+  tab: InboxTab | readonly InboxTab[],
   filters: InboxFilters,
   search?: string,
 ): string {
   const params = new URLSearchParams();
-  params.set(TAB_PARAM, tab);
+  params.set(TAB_PARAM, serializeInboxTabs(Array.isArray(tab) ? tab : [tab]));
   const q = (search ?? "").trim();
   if (q) params.set(SEARCH_PARAM, q);
   for (const [key, value] of Object.entries(inboxFiltersToUrlParams(filters))) {
@@ -262,10 +303,10 @@ export function inboxViewHref(
 // ── hook ─────────────────────────────────────────────────────────────
 
 export type UseInboxFilterUrlStateResult = {
-  tab: InboxTab;
-  setTab: (next: SetStateAction<InboxTab>) => void;
+  tab: InboxTab[];
+  setTab: (next: SetStateAction<InboxTab[]>) => void;
   /** Troca a aba sem empilhar histórico (deep-link / hidratação). */
-  replaceTab: (next: InboxTab) => void;
+  replaceTab: (next: InboxTab | InboxTab[]) => void;
   /** Aba já resolvida (URL/localStorage) — trava o fetch da lista até então. */
   tabHydrated: boolean;
   filters: InboxFilters;
@@ -276,7 +317,7 @@ export type UseInboxFilterUrlStateResult = {
 };
 
 export function useInboxFilterUrlState(): UseInboxFilterUrlStateResult {
-  const [tab, setTabState] = useState<InboxTab>(DEFAULT_INBOX_TAB);
+  const [tab, setTabState] = useState<InboxTab[]>([DEFAULT_INBOX_TAB]);
   const [filters, setFiltersState] = useState<InboxFilters>({});
   const [search, setSearchState] = useState("");
   const [hydrated, setHydrated] = useState(false);
@@ -289,12 +330,12 @@ export function useInboxFilterUrlState(): UseInboxFilterUrlStateResult {
   useLayoutEffect(() => {
     const params = readLiveParams();
     if (hasInboxUrlState(params)) {
-      const urlTab = params.get(TAB_PARAM);
-      setTabState(isInboxTab(urlTab) ? urlTab : DEFAULT_INBOX_TAB);
+      const urlTabs = parseInboxTabs(params.get(TAB_PARAM));
+      setTabState(urlTabs.length > 0 ? urlTabs : [DEFAULT_INBOX_TAB]);
       setFiltersState(inboxFiltersFromUrlParams(params));
       setSearchState(params.get(SEARCH_PARAM) ?? "");
     } else {
-      setTabState(readStoredTab());
+      setTabState(readStoredTabs());
       setFiltersState(readStoredFilters());
     }
     setHydrated(true);
@@ -305,10 +346,10 @@ export function useInboxFilterUrlState(): UseInboxFilterUrlStateResult {
     // `filter` só existe no atalho `/inbox/filter/<id>`: some da URL depois de
     // hidratar (o Inbox ainda não tem filtros salvos).
     applyUrlParams(
-      { [TAB_PARAM]: tab, filter: null },
+      { [TAB_PARAM]: serializeInboxTabs(tab), filter: null },
       userEdit.current ? "push" : "replace",
     );
-    writeStoredTab(tab);
+    writeStoredTabs(tab);
   }, [tab, hydrated]);
 
   useEffect(() => {
@@ -330,21 +371,23 @@ export function useInboxFilterUrlState(): UseInboxFilterUrlStateResult {
   const onPop = useCallback(() => {
     const params = readLiveParams();
     userEdit.current = false;
-    const urlTab = params.get(TAB_PARAM);
-    setTabState(isInboxTab(urlTab) ? urlTab : DEFAULT_INBOX_TAB);
+    const urlTabs = parseInboxTabs(params.get(TAB_PARAM));
+    setTabState(urlTabs.length > 0 ? urlTabs : [DEFAULT_INBOX_TAB]);
     setFiltersState(inboxFiltersFromUrlParams(params));
     setSearchState(params.get(SEARCH_PARAM) ?? "");
   }, []);
   useUrlPopstate(onPop);
 
-  const setTab = useCallback((next: SetStateAction<InboxTab>) => {
+  const setTab = useCallback((next: SetStateAction<InboxTab[]>) => {
     userEdit.current = true;
-    setTabState(next);
+    setTabState((prev) =>
+      normalizeInboxTabs(typeof next === "function" ? next(prev) : next),
+    );
   }, []);
 
-  const replaceTab = useCallback((next: InboxTab) => {
+  const replaceTab = useCallback((next: InboxTab | InboxTab[]) => {
     userEdit.current = false;
-    setTabState(next);
+    setTabState(normalizeInboxTabs(Array.isArray(next) ? next : [next]));
   }, []);
 
   const setFilters = useCallback((next: SetStateAction<InboxFilters>) => {

@@ -88,3 +88,13 @@ export function pickVisibleInboxTab(
   if (visible.some((t) => t.id === "todos")) return "todos";
   return visible[0]?.id ?? null;
 }
+
+/** A conversa cabe em alguma das filas selecionadas (união). */
+export function rowBelongsToAnyInboxTab(
+  row: ConversationListRow,
+  tabs: readonly InboxTab[],
+): boolean {
+  if (tabs.length === 0) return false;
+  if (tabs.includes("todos")) return rowBelongsToInboxTab(row, "todos");
+  return tabs.some((tab) => rowBelongsToInboxTab(row, tab));
+}

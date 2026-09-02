@@ -17,8 +17,10 @@ import {
   IconInfoCircle,
   IconRefresh,
   IconPhone,
+  IconCheck,
   type Icon as TablerIcon,
 } from "@tabler/icons-react"
+import { inboxQueueTriggerLabel } from "@/features/inbox-v2/inbox-queue-catalog"
 import { AppLoading } from "@/components/crm/app-loading"
 import { InputGlass } from "./input-glass"
 import { type TabItem } from "./tabs-glass"
@@ -42,6 +44,9 @@ interface ConversationColumnProps {
   tabsOverride?: ReadonlyArray<TabItem>
   activeTabIndex?: number
   onTabChange?: (index: number) => void
+  /** Filas selecionadas (multi). Quando presente, o clique na linha alterna. */
+  selectedTabIds?: readonly string[]
+  onToggleTab?: (id: string) => void
   /** Badge de urgencia (relogio vermelho) no header. */
   urgencyCount?: number
   /** Acao do botao "+" no header (criar nova conversa). */
@@ -240,6 +245,8 @@ export function ConversationColumn({
   tabsOverride,
   activeTabIndex,
   onTabChange,
+  selectedTabIds,
+  onToggleTab,
   urgencyCount,
   onNewConversation,
   resizerSlot,
@@ -316,10 +323,19 @@ export function ConversationColumn({
 
   const urgency = urgencyCount ?? conversations.filter((c) => c.urgent).length
 
-  const currentTab = tabs[activeTab]
-  const currentTabLabel = currentTab?.label ?? "Todas"
-  const currentTabCount = currentTab?.count
-  const currentVisual = statusVisual(currentTab)
+  const selectedQueueIds = selectedTabIds ?? (tabs[activeTab]?.id ? [tabs[activeTab]!.id!] : [])
+  const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
+  const isMulti = selectedQueueIds.length > 1
+  const currentTab = selectedItems[0] ?? tabs[activeTab]
+  const currentTabLabel = isMulti
+    ? inboxQueueTriggerLabel(selectedQueueIds)
+    : (currentTab?.label ?? "Todas")
+  const currentTabCount = isMulti
+    ? (typeof totalCount === "number" ? totalCount : undefined)
+    : currentTab?.count
+  const currentVisual = isMulti
+    ? { Icon: IconMessages, bg: "var(--color-enterprise-bg)", fg: "var(--brand-primary)" }
+    : statusVisual(currentTab)
 
   // ── Dropdown de status ──────────────────────────────────────────
   const dropdownBtnRef = useRef<HTMLButtonElement>(null)
@@ -465,6 +481,7 @@ export function ConversationColumn({
         createPortal(
           <div
             role="listbox"
+            aria-multiselectable="true"
             aria-label="Filas da caixa de entrada"
             className="fixed z-(--z-above) flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] shadow-[0_12px_32px_rgba(15,23,42,0.18)] backdrop-blur-xl"
             style={{
@@ -496,7 +513,10 @@ export function ConversationColumn({
                     </p>
                   ) : null}
                   {group.items.map(({ tab, idx }) => {
-                    const isActive = activeTab === idx
+                    const tabId = tab.id
+                    const isActive = tabId
+                      ? selectedQueueIds.includes(tabId)
+                      : activeTab === idx
                     const v = statusVisual(tab)
                     return (
                       <button
@@ -506,6 +526,11 @@ export function ConversationColumn({
                         aria-selected={isActive}
                         title={tab.title ?? tab.description}
                         onClick={() => {
+                          if (tabId && onToggleTab) {
+                            onToggleTab(tabId)
+                            if (tabId === "todos") setDropdownOpen(false)
+                            return
+                          }
                           handleTabChange(idx)
                           setDropdownOpen(false)
                         }}
@@ -516,6 +541,17 @@ export function ConversationColumn({
                             : "hover:bg-[var(--glass-bg-strong)]",
                         )}
                       >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "flex size-[18px] shrink-0 items-center justify-center rounded-[var(--radius-sm)] border",
+                            isActive
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-card text-transparent",
+                          )}
+                        >
+                          <IconCheck size={13} stroke={3} />
+                        </span>
                         <span
                           className="flex size-7 shrink-0 items-center justify-center rounded-full"
                           style={{ background: v.bg, color: v.fg }}
@@ -559,7 +595,7 @@ export function ConversationColumn({
             </div>
             <p className="flex items-center gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-1.5 font-body text-[11px] text-[var(--text-muted)]">
               <IconInfoCircle size={13} className="shrink-0" />
-              As contagens são atualizadas em tempo real
+              Marque várias filas para ver juntas. Contagens por fila.
             </p>
           </div>,
           document.body,

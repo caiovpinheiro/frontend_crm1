@@ -3,7 +3,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { hasInboxServerFilters, type ConversationListRow, type InboxFilters, type InboxTab } from "../api";
-import { rowBelongsToInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
+import { rowBelongsToAnyInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
+import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 
 /**
  * Após um envio outbound o HAR (31/ago/26) mostrou GET lista 56KB +
@@ -30,10 +31,12 @@ function conversationMatchesId(
   return row.number != null && String(row.number) === conversationId;
 }
 
-function inboxTabFromQueryKey(queryKey: readonly unknown[]): InboxTab | null {
-  if (queryKey[0] !== "inbox-conversations") return null;
+function inboxTabsFromQueryKey(queryKey: readonly unknown[]): InboxTab[] {
+  if (queryKey[0] !== "inbox-conversations") return [];
   const tab = queryKey[1];
-  return typeof tab === "string" ? (tab as InboxTab) : null;
+  if (typeof tab === "string") return parseInboxTabs(tab);
+  if (Array.isArray(tab)) return tab.filter((t): t is InboxTab => isInboxTab(t));
+  return [];
 }
 
 function inboxFiltersFromQueryKey(
@@ -121,8 +124,8 @@ export function applyOutboundPreviewToInboxCaches(
   });
   for (const [queryKey, cached] of entries) {
     if (!cached?.pages) continue;
-    const tab = inboxTabFromQueryKey(queryKey);
-    if (!tab) continue;
+    const tabs = inboxTabsFromQueryKey(queryKey);
+    if (tabs.length === 0) continue;
 
     let found = false;
     const pagesAfterPatch = cached.pages.map((page) => {
@@ -139,9 +142,11 @@ export function applyOutboundPreviewToInboxCaches(
     });
 
     const belongs =
-      tab === "automacao"
+      tabs.length === 1 && tabs[0] === "automacao"
         ? found && rowStaysOnAutomacaoTab(next)
-        : rowBelongsToInboxTab(next, tab);
+        : tabs.includes("automacao") && found && rowStaysOnAutomacaoTab(next)
+          ? true
+          : rowBelongsToAnyInboxTab(next, tabs);
 
     if (found && belongs) {
       qc.setQueryData(queryKey, { ...cached, pages: pagesAfterPatch });

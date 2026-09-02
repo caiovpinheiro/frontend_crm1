@@ -48,13 +48,14 @@ const PAGE_SIZE = 50;
  * para o trigger de scroll infinito da coluna.
  */
 export function useConversations(params: {
-  tab: InboxTab;
+  tab: InboxTab | readonly InboxTab[];
   filters: InboxFilters;
   search: string;
   enabled?: boolean;
 }) {
+  const tabKey = typeof params.tab === "string" ? params.tab : params.tab.join(",");
   const query = useInfiniteQuery<ConversationListResponse>({
-    queryKey: ["inbox-conversations", params.tab, params.filters, params.search],
+    queryKey: ["inbox-conversations", tabKey, params.filters, params.search],
     queryFn: ({ pageParam }) => {
       const base = {
         tab: params.tab,

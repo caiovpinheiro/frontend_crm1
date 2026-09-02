@@ -102,3 +102,18 @@ export const INBOX_QUEUE_ITEMS: readonly InboxQueueItem[] = [
     groupTone: "text-[var(--color-danger)]",
   },
 ];
+
+/** Rótulo curto do gatilho: 1 fila = nome; 2 = "Entrada +1"; 3+ = "3 filas". */
+export function inboxQueueTriggerLabel(
+  selectedIds: readonly string[],
+  items: readonly InboxQueueItem[] = INBOX_QUEUE_ITEMS,
+): string {
+  const selected = items.filter((item) => selectedIds.includes(item.id));
+  if (selected.length === 0) return "Filas";
+  if (selected.length === 1) return selected[0]?.label ?? "Filas";
+  if (selected.length === 2) {
+    const first = selected[0]?.label ?? "Fila";
+    return `${first} +1`;
+  }
+  return `${selected.length} filas`;
+}

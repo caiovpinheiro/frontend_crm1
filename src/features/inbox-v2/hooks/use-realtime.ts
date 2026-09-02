@@ -10,9 +10,10 @@ import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { playInboxPing } from "./use-inbox-sound";
 import {
   inboxQueueTabFor,
-  rowBelongsToInboxTab,
+  rowBelongsToAnyInboxTab,
   rowStaysOnAutomacaoTab,
 } from "../inbox-queue-tab";
+import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 import {
   getConversation,
   getConversationsByIds,
@@ -183,10 +184,12 @@ function conversationMatchesId(
   return row.number != null && String(row.number) === conversationId;
 }
 
-function inboxTabFromQueryKey(queryKey: readonly unknown[]): InboxTab | null {
-  if (queryKey[0] !== "inbox-conversations") return null;
+function inboxTabsFromQueryKey(queryKey: readonly unknown[]): InboxTab[] {
+  if (queryKey[0] !== "inbox-conversations") return [];
   const tab = queryKey[1];
-  return typeof tab === "string" ? (tab as InboxTab) : null;
+  if (typeof tab === "string") return parseInboxTabs(tab);
+  if (Array.isArray(tab)) return tab.filter((t): t is InboxTab => isInboxTab(t));
+  return [];
 }
 
 function inboxFiltersFromQueryKey(
@@ -212,11 +215,17 @@ function bumpPageTotals(pages: InboxListPage[], delta: number): InboxListPage[] 
 
 function rowFitsCachedQuery(
   row: ConversationListRow,
-  tab: InboxTab,
+  tabs: readonly InboxTab[],
   present: boolean,
 ): boolean {
-  if (tab === "automacao") return present && rowStaysOnAutomacaoTab(row);
-  return rowBelongsToInboxTab(row, tab);
+  if (tabs.length === 0) return false;
+  if (tabs.includes("automacao") && tabs.length === 1) {
+    return present && rowStaysOnAutomacaoTab(row);
+  }
+  if (tabs.includes("automacao") && present && rowStaysOnAutomacaoTab(row)) {
+    return true;
+  }
+  return rowBelongsToAnyInboxTab(row, tabs);
 }
 
 function rowKnownToMissFilters(
@@ -245,9 +254,9 @@ function canSafelyPrependToQuery(
   if (inboxSearchFromQueryKey(queryKey)) return false;
   const filters = inboxFiltersFromQueryKey(queryKey);
   if (hasInboxServerFilters(filters)) return false;
-  const tab = inboxTabFromQueryKey(queryKey);
-  if (!tab) return false;
-  return rowFitsCachedQuery(row, tab, false);
+  const tabs = inboxTabsFromQueryKey(queryKey);
+  if (tabs.length === 0) return false;
+  return rowFitsCachedQuery(row, tabs, false);
 }
 
 function removeConversationFromInboxCaches(
@@ -461,8 +470,8 @@ function applyConversationRowToInboxCaches(
   });
   for (const [queryKey, cached] of entries) {
     if (!cached?.pages) continue;
-    const tab = inboxTabFromQueryKey(queryKey);
-    if (!tab) continue;
+    const tabs = inboxTabsFromQueryKey(queryKey);
+    if (tabs.length === 0) continue;
 
     let found = false;
     const pagesAfterPatch = cached.pages.map((page) => {
@@ -481,7 +490,7 @@ function applyConversationRowToInboxCaches(
     });
 
     const belongs =
-      rowFitsCachedQuery(row, tab, found) &&
+      rowFitsCachedQuery(row, tabs, found) &&
       !rowKnownToMissFilters(row, inboxFiltersFromQueryKey(queryKey));
 
     if (found && belongs) {

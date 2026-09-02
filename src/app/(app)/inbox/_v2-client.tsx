@@ -106,12 +106,15 @@ import {
   isSessionClosedError,
   SESSION_CLOSED_TOAST,
 } from "@/features/inbox-v2/extras/channel-switch-confirm";
-import type { ConversationListRow, InboxTab } from "@/features/inbox-v2/api";
+import type { ConversationListRow } from "@/features/inbox-v2/api";
 import { postConversationAction } from "@/features/inbox-v2/api";
-import { inboxQueueTabFor, pickVisibleInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
 import { INBOX_QUEUE_ITEMS } from "@/features/inbox-v2/inbox-queue-catalog";
 import {
   DEFAULT_INBOX_TAB,
+  isInboxTab,
+  serializeInboxTabs,
+  toggleInboxTab,
   useInboxFilterUrlState,
 } from "@/features/inbox-v2/hooks/use-inbox-filters-url-sync";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -321,8 +324,12 @@ export default function InboxV2ClientPage({
     if (sessionRole !== "ADMIN" && sessionRole !== "MANAGER" && !myPermissions) {
       return;
     }
-    if (!visibleTabs.some((t) => t.id === tab)) {
-      setTab(visibleTabs[0]?.id ?? DEFAULT_INBOX_TAB);
+    const allowed = new Set(visibleTabs.map((t) => t.id));
+    const next = tab.filter((t) => allowed.has(t));
+    if (next.length === 0) {
+      setTab([visibleTabs[0]?.id ?? DEFAULT_INBOX_TAB]);
+    } else if (next.length !== tab.length) {
+      setTab(next);
     }
   }, [tabHydrated, visibleTabs, tab, setTab, sessionRole, myPermissions]);
 
@@ -533,7 +540,8 @@ export default function InboxV2ClientPage({
 
   // Uma fonte: badge da aba = select-all N. `list.total` ainda pode ser o
   // sentinela pageSize+1 (26) se a API antiga estiver no ar.
-  const badgeTotal = tabCounts?.[tab];
+  const badgeTotal =
+    tab.length === 1 ? tabCounts?.[tab[0]!] : listData?.total;
   const filterTotal =
     typeof badgeTotal === "number" && badgeTotal > 0
       ? badgeTotal
@@ -600,7 +608,13 @@ export default function InboxV2ClientPage({
       setPinnedFromSearch(deepLinkRow);
       if (deepLinkRow.id !== activeId) setActiveId(deepLinkRow.id);
       const queue = pickVisibleInboxTab(inboxQueueTabFor(deepLinkRow), visibleTabs);
-      if (queue && queue !== tab) replaceTab(queue);
+      if (
+        queue &&
+        !tab.includes("todos") &&
+        !rowBelongsToAnyInboxTab(deepLinkRow, tab)
+      ) {
+        replaceTab([queue]);
+      }
       return;
     }
     // Reabrir (novo ticket) / troca de id: não manter header do ticket antigo.
@@ -676,7 +690,9 @@ export default function InboxV2ClientPage({
   function handleReopenNewConversation(newId: string) {
     setActiveId(newId);
     setTab((current) =>
-      current === "finalizados" || current === "resolvidos" ? "todos" : current,
+      current.every((t) => t === "finalizados" || t === "resolvidos")
+        ? ["todos"]
+        : current,
     );
   }
 
@@ -691,7 +707,7 @@ export default function InboxV2ClientPage({
           }
         : prev,
     );
-    setTab("resolvidos");
+    setTab(["resolvidos"]);
   }
 
   // Envio (texto/anexo/áudio) numa conversa encerrada reabre como NOVO
@@ -703,8 +719,10 @@ export default function InboxV2ClientPage({
       if (!newId) return;
       setActiveId(newId);
       setTab((current) =>
-      current === "finalizados" || current === "resolvidos" ? "todos" : current,
-    );
+        current.every((t) => t === "finalizados" || t === "resolvidos")
+          ? ["todos"]
+          : current,
+      );
     }
     window.addEventListener(CONVERSATION_REOPENED_EVENT, onReopened);
     return () => window.removeEventListener(CONVERSATION_REOPENED_EVENT, onReopened);
@@ -819,7 +837,7 @@ export default function InboxV2ClientPage({
             ids: [],
             action: "resolve",
             allInFilter: true,
-            tab,
+            tab: serializeInboxTabs(tab),
             search: "",
             filters: serverFilters as Record<string, unknown>,
             tabulationId: extra?.tabulationId,
@@ -916,8 +934,10 @@ export default function InboxV2ClientPage({
               `${ids.length} conversa${ids.length > 1 ? "s" : ""} reaberta${ids.length > 1 ? "s" : ""}`,
             );
             setTab((current) =>
-      current === "finalizados" || current === "resolvidos" ? "todos" : current,
-    );
+              current.every((t) => t === "finalizados" || t === "resolvidos")
+                ? ["todos"]
+                : current,
+            );
             exitSelectionMode();
           },
         },
@@ -1096,7 +1116,13 @@ export default function InboxV2ClientPage({
     setPinnedFromSearch(row);
     setStickyRow(row);
     const queue = pickVisibleInboxTab(inboxQueueTabFor(row), visibleTabs);
-    if (queue && queue !== tab) setTab(queue);
+    if (
+      queue &&
+      !tab.includes("todos") &&
+      !rowBelongsToAnyInboxTab(row, tab)
+    ) {
+      setTab([queue]);
+    }
     if (row.id !== activeId) {
       setActiveId(row.id);
       markRead.mutate(row.id);
@@ -1356,7 +1382,7 @@ export default function InboxV2ClientPage({
               disabled={bulkAction.isPending}
               allInFilter={selectAllFilter}
               filterTotal={filterTotal}
-              tab={tab}
+              tab={serializeInboxTabs(tab)}
               search=""
               filters={serverFilters as Record<string, unknown>}
               onQueued={(operationId, total, unassign) => {
@@ -1495,11 +1521,11 @@ export default function InboxV2ClientPage({
           title: t.title,
         };
       })}
-      activeTabIndex={visibleTabs.findIndex((t) => t.id === tab)}
-      onTabChange={(idx) => {
-        const next = visibleTabs[idx]?.id;
-        if (next) setTab(next);
+      selectedTabIds={tab}
+      onToggleTab={(id) => {
+        if (isInboxTab(id)) setTab((current) => toggleInboxTab(current, id));
       }}
+      activeTabIndex={visibleTabs.findIndex((t) => t.id === tab[0])}
       onRefresh={() => {
         void refreshInboxQueue();
       }}
@@ -1809,7 +1835,7 @@ export default function InboxV2ClientPage({
               conversationId={activeRow.id}
               channel={activeRow.channel}
               variant="cta"
-              hasCalling={tab === "ligar" || conversationHasCallingHint(activeRow)}
+              hasCalling={tab.includes("ligar") || conversationHasCallingHint(activeRow)}
               contactName={
                 contactAsideView?.name ?? activeRow.contact?.name ?? null
               }
