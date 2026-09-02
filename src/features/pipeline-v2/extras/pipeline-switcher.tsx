@@ -55,40 +55,39 @@ export function PipelineSwitcher({ selectedId, onChange, variant = "dropdown" }:
   if (variant === "icon") {
     const current = pipelines.find((p) => p.id === selectedId);
     return (
-      <ClientOnly
-        fallback={
-          <div
-            aria-hidden
-            data-tour="pipeline-switcher"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]"
-          />
-        }
+      <div
+        data-tour="pipeline-switcher"
+        className="inline-flex size-8 shrink-0 items-center justify-center"
       >
-        <DropdownGlass
-          options={options}
-          value={selectedId ?? undefined}
-          onValueChange={onChange}
-          menuLabel="Trocar de funil"
-          align="start"
-          // Trigger ícone tem 32px — com matchTriggerWidth o menu inteiro
-          // ficava espremido numa faixa de 32px (bug visual). E enquanto a
-          // query de funis não resolve, options=[] → "Nenhum resultado";
-          // disabled evita abrir o menu vazio nesse intervalo.
-          matchTriggerWidth={false}
-          className="min-w-[220px]"
-          disabled={isLoading}
-          trigger={
-            <button
-              type="button"
-              data-tour="pipeline-switcher"
-              aria-label={current ? `Funil: ${current.name}` : "Selecionar funil"}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] shadow-[var(--glass-shadow-sm)] transition-colors hover:border-[var(--brand-primary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)] data-[state=open]:border-[var(--brand-primary)] data-[state=open]:bg-[var(--brand-primary)] data-[state=open]:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <IconChevronDown size={16} stroke={2.4} />
-            </button>
+        <ClientOnly
+          fallback={
+            <div
+              aria-hidden
+              className="inline-flex size-8 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]"
+            />
           }
-        />
-      </ClientOnly>
+        >
+          <DropdownGlass
+            options={options}
+            value={selectedId ?? undefined}
+            onValueChange={onChange}
+            menuLabel="Trocar de funil"
+            align="start"
+            matchTriggerWidth={false}
+            className="min-w-[220px]"
+            disabled={isLoading}
+            trigger={
+              <button
+                type="button"
+                aria-label={current ? `Funil: ${current.name}` : "Selecionar funil"}
+                className="inline-flex size-8 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] shadow-[var(--glass-shadow-sm)] transition-colors hover:border-[var(--brand-primary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)] data-[state=open]:border-[var(--brand-primary)] data-[state=open]:bg-[var(--brand-primary)] data-[state=open]:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <IconChevronDown size={16} stroke={2.4} />
+              </button>
+            }
+          />
+        </ClientOnly>
+      </div>
     );
   }
 
