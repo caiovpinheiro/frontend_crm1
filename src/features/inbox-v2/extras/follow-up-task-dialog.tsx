@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { CalendarPlus } from "lucide-react";
 import { toast } from "sonner";
 
-import { apiFetch } from "@/lib/api";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { InputGlass } from "@/components/crm/input-glass";
 import {
@@ -15,6 +14,7 @@ import {
   formDialogPrimaryClass,
   formLabelClass,
 } from "@/components/ui/form-dialog";
+import { useCreateActivity } from "@/features/directory-v2/hooks";
 
 function defaultLocalDatetime(): string {
   const d = new Date();
@@ -29,18 +29,26 @@ export function FollowUpTaskDialog({
   onOpenChange,
   contactId,
   contactName,
+  dealId,
+  submitting,
+  onScheduled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactId?: string | null;
   contactName?: string | null;
+  dealId?: string | null;
+  submitting?: boolean;
+  /** Depois que a tarefa entrou no calendário — aí sim conclui o Acompanhar. */
+  onScheduled: () => void;
 }) {
   const defaultTitle = contactName?.trim()
     ? `Acompanhar ${contactName.trim()}`
     : "Acompanhar conversa";
   const [title, setTitle] = useState(defaultTitle);
   const [scheduled, setScheduled] = useState(defaultLocalDatetime);
-  const [busy, setBusy] = useState(false);
+  const createActivity = useCreateActivity();
+  const busy = createActivity.isPending || Boolean(submitting);
 
   useEffect(() => {
     if (!open) return;
@@ -67,31 +75,19 @@ export function FollowUpTaskDialog({
       toast.error("Data inválida.");
       return;
     }
-    setBusy(true);
     try {
-      const body: Record<string, unknown> = {
+      await createActivity.mutateAsync({
         type: "TASK",
         title: trimmed,
         scheduledAt: when.toISOString(),
-      };
-      if (contactId) body.contactId = contactId;
-      const res = await apiFetch("/api/activities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        completed: false,
+        contactId: contactId ?? null,
+        dealId: dealId ?? null,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(
-          typeof data?.message === "string" ? data.message : "Erro ao criar tarefa",
-        );
-      }
       toast.success("Tarefa criada no seu calendário.");
-      onOpenChange(false);
+      onScheduled();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar tarefa");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -100,8 +96,8 @@ export function FollowUpTaskDialog({
       open={open}
       onOpenChange={onOpenChange}
       busy={busy}
-      title="Nova tarefa"
-      description="Agende o acompanhamento no calendário do agente."
+      title="Agendar acompanhamento"
+      description="Defina a data no calendário. Só depois o ticket vai para Resolvendo."
       icon={
         <FormDialogIcon>
           <CalendarPlus className="size-4" />
@@ -126,7 +122,7 @@ export function FollowUpTaskDialog({
             disabled={busy}
             onClick={() => void handleCreate()}
           >
-            {busy ? "Criando…" : "Criar"}
+            {busy ? "Agendando…" : "Agendar"}
           </ButtonGlass>
         </>
       }

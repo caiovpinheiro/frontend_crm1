@@ -184,6 +184,7 @@ export function ComposerMenu({
       requireTabulationOnClose,
       contactId,
       contactName,
+      dealId,
       onReopenNewConversation,
       onResolved,
       onFollowedUp,

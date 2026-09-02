@@ -195,8 +195,11 @@ export function useToggleConversationResolve(
         }
         callbacks?.onNewConversation?.(newId, data.previousConversationId);
       } else if (!isReopen) {
-        if (vars.followUp) callbacks?.onFollowedUp?.(vars.conversationId);
-        callbacks?.onResolved?.(vars.conversationId);
+        if (vars.followUp) {
+          callbacks?.onFollowedUp?.(vars.conversationId);
+        } else {
+          callbacks?.onResolved?.(vars.conversationId);
+        }
         // Mantém snapshot local coerente se a conversa sair do filtro da aba.
         qc.setQueryData(
           ["inbox-conversation", vars.conversationId],
@@ -206,14 +209,19 @@ export function useToggleConversationResolve(
             followUpAt?: string | null;
           } | undefined) =>
             old
-              ? {
-                  ...old,
-                  status: "RESOLVED",
-                  closedAt: old.closedAt ?? new Date().toISOString(),
-                  followUpAt: vars.followUp
-                    ? (old.followUpAt ?? new Date().toISOString())
-                    : null,
-                }
+              ? vars.followUp
+                ? {
+                    ...old,
+                    status: "OPEN",
+                    closedAt: null,
+                    followUpAt: old.followUpAt ?? new Date().toISOString(),
+                  }
+                : {
+                    ...old,
+                    status: "RESOLVED",
+                    closedAt: old.closedAt ?? new Date().toISOString(),
+                    followUpAt: null,
+                  }
               : old,
         );
       }

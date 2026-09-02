@@ -119,14 +119,15 @@ export function ResolveConfirmDialog({
                 Encerrar conversa
               </AlertDialogTitle>
               <AlertDialogDescription className="mt-1 text-[13px] leading-relaxed">
-                Finalizar envia para Encerradas. Acompanhar deixa em
-                Resolvendo e abre uma tarefa no calendário.
+                Finalizar encerra e envia para Encerradas. Acompanhar
+                deixa o ticket aberto em Resolvendo, agenda a tarefa e
+                não dispara automação.
               </AlertDialogDescription>
             </div>
           </div>
         </AlertDialogHeader>
         <ResolveModeToggle value={mode} onChange={setMode} />
-        {allowSkipAutomations ? (
+        {allowSkipAutomations && mode !== "follow_up" ? (
           <SkipAutomationsCheckbox
             checked={skipAutomations}
             onChange={setSkipAutomations}

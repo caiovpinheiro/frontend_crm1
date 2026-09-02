@@ -52,6 +52,7 @@ interface ConversationActionsMenuProps {
   onResolved?: (conversationId: string) => void;
   onFollowedUp?: (conversationId: string) => void;
   contactName?: string | null;
+  dealId?: string | null;
   /** Departamento vinculado a conversa — usado para o modal de tabulacao. */
   departmentId?: string | null;
   /** Se true, o botao "Encerrar" abre um modal exigindo folha da arvore. */
@@ -86,6 +87,7 @@ export function ConversationActionsMenu({
   onResolved,
   onFollowedUp,
   contactName,
+  dealId,
   departmentId,
   requireTabulationOnClose,
   onDepartmentChanged,
@@ -110,6 +112,7 @@ export function ConversationActionsMenu({
       requireTabulationOnClose,
       contactId,
       contactName,
+      dealId,
       onReopenNewConversation,
       onResolved,
       onFollowedUp,

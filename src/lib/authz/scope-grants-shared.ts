@@ -24,11 +24,11 @@ export const INBOX_TAB_BAR_ORDER: readonly InboxTab[] = [
   "todos",
   "entrada",
   "esperando",
-  "respondidas",
   "ligar",
+  "respondidas",
+  "resolvidos",
   "agente_ia",
   "automacao",
-  "resolvidos",
   "finalizados",
   "erro",
 ];

@@ -109,6 +109,7 @@ import {
 import type { ConversationListRow, InboxTab } from "@/features/inbox-v2/api";
 import { postConversationAction } from "@/features/inbox-v2/api";
 import { inboxQueueTabFor, pickVisibleInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { INBOX_QUEUE_ITEMS } from "@/features/inbox-v2/inbox-queue-catalog";
 import {
   DEFAULT_INBOX_TAB,
   useInboxFilterUrlState,
@@ -211,22 +212,7 @@ function ContactTagsTray({
 // "Automação" lista conversas cujo contato tem automação RUNNING (fila de
 // automação). "Erro" = OPEN + hasError (falha de envio); encerradas não
 // entram — hasError sticky em RESOLVED poluía a aba.
-const TABS: ReadonlyArray<{ id: InboxTab; label: string; title?: string }> = [
-  { id: "todos", label: "Todas" },
-  { id: "entrada", label: "Entrada" },
-  { id: "esperando", label: "Aguardando" },
-  { id: "respondidas", label: "Respondidas" },
-  { id: "ligar", label: "Ligar", title: "WhatsApp com permissão de ligação ativa" },
-  {
-    id: "agente_ia",
-    label: "Agente IA",
-    title: "Conversas em atendimento pelo Agente IA",
-  },
-  { id: "automacao", label: "Automação" },
-  { id: "resolvidos", label: "Resolvendo" },
-  { id: "finalizados", label: "Encerradas" },
-  { id: "erro", label: "Erro" },
-];
+const TABS = INBOX_QUEUE_ITEMS;
 
 function inIsoDayRange(
   iso: string | null | undefined,
@@ -699,8 +685,8 @@ export default function InboxV2ClientPage({
       prev?.id === id
         ? {
             ...prev,
-            status: "RESOLVED",
-            closedAt: new Date().toISOString(),
+            status: "OPEN",
+            closedAt: null,
             followUpAt: new Date().toISOString(),
           }
         : prev,
@@ -1499,7 +1485,12 @@ export default function InboxV2ClientPage({
           ? undefined
           : tabCounts?.[t.id];
         return {
+          id: t.id,
           label: t.label,
+          description: t.description,
+          group: t.group,
+          groupLabel: t.groupLabel,
+          groupTone: t.groupTone,
           count,
           title: t.title,
         };
@@ -1852,6 +1843,7 @@ export default function InboxV2ClientPage({
               contactName={
                 contactAsideView?.name ?? activeRow.contact?.name ?? null
               }
+              dealId={firstDealId}
               departmentId={activeRow.departmentId ?? activeRow.department?.id ?? null}
               requireTabulationOnClose={
                 activeRow.department?.requireTabulationOnClose ?? false

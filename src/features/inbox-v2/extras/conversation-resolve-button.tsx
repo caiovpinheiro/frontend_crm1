@@ -23,6 +23,7 @@ export function ConversationResolveButton({
   onFollowedUp,
   contactId,
   contactName,
+  dealId,
   disabled,
 }: {
   conversationId: string | null;
@@ -36,6 +37,7 @@ export function ConversationResolveButton({
   onFollowedUp?: (conversationId: string) => void;
   contactId?: string | null;
   contactName?: string | null;
+  dealId?: string | null;
   disabled?: boolean;
 }) {
   const { handleToggleResolve, toggleResolve, dialogs } =
@@ -47,6 +49,7 @@ export function ConversationResolveButton({
       requireTabulationOnClose,
       contactId,
       contactName,
+      dealId,
       onReopenNewConversation,
       onResolved,
       onFollowedUp,

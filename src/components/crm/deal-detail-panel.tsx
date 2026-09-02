@@ -1575,6 +1575,9 @@ export function DealDetailPanel({
                 conversationClosedAt={conversationClosedAt}
                 conversationDepartmentId={conversationDepartmentId}
                 conversationRequiresTabulation={conversationRequiresTabulation}
+                dealId={deal.id}
+                contactId={deal.contactId}
+                contactName={deal.name}
                 callButtonSlot={callButtonSlot}
               />
 
@@ -1666,6 +1669,9 @@ function TabsBar({
   callButtonSlot,
   conversationDepartmentId,
   conversationRequiresTabulation,
+  dealId,
+  contactId,
+  contactName,
 }: {
   activeTab: TabId
   onChange: (id: TabId) => void
@@ -1675,6 +1681,9 @@ function TabsBar({
   onSearchChange?: (q: string) => void
   conversationId?: string | null
   isResolved?: boolean
+  dealId?: string | null
+  contactId?: string | null
+  contactName?: string | null
   /** #N sequencial da conversa — chip minimalista no header do container. */
   conversationNumber?: number | null
   /** ISO de encerramento — vira tooltip no chip "Encerrada". */
@@ -1696,6 +1705,9 @@ function TabsBar({
       isResolved,
       departmentId: conversationDepartmentId,
       requireTabulationOnClose: conversationRequiresTabulation,
+      dealId,
+      contactId,
+      contactName,
     })
 
   /* Fecha kebab ao clicar fora */

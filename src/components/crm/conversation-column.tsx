@@ -7,15 +7,14 @@ import {
   IconClock,
   IconPlus,
   IconChevronDown,
-  IconCheck,
   IconMessages,
   IconInbox,
   IconCornerUpLeft,
   IconCircleCheck,
-  IconCalendarEvent,
   IconRobot,
   IconSparkles,
-  IconAlertCircle,
+  IconAlertTriangle,
+  IconInfoCircle,
   IconRefresh,
   IconPhone,
   type Icon as TablerIcon,
@@ -137,71 +136,98 @@ const DEFAULT_TABS: TabItem[] = [
  * "selo" da pílula. Permite que o ícone reflita a escolha atual em
  * vez de um relógio fixo. Cai num default neutro quando não casa.
  */
-function statusVisual(label: string | undefined): {
+function statusVisual(tab: { id?: string; label?: string } | string | undefined): {
   Icon: TablerIcon
   bg: string
   fg: string
 } {
-  const l = (label ?? "").toLowerCase()
-  if (l.includes("todas") || l.includes("todos"))
+  const id = typeof tab === "string" ? undefined : tab?.id
+  const l = (typeof tab === "string" ? tab : tab?.label ?? "").toLowerCase()
+  if (id === "todos" || l.includes("todas") || l.includes("todos"))
     return {
       Icon: IconMessages,
       bg: "var(--color-enterprise-bg)",
       fg: "var(--brand-primary)",
     }
-  if (l.includes("aguard") || l.includes("esperando"))
-    return { Icon: IconClock, bg: "var(--color-lead-bg)", fg: "var(--color-lead)" }
-  if (l.includes("entrada"))
+  if (id === "entrada" || l === "entrada")
     return {
       Icon: IconInbox,
-      bg: "rgba(59,130,246,0.14)",
+      bg: "var(--color-info-bg)",
       fg: "var(--color-info)",
     }
-  if (l.includes("respond"))
+  if (id === "esperando" || l.includes("cliente respondeu") || l.includes("aguard"))
     return {
       Icon: IconCornerUpLeft,
-      bg: "var(--color-enterprise-bg)",
-      fg: "var(--brand-primary)",
-    }
-  if (l === "ligar")
-    return {
-      Icon: IconPhone,
-      bg: "rgba(16,185,129,0.14)",
-      fg: "rgb(5,150,105)",
-    }
-  // Antes de "automa": a fila do Agente IA é distinta da de Automação.
-  if (l.includes("agente"))
-    return {
-      Icon: IconSparkles,
-      bg: "rgba(236,72,153,0.14)",
-      fg: "rgb(219,39,119)",
-    }
-  if (l.includes("automa"))
-    return {
-      // Mesmo IconRobot da NavRail / página Automações (sidebar-catalog).
-      Icon: IconRobot,
-      bg: "rgba(139,92,246,0.14)",
-      fg: "rgb(124,58,237)",
-    }
-  if (l.includes("resolvendo") || l.includes("acompanh"))
-    return {
-      Icon: IconCalendarEvent,
       bg: "var(--color-warn-subtle)",
       fg: "var(--color-warning)",
     }
-  if (l.includes("resolv") || l.includes("finaliz") || l.includes("encerr"))
+  if (id === "ligar" || l.includes("liga"))
+    return {
+      Icon: IconPhone,
+      bg: "var(--color-success-bg)",
+      fg: "var(--color-success)",
+    }
+  if (id === "respondidas" || l === "em atendimento" || l.includes("respond"))
+    return {
+      Icon: IconMessages,
+      bg: "var(--color-lavender-soft)",
+      fg: "var(--color-lavender)",
+    }
+  if (id === "resolvidos" || l.includes("resolvendo") || l.includes("acompanh"))
+    return {
+      Icon: IconClock,
+      bg: "var(--color-warn-subtle)",
+      fg: "var(--color-warning)",
+    }
+  if (id === "agente_ia" || l.includes("agente"))
+    return {
+      Icon: IconSparkles,
+      bg: "var(--color-lavender-soft)",
+      fg: "var(--color-lavender)",
+    }
+  if (id === "automacao" || l.includes("automa"))
+    return {
+      Icon: IconRobot,
+      bg: "var(--color-lavender-soft)",
+      fg: "var(--color-lavender)",
+    }
+  if (id === "finalizados" || l.includes("finaliz") || l.includes("encerr"))
     return {
       Icon: IconCircleCheck,
       bg: "var(--color-success-bg)",
       fg: "var(--color-success)",
     }
-  if (l.includes("erro") || l.includes("error") || l.includes("falha"))
+  if (id === "erro" || l.includes("erro") || l.includes("error") || l.includes("falha"))
     return {
-      Icon: IconAlertCircle,
+      Icon: IconAlertTriangle,
       bg: "var(--color-danger-bg)",
       fg: "var(--color-danger)",
     }
   return { Icon: IconClock, bg: "var(--color-lead-bg)", fg: "var(--color-lead)" }
+}
+
+function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
+  const groups: {
+    key: string
+    label: string | null
+    tone: string
+    items: Array<{ tab: TabItem; idx: number }>
+  }[] = []
+  tabs.forEach((tab, idx) => {
+    const key = tab.group ?? `__row-${idx}`
+    const last = groups[groups.length - 1]
+    if (last && last.key === key) {
+      last.items.push({ tab, idx })
+      return
+    }
+    groups.push({
+      key,
+      label: tab.groupLabel ?? null,
+      tone: tab.groupTone ?? "",
+      items: [{ tab, idx }],
+    })
+  })
+  return groups
 }
 
 export function ConversationColumn({
@@ -290,9 +316,10 @@ export function ConversationColumn({
 
   const urgency = urgencyCount ?? conversations.filter((c) => c.urgent).length
 
-  const currentTabLabel = tabs[activeTab]?.label ?? "Todas"
-  const currentTabCount = tabs[activeTab]?.count
-  const currentVisual = statusVisual(currentTabLabel)
+  const currentTab = tabs[activeTab]
+  const currentTabLabel = currentTab?.label ?? "Todas"
+  const currentTabCount = currentTab?.count
+  const currentVisual = statusVisual(currentTab)
 
   // ── Dropdown de status ──────────────────────────────────────────
   const dropdownBtnRef = useRef<HTMLButtonElement>(null)
@@ -431,65 +458,101 @@ export function ConversationColumn({
         createPortal(
           <div
             role="listbox"
-            className="fixed z-(--z-above) flex flex-col gap-0.5 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] p-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+            aria-label="Filas da caixa de entrada"
+            className="fixed z-(--z-above) flex max-h-[min(70vh,36rem)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] shadow-[0_12px_32px_rgba(15,23,42,0.18)] backdrop-blur-xl"
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
-              width: Math.max(dropdownPos.width, 220),
+              width: Math.max(dropdownPos.width, 300),
               isolation: "isolate",
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {tabs.map((tab, idx) => {
-              const isActive = activeTab === idx
-              const v = statusVisual(tab.label)
-              return (
-                <button
-                  key={`${tab.label}-${idx}`}
-                  type="button"
-                  role="option"
-                  aria-selected={isActive}
-                  title={tab.title}
-                  onClick={() => {
-                    handleTabChange(idx)
-                    setDropdownOpen(false)
-                  }}
-                  className={cn(
-                    "flex items-center justify-between gap-2 rounded-[var(--radius-md)] px-2.5 py-2 text-left font-display text-[13px] font-semibold transition-colors",
-                    isActive
-                      ? "bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]"
-                      : "text-[var(--text-primary)] hover:bg-[var(--glass-bg-strong)]",
-                  )}
-                >
-                  <span className="flex flex-1 items-center gap-2">
-                    <span
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
-                      style={{ background: v.bg, color: v.fg }}
+            <div className="flex items-center justify-between gap-2 border-b border-[var(--glass-border-subtle)] px-3 py-2.5">
+              <span className="font-display text-[13px] font-semibold text-[var(--text-primary)]">
+                Caixa de entrada
+              </span>
+              <IconChevronDown size={15} className="rotate-180 text-[var(--text-muted)]" />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+              {groupQueueTabs(tabs).map((group) => (
+                <div key={group.key} className="mb-1 last:mb-0">
+                  {group.label ? (
+                    <p
+                      className={cn(
+                        "px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider",
+                        group.tone || "text-[var(--text-muted)]",
+                      )}
                     >
-                      <v.Icon size={12} stroke={2.2} />
-                    </span>
-                    <span>{tab.label}</span>
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    {isActive && (
-                      <IconCheck size={14} className="text-[var(--brand-primary)]" />
-                    )}
-                    {tab.count !== undefined && tab.count !== null && (
-                      <span
+                      {group.label}
+                    </p>
+                  ) : null}
+                  {group.items.map(({ tab, idx }) => {
+                    const isActive = activeTab === idx
+                    const v = statusVisual(tab)
+                    return (
+                      <button
+                        key={`${tab.id ?? tab.label}-${idx}`}
+                        type="button"
+                        role="option"
+                        aria-selected={isActive}
+                        title={tab.title ?? tab.description}
+                        onClick={() => {
+                          handleTabChange(idx)
+                          setDropdownOpen(false)
+                        }}
                         className={cn(
-                          "rounded-full px-1.5 py-px text-[10.5px] font-bold tabular-nums",
+                          "flex w-full items-center gap-2.5 rounded-[var(--radius-md)] px-2 py-2 text-left transition-colors",
                           isActive
-                            ? "bg-[var(--brand-primary)] text-white"
-                            : "bg-black/[0.06] text-[var(--text-muted)]",
+                            ? "bg-[var(--color-info-bg)]"
+                            : "hover:bg-[var(--glass-bg-strong)]",
                         )}
                       >
-                        {tab.count.toLocaleString("pt-BR")}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              )
-            })}
+                        <span
+                          className="flex size-8 shrink-0 items-center justify-center rounded-full"
+                          style={{ background: v.bg, color: v.fg }}
+                        >
+                          <v.Icon size={15} stroke={2} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "block truncate font-display text-[13px] font-semibold",
+                              isActive
+                                ? "text-[var(--color-info)]"
+                                : "text-[var(--text-primary)]",
+                            )}
+                          >
+                            {tab.label}
+                          </span>
+                          {tab.description ? (
+                            <span className="mt-0.5 block truncate font-body text-[11px] text-[var(--text-muted)]">
+                              {tab.description}
+                            </span>
+                          ) : null}
+                        </span>
+                        {tab.count !== undefined && tab.count !== null ? (
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums",
+                              isActive
+                                ? "bg-[var(--color-info)] text-[var(--color-info-foreground)]"
+                                : "bg-[var(--glass-bg-subtle)] text-[var(--text-muted)]",
+                            )}
+                          >
+                            {tab.count.toLocaleString("pt-BR")}
+                          </span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+            <p className="flex items-center gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-2 font-body text-[11px] text-[var(--text-muted)]">
+              <IconInfoCircle size={13} className="shrink-0" />
+              As contagens são atualizadas em tempo real
+            </p>
           </div>,
           document.body,
         )}

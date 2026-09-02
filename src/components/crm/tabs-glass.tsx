@@ -1,7 +1,12 @@
 import { cn } from "@/lib/utils"
 
 export interface TabItem {
+  id?: string
   label: string
+  description?: string
+  group?: string
+  groupLabel?: string | null
+  groupTone?: string
   count?: number
   icon?: React.ReactNode
   /** Tooltip nativo / DS no seletor de fila. */

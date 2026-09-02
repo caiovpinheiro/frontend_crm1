@@ -309,6 +309,7 @@ type ConversationUpdatedPayload = {
   assignedToId?: string | null;
   status?: string;
   closedAt?: string | null;
+  followUpAt?: string | null;
   whatsappCallConsentStatus?: string;
   assignedTo?: { type?: string | null } | null;
 };
@@ -348,6 +349,7 @@ function hasPatchableUpdatedFields(payload: ConversationUpdatedPayload): boolean
     payload.assignedToId !== undefined ||
     typeof payload.status === "string" ||
     payload.closedAt !== undefined ||
+    payload.followUpAt !== undefined ||
     typeof payload.whatsappCallConsentStatus === "string"
   );
 }
@@ -400,6 +402,7 @@ function applyConversationUpdatedPatch(
     next.status = payload.status;
   }
   if (payload.closedAt !== undefined) next.closedAt = payload.closedAt;
+  if (payload.followUpAt !== undefined) next.followUpAt = payload.followUpAt;
   if (typeof payload.whatsappCallConsentStatus === "string") {
     next.whatsappCallConsentStatus = payload.whatsappCallConsentStatus;
   }

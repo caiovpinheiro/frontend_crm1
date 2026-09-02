@@ -1130,6 +1130,7 @@ export function Composer({
                   onFollowedUp={onFollowedUp}
                   contactId={contactId}
                   contactName={contactName}
+                  dealId={dealId}
                   disabled={busy}
                 />
               )}

@@ -422,7 +422,7 @@ export function TabulationDialog({
           )}
 
           <ResolveModeToggle value={mode} onChange={setMode} />
-          {allowSkipAutomations ? (
+          {allowSkipAutomations && mode !== "follow_up" ? (
             <SkipAutomationsRow
               checked={skipAutomations}
               onChange={setSkipAutomations}

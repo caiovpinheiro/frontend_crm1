@@ -10,12 +10,17 @@ import { TabulationDialog } from "./tabulation-dialog";
 import { ResolveConfirmDialog } from "./skip-automations-option";
 import { FollowUpTaskDialog } from "./follow-up-task-dialog";
 
+type PendingResolve = {
+  tabulationId?: string | null;
+  skipAutomations?: boolean;
+};
+
 /**
  * Encerrar / reabrir conversa.
  *
- * Toggle Finalizar (Encerradas) vs Acompanhar (Resolvendo + tarefa).
- * Tabulação: departamento da conversa; sem depto, departamentos do agente.
- * Admin pode pular automações.
+ * Finalizar: tabulação (se houver) e encerra (automações disparam).
+ * Acompanhar: agenda a tarefa primeiro; só então grava a tabulação,
+ * manda o ticket para Resolvendo sem encerrar e sem automação.
  */
 export function useResolveConversationFlow(opts: {
   conversationId: string | null;
@@ -25,6 +30,7 @@ export function useResolveConversationFlow(opts: {
   requireTabulationOnClose?: boolean;
   contactId?: string | null;
   contactName?: string | null;
+  dealId?: string | null;
   onReopenNewConversation?: (newConversationId: string) => void;
   onResolved?: (conversationId: string) => void;
   onFollowedUp?: (conversationId: string) => void;
@@ -40,14 +46,14 @@ export function useResolveConversationFlow(opts: {
   const [taskOpen, setTaskOpen] = useState(false);
   const [tabulationDeptId, setTabulationDeptId] = useState<string | null>(null);
   const [tabulationUserId, setTabulationUserId] = useState<string | null>(null);
+  const [pendingResolve, setPendingResolve] = useState<PendingResolve | null>(
+    null,
+  );
 
   const toggleResolve = useToggleConversationResolve({
     onNewConversation: (newId) => opts.onReopenNewConversation?.(newId),
     onResolved: (id) => opts.onResolved?.(id),
-    onFollowedUp: (id) => {
-      opts.onFollowedUp?.(id);
-      setTaskOpen(true);
-    },
+    onFollowedUp: (id) => opts.onFollowedUp?.(id),
     onTabulationRequired: ({
       departmentId: deptFromApi,
       userId: userFromApi,
@@ -78,9 +84,21 @@ export function useResolveConversationFlow(opts: {
         onSuccess: () => {
           setTabulationOpen(false);
           setConfirmOpen(false);
+          setTaskOpen(false);
+          setPendingResolve(null);
         },
       },
     );
+  }
+
+  function startFollowUp(extra?: PendingResolve) {
+    setPendingResolve({
+      tabulationId: extra?.tabulationId,
+      skipAutomations: extra?.skipAutomations,
+    });
+    setTabulationOpen(false);
+    setConfirmOpen(false);
+    setTaskOpen(true);
   }
 
   function handleToggleResolve() {
@@ -94,7 +112,7 @@ export function useResolveConversationFlow(opts: {
     }
     if (opts.departmentId && opts.requireTabulationOnClose) {
       setTabulationDeptId(opts.departmentId);
-      setTabulationUserId(null);
+      setTabulationUserId(agentUserId);
       setTabulationOpen(true);
       return;
     }
@@ -117,10 +135,17 @@ export function useResolveConversationFlow(opts: {
         submitting={toggleResolve.isPending}
         allowSkipAutomations={canSkipAutomations}
         onConfirm={(tabulationId, extra) => {
+          if (extra?.followUp) {
+            startFollowUp({
+              tabulationId,
+              skipAutomations: extra.skipAutomations,
+            });
+            return;
+          }
           mutateResolve({
             tabulationId,
             skipAutomations: extra?.skipAutomations,
-            followUp: extra?.followUp,
+            followUp: false,
           });
         }}
       />
@@ -129,15 +154,31 @@ export function useResolveConversationFlow(opts: {
         onOpenChange={setConfirmOpen}
         submitting={toggleResolve.isPending}
         allowSkipAutomations={canSkipAutomations}
-        onConfirm={(skipAutomations, followUp) =>
-          mutateResolve({ skipAutomations, followUp })
-        }
+        onConfirm={(skipAutomations, followUp) => {
+          if (followUp) {
+            startFollowUp({ skipAutomations });
+            return;
+          }
+          mutateResolve({ skipAutomations, followUp: false });
+        }}
       />
       <FollowUpTaskDialog
         open={taskOpen}
-        onOpenChange={setTaskOpen}
+        onOpenChange={(open) => {
+          setTaskOpen(open);
+          if (!open) setPendingResolve(null);
+        }}
         contactId={opts.contactId}
         contactName={opts.contactName}
+        dealId={opts.dealId}
+        submitting={toggleResolve.isPending}
+        onScheduled={() => {
+          mutateResolve({
+            tabulationId: pendingResolve?.tabulationId,
+            skipAutomations: pendingResolve?.skipAutomations,
+            followUp: true,
+          });
+        }}
       />
     </>
   );
