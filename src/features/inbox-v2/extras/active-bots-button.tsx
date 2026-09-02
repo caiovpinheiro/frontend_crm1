@@ -2,34 +2,31 @@
 
 /*
  * ActiveBotsButton — ícone ao lado da composer (inbox e deal).
- * Abre um card com as automações do contato (ativas + histórico),
- * accordion por item com mini-fluxo, métricas e histórico.
+ * Card Compacta Pro: accordion denso com fluxo, métricas e histórico.
  * Ações: adicionar (picker), interromper, reexecutar e editar.
  * Vínculo por contato; SSE `automation_state` invalida a lista.
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 import {
-  IconRobot,
-  IconPlayerPauseFilled,
-  IconPlayerPlayFilled,
-  IconPencil,
-  IconChevronDown,
-  IconClock,
-  IconPlus,
-  IconTrendingUp,
-} from "@tabler/icons-react";
+  Bot,
+  ChevronDown,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+} from "lucide-react";
+import { IconRobot } from "@tabler/icons-react";
 
+import { useIdleEnabled } from "@/hooks/use-idle-enabled";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import {
-  blockChipStyle,
   blockKeyForStepType,
   getBlockMeta,
 } from "@/components/crm/flow-block-icon";
@@ -47,10 +44,18 @@ import type {
 import { useAutomation, useAutomationStats } from "@/features/automations-v2/hooks";
 import { usePortalPopover } from "@/features/pipeline-v2/extras/use-portal-popover";
 import { AgentAutomationPickerModal } from "./agent-automation-picker-modal";
+import { StatusDot } from "./automation-status-dot";
+import {
+  blockColorToTone,
+  rowStatusToRunStatus,
+  toneClasses,
+  type AutomationHistoryItem,
+} from "./automations-data";
 
 const POPOVER_W = 448;
 const POPOVER_GAP = 8;
 const POPOVER_MARGIN = 8;
+const FLOW_VISIBLE_MAX = 8;
 
 /**
  * Ancora o card acima do robô (`side="top"`) alinhado à direita do
@@ -133,45 +138,6 @@ function formatDuration(startIso: string, endIso: string): string {
   return min ? `${hours}h ${min}min` : `${hours}h`;
 }
 
-function badgeFor(status: RowStatus): { label: string; className: string; dot?: boolean } {
-  switch (status) {
-    case "RUNNING":
-      return {
-        label: "Rodando",
-        className: "bg-[var(--color-success-bg)] text-[var(--color-success-text)]",
-        dot: true,
-      };
-    case "PAUSED":
-      return {
-        label: "Pausada",
-        className: "bg-[var(--color-warning-soft)] text-[var(--color-warning)]",
-      };
-    case "COMPLETED":
-      return {
-        label: "Concluída",
-        className: "bg-[var(--color-success-bg)] text-[var(--color-success-text)]",
-      };
-    case "TIMED_OUT":
-      return {
-        label: "Falhou",
-        className: "bg-[var(--color-danger-bg)] text-[var(--color-danger-text)]",
-      };
-  }
-}
-
-function subtextFor(row: PanelRow): string {
-  switch (row.status) {
-    case "RUNNING":
-      return row.stepLabel || "Em execução";
-    case "PAUSED":
-      return row.stepLabel || "Aguardando";
-    case "COMPLETED":
-      return "Fluxo concluído";
-    case "TIMED_OUT":
-      return "Tempo esgotado";
-  }
-}
-
 function buildRows(
   active: ActiveAutomationDto[],
   history: AutomationHistoryDto[],
@@ -203,6 +169,15 @@ function buildRows(
     });
   }
   return rows;
+}
+
+function historyToItems(history: AutomationHistoryDto[]): AutomationHistoryItem[] {
+  return history.slice(0, 5).map((h) => ({
+    id: h.contextId,
+    date: formatWhen(h.finishedAt),
+    duration: formatDuration(h.startedAt, h.finishedAt),
+    status: rowStatusToRunStatus(h.status),
+  }));
 }
 
 async function runAutomation(
@@ -326,7 +301,7 @@ export function ActiveBotsButton({
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-500 opacity-70" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-violet-500" />
       </span>
-      <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 z-10 grid min-h-3.5 min-w-3.5 place-items-center rounded-full bg-violet-600 px-0.5 text-[9px] font-bold leading-none text-white ring-2 ring-(--glass-bg-strong)">
+      <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 z-10 grid min-h-3.5 min-w-3.5 place-items-center rounded-full bg-violet-600 px-0.5 text-[9px] font-bold leading-none tabular-nums text-primary-foreground ring-2 ring-(--glass-bg-strong)">
         {count}
       </span>
     </>
@@ -366,64 +341,54 @@ export function ActiveBotsButton({
                 maxHeight: pos.maxHeight,
                 isolation: "isolate",
               }}
-              className="z-(--z-popover) flex flex-col overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] text-[var(--text-primary)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
+              className="z-(--z-popover) flex w-full max-w-md flex-col overflow-hidden rounded-xl bg-card text-foreground shadow-xl ring-1 ring-border"
             >
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--glass-border)] px-5 py-4">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--brand-primary)]">
-                    <IconRobot size={18} stroke={2} />
-                  </span>
-                  <span className="font-display text-base font-semibold tracking-tight">
+              <div className="flex shrink-0 items-center justify-between bg-slate-900 px-5 py-3.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Bot className="size-4 shrink-0 text-slate-300" aria-hidden />
+                  <h2 className="truncate text-sm font-semibold text-slate-50">
                     Automações
-                  </span>
-                  {hasActive && (
-                    <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--brand-primary)]">
-                      {count} ativa{count === 1 ? "" : "s"}
-                    </span>
-                  )}
+                  </h2>
                 </div>
                 <button
                   type="button"
                   onClick={openPicker}
-                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-[var(--brand-primary)] transition-colors hover:bg-[var(--color-primary-soft)]"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
                 >
-                  <IconPlus size={16} stroke={2.2} />
+                  <Plus className="size-3.5" aria-hidden />
                   Adicionar
                 </button>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
                 {(isLoading || (open && loadingHistory && rows.length === 0)) && (
-                  <p className="px-3.5 py-4 text-[12.5px] text-(--text-muted)">
+                  <p className="px-5 py-4 text-xs text-muted-foreground">
                     Carregando…
                   </p>
                 )}
 
                 {!isLoading && rows.length === 0 && !loadingHistory && (
                   <div className="flex flex-col items-center px-5 py-7 text-center">
-                    <span className="mb-2.5 flex size-10 items-center justify-center rounded-2xl bg-(--color-primary-soft) text-(--brand-primary)">
-                      <IconRobot size={20} stroke={1.8} />
-                    </span>
-                    <p className="text-[13px] font-semibold text-(--text-primary)">
+                    <p className="text-sm font-semibold text-foreground">
                       Nenhuma automação neste contato
                     </p>
-                    <p className="mt-1 text-[12px] leading-snug text-(--text-muted)">
+                    <p className="mt-1 text-xs leading-snug text-muted-foreground">
                       Dispare um fluxo para acompanhar passos, execuções e histórico aqui.
                     </p>
                     <button
                       type="button"
                       onClick={openPicker}
-                      className="mt-3 inline-flex cursor-pointer items-center gap-1 rounded-full bg-(--brand-primary) px-3 py-1.5 text-[12px] font-semibold text-white shadow-(--glass-shadow-sm) transition-opacity hover:opacity-90"
+                      className="mt-3 inline-flex cursor-pointer items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
                     >
-                      <IconPlus size={13} stroke={2.4} />
+                      <Plus className="size-3.5" aria-hidden />
                       Adicionar
                     </button>
                   </div>
                 )}
 
                 {rows.length > 0 && (
-                  <ul>
-                    {rows.map((row, i) => (
+                  <ul className="divide-y divide-border">
+                    {rows.map((row) => (
                       <AutomationRow
                         key={row.key}
                         row={row}
@@ -434,7 +399,6 @@ export function ActiveBotsButton({
                         onToggle={() =>
                           setExpandedId((id) => (id === row.key ? null : row.key))
                         }
-                        showDivider={i < rows.length - 1}
                         cancelPending={cancel.isPending}
                         runningReplay={runningId === row.automationId}
                         onPause={() => {
@@ -447,7 +411,7 @@ export function ActiveBotsButton({
                 )}
 
                 {cancel.isError && (
-                  <p className="px-3.5 py-2 text-[11px] text-(--color-warning)">
+                  <p className="px-5 py-2 text-xs text-amber-600">
                     {cancel.error?.message ?? "Erro ao interromper a automação."}
                   </p>
                 )}
@@ -472,7 +436,6 @@ function AutomationRow({
   history,
   expanded,
   onToggle,
-  showDivider,
   cancelPending,
   runningReplay,
   onPause,
@@ -482,129 +445,97 @@ function AutomationRow({
   history: AutomationHistoryDto[];
   expanded: boolean;
   onToggle: () => void;
-  showDivider: boolean;
   cancelPending: boolean;
   runningReplay: boolean;
   onPause: () => void;
   onPlay: () => void;
 }) {
-  const badge = badgeFor(row.status);
+  const panelId = useId();
   const isLive = row.status === "RUNNING" || row.status === "PAUSED";
-  const running = row.status === "RUNNING";
+  const runStatus = rowStatusToRunStatus(row.status);
 
   return (
-    <li className={cn(showDivider && "border-b border-[var(--glass-border)]")}>
-      <div className="px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            className="group flex min-w-0 flex-1 items-start gap-2 text-left"
-          >
-            <IconChevronDown
-              size={16}
-              stroke={2.2}
-              className={cn(
-                "mt-0.5 shrink-0 text-[var(--text-muted)] transition-transform",
-                expanded ? "rotate-0" : "-rotate-90",
-              )}
-              aria-hidden
-            />
-            <span className="min-w-0">
-              <span className="flex flex-wrap items-center gap-2">
-                <span className="truncate font-semibold text-[var(--text-primary)]">
-                  {row.name}
-                </span>
-                <span
-                  className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-                    badge.className,
-                  )}
-                >
-                  <span className="relative flex size-1.5">
-                    {running && (
-                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--color-success)] opacity-75" />
-                    )}
-                    <span
-                      className={cn(
-                        "relative inline-flex size-1.5 rounded-full",
-                        running
-                          ? "bg-[var(--color-success)]"
-                          : row.status === "PAUSED"
-                            ? "bg-[var(--color-warning)]"
-                            : row.status === "TIMED_OUT"
-                              ? "bg-[var(--color-danger)]"
-                              : "bg-[var(--text-muted)]",
-                      )}
-                    />
-                  </span>
-                  {badge.label}
-                </span>
-              </span>
-              <span className="mt-0.5 block truncate text-sm text-[var(--text-muted)]">
-                {subtextFor(row)}
-              </span>
-            </span>
-          </button>
-
-          <div className="flex shrink-0 items-center gap-1">
-            {isLive ? (
-              <TooltipGlass label="Interromper automação" side="top">
-                <button
-                  type="button"
-                  disabled={cancelPending}
-                  onClick={onPause}
-                  aria-label={`Interromper ${row.name}`}
-                  className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-[var(--color-warning-soft)] text-[var(--color-warning)] transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <IconPlayerPauseFilled size={16} />
-                </button>
-              </TooltipGlass>
-            ) : (
-              <TooltipGlass label="Executar novamente" side="top">
-                <button
-                  type="button"
-                  disabled={runningReplay}
-                  onClick={onPlay}
-                  aria-label={`Executar ${row.name}`}
-                  className="flex size-9 cursor-pointer items-center justify-center rounded-full bg-[var(--color-success-bg)] text-[var(--color-success-text)] transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <IconPlayerPlayFilled size={16} />
-                </button>
-              </TooltipGlass>
+    <li>
+      <div className="flex items-center gap-3 px-5 py-3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 text-muted-foreground transition-transform",
+              !expanded && "-rotate-90",
             )}
-            <TooltipGlass label="Editar automação" side="top">
-              <Link
-                href={`/automations/${row.automationId}`}
-                aria-label={`Editar ${row.name}`}
-                className="flex size-9 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
-              >
-                <IconPencil size={16} stroke={1.8} />
-              </Link>
-            </TooltipGlass>
-          </div>
-        </div>
-
-        {expanded && (
-          <ExpandedBody
-            automationId={row.automationId}
-            history={history}
-            stepLabel={row.stepLabel}
-            live={isLive}
+            aria-hidden
           />
-        )}
+          <span className="sr-only">
+            {expanded ? "Recolher" : "Expandir"} {row.name}
+          </span>
+          <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+            {row.name}
+          </span>
+          <StatusDot status={runStatus} />
+        </button>
+
+        <div className="flex shrink-0 items-center gap-1">
+          {isLive ? (
+            <button
+              type="button"
+              disabled={cancelPending}
+              onClick={onPause}
+              title="Interromper automação"
+              className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-amber-500 text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Pause className="size-3 fill-current" aria-hidden />
+              <span className="sr-only">Interromper {row.name}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={runningReplay}
+              onClick={onPlay}
+              title="Executar novamente"
+              className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-emerald-500 text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Play className="size-3 translate-x-px fill-current" aria-hidden />
+              <span className="sr-only">Executar {row.name}</span>
+            </button>
+          )}
+          <Link
+            href={`/automations/${row.automationId}`}
+            title="Editar automação"
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted"
+          >
+            <Pencil className="size-3.5" aria-hidden />
+            <span className="sr-only">Editar {row.name}</span>
+          </Link>
+        </div>
       </div>
+
+      {expanded && (
+        <ExpandedBody
+          panelId={panelId}
+          automationId={row.automationId}
+          history={history}
+          stepLabel={row.stepLabel}
+          live={isLive}
+        />
+      )}
     </li>
   );
 }
 
 function ExpandedBody({
+  panelId,
   automationId,
   history,
   stepLabel,
   live,
 }: {
+  panelId: string;
   automationId: string;
   history: AutomationHistoryDto[];
   stepLabel: string | null;
@@ -612,123 +543,178 @@ function ExpandedBody({
 }) {
   const { data, isLoading } = useAutomation(automationId);
   const { data: stats } = useAutomationStats(automationId, true);
-  const stepTypes = useMemo(() => {
+  const steps = useMemo(() => {
     const types = data?.steps?.map((s) => s.type) ?? data?.stepTypes ?? [];
-    return types.map((t) => blockKeyForStepType(t));
+    return types.map((t) => {
+      const key = blockKeyForStepType(t);
+      const meta = getBlockMeta(key);
+      return {
+        key,
+        label: meta.label,
+        tone: blockColorToTone(meta.color),
+        Icon: meta.Icon,
+      };
+    });
   }, [data]);
-  const activeIndex = live ? findActiveStepIndex(stepTypes, stepLabel) : -1;
+  const activeIndex = live
+    ? findActiveStepIndex(steps.map((s) => s.key), stepLabel)
+    : -1;
   const metrics = useMemo(
-    () => buildPanelMetrics(stepTypes.length || data?.stepCount, history, stats),
-    [data?.stepCount, history, stats, stepTypes.length],
+    () => buildPanelMetrics(steps.length || data?.stepCount, history, stats),
+    [data?.stepCount, history, stats, steps.length],
   );
+  const historyItems = useMemo(() => historyToItems(history), [history]);
 
   return (
-    <div className="mt-4 space-y-5">
+    <div id={panelId} className="space-y-4 px-5 py-4">
       <section>
-        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Fluxo
         </p>
         {isLoading ? (
-          <p className="mt-3 text-sm text-[var(--text-muted)]">Carregando fluxo…</p>
-        ) : stepTypes.length === 0 ? (
-          <p className="mt-3 text-sm text-[var(--text-muted)]">Sem passos definidos.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Carregando fluxo…</p>
+        ) : steps.length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">Sem passos definidos.</p>
         ) : (
-          <div className="mt-3 overflow-x-auto pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <FlowStrip stepTypes={stepTypes} activeIndex={activeIndex} />
-          </div>
+          <FlowChips steps={steps} activeIndex={activeIndex} />
         )}
       </section>
 
-      <div className="flex items-center gap-4 rounded-xl bg-[var(--glass-bg-overlay)] px-4 py-3">
-        <MetricCell value={metrics.steps} label="Passos" />
-        <span className="h-8 w-px shrink-0 bg-[var(--glass-border)]" aria-hidden />
-        <MetricCell value={metrics.runs} label="Execuções" />
-        <span className="h-8 w-px shrink-0 bg-[var(--glass-border)]" aria-hidden />
-        <MetricCell
-          value={metrics.rate == null ? "—" : `${metrics.rate}%`}
-          label="Taxa de sucesso"
-          icon={
-            metrics.rate != null && metrics.rate >= 70 ? (
-              <IconTrendingUp size={14} className="text-[var(--color-success)]" />
-            ) : undefined
-          }
-        />
+      <div className="flex items-center gap-4 rounded-lg bg-muted/60 px-4 py-2.5">
+        <MetricPair value={metrics.steps} label="passos" />
+        <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
+        <MetricPair value={metrics.runs} label="execuções" />
+        <div className="ml-auto flex items-center gap-2">
+          <span
+            className="h-1.5 w-12 overflow-hidden rounded-full bg-border"
+            aria-hidden
+          >
+            <span
+              className="block h-full rounded-full bg-emerald-500"
+              style={{
+                width: `${metrics.rate == null ? 0 : Math.min(100, metrics.rate)}%`,
+              }}
+            />
+          </span>
+          <span className="text-xs font-semibold tabular-nums text-emerald-600">
+            {metrics.rate == null ? "—" : `${metrics.rate}%`}
+          </span>
+        </div>
       </div>
 
       <section>
-        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Histórico
         </p>
-        {history.length === 0 ? (
-          <p className="mt-3 text-sm text-[var(--text-muted)]">Sem execuções anteriores.</p>
+        {historyItems.length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Sem execuções anteriores.
+          </p>
         ) : (
-          <ol className="relative ml-1 mt-3 border-l border-[var(--glass-border)]">
-            {history.slice(0, 5).map((h) => {
-              const failed = h.status === "TIMED_OUT";
-              const duration = formatDuration(h.startedAt, h.finishedAt);
-              return (
-                <li
-                  key={h.contextId}
-                  className="relative flex items-center justify-between gap-3 rounded-md py-2 pl-5 pr-2 transition-colors hover:bg-[var(--glass-bg-overlay)]"
-                >
-                  <span
-                    className={cn(
-                      "absolute -left-[5px] top-1/2 size-2.5 -translate-y-1/2 rounded-full ring-2 ring-[var(--glass-bg-modal)]",
-                      failed ? "bg-[var(--color-danger)]" : "bg-[var(--color-success)]",
-                    )}
-                    aria-hidden
-                  />
-                  <div className="flex items-center gap-3 tabular-nums">
-                    <span className="text-sm font-medium text-[var(--text-primary)]">
-                      {formatWhen(h.finishedAt)}
-                    </span>
-                    {duration && (
-                      <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
-                        <IconClock size={14} stroke={1.75} />
-                        {duration}
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      "rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-                      failed
-                        ? "bg-[var(--color-danger-bg)] text-[var(--color-danger-text)]"
-                        : "bg-[var(--color-success-bg)] text-[var(--color-success-text)]",
-                    )}
-                  >
-                    {failed ? "Falhou" : "Concluída"}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+          <table className="mt-1 w-full">
+            <tbody>
+              {historyItems.map((item) => (
+                <HistoryRow key={item.id} item={item} />
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
     </div>
   );
 }
 
-function MetricCell({
+function MetricPair({
   value,
   label,
-  icon,
-  className,
 }: {
   value: string | number;
   label: string;
-  icon?: ReactNode;
-  className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-0.5", className)}>
-      <span className="inline-flex items-center gap-1 text-sm font-semibold tabular-nums text-[var(--text-primary)]">
-        {icon}
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-base font-bold tabular-nums text-foreground">
         {value}
       </span>
-      <span className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
-        {label}
-      </span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function HistoryRow({ item }: { item: AutomationHistoryItem }) {
+  return (
+    <tr className="border-t border-border/60">
+      <td className="py-2">
+        <span className="flex items-center gap-2">
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              item.status === "failed" ? "bg-rose-500" : "bg-emerald-500",
+            )}
+            aria-hidden
+          />
+          <span className="text-xs font-medium tabular-nums text-foreground">
+            {item.date}
+          </span>
+          {item.duration ? (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {item.duration}
+            </span>
+          ) : null}
+        </span>
+      </td>
+      <td className="py-2 text-right">
+        <StatusDot status={item.status} />
+      </td>
+    </tr>
+  );
+}
+
+function FlowChips({
+  steps,
+  activeIndex,
+}: {
+  steps: Array<{
+    key: string;
+    label: string;
+    tone: keyof typeof toneClasses;
+    Icon: ReturnType<typeof getBlockMeta>["Icon"];
+  }>;
+  activeIndex: number;
+}) {
+  const overflow = steps.length - FLOW_VISIBLE_MAX;
+  const visible = overflow > 0 ? steps.slice(0, FLOW_VISIBLE_MAX) : steps;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {visible.map((step, i) => {
+        const Icon = step.Icon;
+        const active = i === activeIndex;
+        return (
+          <span
+            key={`${step.key}-${i}`}
+            title={step.label}
+            className={cn(
+              "flex size-7 items-center justify-center rounded-md",
+              toneClasses[step.tone],
+              active && "ring-2 ring-emerald-500/60",
+            )}
+          >
+            <Icon className="size-3.5" size={14} aria-hidden />
+            <span className="sr-only">
+              Passo {i + 1}: {step.label}
+            </span>
+          </span>
+        );
+      })}
+      {overflow > 0 && (
+        <span
+          title={`${overflow} passos a mais`}
+          className="flex size-7 items-center justify-center rounded-md bg-muted text-xs font-semibold tabular-nums text-muted-foreground"
+        >
+          +{overflow}
+        </span>
+      )}
     </div>
   );
 }
@@ -772,60 +758,3 @@ function normalizeLabel(value: string): string {
     .trim();
 }
 
-/** Faixa circular de ícones do fluxo (definição da automação). */
-function FlowStrip({
-  stepTypes,
-  activeIndex,
-}: {
-  stepTypes: string[];
-  activeIndex: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const overflow = stepTypes.length - 8;
-  const visible = expanded || overflow <= 0 ? stepTypes : stepTypes.slice(0, 8);
-  return (
-    <div className="flex flex-wrap items-center gap-y-3">
-      {visible.map((type, i) => {
-        const meta = getBlockMeta(type);
-        const Icon = meta.Icon;
-        const active = i === activeIndex;
-        return (
-          <div key={`${type}-${i}`} className="flex items-center">
-            <TooltipGlass label={meta.label} side="top">
-              <button
-                type="button"
-                className="group relative rounded-full outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-                aria-label={`Passo ${i + 1}: ${meta.label}`}
-              >
-                <span
-                  className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-[var(--glass-border)]",
-                    active && "ring-2 ring-[var(--brand-primary)]",
-                  )}
-                  style={blockChipStyle(type)}
-                >
-                  <Icon size={18} stroke={2} />
-                </span>
-                <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-[var(--glass-bg-modal)] text-[10px] font-semibold text-[var(--text-muted)] ring-1 ring-[var(--glass-border)]">
-                  {i + 1}
-                </span>
-              </button>
-            </TooltipGlass>
-            {i < visible.length - 1 && (
-              <span className="mx-1 h-px w-4 shrink-0 bg-[var(--glass-border)]" aria-hidden />
-            )}
-          </div>
-        );
-      })}
-      {overflow > 0 && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="ml-1 flex h-10 items-center justify-center rounded-full border border-dashed border-[var(--glass-border)] px-3 text-sm font-medium text-[var(--text-muted)] transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]"
-        >
-          {expanded ? "Recolher" : `+${overflow}`}
-        </button>
-      )}
-    </div>
-  );
-}
