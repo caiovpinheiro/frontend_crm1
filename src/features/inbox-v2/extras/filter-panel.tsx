@@ -606,7 +606,7 @@ export function InboxSearchFilterBar({
   }
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div data-tour="inbox-search" className={cn("flex flex-col gap-2", className)}>
       <div ref={menu.wrapRef}>
         <FilterSearchTrigger
           search={search}

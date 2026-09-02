@@ -158,7 +158,13 @@ function isTourTargetVisible(tourId: string): boolean {
 function toDriveSteps(steps: PageTourStep[]): DriveStep[] {
   return steps.map((step) => ({
     element: `[data-tour="${step.element}"]`,
-    skipMissingElement: step.element === "automations-status",
+    skipMissingElement:
+      step.element === "automations-status" ||
+      step.element === "campaigns-status" ||
+      step.element === "contacts-row-actions" ||
+      step.element.startsWith("inbox-chat") ||
+      step.element.startsWith("inbox-composer") ||
+      step.element.startsWith("inbox-aside"),
     popover: {
       title: step.title,
       description: step.description,
@@ -174,9 +180,16 @@ function openTourMenu(triggerTourId: string): void {
   if (btn && btn.getAttribute("aria-expanded") !== "true") btn.click();
 }
 
+function closeTourMenu(triggerTourId: string): void {
+  const wrap = document.querySelector(`[data-tour="${triggerTourId}"]`);
+  const btn = wrap?.querySelector<HTMLButtonElement>("button[aria-expanded]");
+  if (btn && btn.getAttribute("aria-expanded") === "true") btn.click();
+}
+
 function prepareStep(step: PageTourStep | undefined): void {
   if (!step) return;
   if (step.wizardStep) setCreateWizardStep(step.wizardStep);
+  if (step.closeMenu) closeTourMenu(step.closeMenu);
   if (step.openMenu) openTourMenu(step.openMenu);
   applyBuilderTourStep({
     openPalette: step.openPalette,

@@ -114,6 +114,8 @@ export interface FormDialogProps {
   bodyClassName?: string;
   /** Classes adicionais aplicadas ao painel do modal. */
   className?: string;
+  /** Conteúdo extra no header (ex.: botão de tour), à esquerda do X. */
+  headerAccessory?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -128,6 +130,7 @@ export function FormDialog({
   busy = false,
   bodyClassName,
   className,
+  headerAccessory,
   children,
 }: FormDialogProps) {
   const handleOpenChange = React.useCallback(
@@ -158,6 +161,10 @@ export function FormDialog({
             </div>
           </div>
         </DialogHeader>
+
+        {headerAccessory ? (
+          <div className="absolute end-[2.75rem] top-3.5 z-10">{headerAccessory}</div>
+        ) : null}
 
         <DialogClose
           disabled={busy}

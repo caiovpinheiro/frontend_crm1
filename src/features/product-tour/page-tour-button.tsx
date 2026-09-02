@@ -66,11 +66,19 @@ export function PageTourButton({
           }}
         >
           <Play className="size-3.5 fill-current" aria-hidden="true" />
-          {tourId === "automations-create"
+          {tourId === "automations-create" ||
+          tourId === "campaigns-create" ||
+          tourId === "contacts-create"
             ? "Fazer tour da criação"
             : tourId === "automations-builder"
               ? "Fazer tour do builder"
-              : "Fazer tour desta página"}
+              : tourId === "campaigns-detail"
+                ? "Fazer tour desta campanha"
+                : tourId === "contacts-columns"
+                  ? "Fazer tour das colunas"
+                  : tourId === "contacts-duplicates"
+                    ? "Fazer tour das duplicadas"
+                    : "Fazer tour desta página"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -3,7 +3,14 @@ export type TourId =
   | "automations"
   | "automations-create"
   | "automations-builder"
-  | "contacts";
+  | "campaigns"
+  | "campaigns-create"
+  | "campaigns-detail"
+  | "contacts"
+  | "contacts-create"
+  | "contacts-columns"
+  | "contacts-duplicates"
+  | "inbox";
 
 export type TourSide = "top" | "right" | "bottom" | "left";
 
@@ -17,12 +24,13 @@ export type PageTourStep = {
   description: string;
   side?: TourSide;
   /**
-   * Passo do assistente Nova automação a exibir antes de destacar o alvo.
-   * Só o tour `automations-create` usa.
+   * Passo do assistente (Nova automação / Nova campanha) a exibir antes de destacar o alvo.
    */
   wizardStep?: 1 | 2 | 3;
   /** Abre o menu deste `data-tour` antes de destacar o passo. */
   openMenu?: string;
+  /** Fecha o menu deste `data-tour` antes de destacar o passo. */
+  closeMenu?: string;
   /** Abre a paleta Blocos do builder. */
   openPalette?: boolean;
   /** Abre o catálogo “O que deseja automatizar?”. */

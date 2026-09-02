@@ -379,6 +379,12 @@ export function ConversationColumn({
       const target = e.target as Node
       if (el?.contains(target)) return
       if (dropdownMenuRef.current?.contains(target)) return
+      if (
+        target instanceof Element &&
+        target.closest(".driver-overlay, .driver-popover")
+      ) {
+        return
+      }
       setDropdownOpen(false)
     }
     function onKey(e: KeyboardEvent) {
@@ -438,6 +444,7 @@ export function ConversationColumn({
 
       {/* Seletor de status + toggle de filtro na mesma linha */}
       <div className="mb-2 flex items-center gap-2 @max-[240px]:gap-1">
+      <div data-tour="inbox-queues" className="flex min-w-0 flex-1">
       <button
         ref={dropdownBtnRef}
         type="button"
@@ -445,7 +452,7 @@ export function ConversationColumn({
         title={triggerTitle}
         aria-haspopup="listbox"
         aria-expanded={dropdownOpen}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
+        className="flex min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
       >
         <span
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
@@ -471,6 +478,7 @@ export function ConversationColumn({
           )}
         />
       </button>
+      </div>
       {onRefresh ? (
         <TooltipGlass label="Atualizar fila" side="bottom">
           <button
@@ -478,6 +486,7 @@ export function ConversationColumn({
             aria-label="Atualizar fila"
             onClick={() => onRefresh()}
             disabled={isRefreshing}
+            data-tour="inbox-refresh"
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-60",
               isRefreshing && "text-[var(--brand-primary)]",
@@ -521,7 +530,13 @@ export function ConversationColumn({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-1 py-0.5">
               {groupQueueTabs(tabs).map((group) => (
-                <div key={group.key} className="mb-0.5 last:mb-0">
+                <div
+                  key={group.key}
+                  {...(group.key !== "__row-0"
+                    ? { "data-tour": `inbox-queue-group-${group.key}` }
+                    : {})}
+                  className="mb-0.5 last:mb-0"
+                >
                   {group.label ? (
                     <p
                       className={cn(
@@ -545,6 +560,7 @@ export function ConversationColumn({
                         role="option"
                         aria-selected={isActive}
                         title={tab.title ?? tab.description}
+                        {...(tab.id === "todos" ? { "data-tour": "inbox-queue-todos" } : {})}
                         onClick={() => {
                           if (tabId && onToggleTab) {
                             onToggleTab(tabId)
@@ -683,6 +699,7 @@ export function ConversationColumn({
           encolhem (flex-shrink:1) e viram barras cinza. Espelho do DealQueue. */}
       <div
         ref={listScrollRef}
+        data-tour="inbox-list"
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0.5 [-webkit-overflow-scrolling:touch]"
       >
         <div className="flex min-h-full flex-col gap-1.5">
