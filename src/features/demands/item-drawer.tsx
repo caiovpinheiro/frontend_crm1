@@ -3,13 +3,13 @@
 import * as React from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Activity, Loader2, MessageSquare, Rocket, ThumbsUp, X } from "lucide-react";
+import { Activity, Loader2, MessageSquare, Rocket, ThumbsUp, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { useCan } from "@/hooks/use-my-permissions";
 import { useDemandItem, useDemandMutations, kindOptions, priorityOptions } from "./hooks";
-import { EVENT_LABEL, KIND_LABEL, PRIORITY_LABEL } from "./types";
+import { EVENT_LABEL, KIND_LABEL, PRIORITY_LABEL, type DemandItem } from "./types";
 
 type TabId = "detalhes" | "comentarios" | "atividade";
 
@@ -26,10 +26,14 @@ export function DemandItemDrawer({
   itemId,
   boardId,
   onClose,
+  canDelete,
+  onDelete,
 }: {
   itemId: string | null;
   boardId: string;
   onClose: () => void;
+  canDelete?: boolean;
+  onDelete?: (item: DemandItem) => void;
 }) {
   const { data: item, isLoading } = useDemandItem(itemId);
   const { patchItem, comment, vote } = useDemandMutations();
@@ -290,6 +294,18 @@ export function DemandItemDrawer({
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
+          {canDelete && item && onDelete ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="lg"
+              className="mr-auto h-10 rounded-xl px-5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => onDelete(item)}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              Excluir
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"

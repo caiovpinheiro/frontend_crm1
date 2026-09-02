@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useSession } from "next-auth/react";
-import { IconChevronDown, IconColumns, IconLayoutKanban, IconPlus, IconRocket } from "@tabler/icons-react";
+import { IconChevronDown, IconColumns, IconLayoutKanban, IconPlus, IconRocket, IconTrash } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/crm/page-header";
 import { PageActionsMenu, PageSegmentedControl } from "@/components/crm/page-toolbar";
 import { ClientOnly } from "@/components/util/client-only";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,8 @@ export default function DemandsClientPage({
   const canMove = useCan("demand:move");
   const canManage = useCan("demand:manage_board");
   const canVote = useCan("demand:vote");
+  const canEdit = useCan("demand:edit");
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const boardsQuery = useDemandBoards(status === "authenticated");
   const boards = boardsQuery.data?.boards ?? [];
@@ -59,7 +62,8 @@ export default function DemandsClientPage({
   const [boardOpen, setBoardOpen] = React.useState(false);
   const [stageOpen, setStageOpen] = React.useState(false);
 
-  const { createItem, createBoard, addStage, moveItem, vote } = useDemandMutations();
+  const { createItem, createBoard, addStage, moveItem, vote, deleteBoard, deleteItem } =
+    useDemandMutations();
 
   const filteredBoard = React.useMemo(() => {
     if (!board) return null;
@@ -83,6 +87,51 @@ export default function DemandsClientPage({
   const allItems = filteredBoard?.stages.flatMap((s) =>
     s.items.map((it) => ({ ...it, stageName: s.name })),
   ) ?? [];
+
+  async function handleDeleteBoard() {
+    if (!activeId || !board) return;
+    const ok = await confirm({
+      title: `Excluir board “${board.name}”?`,
+      description:
+        "Todas as solicitações e fases deste board serão removidas. Esta ação não pode ser desfeita.",
+      confirmLabel: "Excluir board",
+      pendingLabel: "Excluindo…",
+      destructive: true,
+      action: async () => {
+        try {
+          await deleteBoard.mutateAsync(activeId);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Não foi possível excluir o board.");
+          throw err;
+        }
+      },
+    });
+    if (!ok) return;
+    const remaining = boards.filter((b) => b.id !== activeId);
+    setBoardId(remaining[0]?.id ?? null);
+    toast.success("Board excluído.");
+  }
+
+  async function handleDeleteItem(item: DemandItem) {
+    const ok = await confirm({
+      title: `Excluir #${item.number}?`,
+      description: `A solicitação “${item.title}” será removida. Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      pendingLabel: "Excluindo…",
+      destructive: true,
+      action: async () => {
+        try {
+          await deleteItem.mutateAsync({ id: item.id, boardId: item.boardId });
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Não foi possível excluir a solicitação.");
+          throw err;
+        }
+      },
+    });
+    if (!ok) return;
+    if (openItemId === item.id) setOpenItemId(null);
+    toast.success("Solicitação excluída.");
+  }
 
   const headerMenuItems = [
     canCreate
@@ -111,6 +160,15 @@ export default function DemandsClientPage({
           label: "Novo Board",
           onClick: () => setBoardOpen(true),
           primary: false as const,
+        }
+      : null,
+    canManage && activeId
+      ? {
+          icon: <IconTrash size={13} />,
+          label: "Excluir board",
+          onClick: () => void handleDeleteBoard(),
+          primary: false as const,
+          divider: true,
         }
       : null,
   ].filter((x): x is NonNullable<typeof x> => x !== null);
@@ -253,6 +311,7 @@ export default function DemandsClientPage({
                       <th className="px-3 py-2 font-semibold">Fase</th>
                       <th className="px-3 py-2 font-semibold">Votos</th>
                       <th className="px-3 py-2 font-semibold">Responsável</th>
+                      {canEdit ? <th className="px-3 py-2 text-right font-semibold">Ações</th> : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -272,6 +331,21 @@ export default function DemandsClientPage({
                         <td className="px-3 py-2">{it.stageName}</td>
                         <td className="px-3 py-2 tabular-nums">{it.votesCount}</td>
                         <td className="px-3 py-2">{it.assignee?.name ?? "—"}</td>
+                        {canEdit ? (
+                          <td className="px-3 py-2 text-right">
+                            <button
+                              type="button"
+                              aria-label={`Excluir #${it.number}`}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] hover:text-[var(--color-danger)]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDeleteItem(it);
+                              }}
+                            >
+                              <IconTrash size={15} />
+                            </button>
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>
@@ -283,7 +357,9 @@ export default function DemandsClientPage({
       <DemandItemDrawer
         itemId={openItemId}
         boardId={activeId ?? ""}
+        canDelete={canEdit}
         onClose={() => setOpenItemId(null)}
+        onDelete={(item) => void handleDeleteItem(item)}
       />
 
       <CreateItemDialog
@@ -383,6 +459,7 @@ export default function DemandsClientPage({
           </div>
         </form>
       </FormDialog>
+      {confirmDialog}
       </main>
       )}
     </div>
