@@ -235,17 +235,34 @@ export async function getTabulations(scope: {
   departmentId?: string | null;
   userId?: string | null;
 }): Promise<TabulationsResponse> {
-  const params = new URLSearchParams();
-  if (scope.departmentId) params.set("departmentId", scope.departmentId);
-  else if (scope.userId) params.set("userId", scope.userId);
-  const res = await fetch(apiUrl(`/api/tabulations?${params.toString()}`));
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(
-      typeof data?.message === "string" ? data.message : "Erro ao carregar tabulacoes",
-    );
+  async function load(departmentId?: string | null, userId?: string | null) {
+    const params = new URLSearchParams();
+    if (departmentId) params.set("departmentId", departmentId);
+    else if (userId) params.set("userId", userId);
+    else {
+      throw new Error("departmentId ou userId eh obrigatorio.");
+    }
+    const res = await fetch(apiUrl(`/api/tabulations?${params.toString()}`));
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(
+        typeof data?.message === "string" ? data.message : "Erro ao carregar tabulacoes",
+      );
+    }
+    return data as TabulationsResponse;
   }
-  return data as TabulationsResponse;
+
+  const primary = await load(
+    scope.departmentId,
+    scope.departmentId ? null : scope.userId,
+  );
+  const groups = primary.groups ?? [];
+  const hasLeaves =
+    groups.some((g) => g.tree.length > 0) || primary.tree.length > 0;
+  if (!hasLeaves && scope.departmentId && scope.userId) {
+    return load(null, scope.userId);
+  }
+  return primary;
 }
 
 /**

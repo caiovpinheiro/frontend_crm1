@@ -113,11 +113,7 @@ export function useResolveConversationFlow(opts: {
         open={tabulationOpen}
         onOpenChange={setTabulationOpen}
         departmentId={tabulationDeptId ?? opts.departmentId ?? null}
-        userId={
-          tabulationDeptId || opts.departmentId
-            ? null
-            : (tabulationUserId ?? agentUserId)
-        }
+        userId={tabulationUserId ?? agentUserId}
         submitting={toggleResolve.isPending}
         allowSkipAutomations={canSkipAutomations}
         onConfirm={(tabulationId, extra) => {
