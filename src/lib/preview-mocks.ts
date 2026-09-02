@@ -14,7 +14,7 @@
  *  - /api/analytics/deals-overview, /api/analytics/service-overview
  *  - /api/tags, /api/channels, /api/quick-replies, /api/whatsapp-template-configs
  *  - /api/inbox/agent-capacity, /api/inbox/daily-stats
- *  - /api/settings/self-assign, /api/settings/permissions
+ *  - /api/settings/self-assign, /api/settings/permissions, /api/settings/departments
  *  - /api/agents/:id/status
  *  - Fallback GET → { items: [], total: 0 }; Fallback mutation → { ok: true }
  */
@@ -969,6 +969,13 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
   {
     test: (u) => u.pathname === "/api/settings/permissions",
     handler: () => ({ scopeGrants: { canViewAll: true, canAssign: true, canResolve: true, canDelete: false } }),
+  },
+  {
+    test: (u) => u.pathname === "/api/settings/departments",
+    handler: () => [
+      { id: "dept-vendas", name: "Vendas", color: "#3B82F6", icon: "briefcase", createdAt: "2026-01-10T10:00:00Z" },
+      { id: "dept-suporte", name: "Suporte", color: "#10B981", icon: "headset", createdAt: "2026-01-10T10:00:00Z" },
+    ],
   },
 
   /* ── Inbox ── */
