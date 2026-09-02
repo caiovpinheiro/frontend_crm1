@@ -1,0 +1,93 @@
+/**
+ * Tema Driver.js alinhado ao DS v2 (tokens de `globals-v2.css`).
+ * Sem hex fixo — dark mode herda `.v2-dark` / `.dark` no <html>.
+ */
+
+.driver-popover.bwipo-driver-popover {
+  display: block;
+  box-sizing: border-box;
+  background-color: var(--glass-bg-modal);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--glass-shadow-lg);
+  padding: 1.05rem 1.15rem 0.85rem;
+  min-width: 18rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  font-family: inherit;
+  --driver-popover-font-family: inherit;
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-description {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-close-btn {
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  text-shadow: none;
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-close-btn:hover {
+  color: var(--text-primary);
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-footer-btn {
+  text-shadow: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-next-btn,
+.driver-popover.bwipo-driver-popover .driver-popover-done-btn {
+  background-color: var(--brand-primary);
+  color: var(--color-primary-foreground);
+  border: 0;
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-next-btn:hover,
+.driver-popover.bwipo-driver-popover .driver-popover-done-btn:hover {
+  filter: brightness(0.95);
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-prev-btn {
+  background-color: var(--glass-bg-overlay, var(--color-card));
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-left {
+  border-left-color: var(--glass-bg-modal);
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-right {
+  border-right-color: var(--glass-bg-modal);
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-top {
+  border-top-color: var(--glass-bg-modal);
+}
+
+.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--glass-bg-modal);
+}

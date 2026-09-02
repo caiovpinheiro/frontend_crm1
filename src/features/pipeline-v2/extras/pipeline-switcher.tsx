@@ -59,6 +59,7 @@ export function PipelineSwitcher({ selectedId, onChange, variant = "dropdown" }:
         fallback={
           <div
             aria-hidden
+            data-tour="pipeline-switcher"
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]"
           />
         }
@@ -79,6 +80,7 @@ export function PipelineSwitcher({ selectedId, onChange, variant = "dropdown" }:
           trigger={
             <button
               type="button"
+              data-tour="pipeline-switcher"
               aria-label={current ? `Funil: ${current.name}` : "Selecionar funil"}
               className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] shadow-[var(--glass-shadow-sm)] transition-colors hover:border-[var(--brand-primary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)] data-[state=open]:border-[var(--brand-primary)] data-[state=open]:bg-[var(--brand-primary)] data-[state=open]:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >

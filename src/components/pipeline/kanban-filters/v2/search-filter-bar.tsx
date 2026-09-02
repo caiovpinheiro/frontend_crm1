@@ -133,7 +133,7 @@ export function PipelineSearchFilterBar({
   }
 
   return (
-    <div className={className}>
+    <div className={className} data-tour="pipeline-search">
       <div ref={menu.wrapRef}>
         <FilterSearchTrigger
           search={search}
