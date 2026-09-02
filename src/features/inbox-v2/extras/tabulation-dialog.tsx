@@ -196,7 +196,7 @@ export function TabulationDialog({
 
   const forest = useMemo((): TabulationNode[] => {
     const groups = query.data?.groups ?? [];
-    if (groups.length > 1) {
+    if (groups.length > 0) {
       return groups
         .filter((g) => visibleAtLevel(g.tree).length > 0)
         .map((g, i) => ({
@@ -209,7 +209,7 @@ export function TabulationDialog({
           children: g.tree,
         }));
     }
-    return query.data?.tree ?? groups[0]?.tree ?? [];
+    return query.data?.tree ?? [];
   }, [query.data]);
 
   // path[]: caminho atual (categoria pai -> ... -> nó selecionado).
