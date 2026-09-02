@@ -1,4 +1,7 @@
 import type { PageTour, TourId } from "./tour-types";
+import { automationsBuilderTour } from "./tours/automations-builder-tour";
+import { automationsCreateTour } from "./tours/automations-create-tour";
+import { automationsTour } from "./tours/automations-tour";
 import { pipelineTour } from "./tours/pipeline-tour";
 
 /**
@@ -8,13 +11,17 @@ import { pipelineTour } from "./tours/pipeline-tour";
  */
 const TOURS: Partial<Record<TourId, PageTour>> = {
   pipeline: pipelineTour,
-  // automations: automationsTour,
+  automations: automationsTour,
+  "automations-create": automationsCreateTour,
+  "automations-builder": automationsBuilderTour,
   // contacts: contactsTour,
 };
 
 export const TOUR_BY_PATH: Partial<Record<string, TourId>> = {
   "/pipeline": "pipeline",
-  // "/automations": "automations",
+  "/automations": "automations",
+  "/automations/new": "automations-create",
+  // "/automations/[id]": "automations-builder",
   // "/contacts": "contacts",
 };
 

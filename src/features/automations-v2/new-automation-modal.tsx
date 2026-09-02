@@ -20,6 +20,14 @@ import {
   AUTOMATION_TRIGGER_TYPES,
   triggerTypeLabel,
 } from "@/lib/automation-workflow";
+import {
+  consumeQueuedPageTour,
+  PageTourButton,
+  peekQueuedPageTour,
+  registerCreateWizardBridge,
+  startPageTour,
+  stopPageTour,
+} from "@/features/product-tour";
 
 import { useCreateAutomation } from "./hooks";
 
@@ -59,6 +67,33 @@ export function NewAutomationModal({
     setAllowManualRun(false);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      registerCreateWizardBridge(null);
+      return;
+    }
+    registerCreateWizardBridge({ setStep: (n) => setStep(n) });
+    const pending = peekQueuedPageTour();
+    let timer: number | undefined;
+    if (pending === "automations-create") {
+      timer = window.setTimeout(() => {
+        consumeQueuedPageTour();
+        startPageTour("automations-create");
+      }, 280);
+    }
+    return () => {
+      registerCreateWizardBridge(null);
+      if (timer) window.clearTimeout(timer);
+      stopPageTour();
+    };
+  }, [open]);
+
+  function closeModal() {
+    consumeQueuedPageTour();
+    stopPageTour();
+    onOpenChange(false);
+  }
+
   function goNext() {
     if (step === 1 && !name.trim()) {
       toast.error("Informe um nome para a automação");
@@ -95,14 +130,20 @@ export function NewAutomationModal({
   const stepMeta = STEPS[step - 1];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) closeModal();
+        else onOpenChange(next);
+      }}
+    >
       <DialogContent
         size="lg"
         bodyClassName="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
         panelClassName="max-h-[min(88vh,720px)]"
       >
         <header className="shrink-0 border-b border-[var(--glass-border-subtle)] px-6 pb-4 pt-5">
-          <div className="flex items-start gap-3 pr-8">
+          <div className="flex items-start gap-3 pr-20">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--brand-primary)]">
               <IconBolt size={18} />
             </div>
@@ -113,7 +154,10 @@ export function NewAutomationModal({
               </DialogDescription>
             </div>
           </div>
-          <ol className="mt-4 flex items-center gap-2">
+          <ol
+            data-tour="create-stepper"
+            className="mt-4 flex items-center gap-2"
+          >
             {STEPS.map((s, i) => {
               const done = step > s.id;
               const active = step === s.id;
@@ -154,6 +198,9 @@ export function NewAutomationModal({
             })}
           </ol>
         </header>
+        <div className="absolute end-[2.75rem] top-3.5 z-10">
+          <PageTourButton tourId="automations-create" size="sm" />
+        </div>
         <DialogClose />
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -167,7 +214,8 @@ export function NewAutomationModal({
                   <span className="font-display text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                     Nome
                   </span>
-                  <InputGlass
+                  <div data-tour="create-name">
+                    <InputGlass
                     autoFocus
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -178,25 +226,28 @@ export function NewAutomationModal({
                         goNext();
                       }
                     }}
-                  />
+                    />
+                  </div>
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className="font-display text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                     Descrição
                   </span>
-                  <Textarea
+                  <div data-tour="create-description">
+                    <Textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="O que esta automação faz?"
                     rows={3}
                     className="w-full resize-none"
-                  />
+                    />
+                  </div>
                 </label>
               </div>
             ) : null}
 
             {step === 2 ? (
-              <div className="flex flex-col gap-3">
+              <div data-tour="create-trigger" className="flex flex-col gap-3">
                 <p className="font-display text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                   Gatilho
                 </p>
@@ -236,7 +287,7 @@ export function NewAutomationModal({
             ) : null}
 
             {step === 3 ? (
-              <div className="flex flex-col gap-3.5">
+              <div data-tour="create-options" className="flex flex-col gap-3.5">
                 <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3.5 py-3">
                   <SwitchGlass
                     checked={allowManualRun}
@@ -297,7 +348,7 @@ export function NewAutomationModal({
           <button
             type="button"
             onClick={() => {
-              if (step === 1) onOpenChange(false);
+              if (step === 1) closeModal();
               else setStep((s) => (s - 1) as StepId);
             }}
             className="font-display text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
@@ -307,6 +358,7 @@ export function NewAutomationModal({
           {step < 3 ? (
             <button
               type="button"
+              data-tour="create-next"
               onClick={goNext}
               className="inline-flex items-center rounded-full bg-[var(--brand-primary)] px-4 py-2 font-display text-[13px] font-bold text-white transition-opacity hover:opacity-90"
             >
@@ -315,6 +367,7 @@ export function NewAutomationModal({
           ) : (
             <button
               type="button"
+              data-tour="create-submit"
               onClick={() => void handleCreate()}
               disabled={createMutation.isPending}
               className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 py-2 font-display text-[13px] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"

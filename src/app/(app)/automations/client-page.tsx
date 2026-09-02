@@ -43,6 +43,7 @@ import { dtoToAutomation } from "@/features/automations-v2/automation-adapter"
 import { isPageMockMode } from "@/lib/page-mock-mode"
 import { AUTOMATION_TRIGGER_TYPES } from "@/lib/automation-workflow"
 import { useConfirm } from "@/components/ui/confirm-dialog"
+import { PageTourButton } from "@/features/product-tour"
 
 const DEFAULT_PER_PAGE = 25
 const FILTERS = ["Todas", "Ativas", "Pausadas"] as const
@@ -362,25 +363,34 @@ export default function V2AutomationsClientPage() {
           }
           actions={
             <>
-              <ViewToggle value={view} onChange={setView} />
-              <HeaderPillToggle
-                options={[
-                  { key: "automations", label: "Automações" },
-                  { key: "campaigns", label: "Campanhas" },
-                ]}
-                value="automations"
-                onChange={(v) => {
-                  if (v === "campaigns") router.push("/campaigns")
-                }}
-              />
+              <div data-tour="automations-view" className="flex shrink-0">
+                <ViewToggle value={view} onChange={setView} />
+              </div>
+              <div data-tour="automations-section-switcher" className="flex shrink-0">
+                <HeaderPillToggle
+                  options={[
+                    { key: "automations", label: "Automações" },
+                    { key: "campaigns", label: "Campanhas" },
+                  ]}
+                  value="automations"
+                  onChange={(v) => {
+                    if (v === "campaigns") router.push("/campaigns")
+                  }}
+                />
+              </div>
             </>
           }
           menuSlot={
-            <AutomationsActionsMenu
-              onNew={() => router.push("/automations/new")}
-              onImport={handleImportClick}
-              importing={isImporting}
-            />
+            <div className="flex items-center gap-2">
+              <PageTourButton tourId="automations" />
+              <div data-tour="automations-actions" className="flex shrink-0">
+                <AutomationsActionsMenu
+                  onNew={() => router.push("/automations/new")}
+                  onImport={handleImportClick}
+                  importing={isImporting}
+                />
+              </div>
+            </div>
           }
         />
         </>
@@ -398,7 +408,7 @@ export default function V2AutomationsClientPage() {
           onFilterChange={(v) => setFilter(v)}
         />
 
-        <div className={LIST_PAGE_PANE_CLASS}>
+        <div data-tour="automations-list" className={LIST_PAGE_PANE_CLASS}>
         {isError ? (
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
             {listQuery.error instanceof Error
@@ -529,6 +539,7 @@ function AutomationsKpis({
 
   return (
     <section
+      data-tour="automations-kpis"
       className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
       aria-label="Indicadores"
     >
@@ -577,7 +588,7 @@ function AutomationsSearchFilterBar({
     index === 0 ? counts.all : index === 1 ? counts.active : counts.paused
 
   return (
-    <div ref={ref} className="relative w-full">
+    <div ref={ref} data-tour="automations-search" className="relative w-full">
       <SearchFilterBar
         value={search}
         onChange={onSearch}
@@ -641,6 +652,7 @@ function AutomationsActionsMenu({
           label: "Nova automação",
           onClick: onNew,
           primary: true,
+          tourId: "automations-new",
         },
         {
           icon: importing ? (
@@ -652,6 +664,7 @@ function AutomationsActionsMenu({
           onClick: onImport,
           disabled: importing,
           divider: true,
+          tourId: "automations-import",
         },
       ]}
     />

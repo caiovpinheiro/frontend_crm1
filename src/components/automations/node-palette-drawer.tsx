@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { registerBuilderTourBridge } from "@/features/product-tour";
 
 import type { ActionStepType } from "@/lib/automation-workflow";
 import { NodePalette } from "./node-palette";
@@ -58,9 +59,22 @@ export function NodePaletteDrawer({
   const visible = pinned || open;
 
   useEffect(() => {
+    return registerBuilderTourBridge({
+      openPalette: () => setOpen(true),
+    });
+  }, []);
+
+  useEffect(() => {
     if (pinned || !open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (drawerRef.current?.contains(e.target as Node)) return;
+      const target = e.target;
+      if (
+        target instanceof Element &&
+        target.closest(".driver-overlay, .driver-popover")
+      ) {
+        return;
+      }
+      if (drawerRef.current?.contains(target as Node)) return;
       setOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown);
@@ -70,7 +84,10 @@ export function NodePaletteDrawer({
   useEffect(() => {
     if (pinned || !open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        if (document.querySelector(".driver-overlay")) return;
+        setOpen(false);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -104,6 +121,7 @@ export function NodePaletteDrawer({
         id="automations-blocks-drawer"
         ref={drawerRef}
         aria-hidden={!visible}
+        {...(visible ? { "data-tour": "builder-palette" } : {})}
         onDragEnd={() => {
           if (!pinned) setOpen(false);
         }}

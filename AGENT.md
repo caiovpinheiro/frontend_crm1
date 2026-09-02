@@ -17,6 +17,28 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-09-02 — Tour de criação de automação encadeado
+
+**Decisão.** O último passo do tour da lista (`automations`) ganha o CTA “Criar automação”. O clique grava o id em `sessionStorage` e navega para `/automations/new`, onde o assistente inicia `automations-create`. O `?` do modal dispara o mesmo tour. O overlay do Driver.js é reancorado no `<dialog>` (top-layer). O assistente muda de passo via bridge, sem preencher o formulário.
+
+**Alternativas descartadas.** Auto-start em todo GET `/automations/new` (quebra o opt-in). Destacar só o passo 1 (não explica gatilho/opções). Forçar interação no formulário durante o tour.
+
+**Impacto.** `tours/automations-create-tour.ts`, CTA no passo do hamburger (`ctas`), `NewAutomationModal` (`data-tour` + `PageTourButton`). Overlay reancorado no `<dialog>`; wizard avança no Próximo do tour.
+
+---
+
+### 2026-09-02 — Tour do builder de automação
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Tour opt-in `automations-builder` no editor `/automations/[id]`. O `?` do header dispara “Fazer tour do builder”. Passos: canvas, card do gatilho, índices Sucessos/Alertas/Erros, copiar/excluir, handle de conexão, paleta Blocos, catálogo “O que deseja automatizar?” (busca + grupos) e Salvar. Paleta e picker abrem via bridge antes do highlight. Sem auto-start e sem encadear a partir do assistente de criação (o id da automação só existe depois do POST).
+
+**Alternativas descartadas.** Destacar copy/stats em todos os cards (o primeiro match do `querySelector` cairia no node errado). Auto-start ao abrir o editor. CTA do wizard de criação para o builder (não há id ainda).
+
+**Impacto.** `tours/automations-builder-tour.ts`, `builder-tour-bridge.ts`, `data-tour` no `FlowEditor` / `FlowNode` / paleta / picker.
+
+---
+
 ### 2026-09-01 — Convite por e-mail, verificação no signup, esqueci senha
 
 **Decisão.** Equipe deixa de criar usuário com senha e passa a enviar convite (`POST /api/invites`). Signup do primeiro ADMIN redireciona para `/verify-email` em vez de `signIn`. Páginas públicas `/forgot-password`, `/reset-password`, `/verify-email`. Reset admin na Equipe permanece.
