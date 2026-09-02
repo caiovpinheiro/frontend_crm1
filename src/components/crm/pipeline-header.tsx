@@ -134,11 +134,13 @@ export function PipelineHeader({
   // do hambúrguer (menuSlot), então o botão dedicado foi removido.
   void onNewDeal
   const actionButtons = !hideActions ? (
-    <HeaderPillToggle
-      options={VIEW_OPTIONS}
-      value={view}
-      onChange={(v) => handleViewChange(v)}
-    />
+    <div data-tour="pipeline-views">
+      <HeaderPillToggle
+        options={VIEW_OPTIONS}
+        value={view}
+        onChange={(v) => handleViewChange(v)}
+      />
+    </div>
   ) : null
 
   // Se tabsOverride não foi fornecido, renderizamos as tabs padrão.

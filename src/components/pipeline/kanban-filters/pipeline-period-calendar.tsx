@@ -38,21 +38,23 @@ export function PipelinePeriodCalendar({
   const active = isPeriodFilterActive(filters)
 
   return (
-    <PeriodCalendarButton active={active}>
-      <PeriodIsoRangePanel
-        from={createdFrom}
-        to={createdTo}
-        onChange={({ from, to }) => onPatch({ createdAt: rangeFromIso(from, to) })}
-        rangeLabel="Criação"
-        secondary={{
-          label: "Fechamento",
-          from: closedFrom,
-          to: closedTo,
-          onChange: ({ from, to }) => onPatch({ closedAt: rangeFromIso(from, to) }),
-        }}
-        allowClear
-        onClear={() => onPatch({ createdAt: undefined, closedAt: undefined })}
-      />
-    </PeriodCalendarButton>
+    <div data-tour="pipeline-period" className="flex shrink-0">
+      <PeriodCalendarButton active={active}>
+        <PeriodIsoRangePanel
+          from={createdFrom}
+          to={createdTo}
+          onChange={({ from, to }) => onPatch({ createdAt: rangeFromIso(from, to) })}
+          rangeLabel="Criação"
+          secondary={{
+            label: "Fechamento",
+            from: closedFrom,
+            to: closedTo,
+            onChange: ({ from, to }) => onPatch({ closedAt: rangeFromIso(from, to) }),
+          }}
+          allowClear
+          onClear={() => onPatch({ createdAt: undefined, closedAt: undefined })}
+        />
+      </PeriodCalendarButton>
+    </div>
   )
 }
