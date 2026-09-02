@@ -26,7 +26,7 @@ function toDriveSteps(
       title: step.title,
       description: step.description,
       side: step.side ?? "bottom",
-      align: "start",
+      align: "center",
     },
   }));
 }
@@ -47,9 +47,11 @@ export function startPageTour(id: string): void {
     allowClose: true,
     overlayColor: overlayColor(),
     overlayOpacity: 0.42,
-    stagePadding: 8,
-    stageRadius: 16,
-    popoverOffset: 12,
+    // Padding grande + slot de busca 32rem fazia o recorte engolir o
+    // calendário e parecer que o clique fica “ao lado” do controle.
+    stagePadding: 4,
+    stageRadius: 12,
+    popoverOffset: 8,
     popoverClass: "bwipo-driver-popover",
     showProgress: true,
     progressText: "{{current}} de {{total}}",
@@ -58,6 +60,13 @@ export function startPageTour(id: string): void {
     doneBtnText: "Concluir",
     skipMissingElement: true,
     waitForElement: 2500,
+    onHighlighted: () => {
+      // `.v2-root { zoom: 0.93 }` + 1º paint: o SVG do overlay às vezes
+      // mede antes do layout final. O Driver.js re-mede no resize.
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+    },
     onDestroyed: () => {
       activeTour = null;
     },

@@ -133,8 +133,8 @@ export function PipelineSearchFilterBar({
   }
 
   return (
-    <div className={className} data-tour="pipeline-search">
-      <div ref={menu.wrapRef}>
+    <div className={className}>
+      <div ref={menu.wrapRef} data-tour="pipeline-search" className="w-full min-w-0">
         <FilterSearchTrigger
           search={search}
           onSearch={onSearch}
