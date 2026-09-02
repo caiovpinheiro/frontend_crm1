@@ -83,7 +83,9 @@ export type DistributionReason =
   | "ASSIGNED"
   | "SMART_DISTRIBUTION_NOT_ENABLED"
   | "NO_ELIGIBLE_RESPONSIBLE"
-  | "NO_DEPARTMENT";
+  | "NO_DEPARTMENT"
+  | "RETIRED_WHATSAPP_CHANNEL"
+  | "QUEUED";
 
 export interface DistributionResult {
   success: boolean;
