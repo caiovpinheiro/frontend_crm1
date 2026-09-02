@@ -82,6 +82,7 @@ import {
   useInboxSoundMuted,
   useInboxUrlSync,
   matchesConversationUrlRef,
+  inboxConversationApiId,
   CONVERSATION_REOPENED_EVENT,
 } from "@/features/inbox-v2/hooks";
 import {
@@ -635,13 +636,25 @@ export default function InboxV2ClientPage({
   // do filtro da aba (Encerrar), não é deep-link inválido.
   useEffect(() => {
     if (needsDeepLinkFetch && deepLinkError && listData !== undefined) {
+      if (foundActiveRow) return;
       if (stickyRow && matchesConversationUrlRef(stickyRow, activeId)) return;
       toast.error(
         deepLinkError.message || "Conversa não encontrada ou sem permissão.",
       );
       setActiveId(null);
     }
-  }, [needsDeepLinkFetch, deepLinkError, listData, stickyRow, activeId]);
+  }, [needsDeepLinkFetch, deepLinkError, listData, stickyRow, activeId, foundActiveRow]);
+
+  const conversationApiId = inboxConversationApiId(
+    activeId,
+    foundActiveRow ??
+      (deepLinkRow && matchesConversationUrlRef(deepLinkRow, activeId)
+        ? deepLinkRow
+        : null) ??
+      (stickyRow && matchesConversationUrlRef(stickyRow, activeId)
+        ? stickyRow
+        : null),
+  );
 
   const activeRow = stickyRow;
   const { closeActiveConversation } = useInboxUrlSync(
@@ -665,7 +678,7 @@ export default function InboxV2ClientPage({
     isFetchingOlder,
     isPending: messagesPending,
     isError: messagesFailed,
-  } = useMessages(activeId);
+  } = useMessages(conversationApiId);
   const messages = messagesData?.messages ?? [];
   const sessionInfo = messagesData?.session;
 
@@ -675,7 +688,7 @@ export default function InboxV2ClientPage({
   // Só após prefs (tab/filtros) — evita invalidate lista+counts no
   // connect enquanto a query key ainda está mudando no hydrate.
   useInboxRealtime({
-    activeConversationId: activeId,
+    activeConversationId: conversationApiId,
     currentUserId: session?.user?.id ?? null,
     enabled: isAuthenticated && tabHydrated && filtersHydrated,
   });
@@ -728,11 +741,11 @@ export default function InboxV2ClientPage({
   }, []);
 
   // ── Mutations ───────────────────────────────────────────────────
-  const sendMessage = useSendMessage(activeId);
-  const reactMessage = useReactMessage(activeId);
-  const pinMessage = usePinMessage(activeId);
-  const unpinMessage = useUnpinMessage(activeId);
-  const favoriteMessageMutation = useFavoriteMessage(activeId);
+  const sendMessage = useSendMessage(conversationApiId);
+  const reactMessage = useReactMessage(conversationApiId);
+  const pinMessage = usePinMessage(conversationApiId);
+  const unpinMessage = useUnpinMessage(conversationApiId);
+  const favoriteMessageMutation = useFavoriteMessage(conversationApiId);
   const markRead = useMarkConversationRead();
   const bulkAction = useBulkConversationAction();
   const { requestDuration: requestPinDuration, dialog: pinDurationDialog } = usePinDurationDialog();
@@ -743,7 +756,7 @@ export default function InboxV2ClientPage({
   // substitui. Repassamos `""` pra remoção (backend interpreta como
   // toggle-off + envia reaction vazia à Meta pra limpar no cliente).
   function handleReactMessage(msg: { id: string }, emoji: string | null) {
-    if (!activeId) return;
+    if (!conversationApiId) return;
     // `null` = abrir picker (UI); não muta. `""` = remover reação.
     if (emoji == null) return;
     reactMessage.mutate(
@@ -758,7 +771,7 @@ export default function InboxV2ClientPage({
   // WhatsApp). Fixar uma NOVA abre o picker de duração (24h/7d/30d) antes
   // de confirmar. Várias podem ficar fixadas ao mesmo tempo (máx. 3).
   async function handlePinMessage(msg: { id: string; isPinnedMessage?: boolean }) {
-    if (!activeId) return;
+    if (!conversationApiId) return;
     if (msg.isPinnedMessage) {
       unpinMessage.mutate(
         { messageId: msg.id },
@@ -781,7 +794,7 @@ export default function InboxV2ClientPage({
   }
 
   function handleUnpinMessage(messageId: string) {
-    if (!activeId) return;
+    if (!conversationApiId) return;
     unpinMessage.mutate(
       { messageId },
       { onError: (err) => toast.error(err.message || "Falha ao desafixar") },
@@ -969,7 +982,7 @@ export default function InboxV2ClientPage({
   // Ticket só-template / lastInbound denormalizado stale ficava sem "Expirada"
   // no card enquanto o composer já bloqueava envio.
   useEffect(() => {
-    if (!activeId || !sessionInfo) return;
+    if (!conversationApiId || !sessionInfo) return;
     const nextInbound = sessionInfo.lastInboundAt ?? null;
     qc.setQueriesData<{
       pages: { items: { id: string; lastInboundAt: string | null }[] }[];
@@ -979,7 +992,7 @@ export default function InboxV2ClientPage({
       let changed = false;
       const pages = old.pages.map((page) => {
         const items = (page.items ?? []).map((row) => {
-          if (row.id !== activeId) return row;
+          if (row.id !== conversationApiId && !matchesConversationUrlRef(row, activeId)) return row;
           const prev = row.lastInboundAt ?? null;
           if (prev === nextInbound) return row;
           changed = true;
@@ -989,7 +1002,7 @@ export default function InboxV2ClientPage({
       });
       return changed ? { ...old, pages } : old;
     });
-  }, [activeId, sessionInfo, sessionInfo?.lastInboundAt, sessionInfo?.active, qc]);
+  }, [activeId, conversationApiId, sessionInfo, sessionInfo?.lastInboundAt, sessionInfo?.active, qc]);
 
   const [inboxRefreshing, setInboxRefreshing] = useState(false);
   const refreshInboxQueue = async () => {
@@ -1076,7 +1089,7 @@ export default function InboxV2ClientPage({
   );
   const { selectedChannelId, setSelectedChannelId } = useSelectedOutboundChannel(
     {
-      conversationId: activeId,
+      conversationId: conversationApiId,
       conversationChannelId,
       availableChannels: whatsappChannels,
       lastMessageChannelId,
@@ -1098,7 +1111,7 @@ export default function InboxV2ClientPage({
   // "24h encerrada" mesmo com janela aberta naquele chip.
   const { data: selectedSession, isFetched: selectedSessionFetched } =
     useChannelSession(
-      activeId,
+      conversationApiId,
       selectedChannelId,
       applyWhatsappSession && channelOverrideActive,
     );
@@ -1142,7 +1155,7 @@ export default function InboxV2ClientPage({
   }
 
   async function handleSend(value: string) {
-    if (!activeId) return;
+    if (!conversationApiId) return;
     try {
       const data = await sendMessage.mutateAsync({
         content: value,
@@ -1179,7 +1192,7 @@ export default function InboxV2ClientPage({
   }
 
   function handleSendNote(value: string) {
-    if (!activeId) return;
+    if (!conversationApiId) return;
     sendMessage.mutate(
       { content: value, asNote: true },
       {
@@ -1608,7 +1621,7 @@ export default function InboxV2ClientPage({
         </TooltipGlass>
       )}
       <TagsPopover
-        conversationId={activeId}
+        conversationId={conversationApiId}
         currentTags={activeTags}
       />
     </div>
@@ -1662,7 +1675,7 @@ export default function InboxV2ClientPage({
           currentOwnerId={firstDealDetail?.owner?.id ?? null}
           currentOwnerName={firstDealDetail?.owner?.name ?? null}
           pipelineId={firstDealPipelineId}
-          conversationId={activeId}
+          conversationId={conversationApiId}
           conversationAssigneeId={activeRow?.assignedTo?.id ?? null}
           askTransferConversation={async ({ newOwnerId, newOwnerName }) => {
             const name = newOwnerName.trim() || "este responsável";
@@ -1683,8 +1696,8 @@ export default function InboxV2ClientPage({
             });
           }}
           onTransferConversation={async (assignedToId) => {
-            if (!activeId) return;
-            await postConversationAction(activeId, {
+            if (!conversationApiId) return;
+            await postConversationAction(conversationApiId, {
               action: "assign",
               assignedToId,
             });
@@ -1774,8 +1787,8 @@ export default function InboxV2ClientPage({
   // Timeline da CONVERSA (nao do deal) — sempre disponivel quando ha
   // conversa ativa, mesmo sem deal vinculado. Ver AGENT.md "ID de
   // conversa + logs + gatilho".
-  const timelineSlot = activeId ? (
-    <ConversationTimelineTab conversationId={activeId} />
+  const timelineSlot = conversationApiId ? (
+    <ConversationTimelineTab conversationId={conversationApiId} />
   ) : (
     <NoDealTab message="Selecione uma conversa para ver a timeline." />
   );
@@ -1840,7 +1853,7 @@ export default function InboxV2ClientPage({
               }
             />
             <ConversationActionsMenu
-              conversationId={activeId}
+              conversationId={conversationApiId}
               conversationNumber={activeRow?.number}
               contactId={activeContactId}
               isResolved={activeRow.status === "RESOLVED"}
@@ -1893,7 +1906,7 @@ export default function InboxV2ClientPage({
         }
         composerSlot={
           <Composer
-            conversationId={activeId}
+            conversationId={conversationApiId}
             value={draft}
             onChange={setDraft}
             onSend={handleSend}
@@ -1953,7 +1966,7 @@ export default function InboxV2ClientPage({
               <RequirePermission permission="conversation:transfer">
                 <TransferPopover
                   variant="composer"
-                  conversationId={activeId}
+                  conversationId={conversationApiId}
                   currentAssigneeId={activeRow.assignedTo?.id ?? null}
                   currentDepartmentId={
                     activeRow.departmentId ?? activeRow.department?.id ?? null
@@ -2027,7 +2040,7 @@ export default function InboxV2ClientPage({
     <WhatsappTemplatePickerModal
       open={templateOpen}
       onClose={() => setTemplateOpen(false)}
-      conversationId={activeId}
+      conversationId={conversationApiId}
       channelId={selectedChannelId}
       contactName={contactName || null}
       onPick={(tpl) => {
@@ -2046,7 +2059,7 @@ export default function InboxV2ClientPage({
       <FavoritesPanel
         open={favoritesOpen}
         onOpenChange={setFavoritesOpen}
-        conversationId={activeId}
+        conversationId={conversationApiId}
       />
     </>
   );
