@@ -302,10 +302,11 @@ export function PagePrimaryButton({
   );
 }
 
-// ── Menu hamburger (padrão Pipeline) ─────────────────────────────────────────
+// ── Menu de ações (padrão Pipeline) ─────────────────────────────────────────
 //
 // Referência: PipelineKebabMenu
-//   • 1º CTA (primary): azul permanente + hover fundo brand/8
+//   • 1 item só (adicionar): botão `+` dispara a ação direto
+//   • 2+ itens: hamburger; 1º CTA (primary) azul permanente
 //   • Demais itens: cinza → hover fundo primary-soft + texto/ícone azul
 //   • Ícones herdam a cor do botão (sem wrapper muted)
 
