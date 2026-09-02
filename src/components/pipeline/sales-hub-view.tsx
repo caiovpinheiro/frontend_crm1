@@ -92,6 +92,8 @@ type ConversationRow = {
   lastInboundAt?: string | null;
   assignedToId: string | null;
   assignedTo?: { id: string; name: string; email?: string | null } | null;
+  departmentId?: string | null;
+  department?: { id: string; requireTabulationOnClose?: boolean } | null;
   tags?: { id?: string; name: string; color: string }[] | null;
 };
 
@@ -971,6 +973,15 @@ export function SalesHubView({
                     }
                     isResolved={activeConversation.status === "RESOLVED"}
                     assigneeId={activeConversation.assignedToId ?? null}
+                    departmentId={
+                      activeConversation.departmentId ??
+                      activeConversation.department?.id ??
+                      null
+                    }
+                    requireTabulationOnClose={
+                      activeConversation.department?.requireTabulationOnClose ??
+                      false
+                    }
                     onResolved={() => {
                       queryClient.invalidateQueries({
                         queryKey: [

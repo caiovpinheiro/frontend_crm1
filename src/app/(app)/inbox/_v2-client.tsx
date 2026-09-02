@@ -394,6 +394,9 @@ export default function InboxV2ClientPage({
   const [bulkTabulationDeptId, setBulkTabulationDeptId] = useState<string | null>(
     null,
   );
+  const [bulkTabulationUserId, setBulkTabulationUserId] = useState<string | null>(
+    null,
+  );
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const pendingBulkRef = useRef<{
     useAllInFilter: boolean;
@@ -939,9 +942,11 @@ export default function InboxV2ClientPage({
     pendingBulkRef.current = { useAllInFilter, ids };
     const picked = pickBulkCloseDepartment(displayRows, selectedIds, {
       allInFilter: useAllInFilter,
+      fallbackUserId: session?.user?.id ?? null,
     });
-    if (picked.departmentId) {
+    if (picked.departmentId || picked.userId) {
       setBulkTabulationDeptId(picked.departmentId);
+      setBulkTabulationUserId(picked.departmentId ? null : picked.userId);
       setBulkTabulationOpen(true);
       return;
     }
@@ -1447,6 +1452,7 @@ export default function InboxV2ClientPage({
               if (!open) pendingBulkRef.current = null;
             }}
             departmentId={bulkTabulationDeptId}
+            userId={bulkTabulationUserId}
             submitting={bulkAction.isPending}
             allowSkipAutomations={canSkipAutomations}
             onConfirm={(tabulationId, extra) => {
@@ -1905,6 +1911,7 @@ export default function InboxV2ClientPage({
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
             departmentId={activeRow.departmentId ?? activeRow.department?.id ?? null}
+            assignedToId={activeRow.assignedToId ?? null}
             requireTabulationOnClose={
               activeRow.department?.requireTabulationOnClose ?? false
             }

@@ -109,6 +109,7 @@ export function Composer({
   replyTo,
   onCancelReply,
   departmentId,
+  assignedToId,
   requireTabulationOnClose,
   onReopenNewConversation,
   onResolved,
@@ -179,6 +180,7 @@ export function Composer({
   /** Departamento da conversa — propagado ao ComposerMenu para abrir
    *  modal de tabulacao ao encerrar quando o dept exige. */
   departmentId?: string | null;
+  assignedToId?: string | null;
   requireTabulationOnClose?: boolean;
   /** Reabrir pelo menu "+" cria um NOVO ticket (modelo de ticket); troca o
    *  chat ativo pro id novo. Sem isto o reopen acontece no backend mas a UI
@@ -1121,6 +1123,7 @@ export function Composer({
                   conversationId={conversationId}
                   isResolved={isResolved}
                   departmentId={departmentId}
+                  assignedToId={assignedToId}
                   requireTabulationOnClose={requireTabulationOnClose}
                   onReopenNewConversation={onReopenNewConversation}
                   onResolved={onResolved}
@@ -1159,6 +1162,7 @@ export function Composer({
               onPickInternal={insertTemplateText}
               onPickTemplate={(tpl) => setPendingTemplate(whatsappTemplateToPending(tpl))}
               departmentId={departmentId ?? null}
+              assignedToId={assignedToId}
               requireTabulationOnClose={requireTabulationOnClose}
               onReopenNewConversation={onReopenNewConversation}
               onResolved={onResolved}

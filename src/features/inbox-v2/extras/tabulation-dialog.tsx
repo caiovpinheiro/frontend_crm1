@@ -34,8 +34,29 @@ function normalizeSearch(s: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function countActiveChildren(node: TabulationNode): number {
-  return node.children.filter((c) => c.active).length;
+function hasActiveDescendant(node: TabulationNode): boolean {
+  return node.children.some((c) => c.active || hasActiveDescendant(c));
+}
+
+function isFolder(node: TabulationNode): boolean {
+  return hasActiveDescendant(node);
+}
+
+/**
+ * Nível visível no Encerrar: só nós ativos. Filhos de pasta inativa sobem
+ * — `active` é por nó (o toggle em Settings não desliga a subárvore).
+ */
+function visibleAtLevel(nodes: TabulationNode[]): TabulationNode[] {
+  const out: TabulationNode[] = [];
+  for (const n of nodes) {
+    if (n.active) out.push(n);
+    else out.push(...visibleAtLevel(n.children));
+  }
+  return out;
+}
+
+function countVisibleChildren(node: TabulationNode): number {
+  return visibleAtLevel(node.children).length;
 }
 
 function itemsLabel(count: number): string {
@@ -52,29 +73,31 @@ function collectSearchHits(
 ): SearchHit[] {
   const hits: SearchHit[] = [];
   for (const node of nodes) {
-    if (!node.active) continue;
-    if (normalizeSearch(node.name).includes(q)) {
+    if (node.active && normalizeSearch(node.name).includes(q)) {
       hits.push({ node, trail });
     }
     if (node.children.length > 0) {
-      hits.push(...collectSearchHits(node.children, q, [...trail, node]));
+      const nextTrail = node.active ? [...trail, node] : trail;
+      hits.push(...collectSearchHits(node.children, q, nextTrail));
     }
   }
   return hits;
 }
 
-/** Departamento dominante entre as conversas selecionadas — só escolhe a árvore do modal. A folha vale para o lote inteiro. */
+/** Departamento dominante entre as conversas selecionadas — só escolhe a árvore do modal. A folha vale para o lote inteiro. Sem depto: agente (único assignee ou o usuário atual). */
 export function pickBulkCloseDepartment(
   rows: Array<{
     id: string;
     status?: string;
+    assignedToId?: string | null;
     departmentId?: string | null;
     department?: { id: string; requireTabulationOnClose?: boolean } | null;
   }>,
   selectedIds: Iterable<string>,
-  opts?: { allInFilter?: boolean },
+  opts?: { allInFilter?: boolean; fallbackUserId?: string | null },
 ): {
   departmentId: string | null;
+  userId: string | null;
   requireTabulationOnClose: boolean;
   mixed: boolean;
 } {
@@ -96,7 +119,22 @@ export function pickBulkCloseDepartment(
     });
   }
   if (counts.size === 0) {
-    return { departmentId: null, requireTabulationOnClose: false, mixed: false };
+    const assignees = [
+      ...new Set(
+        pool
+          .map((r) => r.assignedToId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    ];
+    return {
+      departmentId: null,
+      userId:
+        assignees.length === 1
+          ? assignees[0]!
+          : (opts?.fallbackUserId ?? null),
+      requireTabulationOnClose: false,
+      mixed: assignees.length > 1,
+    };
   }
   let bestId: string | null = null;
   let bestN = -1;
@@ -110,6 +148,7 @@ export function pickBulkCloseDepartment(
   }
   return {
     departmentId: bestId,
+    userId: null,
     requireTabulationOnClose: bestRequire,
     mixed: counts.size > 1,
   };
@@ -119,6 +158,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   departmentId: string | null;
+  /** Sem departamento na conversa: carrega as árvores dos depts do agente. */
+  userId?: string | null;
   /** Callback recebe o id da folha escolhida. */
   onConfirm: (
     tabulationId: string,
@@ -140,17 +181,36 @@ export function TabulationDialog({
   open,
   onOpenChange,
   departmentId,
+  userId,
   onConfirm,
   optional,
   submitting,
   allowSkipAutomations,
 }: Props) {
   const query = useQuery({
-    queryKey: ["inbox-tabulations", departmentId ?? ""],
-    queryFn: () => getTabulations(departmentId!),
-    enabled: open && !!departmentId,
+    queryKey: ["inbox-tabulations", departmentId ?? "", userId ?? ""],
+    queryFn: () => getTabulations({ departmentId, userId }),
+    enabled: open && (!!departmentId || !!userId),
     staleTime: 30_000,
   });
+
+  const forest = useMemo((): TabulationNode[] => {
+    const groups = query.data?.groups ?? [];
+    if (groups.length > 1) {
+      return groups
+        .filter((g) => visibleAtLevel(g.tree).length > 0)
+        .map((g, i) => ({
+          id: `__dept__${g.departmentId}`,
+          parentId: null,
+          name: g.departmentName,
+          color: null,
+          position: i,
+          active: true,
+          children: g.tree,
+        }));
+    }
+    return query.data?.tree ?? groups[0]?.tree ?? [];
+  }, [query.data]);
 
   // path[]: caminho atual (categoria pai -> ... -> nó selecionado).
   // Se o ultimo do path for folha, permite confirmar.
@@ -173,21 +233,21 @@ export function TabulationDialog({
   }, [open]);
 
   const isLeafSelected =
-    path.length > 0 && path[path.length - 1].children.length === 0;
+    path.length > 0 && !isFolder(path[path.length - 1]);
 
   const folderPath = isLeafSelected ? path.slice(0, -1) : path;
 
   const currentChildren: TabulationNode[] = useMemo(() => {
     if (!query.data) return [];
     const last = path[path.length - 1];
-    if (!last) return query.data.tree.filter((n) => n.active);
-    if (last.children.length === 0) {
+    if (!last) return visibleAtLevel(forest);
+    if (!isFolder(last)) {
       const parent = path[path.length - 2];
-      const siblings = parent ? parent.children : query.data.tree;
-      return siblings.filter((n) => n.active);
+      const siblings = parent ? parent.children : forest;
+      return visibleAtLevel(siblings);
     }
-    return last.children.filter((n) => n.active);
-  }, [query.data, path]);
+    return visibleAtLevel(last.children);
+  }, [query.data, forest, path]);
 
   const listed: SearchHit[] = useMemo(() => {
     const q = normalizeSearch(search.trim());
@@ -198,10 +258,10 @@ export function TabulationDialog({
   const isSearching = normalizeSearch(search.trim()).length > 0;
 
   function selectNode(n: TabulationNode, trail: TabulationNode[]) {
-    if (n.children.length > 0) setSearch("");
+    if (isFolder(n)) setSearch("");
     setPath((prev) => {
       const base =
-        prev.length > 0 && prev[prev.length - 1].children.length === 0
+        prev.length > 0 && !isFolder(prev[prev.length - 1])
           ? prev.slice(0, -1)
           : prev;
       return [...base, ...trail, n];
@@ -213,7 +273,7 @@ export function TabulationDialog({
     setPath((prev) => {
       if (prev.length === 0) return prev;
       const last = prev[prev.length - 1];
-      if (last.children.length === 0) return prev.slice(0, -2);
+      if (!isFolder(last)) return prev.slice(0, -2);
       return prev.slice(0, -1);
     });
   }
@@ -223,7 +283,12 @@ export function TabulationDialog({
     listRef.current?.scrollTo({ top: 0 });
   }, [path.length, search]);
 
-  const canConfirm = isLeafSelected && !submitting;
+  const requireOnClose = query.data?.requireTabulationOnClose ?? !optional;
+  const emptyForest =
+    query.isSuccess && forest.length === 0 && path.length === 0;
+  const canConfirm =
+    !submitting &&
+    (isLeafSelected || (emptyForest && !requireOnClose));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -313,7 +378,9 @@ export function TabulationDialog({
               {isSearching
                 ? `Nenhuma tabulação encontrada para “${search.trim()}”.`
                 : path.length === 0
-                  ? "Nenhuma tabulação disponível para este departamento."
+                  ? departmentId
+                    ? "Nenhuma tabulação disponível para este departamento."
+                    : "Nenhuma tabulação nos departamentos deste agente."
                   : "Fim do ramo — selecione esta opção para confirmar."}
             </div>
           ) : (
@@ -322,7 +389,7 @@ export function TabulationDialog({
               className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pr-0.5"
             >
               {listed.map(({ node: n, trail }) => {
-                const hasChildren = n.children.length > 0;
+                const hasChildren = isFolder(n);
                 const selected =
                   !hasChildren &&
                   path.length > 0 &&
@@ -337,7 +404,7 @@ export function TabulationDialog({
                       <FolderRow
                         name={n.name}
                         trailLabel={trailLabel}
-                        count={countActiveChildren(n)}
+                        count={countVisibleChildren(n)}
                         onClick={() => selectNode(n, trail)}
                       />
                     ) : (
@@ -397,14 +464,20 @@ export function TabulationDialog({
               className="px-5"
               disabled={!canConfirm}
               onClick={() => {
-                const leaf = path[path.length - 1];
-                if (!leaf || leaf.children.length > 0) return;
-                onConfirm(leaf.id, {
+                const extra = {
                   skipAutomations: allowSkipAutomations
                     ? skipAutomations
                     : undefined,
                   followUp: mode === "follow_up",
-                });
+                };
+                const leaf = path[path.length - 1];
+                if (leaf && !isFolder(leaf)) {
+                  onConfirm(leaf.id, extra);
+                  return;
+                }
+                if (emptyForest && !requireOnClose) {
+                  onConfirm("", extra);
+                }
               }}
             >
               {submitting

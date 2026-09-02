@@ -106,6 +106,7 @@ export function ConversationActionsMenu({
       conversationId,
       isResolved,
       departmentId,
+      assignedToId: _assigneeId,
       requireTabulationOnClose,
       contactId,
       contactName,

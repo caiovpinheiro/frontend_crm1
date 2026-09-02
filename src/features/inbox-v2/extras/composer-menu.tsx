@@ -66,6 +66,7 @@ export function ComposerMenu({
   onResolved,
   onFollowedUp,
   departmentId,
+  assignedToId,
   requireTabulationOnClose,
   outboundDisabled,
   beforeOutboundSend,
@@ -108,6 +109,7 @@ export function ComposerMenu({
   onFollowedUp?: (conversationId: string) => void;
   /** Departamento vinculado — abre modal de tabulacao quando encerrar. */
   departmentId?: string | null;
+  assignedToId?: string | null;
   requireTabulationOnClose?: boolean;
   /** Bloqueia anexos/foto/agenda de texto livre (sessão 24h encerrada). Templates seguem ok. */
   outboundDisabled?: boolean;
@@ -178,6 +180,7 @@ export function ComposerMenu({
       conversationId,
       isResolved,
       departmentId,
+      assignedToId,
       requireTabulationOnClose,
       contactId,
       contactName,

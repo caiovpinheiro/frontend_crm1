@@ -215,19 +215,30 @@ export type TabulationNode = {
   children: TabulationNode[];
 };
 
-export interface TabulationsResponse {
+export interface TabulationDepartmentGroup {
   departmentId: string;
+  departmentName: string;
   requireTabulationOnClose: boolean;
   tree: TabulationNode[];
 }
 
-/** GET /api/tabulations?departmentId=xxx — leitura para agentes */
-export async function getTabulations(
-  departmentId: string,
-): Promise<TabulationsResponse> {
-  const res = await fetch(
-    apiUrl(`/api/tabulations?departmentId=${encodeURIComponent(departmentId)}`),
-  );
+export interface TabulationsResponse {
+  departmentId: string | null;
+  userId?: string | null;
+  requireTabulationOnClose: boolean;
+  tree: TabulationNode[];
+  groups?: TabulationDepartmentGroup[];
+}
+
+/** GET /api/tabulations?departmentId= | ?userId= — leitura para agentes */
+export async function getTabulations(scope: {
+  departmentId?: string | null;
+  userId?: string | null;
+}): Promise<TabulationsResponse> {
+  const params = new URLSearchParams();
+  if (scope.departmentId) params.set("departmentId", scope.departmentId);
+  else if (scope.userId) params.set("userId", scope.userId);
+  const res = await fetch(apiUrl(`/api/tabulations?${params.toString()}`));
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
@@ -257,15 +268,17 @@ export interface ConversationActionResponse {
 export class ConversationActionError extends Error {
   code?: string;
   departmentId?: string | null;
+  userId?: string | null;
 
   constructor(
     message: string,
-    opts?: { code?: string; departmentId?: string | null },
+    opts?: { code?: string; departmentId?: string | null; userId?: string | null },
   ) {
     super(message);
     this.name = "ConversationActionError";
     this.code = opts?.code;
     this.departmentId = opts?.departmentId ?? null;
+    this.userId = opts?.userId ?? null;
   }
 }
 
@@ -287,6 +300,7 @@ export async function postConversationAction(
         code: typeof data?.code === "string" ? data.code : undefined,
         departmentId:
           typeof data?.departmentId === "string" ? data.departmentId : null,
+        userId: typeof data?.userId === "string" ? data.userId : null,
       },
     );
   }

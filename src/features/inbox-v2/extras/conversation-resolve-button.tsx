@@ -16,6 +16,7 @@ export function ConversationResolveButton({
   conversationId,
   isResolved,
   departmentId,
+  assignedToId,
   requireTabulationOnClose,
   onReopenNewConversation,
   onResolved,
@@ -27,6 +28,7 @@ export function ConversationResolveButton({
   conversationId: string | null;
   isResolved?: boolean;
   departmentId?: string | null;
+  assignedToId?: string | null;
   requireTabulationOnClose?: boolean;
   onReopenNewConversation?: (newConversationId: string) => void;
   /** Após Encerrar — atualiza sticky/status local sem refetch do id. */
@@ -41,6 +43,7 @@ export function ConversationResolveButton({
       conversationId,
       isResolved,
       departmentId,
+      assignedToId,
       requireTabulationOnClose,
       contactId,
       contactName,

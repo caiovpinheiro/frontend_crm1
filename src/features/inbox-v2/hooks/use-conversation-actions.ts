@@ -114,6 +114,7 @@ export function useToggleConversationResolve(
     onTabulationRequired?: (info: {
       conversationId: string;
       departmentId: string | null;
+      userId?: string | null;
     }) => void;
   },
 ) {
@@ -221,6 +222,7 @@ export function useToggleConversationResolve(
           callbacks.onTabulationRequired({
             conversationId: vars.conversationId,
             departmentId: err.departmentId ?? null,
+            userId: err.userId ?? null,
           });
           return;
         }
