@@ -27,6 +27,7 @@ import {
 } from "@/features/inbox-v2/hooks";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useExecuteDistribution } from "@/features/distribution/hooks";
+import { applyDistributionToast } from "@/features/distribution/outcome-toast";
 import { apiUrl } from "@/lib/api";
 import { useHideChatEvents } from "@/components/crm/chat-timeline";
 import { useResolveConversationFlow } from "./use-resolve-conversation-flow";
@@ -246,21 +247,7 @@ export function ConversationActionsMenu({
             name: dept.name,
             requireTabulationOnClose: dept.requireTabulationOnClose,
           });
-          if (result.success) {
-            toast.success(
-              result.selectedUserName
-                ? `Distribuído para ${result.selectedUserName} (${dept.name}).`
-                : `Distribuído no departamento ${dept.name}.`,
-            );
-          } else if (result.reason === "NO_ELIGIBLE_RESPONSIBLE") {
-            toast.warning(
-              `Nenhum agente elegível em ${dept.name}. Lead enviado à fila de espera.`,
-            );
-          } else if (result.reason === "SMART_DISTRIBUTION_NOT_ENABLED") {
-            toast.error("Módulo de Distribuição não habilitado.");
-          } else {
-            toast.error("Não foi possível distribuir.");
-          }
+          applyDistributionToast(toast, result, dept.name);
         },
         onError: (err) => toast.error(err.message || "Erro ao distribuir."),
       },

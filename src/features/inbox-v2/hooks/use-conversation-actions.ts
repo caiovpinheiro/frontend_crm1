@@ -11,6 +11,7 @@ import {
   type BulkAction,
   type ConversationListRow,
 } from "../api";
+import { distributionOutcomeToast } from "@/features/distribution/outcome-toast";
 import { messagesKey } from "./use-messages";
 
 /** Atribuir conversa (assign) — comportamento otimista. */
@@ -68,11 +69,18 @@ export function useTransferConversation() {
     onSuccess: (data, vars) => {
       const dist = data.distribution;
       if (vars.departmentId != null) {
-        toast.success(
-          dist?.success && dist.selectedUserName
-            ? `Transferida ao departamento — atribuída a ${dist.selectedUserName}`
-            : "Conversa transferida para o departamento",
-        );
+        if (dist?.reason === "QUEUED") {
+          toast.info("Transferida para o departamento. Distribuição em andamento.");
+        } else if (dist && dist.success === false) {
+          const mapped = distributionOutcomeToast(dist);
+          toast[mapped.tone](mapped.message);
+        } else {
+          toast.success(
+            dist?.success && dist.selectedUserName
+              ? `Transferida ao departamento — atribuída a ${dist.selectedUserName}`
+              : "Conversa transferida para o departamento",
+          );
+        }
       } else {
         toast.success("Conversa transferida");
       }
