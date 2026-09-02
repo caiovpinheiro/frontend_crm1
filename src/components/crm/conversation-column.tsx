@@ -182,14 +182,14 @@ function statusVisual(tab: { id?: string; label?: string } | string | undefined)
   if (id === "agente_ia" || l.includes("agente"))
     return {
       Icon: IconSparkles,
-      bg: "var(--color-lavender-soft)",
-      fg: "var(--color-lavender)",
+      bg: "var(--color-chip-violet-soft)",
+      fg: "var(--color-chip-violet)",
     }
   if (id === "automacao" || l.includes("automa"))
     return {
       Icon: IconRobot,
-      bg: "var(--color-lavender-soft)",
-      fg: "var(--color-lavender)",
+      bg: "var(--color-chip-violet-soft)",
+      fg: "var(--color-chip-violet)",
     }
   if (id === "finalizados" || l.includes("finaliz") || l.includes("encerr"))
     return {
@@ -328,6 +328,7 @@ export function ConversationColumn({
     top: number
     left: number
     width: number
+    maxHeight: number
   } | null>(null)
 
   useEffect(() => {
@@ -335,7 +336,13 @@ export function ConversationColumn({
     const el = dropdownBtnRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    setDropdownPos({ top: r.bottom + 6, left: r.left, width: r.width })
+    const top = r.bottom + 6
+    setDropdownPos({
+      top,
+      left: r.left,
+      width: r.width,
+      maxHeight: Math.max(220, window.innerHeight - top - 12),
+    })
     function onDocClick(e: MouseEvent) {
       const target = e.target as Node
       if (el && el.contains(target)) return
@@ -459,28 +466,29 @@ export function ConversationColumn({
           <div
             role="listbox"
             aria-label="Filas da caixa de entrada"
-            className="fixed z-(--z-above) flex max-h-[min(70vh,36rem)] flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] shadow-[0_12px_32px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+            className="fixed z-(--z-above) flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] shadow-[0_12px_32px_rgba(15,23,42,0.18)] backdrop-blur-xl"
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
               width: Math.max(dropdownPos.width, 300),
+              maxHeight: dropdownPos.maxHeight,
               isolation: "isolate",
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-2 border-b border-[var(--glass-border-subtle)] px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2 border-b border-[var(--glass-border-subtle)] px-3 py-1.5">
               <span className="font-display text-[13px] font-semibold text-[var(--text-primary)]">
                 Caixa de entrada
               </span>
               <IconChevronDown size={15} className="rotate-180 text-[var(--text-muted)]" />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+            <div className="min-h-0 flex-1 overflow-y-auto px-1 py-0.5">
               {groupQueueTabs(tabs).map((group) => (
-                <div key={group.key} className="mb-1 last:mb-0">
+                <div key={group.key} className="mb-0.5 last:mb-0">
                   {group.label ? (
                     <p
                       className={cn(
-                        "px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider",
+                        "px-2 pb-0.5 pt-1 text-[10px] font-bold uppercase tracking-wider",
                         group.tone || "text-[var(--text-muted)]",
                       )}
                     >
@@ -502,22 +510,22 @@ export function ConversationColumn({
                           setDropdownOpen(false)
                         }}
                         className={cn(
-                          "flex w-full items-center gap-2.5 rounded-[var(--radius-md)] px-2 py-2 text-left transition-colors",
+                          "flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1 text-left transition-colors",
                           isActive
                             ? "bg-[var(--color-info-bg)]"
                             : "hover:bg-[var(--glass-bg-strong)]",
                         )}
                       >
                         <span
-                          className="flex size-8 shrink-0 items-center justify-center rounded-full"
+                          className="flex size-7 shrink-0 items-center justify-center rounded-full"
                           style={{ background: v.bg, color: v.fg }}
                         >
-                          <v.Icon size={15} stroke={2} />
+                          <v.Icon size={14} stroke={2} />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span
                             className={cn(
-                              "block truncate font-display text-[13px] font-semibold",
+                              "block truncate font-display text-[13px] font-semibold leading-tight",
                               isActive
                                 ? "text-[var(--color-info)]"
                                 : "text-[var(--text-primary)]",
@@ -526,7 +534,7 @@ export function ConversationColumn({
                             {tab.label}
                           </span>
                           {tab.description ? (
-                            <span className="mt-0.5 block truncate font-body text-[11px] text-[var(--text-muted)]">
+                            <span className="block truncate font-body text-[11px] leading-snug text-[var(--text-muted)]">
                               {tab.description}
                             </span>
                           ) : null}
@@ -534,7 +542,7 @@ export function ConversationColumn({
                         {tab.count !== undefined && tab.count !== null ? (
                           <span
                             className={cn(
-                              "shrink-0 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums",
+                              "shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-bold tabular-nums",
                               isActive
                                 ? "bg-[var(--color-info)] text-[var(--color-info-foreground)]"
                                 : "bg-[var(--glass-bg-subtle)] text-[var(--text-muted)]",
@@ -549,7 +557,7 @@ export function ConversationColumn({
                 </div>
               ))}
             </div>
-            <p className="flex items-center gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-2 font-body text-[11px] text-[var(--text-muted)]">
+            <p className="flex items-center gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-1.5 font-body text-[11px] text-[var(--text-muted)]">
               <IconInfoCircle size={13} className="shrink-0" />
               As contagens são atualizadas em tempo real
             </p>

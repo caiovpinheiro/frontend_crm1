@@ -31,9 +31,9 @@ export const INBOX_QUEUE_ITEMS: readonly InboxQueueItem[] = [
     id: "entrada",
     label: "Entrada",
     description: "Novas conversas não assumidas",
-    group: "pin",
-    groupLabel: null,
-    groupTone: "",
+    group: "action",
+    groupLabel: "Precisa de ação",
+    groupTone: "text-[var(--color-warning)]",
   },
   {
     id: "esperando",
@@ -75,7 +75,7 @@ export const INBOX_QUEUE_ITEMS: readonly InboxQueueItem[] = [
     title: "Conversas em atendimento pelo Agente IA",
     group: "automation",
     groupLabel: "Automação",
-    groupTone: "text-[var(--color-lavender)]",
+    groupTone: "text-[var(--color-chip-violet)]",
   },
   {
     id: "automacao",
@@ -83,7 +83,7 @@ export const INBOX_QUEUE_ITEMS: readonly InboxQueueItem[] = [
     description: "Chatbot ou automação em execução",
     group: "automation",
     groupLabel: "Automação",
-    groupTone: "text-[var(--color-lavender)]",
+    groupTone: "text-[var(--color-chip-violet)]",
   },
   {
     id: "finalizados",
