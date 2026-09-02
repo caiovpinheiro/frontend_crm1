@@ -74,11 +74,33 @@ function snapDriverToElement(el: Element | undefined): void {
 
   const pop = document.querySelector(".driver-popover") as HTMLElement | null;
   if (!pop) return;
+
+  const side = activeTour?.getActiveStep()?.popover?.side ?? "bottom";
   const popW = pop.offsetWidth;
-  const left = Math.max(8, Math.min(box.x + box.width / 2 - popW / 2, window.innerWidth - popW - 8));
+  const popH = pop.offsetHeight;
+  const margin = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const left = Math.max(
+    margin,
+    Math.min(box.x + box.width / 2 - popW / 2, vw - popW - margin),
+  );
+
+  let top = box.y + box.height + margin;
+  if (side === "top") {
+    top = box.y - popH - margin;
+  }
+  // Quadro Kanban (quase a viewport): abaixo/acima cai fora da tela.
+  if (top + popH > vh - margin) {
+    top = Math.max(margin, box.y - popH - margin);
+  }
+  if (top < margin) {
+    top = Math.max(margin, Math.min(box.y + margin, vh - popH - margin));
+  }
+
   pop.style.left = `${left}px`;
   pop.style.right = "auto";
-  pop.style.top = `${box.y + box.height + 8}px`;
+  pop.style.top = `${top}px`;
 }
 
 function toDriveSteps(
@@ -107,8 +129,9 @@ export function startPageTour(id: string): void {
   activeTour = driver({
     steps,
     animate: false,
-    smoothScroll: true,
+    smoothScroll: false,
     allowClose: true,
+    disableActiveInteraction: true,
     overlayColor: overlayColor(),
     overlayOpacity: 0.42,
     stagePadding: 4,
