@@ -65,7 +65,7 @@ export interface ConversationListRow {
    * exibir "Encerrada em ..." e no filtro de finalizados por data.
    */
   closedAt?: string | null;
-  /** Encerrada em acompanhamento (aba Resolvido). */
+  /** Encerrada em acompanhamento (aba Resolvendo). */
   followUpAt?: string | null;
   contact: {
     id: string;

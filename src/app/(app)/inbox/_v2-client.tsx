@@ -223,7 +223,7 @@ const TABS: ReadonlyArray<{ id: InboxTab; label: string; title?: string }> = [
     title: "Conversas em atendimento pelo Agente IA",
   },
   { id: "automacao", label: "Automação" },
-  { id: "resolvidos", label: "Resolvido" },
+  { id: "resolvidos", label: "Resolvendo" },
   { id: "finalizados", label: "Encerradas" },
   { id: "erro", label: "Erro" },
 ];

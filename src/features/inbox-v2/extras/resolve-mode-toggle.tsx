@@ -31,7 +31,7 @@ export function ResolveModeToggle({
         onClick={() => onChange("follow_up")}
         icon={<IconCalendarEvent size={18} />}
         title="Acompanhar"
-        hint="Fica em Resolvido e abre uma tarefa."
+        hint="Fica em Resolvendo e abre uma tarefa."
       />
     </div>
   );

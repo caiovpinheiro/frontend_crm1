@@ -120,7 +120,7 @@ export function ResolveConfirmDialog({
               </AlertDialogTitle>
               <AlertDialogDescription className="mt-1 text-[13px] leading-relaxed">
                 Finalizar envia para Encerradas. Acompanhar deixa em
-                Resolvido e abre uma tarefa no calendário.
+                Resolvendo e abre uma tarefa no calendário.
               </AlertDialogDescription>
             </div>
           </div>

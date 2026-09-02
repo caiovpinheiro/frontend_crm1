@@ -13,7 +13,7 @@ import { FollowUpTaskDialog } from "./follow-up-task-dialog";
 /**
  * Encerrar / reabrir conversa.
  *
- * Toggle Finalizar (Encerradas) vs Acompanhar (Resolvido + tarefa).
+ * Toggle Finalizar (Encerradas) vs Acompanhar (Resolvendo + tarefa).
  * Tabulação: departamento da conversa; sem depto, departamentos do agente.
  * Admin pode pular automações.
  */

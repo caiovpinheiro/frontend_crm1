@@ -184,7 +184,7 @@ export type ConversationActionPayload =
       tabulationId?: string | null;
       /** Só o backend aceita se o user for ADMIN. Agentes: ignorado. */
       skipAutomations?: boolean;
-      /** Acompanhar: fica na aba Resolvido e mantém o agente. */
+      /** Acompanhar: fica na aba Resolvendo e mantém o agente. */
       followUp?: boolean;
     }
   | { action: "reopen" }
