@@ -15,6 +15,7 @@
  *  - /api/tags, /api/channels, /api/quick-replies, /api/whatsapp-template-configs
  *  - /api/inbox/agent-capacity, /api/inbox/daily-stats
  *  - /api/settings/self-assign, /api/settings/permissions
+ *  - /api/demands/boards, /api/demands/items (inclui DELETE)
  *  - /api/agents/:id/status
  *  - Fallback GET → { items: [], total: 0 }; Fallback mutation → { ok: true }
  */
@@ -913,6 +914,245 @@ const FEATURE_FLAGS_MOCK = {
   ],
 };
 
+/* ── Demandas (boards + solicitações; estado mutável p/ DELETE) ── */
+const DEMAND_ACTOR = { id: USER.id, name: USER.name, avatarUrl: null as string | null };
+
+type PreviewDemandItem = {
+  id: string;
+  number: number;
+  title: string;
+  description: string;
+  kind: string;
+  priority: string;
+  position: number;
+  votesCount: number;
+  tags: string[];
+  boardId: string;
+  stageId: string;
+  requesterId: string;
+  assigneeId: string | null;
+  dueAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requester: typeof DEMAND_ACTOR;
+  assignee: typeof DEMAND_ACTOR | null;
+  votedByMe: boolean;
+};
+
+type PreviewDemandStage = {
+  id: string;
+  name: string;
+  key: string;
+  color: string | null;
+  position: number;
+  isTerminal: boolean;
+  items: PreviewDemandItem[];
+};
+
+type PreviewDemandBoard = {
+  id: string;
+  name: string;
+  slug: string;
+  kind: string;
+  color: string | null;
+  description: string | null;
+  position: number;
+  isDefault: boolean;
+  stages: PreviewDemandStage[];
+};
+
+function previewDemandItem(
+  partial: Pick<
+    PreviewDemandItem,
+    "id" | "number" | "title" | "kind" | "priority" | "boardId" | "stageId" | "position"
+  > &
+    Partial<PreviewDemandItem>,
+): PreviewDemandItem {
+  return {
+    description: "",
+    votesCount: 0,
+    tags: [],
+    requesterId: USER.id,
+    assigneeId: USER.id,
+    dueAt: null,
+    completedAt: null,
+    createdAt: "2026-08-12T10:00:00Z",
+    updatedAt: "2026-08-20T10:00:00Z",
+    requester: DEMAND_ACTOR,
+    assignee: DEMAND_ACTOR,
+    votedByMe: false,
+    ...partial,
+  };
+}
+
+let DEMAND_BOARDS: PreviewDemandBoard[] = [
+  {
+    id: "db-produto",
+    name: "Produto",
+    slug: "produto",
+    kind: "PRODUCT",
+    color: "#3B82F6",
+    description: "Backlog de produto",
+    position: 0,
+    isDefault: true,
+    stages: [
+      {
+        id: "ds-ideias",
+        name: "Ideias",
+        key: "IDEAS",
+        color: "#94a3b8",
+        position: 0,
+        isTerminal: false,
+        items: [
+          previewDemandItem({
+            id: "di-8",
+            number: 8,
+            title: "Aba de conversas não lidas na Inbox",
+            kind: "FEATURE",
+            priority: "HIGH",
+            boardId: "db-produto",
+            stageId: "ds-ideias",
+            position: 0,
+            votesCount: 12,
+            description: "Separar não lidas para o time priorizar o que chegou.",
+          }),
+        ],
+      },
+      {
+        id: "ds-triagem",
+        name: "Triagem",
+        key: "TRIAGE",
+        color: "#f59e0b",
+        position: 1,
+        isTerminal: false,
+        items: [
+          previewDemandItem({
+            id: "di-9",
+            number: 9,
+            title: "Filtro por tags no kanban de demandas",
+            kind: "IMPROVEMENT",
+            priority: "MEDIUM",
+            boardId: "db-produto",
+            stageId: "ds-triagem",
+            position: 0,
+            votesCount: 4,
+          }),
+        ],
+      },
+      {
+        id: "ds-dev",
+        name: "Em desenvolvimento",
+        key: "DEV",
+        color: "#3b82f6",
+        position: 2,
+        isTerminal: false,
+        items: [
+          previewDemandItem({
+            id: "di-10",
+            number: 10,
+            title: "Excluir boards e solicitações",
+            kind: "FEATURE",
+            priority: "URGENT",
+            boardId: "db-produto",
+            stageId: "ds-dev",
+            position: 0,
+            votesCount: 7,
+          }),
+        ],
+      },
+    ],
+  },
+  {
+    id: "db-bugs",
+    name: "Bugs",
+    slug: "bugs",
+    kind: "BUGS",
+    color: "#ef4444",
+    description: "Incidents",
+    position: 1,
+    isDefault: false,
+    stages: [
+      {
+        id: "ds-bugs-open",
+        name: "Aberto",
+        key: "OPEN",
+        color: "#ef4444",
+        position: 0,
+        isTerminal: false,
+        items: [
+          previewDemandItem({
+            id: "di-21",
+            number: 21,
+            title: "Drawer de demanda não fecha no ESC em mobile",
+            kind: "BUG",
+            priority: "HIGH",
+            boardId: "db-bugs",
+            stageId: "ds-bugs-open",
+            position: 0,
+            votesCount: 2,
+          }),
+        ],
+      },
+    ],
+  },
+];
+
+function demandItemCount(board: PreviewDemandBoard) {
+  return board.stages.reduce((n, s) => n + s.items.length, 0);
+}
+
+function demandBoardLite(board: PreviewDemandBoard) {
+  return {
+    id: board.id,
+    name: board.name,
+    slug: board.slug,
+    kind: board.kind,
+    color: board.color,
+    description: board.description,
+    position: board.position,
+    isDefault: board.isDefault,
+    itemCount: demandItemCount(board),
+    stages: board.stages.map(({ items: _items, ...stage }) => stage),
+  };
+}
+
+function findDemandItem(id: string) {
+  for (const board of DEMAND_BOARDS) {
+    for (const stage of board.stages) {
+      const item = stage.items.find((it) => it.id === id);
+      if (item) return { board, stage, item };
+    }
+  }
+  return null;
+}
+
+function demandItemDetail(item: PreviewDemandItem) {
+  return {
+    ...item,
+    comments: [] as { id: string }[],
+    events: [
+      {
+        id: `ev-${item.id}`,
+        type: "CREATED",
+        payload: null,
+        createdAt: item.createdAt,
+        actor: item.requester,
+      },
+    ],
+  };
+}
+
+function parseMockBody(init?: RequestInit): Record<string, unknown> {
+  try {
+    const raw = init?.body;
+    if (typeof raw === "string") return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    ROUTER
 ══════════════════════════════════════════════════════════════════ */
@@ -969,6 +1209,159 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
   {
     test: (u) => u.pathname === "/api/settings/permissions",
     handler: () => ({ scopeGrants: { canViewAll: true, canAssign: true, canResolve: true, canDelete: false } }),
+  },
+
+  /* ── Demandas ── */
+  {
+    test: (u) => u.pathname === "/api/demands/boards",
+    handler: (_u, init) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method === "POST") {
+        const body = parseMockBody(init);
+        const id = `db-${Date.now()}`;
+        const inboxId = `${id}-inbox`;
+        const board: PreviewDemandBoard = {
+          id,
+          name: typeof body.name === "string" && body.name.trim() ? body.name.trim() : "Novo board",
+          slug: id,
+          kind: "PRODUCT",
+          color: "#3B82F6",
+          description: typeof body.description === "string" ? body.description : null,
+          position: DEMAND_BOARDS.length,
+          isDefault: false,
+          stages: [
+            {
+              id: inboxId,
+              name: "Inbox",
+              key: "INBOX",
+              color: null,
+              position: 0,
+              isTerminal: false,
+              items: [],
+            },
+          ],
+        };
+        DEMAND_BOARDS = [...DEMAND_BOARDS, board];
+        return demandBoardLite(board);
+      }
+      return { boards: DEMAND_BOARDS.map(demandBoardLite) };
+    },
+  },
+  {
+    test: (u) => /^\/api\/demands\/boards\/[^/]+$/.test(u.pathname),
+    handler: (u, init) => {
+      const id = u.pathname.split("/")[4];
+      const method = (init?.method ?? "GET").toUpperCase();
+      const board = DEMAND_BOARDS.find((b) => b.id === id);
+      if (method === "DELETE") {
+        DEMAND_BOARDS = DEMAND_BOARDS.filter((b) => b.id !== id);
+        return { ok: true };
+      }
+      if (method === "POST" && board) {
+        const body = parseMockBody(init);
+        const name =
+          typeof body.name === "string" && body.name.trim() ? body.name.trim() : "Nova fase";
+        const stage: PreviewDemandStage = {
+          id: `ds-${Date.now()}`,
+          name,
+          key: name.toUpperCase().replace(/\s+/g, "_"),
+          color: typeof body.color === "string" ? body.color : null,
+          position: board.stages.length,
+          isTerminal: false,
+          items: [],
+        };
+        board.stages = [...board.stages, stage];
+        return stage;
+      }
+      return board ?? DEMAND_BOARDS[0];
+    },
+  },
+  {
+    test: (u) => u.pathname === "/api/demands/items",
+    handler: (_u, init) => {
+      const body = parseMockBody(init);
+      const boardId = typeof body.boardId === "string" ? body.boardId : DEMAND_BOARDS[0]?.id;
+      const board = DEMAND_BOARDS.find((b) => b.id === boardId) ?? DEMAND_BOARDS[0];
+      if (!board) return { ok: false };
+      const stageId =
+        typeof body.stageId === "string"
+          ? body.stageId
+          : board.stages[0]?.id;
+      const stage = board.stages.find((s) => s.id === stageId) ?? board.stages[0];
+      if (!stage) return { ok: false };
+      const item = previewDemandItem({
+        id: `di-${Date.now()}`,
+        number:
+          DEMAND_BOARDS.reduce((max, b) => {
+            const n = b.stages.flatMap((s) => s.items).reduce((m, it) => Math.max(m, it.number), 0);
+            return Math.max(max, n);
+          }, 0) + 1,
+        title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : "Nova solicitação",
+        description: typeof body.description === "string" ? body.description : "",
+        kind: typeof body.kind === "string" ? body.kind : "REQUEST",
+        priority: typeof body.priority === "string" ? body.priority : "NONE",
+        boardId: board.id,
+        stageId: stage.id,
+        position: stage.items.length,
+      });
+      stage.items = [...stage.items, item];
+      return item;
+    },
+  },
+  {
+    test: (u) => /^\/api\/demands\/items\/[^/]+\/(comments|vote|move)$/.test(u.pathname),
+    handler: (u, init) => {
+      const id = u.pathname.split("/")[4];
+      const action = u.pathname.split("/")[5];
+      const found = findDemandItem(id);
+      if (!found) return { ok: false };
+      if (action === "vote") {
+        found.item.votedByMe = !found.item.votedByMe;
+        found.item.votesCount += found.item.votedByMe ? 1 : -1;
+        return { item: found.item, votedByMe: found.item.votedByMe };
+      }
+      if (action === "comments") {
+        const body = parseMockBody(init);
+        return {
+          id: `dc-${Date.now()}`,
+          content: typeof body.content === "string" ? body.content : "",
+          createdAt: new Date().toISOString(),
+          author: DEMAND_ACTOR,
+        };
+      }
+      if (action === "move") {
+        const body = parseMockBody(init);
+        const nextStageId = typeof body.stageId === "string" ? body.stageId : found.stage.id;
+        const nextStage =
+          found.board.stages.find((s) => s.id === nextStageId) ?? found.stage;
+        found.stage.items = found.stage.items.filter((it) => it.id !== found.item.id);
+        found.item.stageId = nextStage.id;
+        nextStage.items = [...nextStage.items, found.item];
+        return found.item;
+      }
+      return found.item;
+    },
+  },
+  {
+    test: (u) => /^\/api\/demands\/items\/[^/]+$/.test(u.pathname),
+    handler: (u, init) => {
+      const id = u.pathname.split("/")[4];
+      const method = (init?.method ?? "GET").toUpperCase();
+      const found = findDemandItem(id);
+      if (method === "DELETE") {
+        if (found) {
+          found.stage.items = found.stage.items.filter((it) => it.id !== id);
+        }
+        return { ok: true };
+      }
+      if (method === "PATCH" && found) {
+        const patch = parseMockBody(init);
+        Object.assign(found.item, patch);
+        found.item.updatedAt = new Date().toISOString();
+        return found.item;
+      }
+      return found ? demandItemDetail(found.item) : { comments: [], events: [] };
+    },
   },
 
   /* ── Inbox ── */

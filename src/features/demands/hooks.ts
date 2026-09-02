@@ -7,6 +7,8 @@ import {
   commentDemandItem,
   createDemandBoard,
   createDemandItem,
+  deleteDemandBoard,
+  deleteDemandItem,
   getDemandBoard,
   getDemandItem,
   listDemandBoards,
@@ -14,7 +16,7 @@ import {
   patchDemandItem,
   voteDemandItem,
 } from "./api";
-import type { DemandItemKind, DemandPriority } from "./types";
+import type { DemandBoardLite, DemandItemKind, DemandPriority } from "./types";
 
 export const DEMAND_BOARDS_KEY = ["demand-boards"] as const;
 export const demandBoardKey = (id: string) => ["demand-board", id] as const;
@@ -116,7 +118,36 @@ export function useDemandMutations() {
     },
   });
 
-  return { createBoard, addStage, createItem, patchItem, moveItem, comment, vote };
+  const deleteBoard = useMutation({
+    mutationFn: deleteDemandBoard,
+    onSuccess: (_d, id) => {
+      qc.setQueryData<{ boards: DemandBoardLite[] }>(DEMAND_BOARDS_KEY, (prev) =>
+        prev ? { boards: prev.boards.filter((b) => b.id !== id) } : prev,
+      );
+      void qc.invalidateQueries({ queryKey: DEMAND_BOARDS_KEY });
+      void qc.removeQueries({ queryKey: demandBoardKey(id) });
+    },
+  });
+
+  const deleteItem = useMutation({
+    mutationFn: (input: { id: string; boardId: string }) => deleteDemandItem(input.id),
+    onSuccess: (_d, vars) => {
+      invalidateBoard(vars.boardId);
+      void qc.removeQueries({ queryKey: demandItemKey(vars.id) });
+    },
+  });
+
+  return {
+    createBoard,
+    addStage,
+    createItem,
+    patchItem,
+    moveItem,
+    comment,
+    vote,
+    deleteBoard,
+    deleteItem,
+  };
 }
 
 export function kindOptions(): { value: DemandItemKind; label: string }[] {
