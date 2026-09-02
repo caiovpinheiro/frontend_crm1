@@ -28,6 +28,7 @@ import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import { AppLoading } from "@/components/crm/app-loading";
 import { ConversationPaneSkeleton } from "@/components/crm/conversation-skeleton";
 import { useStageUrlSync } from "@/features/pipeline-v2/hooks";
+import { useReorderPipelineStages } from "@/features/pipeline-v2/hooks/use-reorder-stages";
 import { StageRibbon } from "@/components/sales-hub/stage-ribbon";
 import {
   DealQueue,
@@ -596,6 +597,8 @@ export function SalesHubView({
     return () => clearTimeout(t);
   }, []);
 
+  const reorderStages = useReorderPipelineStages(pipelineId);
+
   const funnelStages = useMemo(
     () =>
       filteredStages.map((s) => ({
@@ -605,6 +608,7 @@ export function SalesHubView({
         // Com board paginado (50/etapa) `deals.length` sub-reporta — usa o
         // total real da etapa quando o backend o envia.
         count: s.totalCount ?? s.deals.length,
+        locked: Boolean(s.isWon || s.isLost),
       })),
     [filteredStages],
   );
@@ -763,6 +767,18 @@ export function SalesHubView({
         onSelectStage={handleSelectStage}
         totalDeals={totalDeals}
         compact={hubChromeCompact}
+        onReorderStages={(orderedIds) => {
+          const full = stages.map((s) => s.id);
+          if (orderedIds.length === full.length) {
+            reorderStages.mutate(orderedIds);
+            return;
+          }
+          const visible = new Set(orderedIds);
+          let i = 0;
+          reorderStages.mutate(
+            full.map((id) => (visible.has(id) ? orderedIds[i++]! : id)),
+          );
+        }}
       />
 
       <div
