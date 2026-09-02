@@ -20,11 +20,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectNative } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, pageHeaderPrimaryCtaClass } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgentPlayground } from "@/components/ai-agents/agent-playground";
 import { AgentWizard } from "@/components/ai-agents/agent-wizard";
+import { AttendanceScopePanel } from "@/components/ai-agents/attendance-scope-panel";
+import { InboxPolicyPanel } from "@/components/ai-agents/inbox-policy-panel";
 import { KnowledgePanel } from "@/components/ai-agents/knowledge-panel";
 import {
   PilotingPanel,
@@ -32,7 +33,9 @@ import {
   type PilotingValue,
 } from "@/components/ai-agents/piloting-panel";
 import { ProductPolicyPanel } from "@/components/ai-agents/product-policy-panel";
+import { SteeringRulesPanel } from "@/components/ai-agents/steering-rules-panel";
 import { StudentDataPanel } from "@/components/ai-agents/student-data-panel";
+import { ToolConfigPanel } from "@/components/ai-agents/tool-config-panel";
 import { UsagePanel } from "@/components/ai-agents/usage-panel";
 import {
   normalizeBusinessHours,
@@ -40,9 +43,16 @@ import {
   normalizeQualificationQuestions,
   type HandoffMode,
 } from "@/lib/ai-agents/piloting";
+import {
+  defaultInboxPolicy,
+  normalizeInboxPolicy,
+  normalizeToolConfig,
+  type InboxPolicy,
+  type ToolConfigMap,
+} from "@/lib/ai-agents/steering";
 import { ARCHETYPES } from "@/lib/ai-agents/archetypes";
-import { TOOLS_CATALOG } from "@/lib/ai-agents/tools-catalog";
 import { cn, getInitials } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type AgentRow = {
@@ -433,10 +443,17 @@ function QuickEditDialog({
   const [dailyTokenCap, setDailyTokenCap] = React.useState(0);
   const [enabledTools, setEnabledTools] = React.useState<string[]>([]);
   const [override, setOverride] = React.useState("");
+  const [template, setTemplate] = React.useState("");
+  const [steeringRules, setSteeringRules] = React.useState("");
+  const [toolConfig, setToolConfig] = React.useState<ToolConfigMap>({});
+  const [inboxPolicy, setInboxPolicy] = React.useState<InboxPolicy>(
+    defaultInboxPolicy,
+  );
   const [productPolicy, setProductPolicy] = React.useState("");
   const [piloting, setPiloting] = React.useState<PilotingValue>(
     createDefaultPiloting,
   );
+  const [tab, setTab] = React.useState("identidade");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -452,7 +469,12 @@ function QuickEditDialog({
       );
       setEnabledTools(Array.isArray(data.enabledTools) ? data.enabledTools : []);
       setOverride(data.systemPromptOverride ?? "");
+      setTemplate(data.systemPromptTemplate ?? "");
+      setSteeringRules(data.steeringRules ?? "");
+      setToolConfig(normalizeToolConfig(data.toolConfig));
+      setInboxPolicy(normalizeInboxPolicy(data.inboxPolicy));
       setProductPolicy(data.productPolicy ?? "");
+      setTab("identidade");
 
       const bh = normalizeBusinessHours(data.businessHours) ?? {
         enabled: false,
@@ -531,6 +553,10 @@ function QuickEditDialog({
           dailyTokenCap,
           enabledTools,
           systemPromptOverride: override.trim() || null,
+          systemPromptTemplate: template.trim() || undefined,
+          steeringRules: steeringRules.trim() || null,
+          toolConfig,
+          inboxPolicy,
           productPolicy: productPolicy.trim() || null,
 
           openingMessage: piloting.openingMessage.trim() || null,
@@ -565,7 +591,7 @@ function QuickEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl">
+      <DialogContent size="2xl">
         <DialogClose />
         <DialogHeader>
           <DialogTitle>Editar agente</DialogTitle>
@@ -576,191 +602,206 @@ function QuickEditDialog({
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="ed-name">Nome</Label>
-                <Input
-                  id="ed-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList className="flex h-auto w-full flex-wrap justify-start">
+                <TabsTrigger value="identidade">Identidade</TabsTrigger>
+                <TabsTrigger value="regras">Regras</TabsTrigger>
+                <TabsTrigger value="escopo">Escopo</TabsTrigger>
+                <TabsTrigger value="ferramentas">Ferramentas</TabsTrigger>
+                <TabsTrigger value="pilotagem">Pilotagem</TabsTrigger>
+                <TabsTrigger value="inbox">Inbox</TabsTrigger>
+                <TabsTrigger value="conhecimento">Conhecimento</TabsTrigger>
+              </TabsList>
 
-              <div className="grid gap-2">
-                <Label htmlFor="ed-tone">Tom de voz</Label>
-                <Input
-                  id="ed-tone"
-                  value={tone}
-                  onChange={(e) => setTone(e.target.value)}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="ed-model">Modelo</Label>
-                <SelectNative
-                  id="ed-model"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  className="rounded-xl text-sm"
-                >
-                  <option value="gpt-4o-mini">gpt-4o-mini</option>
-                  <option value="gpt-4o">gpt-4o</option>
-                  <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                </SelectNative>
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="ed-temp" className="flex items-center justify-between">
-                  <span>Temperatura</span>
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {temperature.toFixed(1)}
-                  </span>
-                </Label>
-                <input
-                  id="ed-temp"
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={temperature}
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  className="w-full accent-indigo-500"
-                />
-              </div>
-
-              <div className="grid gap-2 md:col-span-2">
-                <Label htmlFor="ed-cap">
-                  Limite diário de tokens (0 = sem limite)
-                </Label>
-                <Input
-                  id="ed-cap"
-                  type="number"
-                  min={0}
-                  step={1000}
-                  value={dailyTokenCap}
-                  onChange={(e) => setDailyTokenCap(parseInt(e.target.value) || 0)}
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Quando o agente ultrapassa esse limite no dia, ele para de
-                  responder até o próximo dia ou até o limite ser aumentado.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Modo</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setAutonomyMode("DRAFT")}
-                  className={cn(
-                    "rounded-xl border p-3 text-left text-sm transition-colors",
-                    autonomyMode === "DRAFT"
-                      ? "border-indigo-500 bg-[var(--color-indigo-soft)] dark:border-indigo-400 dark:bg-indigo-950/30"
-                      : "border-border hover:bg-muted/40",
-                  )}
-                >
-                  <div className="font-medium">Rascunho</div>
-                  <div className="mt-0.5 text-[12px] text-muted-foreground">
-                    Sugere respostas ao operador humano antes de enviar.
+              <TabsContent value="identidade" className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="ed-name">Nome</Label>
+                    <Input
+                      id="ed-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
                   </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAutonomyMode("AUTONOMOUS")}
-                  className={cn(
-                    "rounded-xl border p-3 text-left text-sm transition-colors",
-                    autonomyMode === "AUTONOMOUS"
-                      ? "border-indigo-500 bg-[var(--color-indigo-soft)] dark:border-indigo-400 dark:bg-indigo-950/30"
-                      : "border-border hover:bg-muted/40",
-                  )}
-                >
-                  <div className="font-medium">Autônomo</div>
-                  <div className="mt-0.5 text-[12px] text-muted-foreground">
-                    Envia direto pro lead sem supervisão.
-                  </div>
-                </button>
-              </div>
-            </div>
 
-            <div className="grid gap-2">
-              <Label>Ferramentas habilitadas</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {TOOLS_CATALOG.map((t) => {
-                  const active = enabledTools.includes(t.id);
-                  return (
+                  <div className="grid gap-2">
+                    <Label htmlFor="ed-tone">Tom de voz</Label>
+                    <Input
+                      id="ed-tone"
+                      value={tone}
+                      onChange={(e) => setTone(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="ed-model">Modelo</Label>
+                    <SelectNative
+                      id="ed-model"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="rounded-xl text-sm"
+                    >
+                      <option value="gpt-4o-mini">gpt-4o-mini</option>
+                      <option value="gpt-4o">gpt-4o</option>
+                      <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                    </SelectNative>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label
+                      htmlFor="ed-temp"
+                      className="flex items-center justify-between"
+                    >
+                      <span>Temperatura</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {temperature.toFixed(1)}
+                      </span>
+                    </Label>
+                    <input
+                      id="ed-temp"
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      value={temperature}
+                      onChange={(e) =>
+                        setTemperature(parseFloat(e.target.value))
+                      }
+                      className="w-full accent-indigo-500"
+                    />
+                  </div>
+
+                  <div className="grid gap-2 md:col-span-2">
+                    <Label htmlFor="ed-cap">
+                      Limite diário de tokens (0 = sem limite)
+                    </Label>
+                    <Input
+                      id="ed-cap"
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={dailyTokenCap}
+                      onChange={(e) =>
+                        setDailyTokenCap(parseInt(e.target.value) || 0)
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Quando o agente ultrapassa esse limite no dia, ele para
+                      de responder até o próximo dia ou até o limite ser
+                      aumentado.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label>Modo</Label>
+                  <div className="grid gap-2 sm:grid-cols-2">
                     <button
-                      key={t.id}
                       type="button"
-                      onClick={() => toggleTool(t.id)}
+                      onClick={() => setAutonomyMode("DRAFT")}
                       className={cn(
-                        "flex items-start gap-2 rounded-lg border p-2 text-left text-[13px] transition-colors",
-                        active
+                        "rounded-xl border p-3 text-left text-sm transition-colors",
+                        autonomyMode === "DRAFT"
                           ? "border-indigo-500 bg-[var(--color-indigo-soft)] dark:border-indigo-400 dark:bg-indigo-950/30"
                           : "border-border hover:bg-muted/40",
                       )}
                     >
-                      <div
-                        className={cn(
-                          "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
-                          active
-                            ? "border-indigo-500 bg-indigo-500 text-white"
-                            : "border-border",
-                        )}
-                      >
-                        {active && <span className="text-[10px]">✓</span>}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-medium">{t.label}</div>
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">
-                          {t.description}
-                        </div>
+                      <div className="font-medium">Rascunho</div>
+                      <div className="mt-0.5 text-[12px] text-muted-foreground">
+                        Sugere respostas ao operador humano antes de enviar.
                       </div>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="ed-override">Instruções adicionais (opcional)</Label>
-              <Textarea
-                id="ed-override"
-                value={override}
-                onChange={(e) => setOverride(e.target.value)}
-                rows={5}
-                placeholder="Regras específicas do seu negócio. Será somado ao prompt do arquétipo."
-                className="resize-none rounded-xl text-sm"
-              />
-            </div>
-
-            <ProductPolicyPanel
-              value={productPolicy}
-              onChange={setProductPolicy}
-              enabled={enabledTools.includes("search_products")}
-            />
-
-            <PilotingPanel value={piloting} onChange={setPiloting} />
-
-            {id && (
-              <div className="rounded-xl border bg-muted/20 p-4">
-                <KnowledgePanel agentId={id} />
-              </div>
-            )}
-
-            {id && (
-              <div className="rounded-xl border bg-muted/20 p-4">
-                <div className="mb-3">
-                  <h4 className="text-sm font-semibold">Uso e custo</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Tokens consumidos, custo estimado e últimos runs do agente.
-                  </p>
+                    <button
+                      type="button"
+                      onClick={() => setAutonomyMode("AUTONOMOUS")}
+                      className={cn(
+                        "rounded-xl border p-3 text-left text-sm transition-colors",
+                        autonomyMode === "AUTONOMOUS"
+                          ? "border-indigo-500 bg-[var(--color-indigo-soft)] dark:border-indigo-400 dark:bg-indigo-950/30"
+                          : "border-border hover:bg-muted/40",
+                      )}
+                    >
+                      <div className="font-medium">Autônomo</div>
+                      <div className="mt-0.5 text-[12px] text-muted-foreground">
+                        Envia direto pro lead sem supervisão.
+                      </div>
+                    </button>
+                  </div>
                 </div>
-                <UsagePanel agentId={id} />
-              </div>
-            )}
+              </TabsContent>
+
+              <TabsContent value="regras">
+                {id && (
+                  <SteeringRulesPanel
+                    agentId={id}
+                    agentName={name}
+                    archetype={data.archetype ?? ""}
+                    template={template}
+                    onTemplateChange={setTemplate}
+                    steeringRules={steeringRules}
+                    onSteeringRulesChange={setSteeringRules}
+                    override={override}
+                    onOverrideChange={setOverride}
+                  />
+                )}
+              </TabsContent>
+
+              <TabsContent value="escopo">
+                <AttendanceScopePanel
+                  value={inboxPolicy.scope}
+                  onChange={(scope) =>
+                    setInboxPolicy((prev) => ({ ...prev, scope }))
+                  }
+                />
+              </TabsContent>
+
+              <TabsContent value="ferramentas">
+                <ToolConfigPanel
+                  enabledTools={enabledTools}
+                  onToggleTool={toggleTool}
+                  value={toolConfig}
+                  onChange={setToolConfig}
+                />
+              </TabsContent>
+
+              <TabsContent value="pilotagem">
+                <PilotingPanel value={piloting} onChange={setPiloting} />
+              </TabsContent>
+
+              <TabsContent value="inbox">
+                <InboxPolicyPanel
+                  value={inboxPolicy}
+                  onChange={setInboxPolicy}
+                />
+              </TabsContent>
+
+              <TabsContent value="conhecimento" className="space-y-4">
+                <ProductPolicyPanel
+                  value={productPolicy}
+                  onChange={setProductPolicy}
+                  enabled={enabledTools.includes("search_products")}
+                />
+                {id && (
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <KnowledgePanel agentId={id} />
+                  </div>
+                )}
+                {id && (
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <div className="mb-3">
+                      <h4 className="text-sm font-semibold">Uso e custo</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Tokens consumidos, custo estimado e últimos runs do
+                        agente.
+                      </p>
+                    </div>
+                    <UsagePanel agentId={id} />
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
 
             {error && (
               <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
