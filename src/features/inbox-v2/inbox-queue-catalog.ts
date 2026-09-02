@@ -103,7 +103,13 @@ export const INBOX_QUEUE_ITEMS: readonly InboxQueueItem[] = [
   },
 ];
 
-export type InboxQueueCounts = Readonly<Partial<Record<string, number>>>;
+export type InboxQueueCounts = object;
+
+function readQueueCount(counts: unknown, id: string): number | undefined {
+  if (!counts || typeof counts !== "object") return undefined;
+  const v = (counts as Record<string, unknown>)[id];
+  return typeof v === "number" ? v : undefined;
+}
 
 function catalogSelected(
   selectedIds: readonly string[],
@@ -122,7 +128,7 @@ export function inboxQueueTriggerLabel(
   if (selected.length === 0) return "Filas";
   if (selected.length === 1) return selected[0]?.label ?? "Filas";
   if (selected.length === 2) {
-    const parts = selected.map((item) => counts?.[item.id]);
+    const parts = selected.map((item) => readQueueCount(counts, item.id));
     if (parts.every((n): n is number => typeof n === "number")) {
       return `${parts[0]} + ${parts[1]}`;
     }
@@ -140,7 +146,7 @@ export function inboxQueueSelectedCount(
   if (selected.length === 0 || !counts) return undefined;
   let sum = 0;
   for (const item of selected) {
-    const n = counts[item.id];
+    const n = readQueueCount(counts, item.id);
     if (typeof n !== "number") return undefined;
     sum += n;
   }
