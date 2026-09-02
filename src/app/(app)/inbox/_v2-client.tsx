@@ -109,7 +109,10 @@ import {
 import type { ConversationListRow } from "@/features/inbox-v2/api";
 import { postConversationAction } from "@/features/inbox-v2/api";
 import { inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
-import { INBOX_QUEUE_ITEMS } from "@/features/inbox-v2/inbox-queue-catalog";
+import {
+  INBOX_QUEUE_ITEMS,
+  inboxQueueSelectedCount,
+} from "@/features/inbox-v2/inbox-queue-catalog";
 import {
   DEFAULT_INBOX_TAB,
   isInboxTab,
@@ -538,14 +541,10 @@ export default function InboxV2ClientPage({
     serverFilters,
   );
 
-  // Uma fonte: badge da aba = select-all N. `list.total` ainda pode ser o
-  // sentinela pageSize+1 (26) se a API antiga estiver no ar.
-  const badgeTotal =
-    tab.length === 1 ? tabCounts?.[tab[0]!] : listData?.total;
-  const filterTotal =
-    typeof badgeTotal === "number" && badgeTotal > 0
-      ? badgeTotal
-      : listData?.total;
+  // Select-all = soma das filas (`?counts=1`), não `list.total`: a união
+  // mista não colapsa tickets no SQL e o total infla (5 → 3 cards).
+  const selectedQueueSum = inboxQueueSelectedCount(tab, tabCounts);
+  const filterTotal = selectedQueueSum ?? listData?.total;
 
   // ── Sticky activeRow ────────────────────────────────────────────
   // A `rows` reflete o filtro da aba atual (ex.: "entrada"). Se o

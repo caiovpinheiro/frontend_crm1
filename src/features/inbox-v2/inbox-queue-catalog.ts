@@ -103,17 +103,46 @@ export const INBOX_QUEUE_ITEMS: readonly InboxQueueItem[] = [
   },
 ];
 
-/** Rótulo curto do gatilho: 1 fila = nome; 2 = "Entrada +1"; 3+ = "3 filas". */
+export type InboxQueueCounts = Readonly<Partial<Record<string, number>>>;
+
+function catalogSelected(
+  selectedIds: readonly string[],
+  items: readonly InboxQueueItem[] = INBOX_QUEUE_ITEMS,
+): InboxQueueItem[] {
+  return items.filter((item) => selectedIds.includes(item.id));
+}
+
+/** Rótulo do gatilho: 1 = nome; 2 = "0 + 3"; 3+ = "4 filas". */
 export function inboxQueueTriggerLabel(
   selectedIds: readonly string[],
   items: readonly InboxQueueItem[] = INBOX_QUEUE_ITEMS,
+  counts?: InboxQueueCounts,
 ): string {
-  const selected = items.filter((item) => selectedIds.includes(item.id));
+  const selected = catalogSelected(selectedIds, items);
   if (selected.length === 0) return "Filas";
   if (selected.length === 1) return selected[0]?.label ?? "Filas";
   if (selected.length === 2) {
-    const first = selected[0]?.label ?? "Fila";
-    return `${first} +1`;
+    const parts = selected.map((item) => counts?.[item.id]);
+    if (parts.every((n): n is number => typeof n === "number")) {
+      return `${parts[0]} + ${parts[1]}`;
+    }
   }
   return `${selected.length} filas`;
+}
+
+/** Soma das contagens das filas do catálogo (badge / select-all). */
+export function inboxQueueSelectedCount(
+  selectedIds: readonly string[],
+  counts?: InboxQueueCounts | null,
+  items: readonly InboxQueueItem[] = INBOX_QUEUE_ITEMS,
+): number | undefined {
+  const selected = catalogSelected(selectedIds, items);
+  if (selected.length === 0 || !counts) return undefined;
+  let sum = 0;
+  for (const item of selected) {
+    const n = counts[item.id];
+    if (typeof n !== "number") return undefined;
+    sum += n;
+  }
+  return sum;
 }

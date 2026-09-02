@@ -20,7 +20,11 @@ import {
   IconCheck,
   type Icon as TablerIcon,
 } from "@tabler/icons-react"
-import { inboxQueueTriggerLabel } from "@/features/inbox-v2/inbox-queue-catalog"
+import {
+  INBOX_QUEUE_ITEMS,
+  inboxQueueSelectedCount,
+  inboxQueueTriggerLabel,
+} from "@/features/inbox-v2/inbox-queue-catalog"
 import { AppLoading } from "@/components/crm/app-loading"
 import { InputGlass } from "./input-glass"
 import { type TabItem } from "./tabs-glass"
@@ -327,15 +331,26 @@ export function ConversationColumn({
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
   const currentTab = selectedItems[0] ?? tabs[activeTab]
-  const currentTabLabel = isMulti
-    ? inboxQueueTriggerLabel(selectedQueueIds)
-    : (currentTab?.label ?? "Todas")
-  const currentTabCount = isMulti
-    ? (typeof totalCount === "number" ? totalCount : undefined)
-    : currentTab?.count
+  const queueCounts: Record<string, number> = {}
+  for (const t of tabs) {
+    if (t.id && typeof t.count === "number") queueCounts[t.id] = t.count
+  }
+  const currentTabLabel = inboxQueueTriggerLabel(
+    selectedQueueIds,
+    INBOX_QUEUE_ITEMS,
+    queueCounts,
+  )
+  const selectedQueueSum = inboxQueueSelectedCount(selectedQueueIds, queueCounts)
+  // 1 fila: badge daquela fila. 2 filas: "0 + 3" sem badge extra.
+  // 3+: "4 filas" + soma das parcelas — nunca list.total (união infla).
+  const currentTabCount =
+    isMulti && selectedQueueIds.length === 2 ? undefined : selectedQueueSum
   const currentVisual = isMulti
     ? { Icon: IconMessages, bg: "var(--color-enterprise-bg)", fg: "var(--brand-primary)" }
     : statusVisual(currentTab)
+  const triggerTitle = isMulti
+    ? selectedItems.map((t) => t.label).join(", ")
+    : (currentTab?.title ?? currentTab?.label)
 
   // ── Dropdown de status ──────────────────────────────────────────
   const dropdownBtnRef = useRef<HTMLButtonElement>(null)
@@ -427,7 +442,7 @@ export function ConversationColumn({
         ref={dropdownBtnRef}
         type="button"
         onClick={() => setDropdownOpen((v) => !v)}
-        title={tabs[activeTab]?.title}
+        title={triggerTitle}
         aria-haspopup="listbox"
         aria-expanded={dropdownOpen}
         className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
