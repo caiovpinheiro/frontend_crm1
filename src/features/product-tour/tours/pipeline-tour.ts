@@ -7,42 +7,42 @@ export const pipelineTour: PageTour = {
       element: "pipeline-switcher",
       title: "Seu Pipeline",
       description:
-        "Visualize os negócios organizados pelas etapas do seu processo comercial. Troque de funil por este seletor.",
+        "Os negócios ficam organizados nas etapas do seu processo comercial. Troque de funil aqui — cada um tem o próprio fluxo, responsáveis e volume.",
       side: "bottom",
     },
     {
       element: "pipeline-search",
       title: "Pesquisar e filtrar",
       description:
-        "Encontre negócios rapidamente ou filtre os resultados exibidos.",
+        "Busque por título, contato ou número. O botão Filtrar, na mesma pílula, abre dono, tags, status e filtros salvos.",
       side: "bottom",
     },
     {
       element: "pipeline-period",
       title: "Período",
       description:
-        "Restrinja o quadro por data de criação ou de fechamento. Os atalhos 7, 30 e 90 dias ficam neste calendário.",
+        "Veja só o que entrou ou fechou em um intervalo. Use 7, 30 ou 90 dias, ou escolha as datas de criação e de fechamento.",
       side: "bottom",
     },
     {
       element: "pipeline-views",
       title: "Kanban, Flow e Lista",
       description:
-        "Alterne a forma de ver o funil. Este tour apresenta o quadro Kanban.",
+        "Kanban é o quadro por etapa. Flow junta a fila com o chat do negócio. Lista é a tabela para revisar e editar em lote.",
       side: "bottom",
     },
     {
       element: "pipeline-kanban",
       title: "Quadro Kanban",
       description:
-        "Cada coluna é uma etapa. Arraste o card para mover, clique para abrir o detalhe.",
+        "Cada coluna é uma etapa do funil. Arraste o card para avançar, clique para abrir conversa e detalhes, e use o + da coluna para criar já naquela fase.",
       side: "top",
     },
     {
       element: "pipeline-actions",
       title: "Ações do funil",
       description:
-        "Crie um negócio, importe, exporte ou abra as configurações do funil.",
+        "Daqui você cria um negócio, importa planilha, exporta o quadro, liga canais e abre as configurações do funil.",
       side: "bottom",
     },
   ],
