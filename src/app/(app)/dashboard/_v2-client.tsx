@@ -406,7 +406,10 @@ function ManagerHome({
           : (options?.users ?? []).map((u) => ({ value: u.id, label: u.name }))
       }
       liveUserOptions={liveUserOptions}
-      departmentOptions={(departmentsQuery.data ?? []).map((d) => ({
+      departmentOptions={(Array.isArray(departmentsQuery.data)
+        ? departmentsQuery.data
+        : []
+      ).map((d) => ({
         value: d.id,
         label: d.name,
       }))}

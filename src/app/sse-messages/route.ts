@@ -100,14 +100,26 @@ function proxySseBody(
   });
 }
 
+function idlePreviewSse(): Response {
+  return new Response(": preview\n\n", {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
 export async function GET(request: Request) {
   let base: string;
   try {
     base = backendBase();
   } catch {
-    return new Response("NEXT_PUBLIC_API_BASE_URL não configurado", {
-      status: 500,
-    });
+    // Preview/local sem backend: EventSource 500 derrubava o overlay e
+    // poluía o dashboard. Stream vazio mantém a conexão quieta.
+    return idlePreviewSse();
   }
 
   const cookie = request.headers.get("cookie") ?? "";
