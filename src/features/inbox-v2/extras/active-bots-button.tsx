@@ -340,8 +340,9 @@ export function ActiveBotsButton({
                 width: pos.width,
                 maxHeight: pos.maxHeight,
                 isolation: "isolate",
+                zIndex: "var(--z-above)",
               }}
-              className="z-(--z-popover) flex w-full max-w-md flex-col overflow-hidden rounded-xl bg-card text-foreground shadow-xl ring-1 ring-border"
+              className="flex w-full max-w-md flex-col overflow-hidden rounded-xl bg-[var(--glass-bg-modal)] text-[var(--text-primary)] shadow-xl ring-1 ring-[var(--glass-border)]"
             >
               <div className="flex shrink-0 items-center justify-between bg-slate-900 px-5 py-3.5">
                 <div className="flex min-w-0 items-center gap-2">
@@ -362,17 +363,17 @@ export function ActiveBotsButton({
 
               <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
                 {(isLoading || (open && loadingHistory && rows.length === 0)) && (
-                  <p className="px-5 py-4 text-xs text-muted-foreground">
+                  <p className="px-5 py-4 text-xs text-[var(--text-muted)]">
                     Carregando…
                   </p>
                 )}
 
                 {!isLoading && rows.length === 0 && !loadingHistory && (
                   <div className="flex flex-col items-center px-5 py-7 text-center">
-                    <p className="text-sm font-semibold text-foreground">
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">
                       Nenhuma automação neste contato
                     </p>
-                    <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                    <p className="mt-1 text-xs leading-snug text-[var(--text-muted)]">
                       Dispare um fluxo para acompanhar passos, execuções e histórico aqui.
                     </p>
                     <button
@@ -466,7 +467,7 @@ function AutomationRow({
         >
           <ChevronDown
             className={cn(
-              "size-4 shrink-0 text-muted-foreground transition-transform",
+              "size-4 shrink-0 text-[var(--text-muted)] transition-transform",
               !expanded && "-rotate-90",
             )}
             aria-hidden
@@ -474,7 +475,7 @@ function AutomationRow({
           <span className="sr-only">
             {expanded ? "Recolher" : "Expandir"} {row.name}
           </span>
-          <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+          <span className="min-w-0 truncate text-sm font-semibold text-[var(--text-primary)]">
             {row.name}
           </span>
           <StatusDot status={runStatus} />
@@ -507,7 +508,7 @@ function AutomationRow({
           <Link
             href={`/automations/${row.automationId}`}
             title="Editar automação"
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted"
+            className="flex size-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)]"
           >
             <Pencil className="size-3.5" aria-hidden />
             <span className="sr-only">Editar {row.name}</span>
@@ -568,13 +569,13 @@ function ExpandedBody({
   return (
     <div id={panelId} className="space-y-4 px-5 py-4">
       <section>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
           Fluxo
         </p>
         {isLoading ? (
-          <p className="mt-2 text-xs text-muted-foreground">Carregando fluxo…</p>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">Carregando fluxo…</p>
         ) : steps.length === 0 ? (
-          <p className="mt-2 text-xs text-muted-foreground">Sem passos definidos.</p>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">Sem passos definidos.</p>
         ) : (
           <FlowChips steps={steps} activeIndex={activeIndex} />
         )}
@@ -603,11 +604,11 @@ function ExpandedBody({
       </div>
 
       <section>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
           Histórico
         </p>
         {historyItems.length === 0 ? (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
             Sem execuções anteriores.
           </p>
         ) : (
@@ -633,10 +634,10 @@ function MetricPair({
 }) {
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className="text-base font-bold tabular-nums text-foreground">
+      <span className="text-base font-bold tabular-nums text-[var(--text-primary)]">
         {value}
       </span>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-xs text-[var(--text-muted)]">{label}</span>
     </div>
   );
 }
@@ -653,11 +654,11 @@ function HistoryRow({ item }: { item: AutomationHistoryItem }) {
             )}
             aria-hidden
           />
-          <span className="text-xs font-medium tabular-nums text-foreground">
+          <span className="text-xs font-medium tabular-nums text-[var(--text-primary)]">
             {item.date}
           </span>
           {item.duration ? (
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="text-xs tabular-nums text-[var(--text-muted)]">
               {item.duration}
             </span>
           ) : null}

@@ -339,6 +339,7 @@ export function ConversationColumn({
 
   // ── Dropdown de status ──────────────────────────────────────────
   const dropdownBtnRef = useRef<HTMLButtonElement>(null)
+  const dropdownMenuRef = useRef<HTMLDivElement>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [dropdownPos, setDropdownPos] = useState<{
     top: number
@@ -361,16 +362,19 @@ export function ConversationColumn({
     })
     function onDocClick(e: MouseEvent) {
       const target = e.target as Node
-      if (el && el.contains(target)) return
+      if (el.contains(target)) return
+      if (dropdownMenuRef.current?.contains(target)) return
       setDropdownOpen(false)
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setDropdownOpen(false)
     }
-    document.addEventListener("mousedown", onDocClick)
+    // capture: o menu é portal em document.body — stopPropagation no React
+    // não impede o listener nativo e o painel fechava no 1º clique.
+    document.addEventListener("mousedown", onDocClick, true)
     document.addEventListener("keydown", onKey)
     return () => {
-      document.removeEventListener("mousedown", onDocClick)
+      document.removeEventListener("mousedown", onDocClick, true)
       document.removeEventListener("keydown", onKey)
     }
   }, [dropdownOpen])
@@ -480,6 +484,7 @@ export function ConversationColumn({
         typeof document !== "undefined" &&
         createPortal(
           <div
+            ref={dropdownMenuRef}
             role="listbox"
             aria-multiselectable="true"
             aria-label="Filas da caixa de entrada"
