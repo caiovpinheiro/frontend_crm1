@@ -3,7 +3,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { hasInboxServerFilters, type ConversationListRow, type InboxFilters, type InboxTab } from "../api";
-import { rowBelongsToInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
+import { inboxQueueTabFor, rowBelongsToInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
 
 /**
  * Após um envio outbound o HAR (31/ago/26) mostrou GET lista 56KB +
@@ -97,6 +97,7 @@ export function applyOutboundPreviewToInboxCaches(
     ...existing,
     lastMessageAt: ts,
     updatedAt: ts,
+    lastMessageDirection: "out",
     lastMessagePreview: {
       content,
       messageType: preview?.messageType ?? "",
@@ -115,6 +116,8 @@ export function applyOutboundPreviewToInboxCaches(
         }
       : {}),
   };
+  const prevTab = inboxQueueTabFor(existing);
+  const nextTab = inboxQueueTabFor(next);
 
   const entries = qc.getQueriesData<InboxListCache>({
     queryKey: ["inbox-conversations"],
@@ -179,5 +182,9 @@ export function applyOutboundPreviewToInboxCaches(
         pages: bumpPageTotals(pages, 1),
       });
     }
+  }
+
+  if (prevTab !== nextTab) {
+    void qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
   }
 }

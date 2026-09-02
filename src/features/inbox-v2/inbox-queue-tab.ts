@@ -1,12 +1,22 @@
 import type { ConversationListRow, InboxTab } from "./api";
 
-function lastMessageDirection(row: ConversationListRow): "in" | "out" | null {
-  const raw = String(
-    row.lastMessage?.direction ?? row.lastMessagePreview?.direction ?? "",
-  ).toLowerCase();
-  if (raw === "in" || raw === "inbound") return "in";
-  if (raw === "out" || raw === "outbound") return "out";
+function normalizeMessageDirection(
+  raw: string | null | undefined,
+): "in" | "out" | null {
+  const v = String(raw ?? "").toLowerCase();
+  if (v === "in" || v === "inbound") return "in";
+  if (v === "out" || v === "outbound") return "out";
   return null;
+}
+
+function lastMessageDirection(row: ConversationListRow): "in" | "out" | null {
+  // Coluna denormalizada = mesmo predicado do backend (`tabToWhere`).
+  // Preview/lastMessage são fallback quando o card ainda não hidratou a coluna.
+  return (
+    normalizeMessageDirection(row.lastMessageDirection) ??
+    normalizeMessageDirection(row.lastMessage?.direction) ??
+    normalizeMessageDirection(row.lastMessagePreview?.direction)
+  );
 }
 
 /**
