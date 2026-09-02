@@ -27,8 +27,8 @@ import type { BoardStage } from "@/components/pipeline/kanban-board";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import { AppLoading } from "@/components/crm/app-loading";
 import { ConversationPaneSkeleton } from "@/components/crm/conversation-skeleton";
+import { ScrollMap } from "@/components/crm/scroll-map";
 import { useStageUrlSync } from "@/features/pipeline-v2/hooks";
-import { useReorderPipelineStages } from "@/features/pipeline-v2/hooks/use-reorder-stages";
 import { StageRibbon } from "@/components/sales-hub/stage-ribbon";
 import {
   DealQueue,
@@ -597,7 +597,7 @@ export function SalesHubView({
     return () => clearTimeout(t);
   }, []);
 
-  const reorderStages = useReorderPipelineStages(pipelineId);
+  const ribbonScrollRef = useRef<HTMLDivElement>(null);
 
   const funnelStages = useMemo(
     () =>
@@ -608,7 +608,6 @@ export function SalesHubView({
         // Com board paginado (50/etapa) `deals.length` sub-reporta — usa o
         // total real da etapa quando o backend o envia.
         count: s.totalCount ?? s.deals.length,
-        locked: Boolean(s.isWon || s.isLost),
       })),
     [filteredStages],
   );
@@ -758,7 +757,7 @@ export function SalesHubView({
     // (mesmo contraste coluna/card do kanban). Estrutura split preservada.
     <div
       ref={rootRef}
-      className="flex h-full flex-col bg-transparent"
+      className="relative flex h-full flex-col bg-transparent"
       tabIndex={-1}
     >
       <StageRibbon
@@ -767,18 +766,7 @@ export function SalesHubView({
         onSelectStage={handleSelectStage}
         totalDeals={totalDeals}
         compact={hubChromeCompact}
-        onReorderStages={(orderedIds) => {
-          const full = stages.map((s) => s.id);
-          if (orderedIds.length === full.length) {
-            reorderStages.mutate(orderedIds);
-            return;
-          }
-          const visible = new Set(orderedIds);
-          let i = 0;
-          reorderStages.mutate(
-            full.map((id) => (visible.has(id) ? orderedIds[i++]! : id)),
-          );
-        }}
+        scrollerRef={ribbonScrollRef}
       />
 
       <div
@@ -1114,6 +1102,12 @@ export function SalesHubView({
           </aside>
         ) : null}
       </div>
+
+      <ScrollMap
+        boardRef={ribbonScrollRef}
+        columnCount={funnelStages.length + 1}
+        className="max-md:hidden"
+      />
 
       <Dialog open={convListOpen} onOpenChange={setConvListOpen}>
         <DialogContent className="max-w-md">

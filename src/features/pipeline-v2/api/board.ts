@@ -153,24 +153,3 @@ export async function getBoardFiltered(
   return (Array.isArray(data.stages) ? data.stages : []) as BoardStageDto[];
 }
 
-/** PUT /api/pipelines/:id/stages — mesma carga de Configurações (`stageIds`). */
-export async function reorderPipelineStages(
-  pipelineId: string,
-  stageIds: string[],
-): Promise<void> {
-  const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/stages`), {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ stageIds }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(
-      typeof data?.message === "string"
-        ? data.message
-        : "Não foi possível reordenar as etapas.",
-    );
-  }
-}
-
