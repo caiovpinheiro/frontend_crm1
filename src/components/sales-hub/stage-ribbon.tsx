@@ -2,8 +2,11 @@
 
 /**
  * StageRibbon — chevrons encadeados do funil no Flow.
- * Preenchem a largura (flex-1); ativo = cor sólida; inativo = pastel.
+ * Largura mínima por etapa; a faixa rola na horizontal quando não cabe.
+ * O ScrollMap do Flow (mesmo do Kanban) navega esse recorte.
  */
+
+import { type RefObject } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -21,6 +24,8 @@ type StageRibbonProps = {
   onSelectStage: (stageId: string | null) => void;
   /** Menos altura — com deal ativo no hub, libera espaço para o chat. */
   compact?: boolean;
+  /** Faixa rolável — o ScrollMap do parent usa o mesmo ref. */
+  scrollerRef?: RefObject<HTMLDivElement | null>;
 };
 
 /** Primeiro segmento: borda reta à esquerda, ponta à direita. */
@@ -63,7 +68,7 @@ function StageChevron({
         color: active ? "#ffffff" : color,
       }}
       className={cn(
-        "relative flex w-[132px] shrink-0 items-center justify-center gap-1.5 font-display font-semibold tracking-tight transition-[filter,opacity] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1 md:w-auto md:min-w-0 md:flex-1 md:basis-0",
+        "relative flex w-[132px] shrink-0 items-center justify-center gap-1.5 font-display font-semibold tracking-tight transition-[filter,opacity] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1",
         first ? "pl-2.5 pr-4 sm:pl-3 sm:pr-5" : "pl-4 pr-4 sm:pl-5 sm:pr-5",
         compact ? "h-8 text-[11.5px] sm:h-9 sm:text-[12px]" : "h-9 text-[12px] sm:h-10 sm:text-[12.5px]",
         active ? "z-[1]" : "hover:brightness-[0.97]",
@@ -95,6 +100,7 @@ export function StageRibbon({
   selectedStageId,
   onSelectStage,
   compact = false,
+  scrollerRef,
 }: StageRibbonProps) {
   const allActive = selectedStageId === null;
   const allColor = "var(--brand-primary, #5b6ff5)";
@@ -107,7 +113,8 @@ export function StageRibbon({
       )}
     >
       <div
-        className="flex w-full min-w-0 items-stretch gap-1 overflow-x-auto scrollbar-none md:overflow-visible"
+        ref={scrollerRef}
+        className="flex w-full min-w-0 items-stretch gap-1 overflow-x-auto scrollbar-none"
         role="tablist"
         aria-label="Filtrar por etapa"
       >
