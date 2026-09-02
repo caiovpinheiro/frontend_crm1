@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowLeft, Menu, Search } from "lucide-react";
+import { ArrowLeft, Menu, Plus, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -302,10 +302,11 @@ export function PagePrimaryButton({
   );
 }
 
-// ── Menu hamburger (padrão Pipeline) ─────────────────────────────────────────
+// ── Menu de ações (padrão Pipeline) ─────────────────────────────────────────
 //
 // Referência: PipelineKebabMenu
-//   • 1º CTA (primary): azul permanente + hover fundo brand/8
+//   • 1 item só (adicionar): botão `+` dispara a ação direto
+//   • 2+ itens: hamburger; 1º CTA (primary) azul permanente
 //   • Demais itens: cinza → hover fundo primary-soft + texto/ícone azul
 //   • Ícones herdam a cor do botão (sem wrapper muted)
 
@@ -413,6 +414,26 @@ export function PageActionsMenu({
   }, [open, updateCoords]);
 
   const hasForcedPrimary = items.some((it) => it.primary === true);
+  const soleItem = items.length === 1 ? items[0] : null;
+
+  if (soleItem) {
+    return (
+      <div className={cn("relative shrink-0", className)}>
+        <button
+          type="button"
+          onClick={soleItem.onClick}
+          disabled={soleItem.disabled}
+          aria-label={soleItem.label || ariaLabel}
+          className={cn(
+            pageActionsMenuTriggerClass,
+            soleItem.disabled && "cursor-not-allowed opacity-40",
+          )}
+        >
+          <Plus size={18} strokeWidth={2} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("relative shrink-0", className)}>
