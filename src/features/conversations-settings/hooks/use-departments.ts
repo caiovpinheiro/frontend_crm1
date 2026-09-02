@@ -25,12 +25,23 @@ export interface Department {
 
 const QUERY_KEY = ["settings", "departments"];
 
+function normalizeDepartmentList(data: unknown): Department[] {
+  if (Array.isArray(data)) return data as Department[];
+  if (data && typeof data === "object") {
+    const rec = data as Record<string, unknown>;
+    for (const key of ["items", "departments", "data"] as const) {
+      if (Array.isArray(rec[key])) return rec[key] as Department[];
+    }
+  }
+  return [];
+}
+
 async function fetchDepartments(): Promise<Department[]> {
   const res = await fetch(apiUrl("/api/settings/departments"), {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Erro ao carregar departamentos");
-  return res.json();
+  return normalizeDepartmentList(await res.json().catch(() => null));
 }
 
 export function useDepartments(enabled = true) {
