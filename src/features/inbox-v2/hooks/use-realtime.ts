@@ -104,65 +104,44 @@ function patchInboxConversationCard(
       : new Date().toISOString();
   const content = typeof data.content === "string" ? data.content : "";
 
-  const entries = qc.getQueriesData<{ pages?: Array<{ items?: ConversationListRow[] }> }>({
-    queryKey: ["inbox-conversations"],
-  });
-  let found = false;
-  let tabMoved = false;
-  for (const [queryKey, cached] of entries) {
-    if (!cached?.pages) continue;
-    let touched = false;
-    const pages = cached.pages.map((page) => {
-      const items = page?.items;
-      if (!items) return page;
-      const idx = items.findIndex((c) => c?.id === data.conversationId);
-      if (idx < 0) return page;
-      found = true;
-      touched = true;
-      const conv = items[idx];
-      const prevTab = inboxQueueTabFor(conv);
-      const nextItems = items.slice();
-      nextItems[idx] = {
-        ...conv,
-        lastMessageAt: ts,
-        updatedAt: ts,
-        ...(direction === "in"
-          ? {
-              lastInboundAt: ts,
-              unreadCount: (conv.unreadCount ?? 0) + 1,
-            }
-          : {}),
-        ...(data.assignedToId !== undefined
-          ? { assignedToId: data.assignedToId }
-          : {}),
-        // messageType "" força o adapter a re-inferir o ícone pelo
-        // placeholder do content ("[Áudio]", "📎 ...") da nova mensagem.
-        lastMessagePreview: {
-          content,
-          messageType: "",
-          mediaUrl: null,
-          direction: direction ?? conv.lastMessagePreview?.direction ?? "",
-          sendStatus: direction === "out" ? "sent" : null,
-          sendError: null,
-        },
-        // Campo "futuro" tem precedência no adapter — se existir na row,
-        // precisa acompanhar o patch pra não exibir preview velho.
-        ...(conv.lastMessage
-          ? {
-              lastMessage: {
-                ...conv.lastMessage,
-                preview: content,
-                direction: direction ?? conv.lastMessage.direction,
-              },
-            }
-          : {}),
-      };
-      if (inboxQueueTabFor(nextItems[idx]) !== prevTab) tabMoved = true;
-      return { ...page, items: nextItems };
-    });
-    if (touched) qc.setQueryData(queryKey, { ...cached, pages });
-  }
-  return { found, tabMoved };
+  const conv = findCachedConversationRow(qc, data.conversationId);
+  if (!conv) return { found: false, tabMoved: false };
+
+  const prevTab = inboxQueueTabFor(conv);
+  const next: ConversationListRow = {
+    ...conv,
+    lastMessageAt: ts,
+    updatedAt: ts,
+    ...(direction ? { lastMessageDirection: direction } : {}),
+    ...(direction === "in"
+      ? {
+          lastInboundAt: ts,
+          unreadCount: (conv.unreadCount ?? 0) + 1,
+        }
+      : {}),
+    ...(data.assignedToId !== undefined
+      ? { assignedToId: data.assignedToId }
+      : {}),
+    lastMessagePreview: {
+      content,
+      messageType: "",
+      mediaUrl: null,
+      direction: direction ?? conv.lastMessagePreview?.direction ?? "",
+      sendStatus: direction === "out" ? "sent" : null,
+      sendError: null,
+    },
+    ...(conv.lastMessage
+      ? {
+          lastMessage: {
+            ...conv.lastMessage,
+            preview: content,
+            direction: direction ?? conv.lastMessage.direction,
+          },
+        }
+      : {}),
+  };
+  applyConversationRowToInboxCaches(qc, next);
+  return { found: true, tabMoved: inboxQueueTabFor(next) !== prevTab };
 }
 
 type InboxListPage = {
@@ -345,12 +324,26 @@ function conversationRowFromUpdatedEvent(
   return { ...(r as unknown as ConversationListRow), id };
 }
 
-/** GET :id só para o ticket ABERTO. Lista cacheada não autoriza fetch. */
+/** GET :id só para o ticket ABERTO (CUID ou número da URL). */
+function eventTouchesOpenConversation(
+  qc: QueryClient,
+  eventConversationId: string,
+  activeId: string | null,
+): boolean {
+  if (!activeId) return false;
+  if (eventConversationId === activeId) return true;
+  const open = findCachedConversationRow(qc, activeId);
+  if (open && conversationMatchesId(open, eventConversationId)) return true;
+  const eventRow = findCachedConversationRow(qc, eventConversationId);
+  return Boolean(eventRow && conversationMatchesId(eventRow, activeId));
+}
+
 function shouldGetConversationOnUpdated(
+  qc: QueryClient,
   conversationId: string,
   activeId: string | null,
 ): boolean {
-  return Boolean(activeId && conversationId === activeId);
+  return eventTouchesOpenConversation(qc, conversationId, activeId);
 }
 
 function hasPatchableUpdatedFields(payload: ConversationUpdatedPayload): boolean {
@@ -642,7 +635,7 @@ export function useInboxRealtime(options: {
     // bloqueia mesmo o aberto (~60s). Card só na lista não entra aqui.
     function scheduleConversationCardSync(conversationId: string) {
       if (isCachedConversation404(conversationId)) return;
-      if (!shouldGetConversationOnUpdated(conversationId, activeRef.current)) {
+      if (!shouldGetConversationOnUpdated(qc, conversationId, activeRef.current)) {
         return;
       }
       if (inFlightCardSyncIdsRef.current.has(conversationId)) return;
@@ -654,7 +647,7 @@ export function useInboxRealtime(options: {
         const ids = [...pendingCardSyncIdsRef.current].filter(
           (id) =>
             !isCachedConversation404(id) &&
-            shouldGetConversationOnUpdated(id, activeRef.current),
+            shouldGetConversationOnUpdated(qc, id, activeRef.current),
         );
         pendingCardSyncIdsRef.current.clear();
         if (ids.length === 0) return;
@@ -673,7 +666,9 @@ export function useInboxRealtime(options: {
               } catch (err) {
                 if (isConversationNotFoundError(err)) {
                   rememberConversation404(ids[0]);
-                  removeConversationFromInboxCaches(qc, ids[0]);
+                  if (!eventTouchesOpenConversation(qc, ids[0], activeRef.current)) {
+                    removeConversationFromInboxCaches(qc, ids[0]);
+                  }
                 }
               }
               return;
@@ -710,9 +705,12 @@ export function useInboxRealtime(options: {
                 queryKey: ["channel-session", data.conversationId],
               });
             }
-            if (data.conversationId === activeRef.current) {
+            if (eventTouchesOpenConversation(qc, data.conversationId, activeRef.current)) {
               // Conversa aberta: refetch imediato para exibir a mensagem.
               qc.invalidateQueries({ queryKey: messagesKey(activeRef.current) });
+              if (activeRef.current !== data.conversationId) {
+                qc.invalidateQueries({ queryKey: messagesKey(data.conversationId) });
+              }
             } else {
               // Outra conversa: marca stale sem refetch imediato.
               // Quando o operador navegar até ela, verá dados frescos.
@@ -834,7 +832,9 @@ export function useInboxRealtime(options: {
           return;
         }
         if (isCachedConversation404(id)) {
-          removeConversationFromInboxCaches(qc, id);
+          if (!eventTouchesOpenConversation(qc, id, activeRef.current)) {
+            removeConversationFromInboxCaches(qc, id);
+          }
           scheduleCountsRefresh();
           scheduleDailyStatsRefresh();
           return;
@@ -844,7 +844,7 @@ export function useInboxRealtime(options: {
           applyConversationRowToInboxCaches(qc, completeRow);
         } else if (applyConversationUpdatedPatch(qc, payload)) {
           // Card na lista atualizado sem GET :id.
-        } else if (shouldGetConversationOnUpdated(id, activeRef.current)) {
+        } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
         }
         scheduleCountsRefresh();

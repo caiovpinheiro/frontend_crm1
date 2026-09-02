@@ -3,7 +3,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { hasInboxServerFilters, type ConversationListRow, type InboxFilters, type InboxTab } from "../api";
-import { rowBelongsToAnyInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
+import { inboxQueueTabFor, rowBelongsToAnyInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 
 /**
@@ -100,6 +100,7 @@ export function applyOutboundPreviewToInboxCaches(
     ...existing,
     lastMessageAt: ts,
     updatedAt: ts,
+    lastMessageDirection: "out",
     lastMessagePreview: {
       content,
       messageType: preview?.messageType ?? "",
@@ -118,6 +119,8 @@ export function applyOutboundPreviewToInboxCaches(
         }
       : {}),
   };
+  const prevTab = inboxQueueTabFor(existing);
+  const nextTab = inboxQueueTabFor(next);
 
   const entries = qc.getQueriesData<InboxListCache>({
     queryKey: ["inbox-conversations"],
@@ -184,5 +187,9 @@ export function applyOutboundPreviewToInboxCaches(
         pages: bumpPageTotals(pages, 1),
       });
     }
+  }
+
+  if (prevTab !== nextTab) {
+    void qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
   }
 }
