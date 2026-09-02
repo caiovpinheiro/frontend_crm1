@@ -362,7 +362,7 @@ export function ConversationColumn({
     })
     function onDocClick(e: MouseEvent) {
       const target = e.target as Node
-      if (el.contains(target)) return
+      if (el?.contains(target)) return
       if (dropdownMenuRef.current?.contains(target)) return
       setDropdownOpen(false)
     }
