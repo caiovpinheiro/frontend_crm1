@@ -39,6 +39,7 @@ import {
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
+import { PageTourButton } from "@/features/product-tour";
 import { KanbanColumn } from "@/components/crm/kanban-column";
 import { DealCard } from "@/components/crm/deal-card";
 import { ScrollMap } from "@/components/crm/scroll-map";
@@ -958,22 +959,26 @@ export default function KanbanV2ClientPage({
           }
           period={<PipelinePeriodCalendar filters={filters} onPatch={patchFilters} />}
           menuSlot={
-            <TooltipGlass label="Ordenar, importar e exportar" side="bottom">
-              <button
-                ref={kebabBtnRef}
-                type="button"
-                data-pipeline-kebab-trigger=""
-                onClick={() => setKebabOpen((v) => !v)}
-                aria-label="Ações do pipeline"
-                aria-expanded={kebabOpen}
-                className={cn(
-                  pageActionsMenuTriggerClass,
-                  kebabOpen && "ring-2 ring-primary/35 brightness-95",
-                )}
-              >
-                <IconMenu2 size={18} stroke={2.2} />
-              </button>
-            </TooltipGlass>
+            <div className="flex items-center gap-2">
+              <PageTourButton tourId="pipeline" />
+              <TooltipGlass label="Ordenar, importar e exportar" side="bottom">
+                <button
+                  ref={kebabBtnRef}
+                  type="button"
+                  data-pipeline-kebab-trigger=""
+                  data-tour="pipeline-actions"
+                  onClick={() => setKebabOpen((v) => !v)}
+                  aria-label="Ações do pipeline"
+                  aria-expanded={kebabOpen}
+                  className={cn(
+                    pageActionsMenuTriggerClass,
+                    kebabOpen && "ring-2 ring-primary/35 brightness-95",
+                  )}
+                >
+                  <IconMenu2 size={18} stroke={2.2} />
+                </button>
+              </TooltipGlass>
+            </div>
           }
         />
         {/* Portal do menu ancorado no botão do header — irmão, não filho do slot. */}
@@ -1011,6 +1016,7 @@ export default function KanbanV2ClientPage({
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div
             ref={boardRef}
+            data-tour="pipeline-kanban"
             className="kanban-board-hscroll flex min-h-0 min-w-0 flex-1 gap-3.5 overflow-x-auto overflow-y-hidden"
           >
             {columns.map((col) => {

@@ -139,3 +139,17 @@ export async function voteDemandItem(
     "Não foi possível votar.",
   );
 }
+
+export async function deleteDemandBoard(id: string): Promise<void> {
+  await json(
+    fetch(apiUrl(`/api/demands/boards/${id}`), { method: "DELETE" }),
+    "Não foi possível excluir o board.",
+  );
+}
+
+export async function deleteDemandItem(id: string): Promise<void> {
+  await json(
+    fetch(apiUrl(`/api/demands/items/${id}`), { method: "DELETE" }),
+    "Não foi possível excluir a solicitação.",
+  );
+}

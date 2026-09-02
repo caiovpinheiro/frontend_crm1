@@ -27,6 +27,7 @@ import type { BoardStage } from "@/components/pipeline/kanban-board";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import { AppLoading } from "@/components/crm/app-loading";
 import { ConversationPaneSkeleton } from "@/components/crm/conversation-skeleton";
+import { ScrollMap } from "@/components/crm/scroll-map";
 import { useStageUrlSync } from "@/features/pipeline-v2/hooks";
 import { StageRibbon } from "@/components/sales-hub/stage-ribbon";
 import {
@@ -54,7 +55,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TooltipHost } from "@/components/ui/tooltip";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome";
 import {
   cn,
@@ -218,7 +218,6 @@ export function SalesHubView({
   contactFieldConfigSlot,
   dealFieldConfigSlot,
 }: SalesHubViewProps) {
-  const isMdUp = useMediaQuery("(min-width: 768px)", true);
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   /** Só sobe em troca explícita de etapa (ribbon/atalho) — limpa a fila. */
   const [stageSwitchToken, setStageSwitchToken] = useState(0);
@@ -538,58 +537,16 @@ export function SalesHubView({
     [onActiveDealChange, resolveDealNumber],
   );
 
-  const handleSelectStage = useCallback(
-    (stageId: string | null) => {
-      if (selectedStageIdRef.current !== stageId) {
-        selectedStageIdRef.current = stageId;
-        setSelectedStageId(stageId);
-        setStageSwitchToken((t) => t + 1);
-      }
-      // Mobile: só filtra a fila — abrir o 1º deal esconderia a lista.
-      if (!isMdUp) return;
-      const source = stageId
-        ? filteredStages.filter((s) => s.id === stageId)
-        : filteredStages;
-      const first = source.flatMap((s) => s.deals)[0];
-      // Board ainda vazio (refresh): não apagar ?deal= / seleção atual.
-      if (!first) return;
-      if (activeDealId) {
-        const keep = source.some((s) =>
-          s.deals.some(
-            (d) =>
-              d.id === activeDealId || String(d.number) === activeDealId,
-          ),
-        );
-        if (keep) return;
-      }
-      onActiveDealChange(first.id, first.number ?? null);
-    },
-    [activeDealId, filteredStages, isMdUp, onActiveDealChange],
-  );
+  const handleSelectStage = useCallback((stageId: string | null) => {
+    if (selectedStageIdRef.current === stageId) return;
+    selectedStageIdRef.current = stageId;
+    setSelectedStageId(stageId);
+    setStageSwitchToken((t) => t + 1);
+  }, []);
 
   const handleDeselectDeal = useCallback(() => {
     onActiveDealChange(null);
   }, [onActiveDealChange]);
-
-  // 1ª abertura do Flow (sem ?deal=): seleciona o 1º da fila para já
-  // entrar no layout split (fila + chat), em vez de cards em largura total.
-  // No mobile a fila ocupa a tela — não auto-selecionar.
-  const didInitialSelectRef = useRef(false);
-  useEffect(() => {
-    if (didInitialSelectRef.current) return;
-    if (activeDealId) {
-      didInitialSelectRef.current = true;
-      return;
-    }
-    if (!isMdUp) return;
-    // Espera a etapa salva ser restaurada — abrir o 1º deal do board antes
-    // disso joga a seleção para a etapa dele e perde a fase anterior.
-    if (!stageHydrated) return;
-    const first = sortedDeals[0];
-    if (!first) return;
-    didInitialSelectRef.current = true;
-    onActiveDealChange(first.id, first.number ?? null);
-  }, [activeDealId, isMdUp, sortedDeals, onActiveDealChange, stageHydrated]);
 
   const handleDealMoved = useCallback((dealId: string) => {
     // Highlight visual por 1.5s pra sinalizar o "salto" entre etapas.
@@ -597,6 +554,8 @@ export function SalesHubView({
     const t = setTimeout(() => setRecentlyMovedDealId(null), 1500);
     return () => clearTimeout(t);
   }, []);
+
+  const ribbonScrollRef = useRef<HTMLDivElement>(null);
 
   const funnelStages = useMemo(
     () =>
@@ -756,7 +715,7 @@ export function SalesHubView({
     // (mesmo contraste coluna/card do kanban). Estrutura split preservada.
     <div
       ref={rootRef}
-      className="flex h-full flex-col bg-transparent"
+      className="relative flex h-full flex-col bg-transparent"
       tabIndex={-1}
     >
       <StageRibbon
@@ -765,6 +724,7 @@ export function SalesHubView({
         onSelectStage={handleSelectStage}
         totalDeals={totalDeals}
         compact={hubChromeCompact}
+        scrollerRef={ribbonScrollRef}
       />
 
       <div
@@ -1114,6 +1074,12 @@ export function SalesHubView({
           </aside>
         ) : null}
       </div>
+
+      <ScrollMap
+        boardRef={ribbonScrollRef}
+        columnCount={funnelStages.length + 1}
+        className="max-md:hidden"
+      />
 
       <Dialog open={convListOpen} onOpenChange={setConvListOpen}>
         <DialogContent className="max-w-md">

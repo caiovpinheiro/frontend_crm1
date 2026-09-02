@@ -3,8 +3,8 @@
 /**
  * Popup de "app desatualizado" para o WebView mobile (APK/Capacitor).
  *
- * Diferente do `UpdateAvailableBanner` (desktop, baseado em semver de
- * `NEXT_PUBLIC_APP_VERSION` + localStorage, focado em mostrar "novidades"),
+ * Diferente do `UpdateAvailableBanner` (desktop: novidades + hard reload
+ * quando o JS da aba está atrás do servidor),
  * este popup só existe em viewport mobile/Capacitor e é focado em pedir
  * reload — o WebView do APK não recebe o novo bundle sozinho como uma aba
  * de navegador normal faria em alguns casos, então avisamos o usuário a
@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useIsMobile } from "@/hooks/use-media-query";
+import { clearWebCachesAndReload, fetchAppRevision } from "@/lib/hard-reload";
 
 const POLL_INTERVAL_MS = 30_000;
 const DISMISSED_REVISION_KEY = "crm_mobile_update_dismissed_revision";
@@ -50,45 +51,6 @@ function isNativePlatform(): boolean {
     return capacitor?.isNativePlatform?.() ?? false;
   } catch {
     return false;
-  }
-}
-
-async function fetchRemoteRevision(): Promise<string | null> {
-  try {
-    const res = await fetch(`/api/app-revision?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.includes("application/json")) return null;
-    const data = (await res.json()) as { revision?: unknown };
-    if (typeof data.revision !== "string") return null;
-    const revision = data.revision.trim();
-    return revision || null;
-  } catch {
-    return null;
-  }
-}
-
-/** Limpa SW + Cache Storage e recarrega — falhas de limpeza nunca bloqueiam o reload. */
-async function clearWebCachesAndReload(): Promise<void> {
-  try {
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((reg) => reg.unregister()));
-      } catch {
-        // ignore — reload segue no finally
-      }
-    }
-    if (typeof caches !== "undefined") {
-      try {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((key) => caches.delete(key)));
-      } catch {
-        // ignore — reload segue no finally
-      }
-    }
-  } finally {
-    window.location.reload();
   }
 }
 
@@ -107,7 +69,7 @@ export function MobileAppUpdateDialog() {
   const checkForUpdate = React.useCallback(async () => {
     if (!CLIENT_REVISION || CLIENT_REVISION === "dev") return;
 
-    const remote = await fetchRemoteRevision();
+    const remote = await fetchAppRevision();
     if (!remote) return;
     if (remote === CLIENT_REVISION) return;
 

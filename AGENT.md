@@ -5,6 +5,18 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-09-02 — Product tour (Driver.js) opt-in por página
+
+**Decisão.** Infra de tour em `src/features/product-tour/` com Driver.js. Cada página registra passos e monta `PageTourButton` (`?` no header). O tour só inicia no clique em “Fazer tour desta página”. Sem auto-start, sem persistência, sem backend. Piloto: Pipeline kanban. Onboarding wizard e `OnboardingTour` da Inbox permanecem separados.
+
+**Contexto.** Organizações precisam de ajuda contextual sem interromper o uso do CRM. O overlay legado da Inbox não é spotlight e não está montado; o wizard é setup de org.
+
+**Alternativas descartadas.** Reusar `OnboardingTour` (não destaca DOM). Auto-start / localStorage de conclusão (pedido explícito de não persistir). Colocar o tour no hamburger (o menu de 1 item vira Plus; o `?` precisa ficar discreto e separado).
+
+**Impacto.** `npm` `driver.js`. Páginas novas: `tours/<id>-tour.ts` + registro + `data-tour` estável + `<PageTourButton tourId="…" />`.
+
+---
+
 ### 2026-09-01 — Convite por e-mail, verificação no signup, esqueci senha
 
 **Decisão.** Equipe deixa de criar usuário com senha e passa a enviar convite (`POST /api/invites`). Signup do primeiro ADMIN redireciona para `/verify-email` em vez de `signIn`. Páginas públicas `/forgot-password`, `/reset-password`, `/verify-email`. Reset admin na Equipe permanece.
