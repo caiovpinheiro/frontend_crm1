@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { ArrowLeft, Menu, Search } from "lucide-react";
+import { ArrowLeft, Menu, Plus, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -413,6 +413,26 @@ export function PageActionsMenu({
   }, [open, updateCoords]);
 
   const hasForcedPrimary = items.some((it) => it.primary === true);
+  const soleItem = items.length === 1 ? items[0] : null;
+
+  if (soleItem) {
+    return (
+      <div className={cn("relative shrink-0", className)}>
+        <button
+          type="button"
+          onClick={soleItem.onClick}
+          disabled={soleItem.disabled}
+          aria-label={soleItem.label || ariaLabel}
+          className={cn(
+            pageActionsMenuTriggerClass,
+            soleItem.disabled && "cursor-not-allowed opacity-40",
+          )}
+        >
+          <Plus size={18} strokeWidth={2} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("relative shrink-0", className)}>
