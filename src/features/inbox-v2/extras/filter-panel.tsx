@@ -24,8 +24,6 @@ import {
   IconX as X,
 } from "@tabler/icons-react";
 
-import { toast } from "sonner";
-
 import { cn } from "@/lib/utils";
 import type { ActiveFilterChipModel } from "@/components/crm/active-filter-chip";
 import { FilterSearchTrigger } from "@/components/crm/filter-search-trigger";
@@ -46,7 +44,6 @@ import {
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { useTeamUsers } from "@/features/inbox-v2/hooks";
 import {
-  findCurrentInboxConversationForContact,
   getPipelineBoard,
   listInboxFilterChannels,
   listPipelines,
@@ -56,7 +53,6 @@ import {
   type InboxFilters,
 } from "@/features/inbox-v2/api";
 import { normalizeInboxFilters } from "@/features/inbox-v2/api/types";
-import type { ContactListItemDto } from "@/features/directory-v2/api";
 import { formatConnectionPhone } from "@/lib/connection-label";
 import { SOURCE_NONE } from "@/components/pipeline/kanban-filters/types";
 import { useContactSources } from "@/hooks/use-contact-sources";
@@ -587,22 +583,13 @@ export function InboxSearchFilterBar({
     [filters, onChangeFilters],
   );
   const hits = useInboxOmnisearch(search, search.trim().length >= 3);
-  const flatHits = flattenInboxSearchHits(hits.contacts, hits.deals);
+  const flatHits = flattenInboxSearchHits(hits.conversations, hits.deals);
   const menu = useOmnisearchMenu(search, flatHits.length);
 
-  async function pickContact(contact: ContactListItemDto) {
-    try {
-      const row = await findCurrentInboxConversationForContact(contact.id);
-      if (!row) {
-        toast.error("Nenhuma conversa encontrada para este contato.");
-        return;
-      }
-      onPickConversation?.(row);
-      onSearch("");
-      menu.close();
-    } catch {
-      toast.error("Não foi possível abrir a conversa.");
-    }
+  function pickConversation(row: ConversationListRow) {
+    onPickConversation?.(row);
+    onSearch("");
+    menu.close();
   }
 
   function pickDeal(id: string) {
@@ -614,12 +601,12 @@ export function InboxSearchFilterBar({
   function pickActiveHit() {
     const hit = flatHits[menu.activeIndex] ?? flatHits[0];
     if (!hit) return;
-    if (hit.kind === "contact") void pickContact(hit.contact);
+    if (hit.kind === "conversation") pickConversation(hit.row);
     else pickDeal(hit.deal.id);
   }
 
   return (
-    <div data-tour="inbox-search" className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("flex flex-col gap-2", className)}>
       <div ref={menu.wrapRef}>
         <FilterSearchTrigger
           search={search}
@@ -633,7 +620,7 @@ export function InboxSearchFilterBar({
           filtersOpen={open}
           activeCount={activeCount}
           placeholder={placeholder}
-          ariaLabel="Buscar contatos e negócios"
+          ariaLabel="Buscar conversas e negócios"
           tooltipLabel="Filtrar conversas"
           chips={chips}
         />
@@ -643,13 +630,12 @@ export function InboxSearchFilterBar({
           coords={menu.coords}
           loading={hits.isLoading || hits.waitingDebounce}
           query={hits.query || search.trim()}
-          contacts={hits.contacts}
+          conversations={hits.conversations}
           deals={hits.deals}
           activeIndex={menu.activeIndex}
           onActiveIndexChange={menu.setActiveIndex}
-          onPickContact={pickContact}
+          onPickConversation={pickConversation}
           onPickDeal={pickDeal}
-          onSeeAll={menu.close}
         />
       )}
       <InboxFilterButton

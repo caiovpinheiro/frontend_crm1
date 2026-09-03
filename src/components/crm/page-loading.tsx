@@ -3,7 +3,7 @@ import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 
 /**
  * Compat: `PageLoading` / `PanelLoading` / `RouteLoading` delegam para
- * `AppLoading` inline (loader Formação). Um loader só, centro do pane.
+ * `AppLoading` inline (marca + anel-cometa). Um loader só, centro do pane.
  */
 
 /** Loader de container / painel (settings, lista, chat). */

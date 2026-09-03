@@ -17,7 +17,6 @@ import {
 import { AppLoading } from "@/components/crm/app-loading"
 import { PageHeader } from "@/components/crm/page-header"
 import { PageActionsMenu, PageGhostButton, PagePrimaryButton } from "@/components/crm/page-toolbar"
-import { PageTourButton, registerBuilderTourBridge } from "@/features/product-tour"
 import {
   addEdge,
   Background,
@@ -145,25 +144,6 @@ function InnerEditor({ automationId }: { automationId: string }) {
     () => ({ openLogs: (t: LogsTarget) => setLogsTarget(t) }),
     [],
   )
-
-  useEffect(() => {
-    return registerBuilderTourBridge({
-      openPicker: () => setPickerOpen(true),
-      closePicker: () => {
-        setPickerOpen(false)
-        pendingPosition.current = null
-        pendingConn.current = null
-      },
-      focusTrigger: () => {
-        const node = getNode(TRIGGER_NODE_ID)
-        if (!node) return
-        setCenter(node.position.x + 160, node.position.y + 110, {
-          zoom: 0.85,
-          duration: 0,
-        })
-      },
-    })
-  }, [getNode, setCenter])
 
   const automation = useAutomation(automationId)
   const stats = useAutomationStats(automationId)
@@ -717,15 +697,10 @@ function InnerEditor({ automationId }: { automationId: string }) {
               <IconDeviceMobile size={16} stroke={2.2} />
               Simular
             </PageGhostButton>
-            <PagePrimaryButton
-              data-tour="builder-save"
-              onClick={() => void saveFlow()}
-              disabled={!dirty || replaceAutomation.isPending}
-            >
+            <PagePrimaryButton onClick={() => void saveFlow()} disabled={!dirty || replaceAutomation.isPending}>
               <IconDeviceFloppy size={16} stroke={2.2} />
               {replaceAutomation.isPending ? "Salvando…" : dirty ? "Salvar" : "Salvo"}
             </PagePrimaryButton>
-            <PageTourButton tourId="automations-builder" />
             <PageActionsMenu
             items={[
               {
@@ -772,7 +747,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
       <div className="crm-flow-editor relative flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)]">
       <NodePaletteDrawer onAdd={addNode} />
 
-      <div className="relative min-h-0 min-w-0 flex-1" data-tour="builder-canvas">
+      <div className="relative min-h-0 min-w-0 flex-1">
 
       <ReactFlow
         nodes={displayNodes}

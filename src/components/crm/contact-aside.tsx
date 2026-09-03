@@ -893,10 +893,7 @@ export function ContactAside({
           </button>
         </TooltipGlass>
       )}
-      <div
-        data-tour="inbox-aside"
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] backdrop-blur-md shadow-[var(--glass-shadow)]"
-      >
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] backdrop-blur-md shadow-[var(--glass-shadow)]">
 
         {/* Header de acoes do contato (IB4 do questionario):
             DealCallButton entra aqui via `headerActionsNode`. Antes ficava
@@ -914,7 +911,7 @@ export function ContactAside({
             Com 2+ negócios: lista retraída (# + etapa); atendente expande
             só o que for atender. Com 1 negócio: sempre expandido. */}
         {deals.length > 0 && !sectionHiddenMap["negocios"] && (
-          <div data-tour="inbox-aside-deal" className="shrink-0 space-y-0.5 border-b border-[var(--glass-border-subtle)] pb-2">
+          <div className="shrink-0 space-y-0.5 border-b border-[var(--glass-border-subtle)] pb-2">
             {multiDeal && (
               <p className="px-2 pt-2 font-display text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
                 {deals.length} negócios — toque para expandir
@@ -942,7 +939,7 @@ export function ContactAside({
         )}
 
         {/* ── Abas: Perfil / Produto + toggle de visão (ref. Stitch) ── */}
-        <nav data-tour="inbox-aside-tabs" className="flex shrink-0 items-center gap-1.5 px-2.5 py-2" aria-label="Alternar entre Perfil e Produto">
+        <nav className="flex shrink-0 items-center gap-1.5 px-2.5 py-2" aria-label="Alternar entre Perfil e Produto">
           {ASIDE_TAB_ITEMS.map((item) => {
             const active = activeTab === item.value
             return (
@@ -992,7 +989,7 @@ export function ContactAside({
                         >
                           {/* ── Detalhes de Contato (campos nativos + personalizados) ── */}
                           {sectionId === "contato" && (
-                            <div data-tour="inbox-aside-contact" className={SECTION_CARD_CLASS}>
+                            <div className={SECTION_CARD_CLASS}>
                               <SectionHeader
                                 dragHandleProps={provided.dragHandleProps ?? undefined}
                                 icon={<IconUser size={16} className="text-orange-500" />}
@@ -1222,7 +1219,7 @@ export function ContactAside({
                           {/* ── Campos de Negócio (personalizados) ── */}
                           {sectionId === "campos-negocio" &&
                             (resolvedDealPanelFields.length > 0 || resolvedDealConfig) && (
-                              <div data-tour="inbox-aside-fields" className={SECTION_CARD_CLASS}>
+                              <div className={SECTION_CARD_CLASS}>
                                 <SectionHeader
                                   dragHandleProps={provided.dragHandleProps ?? undefined}
                                   icon={<IconBriefcase size={16} className="text-[var(--brand-primary)]" />}

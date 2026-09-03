@@ -22,8 +22,6 @@ interface AutomationCardProps {
    * Opcional para preservar usos legados (ex.: galeria preview).
    */
   onDelete?: (id: string) => void
-  /** Âncora do product tour no interruptor de Status (primeira linha visível). */
-  statusTour?: boolean
 }
 
 function SuccessBadge({ rate }: { rate: number }) {
@@ -47,7 +45,6 @@ export function AutomationCard({
   automation,
   onToggle,
   onDelete,
-  statusTour = false,
 }: AutomationCardProps) {
   const stepTypes =
     automation.stepTypes && automation.stepTypes.length > 0
@@ -110,18 +107,13 @@ export function AutomationCard({
       </div>
 
       <div className="relative z-10 flex items-center gap-1 lg:justify-end">
-        <span
-          {...(statusTour ? { "data-tour": "automations-status" } : {})}
-          className="inline-flex shrink-0"
-        >
-          <SwitchGlass
-            checked={automation.active}
-            onChange={() => onToggle(automation.id)}
-            size="list"
-            className="shrink-0"
-            aria-label={`${automation.active ? "Desativar" : "Ativar"} ${automation.name}`}
-          />
-        </span>
+        <SwitchGlass
+          checked={automation.active}
+          onChange={() => onToggle(automation.id)}
+          size="list"
+          className="shrink-0"
+          aria-label={`${automation.active ? "Desativar" : "Ativar"} ${automation.name}`}
+        />
 
         {onDelete && (
           <button

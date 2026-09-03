@@ -18,7 +18,6 @@ import { useRoles } from "@/features/permissions/hooks";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import type { RoleSummary, RoleUser } from "@/features/permissions/types";
 import { cn } from "@/lib/utils";
-import { registerSecurityAccessTourBridge } from "@/features/product-tour";
 
 import { SETTINGS_HUB_BACK, SettingsV2Shell } from "../_v2-shell";
 
@@ -155,20 +154,6 @@ function Sidebar({
     setSearch("");
   }, [tab]);
 
-  useEffect(() => {
-    registerSecurityAccessTourBridge((kind) => {
-      setTab(kind);
-      if (kind === "role") {
-        if (roles[0]) onSelect({ kind: "role", id: roles[0].id });
-        else onSelect({ kind: "none" });
-        return;
-      }
-      if (users[0]) onSelect({ kind: "user", id: users[0].id });
-      else onSelect({ kind: "none" });
-    });
-    return () => registerSecurityAccessTourBridge(null);
-  }, [roles, users, onSelect]);
-
   const q = search.trim().toLowerCase();
   const filteredRoles = useMemo(
     () => (q ? roles.filter((r) => r.name.toLowerCase().includes(q)) : roles),
@@ -197,10 +182,7 @@ function Sidebar({
   ];
 
   return (
-    <aside
-      className="flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow)] backdrop-blur-md v2-dark:bg-[var(--glass-bg-modal)] lg:h-full lg:min-h-0"
-      data-tour="sec-access"
-    >
+    <aside className="flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow)] backdrop-blur-md v2-dark:bg-[var(--glass-bg-modal)] lg:h-full lg:min-h-0">
       {/* Header + segmented (um contexto por vez) */}
       <div className="flex flex-col gap-3 border-b border-[var(--glass-border-subtle)] px-3.5 pb-3 pt-3">
         <div className="flex items-center gap-2">
@@ -211,10 +193,7 @@ function Sidebar({
             Acessos
           </h2>
         </div>
-        <div
-          className="flex gap-1 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-1"
-          data-tour="sec-access-tabs"
-        >
+        <div className="flex gap-1 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-1">
           {TABS.map((t) => {
             const on = tab === t.id;
             return (
@@ -247,7 +226,7 @@ function Sidebar({
       </div>
 
       {/* Busca única + ação contextual */}
-      <div className="flex items-center gap-2 px-3 pb-2 pt-2.5" data-tour="sec-access-search">
+      <div className="flex items-center gap-2 px-3 pb-2 pt-2.5">
         <div className="relative min-w-0 flex-1">
           <IconSearch
             size={13}
@@ -275,7 +254,7 @@ function Sidebar({
       {/* Lista do contexto ativo */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pb-2.5">
         {tab === "role" && (
-          <div data-tour="sec-role-list" className="flex min-h-0 min-w-0 flex-col gap-0.5">
+          <>
             {filteredRoles.map((r) => (
               <RoleRow
                 key={r.id}
@@ -287,11 +266,11 @@ function Sidebar({
             {!rolesLoading && filteredRoles.length === 0 && (
               <EmptyRow label={q ? "Sem resultados" : "Nenhum papel"} />
             )}
-          </div>
+          </>
         )}
 
         {tab === "user" && (
-          <div data-tour="sec-people-list" className="flex min-h-0 min-w-0 flex-col gap-0.5">
+          <>
             {filteredUsers.map((u) => (
               <UserRow
                 key={u.id}
@@ -303,7 +282,7 @@ function Sidebar({
             {!usersLoading && filteredUsers.length === 0 && (
               <EmptyRow label={q ? "Sem resultados" : "Nenhuma pessoa"} />
             )}
-          </div>
+          </>
         )}
       </div>
     </aside>

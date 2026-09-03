@@ -951,7 +951,7 @@ export function Composer({
         (!noteMode && (availableChannels?.length ?? 0) > 1) ||
         conversationId ||
         conversationNumber != null) && (
-        <div data-tour="inbox-composer-bar" className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-0.5">
+        <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-0.5">
           {transferSlot}
 
           {/* Tabs Mensagem / Nota interna */}
@@ -1147,7 +1147,6 @@ export function Composer({
         {/* Controles padrão — ocultos durante gravação de áudio */}
         {!isAudioActive && (
           <>
-            <div data-tour="inbox-composer-plus" className="shrink-0">
             <ComposerMenu
               conversationId={conversationId}
               channelId={selectedChannelId ?? conversationChannelId ?? null}
@@ -1174,7 +1173,6 @@ export function Composer({
               onOutboundBlocked={warnOutboundBlocked}
               enableCallPermission={enableCallPermission}
             />
-            </div>
             <div ref={emojiWrapRef} className="relative">
               <TooltipGlass label="Emoji" side="top">
                 <span className="inline-flex">
@@ -1217,7 +1215,7 @@ export function Composer({
 
         {/* Área de texto — oculta durante gravação de áudio */}
         {!isAudioActive && (
-          <div data-tour="inbox-composer-input" className="flex min-h-9 min-w-0 flex-1 flex-col justify-center py-1.5">
+          <div className="flex min-h-9 min-w-0 flex-1 flex-col justify-center py-1.5">
             <textarea
               ref={textareaRef}
               rows={1}
@@ -1249,7 +1247,6 @@ export function Composer({
           </div>
         )}
 
-        <div data-tour="inbox-composer-tools" className="flex shrink-0 items-center gap-1.5">
         {/* AudioRecorderButton: microfone (idle) ou barra inline (recording/preview) */}
         {!noteMode && (
           <AudioRecorderButton
@@ -1291,7 +1288,6 @@ export function Composer({
             </span>
           </TooltipGlass>
         )}
-        </div>
       </form>
     </div>
   );

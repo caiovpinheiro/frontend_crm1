@@ -123,7 +123,7 @@ export default function ApiTokensPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end" data-tour="sec-api-create">
+      <div className="flex justify-end">
         <PagePrimaryButton
           type="button"
           onClick={() => {
@@ -136,7 +136,7 @@ export default function ApiTokensPage() {
         </PagePrimaryButton>
       </div>
 
-      <GlassCard className="overflow-hidden p-0" data-tour="sec-api-list">
+      <GlassCard className="overflow-hidden p-0">
         <div className="space-y-1 border-b border-[var(--glass-border-subtle)] px-6 py-5">
           <h2 className="font-display text-base font-bold text-[var(--text-primary)]">Tokens ativos</h2>
           <p className="text-sm text-[var(--text-muted)]">

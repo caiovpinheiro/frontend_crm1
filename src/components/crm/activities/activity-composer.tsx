@@ -19,7 +19,6 @@ import {
 import { useTeamUsers } from "@/features/pipeline-v2/hooks/use-deal-mutations"
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments"
 import { useContact, useContacts } from "@/features/directory-v2/hooks"
-import { PageTourButton } from "@/features/product-tour"
 import {
   ACTIVITY_KINDS,
   ACTIVITY_KIND_ORDER,
@@ -230,7 +229,6 @@ export function ActivityComposer({
         </FormDialogIcon>
       }
       size="md"
-      headerAccessory={<PageTourButton tourId="tasks-create" size="sm" />}
       footer={
         <>
           <ButtonGlass
@@ -247,14 +245,13 @@ export function ActivityComposer({
             className={formDialogPrimaryClass}
             disabled={!canSubmit}
             onClick={submit}
-            data-tour="task-create-submit"
           >
             Salvar
           </ButtonGlass>
         </>
       }
     >
-      <div data-tour="task-create-title">
+      <div>
         <label htmlFor="ac-title" className={formLabelClass}>
           Título *
         </label>
@@ -271,7 +268,7 @@ export function ActivityComposer({
         />
       </div>
 
-      <div className="flex flex-col gap-1.5" data-tour="task-create-type">
+      <div className="flex flex-col gap-1.5">
         <span className={formLabelClass}>Tipo</span>
         <div className="flex flex-wrap gap-1.5">
           {ACTIVITY_KIND_ORDER.map((k) => {
@@ -296,7 +293,7 @@ export function ActivityComposer({
         </div>
       </div>
 
-      <div data-tour="task-create-when">
+      <div>
         <span className={formLabelClass}>Quando</span>
         <div className="flex flex-wrap items-center gap-2">
           <Clock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -333,7 +330,7 @@ export function ActivityComposer({
       </div>
 
       <div className={cn("grid gap-3", usesLocation ? "grid-cols-2" : "grid-cols-1")}>
-        <div className="relative" data-tour="task-create-contact">
+        <div className="relative">
           <label htmlFor="ac-who" className={formLabelClass}>
             Contato{" "}
             {!lockContact && (
@@ -416,7 +413,7 @@ export function ActivityComposer({
           )}
         </div>
         {usesLocation && (
-          <div data-tour="task-create-location">
+          <div>
             <label htmlFor="ac-loc" className={formLabelClass}>
               Local
             </label>
@@ -432,7 +429,7 @@ export function ActivityComposer({
       </div>
 
       {showDealPicker && (
-        <div data-tour="task-create-deal">
+        <div>
           <label htmlFor="ac-deal" className={formLabelClass}>
             Negócio <span className="normal-case tracking-normal">(opcional)</span>
           </label>
@@ -452,7 +449,7 @@ export function ActivityComposer({
         </div>
       )}
 
-      <div className="flex flex-col gap-1.5" data-tour="task-create-assignee">
+      <div className="flex flex-col gap-1.5">
         <span className={formLabelClass}>Responsável</span>
         <div className="flex gap-1.5">
           <button
@@ -510,7 +507,7 @@ export function ActivityComposer({
         )}
       </div>
 
-      <div data-tour="task-create-notes">
+      <div>
         <label htmlFor="ac-notes" className={formLabelClass}>
           Notas
         </label>

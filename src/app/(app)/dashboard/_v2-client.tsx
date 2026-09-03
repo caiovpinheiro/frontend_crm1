@@ -9,7 +9,6 @@ import { AppLoading } from "@/components/crm/app-loading";
 import { NavRail } from "@/components/crm/nav-rail";
 import { STUCK_TIMEOUT_MS } from "@/hooks/use-stuck-timeout";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
-import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { PeriodCalendarButton } from "@/components/crm/period-calendar-button";
 import { PainelBlockError, PainelSkeleton } from "@/components/crm/dashboard/painel-block";
 import { DealStageWidget, PainelDealWidget } from "@/components/crm/dashboard/painel-deals";
@@ -21,10 +20,6 @@ import { OperatorDashboardWidget } from "@/components/crm/dashboard/operator-das
 import { SystemUsageCard } from "@/components/crm/dashboard/system-usage-card";
 import { CustomMetricCard } from "@/components/crm/dashboard/custom-metric-card";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
-import {
-  PageTourButton,
-  registerDashboardTourBridge,
-} from "@/features/product-tour";
 import {
   TABULATION_WIDGET_LABELS,
   TabulationByUserWidget,
@@ -201,7 +196,7 @@ function OperatorHome({
 
   if (!painted) {
     return (
-      <Shell navRail={navRail} title="Sua fila" tourId="dashboard-operator">
+      <Shell navRail={navRail} title="Sua fila">
         <AppLoading variant="inline" className="min-h-0 flex-1" />
       </Shell>
     );
@@ -211,7 +206,6 @@ function OperatorHome({
     <Shell
       navRail={navRail}
       title="Sua fila"
-      tourId="dashboard-operator"
       search={search}
       onSearch={setSearch}
       searchPlaceholder="Pesquisar na fila..."
@@ -224,7 +218,6 @@ function OperatorHome({
               label: "Adicionar card",
               onClick: () => setAddCardOpen(true),
               primary: true as const,
-              tourId: "dash-add-card",
             },
             {
               icon: organizing ? <Check className="size-4" /> : <Move className="size-4" />,
@@ -247,16 +240,11 @@ function OperatorHome({
               droppableId="dashboard-fila"
               onRemove={hide}
               render={(id) => (
-                <div
-                  data-tour={operatorTourId(id)}
-                  className="flex h-full min-h-0 min-w-0 flex-col"
-                >
                 <OperatorDashboardWidget
                   id={id as OperatorWidgetId}
                   data={query.data}
                   search={search}
                 />
-                </div>
               )}
             />
             <AddDashboardCardDialog
@@ -297,11 +285,6 @@ function ManagerHome({
   const [uiHydrated, setUiHydrated] = useState(false);
   const isDeals = activeTab === "deals";
   const isService = activeTab === "service";
-
-  useEffect(() => {
-    registerDashboardTourBridge(setActiveTab);
-    return () => registerDashboardTourBridge(null);
-  }, []);
 
   const optionsQuery = useDashboardFilterOptions(isAuthenticated);
   const options = optionsQuery.data;
@@ -458,7 +441,6 @@ function ManagerHome({
     <Shell
       navRail={navRail}
       title="Dashboard"
-      tourId={isService ? "dashboard-service" : "dashboard"}
       searchSlot={filterBar}
       period={
         <PeriodCalendarButton active={periodActive} align="start">
@@ -481,14 +463,12 @@ function ManagerHome({
               label: "Adicionar card",
               onClick: () => setAddCardOpen(true),
               primary: true as const,
-              tourId: "dash-add-card",
             },
             {
               icon: organizing ? <Check className="size-4" /> : <Move className="size-4" />,
               label: organizing ? "Concluir organização" : "Organizar cards",
               onClick: () => setOrganizing((value) => !value),
               active: organizing,
-              tourId: "dash-organize",
             },
           ]}
         />
@@ -507,12 +487,11 @@ function ManagerHome({
             onRemove={grid.removeWidget}
             render={(id) => {
               if (id === "usage") {
-                return withTour(
-                  "dash-usage",
+                return (
                   <SystemUsageCard
                     rows={usageRows}
                     chartType={grid.usageChartType}
-                  />,
+                  />
                 );
               }
               if (isStageWidgetId(id)) {
@@ -567,9 +546,7 @@ function ManagerHome({
                   />
                 );
               }
-              return withTour(
-                dealTourId(id),
-                renderDealWidget(
+              return renderDealWidget(
                 id as DealCoreWidgetId,
                 search,
                 dealsQuery,
@@ -584,7 +561,6 @@ function ManagerHome({
                     patch({ pipelineIds: [id], pipelineId: id, stageIds: [] })
                   }
                 />,
-              ),
               );
             }}
           />
@@ -610,9 +586,7 @@ function ManagerHome({
             droppableId="dashboard-atendimento"
             onRemove={serviceOrder.hide}
             render={(id) =>
-              withTour(
-                serviceTourId(id),
-                isTabulationWidgetId(id)
+              isTabulationWidgetId(id)
                 ? renderTabBoardWidget(
                     id,
                     tabAnalyticsQuery,
@@ -630,8 +604,7 @@ function ManagerHome({
                     setClock,
                     agoraQuery,
                     serviceQuery,
-                  ),
-              )
+                  )
             }
           />
           <AddDashboardCardDialog
@@ -653,39 +626,6 @@ function ManagerHome({
       )}
     </Shell>
   );
-}
-
-function withTour(tourId: string | undefined, node: ReactNode) {
-  if (!tourId) return node;
-  return (
-    <div data-tour={tourId} className="flex h-full min-h-0 min-w-0 flex-col">
-      {node}
-    </div>
-  );
-}
-
-function dealTourId(id: string): string | undefined {
-  if (id === "kpis") return "dash-kpis";
-  if (id === "funnel") return "dash-funnel";
-  if (id === "usage") return "dash-usage";
-  if (id === "evolution") return "dash-evolution";
-  if (id === "agents") return "dash-agents";
-  if (id === "sources") return "dash-sources";
-  return undefined;
-}
-
-function serviceTourId(id: string): string | undefined {
-  if (id === "agora") return "dash-agora";
-  if (id === "volume") return "dash-volume";
-  if (id === "heatmap") return "dash-heatmap";
-  if (id === "kpis") return "dash-svc-tabulations";
-  return undefined;
-}
-
-function operatorTourId(id: string): string | undefined {
-  if (id === "kpis") return "dash-op-kpis";
-  if (id === "conversations") return "dash-op-queue";
-  return undefined;
 }
 
 function renderTabBoardWidget(
@@ -829,7 +769,6 @@ function renderServiceWidget(
 function Shell({
   navRail,
   title,
-  tourId,
   search,
   onSearch,
   searchPlaceholder,
@@ -841,7 +780,6 @@ function Shell({
 }: {
   navRail?: React.ReactNode;
   title: string;
-  tourId?: "dashboard" | "dashboard-service" | "dashboard-operator";
   search?: string;
   onSearch?: (value: string) => void;
   searchPlaceholder?: string;
@@ -851,19 +789,6 @@ function Shell({
   menuSlot?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const resolvedSearch = (
-    <div data-tour="dash-search" className="relative w-full">
-      {searchSlot ?? (
-        <SearchFilterBar
-          value={search}
-          onChange={onSearch}
-          placeholder={searchPlaceholder}
-          withFilter={false}
-        />
-      )}
-    </div>
-  );
-
   return (
     <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
       {navRail ?? <NavRail />}
@@ -875,35 +800,12 @@ function Shell({
           searchPlaceholder={searchPlaceholder}
           searchValue={search}
           onSearchChange={onSearch}
-          searchSlot={resolvedSearch}
+          searchSlot={searchSlot}
           withFilter={Boolean(searchSlot)}
-          period={
-            period ? (
-              <div data-tour="dash-period" className="flex shrink-0">
-                {period}
-              </div>
-            ) : undefined
-          }
-          actions={
-            actions ? (
-              <div data-tour="dash-tabs" className="flex shrink-0">
-                {actions}
-              </div>
-            ) : undefined
-          }
-          menu={Boolean(menuSlot) || Boolean(tourId)}
-          menuSlot={
-            tourId || menuSlot ? (
-              <div className="flex items-center gap-2">
-                {tourId ? <PageTourButton tourId={tourId} /> : null}
-                {menuSlot ? (
-                  <div data-tour="dash-actions" className="flex shrink-0">
-                    {menuSlot}
-                  </div>
-                ) : null}
-              </div>
-            ) : undefined
-          }
+          period={period}
+          actions={actions}
+          menu={Boolean(menuSlot)}
+          menuSlot={menuSlot}
         />
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">{children}</div>
       </main>

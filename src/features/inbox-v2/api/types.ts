@@ -49,11 +49,6 @@ export type MessageStatus =
   | "READ"
   | "FAILED";
 
-/**
- * Linha da lista GET /api/conversations e snapshot SSE `card`
- * em `new_message` / `conversation_updated` (subset: sem tags,
- * preview só quando o evento é mensagem de chat).
- */
 export interface ConversationListRow {
   id: string;
   /**

@@ -34,7 +34,6 @@ import { Shuffle } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
-import { ButtonGlass } from "@/components/crm/button-glass";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { AgentStatusDot } from "@/components/crm/agent-status-dot";
@@ -74,13 +73,7 @@ import {
   type QueueSortKey,
 } from "@/lib/distribution-data";
 import { KpiCard, KpiSquareScroll, type KpiTone } from "@/components/crm/kpi-card";
-import {
-  FormDialog,
-  FormDialogIcon,
-  formControlClass,
-  formDialogCancelClass,
-  formDialogPrimaryClass,
-} from "@/components/ui/form-dialog";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
 import { useWidgets } from "@/features/widgets/hooks";
 import {
@@ -114,10 +107,6 @@ import {
   MOCK_DISTRIBUTION_PENDING,
   MOCK_DISTRIBUTION_RESPONSIBLES,
 } from "@/features/distribution/mock";
-import {
-  PageTourButton,
-  registerDistributionTourBridge,
-} from "@/features/product-tour";
 import { CoverageBoard } from "@/features/settings/coverage/coverage-board";
 import { CoverageSearchFilterBar } from "@/features/settings/coverage/search-filter-bar";
 import { isPageMockMode, shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
@@ -211,10 +200,6 @@ export default function DistributionClientPage({
   const searchParams = useSearchParams();
   const viewFromUrl = parseViewParam(searchParams.get("tab"));
   const [view, setView] = useState<DistributionView>(viewFromUrl ?? "team");
-  useEffect(() => {
-    registerDistributionTourBridge(setView);
-    return () => registerDistributionTourBridge(null);
-  }, []);
   const [listView, setListView] = useCardsTableView();
   const [search, setSearch] = useState("");
   const [presence, setPresence] = useState<PresenceKey[]>([]);
@@ -389,7 +374,6 @@ export default function DistributionClientPage({
           }
           period={
             view === "logs" ? (
-              <div data-tour="distribution-period" className="flex shrink-0">
               <PeriodCalendarButton active={Boolean(logDateFrom || logDateTo)}>
                 <PeriodIsoRangePanel
                   from={logDateFrom}
@@ -402,18 +386,14 @@ export default function DistributionClientPage({
                   showToday
                 />
               </PeriodCalendarButton>
-              </div>
             ) : undefined
           }
           actions={
             smartInstalled || view === "coverage" ? (
               <div className="flex flex-wrap items-center gap-2">
                 {view !== "coverage" && smartInstalled ? (
-                  <div data-tour="distribution-view" className="flex shrink-0">
-                    <ViewToggle value={listView} onChange={setListView} />
-                  </div>
+                  <ViewToggle value={listView} onChange={setListView} />
                 ) : null}
-                <div data-tour="distribution-tabs" className="flex shrink-0">
                 <HeaderTabs
                   tabs={[
                     { key: "team", label: "Equipe", badge: teamListCount },
@@ -424,7 +404,6 @@ export default function DistributionClientPage({
                   value={view}
                   onChange={(v) => setView(v)}
                 />
-                </div>
                 {adminCount > 0 && (
                   <button
                     type="button"
@@ -453,19 +432,6 @@ export default function DistributionClientPage({
           }
           menu={smartInstalled || view === "coverage"}
           menuSlot={
-            <div className="flex items-center gap-2">
-              <PageTourButton
-                tourId={
-                  view === "coverage"
-                    ? "distribution-coverage"
-                    : view === "queue"
-                      ? "distribution-queue"
-                      : view === "logs"
-                        ? "distribution-logs"
-                        : "distribution"
-                }
-              />
-              <div data-tour="distribution-actions" className="flex shrink-0">
             <DistributionActionsMenu
               onTest={handleTest}
               testing={simulateMut.isPending}
@@ -480,8 +446,6 @@ export default function DistributionClientPage({
                   : undefined
               }
             />
-              </div>
-            </div>
           }
         />
         }
@@ -515,11 +479,7 @@ export default function DistributionClientPage({
                 </PageDemoBanner>
               )}
 
-              <section
-                data-tour="distribution-kpis"
-                className="w-full shrink-0"
-                aria-label="Indicadores de distribuição"
-              >
+              <section className="w-full shrink-0" aria-label="Indicadores de distribuição">
                 <DistributionMiniDash
                   responsibles={responsibles}
                   pending={pending}
@@ -528,7 +488,7 @@ export default function DistributionClientPage({
               </section>
 
               {canManage && !useDemo && view === "team" && (
-                <AutoOnInboundToggle showTour />
+                <AutoOnInboundToggle />
               )}
 
               {simResult && (
@@ -536,7 +496,7 @@ export default function DistributionClientPage({
               )}
 
               {view === "team" ? (
-                <div data-tour="distribution-list" className={LIST_PAGE_PANE_CLASS}>
+                <div className={LIST_PAGE_PANE_CLASS}>
                 <ResponsiblesCardList
                   view={listView}
                   responsibles={filteredResponsibles}
@@ -597,7 +557,6 @@ export default function DistributionClientPage({
         description="Configure se a distribuição respeita o departamento da conversa e quais departamentos distribuem automaticamente."
         icon={<IconUsers size={20} />}
         size="lg"
-        className="bg-card border-border backdrop-blur-none"
       >
         <DepartmentsDistributionPanel />
       </FormDialog>
@@ -776,18 +735,17 @@ function ResponsiblesCardList({
     <>
       {/* Mobile / APK: lista de cards empilhados — sem scroll horizontal forçado. */}
       <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
-          {responsibles.map((r, i) => (
-            <ResponsibleMobileCard
-              key={r.userId}
-              r={r}
-              isCurrentUser={r.userId === currentUserId}
-              currentUserImage={currentUserImage}
-              canManage={canManage}
-              onEdit={onEdit}
-              onRedistribute={onRedistribute}
-              tourAnchor={i === 0}
-            />
-          ))}
+        {responsibles.map((r) => (
+          <ResponsibleMobileCard
+            key={r.userId}
+            r={r}
+            isCurrentUser={r.userId === currentUserId}
+            currentUserImage={currentUserImage}
+            canManage={canManage}
+            onEdit={onEdit}
+            onRedistribute={onRedistribute}
+          />
+        ))}
       </ul>
 
       <div className="hidden w-full md:block">
@@ -807,7 +765,7 @@ function ResponsiblesCardList({
             </>
           }
         >
-          {responsibles.map((r, i) => (
+          {responsibles.map((r) => (
             <ResponsibleCard
               key={r.userId}
               r={r}
@@ -816,7 +774,6 @@ function ResponsiblesCardList({
               canManage={canManage}
               onEdit={onEdit}
               onRedistribute={onRedistribute}
-              tourAnchor={i === 0}
             />
           ))}
         </DataView>
@@ -900,7 +857,6 @@ function ResponsibleCard({
   canManage,
   onEdit,
   onRedistribute,
-  tourAnchor = false,
 }: {
   r: DistributionResponsibleDto;
   isCurrentUser: boolean;
@@ -908,7 +864,6 @@ function ResponsibleCard({
   canManage: boolean;
   onEdit: (r: DistributionResponsibleDto) => void;
   onRedistribute: (r: DistributionResponsibleDto) => void;
-  tourAnchor?: boolean;
 }) {
   const statusMut = useSetAgentStatus();
   const isOnline = (r.status ?? "OFFLINE") === "ONLINE";
@@ -979,10 +934,7 @@ function ResponsibleCard({
         </div>
       </div>
 
-      <div
-        className="flex min-w-0 flex-col items-start gap-1"
-        data-tour={tourAnchor ? "distribution-presence" : undefined}
-      >
+      <div className="flex min-w-0 flex-col items-start gap-1">
         <PresenceBadge status={r.status} paused={r.paused} participates={r.participates} />
         {canTogglePresence && r.participates && (
           <button
@@ -1006,10 +958,7 @@ function ResponsibleCard({
       </div>
 
       {/* Elegibilidade */}
-      <div
-        className="flex min-w-0 flex-col gap-0.5"
-        data-tour={tourAnchor ? "distribution-eligibility" : undefined}
-      >
+      <div className="flex min-w-0 flex-col gap-0.5">
         {r.eligible ? (
           <span className="inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 font-display text-[12px] font-bold text-success">
             <IconCircleCheck size={13} /> Elegível
@@ -1039,7 +988,6 @@ function ResponsibleCard({
             onClick={() => onRedistribute(r)}
             className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 font-display text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             title="Redistribuir fila deste consultor"
-            data-tour={tourAnchor ? "distribution-redistribute" : undefined}
           >
             <IconArrowsShuffle size={13} /> Redistribuir
           </button>
@@ -1049,7 +997,6 @@ function ResponsibleCard({
             type="button"
             onClick={() => onEdit(r)}
             className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 font-display text-[12px] font-semibold text-primary transition-colors hover:bg-primary/10"
-            data-tour={tourAnchor ? "distribution-edit" : undefined}
           >
             <IconPencil size={13} /> Editar
           </button>
@@ -1066,7 +1013,6 @@ function ResponsibleMobileCard({
   canManage,
   onEdit,
   onRedistribute,
-  tourAnchor = false,
 }: {
   r: DistributionResponsibleDto;
   isCurrentUser: boolean;
@@ -1074,7 +1020,6 @@ function ResponsibleMobileCard({
   canManage: boolean;
   onEdit: (r: DistributionResponsibleDto) => void;
   onRedistribute: (r: DistributionResponsibleDto) => void;
-  tourAnchor?: boolean;
 }) {
   const statusMut = useSetAgentStatus();
   const isOnline = (r.status ?? "OFFLINE") === "ONLINE";
@@ -1161,10 +1106,7 @@ function ResponsibleMobileCard({
           >
             {metaLine}
           </p>
-          <div
-            className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5"
-            data-tour={tourAnchor ? "distribution-presence" : undefined}
-          >
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
             <PresenceBadge status={r.status} paused={r.paused} participates={r.participates} />
             {canTogglePresence && r.participates && (
               <button
@@ -1189,7 +1131,6 @@ function ResponsibleMobileCard({
                 className="touch-target inline-flex size-8 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
                 title="Redistribuir fila deste consultor"
                 aria-label="Redistribuir fila deste consultor"
-                data-tour={tourAnchor ? "distribution-redistribute" : undefined}
               >
                 <IconArrowsShuffle size={14} />
               </button>
@@ -1200,7 +1141,6 @@ function ResponsibleMobileCard({
               className="touch-target inline-flex size-8 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-border bg-card text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
               title="Editar responsável"
               aria-label="Editar responsável"
-              data-tour={tourAnchor ? "distribution-edit" : undefined}
             >
               <IconPencil size={14} />
             </button>
@@ -1233,10 +1173,7 @@ function ResponsibleMobileCard({
           </p>
           <InlineQueueLimit userId={r.userId} value={r.queueLimit} canEdit={canManage} />
         </div>
-        <div
-          className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center"
-          data-tour={tourAnchor ? "distribution-eligibility" : undefined}
-        >
+        <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
           <p className="text-xs font-semibold text-muted-foreground">
             Elegibilidade
           </p>
@@ -1500,7 +1437,7 @@ function DistributionSearchFilterBar({
   };
 
   return (
-    <div ref={ref} data-tour="distribution-search" className="relative w-full">
+    <div ref={ref} className="relative w-full">
       <SearchFilterBar
         value={search}
         onChange={onSearch}
@@ -1613,7 +1550,6 @@ function DistributionActionsMenu({
                 label: "Configurações",
                 onClick: onDepartmentsConfig,
                 primary: true as const,
-                tourId: "distribution-settings",
               },
             ]
           : []),
@@ -1627,7 +1563,6 @@ function DistributionActionsMenu({
           onClick: onRetry,
           disabled: retrying || !canRetry,
           primary: !onDepartmentsConfig,
-          tourId: "distribution-retry",
         },
         {
           icon: <IconX size={13} />,
@@ -1645,7 +1580,6 @@ function DistributionActionsMenu({
           label: testing ? "Testando…" : "Testar distribuição",
           onClick: onTest,
           disabled: testing,
-          tourId: "distribution-test",
         },
       ]}
     />
@@ -1800,7 +1734,7 @@ function PendingQueueCards({
   const listLoading = loading || pageLoading;
 
   return (
-    <section data-tour="distribution-queue" className={LIST_PAGE_PANE_CLASS}>
+    <section className={LIST_PAGE_PANE_CLASS}>
       <div className="mb-2.5 flex shrink-0 flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning-soft text-warning">
@@ -2122,7 +2056,7 @@ function DistributionLogsList({
   }, [department, deptStats]);
 
   return (
-    <section data-tour="distribution-logs" className="flex flex-col">
+    <section className="flex flex-col">
       <div className="mb-2.5 flex shrink-0 flex-col gap-2.5 px-1 sm:gap-3">
         <div className="flex items-center gap-3">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:size-9">
@@ -2938,7 +2872,7 @@ function RedistributeDialog({
       <form
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-lg"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-6 shadow-[var(--glass-shadow)]"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
@@ -3229,6 +3163,16 @@ function EditResponsibleDialog({
       cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id],
     );
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const limit = Math.max(0, Math.floor(Number(volume) || 0));
@@ -3270,74 +3214,51 @@ function EditResponsibleDialog({
     );
   };
 
-  return (
-    <FormDialog
-      open
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      title="Editar responsável"
-      description={responsible.name ?? responsible.email ?? "—"}
-      icon={
-        <FormDialogIcon>
-          <IconPencil className="size-4" />
-        </FormDialogIcon>
-      }
-      size="md"
-      className="bg-card border-border backdrop-blur-none"
-      busy={updateMut.isPending}
-      headerAccessory={<PageTourButton tourId="distribution-edit" size="sm" />}
-      footer={
-        <>
-          <ButtonGlass
-            type="button"
-            variant="glass"
-            className={formDialogCancelClass}
-            onClick={onClose}
-            disabled={updateMut.isPending}
-          >
-            Cancelar
-          </ButtonGlass>
-          <ButtonGlass
-            type="submit"
-            form="edit-responsible-form"
-            variant="primary"
-            className={formDialogPrimaryClass}
-            disabled={updateMut.isPending}
-            data-tour="dist-edit-submit"
-          >
-            {updateMut.isPending ? "Salvando…" : "Salvar"}
-          </ButtonGlass>
-        </>
-      }
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
     >
       <form
-        id="edit-responsible-form"
+        onClick={(e) => e.stopPropagation()}
         onSubmit={handleSave}
-        className="flex flex-col gap-4"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-6 shadow-[var(--glass-shadow)]"
       >
-          <div data-tour="dist-edit-active">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-[17px] font-bold text-[var(--text-primary)]">
+              Editar responsável
+            </h2>
+            <p className="font-body text-[13px] text-[var(--text-muted)]">
+              {responsible.name ?? responsible.email ?? "—"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-full p-1 text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)]"
+            aria-label="Fechar"
+          >
+            <IconX size={18} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
           <ToggleField
             label="Ativo na distribuição"
             hint="Desligado = inativo (não recebe leads)."
             checked={participates}
             onChange={setParticipates}
           />
-          </div>
-          <div data-tour="dist-edit-paused">
           <ToggleField
             label="Em pausa"
             hint="Pausa temporária — não recebe leads enquanto ativa."
             checked={paused}
             onChange={setPaused}
           />
-          </div>
 
-          <div
-            className="flex flex-col gap-2 rounded-xl border border-border bg-secondary/50 p-3"
-            data-tour="dist-edit-schedule"
-          >
-            <span className="font-body text-[12px] font-semibold text-muted-foreground">
+          <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]/40 p-3">
+            <span className="font-body text-[12px] font-semibold text-[var(--text-secondary)]">
               Expediente
             </span>
             <div className="grid grid-cols-2 gap-2">
@@ -3347,7 +3268,7 @@ function EditResponsibleDialog({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className={formControlClass}
+                  className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
                   required
                 />
               </label>
@@ -3357,7 +3278,7 @@ function EditResponsibleDialog({
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className={formControlClass}
+                  className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
                   required
                 />
               </label>
@@ -3372,7 +3293,7 @@ function EditResponsibleDialog({
                   type="time"
                   value={lunchStart}
                   onChange={(e) => setLunchStart(e.target.value)}
-                  className={formControlClass}
+                  className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
                   required
                 />
               </label>
@@ -3382,7 +3303,7 @@ function EditResponsibleDialog({
                   type="time"
                   value={lunchEnd}
                   onChange={(e) => setLunchEnd(e.target.value)}
-                  className={formControlClass}
+                  className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
                   required
                 />
               </label>
@@ -3397,7 +3318,7 @@ function EditResponsibleDialog({
                 max={180}
                 value={preLunchStop}
                 onChange={(e) => setPreLunchStop(e.target.value)}
-                className={formControlClass}
+                className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
               />
               <span className="text-[11px] text-[var(--text-muted)]">
                 Default 30. Ex.: almoço 12:00 e saída 18:00 com 30 min → para às
@@ -3406,10 +3327,7 @@ function EditResponsibleDialog({
             </label>
           </div>
 
-          <div
-            className="flex flex-col gap-2 rounded-xl border border-border bg-secondary/50 p-3"
-            data-tour="dist-edit-saturday"
-          >
+          <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]/40 p-3">
             <ToggleField
               label="Trabalha no sábado"
               hint="Ligado = fica elegível no sábado dentro do horário abaixo (sem almoço). Desligado = sábado fora do expediente."
@@ -3428,7 +3346,7 @@ function EditResponsibleDialog({
                   type="time"
                   value={satStart}
                   onChange={(e) => setSatStart(e.target.value)}
-                  className={formControlClass}
+                  className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
                 />
               </label>
               <label className="flex flex-col gap-1">
@@ -3437,13 +3355,13 @@ function EditResponsibleDialog({
                   type="time"
                   value={satEnd}
                   onChange={(e) => setSatEnd(e.target.value)}
-                  className={formControlClass}
+                  className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
                 />
               </label>
             </div>
           </div>
 
-          <label className="flex flex-col gap-1" data-tour="dist-edit-limit">
+          <label className="flex flex-col gap-1">
             <span className="font-body text-[12px] font-semibold text-[var(--text-secondary)]">
               Limite de fila (conversas aguardando resposta)
             </span>
@@ -3452,7 +3370,7 @@ function EditResponsibleDialog({
               min={0}
               value={volume}
               onChange={(e) => setVolume(e.target.value)}
-              className={formControlClass}
+              className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
             />
             <span className="text-[11px] text-[var(--text-muted)]">
               Máximo de cards Entrada + Aguardando. Ao atingir, para de receber
@@ -3460,7 +3378,7 @@ function EditResponsibleDialog({
             </span>
           </label>
 
-          <label className="flex flex-col gap-1" data-tour="dist-edit-type">
+          <label className="flex flex-col gap-1">
             <span className="font-body text-[12px] font-semibold text-[var(--text-secondary)]">
               Tipo / segmento (opcional)
             </span>
@@ -3469,11 +3387,11 @@ function EditResponsibleDialog({
               value={type}
               onChange={(e) => setType(e.target.value)}
               placeholder="ex.: inbound, vendas, suporte"
-              className={formControlClass}
+              className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
             />
           </label>
 
-          <div className="flex flex-col gap-1.5" data-tour="dist-edit-depts">
+          <div className="flex flex-col gap-1.5">
             <span className="font-body text-[12px] font-semibold text-[var(--text-secondary)]">
               Departamentos (o que este consultor recebe)
             </span>
@@ -3498,8 +3416,8 @@ function EditResponsibleDialog({
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-[12px] font-bold transition-colors",
                         on
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-card text-muted-foreground hover:bg-secondary",
+                          ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]"
+                          : "border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
                       )}
                     >
                       {on && <IconCheck size={12} stroke={2.4} />}
@@ -3510,8 +3428,28 @@ function EditResponsibleDialog({
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer rounded-full border border-[var(--glass-border)] px-4 py-2 font-body text-[13px] font-semibold text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={updateMut.isPending}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 py-2 font-display text-[13px] font-bold text-white disabled:opacity-50"
+          >
+            {updateMut.isPending && <IconLoader2 size={15} className="animate-spin" />}
+            Salvar
+          </button>
+        </div>
       </form>
-    </FormDialog>
+    </div>,
+    document.body,
   );
 }
 
@@ -3592,16 +3530,13 @@ function GlassSwitch({
 }
 
 /** Visível na Equipe (e no diálogo de departamentos). Default ligado nas outras orgs. */
-function AutoOnInboundToggle({ showTour = false }: { showTour?: boolean }) {
+function AutoOnInboundToggle() {
   const settingsQuery = useDistributionSettings();
   const updateSettings = useUpdateDistributionSettings();
   const autoOnInbound = settingsQuery.data?.autoOnInbound ?? true;
 
   return (
-    <div
-      className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}
-      data-tour={showTour ? "distribution-auto-inbound" : undefined}
-    >
+    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
       <div className="min-w-0">
         <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
           Distribuir cada conversa nova automaticamente

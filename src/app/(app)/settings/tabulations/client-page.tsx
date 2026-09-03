@@ -51,10 +51,6 @@ import {
   SettingsV2Shell,
   useSettingsHeaderSlots,
 } from "../_v2-shell";
-import {
-  PageTourButton,
-  registerTabulationsTourBridge,
-} from "@/features/product-tour";
 
 type TabulationNode = {
   id: string;
@@ -304,11 +300,6 @@ function TabulationsBody() {
   const [newOpen, setNewOpen] = useState(false);
   const effectiveDeptId = departmentId ?? departments[0]?.id ?? null;
 
-  useEffect(() => {
-    registerTabulationsTourBridge(setView);
-    return () => registerTabulationsTourBridge(null);
-  }, []);
-
   const treeQuery = useQuery({
     queryKey: tabulationsQueryKey(effectiveDeptId),
     queryFn: () => fetchTabulations(effectiveDeptId!),
@@ -505,15 +496,13 @@ function TabulationsBody() {
   // destacado no topo do conteudo.
   const centerNode = useMemo(
     () => (
-      <div data-tour="tab-search" className="relative w-full">
-        <SettingsListFilterBar
-          search={search}
-          onSearch={setSearch}
-          placeholder="Buscar tabulação…"
-          ariaLabel="Buscar tabulação"
-          onClearAll={() => setSearch("")}
-        />
-      </div>
+      <SettingsListFilterBar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Buscar tabulação…"
+        ariaLabel="Buscar tabulação"
+        onClearAll={() => setSearch("")}
+      />
     ),
     [search],
   );
@@ -522,49 +511,41 @@ function TabulationsBody() {
   const actionsNode = useMemo(
     () => (
       <div className="flex items-center gap-2">
-        <PageTourButton
-          tourId={view === "dashboard" ? "tabulations-dashboard" : "tabulations"}
+        <PageSegmentedControl
+          aria-label="Visão de tabulações"
+          size="compact"
+          value={view}
+          onChange={(v) => setView(v as "tree" | "dashboard")}
+          items={[
+            { value: "tree", label: "Árvore" },
+            { value: "dashboard", label: "Dashboard" },
+          ]}
         />
-        <div data-tour="tab-views" className="flex shrink-0">
-          <PageSegmentedControl
-            aria-label="Visão de tabulações"
-            size="compact"
-            value={view}
-            onChange={(v) => setView(v as "tree" | "dashboard")}
+        {view === "tree" ? (
+          <PageActionsMenu
+            aria-label="Ações de tabulações"
             items={[
-              { value: "tree", label: "Árvore" },
-              { value: "dashboard", label: "Dashboard" },
+              {
+                icon: <IconPlus size={16} />,
+                label: "Nova tabulação",
+                onClick: () => setNewOpen(true),
+                primary: true,
+              },
+              {
+                icon: <IconUpload size={16} />,
+                label: importCsv.isPending ? "Importando…" : "Importar CSV",
+                onClick: () => fileRef.current?.click(),
+                disabled: importCsv.isPending,
+                divider: true,
+              },
+              {
+                icon: <IconDownload size={16} />,
+                label: "Exportar CSV",
+                onClick: handleExport,
+                disabled: tree.length === 0,
+              },
             ]}
           />
-        </div>
-        {view === "tree" ? (
-          <div data-tour="tab-actions" className="flex shrink-0">
-            <PageActionsMenu
-              aria-label="Ações de tabulações"
-              items={[
-                {
-                  icon: <IconPlus size={16} />,
-                  label: "Nova tabulação",
-                  onClick: () => setNewOpen(true),
-                  primary: true,
-                  tourId: "tab-new-item",
-                },
-                {
-                  icon: <IconUpload size={16} />,
-                  label: importCsv.isPending ? "Importando…" : "Importar CSV",
-                  onClick: () => fileRef.current?.click(),
-                  disabled: importCsv.isPending,
-                  divider: true,
-                },
-                {
-                  icon: <IconDownload size={16} />,
-                  label: "Exportar CSV",
-                  onClick: handleExport,
-                  disabled: tree.length === 0,
-                },
-              ]}
-            />
-          </div>
         ) : null}
       </div>
     ),
@@ -611,7 +592,6 @@ function TabulationsBody() {
           departamento errado. Com as abas a vista, qual arvore esta aberta
           (e quais existem) fica obvio sem nenhum clique. */}
       {departments.length > 0 ? (
-        <div data-tour="tab-depts">
         <GlassCard variant="panel" className="min-w-0 p-4 sm:p-5">
           <p className="mb-2.5 font-display text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
             Departamento
@@ -663,7 +643,6 @@ function TabulationsBody() {
             .
           </p>
         </GlassCard>
-        </div>
       ) : null}
 
       {departments.length === 0 ? (
@@ -683,7 +662,6 @@ function TabulationsBody() {
 
       {/* ── Exigência de tabulação ─────────────────────────────────── */}
       {effectiveDeptId ? (
-        <div data-tour="tab-rules">
         <GlassCard variant="panel" className="min-w-0 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-4 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-4 py-3">
             <div className="min-w-0">
@@ -749,12 +727,10 @@ function TabulationsBody() {
             ) : null}
           </div>
         </GlassCard>
-        </div>
       ) : null}
 
       {/* ── KPI minidash de tabulações ────────────────────────────── */}
       {effectiveDeptId ? (
-        <div data-tour="tab-kpis">
         <KpiStrip aria-label="Indicadores de tabulações">
           <KpiCard
             label="Total níveis"
@@ -787,7 +763,6 @@ function TabulationsBody() {
             tone="warning"
           />
         </KpiStrip>
-        </div>
       ) : null}
 
       {/* ── Árvore de tabulações ─────────────────────────────────── */}
@@ -867,21 +842,16 @@ export function NewTabulationModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-2 pr-6">
-            <div className="min-w-0">
-              <DialogTitle>Nova tabulação</DialogTitle>
-              <DialogDescription>
-                {departmentId
-                  ? `Monte a estrutura de níveis e subníveis${departmentName ? ` para ${departmentName}` : ""} antes de salvar.`
-                  : "Selecione um departamento para criar uma tabulação."}
-              </DialogDescription>
-            </div>
-            <PageTourButton tourId="tabulations-create" size="sm" />
-          </div>
+          <DialogTitle>Nova tabulação</DialogTitle>
+          <DialogDescription>
+            {departmentId
+              ? `Monte a estrutura de níveis e subníveis${departmentName ? ` para ${departmentName}` : ""} antes de salvar.`
+              : "Selecione um departamento para criar uma tabulação."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          <div data-tour="tab-create-root">
+          <div>
             <label className="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
               Nível raiz
             </label>
@@ -894,7 +864,7 @@ export function NewTabulationModal({
             />
           </div>
 
-          <div className="flex flex-col gap-2.5" data-tour="tab-create-children">
+          <div className="flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
               <p className="font-display text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
                 Subníveis
@@ -938,11 +908,9 @@ export function NewTabulationModal({
           <ButtonGlass type="button" variant="glass" onClick={() => onOpenChange(false)}>
             Cancelar
           </ButtonGlass>
-          <span data-tour="tab-create-submit">
           <ButtonGlass type="button" variant="primary" onClick={handleSave} disabled={!canSave}>
             {saving ? "Criando…" : "Criar tabulação"}
           </ButtonGlass>
-          </span>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1067,7 +1035,7 @@ function TreeEditor(props: {
       </div>
 
       {/* Nova categoria raiz */}
-      <div className="mb-4 flex min-w-0 items-center gap-2" data-tour="tab-tree-add">
+      <div className="mb-4 flex min-w-0 items-center gap-2">
         <InputGlass
           placeholder="Novo nível raiz…"
           value={newRootName}
@@ -1098,14 +1066,11 @@ function TreeEditor(props: {
           Carregando…
         </div>
       ) : props.tree.length === 0 ? (
-        <div
-          className="rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] py-10 text-center font-body text-[13px] text-[var(--text-muted)]"
-          data-tour="tab-tree-list"
-        >
+        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] py-10 text-center font-body text-[13px] text-[var(--text-muted)]">
           Nenhuma tabulação ainda. Crie o primeiro nível acima.
         </div>
       ) : (
-        <div className="flex flex-col gap-2.5" data-tour="tab-tree-list">
+        <div className="flex flex-col gap-2.5">
           {props.tree.map((n) => (
             <TreeCard
               key={n.id}

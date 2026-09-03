@@ -155,33 +155,3 @@ export function rowBelongsToAnyInboxTab(
   if (tabs.includes("todos")) return rowBelongsToInboxTab(row, "todos");
   return tabs.some((tab) => rowBelongsToInboxTab(row, tab));
 }
-
-const INBOX_QUEUE_SECTION_ORDER: readonly InboxTab[] = [
-  "entrada",
-  "esperando",
-  "ligar",
-  "respondidas",
-  "resolvidos",
-  "agente_ia",
-  "automacao",
-  "finalizados",
-  "erro",
-];
-
-/**
- * Em qual seção da lista o card entra quando várias filas (ou Todas)
- * estão visíveis. Ordem do catálogo; overlay `ligar` só se a fila estiver
- * selecionada (ou em Todas).
- */
-export function inboxQueueSectionFor(
-  row: ConversationListRow,
-  selected: readonly InboxTab[],
-): InboxTab {
-  const specific = selected.filter((t) => t !== "todos" && t !== "abertas");
-  const pool = specific.length > 0 ? specific : INBOX_QUEUE_SECTION_ORDER;
-  for (const tab of INBOX_QUEUE_SECTION_ORDER) {
-    if (!pool.includes(tab)) continue;
-    if (rowBelongsToInboxTab(row, tab)) return tab;
-  }
-  return inboxQueueTabFor(row);
-}

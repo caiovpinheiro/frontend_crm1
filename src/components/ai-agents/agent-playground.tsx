@@ -48,14 +48,11 @@ export function AgentPlayground({
   agentName,
   open,
   onOpenChange,
-  embedded = false,
 }: {
   agentId: string | null;
   agentName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Sem modal — para usar dentro de Editar agente. */
-  embedded?: boolean;
 }) {
   const [input, setInput] = React.useState("");
   const [turns, setTurns] = React.useState<Turn[]>([]);
@@ -117,9 +114,8 @@ export function AgentPlayground({
     },
   });
 
-  const handleSend = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    e?.stopPropagation();
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
     const message = input.trim();
     if (!message || mutation.isPending) return;
     setInput("");
@@ -127,15 +123,21 @@ export function AgentPlayground({
     mutation.mutate(message);
   };
 
-  const body = (
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="xl" className="max-h-[85vh]">
+        <DialogClose />
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="size-4 text-[var(--brand-primary)]" />
+            Playground — {agentName}
+          </DialogTitle>
+        </DialogHeader>
+
         <div className="flex flex-col gap-3">
           <div
             ref={scrollRef}
-            className={
-              embedded
-                ? "max-h-[280px] min-h-[180px] overflow-y-auto rounded-xl border bg-muted/30 p-3"
-                : "max-h-[50vh] min-h-[260px] overflow-y-auto rounded-xl border bg-muted/30 p-3"
-            }
+            className="max-h-[50vh] min-h-[260px] overflow-y-auto rounded-xl border bg-muted/30 p-3"
           >
             {turns.length === 0 && !mutation.isPending ? (
               <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
@@ -168,30 +170,23 @@ export function AgentPlayground({
             </div>
           )}
 
-          <div className="flex gap-2">
+          <form onSubmit={handleSend} className="flex gap-2">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
               placeholder="Digite a mensagem do cliente..."
               disabled={mutation.isPending}
               className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-primary)]/40"
             />
             <Button
-              type="button"
+              type="submit"
               disabled={mutation.isPending || !input.trim()}
               className="gap-1.5"
-              onClick={() => handleSend()}
             >
               <Send className="size-3.5" />
               Enviar
             </Button>
-          </div>
+          </form>
 
           <div className="flex items-center justify-between text-[11px] text-muted-foreground">
             <span>
@@ -201,21 +196,6 @@ export function AgentPlayground({
             <span>Histórico em memória — não é salvo em nenhuma conversa.</span>
           </div>
         </div>
-  );
-
-  if (embedded) return body;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl" className="max-h-[85vh]">
-        <DialogClose />
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="size-4 text-[var(--brand-primary)]" />
-            Playground — {agentName}
-          </DialogTitle>
-        </DialogHeader>
-        {body}
       </DialogContent>
     </Dialog>
   );

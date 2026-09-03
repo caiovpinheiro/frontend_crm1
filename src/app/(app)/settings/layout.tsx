@@ -1,10 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
 
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
-import { registerSettingsTourBridge } from "@/features/product-tour";
 import { useSettingsDrawer } from "@/features/settings/settings-drawer-context";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
@@ -23,14 +21,10 @@ export default function SettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { open, onDrawerEnter, onDrawerLeave, setTourOpen } = useSettingsDrawer();
+  const { open, onDrawerEnter, onDrawerLeave } = useSettingsDrawer();
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const isHub = pathname === "/settings" || pathname === "/settings/";
-
-  useEffect(() => {
-    registerSettingsTourBridge({ setOpen: setTourOpen });
-  }, [setTourOpen]);
 
   // Mobile: lista→detalhe. No hub mostra só o menu (sem NavRail, sem
   // painel direito); numa sub-rota mostra só a página, full-width.
@@ -87,7 +81,7 @@ export default function SettingsLayout({
         <SettingsSidebar open={open} />
       </div>
 
-      <div className="relative flex min-w-0 flex-col overflow-hidden" data-tour="settings-panel">
+      <div className="relative flex min-w-0 flex-col overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-clip">
           {children}
         </div>

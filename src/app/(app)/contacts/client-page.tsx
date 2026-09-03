@@ -119,7 +119,6 @@ import {
   type TagWithCountDto,
 } from "@/features/directory-v2/api";
 import { usePipelines, useCreateDeal } from "@/features/pipeline-v2/hooks";
-import { PageTourButton } from "@/features/product-tour";
 
 const DEFAULT_PER_PAGE = 25;
 type ViewMode = CardsTableView;
@@ -552,7 +551,6 @@ export default function V2ContactsClientPage() {
             />
           }
           period={
-            <div data-tour="contacts-period" className="flex shrink-0">
             <PeriodCalendarButton active={periodActive}>
               <PeriodIsoRangePanel
                 from={createdFrom}
@@ -580,17 +578,9 @@ export default function V2ContactsClientPage() {
                 }}
               />
             </PeriodCalendarButton>
-            </div>
           }
-          actions={
-            <div data-tour="contacts-view" className="flex shrink-0">
-              <ViewToggle value={view} onChange={setView} />
-            </div>
-          }
+          actions={<ViewToggle value={view} onChange={setView} />}
           menuSlot={
-            <div className="flex items-center gap-2">
-              <PageTourButton tourId="contacts" />
-              <div data-tour="contacts-actions" className="flex shrink-0">
             <ActionsMenu
               canCreate={canCreateContact}
               canImport={canImportContact}
@@ -621,8 +611,6 @@ export default function V2ContactsClientPage() {
               onColumns={() => setColumnsOpen(true)}
               onDupes={() => setDupesOpen(true)}
             />
-              </div>
-            </div>
           }
         />
         }
@@ -634,7 +622,7 @@ export default function V2ContactsClientPage() {
         ) : (
         <>
         {/* KPI cards — mobile: 4 quadrados em h-scroll; desktop: grid */}
-        <section data-tour="contacts-kpis" className="w-full shrink-0" aria-label="Indicadores de contatos">
+        <section className="w-full shrink-0" aria-label="Indicadores de contatos">
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden lg:hidden">
             {SEGMENTS.map((seg) => {
               const val = seg.value(statsQuery.data);
@@ -729,7 +717,7 @@ export default function V2ContactsClientPage() {
         )}
 
         {/* Estados: erro / vazio / lista */}
-        <div data-tour="contacts-list" className={LIST_PAGE_PANE_CLASS}>
+        <div className={LIST_PAGE_PANE_CLASS}>
         {hasError ? (
           <div className="flex-1 rounded-[var(--radius-xl)] border border-[var(--color-danger)]/20 bg-[color-mix(in_srgb,var(--color-danger)_8%,transparent)] p-6 text-center font-body text-[13px] text-[var(--color-danger-text)]">
             {query.error instanceof Error ? query.error.message : "Erro ao carregar."}
@@ -887,7 +875,7 @@ function ContactsSearchFilterBar({
   }
 
   return (
-    <div ref={ref} data-tour="contacts-search" className="relative w-full">
+    <div ref={ref} className="relative w-full">
       <div ref={menu.wrapRef}>
       <SearchFilterBar
         value={search}
@@ -1049,16 +1037,16 @@ function ActionsMenu({
 }) {
   const items = [
     canCreate
-      ? { icon: <IconPlus size={14} stroke={2.6} />, label: "Adicionar contato", onClick: onAdd, primary: true as const, tourId: "contacts-new" }
+      ? { icon: <IconPlus size={14} stroke={2.6} />, label: "Adicionar contato", onClick: onAdd, primary: true as const }
       : null,
     canExport
-      ? { icon: <IconDownload size={13} />, label: "Exportar", onClick: onExport, tourId: "contacts-export" }
+      ? { icon: <IconDownload size={13} />, label: "Exportar", onClick: onExport }
       : null,
     canImport
-      ? { icon: <IconFileImport size={13} />, label: "Importar", onClick: onImport, tourId: "contacts-import" }
+      ? { icon: <IconFileImport size={13} />, label: "Importar", onClick: onImport }
       : null,
-    { icon: <IconSettings size={13} />, label: "Configurações da lista", onClick: onColumns, divider: true as const, tourId: "contacts-columns-item" },
-    { icon: <IconUsersGroup size={13} />, label: "Localizar duplicadas", onClick: onDupes, tourId: "contacts-dupes-item" },
+    { icon: <IconSettings size={13} />, label: "Configurações da lista", onClick: onColumns, divider: true as const },
+    { icon: <IconUsersGroup size={13} />, label: "Localizar duplicadas", onClick: onDupes },
   ].filter((x): x is NonNullable<typeof x> => x !== null);
 
   return <PageActionsMenu items={items} />;
@@ -1108,11 +1096,10 @@ function DuplicatesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
       onOpenChange={onOpenChange}
       title="Localizar duplicadas"
       size="lg"
-      headerAccessory={<PageTourButton tourId="contacts-duplicates" size="sm" />}
     >
       <div className="flex flex-col gap-4">
         {/* Summary */}
-        <p data-tour="contact-dupes-intro" className="font-body text-[13px] leading-relaxed text-[var(--text-muted)]">
+        <p className="font-body text-[13px] leading-relaxed text-[var(--text-muted)]">
           Contatos com o mesmo telefone ou e-mail são exibidos abaixo. Escolha qual manter — os outros serão mesclados nele (conversas, negócios e notas são preservados).
         </p>
 
@@ -1131,20 +1118,19 @@ function DuplicatesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </div>
         ) : (
           <>
-            <div data-tour="contact-dupes-summary" className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
               <span className="font-display text-[13px] font-bold text-[var(--text-primary)]">
                 {groups.length} grupo{groups.length > 1 ? "s" : ""} encontrado{groups.length > 1 ? "s" : ""}
               </span>
               <span className="font-body text-[12px] text-[var(--text-muted)]">Clique em "Manter" para preservar o contato</span>
             </div>
             <div className="flex flex-col gap-3 overflow-y-auto">
-              {groups.map((group, gi) => {
+              {groups.map((group) => {
                 const sig = `${group.field}:${group.key}`;
                 const isMerging = merging === sig;
                 return (
                   <div
                     key={sig}
-                    {...(gi === 0 ? { "data-tour": "contact-dupes-group" } : {})}
                     className="rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-4"
                   >
                     {/* Header do grupo */}
@@ -1163,12 +1149,11 @@ function DuplicatesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
 
                     {/* Contatos do grupo */}
                     <div className="flex flex-col gap-2">
-                      {group.contacts.map((c, ci) => (
+                      {group.contacts.map((c) => (
                         <DuplicateContactRow
                           key={c.id}
                           contact={c}
                           disabled={isMerging}
-                          keepTour={gi === 0 && ci === 0}
                           onKeep={() => void handleMerge(group, c.id)}
                         />
                       ))}
@@ -1192,12 +1177,11 @@ function DuplicatesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
 }
 
 function DuplicateContactRow({
-  contact, disabled, onKeep, keepTour = false,
+  contact, disabled, onKeep,
 }: {
   contact: DuplicateContactSnap;
   disabled: boolean;
   onKeep: () => void;
-  keepTour?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3 py-2.5">
@@ -1239,7 +1223,6 @@ function DuplicateContactRow({
         disabled={disabled}
         onClick={onKeep}
         className="shrink-0"
-        {...(keepTour ? { "data-tour": "contact-dupes-keep" } : {})}
       >
         <IconArrowMerge size={14} />
         Manter este
@@ -1303,9 +1286,6 @@ function ColumnsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="md">
-        <div className="absolute end-4 top-3.5 z-10">
-          <PageTourButton tourId="contacts-columns" size="sm" />
-        </div>
         <DialogHeader>
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-[var(--brand-primary)]">
@@ -1313,7 +1293,7 @@ function ColumnsDialog({
             </span>
             <DialogTitle className="text-base">Configurações da lista</DialogTitle>
           </div>
-          <DialogDescription data-tour="contact-columns-intro" className="text-[13px] leading-relaxed">
+          <DialogDescription className="text-[13px] leading-relaxed">
             Escolha as colunas exibidas na visão em Tabela. Suas escolhas ficam salvas neste navegador.
           </DialogDescription>
         </DialogHeader>
@@ -1323,22 +1303,21 @@ function ColumnsDialog({
             <button
               type="button"
               onClick={onReset}
-              data-tour="contact-columns-reset"
               className="flex items-center gap-1 font-display text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)]"
             >
               <IconRotateClockwise size={12} /> Restaurar padrão
             </button>
           </div>
-          <div data-tour="contact-columns-native" className="flex flex-wrap gap-1.5">{nativeColumns.map(renderChip)}</div>
+          <div className="flex flex-wrap gap-1.5">{nativeColumns.map(renderChip)}</div>
           {customColumns.length > 0 && (
             <>
               <div className="mt-2 font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Campos personalizados</div>
-              <div data-tour="contact-columns-custom" className="flex flex-wrap gap-1.5">{customColumns.map(renderChip)}</div>
+              <div className="flex flex-wrap gap-1.5">{customColumns.map(renderChip)}</div>
             </>
           )}
         </div>
         <DialogFooter>
-          <ButtonGlass variant="primary" size="sm" type="button" onClick={() => onOpenChange(false)} data-tour="contact-columns-done">
+          <ButtonGlass variant="primary" size="sm" type="button" onClick={() => onOpenChange(false)}>
             Concluído
           </ButtonGlass>
         </DialogFooter>
@@ -1416,7 +1395,7 @@ function CardsView({
       className={LIST_PAGE_STACK_CLASS}
       style={{ gridTemplateColumns: gridTemplate }}
     >
-      {items.map((c, i) => {
+      {items.map((c) => {
         const isSelected = selected.has(c.id);
         return (
           <DataRow
@@ -1459,10 +1438,7 @@ function CardsView({
               </div>
             ))}
 
-            <div
-              className={LIST_ACTIONS_CELL_CLASS}
-              {...(i === 0 ? { "data-tour": "contacts-row-actions" } : {})}
-            >
+            <div className={LIST_ACTIONS_CELL_CLASS}>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onOpenLead(c); }}
@@ -1640,44 +1616,33 @@ export function ContactFormDialog({
       }
       size="md"
       busy={pending}
-      headerAccessory={
-        isEdit ? undefined : <PageTourButton tourId="contacts-create" size="sm" />
-      }
       footer={
         <>
           <ButtonGlass variant="glass" size="sm" type="button" onClick={() => onOpenChange(false)} disabled={pending} className={formDialogCancelClass}>Cancelar</ButtonGlass>
-          <ButtonGlass
-            variant="primary"
-            size="sm"
-            type="submit"
-            form="contact-form-sheet"
-            disabled={!name.trim() || pending}
-            className={formDialogPrimaryClass}
-            {...(!isEdit ? { "data-tour": "contact-create-submit" } : {})}
-          >
+          <ButtonGlass variant="primary" size="sm" type="submit" form="contact-form-sheet" disabled={!name.trim() || pending} className={formDialogPrimaryClass}>
             {pending ? "Salvando..." : isEdit ? "Salvar" : "Criar"}
           </ButtonGlass>
         </>
       }
     >
       <form id="contact-form-sheet" onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="block" data-tour="contact-create-name">
+        <label className="block">
           <span className={formLabelClass}>Nome *</span>
           <InputGlass type="text" autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Maria Silva" className={formControlClass} />
         </label>
-        <label className="block" data-tour="contact-create-email">
+        <label className="block">
           <span className={formLabelClass}>E-mail</span>
           <InputGlass type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maria@empresa.com" className={formControlClass} />
         </label>
-        <label className="block" data-tour="contact-create-phone">
+        <label className="block">
           <span className={formLabelClass}>Telefone</span>
           <InputGlass type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" className={formControlClass} />
         </label>
-        <div data-tour="contact-create-company">
+        <div>
           <span className={formLabelClass}>Empresa</span>
           <CompanyPicker valueId={companyId} valueName={companyName} onChange={(id, nm) => { setCompanyId(id); setCompanyName(nm); }} />
         </div>
-        <div data-tour="contact-create-tags">
+        <div>
           <span className={formLabelClass}>
             Tags{selectedTagIds.length > 0 ? ` (${selectedTagIds.length})` : ""}
           </span>

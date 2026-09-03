@@ -2,18 +2,12 @@
 
 import type { ReactNode } from "react";
 
-import { BLoader } from "@/components/crm/b-loader";
-import {
-  B_LOADER_MARK_NATIVE_H,
-  B_LOADER_MARK_NATIVE_W,
-  B_LOADER_MARK_SRC,
-} from "@/components/crm/b-loader-mark";
+import { BWIPO_MARK_LOADER_SRC } from "@/components/bwipo/bwipo-logo";
 import { cn } from "@/lib/utils";
 
 import "./loader-lab.css";
 
 export const LOADER_VARIANTS = [
-  { slug: "formacao", title: "Formação", hint: "Produção — contorno desenhado + marca." },
   { slug: "bar", title: "Barra", hint: "Trilha horizontal com segmento luminoso." },
   { slug: "orbit", title: "Órbita", hint: "Anel ao redor do B com um orbe." },
   { slug: "dots", title: "Pulsos", hint: "Brilho sob a marca + três pontos." },
@@ -35,21 +29,20 @@ function Mark({
   className?: string;
   children?: ReactNode;
 }) {
-  const height = (size * B_LOADER_MARK_NATIVE_H) / B_LOADER_MARK_NATIVE_W;
   return (
     <span
       className={cn("relative inline-flex shrink-0 items-center justify-center", className)}
-      style={{ width: size, height }}
+      style={{ width: size, height: size }}
     >
       <img
-        src={B_LOADER_MARK_SRC}
+        src={BWIPO_MARK_LOADER_SRC}
         alt=""
-        width={B_LOADER_MARK_NATIVE_W}
-        height={B_LOADER_MARK_NATIVE_H}
+        width={size}
+        height={size}
         draggable={false}
         decoding="async"
         className="loader-lab-mark relative z-[1]"
-        style={{ width: size, height }}
+        style={{ width: size, height: size }}
       />
       {children}
     </span>
@@ -242,12 +235,7 @@ function LoaderRipples() {
   );
 }
 
-function LoaderFormacao() {
-  return <BLoader size="160px" label="CARREGANDO..." steps />;
-}
-
 const RENDER: Record<LoaderSlug, () => ReactNode> = {
-  formacao: LoaderFormacao,
   bar: LoaderBar,
   orbit: LoaderOrbit,
   dots: LoaderDots,

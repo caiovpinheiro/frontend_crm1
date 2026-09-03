@@ -100,14 +100,6 @@ export const TOOLS_CATALOG: ToolDescriptor[] = [
     category: "handoff",
     defaultForArchetypes: ["SDR", "ATENDIMENTO", "VENDEDOR", "SUPORTE"],
   },
-  {
-    id: "close_conversation",
-    label: "Encerrar conversa",
-    description:
-      "Encerra o atendimento e dispara a automação de Encerramento — somente quando nenhum humano respondeu ainda. Use para o aluno que pede explicitamente para finalizar com a IA.",
-    category: "handoff",
-    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE"],
-  },
 ];
 
 export const TOOL_MAP: Record<string, ToolDescriptor> = TOOLS_CATALOG.reduce(

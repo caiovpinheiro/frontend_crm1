@@ -116,7 +116,7 @@ export function CampaignsList({
       header={header}
       className={cn("min-w-0", LIST_PAGE_STACK_CLASS)}
     >
-      {items.map((campaign, i) => {
+      {items.map((campaign) => {
           const visual = visualStatus(campaign.status)
           const sending = isSendingLike(campaign)
           const isEmpty = visual === "agendada" || visual === "rascunho"
@@ -159,10 +159,7 @@ export function CampaignsList({
                 </div>
               </div>
 
-              <div
-                className="pointer-events-none relative z-10 flex min-w-0 items-center gap-2"
-                {...(i === 0 ? { "data-tour": "campaigns-status" } : {})}
-              >
+              <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-2">
                 <span
                   className={cn(
                     "shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold",

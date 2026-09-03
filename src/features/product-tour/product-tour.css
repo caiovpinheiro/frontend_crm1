@@ -6,11 +6,6 @@
 .driver-popover.bwipo-driver-popover {
   display: block;
   box-sizing: border-box;
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  /* Evita o fallback do Driver.js (`bottom: 10px` + `top`) esticar o box. */
-  bottom: auto !important;
   background-color: var(--glass-bg-modal);
   color: var(--text-primary);
   border: 1px solid var(--glass-border);
@@ -81,11 +76,6 @@
   border: 1px solid var(--glass-border);
 }
 
-.driver-popover.bwipo-driver-popover .driver-popover-navigation-btns {
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
 .driver-popover.bwipo-driver-popover .driver-popover-arrow-side-left {
   border-left-color: var(--glass-bg-modal);
 }
@@ -100,9 +90,4 @@
 
 .driver-popover.bwipo-driver-popover .driver-popover-arrow-side-bottom {
   border-bottom-color: var(--glass-bg-modal);
-}
-
-/* Copy/lixeira do gatilho ficam visíveis no tour (o card só mostra no hover). */
-[data-tour="builder-node-actions"] {
-  opacity: 1 !important;
 }

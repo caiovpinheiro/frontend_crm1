@@ -285,14 +285,6 @@ export function TabulationLogWidget({
   );
 }
 
-function tabDashTourId(id: string): string | undefined {
-  if (id === "kpis") return "tab-dash-kpis";
-  if (id === "top") return "tab-dash-top";
-  if (id === "byUser") return "tab-dash-users";
-  if (id === "log") return "tab-dash-log";
-  return undefined;
-}
-
 export function TabulationsDashboard({
   period,
   search = "",
@@ -466,7 +458,6 @@ export function TabulationsDashboard({
       {ids.map((id) => (
         <div
           key={id}
-          data-tour={tabDashTourId(id)}
           className={cn(
             "min-w-0",
             id === "top" || id === "byUser" ? "col-span-12 lg:col-span-6" : "col-span-12",
@@ -481,7 +472,6 @@ export function TabulationsDashboard({
   return (
     <div className="flex min-w-0 flex-col gap-2.5">
       {!hideLocalFilters ? (
-        <div data-tour="tab-dash-filters">
         <GlassCard className="relative z-30 flex min-w-0 flex-col gap-3 overflow-visible p-3.5 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="flex w-full min-w-0 flex-col gap-1 sm:min-w-[220px] sm:flex-1">
             <span className="text-[11px] font-medium text-muted-foreground">Período</span>
@@ -542,7 +532,6 @@ export function TabulationsDashboard({
             Atualizar
           </ButtonGlass>
         </GlassCard>
-        </div>
       ) : null}
 
       {analyticsQuery.isError && (

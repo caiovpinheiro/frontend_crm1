@@ -43,7 +43,7 @@ export function CoverageSearchFilterBar({
   };
 
   return (
-    <div className="relative w-full" data-tour="distribution-coverage-search">
+    <div className="relative w-full">
       <FilterSearchTrigger
         search={search}
         onSearch={onSearch}

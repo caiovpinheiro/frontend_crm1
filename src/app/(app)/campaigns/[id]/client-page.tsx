@@ -28,7 +28,6 @@ import { PaginationGlass } from "@/components/crm/pagination-glass";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { cn } from "@/lib/utils";
 import { rewriteNumericPath } from "@/lib/public-path";
-import { PageTourButton } from "@/features/product-tour";
 
 import {
   useAudienceOptions,
@@ -197,7 +196,7 @@ export default function CampaignDetailClientPage() {
   return (
     <Shell>
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div data-tour="campaign-detail-header" className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/campaigns"
             aria-label="Voltar para Campanhas"
@@ -222,8 +221,6 @@ export default function CampaignDetailClientPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <PageTourButton tourId="campaigns-detail" />
-          <div data-tour="campaign-detail-actions" className="flex flex-wrap items-center gap-2">
           {campaign.status === "DRAFT" ? (
             <HeaderPill onClick={() => run("launch")} disabled={action.isPending}>
               <Rocket className="size-4" aria-hidden="true" /> Lançar
@@ -244,11 +241,10 @@ export default function CampaignDetailClientPage() {
               <X className="size-4" aria-hidden="true" /> Encerrar
             </HeaderPill>
           ) : null}
-          </div>
         </div>
       </header>
 
-      <div data-tour="campaign-detail-kpis" className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard icon={<Users className="size-5" />} label="Total" value={nf(total)} tone="neutral" />
         <KpiCard icon={<Send className="size-5" />} label="Enviados" value={nf(sent)} tone="brand" />
         <KpiCard
@@ -293,7 +289,7 @@ export default function CampaignDetailClientPage() {
       ) : null}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <section data-tour="campaign-detail-funnel" className={cn(CARD_SURFACE_CLASS, "p-5")}>
+        <section className={cn(CARD_SURFACE_CLASS, "p-5")}>
           <h2 className="text-lg font-bold tracking-tight">Funil de conversão</h2>
           <div className="mt-4 flex flex-col gap-4">
             <FunnelBar label="Enviado" count={sent} pct={sentPct} color="bg-foreground/70" />
@@ -334,7 +330,7 @@ export default function CampaignDetailClientPage() {
           ) : null}
         </section>
 
-        <section data-tour="campaign-detail-recipients" className={cn(CARD_SURFACE_CLASS, "flex min-h-[420px] flex-col p-5")}>
+        <section className={cn(CARD_SURFACE_CLASS, "flex min-h-[420px] flex-col p-5")}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-lg font-bold tracking-tight">Destinatários</h2>
             <div className="flex flex-wrap items-center gap-1 rounded-full border border-border p-1">
@@ -460,7 +456,7 @@ export default function CampaignDetailClientPage() {
         />
       ) : null}
 
-      <div data-tour="campaign-detail-meta" className={cn(CARD_SURFACE_CLASS, "px-5 py-1")}>
+      <div className={cn(CARD_SURFACE_CLASS, "px-5 py-1")}>
         <MetaRow label="Criado em" value={fmtDateTime(campaign.createdAt)} />
         {campaign.startedAt ? (
           <MetaRow label="Iniciado em" value={fmtDateTime(campaign.startedAt)} />

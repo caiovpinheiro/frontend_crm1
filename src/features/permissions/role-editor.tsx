@@ -292,7 +292,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
   const headerName = isNew ? "Novo papel" : name || role?.name || "";
 
   return (
-    <div className="flex min-w-0 flex-col gap-5" data-tour="sec-role-detail">
+    <div className="flex min-w-0 flex-col gap-5">
       {/* ── Header (nome + badge + ações) ─────────────────────────────────── */}
       <div className="flex items-start gap-4 border-b border-[var(--glass-border-subtle)] pb-5">
         <span className="flex size-[52px] shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--color-primary-soft)] text-[var(--brand-primary)]">

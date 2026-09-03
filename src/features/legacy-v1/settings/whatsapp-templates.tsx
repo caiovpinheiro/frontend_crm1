@@ -16,7 +16,6 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { FormDialog } from "@/components/ui/form-dialog";
-import { PageTourButton } from "@/features/product-tour";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -933,7 +932,6 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
               size="sm"
               onClick={() => setCreateOpen(true)}
               disabled={!channelId}
-              data-tour="models-wa-new"
             >
               <Plus className="size-4" />
               <span className="ml-2">Novo template</span>
@@ -979,14 +977,12 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
         </div>
       </HubSubHeader>
 
-      <div data-tour="models-wa-kpis">
       <HubStatGrid mobileCompact>
         <HubStat mobileCompact tone="success" icon={<CheckCircle2 className="size-5" />} value={countApproved} label="Aprovados pela Meta" />
         <HubStat mobileCompact tone="warn" icon={<Clock className="size-5" />} value={countPending} label="Em revisão" />
         <HubStat mobileCompact tone="brand" icon={<MessageSquare className="size-5" />} value={rows.length} label="Templates na WABA" />
         <HubStat mobileCompact tone="violet" icon={<UserCheck className="size-5" />} value={countAgent} label="Habilitados p/ Agente" />
       </HubStatGrid>
-      </div>
 
       {isError ? (
         <HubCallout tone="danger" icon={<AlertTriangle className="size-[18px]" />}>
@@ -1003,7 +999,6 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
         </HubCallout>
       ) : null}
 
-      <div data-tour="models-wa-list">
       <HubPanel>
         {metaChannels.length > 0 ? (
           <div className="flex flex-col gap-2 border-b border-[var(--glass-border-subtle)] px-[18px] py-3 sm:flex-row sm:items-end sm:gap-3">
@@ -1341,7 +1336,6 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
           </div>
         )}
       </HubPanel>
-      </div>
 
       <FormDialog
         open={createOpen}
@@ -1351,7 +1345,6 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
         icon={<MessageCircle className="size-5 text-[var(--brand-primary)]" />}
         title="Novo template na Meta"
         description={<>O template segue para análise automática da Meta. Campos variáveis: <code className="font-mono text-xs text-[var(--text-secondary)]">{"{{1}}"}</code> (POSITIONAL) ou nomes em NAMED, conforme a doc.</>}
-        headerAccessory={<PageTourButton tourId="message-models-whatsapp-create" size="sm" />}
         footer={
           <>
             <ButtonGlass type="button" variant="glass" onClick={() => setCreateOpen(false)}>Cancelar</ButtonGlass>
@@ -1363,7 +1356,6 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                 if (createMode === "json") submitJson();
                 else void submitAssisted();
               }}
-              data-tour="wa-create-submit"
             >
               {createMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               <span className={cn(createMutation.isPending && "ml-2")}>Criar na Meta</span>
@@ -1411,7 +1403,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_236px]">
               <div className="space-y-3">
               <div className="grid gap-2 sm:grid-cols-2">
-                <div data-tour="wa-create-name">
+                <div>
                   <label className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Nome interno (snake_case)</label>
                   <InputGlass
                     value={name}
@@ -1425,7 +1417,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                   <InputGlass value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="pt_BR" />
                 </div>
               </div>
-              <div data-tour="wa-create-category">
+              <div>
                 <label className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Categoria</label>
                 <DropdownGlass
                   options={[
@@ -1519,7 +1511,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                 </>
               ) : null}
 
-              <div data-tour="wa-create-body">
+              <div>
                 <label className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Corpo {category === "AUTHENTICATION" ? "(ex.: {{1}} é seu código)" : ""}</label>
                 <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} className="w-full resize-none rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3.5 py-2.5 font-body text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/10 text-sm" />
                 {category !== "AUTHENTICATION" ? (
@@ -1664,7 +1656,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                     <label className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Rodapé (opcional)</label>
                     <InputGlass value={footer} onChange={(e) => setFooter(e.target.value)} />
                   </div>
-                  <div data-tour="wa-create-quick-replies">
+                  <div>
                     <label className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Botões rápidos (um por linha)</label>
                     {quickTexts.map((q, i) => (
                       <InputGlass
@@ -1722,7 +1714,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                       + URL
                     </ButtonGlass>
                   </div>
-                  <div className="rounded-[var(--radius-lg)] border border-[var(--color-info-border)] bg-[var(--color-info-bg)] p-3" data-tour="wa-create-flow">
+                  <div className="rounded-[var(--radius-lg)] border border-[var(--color-info-border)] bg-[var(--color-info-bg)] p-3">
                     <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-secondary)]">
                       <input
                         type="checkbox"
@@ -1785,7 +1777,6 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                 </>
               )}
               </div>
-              <div data-tour="wa-create-preview">
               <WhatsappTemplatePreview
                 category={category}
                 headerFormat={headerFormat}
@@ -1796,7 +1787,6 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                 urlRows={urlRows}
                 otpButtonText={otpButtonText}
               />
-              </div>
             </div>
           )}
 

@@ -162,8 +162,6 @@ export function ScheduleDialogShell({
   submitDisabled = false,
   error,
   onSubmit,
-  headerAccessory,
-  submitTourId,
   children,
 }: {
   open: boolean;
@@ -177,10 +175,6 @@ export function ScheduleDialogShell({
   /** Mensagem/erro renderizado entre o conteúdo e o footer. */
   error?: React.ReactNode;
   onSubmit: () => void;
-  /** Conteúdo extra no header (ex.: botão de tour), à esquerda do X. */
-  headerAccessory?: React.ReactNode;
-  /** `data-tour` no botão de submit (product tour). */
-  submitTourId?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -198,17 +192,14 @@ export function ScheduleDialogShell({
               <p className="font-body text-[12px] text-[var(--text-muted)]">{description}</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {headerAccessory}
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
-              aria-label="Fechar"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
+            aria-label="Fechar"
+          >
+            <X className="size-4" />
+          </button>
         </header>
 
         <form
@@ -233,7 +224,6 @@ export function ScheduleDialogShell({
             <button
               type="submit"
               disabled={submitPending || submitDisabled}
-              data-tour={submitTourId}
               className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 font-display text-[12px] font-bold text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)] transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {submitPending ? (

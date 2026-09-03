@@ -21,7 +21,6 @@ import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filte
 import { EmptyState } from "@/components/crm/empty-state";
 import { PageActionsMenu, PagePrimaryButton } from "@/components/crm/page-toolbar";
 import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
-import { PageTourButton } from "@/features/product-tour";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -207,31 +206,20 @@ export default function CampaignsClientPage() {
           }
           actions={
             <>
-              <div data-tour="campaigns-view" className="flex shrink-0">
-                <ViewToggle value={view} onChange={setView} />
-              </div>
-              <div data-tour="campaigns-section-switcher" className="flex shrink-0">
-                <HeaderPillToggle
-                  options={[
-                    { key: "automations", label: "Automações" },
-                    { key: "campaigns", label: "Campanhas" },
-                  ]}
-                  value="campaigns"
-                  onChange={(v) => {
-                    if (v === "automations") router.push("/automations");
-                  }}
-                />
-              </div>
+              <ViewToggle value={view} onChange={setView} />
+              <HeaderPillToggle
+                options={[
+                  { key: "automations", label: "Automações" },
+                  { key: "campaigns", label: "Campanhas" },
+                ]}
+                value="campaigns"
+                onChange={(v) => {
+                  if (v === "automations") router.push("/automations");
+                }}
+              />
             </>
           }
-          menuSlot={
-            <div className="flex items-center gap-2">
-              <PageTourButton tourId="campaigns" />
-              <div data-tour="campaigns-actions" className="flex shrink-0">
-                <CampaignsActionsMenu />
-              </div>
-            </div>
-          }
+          menuSlot={<CampaignsActionsMenu />}
         />
         }
         bodyClassName="gap-4"
@@ -241,11 +229,9 @@ export default function CampaignsClientPage() {
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : (
         <>
-        <div data-tour="campaigns-kpis">
         <CampaignsMiniDash items={dashSource} />
-        </div>
 
-        <div data-tour="campaigns-list" className={LIST_PAGE_PANE_CLASS}>
+        <div className={LIST_PAGE_PANE_CLASS}>
             {error ? (
               <div className="flex-1 rounded-xl border border-destructive/20 bg-destructive/10 p-6 text-center text-sm text-destructive">
                 {error instanceof Error ? error.message : "Erro ao carregar."}
@@ -338,7 +324,7 @@ function CampaignsSearchFilterBar({
   const activeCount = statusFilter ? 1 : 0;
 
   return (
-    <div ref={ref} data-tour="campaigns-search" className="relative w-full">
+    <div ref={ref} className="relative w-full">
       <SearchFilterBar
         value={search}
         onChange={onSearch}
@@ -411,14 +397,12 @@ function CampaignsActionsMenu() {
           label: "Nova campanha",
           onClick: () => router.push("/campaigns/new"),
           primary: true,
-          tourId: "campaigns-new",
         },
         {
           icon: <LayoutGrid size={13} />,
           label: "Gerenciar segmentos",
           onClick: () => router.push("/campaigns/segments"),
           divider: true,
-          tourId: "campaigns-segments",
         },
       ]}
     />

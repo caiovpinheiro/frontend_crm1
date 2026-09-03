@@ -58,13 +58,12 @@ export function AutomationsGallery({
       header={header}
       className={cn("min-w-0", LIST_PAGE_STACK_CLASS)}
     >
-      {automations.map((a, i) => (
+      {automations.map((a) => (
         <AutomationCard
           key={a.id}
           automation={a}
           onToggle={onToggle}
           onDelete={onDelete}
-          statusTour={i === 0}
         />
       ))}
     </DataView>

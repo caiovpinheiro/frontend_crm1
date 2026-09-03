@@ -104,8 +104,6 @@ export interface Conversation {
   lastMessageSendError?: string | null
   /** Conversa finalizada/resolvida — exibe badge visual no card. */
   resolved?: boolean
-  /** Fila da inbox para agrupar a lista (entrada, esperando, …). */
-  queueTab?: string
 }
 
 interface ConversationCardProps {
@@ -116,7 +114,6 @@ interface ConversationCardProps {
    * presente, substitui o chip de assignee na linha inferior do card.
    */
   assigneeSlot?: React.ReactNode
-  menuSlot?: React.ReactNode
   /**
    * Modo de seleção múltipla (ações em massa). Quando ativo, mostra um
    * checkbox no lugar do avatar-click e o `onClick` de abrir a conversa
@@ -208,7 +205,6 @@ export function ConversationCard({
   conversation,
   onClick,
   assigneeSlot,
-  menuSlot,
   selectionMode = false,
   selected = false,
   onToggleSelect,
@@ -430,17 +426,16 @@ export function ConversationCard({
 
       {/* Rodapé: nº da conversa (ticket) no canto inferior esquerdo, em verde
           — estilo Kommo. Quando encerrada, fica cinza. */}
-      {(conversation.number != null || menuSlot) && (
+      {conversation.number != null && (
         <div
           className={cn(
-            "mt-1 flex items-center justify-between gap-2 font-display text-[10px] font-semibold tabular-nums @max-[260px]:hidden",
+            "mt-1 font-display text-[10px] font-semibold tabular-nums @max-[260px]:hidden",
             conversation.resolved
               ? "text-[var(--text-muted)]"
               : "text-emerald-600 v2-dark:text-emerald-400",
           )}
         >
-          {conversation.number != null ? <span>Conversa Nº {conversation.number}</span> : <span />}
-          {menuSlot}
+          Conversa Nº {conversation.number}
         </div>
       )}
       </div>

@@ -27,8 +27,6 @@ import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { HeaderTabs } from "@/components/crm/section-header";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
-import { PageTourButton, registerMessageModelsTourBridge } from "@/features/product-tour";
-import type { TourId } from "@/features/product-tour";
 import { CsvIoDialog } from "@/features/data-io/csv-io-dialog";
 import {
   FormDialog,
@@ -152,11 +150,6 @@ export default function MessageModelsHubPage() {
     },
     [router, pathname, searchParams],
   );
-
-  React.useEffect(() => {
-    registerMessageModelsTourBridge((next) => setTab(next));
-    return () => registerMessageModelsTourBridge(null);
-  }, [setTab]);
 
   const { data: internals = [], isLoading: loadingInt, isError: errorInt } = useQuery({
     queryKey: ["templates"],
@@ -445,13 +438,11 @@ export default function MessageModelsHubPage() {
 
   const tabBarNode = React.useMemo(
     () => (
-      <div data-tour="models-tabs" className="flex shrink-0">
-        <HeaderTabs
-          tabs={tabItems}
-          value={safeTab}
-          onChange={(value) => setTab(value, { new: null, create: null })}
-        />
-      </div>
+      <HeaderTabs
+        tabs={tabItems}
+        value={safeTab}
+        onChange={(value) => setTab(value, { new: null, create: null })}
+      />
     ),
     [tabItems, safeTab, setTab],
   );
@@ -461,7 +452,6 @@ export default function MessageModelsHubPage() {
   const searchNode = React.useMemo(() => {
     if (safeTab === "overview") {
       return (
-        <div data-tour="models-search" className="relative w-full">
         <SettingsListFilterBar
           search={ovQuery}
           onSearch={setOvQuery}
@@ -486,12 +476,10 @@ export default function MessageModelsHubPage() {
             },
           ]}
         />
-        </div>
       );
     }
     if (safeTab === "flows" && canSubmitMeta) {
       return (
-        <div data-tour="models-flows-search" className="relative w-full">
         <SettingsListFilterBar
           search={flowQuery}
           onSearch={setFlowQuery}
@@ -515,7 +503,6 @@ export default function MessageModelsHubPage() {
             },
           ]}
         />
-        </div>
       );
     }
     return null;
@@ -548,7 +535,6 @@ export default function MessageModelsHubPage() {
               label: "Novo flow",
               onClick: () => createFlowMutation.mutate(),
               disabled: createFlowMutation.isPending,
-              tourId: "models-flow-new-item",
             },
             {
               icon: <Download className="size-4" />,
@@ -558,7 +544,6 @@ export default function MessageModelsHubPage() {
                 void refetchMetaFlows();
               },
               divider: true,
-              tourId: "models-flow-import-item",
             },
           ]
         : [
@@ -566,7 +551,6 @@ export default function MessageModelsHubPage() {
               icon: <Plus className="size-4" />,
               label: "Novo modelo",
               onClick: () => setNewOpen(true),
-              tourId: "models-new-item",
             },
             ...(isGestor && (safeTab === "overview" || safeTab === "internal")
               ? [
@@ -575,13 +559,11 @@ export default function MessageModelsHubPage() {
                     label: "Importar CSV",
                     onClick: () => setIoMode("import"),
                     divider: true,
-                    tourId: "models-import-item",
                   },
                   {
                     icon: <Download className="size-4" />,
                     label: "Exportar CSV",
                     onClick: () => setIoMode("export"),
-                    tourId: "models-export-item",
                   },
                 ]
               : []),
@@ -599,21 +581,10 @@ export default function MessageModelsHubPage() {
                 ]
               : []),
           ];
-    const tabTourId: TourId =
-      safeTab === "internal"
-        ? "message-models-internal"
-        : safeTab === "whatsapp"
-          ? "message-models-whatsapp"
-          : safeTab === "flows"
-            ? "message-models-flows"
-            : "message-models";
     return (
       <div className="flex items-center gap-2">
-        <PageTourButton tourId={tabTourId} />
         {tabBarNode}
-        <div data-tour="models-actions" className="flex shrink-0">
-          <ModelsActionsMenu items={menuItems} />
-        </div>
+        <ModelsActionsMenu items={menuItems} />
       </div>
     );
   }, [safeTab, canSubmitMeta, isGestor, canRepairMedia, tabBarNode, createFlowMutation, refetchMetaFlows]);
@@ -741,7 +712,7 @@ export default function MessageModelsHubPage() {
               />
             </div>
           ) : null}
-          <section className="shrink-0" aria-label="Indicadores de modelos de mensagem" data-tour="models-kpis">
+          <section className="shrink-0" aria-label="Indicadores de modelos de mensagem">
             <KpiSquareScroll items={overviewKpis} />
             <div className="hidden gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-5">
               {overviewKpis.map((kpi) => (
@@ -770,7 +741,7 @@ export default function MessageModelsHubPage() {
               </div>
             </HubPanel>
           ) : (
-            <div className="space-y-4" data-tour="models-list">
+            <div className="space-y-4">
               {OVERVIEW_GROUPS.map((g) => {
                 const rows = overviewRows.filter((r) => r.type === g.type);
                 if (!rows.length) return null;
@@ -868,7 +839,7 @@ export default function MessageModelsHubPage() {
             nos templates da Meta.
           </HubSubHeader>
 
-          <section className="shrink-0" aria-label="Indicadores de flows" data-tour="models-flows-kpis">
+          <section className="shrink-0" aria-label="Indicadores de flows">
             <KpiSquareScroll items={flowKpis} />
             <div className="hidden gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-5">
               {flowKpis.map((kpi) => (
@@ -904,7 +875,7 @@ export default function MessageModelsHubPage() {
               </div>
             </HubPanel>
           ) : (
-            <div className="space-y-2.5" data-tour="models-flows-list">
+            <div className="space-y-2.5">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {flowRows.map((f) => (
                   <div
@@ -1069,18 +1040,12 @@ export default function MessageModelsHubPage() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent size="md">
           <DialogHeader>
-            <div className="flex items-start justify-between gap-3 pr-8">
-              <div className="min-w-0">
-                <DialogTitle>Novo modelo</DialogTitle>
-                <DialogDescription>Escolha o tipo de modelo, como no Kommo.</DialogDescription>
-              </div>
-              <PageTourButton tourId="message-models-create" size="sm" />
-            </div>
+            <DialogTitle>Novo modelo</DialogTitle>
+            <DialogDescription>Escolha o tipo de modelo, como no Kommo.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              data-tour="models-create-general"
               className="flex flex-col items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-4 text-left transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,transparent)]"
               onClick={() => {
                 setNewOpen(false);
@@ -1093,7 +1058,6 @@ export default function MessageModelsHubPage() {
             </button>
             <button
               type="button"
-              data-tour="models-create-whatsapp"
               className="flex flex-col items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-4 text-left transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[color-mix(in_srgb,var(--brand-primary)_6%,transparent)] disabled:opacity-50"
               disabled={!canSubmitMeta}
               onClick={() => {
@@ -1109,7 +1073,6 @@ export default function MessageModelsHubPage() {
           {canSubmitMeta ? (
             <button
               type="button"
-              data-tour="models-create-flow"
               className="flex w-full flex-col items-start gap-2 rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-4 text-left transition-colors hover:bg-[var(--glass-bg-strong)]"
               onClick={() => {
                 setNewOpen(false);
@@ -1263,7 +1226,6 @@ type ModelsMenuItem = {
   onClick: () => void;
   disabled?: boolean;
   divider?: boolean;
-  tourId?: string;
 };
 
 function ModelsActionsMenu({ items }: { items: ModelsMenuItem[] }) {
@@ -1276,7 +1238,6 @@ function ModelsActionsMenu({ items }: { items: ModelsMenuItem[] }) {
         disabled: it.disabled,
         divider: it.divider,
         primary: idx === 0,
-        tourId: it.tourId,
       }))}
     />
   );

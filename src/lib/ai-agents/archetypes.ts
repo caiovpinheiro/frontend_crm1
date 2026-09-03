@@ -11,6 +11,8 @@
 
 import type { AIAgentArchetype } from "@/lib/prisma-enum-types";
 
+import { ACADEMIC_ATENDIMENTO_RULES } from "@/lib/ai-agents/academic-atendimento-prompt";
+
 export type ArchetypeId = AIAgentArchetype;
 
 export type ArchetypeDescriptor = {
@@ -83,10 +85,7 @@ Qualificar leads recém-chegados, descobrir o que eles precisam e, quando houver
       "add_tag",
       "create_activity",
       "consultar_matricula",
-      "transfer_to_department",
-      "execute_distribution",
       "transfer_to_human",
-      "close_conversation",
     ],
     defaultTone: "simpática, paciente e natural (WhatsApp)",
     suggestedModel: "gpt-4.1-mini",
@@ -97,6 +96,8 @@ Resolver dúvidas de primeiro nível com base na documentação e tools. Escalar
 
 ## Tom de voz
 {{tone}}. Responda em {{language}}.
+
+${ACADEMIC_ATENDIMENTO_RULES}
 
 ## Contexto da conversa
 - Cliente: {{contact_name}} ({{contact_phone}})

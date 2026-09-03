@@ -78,7 +78,6 @@ import {
 import { EmptyState } from "@/components/crm/empty-state";
 import { KpiSquareScroll } from "@/components/crm/kpi-card";
 import { PageDemoBanner } from "@/components/crm/page-demo-banner";
-import { PageTourButton, registerLogsTourBridge } from "@/features/product-tour";
 import {
   EVENT_CONFIG,
   FALLBACK_CONFIG,
@@ -272,11 +271,6 @@ export default function LogsClientPage() {
   const isCalls = activeTab === 1;
   const isStats = activeTab === 2;
   const isUsage = activeTab === 3;
-
-  React.useEffect(() => {
-    registerLogsTourBridge(setActiveTab);
-    return () => registerLogsTourBridge(null);
-  }, []);
 
   // Filtro de período da aba "Uso do sistema" (30d default).
   const [usagePeriod, setUsagePeriod] = React.useState<SystemUsagePeriodValue>(
@@ -597,31 +591,24 @@ export default function LogsClientPage() {
                 onStageToChange={setStageTo}
               />
             ) : isCalls && callsWidget.enabled === true ? (
-              <div data-tour="logs-calls-search" className="w-full">
               <CallsSearchFilterBar
                 search={callsSearch}
                 onSearch={setCallsSearch}
                 filters={callsFilters}
                 onFiltersChange={setCallsFilters}
               />
-              </div>
             ) : undefined
           }
           period={
             isFeed || isStats ? (
-              <div data-tour="logs-period" className="flex shrink-0">
               <PeriodCalendarButton active={feedPeriod.preset !== "30d"}>
                 <PeriodPresetPanel value={feedPeriod} onChange={setFeedPeriod} />
               </PeriodCalendarButton>
-              </div>
             ) : isUsage ? (
-              <div data-tour="logs-usage-period" className="flex shrink-0">
               <PeriodCalendarButton active={usagePeriod.preset !== "30d"}>
                 <PeriodPresetPanel value={usagePeriod} onChange={setUsagePeriod} />
               </PeriodCalendarButton>
-              </div>
             ) : isCalls && callsWidget.enabled === true ? (
-              <div data-tour="logs-calls-period" className="flex shrink-0">
               <PeriodCalendarButton
                 active={!!(callsFilters.dateFrom || callsFilters.dateTo)}
               >
@@ -638,17 +625,13 @@ export default function LogsClientPage() {
                   allowClear
                 />
               </PeriodCalendarButton>
-              </div>
             ) : undefined
           }
           actions={
             <>
               {isFeed || isCalls || isUsage ? (
-                <div data-tour="logs-view" className="flex shrink-0">
                 <ViewToggle value={view} onChange={setView} />
-                </div>
               ) : null}
-              <div data-tour="logs-tabs" className="flex shrink-0">
               <HeaderTabs
                 tabs={LOG_TABS.map((label, index) => ({
                   key: String(index),
@@ -658,25 +641,11 @@ export default function LogsClientPage() {
                 value={String(activeTab)}
                 onChange={(v) => setActiveTab(Number(v))}
               />
-              </div>
             </>
           }
-          menu
+          menu={isFeed || (isCalls && callsWidget.enabled === true)}
           menuSlot={
-            <div className="flex items-center gap-2">
-              <PageTourButton
-                tourId={
-                  isCalls
-                    ? "logs-calls"
-                    : isStats
-                      ? "logs-stats"
-                      : isUsage
-                        ? "logs-usage"
-                        : "logs"
-                }
-              />
-              {isFeed ? (
-              <div data-tour="logs-actions" className="flex shrink-0">
+            isFeed ? (
               <FeedActionsMenu
                 demo={demo}
                 onToggleDemo={() => setDemo((d) => !d)}
@@ -691,17 +660,13 @@ export default function LogsClientPage() {
                   setStageTo([]);
                 }}
               />
-              </div>
             ) : isCalls && callsWidget.enabled === true ? (
-              <div data-tour="logs-calls-actions" className="flex shrink-0">
               <CallsActionsMenu
                 syncing={callsSyncMutation.isPending}
                 onSync={() => callsSyncMutation.mutate()}
                 onSettings={() => router.push("/widgets?configure=calls_history")}
               />
-              </div>
-            ) : null}
-            </div>
+            ) : undefined
           }
         />
         }
@@ -710,9 +675,7 @@ export default function LogsClientPage() {
 
         {isFeed ? (
           <>
-            <div data-tour="logs-kpis" className="shrink-0">
             <FeedMiniDash items={allItems} />
-            </div>
 
             {isDemo && (
               <PageDemoBanner>
@@ -722,7 +685,7 @@ export default function LogsClientPage() {
               </PageDemoBanner>
             )}
 
-            <div data-tour="logs-list" className={LIST_PAGE_PANE_CLASS}>
+            <div className={LIST_PAGE_PANE_CLASS}>
             {isLoading && allItems.length === 0 && !isError ? (
               <div className="min-h-[12rem]" aria-busy="true" aria-label="Carregando eventos" />
             ) : isError && !isDemo ? (
@@ -805,9 +768,7 @@ export default function LogsClientPage() {
             </div>
           </>
         ) : isUsage ? (
-          <div data-tour="logs-usage-panel" className="flex min-h-0 flex-1 flex-col">
           <SystemUsageTab view={view} range={usagePeriod.range} />
-          </div>
         ) : isCalls ? (
           callsWidget.isLoading ? (
             <div className="min-h-0 flex-1" aria-busy="true" aria-label="Carregando chamadas" />
@@ -815,10 +776,7 @@ export default function LogsClientPage() {
             <CallsNotEnabledState />
           ) : (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
-              <div data-tour="logs-calls-kpis" className="shrink-0">
               <CallsMiniDash stats={callsStats} />
-              </div>
-              <div data-tour="logs-calls-list" className="flex min-h-0 flex-1 flex-col">
               <CallHistoryList
                 view={view}
                 groupByDay
@@ -829,11 +787,10 @@ export default function LogsClientPage() {
                   if (f.sortDir !== undefined) setCallsSortDir(f.sortDir);
                 }}
               />
-              </div>
             </div>
           )
         ) : (
-          <div data-tour="logs-stats-panel" className="flex flex-col">
+          <div className="flex flex-col">
             {statsLoading || !stats ? (
               <div className="min-h-[12rem]" aria-busy="true" aria-label="Carregando estatísticas" />
             ) : (
@@ -1528,7 +1485,7 @@ function FeedSearchFilterBar({
   }
 
   return (
-    <div ref={ref} data-tour="logs-search" className="relative w-full">
+    <div ref={ref} className="relative w-full">
       <SearchFilterBar
         value={search}
         onChange={onSearch}
@@ -1722,7 +1679,6 @@ function FeedActionsMenu({
           onClick: onClearFilters,
           disabled: !hasFilters,
           primary: false,
-          tourId: "logs-clear-filters",
         },
         {
           icon: <IconTestPipe size={13} />,
@@ -1730,7 +1686,6 @@ function FeedActionsMenu({
           onClick: onToggleDemo,
           active: demo,
           divider: true,
-          tourId: "logs-demo",
         },
       ]}
     />
@@ -1761,14 +1716,12 @@ function CallsActionsMenu({
           onClick: onSync,
           disabled: syncing,
           primary: true,
-          tourId: "logs-calls-sync",
         },
         {
           icon: <IconSettings size={13} />,
           label: "Configurações",
           onClick: onSettings,
           divider: true,
-          tourId: "logs-calls-settings",
         },
       ]}
     />
