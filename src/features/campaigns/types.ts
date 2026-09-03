@@ -172,6 +172,8 @@ export interface CampaignTemplateComponentsPayload {
   version: 1;
   components?: unknown[];
   headerMediaUrl?: string | null;
+  /** image | video | document — espelha headerFormat do template. */
+  headerMediaType?: "image" | "video" | "document" | null;
 }
 
 export interface CreateCampaignBody {
