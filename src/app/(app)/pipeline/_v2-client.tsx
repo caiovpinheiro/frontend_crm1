@@ -115,7 +115,7 @@ import {
   StagePicker,
   TagsPopover,
   WinButton,
-  useDealChatBinding,
+  DealChatBindingHost,
 } from "@/features/pipeline-v2/extras";
 import { PipelineChannelsModal } from "@/features/pipeline-v2/extras/pipeline-channels-modal";
 import { computePopoverPosition } from "@/features/pipeline-v2/extras/use-portal-popover";
@@ -850,21 +850,17 @@ export default function KanbanV2ClientPage({
     sanitizeContactName(dealDetail?.contact?.name) ||
     personNameFromDealTitle(dealDetail?.title) ||
     "Contato";
-  const { messagesNode, composerNode, sessionAlertNode, templateModal, pinnedNote, pinnedMessageSlot, connection: dealConnection } =
-    useDealChatBinding({
-      conversationId: dealConversationId,
-      contactName: dealContactName,
-      contactId: dealContactId,
-      dealId: activeDealId,
-      isResolved: dealConversation?.status === "RESOLVED",
-      closedAt: dealConversation?.closedAt ?? null,
-      conversationNumber: dealConversation?.number ?? null,
-      departmentId: dealConversationDepartmentId,
-      requireTabulationOnClose: dealConversationRequiresTabulation,
-      // sessionExpired derivado dentro do hook a partir do session retornado
-      // por useMessages (backend = source of truth) com fallback heurístico
-      // em lastInboundAt. Não passar override manual aqui.
-    });
+  const dealChatBindingParams = {
+    conversationId: dealConversationId,
+    contactName: dealContactName,
+    contactId: dealContactId,
+    dealId: activeDealId,
+    isResolved: dealConversation?.status === "RESOLVED",
+    closedAt: dealConversation?.closedAt ?? null,
+    conversationNumber: dealConversation?.number ?? null,
+    departmentId: dealConversationDepartmentId,
+    requireTabulationOnClose: dealConversationRequiresTabulation,
+  };
 
   const boardQuery = hasServerBoard ? boardFiltered : boardNormal;
   const pipelinesEmpty = Array.isArray(pipelines) && pipelines.length === 0;
@@ -1098,6 +1094,17 @@ export default function KanbanV2ClientPage({
         />
       )}
 
+      <DealChatBindingHost {...dealChatBindingParams}>
+        {({
+          messagesNode,
+          composerNode,
+          sessionAlertNode,
+          templateModal,
+          pinnedNote,
+          pinnedMessageSlot,
+          connection: dealConnection,
+        }) => (
+          <>
       <DealDetailPanel
         isOpen={!!activeDealId}
         onClose={() => setActiveDeal(null)}
@@ -1452,6 +1459,10 @@ export default function KanbanV2ClientPage({
           ) : null
         }
       />
+            {templateModal}
+          </>
+        )}
+      </DealChatBindingHost>
 
       <AddDealDialog
         open={!!addStage}
@@ -1501,8 +1512,6 @@ export default function KanbanV2ClientPage({
           scopeContext={scopeContext}
         />
       ) : null}
-
-      {templateModal}
     </div>
   );
 }
