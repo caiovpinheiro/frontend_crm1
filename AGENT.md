@@ -5,6 +5,18 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-09-03 — Mapeamento de variáveis só em template com slots
+
+**Decisão.** No disparador (`/campaigns/new`), o bloco “Variáveis do template” só monta se o template tiver header IMAGE/VIDEO/DOCUMENT ou placeholders Meta no corpo/cabeçalho TEXT. Lista templates via `/api/whatsapp-template-configs/approved` (traz `headerFormat` + previews).
+
+**Contexto.** Pedido explícito: não mostrar opção de mapear campo quando o template é fixo (sem vars / sem mídia variável).
+
+**Alternativas descartadas.** Sempre mostrar o bloco. Continuar listando via Graph `message-templates` (não trazia body/headerFormat úteis para a UI).
+
+**Impacto.** `template-variable-mapper.tsx`, `fetchTemplates`, passo 3 do wizard.
+
+---
+
 ### 2026-09-02 — Product tour (Driver.js) opt-in por página
 
 **Decisão.** Infra de tour em `src/features/product-tour/` com Driver.js. Cada página registra passos e monta `PageTourButton` (`?` no header). O tour só inicia no clique em “Fazer tour desta página”. Sem auto-start, sem persistência, sem backend. Piloto: Pipeline kanban. Onboarding wizard e `OnboardingTour` da Inbox permanecem separados.
