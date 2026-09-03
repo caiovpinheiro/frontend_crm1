@@ -17,6 +17,64 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-09-02 — Tour de criação de automação encadeado
+
+**Decisão.** O último passo do tour da lista (`automations`) ganha o CTA “Criar automação”. O clique grava o id em `sessionStorage` e navega para `/automations/new`, onde o assistente inicia `automations-create`. O `?` do modal dispara o mesmo tour. O overlay do Driver.js é reancorado no `<dialog>` (top-layer). O assistente muda de passo via bridge, sem preencher o formulário.
+
+**Alternativas descartadas.** Auto-start em todo GET `/automations/new` (quebra o opt-in). Destacar só o passo 1 (não explica gatilho/opções). Forçar interação no formulário durante o tour.
+
+**Impacto.** `tours/automations-create-tour.ts`, CTA no passo do hamburger (`ctas`), `NewAutomationModal` (`data-tour` + `PageTourButton`). Overlay reancorado no `<dialog>`; wizard avança no Próximo do tour.
+
+---
+
+### 2026-09-02 — Tour do builder de automação
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Tour opt-in `automations-builder` no editor `/automations/[id]`. O `?` do header dispara “Fazer tour do builder”. Passos: canvas, card do gatilho, índices Sucessos/Alertas/Erros, copiar/excluir, handle de conexão, paleta Blocos, catálogo “O que deseja automatizar?” (busca + grupos) e Salvar. Paleta e picker abrem via bridge antes do highlight. Sem auto-start e sem encadear a partir do assistente de criação (o id da automação só existe depois do POST).
+
+**Alternativas descartadas.** Destacar copy/stats em todos os cards (o primeiro match do `querySelector` cairia no node errado). Auto-start ao abrir o editor. CTA do wizard de criação para o builder (não há id ainda).
+
+**Impacto.** `tours/automations-builder-tour.ts`, `builder-tour-bridge.ts`, `data-tour` no `FlowEditor` / `FlowNode` / paleta / picker.
+
+---
+
+### 2026-09-02 — Tour de campanhas (lista, criação e detalhe)
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Três tours opt-in no mesmo padrão das automações: lista (`campaigns`), assistente (`campaigns-create`) e painel pós-criação (`campaigns-detail`). O `?` dispara cada um. Sem auto-start e sem CTA extra no footer do Driver.js. O assistente avança de passo via a mesma bridge do wizard de automação (páginas distintas, um registro por vez).
+
+**Alternativas descartadas.** Encadear lista → criação com botão extra (pedido explícito de não ter esses CTAs). Auto-start ao abrir `/campaigns/new` ou o detalhe.
+
+**Impacto.** `tours/campaigns-*.ts`, `data-tour` na lista / `FormDialog` / detalhe, `PageTourButton` no header e no assistente.
+
+---
+
+### 2026-09-02 — Tour de contatos (lista, cadastro, colunas e duplicadas)
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Quatro tours opt-in no mesmo padrão de campanhas: lista (`contacts`), cadastro (`contacts-create`), colunas (`contacts-columns`) e duplicadas (`contacts-duplicates`). O `?` da lista e o `?` de cada modal disparam o tour correspondente. Sem auto-start e sem CTA extra no footer do Driver.js. Cadastro, colunas e duplicadas não encadeiam a partir da lista — o usuário abre o modal no hamburger e inicia o tour dali.
+
+**Alternativas descartadas.** Encadear lista → cadastro com botão extra. Tour único que tenta abrir os três modais em sequência (o overlay no `<dialog>` e o hamburger não combinam bem). `data-tour` nas ações de todas as linhas (o primeiro match cairia na linha errada).
+
+**Impacto.** `tours/contacts-*.ts`, `data-tour` na lista / `ContactFormDialog` / `ColumnsDialog` / `DuplicatesSheet`, `PageTourButton` no header e nos três modais.
+
+---
+
+### 2026-09-02 — Tour da Caixa de entrada
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Um tour opt-in `inbox` no `?` do header, no mesmo padrão das outras páginas. Passos: busca/período, filas (abre o seletor e explica cada grupo de status), lista, abas e ações do chat, composer e painel do contato/negócio. Sem auto-start e sem CTA extra. Passos de conversa aberta usam `skipIfMissing` quando não há ticket selecionado. O dropdown de filas ignora clique no overlay do Driver.js; `closeMenu` fecha o seletor antes dos passos da lista.
+
+**Alternativas descartadas.** Reusar `OnboardingTour` da Inbox (não destaca DOM). Tour separado só das filas. Abrir o menu `+` do composer durante o tour (o popover fecha no mousedown do overlay).
+
+**Impacto.** `tours/inbox-tour.ts`, `closeMenu` em `start-tour.ts`, `data-tour` em ConversationColumn / ChatArea / Composer / ContactAside.
+
+---
+
 ### 2026-09-01 — Convite por e-mail, verificação no signup, esqueci senha
 
 **Decisão.** Equipe deixa de criar usuário com senha e passa a enviar convite (`POST /api/invites`). Signup do primeiro ADMIN redireciona para `/verify-email` em vez de `signIn`. Páginas públicas `/forgot-password`, `/reset-password`, `/verify-email`. Reset admin na Equipe permanece.

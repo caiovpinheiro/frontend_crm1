@@ -20,6 +20,8 @@ import type {
 export interface ListConversationsParams extends InboxFilters {
   tab: InboxTab | readonly InboxTab[];
   search?: string;
+  /** GET `contactId` — tickets daquele contato (já existe no backend). */
+  contactId?: string;
   perPage?: number;
   page?: number;
   cursor?: string;
@@ -61,9 +63,41 @@ function buildConversationsUrl(p: ListConversationsParams): string {
   appendInboxServerFilters(q, p);
   if (p.sortBy) q.set("sortBy", p.sortBy);
   if (p.sortOrder) q.set("sortOrder", p.sortOrder);
+  if (p.contactId) q.set("contactId", p.contactId);
   const s = p.search?.trim();
   if (s) q.set("search", s);
   return `/api/conversations?${q.toString()}`;
+}
+
+function isOpenInboxTicket(row: ConversationListRow) {
+  return row.status !== "RESOLVED" && !row.closedAt;
+}
+
+function inboxTicketRecency(row: ConversationListRow) {
+  return Date.parse(row.lastMessageAt ?? row.updatedAt ?? "") || 0;
+}
+
+/**
+ * Conversa atual do contato na inbox: ticket OPEN primeiro, senão o mais recente.
+ * Não lista o histórico de tickets encerrados.
+ */
+export async function findCurrentInboxConversationForContact(
+  contactId: string,
+): Promise<ConversationListRow | null> {
+  const page = await listConversations({
+    tab: "todos",
+    contactId,
+    page: 1,
+    perPage: 50,
+  });
+  const rows = (page.items ?? []).filter(Boolean);
+  if (rows.length === 0) return null;
+  return rows.reduce((best, row) => {
+    const bestOpen = isOpenInboxTicket(best);
+    const rowOpen = isOpenInboxTicket(row);
+    if (bestOpen !== rowOpen) return rowOpen ? row : best;
+    return inboxTicketRecency(row) > inboxTicketRecency(best) ? row : best;
+  });
 }
 
 /** GET /api/conversations?perPage&tab&ownerId&channel&stageId&tagIds&sortBy&sortOrder&search */

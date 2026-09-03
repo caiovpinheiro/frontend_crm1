@@ -2,12 +2,13 @@
 
 import {
   IconBriefcase,
-  IconMessage,
   IconPhone,
+  IconUsers,
 } from "@tabler/icons-react";
 
 import { sanitizeContactName } from "@/lib/display-name";
 import { formatPhoneDisplay } from "@/lib/phone";
+import type { ContactListItemDto } from "@/features/directory-v2/api";
 import type { DealListItemDto } from "@/features/pipeline-v2/api/list";
 import {
   OmnisearchHitAvatar,
@@ -18,9 +19,6 @@ import {
 } from "@/components/crm/omnisearch-results";
 import type { OmnisearchCoords } from "@/components/crm/use-omnisearch-menu";
 
-import { toConversationCard } from "../adapters";
-import type { ConversationListRow } from "../api";
-
 const DEAL_STATUS: Record<DealListItemDto["status"], string> = {
   OPEN: "Aberto",
   WON: "Ganho",
@@ -28,15 +26,15 @@ const DEAL_STATUS: Record<DealListItemDto["status"], string> = {
 };
 
 export type InboxSearchHit =
-  | { kind: "conversation"; row: ConversationListRow }
+  | { kind: "contact"; contact: ContactListItemDto }
   | { kind: "deal"; deal: DealListItemDto };
 
 export function flattenInboxSearchHits(
-  conversations: ConversationListRow[],
+  contacts: ContactListItemDto[],
   deals: DealListItemDto[],
 ): InboxSearchHit[] {
   return [
-    ...conversations.map((row) => ({ kind: "conversation" as const, row })),
+    ...contacts.map((contact) => ({ kind: "contact" as const, contact })),
     ...deals.map((deal) => ({ kind: "deal" as const, deal })),
   ];
 }
@@ -45,26 +43,28 @@ export function InboxSearchResultsPanel({
   coords,
   loading,
   query,
-  conversations,
+  contacts,
   deals,
   activeIndex,
   onActiveIndexChange,
-  onPickConversation,
+  onPickContact,
   onPickDeal,
+  onSeeAll,
 }: {
   coords: OmnisearchCoords;
   loading: boolean;
   query: string;
-  conversations: ConversationListRow[];
+  contacts: ContactListItemDto[];
   deals: DealListItemDto[];
   activeIndex: number;
   onActiveIndexChange: (index: number) => void;
-  onPickConversation: (row: ConversationListRow) => void;
+  onPickContact: (contact: ContactListItemDto) => void;
   onPickDeal: (id: string) => void;
+  onSeeAll?: () => void;
 }) {
-  const empty = !loading && conversations.length === 0 && deals.length === 0;
-  const total = conversations.length + deals.length;
-  const dealOffset = conversations.length;
+  const empty = !loading && contacts.length === 0 && deals.length === 0;
+  const total = contacts.length + deals.length;
+  const dealOffset = contacts.length;
 
   return (
     <OmnisearchResultsPanel
@@ -73,20 +73,21 @@ export function InboxSearchResultsPanel({
       query={query}
       empty={empty}
       total={total}
+      onSeeAll={onSeeAll}
     >
-      {conversations.length > 0 && (
+      {contacts.length > 0 && (
         <OmnisearchSection
-          icon={<IconMessage size={13} />}
-          label="Conversas"
-          count={conversations.length}
+          icon={<IconUsers size={13} />}
+          label="Contatos"
+          count={contacts.length}
         >
-          {conversations.map((row, i) => (
-            <ConversationHit
-              key={row.id}
-              row={row}
+          {contacts.map((contact, i) => (
+            <ContactHit
+              key={contact.id}
+              contact={contact}
               active={i === activeIndex}
               onHover={() => onActiveIndexChange(i)}
-              onClick={() => onPickConversation(row)}
+              onClick={() => onPickContact(contact)}
             />
           ))}
         </OmnisearchSection>
@@ -115,46 +116,37 @@ export function InboxSearchResultsPanel({
   );
 }
 
-function ConversationHit({
-  row,
+function ContactHit({
+  contact,
   active,
   onHover,
   onClick,
 }: {
-  row: ConversationListRow;
+  contact: ContactListItemDto;
   active: boolean;
   onHover: () => void;
   onClick: () => void;
 }) {
-  const card = toConversationCard(row);
-  const phone = formatPhoneDisplay(row.contact?.phone) || row.contact?.phone?.trim() || null;
-  const closed = row.status === "RESOLVED";
+  const name = sanitizeContactName(contact.name) || "Contato";
+  const phone = formatPhoneDisplay(contact.phone) || contact.phone?.trim() || null;
 
   return (
     <OmnisearchHitButton active={active} onHover={onHover} onClick={onClick}>
       <OmnisearchHitAvatar
-        id={row.contact?.id ?? row.id}
-        name={card.name}
-        imageUrl={row.contact?.avatarUrl}
-        overlay={<IconMessage size={10} />}
+        id={contact.id}
+        name={name}
+        imageUrl={contact.avatarUrl}
+        overlay={<IconUsers size={10} />}
       />
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
-            {card.name}
-          </span>
-          {row.number != null && (
-            <span className="shrink-0 font-body text-[12px] tabular-nums text-[var(--text-muted)]">
-              #{row.number}
-            </span>
-          )}
+        <span className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
+          {name}
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 font-body text-[12px] text-[var(--text-secondary)]">
           <IconPhone size={12} className="shrink-0 text-[var(--text-muted)]" />
-          <span className="truncate">{phone || card.preview || "Abrir conversa"}</span>
+          <span className="truncate">{phone || contact.email || "Abrir conversa"}</span>
         </span>
       </span>
-      {closed && <OmnisearchStatusPill tone="muted">Encerrada</OmnisearchStatusPill>}
     </OmnisearchHitButton>
   );
 }

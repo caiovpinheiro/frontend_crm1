@@ -326,6 +326,8 @@ export type PageActionsMenuItem = {
   primary?: boolean;
   /** Estado ativo (ex.: modo demo ligado). */
   active?: boolean;
+  /** Valor de `data-tour` no item (product tour). */
+  tourId?: string;
 };
 
 /** Classes do item de menu — use quando o menu for montado manualmente. */
@@ -392,6 +394,12 @@ export function PageActionsMenu({
     if (!open) return;
     function onDown(e: PointerEvent) {
       const target = e.target as Node;
+      if (
+        target instanceof Element &&
+        target.closest(".driver-overlay, .driver-popover")
+      ) {
+        return;
+      }
       if (
         (!triggerRef.current || !triggerRef.current.contains(target)) &&
         (!panelRef.current || !panelRef.current.contains(target))
@@ -473,6 +481,7 @@ export function PageActionsMenu({
                     <button
                       type="button"
                       role="menuitem"
+                      {...(it.tourId ? { "data-tour": it.tourId } : {})}
                       disabled={it.disabled}
                       onClick={() => {
                         setOpen(false);

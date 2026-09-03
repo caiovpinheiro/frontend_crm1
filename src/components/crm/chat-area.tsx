@@ -579,6 +579,7 @@ export function ChatArea({
   return (
     <main
       aria-label={`Conversa com ${contact.name}`}
+      data-tour="inbox-chat"
       className={cn(
         // h-full min-h-0: o pai (inbox mobile) limita a altura; sem isso a
         // lista de mensagens estoura o viewport e o composer some abaixo
@@ -606,7 +607,7 @@ export function ChatArea({
               conversa (ticket) foi movido pro canto inferior esquerdo, junto
               ao composer — estilo Kommo. */}
           {tabsEnabled && (
-            <div className="min-w-0 flex-1">
+            <div data-tour="inbox-chat-tabs" className="min-w-0 flex-1">
               <ChatTabsBar
                 activeTab={activeTab}
                 onChange={setActiveTab}
@@ -620,7 +621,7 @@ export function ChatArea({
             </div>
           )}
 
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+          <div data-tour="inbox-chat-actions" className="ml-auto flex shrink-0 items-center gap-1">
             {headerActionsSlot ?? (
               <>
                 {contact.phone && (
@@ -723,7 +724,7 @@ export function ChatArea({
       <div className="flex min-h-0 flex-1 flex-col">
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
-      <div ref={messagesRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [overflow-anchor:none] px-3 pt-3 pb-8 max-md:px-2">
+      <div ref={messagesRef} data-tour="inbox-chat-thread" className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain [overflow-anchor:none] px-3 pt-3 pb-8 max-md:px-2">
         {messages.length > 0 && !messagesLoading && !messagesError ? (
           <StickyDayPill date={stickyDayLabel} />
         ) : null}

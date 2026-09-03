@@ -74,6 +74,7 @@ export function StepPickerModal({
 }: StepPickerModalProps) {
   const [query, setQuery] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const [wideSearch, setWideSearch] = React.useState(true);
 
   // O modal é invocado tanto por nós do ReactFlow (AddStepNode) quanto
   // pelo próprio canvas. Em ambos os casos ele fica no DOM como filho
@@ -85,6 +86,14 @@ export function StepPickerModal({
   const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null);
   React.useEffect(() => {
     setPortalTarget(document.body);
+  }, []);
+
+  React.useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const apply = () => setWideSearch(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
   }, []);
 
   React.useEffect(() => {
@@ -100,6 +109,7 @@ export function StepPickerModal({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (document.querySelector(".driver-overlay")) return;
         e.preventDefault();
         onClose();
       }
@@ -144,7 +154,10 @@ export function StepPickerModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            onClick={onClose}
+            onClick={() => {
+              if (document.querySelector(".driver-overlay")) return;
+              onClose();
+            }}
             onWheel={stopWheel}
             onTouchMove={stopWheel}
             className="fixed inset-0 z-70 bg-black/30 backdrop-blur-sm"
@@ -166,6 +179,7 @@ export function StepPickerModal({
               "flex flex-col overflow-hidden rounded-[var(--radius-2xl)] border border-[var(--glass-border)]",
               "bg-[var(--glass-bg-modal)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl",
             )}
+            data-tour="builder-picker"
             onClick={(e) => e.stopPropagation()}
             onWheel={stopWheel}
             onTouchMove={stopWheel}
@@ -192,7 +206,10 @@ export function StepPickerModal({
                   </p>
                 </div>
 
-                <div className="hidden items-center gap-2 sm:flex">
+                <div
+                  className="hidden items-center gap-2 sm:flex"
+                  {...(wideSearch ? { "data-tour": "builder-picker-search" } : {})}
+                >
                   <SearchInput
                     inputRef={inputRef}
                     value={query}
@@ -206,7 +223,10 @@ export function StepPickerModal({
                 </div>
               </div>
 
-              <div className="mt-3 sm:hidden">
+              <div
+                className="mt-3 sm:hidden"
+                {...(!wideSearch ? { "data-tour": "builder-picker-search" } : {})}
+              >
                 <SearchInput
                   inputRef={inputRef}
                   value={query}
@@ -216,7 +236,10 @@ export function StepPickerModal({
             </div>
 
             {/* Body */}
-            <div className="scrollbar-thin flex-1 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6">
+            <div
+              className="scrollbar-thin flex-1 overflow-y-auto px-5 py-5 sm:px-7 sm:py-6"
+              data-tour="builder-picker-groups"
+            >
               {filteredGroups.length === 0 ? (
                 <p className="py-12 text-center text-[13px] tracking-tight text-[var(--text-muted)]">
                   Nenhum passo encontrado para &quot;{query}&quot;.
@@ -315,7 +338,10 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   return (
     <button
       type="button"
-      onClick={onClose}
+      onClick={() => {
+        if (document.querySelector(".driver-overlay")) return;
+        onClose();
+      }}
       aria-label="Fechar"
       className={cn(
         "inline-flex size-9 items-center justify-center rounded-full",
