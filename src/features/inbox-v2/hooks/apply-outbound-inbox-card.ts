@@ -38,8 +38,9 @@ function conversationMatchesId(
   conversationId: string,
 ): boolean {
   if (!row) return false;
-  if (row.id === conversationId) return true;
-  return row.number != null && String(row.number) === conversationId;
+  const want = String(conversationId);
+  if (String(row.id) === want) return true;
+  return row.number != null && String(row.number) === want;
 }
 
 function inboxTabsFromQueryKey(queryKey: readonly unknown[]): InboxTab[] {
@@ -92,14 +93,19 @@ export function findCachedConversationRow(
   qc: QueryClient,
   conversationId: string,
 ): ConversationListRow | null {
+  const want = String(conversationId);
+  const single = qc.getQueryData<ConversationListRow>([
+    "inbox-conversation",
+    want,
+  ]);
+  if (single && typeof single.id === "string") return single;
+
   const entries = qc.getQueriesData<InboxListCache>({
     queryKey: ["inbox-conversations"],
   });
   for (const [, cached] of entries) {
     for (const page of cached?.pages ?? []) {
-      const hit = page?.items?.find((c) =>
-        conversationMatchesId(c, conversationId),
-      );
+      const hit = page?.items?.find((c) => conversationMatchesId(c, want));
       if (hit) return hit;
     }
   }
