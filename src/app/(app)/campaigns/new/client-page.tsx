@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -36,8 +36,18 @@ import {
   useSegments,
   useTemplates,
 } from "@/features/campaigns/hooks";
+import {
+  CampaignTemplateVariableMapper,
+  templateNeedsVariableMapping,
+} from "@/features/campaigns/template-variable-mapper";
+import {
+  countMissingTemplateVariables,
+  templateVariableSlots,
+  templateVariablesFromConfig,
+} from "@/components/automations/template-variables";
 import type {
   CampaignFilters,
+  CampaignTemplateComponentsPayload,
   CampaignType,
   CreateCampaignBody,
 } from "@/features/campaigns/types";
@@ -115,8 +125,17 @@ export default function NewCampaignClientPage() {
 
   const [templateName, setTemplateName] = useState("");
   const [templateLanguage, setTemplateLanguage] = useState("pt_BR");
+  const [templateComponents, setTemplateComponents] =
+    useState<CampaignTemplateComponentsPayload | null>(null);
   const [textContent, setTextContent] = useState("");
   const [automationId, setAutomationId] = useState("");
+
+  const onTemplateComponentsChange = useCallback(
+    (payload: CampaignTemplateComponentsPayload | null) => {
+      setTemplateComponents(payload);
+    },
+    [],
+  );
 
   const [sendRate, setSendRate] = useState(80);
   const [scheduledAt, setScheduledAt] = useState("");
@@ -176,6 +195,31 @@ export default function NewCampaignClientPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, JSON.stringify(effectiveFilters)]);
 
+  const selectedTemplate = useMemo(
+    () => (templatesQuery.data ?? []).find((t) => t.name === templateName) ?? null,
+    [templatesQuery.data, templateName],
+  );
+
+  const templateMappingIncomplete = useMemo(() => {
+    if (type !== "TEMPLATE" || !selectedTemplate) return false;
+    if (!templateNeedsVariableMapping(selectedTemplate)) return false;
+    const slots = templateVariableSlots(
+      selectedTemplate.bodyPreview,
+      selectedTemplate.headerPreview,
+    );
+    const vars = templateVariablesFromConfig(
+      slots,
+      templateComponents?.components,
+    );
+    const missingVars = countMissingTemplateVariables(vars);
+    const hf = String(selectedTemplate.headerFormat ?? "").toUpperCase();
+    const needsMedia =
+      hf === "IMAGE" || hf === "VIDEO" || hf === "DOCUMENT";
+    const missingMedia =
+      needsMedia && !(templateComponents?.headerMediaUrl ?? "").trim();
+    return missingVars > 0 || missingMedia;
+  }, [type, selectedTemplate, templateComponents]);
+
   function canAdvance(): boolean {
     switch (step) {
       case 1:
@@ -185,7 +229,9 @@ export default function NewCampaignClientPage() {
       case 2:
         return audienceMode === "segment" ? !!segmentId : true;
       case 3:
-        if (type === "TEMPLATE") return !!templateName;
+        if (type === "TEMPLATE") {
+          return !!templateName && !templateMappingIncomplete;
+        }
         if (type === "TEXT") return !!textContent.trim();
         if (type === "AUTOMATION") return !!automationId;
         return true;
@@ -213,6 +259,7 @@ export default function NewCampaignClientPage() {
     if (type === "TEMPLATE") {
       body.templateName = templateName;
       body.templateLanguage = templateLanguage;
+      if (templateComponents) body.templateComponents = templateComponents;
     }
     if (type === "TEXT") body.textContent = textContent;
     if (type === "AUTOMATION") body.automationId = automationId;
@@ -577,6 +624,7 @@ export default function NewCampaignClientPage() {
                     value={templateName || undefined}
                     onValueChange={(v) => {
                       setTemplateName(v);
+                      setTemplateComponents(null);
                       const tpl = (templatesQuery.data ?? []).find(
                         (t) => t.name === v,
                       );
@@ -584,6 +632,8 @@ export default function NewCampaignClientPage() {
                     }}
                     placeholder="Selecione um template"
                     triggerClassName="w-full"
+                    searchable
+                    searchPlaceholder="Buscar template…"
                   />
                 )}
               </div>
@@ -596,6 +646,13 @@ export default function NewCampaignClientPage() {
                   placeholder="pt_BR"
                 />
               </div>
+              {selectedTemplate &&
+              templateNeedsVariableMapping(selectedTemplate) ? (
+                <CampaignTemplateVariableMapper
+                  template={selectedTemplate}
+                  onChange={onTemplateComponentsChange}
+                />
+              ) : null}
             </>
           ) : type === "AUTOMATION" ? (
             <div>
