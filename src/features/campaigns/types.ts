@@ -149,6 +149,29 @@ export interface TemplateRow {
   language: string;
   category?: string;
   status: string;
+  /** Corpo aprovado na Meta (com `{{1}}` etc.). */
+  bodyPreview?: string | null;
+  /** Cabeçalho TEXT com placeholders, se houver. */
+  headerPreview?: string | null;
+  /** NONE | TEXT | IMAGE | VIDEO | DOCUMENT */
+  headerFormat?: string | null;
+  /** Mapeamento padrão variável → campo CRM (criação do template). */
+  operatorVariables?: {
+    key: string;
+    label?: string;
+    example?: string;
+    crmField?: string;
+  }[] | null;
+}
+
+/**
+ * Payload gravado em `Campaign.templateComponents` (v1).
+ * Tokens `{{dealCustomFields.x}}` são resolvidos por destinatário no worker.
+ */
+export interface CampaignTemplateComponentsPayload {
+  version: 1;
+  components?: unknown[];
+  headerMediaUrl?: string | null;
 }
 
 export interface CreateCampaignBody {
@@ -160,6 +183,8 @@ export interface CreateCampaignBody {
   filters?: CampaignFilters;
   templateName?: string;
   templateLanguage?: string;
+  /** Body/header com tokens CRM + opcional URL de mídia do header. */
+  templateComponents?: CampaignTemplateComponentsPayload;
   textContent?: string;
   automationId?: string;
   sendRate?: number;
