@@ -109,7 +109,7 @@ import {
 } from "@/features/inbox-v2/extras/channel-switch-confirm";
 import type { ConversationListRow } from "@/features/inbox-v2/api";
 import { postConversationAction } from "@/features/inbox-v2/api";
-import { inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { inboxQueueSectionFor, inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -122,6 +122,7 @@ import {
   useInboxFilterUrlState,
 } from "@/features/inbox-v2/hooks/use-inbox-filters-url-sync";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { PageTourButton } from "@/features/product-tour";
 import {
   dealDetailKey,
   useDealDetail,
@@ -1219,8 +1220,11 @@ export default function InboxV2ClientPage({
     () =>
       displayRows
         .filter(Boolean)
-        .map((r) => toConversationCard(r, { active: r.id === activeId })),
-    [displayRows, activeId],
+        .map((r) => ({
+          ...toConversationCard(r, { active: r.id === activeId }),
+          queueTab: inboxQueueSectionFor(r, tab),
+        })),
+    [displayRows, activeId, tab],
   );
   const contactName = activeRow?.contact?.name ?? "";
   const pinnedMessageIds = useMemo(
@@ -1330,6 +1334,7 @@ export default function InboxV2ClientPage({
   // (persistida no localStorage). O ping em si toca no useInboxRealtime.
   const [soundMuted, setSoundMuted] = useInboxSoundMuted();
   const columnMoreMenuNode = (
+    <div data-tour="inbox-list-more" className="flex shrink-0">
     <DropdownGlass
       matchTriggerWidth={false}
       className="min-w-[220px]"
@@ -1369,6 +1374,7 @@ export default function InboxV2ClientPage({
         </button>
       }
     />
+    </div>
   );
 
   // Ações da barra de seleção — Encerrar/Reabrir/Reatribuir (protegidas por
@@ -2163,7 +2169,12 @@ export default function InboxV2ClientPage({
                 icon={pageHeader.icon}
                 title={pageHeader.title}
                 center={activeId ? undefined : inboxSearchFilterNode}
-                actions={activeId ? undefined : inboxPeriodNode}
+                actions={
+                  <>
+                    {activeId ? null : inboxPeriodNode}
+                    <PageTourButton tourId="inbox" />
+                  </>
+                }
               />,
             )}
             {!activeId ? (
@@ -2251,6 +2262,7 @@ export default function InboxV2ClientPage({
               actions={
                 <>
                   {inboxPeriodNode}
+                  <PageTourButton tourId="inbox" />
                   {collapseHeaderBtn}
                 </>
               }

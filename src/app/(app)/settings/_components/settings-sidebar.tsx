@@ -31,6 +31,7 @@ import {
 
 import { PageSearchBar } from "@/components/crm/page-toolbar";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import { PageTourButton } from "@/features/product-tour";
 import { useSettingsDrawer } from "@/features/settings/settings-drawer-context";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -148,6 +149,7 @@ export function SettingsSidebar({
     <aside
       aria-label="Menu de configurações"
       aria-hidden={!open}
+      data-tour="settings-nav"
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)] backdrop-blur-sm",
         // Largura fixa (a mesma da track aberta no layout): sem isso a
@@ -181,6 +183,7 @@ export function SettingsSidebar({
         >
           Configurações
         </h2>
+        <PageTourButton tourId="settings" size="sm" />
         <TooltipGlass
           label={
             pinned
@@ -191,6 +194,7 @@ export function SettingsSidebar({
         >
           <button
             type="button"
+            data-tour="settings-pin"
             aria-label={pinned ? "Desafixar menu" : "Fixar menu"}
             aria-pressed={pinned}
             onClick={togglePinned}
@@ -211,7 +215,7 @@ export function SettingsSidebar({
       </div>
 
       {/* Busca */}
-      <div className="shrink-0 border-b border-[var(--glass-border-subtle)] px-3 py-2.5 sm:px-4">
+      <div className="shrink-0 border-b border-[var(--glass-border-subtle)] px-3 py-2.5 sm:px-4" data-tour="settings-search">
         <PageSearchBar
           variant="compact"
           value={search}

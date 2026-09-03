@@ -87,6 +87,7 @@ interface ConversationColumnProps {
    */
   renderCardSlots?: (conversation: Conversation) => {
     assigneeSlot?: React.ReactNode
+    menuSlot?: React.ReactNode
   }
   /**
    * Infinite scroll: callback disparado quando o scroll chega perto do
@@ -215,6 +216,41 @@ function statusVisual(tab: { id?: string; label?: string } | string | undefined)
   return { Icon: IconClock, bg: "var(--color-lead-bg)", fg: "var(--color-lead)" }
 }
 
+function groupConversationsByQueue(
+  conversations: Conversation[],
+  selectedIds: readonly string[],
+): Array<{ id: string | null; label: string | null; items: Conversation[] }> {
+  const shouldGroup =
+    selectedIds.includes("todos") || selectedIds.length > 1
+  if (!shouldGroup) {
+    return [{ id: null, label: null, items: conversations }]
+  }
+  const buckets = new Map<string, Conversation[]>()
+  for (const c of conversations) {
+    const key = c.queueTab || "_other"
+    const list = buckets.get(key) ?? []
+    list.push(c)
+    buckets.set(key, list)
+  }
+  const sections: Array<{
+    id: string | null
+    label: string | null
+    items: Conversation[]
+  }> = []
+  for (const item of INBOX_QUEUE_ITEMS) {
+    if (item.id === "todos") continue
+    const items = buckets.get(item.id)
+    if (items?.length) {
+      sections.push({ id: item.id, label: item.label, items })
+    }
+  }
+  const other = buckets.get("_other")
+  if (other?.length) {
+    sections.push({ id: "_other", label: "Outras", items: other })
+  }
+  return sections
+}
+
 function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
   const groups: {
     key: string
@@ -328,6 +364,7 @@ export function ConversationColumn({
   const urgency = urgencyCount ?? conversations.filter((c) => c.urgent).length
 
   const selectedQueueIds = selectedTabIds ?? (tabs[activeTab]?.id ? [tabs[activeTab]!.id!] : [])
+  const queueSections = groupConversationsByQueue(displayed, selectedQueueIds)
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
   const currentTab = selectedItems[0] ?? tabs[activeTab]
@@ -369,16 +406,24 @@ export function ConversationColumn({
     if (!el) return
     const r = el.getBoundingClientRect()
     const top = r.bottom + 6
+    const width = Math.max(r.width, 400)
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
     setDropdownPos({
       top,
-      left: r.left,
-      width: r.width,
+      left,
+      width,
       maxHeight: Math.max(220, window.innerHeight - top - 12),
     })
     function onDocClick(e: MouseEvent) {
       const target = e.target as Node
       if (el?.contains(target)) return
       if (dropdownMenuRef.current?.contains(target)) return
+      if (
+        target instanceof Element &&
+        target.closest(".driver-overlay, .driver-popover")
+      ) {
+        return
+      }
       setDropdownOpen(false)
     }
     function onKey(e: KeyboardEvent) {
@@ -438,6 +483,7 @@ export function ConversationColumn({
 
       {/* Seletor de status + toggle de filtro na mesma linha */}
       <div className="mb-2 flex items-center gap-2 @max-[240px]:gap-1">
+      <div data-tour="inbox-queues" className="flex min-w-0 flex-1">
       <button
         ref={dropdownBtnRef}
         type="button"
@@ -445,7 +491,7 @@ export function ConversationColumn({
         title={triggerTitle}
         aria-haspopup="listbox"
         aria-expanded={dropdownOpen}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
+        className="flex min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
       >
         <span
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
@@ -471,6 +517,7 @@ export function ConversationColumn({
           )}
         />
       </button>
+      </div>
       {onRefresh ? (
         <TooltipGlass label="Atualizar fila" side="bottom">
           <button
@@ -478,6 +525,7 @@ export function ConversationColumn({
             aria-label="Atualizar fila"
             onClick={() => onRefresh()}
             disabled={isRefreshing}
+            data-tour="inbox-refresh"
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-60",
               isRefreshing && "text-[var(--brand-primary)]",
@@ -507,7 +555,7 @@ export function ConversationColumn({
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
-              width: Math.max(dropdownPos.width, 300),
+              width: dropdownPos.width,
               maxHeight: dropdownPos.maxHeight,
               isolation: "isolate",
             }}
@@ -521,7 +569,13 @@ export function ConversationColumn({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-1 py-0.5">
               {groupQueueTabs(tabs).map((group) => (
-                <div key={group.key} className="mb-0.5 last:mb-0">
+                <div
+                  key={group.key}
+                  {...(group.key !== "__row-0"
+                    ? { "data-tour": `inbox-queue-group-${group.key}` }
+                    : {})}
+                  className="mb-0.5 last:mb-0"
+                >
                   {group.label ? (
                     <p
                       className={cn(
@@ -545,6 +599,7 @@ export function ConversationColumn({
                         role="option"
                         aria-selected={isActive}
                         title={tab.title ?? tab.description}
+                        {...(tab.id === "todos" ? { "data-tour": "inbox-queue-todos" } : {})}
                         onClick={() => {
                           if (tabId && onToggleTab) {
                             onToggleTab(tabId)
@@ -613,9 +668,9 @@ export function ConversationColumn({
                 </div>
               ))}
             </div>
-            <p className="flex items-center gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-1.5 font-body text-[11px] text-[var(--text-muted)]">
-              <IconInfoCircle size={13} className="shrink-0" />
-              Marque várias filas para ver juntas. Contagens por fila.
+            <p className="flex shrink-0 items-start gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-2 font-body text-[11px] leading-snug text-[var(--text-muted)]">
+              <IconInfoCircle size={13} className="mt-px shrink-0" />
+              <span>Marque várias filas para ver juntas. Contagens por fila.</span>
             </p>
           </div>,
           document.body,
@@ -683,6 +738,7 @@ export function ConversationColumn({
           encolhem (flex-shrink:1) e viram barras cinza. Espelho do DealQueue. */}
       <div
         ref={listScrollRef}
+        data-tour="inbox-list"
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0.5 [-webkit-overflow-scrolling:touch]"
       >
         <div className="flex min-h-full flex-col gap-1.5">
@@ -690,23 +746,36 @@ export function ConversationColumn({
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : (
           <>
-            {displayed.map((conversation) => {
-              const slots = renderCardSlots?.(conversation)
-              return (
-                <ConversationCard
-                  key={conversation.id}
-                  conversation={{
-                    ...conversation,
-                    active: conversation.id === activeConversationId,
-                  }}
-                  onClick={() => onSelectConversation?.(conversation.id)}
-                  assigneeSlot={slots?.assigneeSlot}
-                  selectionMode={selectionMode}
-                  selected={selectedIds?.has(conversation.id) ?? false}
-                  onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
-                />
-              )
-            })}
+            {queueSections.map((section) => (
+              <div key={section.id ?? "flat"} className="flex flex-col gap-1.5">
+                {section.label ? (
+                  <p className="sticky top-0 z-10 bg-[var(--glass-bg-panel)] px-1 pb-0.5 pt-1 font-display text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    {section.label}
+                    <span className="ml-1.5 font-semibold tabular-nums normal-case tracking-normal text-[var(--text-muted)]">
+                      {section.items.length}
+                    </span>
+                  </p>
+                ) : null}
+                {section.items.map((conversation) => {
+                  const slots = renderCardSlots?.(conversation)
+                  return (
+                    <ConversationCard
+                      key={conversation.id}
+                      conversation={{
+                        ...conversation,
+                        active: conversation.id === activeConversationId,
+                      }}
+                      onClick={() => onSelectConversation?.(conversation.id)}
+                      assigneeSlot={slots?.assigneeSlot}
+                      menuSlot={slots?.menuSlot}
+                      selectionMode={selectionMode}
+                      selected={selectedIds?.has(conversation.id) ?? false}
+                      onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
+                    />
+                  )
+                })}
+              </div>
+            ))}
             {displayed.length === 0 && !isLoadingMore && (
               <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
                 Nenhuma conversa encontrada.

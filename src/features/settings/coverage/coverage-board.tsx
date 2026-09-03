@@ -526,10 +526,17 @@ export function CoverageBoard({
         </p>
       )}
 
-      {!isLoading && <CoverageMiniDash stats={stats} />}
+      {!isLoading && (
+        <div data-tour="distribution-coverage-kpis">
+          <CoverageMiniDash stats={stats} />
+        </div>
+      )}
 
       {/* Controles: dia da semana + presença (busca/área ficam no PageHeader) */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className="flex flex-wrap items-center gap-2"
+        data-tour="distribution-coverage-controls"
+      >
         <div className="flex flex-wrap gap-1 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-1">
           {WEEKDAYS.map((wd) => (
             <button
@@ -601,6 +608,7 @@ export function CoverageBoard({
         )}
       </div>
 
+      <div data-tour="distribution-coverage-grid">
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -644,6 +652,7 @@ export function CoverageBoard({
           onEdit={openEdit}
         />
       )}
+      </div>
 
       {/* Barra de ação em massa */}
       {selected.size > 0 && (

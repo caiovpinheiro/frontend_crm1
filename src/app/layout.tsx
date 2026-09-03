@@ -17,8 +17,10 @@ import "@/lib/auth-types";
 
 import { PreviewMocksInstaller } from "@/components/preview-mocks-installer";
 import { NativeApkUpdateDialog } from "@/components/layout/native-apk-update-dialog";
+import { BootSplash } from "@/components/layout/boot-splash";
 import { Providers } from "./providers";
 import "./globals.css";
+import "@/components/crm/b-loader.css";
 
 /* Fontes via next/font: bundling local + preload + zero FOUT.
    - DM Sans   → body (via --font-sans-next)
@@ -99,7 +101,7 @@ export default async function RootLayout({
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`bg-background ${dmSans.variable} ${plusJakarta.variable}`}
+      className={`bl-booting bg-background ${dmSans.variable} ${plusJakarta.variable}`}
       data-chat-theme="azul"
       style={{ fontFamily: "var(--font-sans)" }}
     >
@@ -130,29 +132,39 @@ export default async function RootLayout({
 })();`,
           }}
         />
-        <PreviewMocksInstaller />
-        <Providers session={session}>
-          {children}
-          <NativeApkUpdateDialog />
-        </Providers>
-        <Toaster
-          className="crm-toaster"
-          position="bottom-right"
-          theme="light"
-          richColors={false}
-          closeButton
-          icons={{
-            success: <CheckCircle2 aria-hidden="true" />,
-            error: <XCircle aria-hidden="true" />,
-            warning: <AlertTriangle aria-hidden="true" />,
-            info: <Info aria-hidden="true" />,
-            loading: <LoaderCircle aria-hidden="true" className="animate-spin" />,
-            close: <X aria-hidden="true" />,
-          }}
-          toastOptions={{
-            closeButtonAriaLabel: "Fechar notificação",
+        <style
+          dangerouslySetInnerHTML={{
+            __html:
+              "html.bl-booting{overflow:hidden}html.bl-booting #crm-app,html.bl-booting [data-sonner-toaster],html.bl-booting [data-app-loading-screen]{content-visibility:hidden;visibility:hidden;pointer-events:none}",
           }}
         />
+        <link rel="preload" href="/brand/logo-b.png" as="image" />
+        <BootSplash />
+        <PreviewMocksInstaller />
+        <div id="crm-app">
+          <Providers session={session}>
+            {children}
+            <NativeApkUpdateDialog />
+          </Providers>
+          <Toaster
+            className="crm-toaster"
+            position="bottom-right"
+            theme="light"
+            richColors={false}
+            closeButton
+            icons={{
+              success: <CheckCircle2 aria-hidden="true" />,
+              error: <XCircle aria-hidden="true" />,
+              warning: <AlertTriangle aria-hidden="true" />,
+              info: <Info aria-hidden="true" />,
+              loading: <LoaderCircle aria-hidden="true" className="animate-spin" />,
+              close: <X aria-hidden="true" />,
+            }}
+            toastOptions={{
+              closeButtonAriaLabel: "Fechar notificação",
+            }}
+          />
+        </div>
       </body>
     </html>
   );

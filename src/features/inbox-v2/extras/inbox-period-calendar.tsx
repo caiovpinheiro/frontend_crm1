@@ -22,6 +22,7 @@ export function InboxPeriodCalendar({
   onChange: (next: InboxFilters) => void
 }) {
   return (
+    <div data-tour="inbox-period" className="flex shrink-0">
     <PeriodCalendarButton active={isInboxPeriodActive(filters)}>
       <PeriodIsoRangePanel
         from={filters.lastMessageFrom ?? ""}
@@ -57,5 +58,6 @@ export function InboxPeriodCalendar({
         }
       />
     </PeriodCalendarButton>
+    </div>
   )
 }

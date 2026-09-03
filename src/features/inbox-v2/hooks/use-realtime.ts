@@ -23,6 +23,7 @@ import {
   getConversation,
   getConversationsByIds,
   hasInboxServerFilters,
+  normalizeInboxFilters,
   type ConversationListRow,
   type InboxFilters,
   type InboxTab,
@@ -34,9 +35,12 @@ import {
  *
  *  - 1 EventSource só, compartilhado pela página.
  *  - new_message prefere patch do card no cache (zero GET). Card fora
- *    da página hidrata via GET ?ids= em lote (debounce 400ms), só se a
- *    lista da inbox estiver montada. Miss que não entra na lista fica
- *    em skip ~90s — sem poll. Badges ±1 se a fila canônica mudou.
+ *    da página: se o SSE trouxer `card` (snapshot), prepend/remove no
+ *    cache — zero GET. Sem snapshot, GET ?ids= em lote (debounce 400ms)
+ *    só se o evento puder cair na query ativa (aba + assignee; sem
+ *    busca/filtro opaco). Caso contrário ignora — zero GET. Miss que
+ *    não entra na lista fica em skip ~90s — sem poll. Badges ±1 se a
+ *    fila mudou.
  *  - conversation_updated: GET /:id SOMENTE se o ticket está ABERTO
  *    nesta aba. Card só na lista → patch do payload (se der) ou
  *    ignora; NUNCA GET. Um SSE não vira 404×N só porque o card está
@@ -68,6 +72,8 @@ type NewMessagePayload = {
   content?: string;
   timestamp?: string;
   messageType?: string;
+  /** Slim list row from the bus (`InboxSseCard`). */
+  card?: ConversationListRow;
 };
 
 /**
@@ -258,6 +264,168 @@ function canSafelyPrependToQuery(
   return rowFitsCachedQuery(row, tabs, false);
 }
 
+function normalizeSseDirection(
+  raw: string | null | undefined,
+): "in" | "out" | null {
+  const v = String(raw ?? "").toLowerCase();
+  if (v === "in" || v === "inbound") return "in";
+  if (v === "out" || v === "outbound") return "out";
+  return null;
+}
+
+/** Campos finos do SSE — o bastante para recusar hydrate, não para montar o card. */
+type MissingHydrateHint = {
+  conversationId: string;
+  kind: "new_message" | "conversation_updated";
+  assignedToId?: string | null;
+  direction?: string;
+  status?: string;
+  closedAt?: string | null;
+  followUpAt?: string | null;
+  assignedToType?: string | null;
+};
+
+function hintAssignedToId(
+  hint: MissingHydrateHint,
+): string | null | undefined {
+  if (hint.assignedToId === undefined) return undefined;
+  if (hint.assignedToId == null || hint.assignedToId === "") return null;
+  return hint.assignedToId;
+}
+
+function hintIsAiAssignee(hint: MissingHydrateHint): boolean {
+  return String(hint.assignedToType ?? "").toUpperCase() === "AI";
+}
+
+function hintIsResolved(hint: MissingHydrateHint): boolean {
+  return (
+    hint.status === "RESOLVED" ||
+    (hint.closedAt != null && hint.closedAt !== "")
+  );
+}
+
+function hintHasFollowUp(hint: MissingHydrateHint): boolean {
+  return hint.followUpAt != null && hint.followUpAt !== "";
+}
+
+/**
+ * Tags/canal/etapa/janela/datas: o SSE não prova pertinência — não GET
+ * para descobrir. ownerIds/withoutOwner e lastMessageDirection dão para
+ * checar com assignedToId/direction.
+ */
+function hasOpaqueInboxFilters(filters: InboxFilters | undefined): boolean {
+  const n = normalizeInboxFilters(filters ?? {});
+  return (
+    Boolean(n.channel) ||
+    (n.channelIds?.length ?? 0) > 0 ||
+    (n.stageIds?.length ?? 0) > 0 ||
+    (n.tagIds?.length ?? 0) > 0 ||
+    (n.sources?.length ?? 0) > 0 ||
+    n.sessionExpiresWithinHours != null ||
+    n.windowState === "open" ||
+    n.windowState === "closed" ||
+    Boolean(n.painelException) ||
+    Boolean(n.lastMessageFrom) ||
+    Boolean(n.lastMessageTo) ||
+    Boolean(n.createdFrom) ||
+    Boolean(n.createdTo)
+  );
+}
+
+function eventMissesOwnerScope(
+  hint: MissingHydrateHint,
+  filters: InboxFilters | undefined,
+): boolean {
+  const n = normalizeInboxFilters(filters ?? {});
+  const assigned = hintAssignedToId(hint);
+  if (assigned === undefined) {
+    return Boolean(n.withoutOwner) || (n.ownerIds?.length ?? 0) > 0;
+  }
+  if (n.withoutOwner) return assigned != null;
+  if (n.ownerIds?.length) {
+    return assigned == null || !n.ownerIds.includes(assigned);
+  }
+  return false;
+}
+
+/** False = não pode cair nesta aba (não GET). Unknown → false. */
+function eventCouldBelongToInboxTab(
+  hint: MissingHydrateHint,
+  tab: InboxTab,
+): boolean {
+  const assigned = hintAssignedToId(hint);
+  const dir = normalizeSseDirection(hint.direction);
+  const followUp = hintHasFollowUp(hint);
+  const resolved = hintIsResolved(hint);
+  const ai = hintIsAiAssignee(hint);
+
+  if (tab === "automacao" || tab === "ligar" || tab === "erro") return false;
+  if (tab === "resolvidos") return followUp;
+  if (tab === "finalizados") return resolved && !followUp;
+  if (resolved && tab !== "todos") return false;
+  if (followUp && tab !== "todos") return false;
+  if (tab === "agente_ia") return ai;
+
+  if (tab === "entrada") {
+    if (assigned !== null) return false;
+    if (ai) return false;
+    if (dir === "out") return false;
+    return true;
+  }
+  if (tab === "esperando") {
+    if (assigned == null) return false;
+    if (ai) return false;
+    return dir === "in";
+  }
+  if (tab === "respondidas") {
+    if (assigned == null) return false;
+    if (ai) return false;
+    return dir === "out";
+  }
+  if (tab === "todos") {
+    if (assigned === undefined && !resolved && !followUp) return false;
+    return true;
+  }
+  if (tab === "abertas") {
+    if (resolved) return false;
+    if (assigned === undefined) return false;
+    return true;
+  }
+  return false;
+}
+
+function activeInboxQueryAllowsHydrate(
+  queryKey: readonly unknown[],
+  hint: MissingHydrateHint,
+  currentUserId: string | null,
+): boolean {
+  if (inboxSearchFromQueryKey(queryKey)) return false;
+  const filters = inboxFiltersFromQueryKey(queryKey);
+  if (hasOpaqueInboxFilters(filters)) return false;
+  if (eventMissesOwnerScope(hint, filters)) return false;
+  const dirFilter = filters?.lastMessageDirection;
+  if (dirFilter) {
+    if (normalizeSseDirection(hint.direction) !== dirFilter) return false;
+  }
+  const tabs = inboxTabsFromQueryKey(queryKey);
+  if (tabs.length === 0) return false;
+  if (!tabs.some((tab) => eventCouldBelongToInboxTab(hint, tab))) return false;
+
+  // Assign-only: não GET o ticket de outro se a lista não filtra dono.
+  if (hint.kind === "conversation_updated") {
+    const n = normalizeInboxFilters(filters ?? {});
+    const hasOwnerScope =
+      Boolean(n.withoutOwner) || (n.ownerIds?.length ?? 0) > 0;
+    if (!hasOwnerScope) {
+      const assigned = hintAssignedToId(hint);
+      if (typeof assigned === "string") {
+        if (!currentUserId || assigned !== currentUserId) return false;
+      }
+    }
+  }
+  return true;
+}
+
 function removeConversationFromInboxCaches(
   qc: QueryClient,
   conversationId: string,
@@ -317,17 +485,17 @@ function isCachedConversation404(conversationId: string): boolean {
 
 /** Card visível na lista montada: nunca GET ?ids=. Pipeline/sales-hub
  *  sem observer da lista também não hidratam — o chat aberto usa :id. */
-function hasActiveInboxListQuery(qc: QueryClient): boolean {
+function getActiveInboxListQueries(qc: QueryClient) {
   return qc
     .getQueryCache()
     .findAll({ queryKey: ["inbox-conversations"] })
-    .some((q) => q.isActive() && q.state.data != null);
+    .filter((q) => q.isActive() && q.state.data != null);
 }
 
 const MISSING_HYDRATE_DEBOUNCE_MS = 400;
 const MISSING_HYDRATE_SKIP_TTL_MS = 90_000;
 const MISSING_HYDRATE_ERROR_TTL_MS = 15_000;
-const missingHydratePending = new Set<string>();
+const missingHydratePending = new Map<string, MissingHydrateHint>();
 const missingHydrateInFlight = new Set<string>();
 const missingHydrateSkipUntilMs = new Map<string, number>();
 let missingHydrateTimer: ReturnType<typeof setTimeout> | null = null;
@@ -351,21 +519,35 @@ function rememberMissingHydrateSkip(
 
 function shouldHydrateMissingCard(
   qc: QueryClient,
-  conversationId: string,
+  hint: MissingHydrateHint,
+  currentUserId: string | null,
 ): boolean {
+  const conversationId = hint.conversationId;
   if (!conversationId) return false;
   if (isCachedConversation404(conversationId)) return false;
   if (isMissingHydrateSkipped(conversationId)) return false;
   if (findCachedConversationRow(qc, conversationId)) return false;
-  if (!hasActiveInboxListQuery(qc)) return false;
-  return true;
+  const active = getActiveInboxListQueries(qc);
+  if (active.length === 0) return false;
+  return active.some((q) =>
+    activeInboxQueryAllowsHydrate(q.queryKey, hint, currentUserId),
+  );
 }
 
-function flushMissingCardHydrate(qc: QueryClient): void {
-  const ids = [...missingHydratePending].filter((id) => {
+function flushMissingCardHydrate(
+  qc: QueryClient,
+  currentUserId: string | null,
+): void {
+  const ids: string[] = [];
+  for (const [id, hint] of missingHydratePending) {
     missingHydratePending.delete(id);
-    return shouldHydrateMissingCard(qc, id) && !missingHydrateInFlight.has(id);
-  });
+    if (
+      shouldHydrateMissingCard(qc, hint, currentUserId) &&
+      !missingHydrateInFlight.has(id)
+    ) {
+      ids.push(id);
+    }
+  }
   if (ids.length === 0) return;
   for (const id of ids) missingHydrateInFlight.add(id);
   void (async () => {
@@ -391,16 +573,16 @@ function flushMissingCardHydrate(qc: QueryClient): void {
 
 function scheduleMissingCardHydrate(
   qc: QueryClient,
-  conversationId: string,
+  hint: MissingHydrateHint,
+  currentUserId: string | null,
 ): void {
-  if (!shouldHydrateMissingCard(qc, conversationId)) return;
-  if (missingHydrateInFlight.has(conversationId)) return;
-  if (missingHydratePending.has(conversationId)) return;
-  missingHydratePending.add(conversationId);
+  if (!shouldHydrateMissingCard(qc, hint, currentUserId)) return;
+  if (missingHydrateInFlight.has(hint.conversationId)) return;
+  missingHydratePending.set(hint.conversationId, hint);
   if (missingHydrateTimer) return;
   missingHydrateTimer = setTimeout(() => {
     missingHydrateTimer = null;
-    flushMissingCardHydrate(qc);
+    flushMissingCardHydrate(qc, currentUserId);
   }, MISSING_HYDRATE_DEBOUNCE_MS);
 }
 
@@ -412,6 +594,7 @@ type ConversationUpdatedPayload = {
   followUpAt?: string | null;
   whatsappCallConsentStatus?: string;
   assignedTo?: { type?: string | null } | null;
+  card?: ConversationListRow;
 };
 
 /** Payload SSE quase nunca é um card completo — só `{ conversationId }`. */
@@ -434,6 +617,16 @@ function conversationRowFromUpdatedEvent(
   if (!contact || typeof contact !== "object") return null;
   if (typeof (contact as { id?: unknown }).id !== "string") return null;
   return { ...(r as unknown as ConversationListRow), id };
+}
+
+/** Snapshot `card` (bus) or a full row at the envelope root (legacy). */
+function conversationRowFromSsePayload(raw: unknown): ConversationListRow | null {
+  if (!raw || typeof raw !== "object") return null;
+  const nested = (raw as { card?: unknown }).card;
+  if (nested && typeof nested === "object") {
+    return conversationRowFromUpdatedEvent(nested);
+  }
+  return conversationRowFromUpdatedEvent(raw);
 }
 
 /** GET :id só para o ticket ABERTO (CUID ou número da URL). */
@@ -551,9 +744,19 @@ function applyConversationRowToInboxCaches(
   const fromTab = prev ? inboxQueueTabFor(prev) : null;
   const toTab = inboxQueueTabFor(row);
 
-  qc.setQueryData(["inbox-conversation", row.id], row);
+  qc.setQueryData(
+    ["inbox-conversation", row.id],
+    prev ? { ...prev, ...row } : row,
+  );
   if (row.number != null) {
-    qc.setQueryData(["inbox-conversation", String(row.number)], row);
+    const prevByNum = qc.getQueryData<ConversationListRow>([
+      "inbox-conversation",
+      String(row.number),
+    ]);
+    qc.setQueryData(
+      ["inbox-conversation", String(row.number)],
+      prevByNum ? { ...prevByNum, ...row } : row,
+    );
   }
 
   const entries = qc.getQueriesData<InboxListCache>({
@@ -807,14 +1010,29 @@ export function useInboxRealtime(options: {
             }
           }
           // Card na lista: patch in-place, zero GET. Fora da página:
-          // GET ?ids= em lote só se a inbox estiver montada.
+          // snapshot `card` entra no cache sem GET. Sem snapshot,
+          // GET ?ids= só se o evento puder cair na query ativa.
           const patch = patchInboxConversationCard(qc, data);
           if (patch.found) {
             // Preview in-place; badges ±1 se tabMoved. Sem GET counts/lista.
           } else if (isEventMessageType(data.messageType)) {
             // Timeline fora da 1ª página: não relista nem re-agrega.
           } else if (data.conversationId) {
-            scheduleMissingCardHydrate(qc, data.conversationId);
+            const snapshot = conversationRowFromSsePayload(raw);
+            if (snapshot) {
+              applyConversationRowToInboxCaches(qc, snapshot);
+            } else {
+              scheduleMissingCardHydrate(
+                qc,
+                {
+                  conversationId: data.conversationId,
+                  kind: "new_message",
+                  assignedToId: data.assignedToId,
+                  direction: data.direction,
+                },
+                userIdRef.current,
+              );
+            }
           }
           if (!isEventMessageType(data.messageType)) {
             scheduleDailyStatsRefresh();
@@ -919,7 +1137,7 @@ export function useInboxRealtime(options: {
           scheduleDailyStatsRefresh();
           return;
         }
-        const completeRow = conversationRowFromUpdatedEvent(raw);
+        const completeRow = conversationRowFromSsePayload(raw);
         if (completeRow) {
           applyConversationRowToInboxCaches(qc, completeRow);
         } else if (applyConversationUpdatedPatch(qc, payload)) {
@@ -927,7 +1145,19 @@ export function useInboxRealtime(options: {
         } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
         } else if (!findCachedConversationRow(qc, id)) {
-          scheduleMissingCardHydrate(qc, id);
+          scheduleMissingCardHydrate(
+            qc,
+            {
+              conversationId: id,
+              kind: "conversation_updated",
+              assignedToId: payload.assignedToId,
+              status: payload.status,
+              closedAt: payload.closedAt,
+              followUpAt: payload.followUpAt,
+              assignedToType: payload.assignedTo?.type,
+            },
+            userIdRef.current,
+          );
         }
         scheduleDailyStatsRefresh();
       },

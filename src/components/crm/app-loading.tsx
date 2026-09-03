@@ -3,15 +3,14 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 
-import { BWIPO_MARK_LOADER_SRC } from "@/components/bwipo/bwipo-logo";
+import { BLoader } from "@/components/crm/b-loader";
 import { cn } from "@/lib/utils";
 
 /**
  * Estado de carregamento ÚNICO do app.
  *
- * Composição da arte de loader: marca 3D estática em cima + anel-cometa
- * embaixo (trilha + ponta branca/magenta). Só o cometa gira, sempre
- * horário. O loader não imita o layout de destino.
+ * Arte: loader "Formação" (contorno desenhado + ponto de luz + marca).
+ * O loader não imita o layout de destino.
  *
  * Segurança: nunca fica girando pra sempre. Passado `timeoutMs` sem o
  * conteúdo assumir, troca para um estado de erro explícito com ação de
@@ -27,7 +26,7 @@ export type AppLoadingProps = {
   /** Só para leitores de tela — nada visível ao lado da marca. */
   label?: string;
   /**
-   * `inline` (padrão): bloco no fluxo, marca 32px no centro do container.
+   * `inline` (padrão): bloco no fluxo, centro do container.
    * `screen` / `panel`: overlay fixo no viewport. `panel` é alias de `screen`.
    */
   variant?: "screen" | "panel" | "inline";
@@ -37,7 +36,8 @@ export type AppLoadingProps = {
    */
   tone?: AppLoadingTone;
   /**
-   * Marca ~44–56px + anel embaixo. `default` e `sm` só mudam o B.
+   * `sm` (padrão): marca compacta, sem caption.
+   * `default`: Formação com CARREGANDO + passos.
    */
   size?: "default" | "sm";
   /** 0 desliga a rede de segurança (use só onde há outro guard de timeout). */
@@ -52,54 +52,14 @@ export type AppLoadingProps = {
   className?: string;
 };
 
-function BrandMark({
-  spinning,
-  size = "default",
-  tone = "solid",
-}: {
-  spinning: boolean;
-  size?: "default" | "sm";
-  tone?: AppLoadingTone;
-}) {
-  const watermark = tone === "watermark";
-  const markPx = watermark ? 52 : size === "default" ? 56 : 44;
-
-  return (
-    <span
-      className={cn(
-        "brand-loader inline-flex flex-col items-center",
-        watermark && "app-loading-watermark",
-      )}
-    >
-      <img
-        src={BWIPO_MARK_LOADER_SRC}
-        alt=""
-        width={markPx}
-        height={markPx}
-        draggable={false}
-        decoding="async"
-        className="brand-loader-mark relative shrink-0"
-        style={{
-          width: markPx,
-          height: markPx,
-          maxWidth: markPx,
-          maxHeight: markPx,
-        }}
-      />
-      {!watermark ? (
-        <span
-          aria-hidden
-          className={cn(
-            "brand-loader-orbit pointer-events-none",
-            spinning && "is-spinning",
-          )}
-        >
-          <span className="brand-loader-track" />
-          <span className="brand-loader-comet" />
-        </span>
-      ) : null}
-    </span>
-  );
+function markSizePx(
+  size: "default" | "sm",
+  tone: AppLoadingTone,
+  screen: boolean,
+): string {
+  if (tone === "watermark") return "72px";
+  if (screen) return "160px";
+  return size === "default" ? "72px" : "48px";
 }
 
 function Body({
@@ -108,13 +68,24 @@ function Body({
   onRetry,
   size = "default",
   tone = "solid",
+  screen = false,
 }: {
   label: string;
   message: string | null;
   onRetry?: () => void;
   size?: "default" | "sm";
   tone?: AppLoadingTone;
+  screen?: boolean;
 }) {
+  const compact = !screen && size === "sm";
+  const customLabel = label !== "Carregando";
+  const showCaption = !compact || customLabel;
+  const visibleLabel = showCaption
+    ? customLabel
+      ? label
+      : "CARREGANDO..."
+    : null;
+
   if (message) {
     return (
       <div
@@ -122,7 +93,12 @@ function Body({
         role="alert"
         data-app-loading-state="error"
       >
-        <BrandMark spinning={false} size={size} />
+        <BLoader
+          size={markSizePx(size, "solid", screen)}
+          staticMark
+          label={null}
+          steps={false}
+        />
         <p className="max-w-[260px] text-[13px] font-medium text-muted-foreground">
           {message}
         </p>
@@ -145,7 +121,13 @@ function Body({
       aria-label={label}
       data-app-loading-state="loading"
     >
-      <BrandMark spinning size={size} tone={tone} />
+      <BLoader
+        size={markSizePx(size, tone, screen)}
+        label={visibleLabel}
+        steps={showCaption && !customLabel}
+        watermark={tone === "watermark"}
+        staticMark={tone === "watermark"}
+      />
     </div>
   );
 }
@@ -181,6 +163,7 @@ export function AppLoading({
       onRetry={onRetry}
       size={resolvedSize}
       tone={resolvedTone}
+      screen={variant !== "inline"}
     />
   );
 

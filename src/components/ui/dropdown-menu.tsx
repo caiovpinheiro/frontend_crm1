@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils";
+import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
 
 type DropdownMenuContextValue = {
   open: boolean;
@@ -153,6 +154,7 @@ const DropdownMenuContent = React.forwardRef<
   const { open, contentId, triggerRef, contentRef } =
     useDropdownMenu("DropdownMenuContent");
   const [coords, setCoords] = React.useState<Coords | null>(null);
+  const portalTarget = useModalPortalContainer();
 
   // Calcula a posição (fixed) a partir do retângulo do trigger sempre que
   // abre. Renderizamos em portal no <body> pra escapar de qualquer ancestral
@@ -250,7 +252,7 @@ const DropdownMenuContent = React.forwardRef<
       }}
       {...props}
     />,
-    document.body
+    portalTarget ?? document.body
   );
 });
 DropdownMenuContent.displayName = "DropdownMenuContent";

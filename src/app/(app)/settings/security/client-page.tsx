@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -18,6 +18,10 @@ import OldApiTokensPage from "@/features/legacy-v1/settings/api-tokens";
 import { SETTINGS_HUB_BACK, SettingsV2Shell } from "../_v2-shell";
 import { SettingsHeaderNav, type SettingsTab } from "../_components/settings-tabs";
 import { PermissionsPanel, type Selection } from "../permissions/client-page";
+import {
+  PageTourButton,
+  registerSecurityPageTourBridge,
+} from "@/features/product-tour";
 
 type FeatureFlagItem = {
   key: string;
@@ -83,6 +87,14 @@ export function SecurityClientPage() {
 
   const [selection, setSelection] = useState<Selection>({ kind: "none" });
 
+  useEffect(() => {
+    registerSecurityPageTourBridge(setActive);
+    return () => registerSecurityPageTourBridge(null);
+  }, [setActive]);
+
+  const tourId =
+    active === "api" ? "security-api" : active === "flags" ? "security-flags" : "security";
+
   return (
     <SettingsV2Shell
       back={SETTINGS_HUB_BACK}
@@ -90,7 +102,13 @@ export function SecurityClientPage() {
       description="Permissões, API e Webhooks e feature flags"
       icon={<IconShield size={22} />}
     >
-      <SettingsHeaderNav tabs={TABS} active={active} onChange={setActive} />
+      <SettingsHeaderNav
+        tabs={TABS}
+        active={active}
+        onChange={setActive}
+        tabsTourId="security-tabs"
+        trailing={<PageTourButton tourId={tourId} />}
+      />
 
       {active === "permissions" && (
         <PermissionsPanel
@@ -145,12 +163,12 @@ function FeatureFlagsPanel() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl min-w-0 space-y-4">
+    <div className="mx-auto w-full max-w-2xl min-w-0 space-y-4" data-tour="sec-flags-list">
       <p className="font-display text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
         Feature flags
       </p>
       <div className="space-y-3">
-        {data.flags.map((flag) => {
+        {data.flags.map((flag, index) => {
           const meta = FLAG_LABELS[flag.key];
           const label = meta?.label ?? flag.key;
           const warning = meta?.warning;
@@ -158,6 +176,7 @@ function FeatureFlagsPanel() {
           return (
             <div
               key={flag.key}
+              data-tour={index === 0 ? "sec-flags-toggle" : undefined}
               className="min-w-0 max-w-full rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-panel)] p-3.5 shadow-[var(--glass-shadow-sm)] backdrop-blur-md sm:p-4"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

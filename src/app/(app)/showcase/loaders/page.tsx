@@ -21,7 +21,7 @@ export default function LoadersShowcasePage() {
           Loaders
         </h1>
         <p className="text-sm text-muted-foreground">
-          Oito variações para comparar. Clique no card para ver em tela cheia.
+          Formação é o loader de produção. As outras são o lab antigo. Clique no card para tela cheia.
         </p>
       </header>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

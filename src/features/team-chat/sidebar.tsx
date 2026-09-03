@@ -7,6 +7,7 @@ import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { AppLoading } from "@/components/crm/app-loading";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import { PageTourButton } from "@/features/product-tour";
 import { cn } from "@/lib/utils";
 
 import { Avatar, GroupGlyph } from "./avatar";
@@ -273,9 +274,12 @@ export function Sidebar({
           <h1 className="min-w-0 flex-1 px-1">
             <BwipoWordmark />
           </h1>
-          <HeaderIcon label="Nova conversa" onClick={onNew}>
-            <SquarePen className="h-[18px] w-[18px]" />
-          </HeaderIcon>
+          <PageTourButton tourId="bwipo-chat" size="sm" />
+          <div data-tour="bwipo-chat-new" className="shrink-0">
+            <HeaderIcon label="Nova conversa" onClick={onNew}>
+              <SquarePen className="h-[18px] w-[18px]" />
+            </HeaderIcon>
+          </div>
           <div className="relative" ref={menuRef}>
             <HeaderIcon label="Mais opções" onClick={() => setMenuOpen((v) => !v)}>
               <MoreVertical className="h-5 w-5" />
@@ -298,7 +302,7 @@ export function Sidebar({
           </div>
         </div>
 
-        <div className="relative mt-2">
+        <div className="relative mt-2" data-tour="bwipo-chat-search">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
@@ -308,7 +312,7 @@ export function Sidebar({
           />
         </div>
 
-        <div className="mt-3 flex gap-4 border-b border-black/[0.06] dark:border-white/[0.08]">
+        <div className="mt-3 flex gap-4 border-b border-black/[0.06] dark:border-white/[0.08]" data-tour="bwipo-chat-filters">
           {pills.map((pill) => {
             const selected = filter === pill.id;
             return (
@@ -333,7 +337,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-black/[0.04] py-1 dark:border-white/[0.06]" aria-label="Conversas">
+      <nav className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-black/[0.04] py-1 dark:border-white/[0.06]" aria-label="Conversas" data-tour="bwipo-chat-list">
         {loading ? (
           <AppLoading variant="inline" className="min-h-0 flex-1 lg:hidden" />
         ) : error ? (

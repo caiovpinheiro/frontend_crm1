@@ -373,6 +373,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
       className={`flow-card group relative w-[320px] rounded-xl border border-t-4 shadow-[0_1px_3px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(15,23,42,0.10)] ${
         selected ? "shadow-[0_4px_16px_rgba(15,23,42,0.12)]" : ""
       }`}
+      {...(isTriggerCard ? { "data-tour": "builder-node" } : {})}
       style={{
         borderColor: isMilestone ? accent.color : "#E2E8F0",
         borderTopColor: accent.color,
@@ -405,6 +406,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
           className={`nodrag flex shrink-0 items-center gap-0.5 transition-opacity ${
             selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           }`}
+          {...(isTriggerCard ? { "data-tour": "builder-node-actions" } : {})}
         >
           {isWhatsAppPreviewable(stepType) && (
             <WhatsAppPreviewButton onClick={() => setPreviewOpen(true)} />
@@ -531,6 +533,9 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
               <div key={o.key}>
                 <div
                   className="relative flex items-center gap-2 border-b px-3.5 py-1.5"
+                  {...(isTriggerCard && i === 0
+                    ? { "data-tour": "builder-node-connect" }
+                    : {})}
                   style={{
                     borderColor: isMilestone ? "rgba(255,255,255,0.22)" : "#E2E8F0",
                     backgroundColor: isMilestone ? "rgba(0,0,0,0.08)" : undefined,
@@ -613,7 +618,10 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
 
       {selected && !isTriggerCard && <NodeConfigPanel id={id} data={d} />}
 
-      <div className="flex items-center justify-around gap-2 rounded-b-xl border-t border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2 text-center">
+      <div
+        className="flex items-center justify-around gap-2 rounded-b-xl border-t border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2 text-center"
+        {...(isTriggerCard ? { "data-tour": "builder-node-stats" } : {})}
+      >
         <Stat value={d.stats.sucessos} label="Sucessos" color="var(--route-response)" onClick={() => openLogs("success")} />
         <Stat value={d.stats.alertas} label="Alertas" color="var(--topic-documentos)" onClick={() => openLogs("alert")} />
         <Stat value={d.stats.erros} label="Erros" color="var(--route-error)" onClick={() => openLogs("error")} />

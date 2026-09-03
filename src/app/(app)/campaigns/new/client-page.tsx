@@ -26,6 +26,11 @@ import {
   formLabelClass,
 } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
+import {
+  PageTourButton,
+  registerCreateWizardBridge,
+  stopPageTour,
+} from "@/features/product-tour";
 
 import {
   useAudienceOptions,
@@ -172,6 +177,18 @@ export default function NewCampaignClientPage() {
   const preview = usePreviewAudience();
   const createMutation = useCreateCampaign();
 
+  useEffect(() => {
+    if (!open) {
+      registerCreateWizardBridge(null);
+      return;
+    }
+    registerCreateWizardBridge({ setStep: (n) => setStep(n) });
+    return () => {
+      registerCreateWizardBridge(null);
+      stopPageTour();
+    };
+  }, [open]);
+
   const tags = optionsQuery.data?.tags ?? [];
   const pipelines = optionsQuery.data?.pipelines ?? [];
   const users = optionsQuery.data?.users ?? [];
@@ -290,6 +307,7 @@ export default function NewCampaignClientPage() {
           <Megaphone className="size-4" />
         </FormDialogIcon>
       }
+      headerAccessory={<PageTourButton tourId="campaigns-create" size="sm" />}
       busy={createMutation.isPending}
       footer={
         <>
@@ -318,6 +336,7 @@ export default function NewCampaignClientPage() {
               variant="primary"
               className={formDialogPrimaryClass}
               disabled={!canAdvance()}
+              data-tour="campaign-create-next"
               onClick={() => setStep((s) => (s + 1) as StepId)}
             >
               Continuar
@@ -328,6 +347,7 @@ export default function NewCampaignClientPage() {
               variant="primary"
               className={formDialogPrimaryClass}
               disabled={createMutation.isPending || !canAdvance()}
+              data-tour="campaign-create-submit"
               onClick={handleCreate}
             >
               {createMutation.isPending ? (
@@ -339,7 +359,7 @@ export default function NewCampaignClientPage() {
         </>
       }
     >
-      <div className="flex gap-1.5">
+      <div data-tour="campaign-create-stepper" className="flex gap-1.5">
         {STEPS.map((s) => (
           <div
             key={s.id}
@@ -353,7 +373,7 @@ export default function NewCampaignClientPage() {
 
       {step === 1 ? (
         <div className="space-y-5">
-          <div>
+          <div data-tour="campaign-create-name">
             <span className={formLabelClass}>Nome da campanha</span>
             <InputGlass
               className={formControlClass}
@@ -364,7 +384,7 @@ export default function NewCampaignClientPage() {
             />
           </div>
 
-          <div>
+          <div data-tour="campaign-create-type">
             <span className={formLabelClass}>Tipo</span>
             <div className="grid grid-cols-3 gap-2">
               {TYPE_CARDS.map((card) => {
@@ -412,7 +432,7 @@ export default function NewCampaignClientPage() {
             </div>
           </div>
 
-          <div>
+          <div data-tour="campaign-create-channel">
             <span className={formLabelClass}>Canal de envio</span>
             {channelsQuery.isLoading ? (
               <div className="h-12 animate-pulse rounded-xl bg-muted" />
@@ -454,7 +474,7 @@ export default function NewCampaignClientPage() {
       ) : null}
 
       {step === 2 ? (
-        <div className="space-y-5">
+        <div data-tour="campaign-create-audience" className="space-y-5">
           <div className="grid grid-cols-2 gap-2">
             <TypePickCard
               active={audienceMode === "filters"}
@@ -607,6 +627,7 @@ export default function NewCampaignClientPage() {
 
       {step === 3 ? (
         <div className="space-y-5">
+          <div data-tour="campaign-create-content">
           {type === "TEMPLATE" ? (
             <>
               <div>
@@ -691,7 +712,9 @@ export default function NewCampaignClientPage() {
               />
             </div>
           )}
+          </div>
 
+          <div data-tour="campaign-create-send" className="space-y-5">
           <div>
             <span className={formLabelClass}>
               Velocidade de envio — {sendRate} msgs/s
@@ -717,6 +740,7 @@ export default function NewCampaignClientPage() {
             <p className="mt-1 text-[11.5px] text-muted-foreground">
               Deixe vazio para enviar imediatamente ao lançar.
             </p>
+          </div>
           </div>
 
           <div className="space-y-2 rounded-xl border border-border bg-card p-4">

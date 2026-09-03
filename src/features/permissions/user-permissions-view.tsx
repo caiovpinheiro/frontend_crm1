@@ -271,7 +271,7 @@ function UserRolesEditor({
     : null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" data-tour="sec-people-roles">
       <SectionLabel icon={Shield}>Papéis</SectionLabel>
 
       <div className="flex flex-wrap gap-2">
@@ -645,7 +645,7 @@ function UserScopeEditor({ userId }: { userId: string }) {
   const setDeny = markDirty(setChannelDenyIds);
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-3" data-tour="sec-people-scope">
       <SectionLabel icon={Workflow}>Acesso a funis e canais</SectionLabel>
 
       {/* Funis — switch "todos"; desligado revela a lista para escolher. */}

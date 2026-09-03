@@ -61,6 +61,7 @@ import {
 } from "@/lib/permissions";
 
 import { useRoles } from "@/features/permissions/hooks";
+import { PageTourButton, registerTeamTourBridge } from "@/features/product-tour";
 import {
   TEAM_USERS_QUERY_PREFIX,
   useTeamUsersQuery,
@@ -208,6 +209,12 @@ function TeamContent() {
     if (t === "expediente") return 1;
     return 0;
   });
+
+  // Ponte do product tour: os tours por aba trocam a aba programaticamente.
+  React.useEffect(() => {
+    registerTeamTourBridge((tab) => setActiveTab(tab));
+    return () => registerTeamTourBridge(null);
+  }, []);
   const [search, setSearch] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("all");
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
@@ -525,26 +532,30 @@ function TeamContent() {
   const searchNode = React.useMemo(
     () =>
       activeTab === 0 ? (
-        <SettingsListFilterBar
-          search={search}
-          onSearch={setSearch}
-          placeholder="Buscar por nome, e-mail..."
-          ariaLabel="Buscar usuários"
-          groups={[roleFilterGroup]}
-          onClearAll={() => {
-            setSearch("");
-            setRoleFilter("all");
-          }}
-          popoverTitle="Filtros de equipe"
-        />
+        <div data-tour="team-search" className="relative w-full">
+          <SettingsListFilterBar
+            search={search}
+            onSearch={setSearch}
+            placeholder="Buscar por nome, e-mail..."
+            ariaLabel="Buscar usuários"
+            groups={[roleFilterGroup]}
+            onClearAll={() => {
+              setSearch("");
+              setRoleFilter("all");
+            }}
+            popoverTitle="Filtros de equipe"
+          />
+        </div>
       ) : (
-        <SettingsListFilterBar
-          search={expedienteSearch}
-          onSearch={setExpedienteSearch}
-          placeholder="Buscar agente…"
-          ariaLabel="Buscar agente por nome ou e-mail"
-          onClearAll={() => setExpedienteSearch("")}
-        />
+        <div data-tour="team-schedule-search" className="relative w-full">
+          <SettingsListFilterBar
+            search={expedienteSearch}
+            onSearch={setExpedienteSearch}
+            placeholder="Buscar agente…"
+            ariaLabel="Buscar agente por nome ou e-mail"
+            onClearAll={() => setExpedienteSearch("")}
+          />
+        </div>
       ),
     [activeTab, search, roleFilterGroup, expedienteSearch],
   );
@@ -557,19 +568,21 @@ function TeamContent() {
     const tabValue =
       activeTab === 2 ? "departamentos" : activeTab === 1 ? "expediente" : "usuarios";
     return (
-      <HeaderTabs
-        tabs={[
-          { key: "usuarios", label: "Usuários" },
-          { key: "expediente", label: "Expediente" },
-          ...(canManageDepartments
-            ? [{ key: "departamentos" as const, label: "Departamentos" }]
-            : []),
-        ]}
-        value={tabValue}
-        onChange={(v) =>
-          setActiveTab(v === "departamentos" ? 2 : v === "expediente" ? 1 : 0)
-        }
-      />
+      <div data-tour="team-tabs" className="flex shrink-0">
+        <HeaderTabs
+          tabs={[
+            { key: "usuarios", label: "Usuários" },
+            { key: "expediente", label: "Expediente" },
+            ...(canManageDepartments
+              ? [{ key: "departamentos" as const, label: "Departamentos" }]
+              : []),
+          ]}
+          value={tabValue}
+          onChange={(v) =>
+            setActiveTab(v === "departamentos" ? 2 : v === "expediente" ? 1 : 0)
+          }
+        />
+      </div>
     );
   }, [activeTab, canManageDepartments]);
 
@@ -590,30 +603,39 @@ function TeamContent() {
   const actionsNode = React.useMemo(
     () => (
       <div className="flex items-center gap-2">
-        {activeTab === 0 ? <ViewToggle value={view} onChange={setView} /> : null}
+        <PageTourButton tourId={activeTab === 1 ? "team-schedule" : "team"} />
+        {activeTab === 0 ? (
+          <div data-tour="team-view" className="flex shrink-0">
+            <ViewToggle value={view} onChange={setView} />
+          </div>
+        ) : null}
         {segmentedControl}
-        <PageActionsMenu
-          aria-label="Ações da equipe"
-          items={
-            activeTab === 0
-              ? [
-                  {
-                    icon: <IconPlus size={14} stroke={2.6} />,
-                    label: "Convidar",
-                    onClick: () => setInviteOpen(true),
-                    primary: true,
-                  },
-                ]
-              : [
-                  {
-                    icon: <IconPlus size={14} stroke={2.6} />,
-                    label: "Novo expediente",
-                    onClick: () => setExpedienteNewOpen(true),
-                    primary: true,
-                  },
-                ]
-          }
-        />
+        <div data-tour="team-actions" className="flex shrink-0">
+          <PageActionsMenu
+            aria-label="Ações da equipe"
+            items={
+              activeTab === 0
+                ? [
+                    {
+                      icon: <IconPlus size={14} stroke={2.6} />,
+                      label: "Convidar",
+                      onClick: () => setInviteOpen(true),
+                      primary: true,
+                      tourId: "team-invite-item",
+                    },
+                  ]
+                : [
+                    {
+                      icon: <IconPlus size={14} stroke={2.6} />,
+                      label: "Novo expediente",
+                      onClick: () => setExpedienteNewOpen(true),
+                      primary: true,
+                      tourId: "team-schedule-new-item",
+                    },
+                  ]
+            }
+          />
+        </div>
       </div>
     ),
     [activeTab, segmentedControl, view],
@@ -645,7 +667,7 @@ function TeamContent() {
       <div className={cn(LIST_PAGE_PANE_CLASS, "min-h-min")}>
       {/* STATS — shrink-0: toolbar-hscroll/overflow em flex-col colapsava a altura
           (~só o topo dos ícones visível). Mobile: 3 mini-cards; desktop: StatCards. */}
-      <div className="grid shrink-0 grid-cols-3 gap-2 sm:hidden">
+      <div className="grid shrink-0 grid-cols-3 gap-2 sm:hidden" data-tour="team-kpis">
         <CompactStat
           tone="brand"
           icon={<IconUsers size={16} />}
@@ -665,7 +687,7 @@ function TeamContent() {
           label="Demais"
         />
       </div>
-      <div className="hidden shrink-0 sm:grid sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-3.5">
+      <div className="hidden shrink-0 sm:grid sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-3.5" data-tour="team-kpis">
         <StatCard
           tone="brand"
           icon={<IconUsers size={20} />}
@@ -727,6 +749,7 @@ function TeamContent() {
             : "Nenhum usuário cadastrado ainda."}
         </GlassCard>
       ) : (
+        <div data-tour="team-list">
         <MobileTableScroll minWidth={780}>
           <DataView
             view={view}
@@ -879,9 +902,11 @@ function TeamContent() {
           })}
           </DataView>
         </MobileTableScroll>
+        </div>
       )}
 
       {isDesktop && filtered.length > 0 ? (
+        <div data-tour="team-pagination">
         <PaginationGlass
           label={`${total.toLocaleString("pt-BR")} ${total === 1 ? "usuário" : "usuários"} — página ${currentPage} de ${lastPage}`}
           canPrev={currentPage > 1}
@@ -894,6 +919,7 @@ function TeamContent() {
             setPage(1);
           }}
         />
+        </div>
       ) : null}
       </div>
       </>
@@ -918,6 +944,7 @@ function TeamContent() {
         size="lg"
         title="Convidar membro"
         description="Enviamos um e-mail com o link para criar a senha. O usuário só entra depois de aceitar o convite."
+        headerAccessory={<PageTourButton tourId="team-user-create" size="sm" />}
         footer={
           <>
             <ButtonGlass type="button" variant="glass" onClick={() => setInviteOpen(false)}>Cancelar</ButtonGlass>
@@ -926,6 +953,7 @@ function TeamContent() {
               variant="primary"
               disabled={invite.isPending || !inviteName.trim() || !inviteEmail.trim()}
               onClick={() => invite.mutate()}
+              data-tour="team-invite-submit"
             >
               {invite.isPending ? "Enviando…" : "Enviar convite"}
             </ButtonGlass>
@@ -933,7 +961,7 @@ function TeamContent() {
         }
       >
         <div className="grid gap-3">
-            <div className="grid gap-1.5">
+            <div className="grid gap-1.5" data-tour="team-invite-name">
               <label htmlFor="invite-name" className="text-sm font-medium">
                 Nome
               </label>
@@ -945,7 +973,7 @@ function TeamContent() {
                 autoComplete="name"
               />
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid gap-1.5" data-tour="team-invite-email">
               <label htmlFor="invite-email" className="text-sm font-medium">
                 E-mail
               </label>
@@ -958,7 +986,7 @@ function TeamContent() {
                 autoComplete="email"
               />
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid gap-1.5" data-tour="team-invite-role">
               <span className="text-sm font-medium">Função</span>
               <DropdownGlass
                 options={baseRoleOptions}
@@ -973,6 +1001,7 @@ function TeamContent() {
                 e roles personalizadas), além de Administrador.
               </p>
             </div>
+            <div data-tour="team-invite-perms">
             <GlassCard variant="overlay" className="grid gap-2 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Permissões iniciais</span>
@@ -1018,6 +1047,7 @@ function TeamContent() {
                 })}
               </div>
             </GlassCard>
+            </div>
           {invite.isError && invite.error instanceof Error ? (
             <p className="text-sm text-[var(--color-danger,#e11d48)]">
               {invite.error.message}

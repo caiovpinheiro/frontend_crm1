@@ -23,17 +23,26 @@ import { startPageTour } from "./start-tour";
  * Gatilho discreto de ajuda no header. Não inicia o tour sozinho:
  * o Driver.js só roda depois de "Fazer tour desta página".
  */
-export function PageTourButton({ tourId }: { tourId: string }) {
+export function PageTourButton({
+  tourId,
+  size = "md",
+}: {
+  tourId: string;
+  size?: "sm" | "md";
+}) {
   const [open, setOpen] = useState(false);
 
   if (!hasTour(tourId)) return null;
+
+  const compact = size === "sm";
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         aria-label="Ajuda desta página"
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "flex shrink-0 items-center justify-center rounded-full border transition-colors",
+          compact ? "size-8" : "size-10",
           open
             ? "border-primary bg-primary text-primary-foreground"
             : "border-border bg-card text-muted-foreground hover:text-foreground",
@@ -57,7 +66,30 @@ export function PageTourButton({ tourId }: { tourId: string }) {
           }}
         >
           <Play className="size-3.5 fill-current" aria-hidden="true" />
-          Fazer tour desta página
+          {tourId === "automations-create" ||
+          tourId === "campaigns-create" ||
+          tourId === "contacts-create" ||
+          tourId === "custom-fields-create" ||
+          tourId === "team-user-create" ||
+          tourId === "team-schedule-create" ||
+          tourId === "team-department-create" ||
+          tourId === "message-models-create" ||
+          tourId === "message-models-internal-create" ||
+          tourId === "message-models-whatsapp-create" ||
+          tourId === "tabulations-create" ||
+          tourId === "tasks-create"
+            ? "Fazer tour da criação"
+            : tourId === "distribution-edit"
+              ? "Fazer tour da edição"
+              : tourId === "automations-builder"
+              ? "Fazer tour do builder"
+              : tourId === "campaigns-detail"
+                ? "Fazer tour desta campanha"
+                : tourId === "contacts-columns"
+                  ? "Fazer tour das colunas"
+                  : tourId === "contacts-duplicates"
+                    ? "Fazer tour das duplicadas"
+                    : "Fazer tour desta página"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
