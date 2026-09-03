@@ -88,10 +88,9 @@ export function useConversations(params: {
     },
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
     // SSE (`useInboxRealtime`) patcha o card em new_message /
-    // conversation_updated (GET :id só do ticket aberto). Polling
-    // fica só como safety-net — 180s (era 120s): aba estacionada
-    // não pode re-bater a lista cara a cada 10–40s.
-    refetchInterval: 180_000,
+    // conversation_updated. Sem timer: lista só no mount, troca de
+    // aba/filtro, refresh explícito, hidratação `?ids=` ou reconnect.
+    refetchInterval: false,
     refetchIntervalInBackground: false,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
@@ -274,17 +273,10 @@ export function useTabCounts(
   return useQuery<TabCounts>({
     queryKey: ["conversations", "tab-counts", filterKey, searchKey],
     queryFn: () => fetchTabCounts(filters, searchKey),
-    // `?counts=1` agrega sobre todas as conversas da org (300ms-1.6s no
-    // servidor). O SSE (`useInboxRealtime`) invalida counts no debounce
-    // de 8s; o polling é só safety-net.
-    // 180s (era 30s): o counts=1 foi o endpoint mais chamado no storm de
-    // 28/ago/26 (11,6k req/40min) que derrubou o proxy do droplet por
-    // exaustão de memória TCP. O backend tem cache Redis de 45s.
-    // refetchOnWindowFocus/refetchOnMount desligados: com o SSE
-    // invalidando, cada montagem/foco só somava uma agregação a mais
-    // (no HAR de 26/ago/26 os counts apareciam 12x em 17s).
-    refetchInterval: 180_000,
-    staleTime: 45_000,
+    // Sem timer. Badges ±1 no SSE; GET `?counts=1` só em troca de
+    // aba/filtro/busca, bulk, refresh explícito ou reconnect com gap.
+    refetchInterval: false,
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     placeholderData: keepPreviousData,

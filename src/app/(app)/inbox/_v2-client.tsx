@@ -1005,6 +1005,18 @@ export default function InboxV2ClientPage({
   }, [activeId, conversationApiId, sessionInfo, sessionInfo?.lastInboundAt, sessionInfo?.active, qc]);
 
   const [inboxRefreshing, setInboxRefreshing] = useState(false);
+  const prevTabKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated || !tabHydrated || !filtersHydrated) return;
+    const key = tab.join(",");
+    if (prevTabKeyRef.current === null) {
+      prevTabKeyRef.current = key;
+      return;
+    }
+    if (prevTabKeyRef.current === key) return;
+    prevTabKeyRef.current = key;
+    void qc.refetchQueries({ queryKey: ["conversations", "tab-counts"] });
+  }, [tab, isAuthenticated, tabHydrated, filtersHydrated, qc]);
   const refreshInboxQueue = async () => {
     if (inboxRefreshing) return;
     setInboxRefreshing(true);
