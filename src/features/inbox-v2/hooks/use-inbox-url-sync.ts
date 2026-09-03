@@ -13,6 +13,21 @@ export function isInboxConversationNumberParam(
 }
 
 /**
+ * Id para GET/POST da API: CUID da row hidratada. Dígitos da URL (`?c=`)
+ * não disparam POST até o card chegar — o backend resolve número, mas o
+ * 1º frame ainda não deve chamar mensagens/envio com o sequencial.
+ */
+export function inboxConversationApiId(
+  activeId: string | null | undefined,
+  row?: { id: string } | null,
+): string | null {
+  if (row?.id) return row.id;
+  if (!activeId) return null;
+  if (isInboxConversationNumberParam(activeId)) return null;
+  return activeId;
+}
+
+/**
  * Deep-link do Inbox. `c` = número público; CUID só se o número não existir.
  * `tab` entra na URL para a lista hidratar na fila certa (ex.: fila de
  * espera → `entrada`), sem depender da última aba do operador.

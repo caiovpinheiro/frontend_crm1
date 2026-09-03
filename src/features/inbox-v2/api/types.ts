@@ -84,6 +84,11 @@ export interface ConversationListRow {
     type?: string | null;
   } | null;
   lastInboundAt: string | null;
+  /**
+   * Coluna denormalizada (`Conversation.lastMessageDirection`).
+   * Fonte da verdade das filas Aguardando/Respondidas no backend.
+   */
+  lastMessageDirection?: "in" | "out" | string | null;
   lastMessageAt?: string | null;
   lastMessage?: {
     preview: string;

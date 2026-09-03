@@ -1,12 +1,22 @@
-import type { ConversationListRow, InboxTab } from "./api";
+import type { ConversationListRow, InboxTab, TabCounts } from "./api";
+
+function normalizeMessageDirection(
+  raw: string | null | undefined,
+): "in" | "out" | null {
+  const v = String(raw ?? "").toLowerCase();
+  if (v === "in" || v === "inbound") return "in";
+  if (v === "out" || v === "outbound") return "out";
+  return null;
+}
 
 function lastMessageDirection(row: ConversationListRow): "in" | "out" | null {
-  const raw = String(
-    row.lastMessage?.direction ?? row.lastMessagePreview?.direction ?? "",
-  ).toLowerCase();
-  if (raw === "in" || raw === "inbound") return "in";
-  if (raw === "out" || raw === "outbound") return "out";
-  return null;
+  // Coluna denormalizada = mesmo predicado do backend (`tabToWhere`).
+  // Preview/lastMessage são fallback quando o card ainda não hidratou a coluna.
+  return (
+    normalizeMessageDirection(row.lastMessageDirection) ??
+    normalizeMessageDirection(row.lastMessage?.direction) ??
+    normalizeMessageDirection(row.lastMessagePreview?.direction)
+  );
 }
 
 /**
@@ -71,6 +81,53 @@ export function rowBelongsToInboxTab(
     return true;
   }
   return canonical === tab;
+}
+
+/** A fila canônica mudou (esperando↔respondidas, entrada→…). */
+export function tabMoved(
+  from: ConversationListRow | InboxTab | null | undefined,
+  to: ConversationListRow | InboxTab | null | undefined,
+): boolean {
+  const a = from == null ? null : typeof from === "string" ? from : inboxQueueTabFor(from);
+  const b = to == null ? null : typeof to === "string" ? to : inboxQueueTabFor(to);
+  return a !== b;
+}
+
+function clampTabCount(n: number): number {
+  return n < 0 ? 0 : n;
+}
+
+/**
+ * ±1 no badge da fila canônica. `todos` / `abertas` / overlays só
+ * mudam quando a conversa entra ou sai do conjunto (novo card / some).
+ * Aceita drift até o próximo GET `?counts=1` (troca de aba/filtro/refresh).
+ */
+export function applyTabCountMove(
+  counts: TabCounts,
+  from: InboxTab | null | undefined,
+  to: InboxTab | null | undefined,
+): TabCounts {
+  if (!tabMoved(from, to)) return counts;
+  const next = { ...counts };
+  if (from && from in next) {
+    next[from] = clampTabCount((next[from] ?? 0) - 1);
+  }
+  if (to && to in next) {
+    next[to] = (next[to] ?? 0) + 1;
+  }
+  const fromClosed = from === "finalizados";
+  const toClosed = to === "finalizados";
+  if (from && !to) {
+    next.todos = clampTabCount((next.todos ?? 0) - 1);
+    if (!fromClosed) next.abertas = clampTabCount((next.abertas ?? 0) - 1);
+  } else if (!from && to) {
+    next.todos = (next.todos ?? 0) + 1;
+    if (!toClosed) next.abertas = (next.abertas ?? 0) + 1;
+  } else if (fromClosed !== toClosed) {
+    if (toClosed) next.abertas = clampTabCount((next.abertas ?? 0) - 1);
+    else next.abertas = (next.abertas ?? 0) + 1;
+  }
+  return next;
 }
 
 /** Card já listado em Automação permanece até haver dono, inbound ou encerrar. */

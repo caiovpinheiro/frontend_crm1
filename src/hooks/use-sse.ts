@@ -4,6 +4,7 @@ import { apiUrl } from "@/lib/api";
 import { useEffect, useRef } from "react";
 
 export type SSEHandler = (event: string, data: unknown) => void;
+export type SSEReconnectHandler = () => void;
 
 /**
  * Barramento SSE singleton (P1-1): UMA conexão `EventSource` por URL,
@@ -40,11 +41,20 @@ class SharedSSEConnection {
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly attached = new Set<string>();
   private readonly subscribers = new Map<SSEHandler, ReadonlySet<string>>();
+  private readonly reconnectHandlers = new Set<SSEReconnectHandler>();
+  /** Só dispara `onReconnect` depois de um open bem-sucedido + gap. */
+  private everOpened = false;
+  private sawGap = false;
 
   constructor(private readonly url: string) {}
 
-  subscribe(events: Iterable<string>, handler: SSEHandler): () => void {
+  subscribe(
+    events: Iterable<string>,
+    handler: SSEHandler,
+    onReconnect?: SSEReconnectHandler,
+  ): () => void {
     this.subscribers.set(handler, new Set(events));
+    if (onReconnect) this.reconnectHandlers.add(onReconnect);
     if (this.closeTimer) {
       clearTimeout(this.closeTimer);
       this.closeTimer = null;
@@ -55,11 +65,15 @@ class SharedSSEConnection {
       // Reconexão já agendada: o connect() dela anexa a união dos eventos.
       this.connect();
     }
-    return () => this.unsubscribe(handler);
+    return () => this.unsubscribe(handler, onReconnect);
   }
 
-  private unsubscribe(handler: SSEHandler): void {
+  private unsubscribe(
+    handler: SSEHandler,
+    onReconnect?: SSEReconnectHandler,
+  ): void {
     this.subscribers.delete(handler);
+    if (onReconnect) this.reconnectHandlers.delete(onReconnect);
     if (this.subscribers.size > 0) {
       this.pruneListeners();
       return;
@@ -75,7 +89,21 @@ class SharedSSEConnection {
     const es = new EventSource(this.url, { withCredentials: true });
     this.es = es;
     this.attachMissing();
+    es.onopen = () => {
+      const shouldNotify = this.everOpened && this.sawGap;
+      this.everOpened = true;
+      this.sawGap = false;
+      if (!shouldNotify) return;
+      for (const fn of this.reconnectHandlers) {
+        try {
+          fn();
+        } catch {
+          /* isola um assinante dos demais */
+        }
+      }
+    };
     es.onerror = () => {
+      if (this.everOpened) this.sawGap = true;
       es.close();
       if (this.es === es) this.es = null;
       this.attached.clear();
@@ -164,8 +192,9 @@ export function subscribeSSE(
   url: string,
   events: Iterable<string>,
   handler: SSEHandler,
+  onReconnect?: SSEReconnectHandler,
 ): () => void {
-  return connectionFor(apiUrl(url)).subscribe(events, handler);
+  return connectionFor(apiUrl(url)).subscribe(events, handler, onReconnect);
 }
 
 /**
@@ -175,10 +204,16 @@ export function subscribeSSE(
 export function subscribeSSEEvents(
   url: string,
   handlers: Record<string, (data: unknown) => void>,
+  onReconnect?: SSEReconnectHandler,
 ): () => void {
-  return subscribeSSE(url, Object.keys(handlers), (event, data) => {
-    handlers[event]?.(data);
-  });
+  return subscribeSSE(
+    url,
+    Object.keys(handlers),
+    (event, data) => {
+      handlers[event]?.(data);
+    },
+    onReconnect,
+  );
 }
 
 export function useSSE(url: string, handler: SSEHandler, enabled = true) {
