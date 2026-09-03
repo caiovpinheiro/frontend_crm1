@@ -217,3 +217,27 @@ export async function setDealStatus(
   }
   return data as { deal: BoardDealDto };
 }
+
+/** POST /api/deals/ids — IDs do recorte do board (etapa / filtro), sem paginar cards. */
+export async function fetchBoardDealIds(payload: {
+  pipelineId: string;
+  stageId?: string;
+  status?: string;
+  filters?: unknown;
+}): Promise<{ ids: string[]; capped: boolean }> {
+  const res = await fetch(apiUrl("/api/deals/ids"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof data?.message === "string" ? data.message : "Erro ao selecionar negócios",
+    );
+  }
+  const ids = Array.isArray(data?.ids)
+    ? (data.ids as unknown[]).filter((id): id is string => typeof id === "string")
+    : [];
+  return { ids, capped: data?.capped === true };
+}

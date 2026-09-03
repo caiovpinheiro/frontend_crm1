@@ -325,12 +325,12 @@ export function BulkActionsBar({
   return (
     <>
       {showBar && (
-      <div className={cn("fixed inset-x-0 bottom-6 z-50 flex items-center justify-center px-4 transition-all animate-in slide-in-from-bottom-4 fade-in", isDark && "dark")}>
+      <div className={cn("pointer-events-none fixed inset-x-0 bottom-20 z-40 flex items-center justify-center px-4 transition-all animate-in slide-in-from-bottom-4 fade-in", isDark && "dark")}>
         {/* Em dark, `bg-card/95` resolve a `rgba(255,255,255,0.05)*0.95` ≈ invisível.
             Forçamos um fundo sólido navy + borda visível em dark para a barra
             ficar legível sobre o body/board. `!` necessário pra vencer o
             `bg-transparent`/`text-primary` do variant outline do <Button>. */}
-        <div className="flex items-center gap-2 rounded-2xl border border-border bg-card/95 px-5 py-3 text-card-foreground shadow-2xl shadow-black/20 backdrop-blur-lg dark:!border-[var(--glass-border)] dark:!bg-[var(--glass-bg-strong)] dark:!text-[var(--text-primary)] dark:shadow-black/60">
+        <div className="pointer-events-auto flex max-w-[min(100%,72rem)] flex-wrap items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-5 py-3 text-card-foreground shadow-2xl shadow-black/20 backdrop-blur-lg dark:!border-[var(--glass-border)] dark:!bg-[var(--glass-bg-strong)] dark:!text-[var(--text-primary)] dark:shadow-black/60">
           <div className="mr-2 flex items-center gap-2 border-r border-border pr-4 dark:border-[var(--glass-border)]/70">
             <CheckCircle2 className="size-4 text-[var(--brand-accent)] dark:text-[var(--color-info)]" />
             <span className="text-[13px] font-bold text-foreground dark:text-[var(--text-primary)]">

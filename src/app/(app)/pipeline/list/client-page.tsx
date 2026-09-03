@@ -452,6 +452,7 @@ export default function V2PipelineListClientPage() {
             setPerPage(value);
             setPage(1);
           }}
+          className={selectedIds.size > 0 ? "relative z-50" : undefined}
         />
         </div>
       </PageChrome>
