@@ -9,7 +9,7 @@
  * pra serem plugados nas props correspondentes do DealDetailPanel.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment, type ComponentProps } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,6 +63,39 @@ import {
   lastInboundAtFromThread,
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
+
+/** Draft local: tecla não re-renderiza o kanban nem o thread de áudios. */
+function IsolatedDealComposer({
+  conversationId,
+  onSend,
+  onSendNote,
+  ...rest
+}: Omit<ComponentProps<typeof Composer>, "value" | "onChange"> & {
+  conversationId: string;
+}) {
+  const [draft, setDraft] = useState("");
+
+  return (
+    <Composer
+      conversationId={conversationId}
+      value={draft}
+      onChange={setDraft}
+      onSend={async (value) => {
+        await onSend(value);
+        setDraft("");
+      }}
+      onSendNote={
+        onSendNote
+          ? async (value) => {
+              await Promise.resolve(onSendNote(value));
+              setDraft("");
+            }
+          : undefined
+      }
+      {...rest}
+    />
+  );
+}
 
 interface DealChatBindingResult {
   messagesNode: React.ReactNode;
@@ -131,7 +164,6 @@ export function useDealChatBinding(params: {
 
   const { features: convFeatures } = useConversationFeatures();
 
-  const [draft, setDraft] = useState("");
   // Mensagem selecionada para responder (estilo WhatsApp). Reset ao trocar
   // de deal/conversa e após envio bem-sucedido.
   const [replyTo, setReplyTo] = useState<{
@@ -560,8 +592,7 @@ export function useDealChatBinding(params: {
   }, [pinnedMessagesPreview, activePinIndex, scrollToMessage]);
 
   async function handleSend(value?: string) {
-    // Composer passa o texto já com assinatura; fallback no draft local.
-    const t = (value ?? draft).trim();
+    const t = (value ?? "").trim();
     if (!t || !effectiveConversationId) return;
     try {
       await sendMutation.mutateAsync({
@@ -572,7 +603,6 @@ export function useDealChatBinding(params: {
           ? { channelId: selectedChannelId }
           : {}),
       });
-      setDraft("");
       setReplyTo(null);
     } catch (e) {
       toast.error((e as Error)?.message || "Falha ao enviar");
@@ -650,16 +680,15 @@ export function useDealChatBinding(params: {
     );
   }
 
-  function handleSendNote() {
-    const t = draft.trim();
+  async function handleSendNote(value?: string) {
+    const t = (value ?? "").trim();
     if (!t || !effectiveConversationId) return;
-    sendMutation.mutate(
-      { content: t, asNote: true },
-      {
-        onSuccess: () => setDraft(""),
-        onError: (e: Error) => toast.error(e.message || "Falha ao salvar nota"),
-      },
-    );
+    try {
+      await sendMutation.mutateAsync({ content: t, asNote: true });
+    } catch (e) {
+      toast.error((e as Error)?.message || "Falha ao salvar nota");
+      throw e;
+    }
   }
 
   // ── messages ────────────────────────────────────────────────
@@ -905,10 +934,9 @@ export function useDealChatBinding(params: {
 
   // ── composer ────────────────────────────────────────────────
   const composerNode = effectiveConversationId ? (
-    <Composer
+    <IsolatedDealComposer
+      key={effectiveConversationId}
       conversationId={effectiveConversationId}
-      value={draft}
-      onChange={setDraft}
       onSend={handleSend}
       onSendNote={handleSendNote}
       sending={sendMutation.isPending}
@@ -1017,4 +1045,15 @@ export function useDealChatBinding(params: {
     pinnedMessageSlot,
     connection: messagesResp?.channel ?? null,
   };
+}
+
+/** Isola o hook do kanban: estado de chat não re-renderiza o board. */
+export function DealChatBindingHost({
+  children,
+  ...params
+}: Parameters<typeof useDealChatBinding>[0] & {
+  children: (result: DealChatBindingResult) => React.ReactNode;
+}) {
+  const result = useDealChatBinding(params);
+  return <>{children(result)}</>;
 }
