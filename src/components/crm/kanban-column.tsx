@@ -16,10 +16,9 @@ import { DealCard, type Deal } from "./deal-card"
 export type ColumnColor = "novo" | "quali" | "proposta" | "nego" | "fecha"
 
 /**
- * Estado de seleção em massa por coluna. Quando passado, a coluna
- * exibe um checkbox no header (3 estados: vazio / parcial / cheio) que
- * permite marcar/desmarcar todos os deals JÁ CARREGADOS daquele estágio.
- * Comportamento idêntico ao kanban antigo (`/old/pipeline`).
+ * Estado de seleção em massa por coluna. O checkbox do header marca
+ * TODOS os negócios da etapa (servidor), não só os cards já carregados.
+ * Seleção parcial fica na vista Lista.
  */
 export interface KanbanColumnSelection {
   allSelected: boolean
@@ -27,6 +26,7 @@ export interface KanbanColumnSelection {
   selectedCount: number
   totalInColumn: number
   onToggleAll: () => void
+  loading?: boolean
   /**
    * Quando `false`, o checkbox "selecionar todos" do header NÃO é
    * renderizado — alinhando com o "modo seleção" global do kanban.
@@ -186,24 +186,32 @@ export function KanbanColumn({
             >
               <button
                 type="button"
+                disabled={selection.loading}
                 onClick={(e) => {
                   e.stopPropagation()
+                  if (selection.loading) return
                   selection.onToggleAll()
                 }}
                 aria-label={
-                  selection.allSelected
-                    ? "Limpar seleção desta etapa"
-                    : "Selecionar todos desta etapa"
+                  selection.loading
+                    ? "Carregando seleção desta etapa"
+                    : selection.allSelected
+                      ? "Limpar seleção desta etapa"
+                      : "Selecionar todos desta etapa"
                 }
                 aria-pressed={selection.someSelected}
+                aria-busy={selection.loading || undefined}
                 className={cn(
                   "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors",
                   selection.someSelected
                     ? "text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
                     : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]",
+                  selection.loading && "cursor-wait opacity-70",
                 )}
               >
-                {selection.allSelected ? (
+                {selection.loading ? (
+                  <IconLoader2 size={16} className="animate-spin" />
+                ) : selection.allSelected ? (
                   <IconSquareCheckFilled size={16} />
                 ) : selection.someSelected ? (
                   <IconSquareMinus size={16} />

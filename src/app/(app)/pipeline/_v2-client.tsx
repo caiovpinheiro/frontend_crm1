@@ -87,7 +87,7 @@ import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { updateDeal } from "@/features/pipeline-v2/api";
+import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
 import { createContact } from "@/features/directory-v2/api";
 import { personNameFromDealTitle, sanitizeContactName } from "@/lib/display-name";
 import { useCan, useMyPermissions } from "@/hooks/use-my-permissions";
@@ -353,6 +353,11 @@ export default function KanbanV2ClientPage({
    * modo limpa a seleção atual.
    */
   const [selectionMode, setSelectionMode] = useState(false);
+  /** Etapas cujo header marcou o recorte inteiro (não só os cards carregados). */
+  const [fullySelectedStageIds, setFullySelectedStageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [selectingStageId, setSelectingStageId] = useState<string | null>(null);
   // Só busca /api/users quando a barra de massa precisa (modo seleção).
   // AssigneePopover/filters carregam sob demanda com a mesma query key.
   const { data: teamUsers = [] } = useTeamUsers(
@@ -366,33 +371,78 @@ export default function KanbanV2ClientPage({
       else next.add(id);
       return next;
     });
-  }, []);
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
-
-  /**
-   * Toggle "selecionar todos desta etapa". Se TODOS os IDs passados já
-   * estão selecionados, remove. Senão, adiciona todos. Usado pelo botão
-   * de checkbox no header de cada KanbanColumn (resgatado da versão antiga).
-   */
-  const toggleSelectMany = useCallback((ids: string[]) => {
-    if (ids.length === 0) return;
-    setSelectedIds((prev) => {
-      const allSelected = ids.every((id) => prev.has(id));
+    setFullySelectedStageIds((prev) => {
+      if (prev.size === 0) return prev;
+      const stage = board.find((s) => s.deals.some((d) => d.id === id));
+      if (!stage || !prev.has(stage.id)) return prev;
       const next = new Set(prev);
-      if (allSelected) {
-        for (const id of ids) next.delete(id);
-      } else {
-        for (const id of ids) next.add(id);
-      }
+      next.delete(stage.id);
       return next;
     });
+  }, [board]);
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setFullySelectedStageIds(new Set());
   }, []);
 
-  // Limpa a seleção ao trocar de pipeline — os IDs não fazem
-  // sentido entre boards diferentes.
+  /**
+   * Checkbox do header da coluna: busca TODOS os IDs da etapa no
+   * servidor (mesmo recorte do board) e marca/desmarca o conjunto.
+   * Seleção parcial continua na vista Lista.
+   */
+  const toggleSelectAllInStage = useCallback(
+    async (stageId: string) => {
+      if (!pipelineId || selectingStageId) return;
+      setSelectingStageId(stageId);
+      try {
+        const { ids, capped } = await fetchBoardDealIds({
+          pipelineId,
+          stageId,
+          status,
+          filters: mergedFilters,
+        });
+        if (ids.length === 0) {
+          toast.error("Nenhum negócio nesta etapa para selecionar.");
+          return;
+        }
+        if (capped) {
+          toast.message(
+            `Seleção limitada a ${ids.length.toLocaleString("pt-BR")} negócios desta etapa.`,
+          );
+        }
+        let turnedOff = false;
+        setSelectedIds((prev) => {
+          const allOn = ids.every((id) => prev.has(id));
+          turnedOff = allOn;
+          const next = new Set(prev);
+          if (allOn) {
+            for (const id of ids) next.delete(id);
+          } else {
+            for (const id of ids) next.add(id);
+          }
+          return next;
+        });
+        setFullySelectedStageIds((prev) => {
+          const next = new Set(prev);
+          if (turnedOff) next.delete(stageId);
+          else next.add(stageId);
+          return next;
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao selecionar a etapa.");
+      } finally {
+        setSelectingStageId(null);
+      }
+    },
+    [mergedFilters, pipelineId, selectingStageId, status],
+  );
+
+  // Limpa a seleção ao trocar de pipeline / recorte — os IDs não
+  // batem com outro funil ou filtro.
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [pipelineId]);
+    setFullySelectedStageIds(new Set());
+  }, [pipelineId, status, mergedFilters]);
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
 
@@ -997,7 +1047,10 @@ export default function KanbanV2ClientPage({
           onToggleSelectionMode={() => {
             setSelectionMode((v) => {
               const next = !v;
-              if (!next) setSelectedIds(new Set());
+              if (!next) {
+                setSelectedIds(new Set());
+                setFullySelectedStageIds(new Set());
+              }
               return next;
             });
             setKebabOpen(false);
@@ -1035,8 +1088,10 @@ export default function KanbanV2ClientPage({
                 stages={board}
                 selectedIds={selectedIds}
                 selectionMode={selectionMode}
+                fullySelected={fullySelectedStageIds.has(col.stageId)}
+                selectingAll={selectingStageId === col.stageId}
                 onToggleSelect={toggleSelect}
-                onToggleSelectAllInColumn={toggleSelectMany}
+                onToggleSelectAllInColumn={() => void toggleSelectAllInStage(col.stageId)}
                 onRequestMove={requestMove}
                 onAddDeal={() =>
                   setAddStage({ id: col.stageId, name: col.title })
@@ -1799,6 +1854,8 @@ function DroppableColumn({
   stages,
   selectedIds,
   selectionMode,
+  fullySelected,
+  selectingAll,
   onToggleSelect,
   onToggleSelectAllInColumn,
   onRequestMove,
@@ -1814,8 +1871,10 @@ function DroppableColumn({
   stages: BoardStageDto[];
   selectedIds: Set<string>;
   selectionMode: boolean;
+  fullySelected: boolean;
+  selectingAll: boolean;
   onToggleSelect: (id: string) => void;
-  onToggleSelectAllInColumn: (ids: string[]) => void;
+  onToggleSelectAllInColumn: () => void;
   onRequestMove?: (vars: {
     dealId: string;
     fromStageId: string;
@@ -1825,16 +1884,15 @@ function DroppableColumn({
   canChangeStage: boolean;
   loadMore?: { remaining: number; loading: boolean; onClick: () => void };
 }) {
-  // Estado de seleção em massa restrito aos deals JÁ CARREGADOS desta
-  // coluna. Replica o comportamento do kanban antigo.
   const dealIdsInColumn = column.deals.map((d) => d.id);
   const selectedInColumnCount = dealIdsInColumn.reduce(
     (acc, id) => acc + (selectedIds.has(id) ? 1 : 0),
     0,
   );
-  const allSelected =
-    dealIdsInColumn.length > 0 && selectedInColumnCount === dealIdsInColumn.length;
-  const someSelected = selectedInColumnCount > 0;
+  const totalInColumn = column.count;
+  const allSelected = fullySelected && totalInColumn > 0;
+  const someSelected = allSelected || selectedInColumnCount > 0;
+  const selectedCount = allSelected ? totalInColumn : selectedInColumnCount;
 
   return (
     <Droppable droppableId={column.stageId} isDropDisabled={!canChangeStage}>
@@ -1851,9 +1909,10 @@ function DroppableColumn({
           selection={{
             allSelected,
             someSelected,
-            selectedCount: selectedInColumnCount,
-            totalInColumn: dealIdsInColumn.length,
-            onToggleAll: () => onToggleSelectAllInColumn(dealIdsInColumn),
+            selectedCount,
+            totalInColumn,
+            onToggleAll: onToggleSelectAllInColumn,
+            loading: selectingAll,
             enabled: selectionMode && canChangeStage,
           }}
           dealsContainerRef={provided.innerRef}
