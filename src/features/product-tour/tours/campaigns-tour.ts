@@ -52,6 +52,7 @@ export const campaignsTour: PageTour = {
       description:
         "Este menu cria um disparo novo ou abre os segmentos salvos. Avance para ver cada opção.",
       side: "bottom",
+      openMenu: "campaigns-actions",
     },
     {
       element: "campaigns-new",
@@ -59,7 +60,8 @@ export const campaignsTour: PageTour = {
       description:
         "Abre o assistente em três passos: básico do disparo, audiência e conteúdo. A campanha nasce em rascunho até você lançar.",
       side: "left",
-      openMenu: "campaigns-actions",
+      fallback: "menu-item",
+      fallbackLabel: "Nova campanha",
     },
     {
       element: "campaigns-segments",
@@ -67,7 +69,8 @@ export const campaignsTour: PageTour = {
       description:
         "Segmentos são públicos salvos. Você pode reutilizá-los no passo de audiência em vez de montar os filtros de novo.",
       side: "left",
-      openMenu: "campaigns-actions",
+      fallback: "menu-item",
+      fallbackLabel: "Gerenciar segmentos",
     },
   ],
 };

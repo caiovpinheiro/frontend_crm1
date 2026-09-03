@@ -87,6 +87,54 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-09-03 — Tour de tarefas (agenda e cadastro)
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Dois tours opt-in no mesmo padrão: agenda (`tasks` em `/activities`) e cadastro (`tasks-create` no `ActivityComposer`). O `?` da página e o `?` do modal disparam cada um. Sem auto-start e sem CTA extra. Nova tarefa e Nova atividade não encadeiam a partir da lista — o usuário abre o modal no hamburger e inicia o tour dali.
+
+**Alternativas descartadas.** Encadear lista → cadastro com botão extra. Tour no `NewTaskDialog` interno do `TasksView` (a página viva usa `ActivityComposer`).
+
+**Impacto.** `tours/tasks-*.ts`, `data-tour` no `TasksView` / `ActivityComposer`, `PageTourButton` no header e no modal.
+
+---
+
+### 2026-09-03 — Tour de distribuição (abas e edição)
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Tour opt-in `distribution` no `?` do header percorre Equipe, Cobertura, Fila de espera e Logs trocando a aba via bridge (`distributionTab`), no mesmo padrão do wizard de automações. O modal Editar responsável tem tour próprio (`distribution-edit`) no `?` do FormDialog. Sem auto-start e sem CTA extra. A lista não abre o modal — o usuário clica em Editar e inicia o tour dali.
+
+**Alternativas descartadas.** Um tour por aba com `?` diferente. Encadear lista → edição com botão extra. Destacar Local/Negócio fantasma (já corrigido em tarefas).
+
+**Impacto.** `tours/distribution-*.ts`, `distribution-tour-bridge.ts`, `data-tour` na página e no modal.
+
+---
+
+### 2026-09-03 — Tour de distribuição: fallback fantasma
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Passos que dependem de permissão ou dado (auto-inbound, Redistribuir, Editar, itens do menu) ganham `fallback` no `PageTourStep`. Quando o alvo real não existe, `ensureTourFallback` injeta um modelo de exemplo com o mesmo `data-tour` — toggle fantasma após os KPIs, botão fantasma na lista, item fantasma no menu — para o tour mostrar todos os passos sem pular. `removeTourFallbacks` limpa ao destruir.
+
+**Alternativas descartadas.** Pular o passo (volta o bug 4→6 / 11→13). Mostrar o passo sem alvo (popover flutuando sem contexto).
+
+**Impacto.** `tour-types.ts` (`fallback`, `fallbackLabel`), `start-tour.ts` (`ensureTourFallback`, `removeTourFallbacks`), `tours/distribution-tour.ts` (fallback nos passos condicionais).
+
+---
+
+### 2026-09-03 — Tour de distribuição: sem pular passos
+
+**Modelo usado.** Cursor Grok 4.6.
+
+**Decisão.** Nenhum passo do tour de distribuição usa `skipIfMissing`. Todo passo condicional tem `fallback` com modelo de exemplo. `openMenu` e `closeMenu` rodam **depois** de `moveTo` (120ms), não em `prepareStep` — o clique no gatilho desviava o foco do popover e o Driver.js fechava o tour. `distribution-period` ganha `fallback: "header-control"` (ícone de calendário fantasma ao lado das abas) para quando o widget está desligado.
+
+**Alternativas descartadas.** Manter `skipIfMissing` e pular (volta o bug). Abrir/fechar menu em `prepareStep` (fecha o tour).
+
+**Impacto.** `tours/distribution-tour.ts` (sem `skipIfMissing`, `fallback` em todos os condicionais), `start-tour.ts` (`openMenu`/`closeMenu` pós-`moveTo`, `header-control` fallback).
+
+---
+
 ### 2026-09-01 — Convite por e-mail, verificação no signup, esqueci senha
 
 **Decisão.** Equipe deixa de criar usuário com senha e passa a enviar convite (`POST /api/invites`). Signup do primeiro ADMIN redireciona para `/verify-email` em vez de `signIn`. Páginas públicas `/forgot-password`, `/reset-password`, `/verify-email`. Reset admin na Equipe permanece.

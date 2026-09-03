@@ -24,6 +24,7 @@ export const inboxTour: PageTour = {
       description:
         "Aqui você escolhe o recorte da lista. Avance para ver cada grupo de status — dá para marcar várias filas ao mesmo tempo.",
       side: "bottom",
+      openMenu: "inbox-queues",
     },
     {
       element: "inbox-queue-todos",
@@ -31,8 +32,8 @@ export const inboxTour: PageTour = {
       description:
         "Visão completa, sem recorte de fila. O número é a soma de tudo o que você tem permissão de ver.",
       side: "right",
-      openMenu: "inbox-queues",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Todas as conversas",
     },
     {
       element: "inbox-queue-group-action",
@@ -40,8 +41,8 @@ export const inboxTour: PageTour = {
       description:
         "Entrada: novas, ainda sem responsável. Cliente respondeu: o contato aguarda você. Ligação autorizada: o WhatsApp já permitiu ligar.",
       side: "right",
-      openMenu: "inbox-queues",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Precisa de ação",
     },
     {
       element: "inbox-queue-group-serving",
@@ -49,8 +50,8 @@ export const inboxTour: PageTour = {
       description:
         "Em atendimento: você (ou o time) já respondeu. Resolvendo: conversa aberta em acompanhamento, sem automação rodando.",
       side: "right",
-      openMenu: "inbox-queues",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Em atendimento",
     },
     {
       element: "inbox-queue-group-automation",
@@ -58,8 +59,8 @@ export const inboxTour: PageTour = {
       description:
         "Agente IA: o atendimento está com o agente de inteligência. Automação: chatbot ou fluxo em execução.",
       side: "right",
-      openMenu: "inbox-queues",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Automação",
     },
     {
       element: "inbox-queue-group-done",
@@ -67,8 +68,8 @@ export const inboxTour: PageTour = {
       description:
         "Encerradas: conversas resolvidas. Elas saem das filas de ação, mas o histórico continua acessível aqui.",
       side: "right",
-      openMenu: "inbox-queues",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Finalizadas",
     },
     {
       element: "inbox-queue-group-attention",
@@ -76,8 +77,8 @@ export const inboxTour: PageTour = {
       description:
         "Erro: falha de envio, canal ou sessão. Vale abrir o ticket e conferir a mensagem vermelha no chat.",
       side: "right",
-      openMenu: "inbox-queues",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Atenção",
     },
     {
       element: "inbox-refresh",
@@ -107,7 +108,7 @@ export const inboxTour: PageTour = {
       description:
         "Conversa é o chat. Tarefas, Notas, Timeline e Chamadas ficam no mesmo card, sem sair do atendimento.",
       side: "bottom",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-chat-actions",
@@ -115,7 +116,7 @@ export const inboxTour: PageTour = {
       description:
         "Ligar pelo WhatsApp (quando houver permissão) e o menu ⋮: buscar na conversa, favoritas, copiar link, encerrar, devolver à IA e distribuir.",
       side: "left",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-chat-thread",
@@ -123,7 +124,7 @@ export const inboxTour: PageTour = {
       description:
         "Bolhas do cliente e do time, templates, notas internas e eventos. Role para cima para carregar mensagens mais antigas.",
       side: "left",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-composer-bar",
@@ -131,7 +132,7 @@ export const inboxTour: PageTour = {
       description:
         "Mensagem vai ao cliente; Nota interna fica só no CRM. Ao lado: transferir, canal de envio, assinatura e Encerrar ou Reabrir.",
       side: "top",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-composer-input",
@@ -139,7 +140,7 @@ export const inboxTour: PageTour = {
       description:
         "Escreva o texto. Digite / para abrir modelos internos e templates do WhatsApp. Sessão encerrada pede template para retomar.",
       side: "top",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-composer-plus",
@@ -147,7 +148,7 @@ export const inboxTour: PageTour = {
       description:
         "O + anexa arquivo, tira foto, dispara template, agenda, cria tarefa e pede permissão de ligação. Ao lado, o sorriso insere emoji.",
       side: "top",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-composer-tools",
@@ -155,7 +156,7 @@ export const inboxTour: PageTour = {
       description:
         "Microfone para áudio, o robô das automações ativas neste contato, e o avião para enviar (ou salvar a nota).",
       side: "top",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-aside-deal",
@@ -163,7 +164,7 @@ export const inboxTour: PageTour = {
       description:
         "Título, etapa do funil, origem e responsável. Com vários negócios, toque no card para expandir o que você está atendendo.",
       side: "left",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-aside-tabs",
@@ -171,7 +172,7 @@ export const inboxTour: PageTour = {
       description:
         "Perfil mostra o cadastro. Produto lista o que está no negócio. O ícone ao lado alterna visão focada ou compacta.",
       side: "left",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-aside-contact",
@@ -179,7 +180,7 @@ export const inboxTour: PageTour = {
       description:
         "Nome, telefone, e-mail e campos da organização. O lápis edita; a engrenagem escolhe quais campos aparecem neste painel.",
       side: "left",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
     {
       element: "inbox-aside-fields",
@@ -187,7 +188,7 @@ export const inboxTour: PageTour = {
       description:
         "CPF, curso, datas e o que a organização cadastrou no funil. Adicionar preenche o lead sem abrir outra tela.",
       side: "left",
-      skipIfMissing: true,
+      fallback: "inbox-chat",
     },
   ],
 };

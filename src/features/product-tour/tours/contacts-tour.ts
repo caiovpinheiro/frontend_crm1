@@ -45,7 +45,9 @@ export const contactsTour: PageTour = {
       description:
         "Abrir o lead na Inbox, ligar, enviar e-mail ou editar o cadastro. Ligar e e-mail só funcionam se o contato tiver telefone ou e-mail.",
       side: "left",
-      skipIfMissing: true,
+      fallback: "generic",
+      fallbackAnchor: "contacts-list",
+      fallbackLabel: "Ações do contato (exemplo)",
     },
     {
       element: "contacts-actions",
@@ -53,6 +55,7 @@ export const contactsTour: PageTour = {
       description:
         "Daqui você adiciona um contato, exporta, importa, escolhe as colunas da tabela e localiza duplicadas. Avance para ver cada opção.",
       side: "bottom",
+      openMenu: "contacts-actions",
     },
     {
       element: "contacts-new",
@@ -60,8 +63,8 @@ export const contactsTour: PageTour = {
       description:
         "Abre o cadastro: nome, e-mail, telefone, empresa e tags. Depois de criar, o contato entra nesta lista.",
       side: "left",
-      openMenu: "contacts-actions",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Adicionar contato",
     },
     {
       element: "contacts-export",
@@ -69,8 +72,8 @@ export const contactsTour: PageTour = {
       description:
         "Baixa a base em CSV para planilha ou outro sistema.",
       side: "left",
-      openMenu: "contacts-actions",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Exportar",
     },
     {
       element: "contacts-import",
@@ -78,8 +81,8 @@ export const contactsTour: PageTour = {
       description:
         "Sobe um arquivo para criar vários contatos de uma vez, no mesmo fluxo de importação do CRM.",
       side: "left",
-      openMenu: "contacts-actions",
-      skipIfMissing: true,
+      fallback: "menu-item",
+      fallbackLabel: "Importar",
     },
     {
       element: "contacts-columns-item",
@@ -87,7 +90,8 @@ export const contactsTour: PageTour = {
       description:
         "Escolha quais colunas aparecem na Tabela — nativas e campos personalizados. A escolha fica salva neste navegador. Abra o item e use o ? do modal para o tour das colunas.",
       side: "left",
-      openMenu: "contacts-actions",
+      fallback: "menu-item",
+      fallbackLabel: "Configurações da lista",
     },
     {
       element: "contacts-dupes-item",
@@ -95,7 +99,8 @@ export const contactsTour: PageTour = {
       description:
         "Agrupa contatos com o mesmo telefone ou e-mail para você escolher qual manter. Abra o item e use o ? do modal para o tour da mesclagem.",
       side: "left",
-      openMenu: "contacts-actions",
+      fallback: "menu-item",
+      fallbackLabel: "Localizar duplicadas",
     },
   ],
 };

@@ -5,6 +5,17 @@ import "driver.js/dist/driver.css";
 
 import { applyBuilderTourStep } from "./builder-tour-bridge";
 import { setCreateWizardStep } from "./create-wizard-bridge";
+import { setDashboardTourTab } from "./dashboard-tour-bridge";
+import { setDistributionTourTab } from "./distribution-tour-bridge";
+import { setLogsTourTab } from "./logs-tour-bridge";
+import { setMessageModelsTourTab } from "./message-models-tour-bridge";
+import {
+  setSecurityTourAccess,
+  setSecurityTourTab,
+} from "./security-tour-bridge";
+import { setSettingsTourOpen } from "./settings-tour-bridge";
+import { setTabulationsTourView } from "./tabulations-tour-bridge";
+import { setTeamTourTab } from "./team-tour-bridge";
 import "./product-tour.css";
 import { getTour } from "./tour-registry";
 import type { PageTour, PageTourCta, PageTourStep } from "./tour-types";
@@ -148,28 +159,207 @@ function snapDriverToElement(el: Element | undefined): void {
   pop.style.top = `${top}px`;
 }
 
-function isTourTargetVisible(tourId: string): boolean {
-  const el = document.querySelector(`[data-tour="${tourId}"]`);
+function isElementPainted(el: Element): boolean {
   if (!(el instanceof HTMLElement)) return false;
+  const style = window.getComputedStyle(el);
+  if (style.display === "none" || style.visibility === "hidden") return false;
   const r = el.getBoundingClientRect();
   return r.width > 2 && r.height > 2;
 }
 
+/** Primeiro alvo visível; ignora o clone `md:hidden` / `hidden md:block`. */
+function queryTourElement(tourId: string, visibleOnly = false): HTMLElement | null {
+  const nodes = document.querySelectorAll(`[data-tour="${tourId}"]`);
+  let first: HTMLElement | null = null;
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue;
+    if (!first) first = node;
+    if (isElementPainted(node)) return node;
+  }
+  return visibleOnly ? null : first;
+}
+
+function isTourTargetVisible(tourId: string): boolean {
+  return queryTourElement(tourId, true) != null;
+}
+
+/** Modelo de exemplo para passos que dependem de dado/permissão. */
+function ensureTourFallback(step: PageTourStep): void {
+  if (!step.fallback) return;
+  // Um fantasma por vez: remove o do passo anterior para não empilhar
+  // modelos na página. Âncoras são sempre elementos reais.
+  removeTourFallbacks();
+  if (queryTourElement(step.element, true)) return;
+
+  if (step.fallback === "auto-inbound") {
+    const anchor = queryTourElement("distribution-kpis", true);
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "flex items-center justify-between gap-4 rounded-xl border border-border bg-card py-3 px-4";
+    const text = document.createElement("div");
+    text.className = "min-w-0";
+    const title = document.createElement("p");
+    title.className = "font-display text-[14px] font-bold text-foreground";
+    title.textContent = "Distribuir cada conversa nova automaticamente";
+    const hint = document.createElement("p");
+    hint.className = "mt-0.5 font-body text-[12px] text-muted-foreground";
+    hint.textContent =
+      "Ligado: toda mensagem inbound sem responsável entra na fila de espera.";
+    text.append(title, hint);
+    const toggle = document.createElement("span");
+    toggle.className =
+      "relative h-6 w-11 shrink-0 rounded-full border border-primary bg-primary";
+    const knob = document.createElement("span");
+    knob.className =
+      "absolute top-1/2 right-0.5 h-5 w-5 -translate-y-1/2 rounded-full border border-black/10 bg-white shadow-sm";
+    toggle.append(knob);
+    ghost.append(text, toggle);
+    anchor.insertAdjacentElement("afterend", ghost);
+    return;
+  }
+
+  if (step.fallback === "menu-item") {
+    const panel = document.querySelector("[role='menu'], [role='listbox']");
+    if (!(panel instanceof HTMLElement)) return;
+    const ghost = document.createElement("button");
+    ghost.type = "button";
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "flex w-full items-center gap-2.5 px-3 py-2 text-left font-display text-[12.5px] font-bold text-muted-foreground";
+    ghost.textContent = step.fallbackLabel ?? step.title;
+    panel.appendChild(ghost);
+    return;
+  }
+
+  if (step.fallback === "row-action") {
+    const list = queryTourElement("distribution-list", true);
+    if (!list) return;
+    const ghost = document.createElement("button");
+    ghost.type = "button";
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 font-display text-[12px] font-semibold text-primary";
+    ghost.textContent = step.fallbackLabel ?? step.title;
+    list.appendChild(ghost);
+    return;
+  }
+
+  if (step.fallback === "header-control") {
+    const tabs = queryTourElement("distribution-tabs", true);
+    if (!tabs) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground";
+    ghost.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>';
+    tabs.insertAdjacentElement("beforebegin", ghost);
+    return;
+  }
+
+  if (step.fallback === "generic") {
+    const anchor = step.fallbackAnchor
+      ? queryTourElement(step.fallbackAnchor, true)
+      : null;
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "rounded-xl border border-dashed border-border bg-card px-4 py-3 font-body text-[13px] text-muted-foreground";
+    ghost.textContent = step.fallbackLabel ?? step.title;
+    anchor.insertAdjacentElement("afterend", ghost);
+    return;
+  }
+
+  if (step.fallback === "inbox-chat") {
+    const anchor = queryTourElement("inbox-list", true);
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "flex flex-col gap-3 rounded-xl border border-border bg-card p-4";
+    ghost.innerHTML = `
+      <div class="flex items-center gap-2 border-b border-border pb-2">
+        <div class="size-8 rounded-full bg-primary/10"></div>
+        <div class="min-w-0 flex-1">
+          <div class="h-3 w-24 rounded bg-muted"></div>
+          <div class="mt-1 h-2 w-16 rounded bg-muted/60"></div>
+        </div>
+        <div class="h-5 w-12 rounded-full bg-muted"></div>
+      </div>
+      <div class="space-y-2">
+        <div class="h-3 w-3/4 rounded bg-muted"></div>
+        <div class="h-3 w-1/2 rounded bg-muted"></div>
+        <div class="h-3 w-2/3 rounded bg-muted"></div>
+      </div>
+      <div class="flex items-center gap-2 border-t border-border pt-2">
+        <div class="h-8 flex-1 rounded-lg bg-muted"></div>
+        <div class="size-8 rounded-lg bg-muted"></div>
+      </div>
+    `;
+    anchor.insertAdjacentElement("afterend", ghost);
+    return;
+  }
+
+  if (step.fallback === "bwipo-chat-thread") {
+    const anchor = queryTourElement(step.fallbackAnchor ?? "bwipo-chat-stage", true);
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "pointer-events-none m-4 flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm";
+    ghost.innerHTML = `
+      <div class="flex items-center gap-2 border-b border-border pb-3">
+        <div class="size-8 rounded-full bg-primary/10"></div>
+        <div class="min-w-0 flex-1">
+          <div class="h-3 w-28 rounded bg-muted"></div>
+          <div class="mt-1 h-2 w-16 rounded bg-muted/60"></div>
+        </div>
+        <div class="size-6 rounded-full bg-muted"></div>
+        <div class="size-6 rounded-full bg-muted"></div>
+      </div>
+      <div class="space-y-2">
+        <div class="h-8 w-2/3 rounded-2xl rounded-bl-sm bg-muted"></div>
+        <div class="ml-auto h-8 w-1/2 rounded-2xl rounded-br-sm bg-primary/15"></div>
+        <div class="h-8 w-3/5 rounded-2xl rounded-bl-sm bg-muted"></div>
+      </div>
+      <div class="flex items-center gap-2 rounded-2xl border border-border px-3 py-2">
+        <div class="size-5 rounded-full bg-muted"></div>
+        <div class="h-2.5 w-1/2 rounded bg-muted"></div>
+        <div class="ml-auto size-7 rounded-full bg-primary/20"></div>
+      </div>
+    `;
+    anchor.insertAdjacentElement("afterbegin", ghost);
+    return;
+  }
+}
+
+function removeTourFallbacks(): void {
+  for (const el of document.querySelectorAll("[data-tour-ghost]")) el.remove();
+}
+
 function toDriveSteps(steps: PageTourStep[]): DriveStep[] {
-  return steps.map((step) => ({
-    element: `[data-tour="${step.element}"]`,
-    skipMissingElement:
-      step.element === "automations-status" ||
-      step.element === "campaigns-status" ||
-      step.element === "contacts-row-actions" ||
-      step.element.startsWith("inbox-chat") ||
-      step.element.startsWith("inbox-composer") ||
-      step.element.startsWith("inbox-aside"),
+  return steps.map((step, index) => ({
+    element: () => queryTourElement(step.element) as Element,
+    skipMissingElement: true,
     popover: {
       title: step.title,
       description: step.description,
       side: step.side ?? "bottom",
       align: "center",
+      // O Driver rotula o botão como "Concluir" quando os próximos alvos
+      // ainda não existem no DOM (fantasmas só nascem no goToStepIndex).
+      // Mantém "Próximo" em todos, exceto no último passo real do tour.
+      ...(index < steps.length - 1 ? { nextBtnText: "Próximo" } : {}),
     },
   }));
 }
@@ -189,8 +379,17 @@ function closeTourMenu(triggerTourId: string): void {
 function prepareStep(step: PageTourStep | undefined): void {
   if (!step) return;
   if (step.wizardStep) setCreateWizardStep(step.wizardStep);
-  if (step.closeMenu) closeTourMenu(step.closeMenu);
-  if (step.openMenu) openTourMenu(step.openMenu);
+  if (step.distributionTab) setDistributionTourTab(step.distributionTab);
+  if (step.logsTab !== undefined) setLogsTourTab(step.logsTab);
+  if (step.teamTab !== undefined) setTeamTourTab(step.teamTab);
+  if (step.modelsTab !== undefined) setMessageModelsTourTab(step.modelsTab);
+  if (step.securityTab !== undefined) setSecurityTourTab(step.securityTab);
+  if (step.securityAccess !== undefined) setSecurityTourAccess(step.securityAccess);
+  if (step.tabulationsView !== undefined) setTabulationsTourView(step.tabulationsView);
+  if (step.dashboardTab !== undefined) setDashboardTourTab(step.dashboardTab);
+  // A gaveta de Configurações fecha sem hover; o overlay do Driver rouba
+  // o hover, então o tour a mantém aberta até o fim.
+  if (step.element.startsWith("settings-")) setSettingsTourOpen(true);
   applyBuilderTourStep({
     openPalette: step.openPalette,
     openPicker: step.openPicker,
@@ -198,16 +397,34 @@ function prepareStep(step: PageTourStep | undefined): void {
   });
 }
 
-function waitForSelector(
-  selector: string,
+/** Passos que só existem depois do prepare (menu, paleta, wizard). */
+function stepNeedsMountWait(step: PageTourStep): boolean {
+  return Boolean(
+    step.openMenu ||
+      step.openPalette ||
+      step.openPicker ||
+      step.wizardStep ||
+      step.focusTrigger ||
+      step.distributionTab ||
+      step.teamTab ||
+      step.modelsTab ||
+      step.securityTab ||
+      step.securityAccess ||
+      step.tabulationsView ||
+      step.dashboardTab,
+  );
+}
+
+function waitForTourElement(
+  tourId: string,
   timeoutMs: number,
 ): Promise<Element | null> {
-  const found = document.querySelector(selector);
+  const found = queryTourElement(tourId, true);
   if (found) return Promise.resolve(found);
   return new Promise((resolve) => {
     const started = Date.now();
     const tick = () => {
-      const el = document.querySelector(selector);
+      const el = queryTourElement(tourId, true);
       if (el) {
         resolve(el);
         return;
@@ -234,12 +451,20 @@ async function goToStepIndex(index: number): Promise<void> {
   const step = tour.steps[index];
   prepareStep(step);
   if (step) {
-    await waitForSelector(`[data-tour="${step.element}"]`, 2500);
+    const waitMs = step.skipIfMissing
+      ? stepNeedsMountWait(step)
+        ? 400
+        : 0
+      : 2500;
+    if (waitMs > 0) {
+      await waitForTourElement(step.element, waitMs);
+    }
     if (step.openPalette || step.openPicker || step.focusTrigger) {
       await new Promise<void>((resolve) => {
         window.setTimeout(resolve, 160);
       });
     }
+    if (step.fallback) ensureTourFallback(step);
     if (step.skipIfMissing && !isTourTargetVisible(step.element)) {
       const current = instance.getActiveIndex() ?? 0;
       const dir = index >= current ? 1 : -1;
@@ -247,7 +472,28 @@ async function goToStepIndex(index: number): Promise<void> {
       return;
     }
   }
+  // O Driver.js resolve `element` na inicialização; com callback ele pode
+  // capturar o clone escondido (`md:hidden`) antes da troca de aba. Reaponta
+  // o alvo visível imediatamente antes de mover.
+  const resolved = queryTourElement(step.element);
+  if (resolved) {
+    const driveStep = instance.getConfig().steps?.[index];
+    if (driveStep) driveStep.element = resolved;
+  }
   instance.moveTo(index);
+  // Abrir o menu DEPOIS de destacar o gatilho: o clique desvia o foco do
+  // popover e o Driver.js interpreta como "fechar tour".
+  if (step.openMenu) {
+    window.setTimeout(() => {
+      openTourMenu(step.openMenu!);
+      if (step.fallback) ensureTourFallback(step);
+    }, 120);
+  }
+  // Fechar o menu DEPOIS de destacar o passo: o clique no gatilho desvia o
+  // foco do popover e o Driver.js fecha o tour.
+  if (step.closeMenu) {
+    window.setTimeout(() => closeTourMenu(step.closeMenu!), 120);
+  }
 }
 
 function runCta(cta: PageTourCta): void {
@@ -347,7 +593,7 @@ export function startPageTour(id: string): void {
     nextBtnText: "Próximo",
     prevBtnText: "Voltar",
     doneBtnText: "Concluir",
-    skipMissingElement: tour.skipMissingElement !== false,
+    skipMissingElement: true,
     waitForElement: 2500,
     onPopoverRender: (popover) => {
       hugPopover(popover.wrapper);
@@ -362,17 +608,23 @@ export function startPageTour(id: string): void {
       });
     },
     onNextClick: (_element, _step, { driver: instance, state }) => {
-      if (instance.isLastStep()) {
+      // Não usar instance.isLastStep(): ele resolve os elementos dos próximos
+      // passos e, sem dado/conversa aberta, trata o passo atual como último
+      // e destrói o tour antes de o fantasma ser criado no goToStepIndex.
+      const next = (state.activeIndex ?? 0) + 1;
+      if (next >= tour.steps.length) {
         instance.destroy();
         return;
       }
-      void goToStepIndex((state.activeIndex ?? 0) + 1);
+      void goToStepIndex(next);
     },
     onPrevClick: (_element, _step, { driver: instance, state }) => {
       void goToStepIndex((state.activeIndex ?? 1) - 1);
     },
     onDestroyed: () => {
       applyBuilderTourStep({});
+      setSettingsTourOpen(false);
+      removeTourFallbacks();
       activeTour = null;
       activeTourDef = null;
     },
@@ -382,6 +634,8 @@ export function startPageTour(id: string): void {
 
 export function stopPageTour(): void {
   applyBuilderTourStep({});
+  setSettingsTourOpen(false);
+  removeTourFallbacks();
   activeTour?.destroy();
   activeTour = null;
   activeTourDef = null;

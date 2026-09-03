@@ -58,6 +58,7 @@ import {
 } from "@/components/crm/settings-filter-bar";
 import { listTableHeadRowClass } from "@/components/crm/sortable-header";
 import { FormDialog } from "@/components/ui/form-dialog";
+import { PageTourButton } from "@/features/product-tour";
 
 import {
   SETTINGS_HUB_BACK,
@@ -315,16 +316,18 @@ function CustomFieldsPage() {
       return () => slots.setCenter(null);
     }
     slots.setCenter(
-      <SettingsListFilterBar
-        search={search}
-        onSearch={setSearch}
-        placeholder="Buscar campo…"
-        ariaLabel="Buscar campo personalizado"
-        icon={<IconForms size={15} />}
-        groups={filterGroups}
-        popoverTitle="Filtrar campos"
-        onClearAll={resetFilters}
-      />,
+      <div data-tour="custom-fields-search" className="relative w-full">
+        <SettingsListFilterBar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Buscar campo…"
+          ariaLabel="Buscar campo personalizado"
+          icon={<IconForms size={15} />}
+          groups={filterGroups}
+          popoverTitle="Filtrar campos"
+          onClearAll={resetFilters}
+        />
+      </div>,
     );
     return () => slots.setCenter(null);
   }, [slots, search, mode, filterGroups, resetFilters]);
@@ -333,46 +336,53 @@ function CustomFieldsPage() {
     if (!slots) return;
     slots.setActions(
       <div className="flex items-center gap-2">
-        <PageSegmentedControl
-          items={[
-            { value: "fields", label: "Campos" },
-            { value: "groups", label: "Grupos" },
-          ]}
-          value={mode}
-          onChange={(v) => setMode(v as PageMode)}
-          size="compact"
-          aria-label="Modo de exibição"
-        />
-        <PageSegmentedControl
-          items={[
-            { value: "deal", label: "Negócio" },
-            { value: "contact", label: "Contato" },
-          ]}
-          value={activeEntity}
-          onChange={(v) => {
-            setActiveEntity(v as EntityTab);
-            resetFilters();
-          }}
-          size="compact"
-          aria-label="Entidade dos campos"
-        />
-        <PageActionsMenu
-          aria-label="Ações de campos personalizados"
-          items={[
-            {
-              icon: <IconPlus size={16} />,
-              label: "Novo campo",
-              onClick: () => setCreateOpen(true),
-              primary: true,
-            },
-            {
-              icon: <IconStack2 size={16} />,
-              label: mode === "groups" ? "Ver campos" : "Organizar grupos",
-              onClick: () => setMode(mode === "groups" ? "fields" : "groups"),
-              divider: true,
-            },
-          ]}
-        />
+        <PageTourButton tourId="custom-fields" />
+        <div data-tour="custom-fields-modes" className="flex items-center gap-2">
+          <PageSegmentedControl
+            items={[
+              { value: "fields", label: "Campos" },
+              { value: "groups", label: "Grupos" },
+            ]}
+            value={mode}
+            onChange={(v) => setMode(v as PageMode)}
+            size="compact"
+            aria-label="Modo de exibição"
+          />
+          <PageSegmentedControl
+            items={[
+              { value: "deal", label: "Negócio" },
+              { value: "contact", label: "Contato" },
+            ]}
+            value={activeEntity}
+            onChange={(v) => {
+              setActiveEntity(v as EntityTab);
+              resetFilters();
+            }}
+            size="compact"
+            aria-label="Entidade dos campos"
+          />
+        </div>
+        <div data-tour="custom-fields-actions" className="flex shrink-0">
+          <PageActionsMenu
+            aria-label="Ações de campos personalizados"
+            items={[
+              {
+                icon: <IconPlus size={16} />,
+                label: "Novo campo",
+                onClick: () => setCreateOpen(true),
+                primary: true,
+                tourId: "custom-fields-new",
+              },
+              {
+                icon: <IconStack2 size={16} />,
+                label: mode === "groups" ? "Ver campos" : "Organizar grupos",
+                onClick: () => setMode(mode === "groups" ? "fields" : "groups"),
+                divider: true,
+                tourId: "custom-fields-groups-item",
+              },
+            ]}
+          />
+        </div>
       </div>,
     );
     return () => slots.setActions(null);
@@ -389,6 +399,7 @@ function CustomFieldsPage() {
       ) : (
       <>
       {/* Mini-dash KPI */}
+      <div data-tour="custom-fields-kpis">
       <KpiStrip
         aria-label="Indicadores de campos"
         gridClassName="grid grid-cols-2 gap-2.5 sm:gap-3.5 lg:grid-cols-4"
@@ -437,6 +448,7 @@ function CustomFieldsPage() {
           }
         />
       </KpiStrip>
+      </div>
 
       {/* Lista */}
       {filtered.length === 0 ? (
@@ -471,6 +483,7 @@ function CustomFieldsPage() {
           )}
         </div>
       ) : (
+        <div data-tour="custom-fields-list">
         <MobileTableScroll minWidth={780}>
             {/* Header de colunas — padrão Contatos */}
             <div
@@ -652,6 +665,7 @@ function CustomFieldsPage() {
               </Droppable>
             </DragDropContext>
         </MobileTableScroll>
+        </div>
       )}
       </>
       )}
@@ -1158,7 +1172,7 @@ function AlternativesEditor({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5" data-tour="field-create-options">
       <FieldLabel>Alternativas</FieldLabel>
       <p className="-mt-1 font-body text-[11.5px] text-[var(--text-muted)]">
         Opções exibidas na lista de seleção
@@ -1331,6 +1345,11 @@ export function FieldFormDialog({
           ? "Defina o nome, tipo e entidade."
           : `Editando "${initial?.label}"`
       }
+      headerAccessory={
+        mode === "create" ? (
+          <PageTourButton tourId="custom-fields-create" size="sm" />
+        ) : undefined
+      }
       footer={
         <>
           <button
@@ -1345,6 +1364,7 @@ export function FieldFormDialog({
             form={formId}
             variant="primary"
             disabled={mutation.isPending || !label.trim()}
+            data-tour="field-create-submit"
           >
             {mutation.isPending
               ? "Salvando…"
@@ -1369,7 +1389,7 @@ export function FieldFormDialog({
       >
         <div className="flex flex-col gap-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5" data-tour="field-create-entity">
               <FieldLabel>Entidade</FieldLabel>
               <DropdownGlass
                 options={entityOptions}
@@ -1384,7 +1404,7 @@ export function FieldFormDialog({
                 </p>
               )}
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5" data-tour="field-create-type">
               <FieldLabel>Tipo</FieldLabel>
               <DropdownGlass
                 options={TYPES.map((t) => ({ value: t.value, label: t.label }))}
@@ -1395,7 +1415,7 @@ export function FieldFormDialog({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" data-tour="field-create-slug">
             <FieldLabel hint="— deixe vazio para gerar automaticamente">
               Identificador (slug)
             </FieldLabel>
@@ -1417,7 +1437,7 @@ export function FieldFormDialog({
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" data-tour="field-create-label">
             <FieldLabel>Nome (exibição)</FieldLabel>
             <InputGlass
               value={label}
@@ -1438,7 +1458,7 @@ export function FieldFormDialog({
             />
           )}
 
-          <div className="flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-4 py-3">
+          <div className="flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-4 py-3" data-tour="field-create-required">
             <div>
               <p className="font-display text-[13px] font-semibold text-[var(--text-primary)]">
                 Campo obrigatório
@@ -1456,7 +1476,7 @@ export function FieldFormDialog({
           </div>
 
           {supportsInboxPanel && (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2" data-tour="field-create-visibility">
               <p className="font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                 Visibilidade nos painéis
               </p>

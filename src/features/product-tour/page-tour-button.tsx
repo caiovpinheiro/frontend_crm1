@@ -68,9 +68,20 @@ export function PageTourButton({
           <Play className="size-3.5 fill-current" aria-hidden="true" />
           {tourId === "automations-create" ||
           tourId === "campaigns-create" ||
-          tourId === "contacts-create"
+          tourId === "contacts-create" ||
+          tourId === "custom-fields-create" ||
+          tourId === "team-user-create" ||
+          tourId === "team-schedule-create" ||
+          tourId === "team-department-create" ||
+          tourId === "message-models-create" ||
+          tourId === "message-models-internal-create" ||
+          tourId === "message-models-whatsapp-create" ||
+          tourId === "tabulations-create" ||
+          tourId === "tasks-create"
             ? "Fazer tour da criação"
-            : tourId === "automations-builder"
+            : tourId === "distribution-edit"
+              ? "Fazer tour da edição"
+              : tourId === "automations-builder"
               ? "Fazer tour do builder"
               : tourId === "campaigns-detail"
                 ? "Fazer tour desta campanha"

@@ -52,6 +52,7 @@ export const automationsTour: PageTour = {
       description:
         "Este menu reúne as formas de criar uma automação. Avance para ver cada opção.",
       side: "bottom",
+      openMenu: "automations-actions",
     },
     {
       element: "automations-new",
@@ -59,7 +60,8 @@ export const automationsTour: PageTour = {
       description:
         "Nova automação abre o assistente: nome, gatilho e opções. Depois o fluxo é montado no editor.",
       side: "left",
-      openMenu: "automations-actions",
+      fallback: "menu-item",
+      fallbackLabel: "Nova automação",
     },
     {
       element: "automations-import",
@@ -67,7 +69,8 @@ export const automationsTour: PageTour = {
       description:
         "Se você já exportou um fluxo, importe o arquivo .json para recriar a automação sem montar do zero.",
       side: "left",
-      openMenu: "automations-actions",
+      fallback: "menu-item",
+      fallbackLabel: "Importar .json",
     },
   ],
 };

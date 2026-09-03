@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { UserAvatar } from "@/components/crm/user-avatar";
+import { PageTourButton } from "@/features/product-tour";
 import { CheckboxGlass } from "@/components/crm/checkbox-glass";
 import { KpiCard, type KpiTone } from "@/components/crm/kpi-card";
 import { KpiStrip } from "@/components/crm/kpi-strip";
@@ -322,6 +323,7 @@ export function ExpedienteTab({
       )}
 
       {/* KPI mini-dash */}
+      <div data-tour="team-schedule-kpis">
       <KpiStrip aria-label="Indicadores de agentes">
         <KpiCard
           label="Agentes"
@@ -351,6 +353,7 @@ export function ExpedienteTab({
           );
         })}
       </KpiStrip>
+      </div>
 
       {isLoading ? (
         <div className="flex flex-col gap-2">
@@ -367,6 +370,7 @@ export function ExpedienteTab({
           <p className="text-sm text-[var(--text-muted)]">Nenhum agente encontrado.</p>
         </div>
       ) : (
+        <div data-tour="team-schedule-list">
         <MobileTableScroll minWidth={720}>
           {/* Column header */}
           <div
@@ -510,6 +514,7 @@ export function ExpedienteTab({
             })
           )}
         </MobileTableScroll>
+        </div>
       )}
 
       {/* Edit schedule dialog — padrão das modais de filtros (kanban/inbox) */}
@@ -545,15 +550,19 @@ export function ExpedienteTab({
         submitLabel="Aplicar expediente"
         submitPending={applyTemplate.isPending}
         submitDisabled={templateUsers.size === 0}
+        headerAccessory={<PageTourButton tourId="team-schedule-create" size="sm" />}
+        submitTourId="schedule-create-submit"
         onSubmit={() => {
           const ids = [...templateUsers];
           if (ids.length === 0) return;
           applyTemplate.mutate({ userIds: ids, schedule: templateSchedule });
         }}
       >
-        <ScheduleFields schedule={templateSchedule} onChange={setTemplateSchedule} />
+        <div data-tour="schedule-create-fields">
+          <ScheduleFields schedule={templateSchedule} onChange={setTemplateSchedule} />
+        </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2" data-tour="schedule-create-users">
           <div className="flex items-center justify-between">
             <Label>Aplicar a</Label>
             <button

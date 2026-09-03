@@ -22,6 +22,7 @@ import { InputGlass } from "@/components/crm/input-glass";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { Skeleton } from "@/components/ui/skeleton";
 import { InternalTemplateVariablePicker } from "@/components/templates/internal-template-variable-picker";
+import { PageTourButton } from "@/features/product-tour";
 import { cn } from "@/lib/utils";
 import {
   HubChip,
@@ -210,7 +211,7 @@ export default function TemplatesSettingsPage({ embedded = false }: { embedded?:
           icon={<FileText className="size-[22px]" />}
           title="Modelos internos de mensagem"
           actions={
-            <ButtonGlass type="button" variant="primary" size="sm" onClick={() => { setEditing(null); setFormOpen(true); }} className="gap-1.5">
+            <ButtonGlass type="button" variant="primary" size="sm" data-tour="models-internal-new" onClick={() => { setEditing(null); setFormOpen(true); }} className="gap-1.5">
               <Plus className="size-4" />
               Nova mensagem interna
             </ButtonGlass>
@@ -229,13 +230,16 @@ export default function TemplatesSettingsPage({ embedded = false }: { embedded?:
         </HubSubHeader>
       ) : null}
 
+      <div data-tour="models-internal-stats">
       <HubStatGrid mobileCompact>
         <HubStat mobileCompact tone="brand" icon={<FileText className="size-5" />} value={templates.length} label="Modelos internos" />
         <HubStat mobileCompact tone="violet" icon={<Layers className="size-5" />} value={categories.length} label="Categorias" />
         <HubStat mobileCompact tone="warn" icon={<Variable className="size-5" />} value={withVariables} label="Com variáveis" />
         <HubStat mobileCompact tone="success" icon={<MessageSquare className="size-5" />} value={distinctChannels} label="Canais usados" />
       </HubStatGrid>
+      </div>
 
+      <div data-tour="models-internal-list" className="space-y-3">
       <HubPanel>
         <HubToolbar
           searchValue={query}
@@ -328,6 +332,7 @@ export default function TemplatesSettingsPage({ embedded = false }: { embedded?:
           ))}
         </div>
       )}
+      </div>
 
       <Dialog open={formOpen} onOpenChange={(v) => { if (!v) { setFormOpen(false); setEditing(null); } else setFormOpen(true); }}>
         <DialogContent
@@ -337,7 +342,10 @@ export default function TemplatesSettingsPage({ embedded = false }: { embedded?:
         >
           <DialogClose />
           <DialogHeader className="pr-10">
-            <DialogTitle>{editing ? "Editar Template" : "Novo Template"}</DialogTitle>
+            <div className="flex items-start justify-between gap-3">
+              <DialogTitle>{editing ? "Editar Template" : "Novo Template"}</DialogTitle>
+              {!editing ? <PageTourButton tourId="message-models-internal-create" size="sm" /> : null}
+            </div>
           </DialogHeader>
           {/* `key` força remount ao trocar criar↔editar: o form só lê
               `initial` no useState do mount; sem key, reabrir "Editar"
@@ -466,7 +474,7 @@ function TemplateForm({
   return (
     <form onSubmit={handleSubmit} className="min-w-0 w-full space-y-3 sm:space-y-4">
       <div className="grid min-w-0 gap-3">
-        <div className="flex min-w-0 flex-col gap-1.5">
+        <div className="flex min-w-0 flex-col gap-1.5" data-tour="internal-create-name">
           <label htmlFor="tpl-name" className={FIELD_LABEL_CLASS}>
             Nome do modelo
           </label>
@@ -479,7 +487,7 @@ function TemplateForm({
             className="min-w-0 max-w-full"
           />
         </div>
-        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2" data-tour="internal-create-meta">
           <div className="flex min-w-0 flex-col gap-1.5">
             <label htmlFor="tpl-category" className={FIELD_LABEL_CLASS}>
               Categoria
@@ -512,7 +520,7 @@ function TemplateForm({
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex min-w-0 flex-col gap-1.5" data-tour="internal-create-body">
             <label htmlFor="tpl-content" className={FIELD_LABEL_CLASS}>
               Mensagem
             </label>
@@ -540,7 +548,7 @@ function TemplateForm({
       </div>
 
       {/* Media upload */}
-      <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex min-w-0 flex-col gap-1.5" data-tour="internal-create-files">
         <label className={FIELD_LABEL_CLASS}>Anexar arquivo (imagem/vídeo)</label>
         <input
           ref={fileInputRef}
@@ -614,7 +622,7 @@ function TemplateForm({
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--glass-border-subtle)] pt-3 sm:pt-4">
         <ButtonGlass type="button" onClick={onCancel}>Cancelar</ButtonGlass>
-        <ButtonGlass type="submit" variant="primary" disabled={isPending || !name.trim() || !content.trim()} className="gap-2">
+        <ButtonGlass type="submit" variant="primary" disabled={isPending || !name.trim() || !content.trim()} className="gap-2" data-tour="internal-create-submit">
           {isPending && <Loader2 className="size-4 animate-spin" />}
           {initial ? "Salvar" : "Criar"}
         </ButtonGlass>

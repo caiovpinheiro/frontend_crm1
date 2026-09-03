@@ -31,7 +31,6 @@ export const contactsColumnsTour: PageTour = {
       description:
         "Campos que a organização criou em Configurações. Também entram como coluna se você marcar o chip.",
       side: "top",
-      skipIfMissing: true,
     },
     {
       element: "contact-columns-done",

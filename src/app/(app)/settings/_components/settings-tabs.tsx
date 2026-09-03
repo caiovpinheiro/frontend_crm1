@@ -23,27 +23,32 @@ export function SettingsHeaderNav({
   active,
   onChange,
   trailing,
+  tabsTourId,
 }: {
   tabs: SettingsTab[];
   active: string;
   onChange: (id: string) => void;
   trailing?: React.ReactNode;
+  /** `data-tour` no wrapper das abas (product tour). */
+  tabsTourId?: string;
 }) {
   const slots = useSettingsHeaderSlots();
   const tabKey = tabs.map((t) => `${t.id}:${t.label}:${t.badge ?? ""}`).join("|");
   const actions = React.useMemo(
     () => (
       <div className="flex items-center gap-2">
-        <HeaderTabs
-          tabs={tabs.map((t) => ({ key: t.id, label: t.label, badge: t.badge }))}
-          value={active}
-          onChange={onChange}
-        />
+        <div {...(tabsTourId ? { "data-tour": tabsTourId } : {})} className="flex shrink-0">
+          <HeaderTabs
+            tabs={tabs.map((t) => ({ key: t.id, label: t.label, badge: t.badge }))}
+            value={active}
+            onChange={onChange}
+          />
+        </div>
         {trailing}
       </div>
     ),
     // tabKey cobre o conteúdo de `tabs` sem nova identidade a cada render.
-    [active, onChange, tabKey, trailing],
+    [active, onChange, tabKey, trailing, tabsTourId],
   );
 
   React.useEffect(() => {

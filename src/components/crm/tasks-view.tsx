@@ -30,6 +30,7 @@ import { SearchFilterBar } from "@/components/crm/search-filter-bar"
 import { FilterChip } from "@/components/crm/filter-popover"
 import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal"
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header"
+import { PageTourButton } from "@/features/product-tour"
 import {
   FormDialog,
   FormDialogIcon,
@@ -734,7 +735,7 @@ function TasksSearchFilterBar({
   const [open, setOpen] = useState(false)
 
   return (
-    <div ref={ref} className="relative w-full">
+    <div ref={ref} data-tour="tasks-search" className="relative w-full">
       <SearchFilterBar
         value={search}
         onChange={onSearch}
@@ -941,49 +942,58 @@ export function TasksView({
           />
         }
         period={
-          <PeriodCalendarButton active={periodActive}>
-            <PeriodIsoRangePanel
-              from={dateFrom}
-              to={dateTo}
-              onChange={({ from, to }) => {
-                setDateFrom(from)
-                setDateTo(to)
-              }}
-              rangeLabel="Exibir tarefas"
-              allowClear
-            />
-          </PeriodCalendarButton>
+          <div data-tour="tasks-period" className="flex shrink-0">
+            <PeriodCalendarButton active={periodActive}>
+              <PeriodIsoRangePanel
+                from={dateFrom}
+                to={dateTo}
+                onChange={({ from, to }) => {
+                  setDateFrom(from)
+                  setDateTo(to)
+                }}
+                rangeLabel="Exibir tarefas"
+                allowClear
+              />
+            </PeriodCalendarButton>
+          </div>
         }
         menuSlot={
-          <PageActionsMenu
-            aria-label="Ações de tarefas"
-            items={[
-              {
-                icon: <Plus size={14} strokeWidth={2.6} />,
-                label: "Nova tarefa",
-                onClick: () => openCreate(),
-                primary: true,
-              },
-              {
-                icon: <CalendarPlus size={14} strokeWidth={2.6} />,
-                label: "Nova atividade",
-                onClick: () => openCreate(),
-              },
-            ]}
-          />
+          <div className="flex items-center gap-2">
+            <PageTourButton tourId="tasks" />
+            <div data-tour="tasks-actions" className="flex shrink-0">
+              <PageActionsMenu
+                aria-label="Ações de tarefas"
+                items={[
+                  {
+                    icon: <Plus size={14} strokeWidth={2.6} />,
+                    label: "Nova tarefa",
+                    onClick: () => openCreate(),
+                    primary: true,
+                    tourId: "tasks-new",
+                  },
+                  {
+                    icon: <CalendarPlus size={14} strokeWidth={2.6} />,
+                    label: "Nova atividade",
+                    onClick: () => openCreate(),
+                    tourId: "tasks-new-activity",
+                  },
+                ]}
+              />
+            </div>
+          </div>
         }
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
         <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-64">
-          <div className={cn(CARD_SURFACE_CLASS, "p-4")}>
+          <div data-tour="tasks-mini-cal" className={cn(CARD_SURFACE_CLASS, "p-4")}>
             <MiniCalendar
               selectedDate={cursor}
               onSelectDate={setCursor}
               markedDates={markedDates}
             />
           </div>
-          <div className={cn(CARD_SURFACE_CLASS, "p-4")}>
+          <div data-tour="tasks-agendas" className={cn(CARD_SURFACE_CLASS, "p-4")}>
             <p className="mb-3 text-sm font-semibold text-foreground">Minhas agendas</p>
             <ul className="flex flex-col gap-1.5">
               {TASK_TYPE_ORDER.map((type) => {
@@ -1022,7 +1032,7 @@ export function TasksView({
 
         <section className={cn(CARD_SURFACE_CLASS, "flex min-w-0 flex-1 flex-col overflow-hidden")}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <div data-tour="tasks-cal-nav" className="flex min-w-0 flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={goToday}
@@ -1052,29 +1062,33 @@ export function TasksView({
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {scope && onScopeChange ? (
-                <PageSegmentedControl
-                  size="compact"
-                  aria-label="Escopo das tarefas"
-                  className="w-max shrink-0"
-                  items={SCOPE_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
-                  value={scope}
-                  onChange={(v) => onScopeChange(v as ActivityScopeFilter)}
-                />
+                <div data-tour="tasks-scope" className="flex shrink-0">
+                  <PageSegmentedControl
+                    size="compact"
+                    aria-label="Escopo das tarefas"
+                    className="w-max shrink-0"
+                    items={SCOPE_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
+                    value={scope}
+                    onChange={(v) => onScopeChange(v as ActivityScopeFilter)}
+                  />
+                </div>
               ) : null}
-              <HeaderPillToggle
-                options={[
-                  { key: "dia", label: "Dia" },
-                  { key: "semana", label: "Semana" },
-                  { key: "mes", label: "Mês" },
-                  { key: "agenda", label: "Agenda" },
-                ]}
-                value={view}
-                onChange={setView}
-              />
+              <div data-tour="tasks-view" className="flex shrink-0">
+                <HeaderPillToggle
+                  options={[
+                    { key: "dia", label: "Dia" },
+                    { key: "semana", label: "Semana" },
+                    { key: "mes", label: "Mês" },
+                    { key: "agenda", label: "Agenda" },
+                  ]}
+                  value={view}
+                  onChange={setView}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div data-tour="tasks-calendar" className="min-h-0 flex-1 overflow-auto">
             {error ? (
               <div className="flex min-h-[240px] items-center justify-center p-6 text-center text-sm text-destructive">
                 {error}

@@ -141,6 +141,7 @@ export function TeamChatApp() {
       </div>
 
       <section
+        data-tour="bwipo-chat-stage"
         className={cn(
           "relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
           selected ? "flex" : "hidden lg:flex",
@@ -270,19 +271,21 @@ function Thread({
 
   return (
     <div className="orbita-block flex min-h-0 flex-1 flex-col overflow-hidden">
-      <ChatHeader
-        room={room}
-        notesOpen={notesOpen}
-        noteCount={noteCount}
-        searchQuery={chatQuery}
-        favorited={favorited}
-        onSearchChange={setChatQuery}
-        onBack={onBack}
-        onToggleNotes={onToggleNotes}
-        onToggleFavorite={onToggleFavorite}
-        onAddMembers={onAddMembers}
-      />
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden" data-wa-thread>
+      <div data-tour="bwipo-chat-header">
+        <ChatHeader
+          room={room}
+          notesOpen={notesOpen}
+          noteCount={noteCount}
+          searchQuery={chatQuery}
+          favorited={favorited}
+          onSearchChange={setChatQuery}
+          onBack={onBack}
+          onToggleNotes={onToggleNotes}
+          onToggleFavorite={onToggleFavorite}
+          onAddMembers={onAddMembers}
+        />
+      </div>
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden" data-wa-thread data-tour="bwipo-chat-messages">
         <MessageList
           room={room}
           messages={messages}
@@ -305,7 +308,7 @@ function Thread({
             })
           }
         />
-        <div className="relative z-20 shrink-0 overflow-visible px-3 pb-4 pt-2">
+        <div className="relative z-20 shrink-0 overflow-visible px-3 pb-4 pt-2" data-tour="bwipo-chat-composer">
           <div className="overflow-visible rounded-[16px] bg-[var(--orbita-block)] ring-1 ring-[var(--orbita-divider)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
             <Composer
               roomId={room.id}

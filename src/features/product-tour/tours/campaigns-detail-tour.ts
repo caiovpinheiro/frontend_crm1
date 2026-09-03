@@ -17,7 +17,6 @@ export const campaignsDetailTour: PageTour = {
       description:
         "Em rascunho, Lançar inicia o disparo. Durante o envio você pode pausar. Encerrar cancela o que ainda não saiu.",
       side: "bottom",
-      skipIfMissing: true,
     },
     {
       element: "campaign-detail-kpis",

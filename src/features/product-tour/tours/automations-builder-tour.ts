@@ -42,7 +42,6 @@ export const automationsBuilderTour: PageTour = {
       description:
         "Arraste a bolinha de saída até a entrada de outro card para ligar os passos. Solte no vazio do canvas para escolher um passo novo. Azul segue o fluxo; vermelho é erro ou sem resposta.",
       side: "right",
-      skipIfMissing: true,
       focusTrigger: true,
     },
     {
@@ -52,7 +51,6 @@ export const automationsBuilderTour: PageTour = {
         "A paleta lista os passos que você já pode usar. Arraste um bloco para o canvas ou clique para adicionar. Fixe a aba Blocos se quiser deixá-la sempre aberta.",
       side: "right",
       openPalette: true,
-      skipIfMissing: true,
     },
     {
       element: "builder-picker",

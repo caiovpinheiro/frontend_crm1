@@ -53,6 +53,7 @@ import {
   type SortDir,
 } from "@/components/crm/sortable-header";
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
+import { PageTourButton } from "@/features/product-tour";
 import {
   Dialog,
   DialogContent,
@@ -207,6 +208,7 @@ export function CreateDepartmentModal({ open, onClose }: { open: boolean; onClos
       icon={<DeptIcon name={iconName} size={20} color={color} />}
       title="Novo departamento"
       description={name.trim() || undefined}
+      headerAccessory={<PageTourButton tourId="team-department-create" size="sm" />}
       footer={
         <>
           <button
@@ -221,6 +223,7 @@ export function CreateDepartmentModal({ open, onClose }: { open: boolean; onClos
             form="new-dept-form"
             variant="primary"
             disabled={!name.trim() || createMutation.isPending}
+            data-tour="dept-create-submit"
           >
             {createMutation.isPending ? "Criando…" : "Criar"}
           </ButtonGlass>
@@ -228,7 +231,7 @@ export function CreateDepartmentModal({ open, onClose }: { open: boolean; onClos
       }
     >
       <form id="new-dept-form" onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <div>
+        <div data-tour="dept-create-name">
           <label className="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
             Nome
           </label>
@@ -240,7 +243,7 @@ export function CreateDepartmentModal({ open, onClose }: { open: boolean; onClos
           />
         </div>
 
-        <div>
+        <div data-tour="dept-create-icon">
           <label className="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
             Ícone
           </label>
@@ -272,7 +275,7 @@ export function CreateDepartmentModal({ open, onClose }: { open: boolean; onClos
           </p>
         </div>
 
-        <div>
+        <div data-tour="dept-create-color">
           <label className="mb-1.5 block font-display text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
             Cor
           </label>
@@ -720,27 +723,29 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
 
   const searchNode = React.useMemo(
     () => (
-      <SettingsListFilterBar
-        search={search}
-        onSearch={setSearch}
-        placeholder="Buscar departamento…"
-        ariaLabel="Buscar departamentos"
-        groups={[
-          {
-            key: "membership",
-            label: "Membros",
-            options: [
-              { value: "all", label: "Todos", count: stats.total },
-              { value: "with", label: "Com membros", count: stats.withMembers },
-              { value: "without", label: "Sem membros", count: stats.withoutMembers },
-            ],
-            value: filter,
-            onChange: (v) => setFilter(v as "all" | "with" | "without"),
-          },
-        ]}
-        onClearAll={() => { setSearch(""); setFilter("all"); }}
-        popoverTitle="Filtrar por membros"
-      />
+      <div data-tour="team-dept-search" className="relative w-full">
+        <SettingsListFilterBar
+          search={search}
+          onSearch={setSearch}
+          placeholder="Buscar departamento…"
+          ariaLabel="Buscar departamentos"
+          groups={[
+            {
+              key: "membership",
+              label: "Membros",
+              options: [
+                { value: "all", label: "Todos", count: stats.total },
+                { value: "with", label: "Com membros", count: stats.withMembers },
+                { value: "without", label: "Sem membros", count: stats.withoutMembers },
+              ],
+              value: filter,
+              onChange: (v) => setFilter(v as "all" | "with" | "without"),
+            },
+          ]}
+          onClearAll={() => { setSearch(""); setFilter("all"); }}
+          popoverTitle="Filtrar por membros"
+        />
+      </div>
     ),
     [search, filter, stats.total, stats.withMembers, stats.withoutMembers],
   );
@@ -748,17 +753,21 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
   const actionsNode = React.useMemo(
     () => (
       <div className="flex items-center gap-2">
+        <PageTourButton tourId="team-departments" />
         {tabsSlot}
-        <PageActionsMenu
-          items={[
-            {
-              icon: <IconPlus size={14} stroke={2.6} />,
-              label: "Criar departamento",
-              onClick: () => setShowCreate(true),
-              primary: true,
-            },
-          ]}
-        />
+        <div data-tour="team-dept-actions" className="flex shrink-0">
+          <PageActionsMenu
+            items={[
+              {
+                icon: <IconPlus size={14} stroke={2.6} />,
+                label: "Criar departamento",
+                onClick: () => setShowCreate(true),
+                primary: true,
+                tourId: "team-dept-new-item",
+              },
+            ]}
+          />
+        </div>
       </div>
     ),
     [tabsSlot],
@@ -777,6 +786,7 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
   return (
     <div className="flex w-full min-w-0 flex-col gap-3.5">
       {/* KPI mini-dash */}
+      <div data-tour="team-dept-kpis">
       <KpiStrip aria-label="Indicadores de departamentos">
         <KpiCard
           label="Departamentos"
@@ -813,6 +823,7 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
           onClick={() => setFilter((prev) => (prev === "without" ? "all" : "without"))}
         />
       </KpiStrip>
+      </div>
 
       {/* Bulk-delete bar */}
       {selected.size > 0 && (
@@ -860,6 +871,7 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
           )}
         </div>
       ) : (
+        <div data-tour="team-dept-list">
         <MobileTableScroll minWidth={780}>
           <div
             className={listTableHeadRowClass("gap-3 border border-transparent px-4")}
@@ -952,6 +964,7 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
             );
           })}
         </MobileTableScroll>
+        </div>
       )}
 
       <CreateDepartmentModal open={showCreate} onClose={() => setShowCreate(false)} />

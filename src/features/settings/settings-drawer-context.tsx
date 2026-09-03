@@ -40,6 +40,8 @@ type SettingsDrawerContextValue = {
   open: boolean;
   pinned: boolean;
   togglePinned: () => void;
+  /** Tour guiado mantém a gaveta aberta mesmo sem hover/pin. */
+  setTourOpen: (open: boolean) => void;
   onGearEnter: () => void;
   onGearLeave: () => void;
   onDrawerEnter: () => void;
@@ -53,6 +55,7 @@ const SettingsDrawerContext = createContext<SettingsDrawerContextValue | null>(
 export function SettingsDrawerProvider({ children }: { children: ReactNode }) {
   const [pinned, setPinned] = useState(false);
   const [hovering, setHovering] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -112,13 +115,14 @@ export function SettingsDrawerProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const open = pinned || hovering;
+  const open = pinned || hovering || tourOpen;
 
   const value = useMemo(
     () => ({
       open,
       pinned,
       togglePinned,
+      setTourOpen,
       onGearEnter,
       onGearLeave,
       onDrawerEnter,
@@ -150,6 +154,7 @@ export function useSettingsDrawer(): SettingsDrawerContextValue {
       open: true,
       pinned: false,
       togglePinned: () => {},
+      setTourOpen: () => {},
       onGearEnter: () => {},
       onGearLeave: () => {},
       onDrawerEnter: () => {},

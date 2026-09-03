@@ -17,7 +17,6 @@ export const contactsDuplicatesTour: PageTour = {
       description:
         "Cada grupo é um telefone ou e-mail repetido. Se não houver grupos, a base já está sem duplicata nesse critério.",
       side: "bottom",
-      skipIfMissing: true,
     },
     {
       element: "contact-dupes-group",
@@ -25,7 +24,6 @@ export const contactsDuplicatesTour: PageTour = {
       description:
         "O cabeçalho mostra se o critério é telefone ou e-mail, o valor repetido e quantos contatos caíram no grupo.",
       side: "bottom",
-      skipIfMissing: true,
     },
     {
       element: "contact-dupes-keep",
@@ -33,7 +31,6 @@ export const contactsDuplicatesTour: PageTour = {
       description:
         "O contato que você mantém vira o registro principal. Os demais do grupo são mesclados nele e saem da lista.",
       side: "left",
-      skipIfMissing: true,
     },
   ],
 };
