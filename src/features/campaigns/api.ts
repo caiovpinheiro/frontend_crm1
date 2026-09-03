@@ -236,30 +236,52 @@ export function fetchAutomations(): Promise<AutomationRow[]> {
   ).then((d) => sortAutomationsNewestFirst(d.items ?? d.automations ?? []));
 }
 
+/**
+ * Templates APROVADOS da WABA do canal — mesmo endpoint das automações.
+ * Inclui `bodyPreview`, `headerFormat` e `operatorVariables` para o
+ * mapeamento de variáveis no disparador (só aparece quando há header
+ * IMAGE/VIDEO/DOCUMENT ou placeholders no corpo).
+ */
 export async function fetchTemplates(channelId?: string | null): Promise<TemplateRow[]> {
-  // Templates aprovados vem direto da WABA via Graph (message_templates).
-  // A resposta da Meta tem o formato { data: [...], paging: { cursors: { after } } }.
-  // Percorremos TODAS as páginas de cursor — sem isso a lista ficava presa na
-  // primeira página (até 100) e campanhas não viam o total real da conta.
-  // Com channelId, lista a WABA do canal da campanha (não misturar números).
-  const all: TemplateRow[] = [];
-  let after: string | undefined;
-  for (let guard = 0; guard < 200; guard++) {
-    const q = new URLSearchParams();
-    q.set("limit", "500");
-    if (after) q.set("after", after);
-    if (channelId?.trim()) q.set("channelId", channelId.trim());
-    const page = await getJson<{
-      templates?: TemplateRow[];
-      data?: TemplateRow[];
-      paging?: { cursors?: { after?: string } };
-    }>(`/api/meta/whatsapp/message-templates?${q.toString()}`, "Erro ao carregar templates.");
-    all.push(...(page.templates ?? page.data ?? []));
-    const next = page.paging?.cursors?.after;
-    if (!next || next === after) break;
-    after = next;
+  const qs = channelId?.trim()
+    ? `?channelId=${encodeURIComponent(channelId.trim())}`
+    : "";
+  const rows = await getJson<
+    Array<{
+      metaTemplateId?: string;
+      metaTemplateName?: string;
+      label?: string;
+      language?: string;
+      category?: string | null;
+      bodyPreview?: string | null;
+      headerPreview?: string | null;
+      headerFormat?: string | null;
+      operatorVariables?: TemplateRow["operatorVariables"];
+      status?: string;
+    }>
+  >(`/api/whatsapp-template-configs/approved${qs}`, "Erro ao carregar templates.");
+
+  if (!Array.isArray(rows)) return [];
+
+  const out: TemplateRow[] = [];
+  for (const r of rows) {
+    const name = typeof r.metaTemplateName === "string" ? r.metaTemplateName : "";
+    if (!name) continue;
+    out.push({
+      id: typeof r.metaTemplateId === "string" ? r.metaTemplateId : undefined,
+      name,
+      language: typeof r.language === "string" ? r.language : "pt_BR",
+      category: typeof r.category === "string" ? r.category : undefined,
+      status: "APPROVED",
+      bodyPreview: r.bodyPreview ?? null,
+      headerPreview: r.headerPreview ?? null,
+      headerFormat: r.headerFormat ?? null,
+      operatorVariables: Array.isArray(r.operatorVariables)
+        ? r.operatorVariables
+        : null,
+    });
   }
-  return all;
+  return out;
 }
 
 export interface AudienceFilterOptions {
