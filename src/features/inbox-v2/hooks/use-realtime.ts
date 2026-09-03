@@ -363,7 +363,7 @@ function eventCouldBelongToInboxTab(
   if (tab === "resolvidos") return followUp;
   if (tab === "finalizados") return resolved && !followUp;
   if (resolved && tab !== "todos") return false;
-  if (followUp && tab !== "todos" && tab !== "resolvidos") return false;
+  if (followUp && tab !== "todos") return false;
   if (tab === "agente_ia") return ai;
 
   if (tab === "entrada") {
