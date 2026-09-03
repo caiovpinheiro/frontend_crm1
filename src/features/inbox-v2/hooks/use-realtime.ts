@@ -16,6 +16,7 @@ import {
 } from "../inbox-queue-tab";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 import {
+  findCachedConversationRow,
   patchInboxTabCounts,
 } from "./apply-outbound-inbox-card";
 import {
@@ -32,9 +33,10 @@ import {
  * legado (`useSSE` + `scheduleInboxRefresh`):
  *
  *  - 1 EventSource só, compartilhado pela página.
- *  - new_message prefere patch do card no cache; card novo hidrata
- *    via GET ?ids= (não relista a aba). Badges ±1 se a fila canônica
- *    mudou — sem GET ?counts=1.
+ *  - new_message prefere patch do card no cache (zero GET). Card fora
+ *    da página hidrata via GET ?ids= em lote (debounce 400ms), só se a
+ *    lista da inbox estiver montada. Miss que não entra na lista fica
+ *    em skip ~90s — sem poll. Badges ±1 se a fila canônica mudou.
  *  - conversation_updated: GET /:id SOMENTE se o ticket está ABERTO
  *    nesta aba. Card só na lista → patch do payload (se der) ou
  *    ignora; NUNCA GET. Um SSE não vira 404×N só porque o card está
@@ -100,7 +102,7 @@ function patchInboxConversationCard(
     for (const [, cached] of entries) {
       if (!cached?.pages) continue;
       for (const page of cached.pages) {
-        if (page?.items?.some((c) => c?.id === data.conversationId)) {
+        if (page?.items?.some((c) => conversationMatchesId(c, data.conversationId!))) {
           return { found: true, tabMoved: false, fromTab: null, toTab: null };
         }
       }
@@ -176,8 +178,9 @@ function conversationMatchesId(
   conversationId: string,
 ): boolean {
   if (!row) return false;
-  if (row.id === conversationId) return true;
-  return row.number != null && String(row.number) === conversationId;
+  const want = String(conversationId);
+  if (String(row.id) === want) return true;
+  return row.number != null && String(row.number) === want;
 }
 
 function inboxTabsFromQueryKey(queryKey: readonly unknown[]): InboxTab[] {
@@ -312,6 +315,95 @@ function isCachedConversation404(conversationId: string): boolean {
   return true;
 }
 
+/** Card visível na lista montada: nunca GET ?ids=. Pipeline/sales-hub
+ *  sem observer da lista também não hidratam — o chat aberto usa :id. */
+function hasActiveInboxListQuery(qc: QueryClient): boolean {
+  return qc
+    .getQueryCache()
+    .findAll({ queryKey: ["inbox-conversations"] })
+    .some((q) => q.isActive() && q.state.data != null);
+}
+
+const MISSING_HYDRATE_DEBOUNCE_MS = 400;
+const MISSING_HYDRATE_SKIP_TTL_MS = 90_000;
+const MISSING_HYDRATE_ERROR_TTL_MS = 15_000;
+const missingHydratePending = new Set<string>();
+const missingHydrateInFlight = new Set<string>();
+const missingHydrateSkipUntilMs = new Map<string, number>();
+let missingHydrateTimer: ReturnType<typeof setTimeout> | null = null;
+
+function isMissingHydrateSkipped(conversationId: string): boolean {
+  const until = missingHydrateSkipUntilMs.get(conversationId);
+  if (until == null) return false;
+  if (until <= Date.now()) {
+    missingHydrateSkipUntilMs.delete(conversationId);
+    return false;
+  }
+  return true;
+}
+
+function rememberMissingHydrateSkip(
+  conversationId: string,
+  ttlMs = MISSING_HYDRATE_SKIP_TTL_MS,
+): void {
+  missingHydrateSkipUntilMs.set(conversationId, Date.now() + ttlMs);
+}
+
+function shouldHydrateMissingCard(
+  qc: QueryClient,
+  conversationId: string,
+): boolean {
+  if (!conversationId) return false;
+  if (isCachedConversation404(conversationId)) return false;
+  if (isMissingHydrateSkipped(conversationId)) return false;
+  if (findCachedConversationRow(qc, conversationId)) return false;
+  if (!hasActiveInboxListQuery(qc)) return false;
+  return true;
+}
+
+function flushMissingCardHydrate(qc: QueryClient): void {
+  const ids = [...missingHydratePending].filter((id) => {
+    missingHydratePending.delete(id);
+    return shouldHydrateMissingCard(qc, id) && !missingHydrateInFlight.has(id);
+  });
+  if (ids.length === 0) return;
+  for (const id of ids) missingHydrateInFlight.add(id);
+  void (async () => {
+    try {
+      const rows = await getConversationsByIds(ids);
+      for (const row of rows) {
+        applyConversationRowToInboxCaches(qc, row);
+      }
+      for (const id of ids) {
+        if (!findCachedConversationRow(qc, id)) {
+          rememberMissingHydrateSkip(id);
+        }
+      }
+    } catch {
+      for (const id of ids) {
+        rememberMissingHydrateSkip(id, MISSING_HYDRATE_ERROR_TTL_MS);
+      }
+    } finally {
+      for (const id of ids) missingHydrateInFlight.delete(id);
+    }
+  })();
+}
+
+function scheduleMissingCardHydrate(
+  qc: QueryClient,
+  conversationId: string,
+): void {
+  if (!shouldHydrateMissingCard(qc, conversationId)) return;
+  if (missingHydrateInFlight.has(conversationId)) return;
+  if (missingHydratePending.has(conversationId)) return;
+  missingHydratePending.add(conversationId);
+  if (missingHydrateTimer) return;
+  missingHydrateTimer = setTimeout(() => {
+    missingHydrateTimer = null;
+    flushMissingCardHydrate(qc);
+  }, MISSING_HYDRATE_DEBOUNCE_MS);
+}
+
 type ConversationUpdatedPayload = {
   conversationId?: string;
   assignedToId?: string | null;
@@ -374,24 +466,6 @@ function hasPatchableUpdatedFields(payload: ConversationUpdatedPayload): boolean
     payload.followUpAt !== undefined ||
     typeof payload.whatsappCallConsentStatus === "string"
   );
-}
-
-function findCachedConversationRow(
-  qc: QueryClient,
-  conversationId: string,
-): ConversationListRow | null {
-  const entries = qc.getQueriesData<InboxListCache>({
-    queryKey: ["inbox-conversations"],
-  });
-  for (const [, cached] of entries) {
-    for (const page of cached?.pages ?? []) {
-      const hit = page?.items?.find((c) =>
-        conversationMatchesId(c, conversationId),
-      );
-      if (hit) return hit;
-    }
-  }
-  return null;
 }
 
 /** Mescla assignedTo/status/closedAt no card cacheado e reavalia a aba. */
@@ -611,13 +685,10 @@ export function useInboxRealtime(options: {
   const userIdRef = useRef(currentUserId);
   userIdRef.current = currentUserId;
 
-  const missingHydrateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dailyStatsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCardSyncIdsRef = useRef<Set<string>>(new Set());
-  const pendingMissingHydrateIdsRef = useRef<Set<string>>(new Set());
   const inFlightCardSyncIdsRef = useRef<Set<string>>(new Set());
-  const inFlightMissingHydrateIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!enabled) return;
@@ -632,37 +703,6 @@ export function useInboxRealtime(options: {
         queryKey: ["conversations", "tab-counts"],
         refetchType: "active",
       });
-    }
-
-    /** Card fora da página cacheada: hidrata via GET ?ids=, não relista a aba. */
-    function scheduleMissingCardHydrate(conversationId: string) {
-      if (isCachedConversation404(conversationId)) return;
-      if (inFlightMissingHydrateIdsRef.current.has(conversationId)) return;
-      if (pendingMissingHydrateIdsRef.current.has(conversationId)) return;
-      pendingMissingHydrateIdsRef.current.add(conversationId);
-      if (missingHydrateTimerRef.current) return;
-      missingHydrateTimerRef.current = setTimeout(() => {
-        missingHydrateTimerRef.current = null;
-        const ids = [...pendingMissingHydrateIdsRef.current].filter(
-          (id) => !isCachedConversation404(id),
-        );
-        pendingMissingHydrateIdsRef.current.clear();
-        if (ids.length === 0) return;
-        for (const id of ids) inFlightMissingHydrateIdsRef.current.add(id);
-        void (async () => {
-          try {
-            const rows = await getConversationsByIds(ids);
-            if (!alive) return;
-            for (const row of rows) {
-              applyConversationRowToInboxCaches(qc, row);
-            }
-          } catch {
-            // Batch falhou: não relista. Refresh explícito / reconnect cobre.
-          } finally {
-            for (const id of ids) inFlightMissingHydrateIdsRef.current.delete(id);
-          }
-        })();
-      }, 1000);
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a
@@ -766,16 +806,15 @@ export function useInboxRealtime(options: {
               });
             }
           }
-          // Patch in-place do card quando a conversa está na página
-          // cacheada; invalidação da lista só quando ela NÃO está
-          // (conversa nova/fora da página = mudança estrutural).
+          // Card na lista: patch in-place, zero GET. Fora da página:
+          // GET ?ids= em lote só se a inbox estiver montada.
           const patch = patchInboxConversationCard(qc, data);
           if (patch.found) {
             // Preview in-place; badges ±1 se tabMoved. Sem GET counts/lista.
           } else if (isEventMessageType(data.messageType)) {
             // Timeline fora da 1ª página: não relista nem re-agrega.
           } else if (data.conversationId) {
-            scheduleMissingCardHydrate(data.conversationId);
+            scheduleMissingCardHydrate(qc, data.conversationId);
           }
           if (!isEventMessageType(data.messageType)) {
             scheduleDailyStatsRefresh();
@@ -888,7 +927,7 @@ export function useInboxRealtime(options: {
         } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
         } else if (!findCachedConversationRow(qc, id)) {
-          scheduleMissingCardHydrate(id);
+          scheduleMissingCardHydrate(qc, id);
         }
         scheduleDailyStatsRefresh();
       },
@@ -978,16 +1017,12 @@ export function useInboxRealtime(options: {
     return () => {
       alive = false;
       unsubscribe();
-      if (missingHydrateTimerRef.current) clearTimeout(missingHydrateTimerRef.current);
-      missingHydrateTimerRef.current = null;
       if (dailyStatsTimerRef.current) clearTimeout(dailyStatsTimerRef.current);
       dailyStatsTimerRef.current = null;
       if (cardSyncTimerRef.current) clearTimeout(cardSyncTimerRef.current);
       cardSyncTimerRef.current = null;
       pendingCardSyncIdsRef.current.clear();
-      pendingMissingHydrateIdsRef.current.clear();
       inFlightCardSyncIdsRef.current.clear();
-      inFlightMissingHydrateIdsRef.current.clear();
     };
   }, [enabled, qc]);
 }
