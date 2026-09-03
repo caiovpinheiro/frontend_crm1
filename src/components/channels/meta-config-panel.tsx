@@ -78,6 +78,12 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
     typeof cfg.phoneNumberId === "string" ? cfg.phoneNumberId : "";
   const initialWaba =
     typeof cfg.businessAccountId === "string" ? cfg.businessAccountId : "";
+  const initialAppId =
+    typeof cfg.appId === "string"
+      ? cfg.appId
+      : typeof cfg.metaAppId === "string"
+        ? cfg.metaAppId
+        : "";
   const initialAppName =
     typeof cfg.appName === "string" ? cfg.appName : "";
   const initialAppSecret =
@@ -108,6 +114,7 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
   const [verifyToken, setVerifyToken] = useState(initialVerifyToken);
   const [phoneNumberId, setPhoneNumberId] = useState(initialPnId);
   const [businessAccountId, setBusinessAccountId] = useState(initialWaba);
+  const [metaAppId, setMetaAppId] = useState(initialAppId);
   const [appName, setAppName] = useState(initialAppName);
   const [sendReadReceipts, setSendReadReceipts] = useState(
     initialSendReadReceipts,
@@ -134,13 +141,14 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
     setDefaultPipelineId(channel.defaultPipelineId ?? null);
     setPhoneNumberId(initialPnId);
     setBusinessAccountId(initialWaba);
+    setMetaAppId(initialAppId);
     setAppName(initialAppName);
     setSendReadReceipts(initialSendReadReceipts);
     setAccessToken("");
     setAppSecret("");
     setVerifyToken(initialVerifyToken);
     setShowTokenHint(!!initialToken);
-  }, [channel.id, channel.name, channel.defaultPipelineId, initialPnId, initialWaba, initialAppName, initialToken, initialAppSecret, initialVerifyToken, initialSendReadReceipts]);
+  }, [channel.id, channel.name, channel.defaultPipelineId, initialPnId, initialWaba, initialAppId, initialAppName, initialToken, initialAppSecret, initialVerifyToken, initialSendReadReceipts]);
 
   // A URL do webhook PRECISA apontar para o backend (não para o frontend).
   // A Meta entrega o callback HTTP direto no backend — o frontend não tem
@@ -183,6 +191,7 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
         businessAccountId: businessAccountId.trim(),
         appName: appName.trim() || undefined,
         sendReadReceipts,
+        ...(metaAppId.trim() ? { appId: metaAppId.trim() } : {}),
         ...(accessToken.trim() ? { accessToken: accessToken.trim() } : {}),
         ...(appSecret.trim() ? { appSecret: appSecret.trim() } : {}),
         ...(verifyToken.trim() ? { verifyToken: verifyToken.trim() } : {}),
@@ -247,6 +256,8 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
                 accessToken: tokenToUse,
                 phoneNumberId: phoneNumberId.trim(),
                 wabaId: businessAccountId.trim(),
+                appId: metaAppId.trim() || undefined,
+                appSecret: appSecret.trim() || undefined,
               },
         ),
       },
@@ -638,6 +649,22 @@ export function MetaConfigPanel({ channel, onSaved }: MetaConfigPanelProps) {
               onChange={(e) => setBusinessAccountId(e.target.value)}
               className="font-mono text-xs"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="meta-app-id" className="text-xs">
+              App ID (Meta App desta org)
+            </Label>
+            <Input
+              id="meta-app-id"
+              value={metaAppId}
+              onChange={(e) => setMetaAppId(e.target.value)}
+              placeholder="Necessário para template com header IMAGE"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              ID do app em developers.facebook.com desta organização — usado no
+              upload da mídia de exemplo ao criar template IMAGE/VIDEO/DOCUMENT.
+            </p>
           </div>
         </div>
         ) : null}

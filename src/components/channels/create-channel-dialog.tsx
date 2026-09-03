@@ -119,6 +119,7 @@ export function CreateChannelDialog({
   // assinatura x-hub-signature-256 dos POSTs recebidos). Coletado no modal
   // Webhook porque o fluxo manual usa o App Meta proprio do cliente.
   const [appSecret, setAppSecret] = useState("");
+  const [metaAppId, setMetaAppId] = useState("");
   // Estado do fluxo Facebook Login (Messenger / Instagram): armazena o
   // code OAuth, a lista de Paginas devolvida pelo backend e a Pagina
   // selecionada pelo usuario antes de confirmar o provisionamento.
@@ -525,6 +526,7 @@ export function CreateChannelDialog({
             verifyToken: webhookInfo?.verifyToken,
             webhookId: webhookInfo?.webhookId,
             appSecret: appSecret.trim() || undefined,
+            appId: metaAppId.trim() || undefined,
           }),
         });
         const data = (await res.json()) as { message?: string };
@@ -1044,6 +1046,18 @@ export function CreateChannelDialog({
                             value={businessAccountId}
                             onChange={(e) => setBusinessAccountId(e.target.value)}
                             placeholder="ID da conta WhatsApp Business"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="ch-app-id">
+                            App ID (Meta App desta org)
+                          </Label>
+                          <Input
+                            id="ch-app-id"
+                            value={metaAppId}
+                            onChange={(e) => setMetaAppId(e.target.value)}
+                            placeholder="Para criar template com header IMAGE"
+                            className="font-mono text-xs"
                           />
                         </div>
                         <p className="text-xs text-[var(--text-muted)]">
