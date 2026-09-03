@@ -125,11 +125,19 @@ export function CampaignTemplateVariableMapper({
       return;
     }
     const components = buildTemplateComponents(vars);
+    const hf = String(template.headerFormat ?? "").toUpperCase();
+    const headerMediaType =
+      hf === "IMAGE" || hf === "VIDEO" || hf === "DOCUMENT"
+        ? (hf.toLowerCase() as "image" | "video" | "document")
+        : null;
     const payload: CampaignTemplateComponentsPayload = {
       version: 1,
       ...(components.length ? { components } : {}),
       ...(needsHeaderMedia && headerMediaToken.trim()
-        ? { headerMediaUrl: headerMediaToken.trim() }
+        ? {
+            headerMediaUrl: headerMediaToken.trim(),
+            headerMediaType,
+          }
         : {}),
     };
     onChange(payload);
