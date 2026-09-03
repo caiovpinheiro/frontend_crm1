@@ -12,8 +12,12 @@ import {
   inboxQueueTabFor,
   rowBelongsToAnyInboxTab,
   rowStaysOnAutomacaoTab,
+  tabMoved,
 } from "../inbox-queue-tab";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
+import {
+  patchInboxTabCounts,
+} from "./apply-outbound-inbox-card";
 import {
   getConversation,
   getConversationsByIds,
@@ -28,9 +32,9 @@ import {
  * legado (`useSSE` + `scheduleInboxRefresh`):
  *
  *  - 1 EventSource só, compartilhado pela página.
- *  - new_message prefere patch do card no cache; lista inteira só quando
- *    o ticket não está nas páginas e não dá pra inserir (aí invalida só
- *    a aba afetada). Counts: só se a fila canônica mudou (debounce ≥8s).
+ *  - new_message prefere patch do card no cache; card novo hidrata
+ *    via GET ?ids= (não relista a aba). Badges ±1 se a fila canônica
+ *    mudou — sem GET ?counts=1.
  *  - conversation_updated: GET /:id SOMENTE se o ticket está ABERTO
  *    nesta aba. Card só na lista → patch do payload (se der) ou
  *    ignora; NUNCA GET. Um SSE não vira 404×N só porque o card está
@@ -40,12 +44,12 @@ import {
  *  - new_message / whatsapp_call invalidam mensagens da conversa
  *    ativa quando o conversationId casa.
  *  - contact_updated NÃO invalida a lista (só sidebar do contato).
- *  - Throttle de 8s na lista: aba estacionada + org quente não
- *    re-bate GET /conversations a cada 1s. document.hidden = skip.
+ *  - Sem timer de lista/counts. Relist só: card fora do cache e ?ids=
+ *    falhou, troca de aba/filtro, refresh explícito, reconnect com gap.
  *  - message_status: update otimista do tick; refetch só em `failed`
  *    (delivered/read não disparam GET messages de novo).
  *  - Reconexão automática com backoff fixo de 5s em onerror.
- *    NÃO invalida lista no connect/reconnect (só em eventos reais).
+ *    Reconnect após gap: um refetch de lista + counts.
  *
  * Aviso sonoro: só em inbound destinado a este operador (assignedToId),
  * para não tocar em quem tem a inbox vazia / não é responsável.
@@ -71,7 +75,7 @@ type NewMessagePayload = {
  *
  * `found`: conversa está numa página cacheada.
  * `tabMoved`: a fila canônica mudou (esperando↔respondidas, entrada→…).
- * Sem `tabMoved` o badge não precisa de `?counts=1`.
+ * Sem `tabMoved` o badge não muda. Com `tabMoved`, ±1 local (sem GET).
  *
  * Não reordena páginas (risco de quebrar o infinite scroll); a posição
  * do card se ajusta no próximo refetch (poll de 60s / troca de aba).
@@ -79,8 +83,15 @@ type NewMessagePayload = {
 function patchInboxConversationCard(
   qc: QueryClient,
   data: NewMessagePayload,
-): { found: boolean; tabMoved: boolean } {
-  if (!data.conversationId) return { found: false, tabMoved: false };
+): {
+  found: boolean;
+  tabMoved: boolean;
+  fromTab: InboxTab | null;
+  toTab: InboxTab | null;
+} {
+  if (!data.conversationId) {
+    return { found: false, tabMoved: false, fromTab: null, toTab: null };
+  }
   // Eventos de timeline (distribuição, etc.) não substituem o preview do card.
   if (isEventMessageType(data.messageType)) {
     const entries = qc.getQueriesData<{ pages?: Array<{ items?: ConversationListRow[] }> }>({
@@ -90,11 +101,11 @@ function patchInboxConversationCard(
       if (!cached?.pages) continue;
       for (const page of cached.pages) {
         if (page?.items?.some((c) => c?.id === data.conversationId)) {
-          return { found: true, tabMoved: false };
+          return { found: true, tabMoved: false, fromTab: null, toTab: null };
         }
       }
     }
-    return { found: false, tabMoved: false };
+    return { found: false, tabMoved: false, fromTab: null, toTab: null };
   }
   const direction =
     data.direction === "in" || data.direction === "out" ? data.direction : null;
@@ -105,7 +116,7 @@ function patchInboxConversationCard(
   const content = typeof data.content === "string" ? data.content : "";
 
   const conv = findCachedConversationRow(qc, data.conversationId);
-  if (!conv) return { found: false, tabMoved: false };
+  if (!conv) return { found: false, tabMoved: false, fromTab: null, toTab: null };
 
   const prevTab = inboxQueueTabFor(conv);
   const next: ConversationListRow = {
@@ -141,7 +152,13 @@ function patchInboxConversationCard(
       : {}),
   };
   applyConversationRowToInboxCaches(qc, next);
-  return { found: true, tabMoved: inboxQueueTabFor(next) !== prevTab };
+  const nextTab = inboxQueueTabFor(next);
+  return {
+    found: true,
+    tabMoved: nextTab !== prevTab,
+    fromTab: prevTab,
+    toTab: nextTab,
+  };
 }
 
 type InboxListPage = {
@@ -242,6 +259,8 @@ function removeConversationFromInboxCaches(
   qc: QueryClient,
   conversationId: string,
 ): void {
+  const existing = findCachedConversationRow(qc, conversationId);
+  const fromTab = existing ? inboxQueueTabFor(existing) : null;
   const entries = qc.getQueriesData<InboxListCache>({
     queryKey: ["inbox-conversations"],
   });
@@ -265,6 +284,7 @@ function removeConversationFromInboxCaches(
       });
     }
   }
+  if (fromTab) patchInboxTabCounts(qc, fromTab, null);
 }
 
 /** Acima disso, 1 refetch das queries que já listam os ids é mais barato
@@ -453,6 +473,10 @@ function applyConversationRowToInboxCaches(
   qc: QueryClient,
   row: ConversationListRow,
 ): void {
+  const prev = findCachedConversationRow(qc, row.id);
+  const fromTab = prev ? inboxQueueTabFor(prev) : null;
+  const toTab = inboxQueueTabFor(row);
+
   qc.setQueryData(["inbox-conversation", row.id], row);
   if (row.number != null) {
     qc.setQueryData(["inbox-conversation", String(row.number)], row);
@@ -528,6 +552,12 @@ function applyConversationRowToInboxCaches(
       qc.invalidateQueries({ queryKey, exact: true });
     }
   }
+
+  // Só ±1 quando o card já estava no cache e a fila canônica mudou.
+  // Card novo/fora da página já entra no último GET ?counts=1.
+  if (prev && tabMoved(fromTab, toTab)) {
+    patchInboxTabCounts(qc, fromTab, toTab);
+  }
 }
 
 function shouldPlayInboundPing(
@@ -581,44 +611,58 @@ export function useInboxRealtime(options: {
   const userIdRef = useRef(currentUserId);
   userIdRef.current = currentUserId;
 
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const missingHydrateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dailyStatsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cardSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCardSyncIdsRef = useRef<Set<string>>(new Set());
+  const pendingMissingHydrateIdsRef = useRef<Set<string>>(new Set());
   const inFlightCardSyncIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    refreshTimerRef.current = null;
-  }, [activeConversationId]);
+  const inFlightMissingHydrateIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
 
-    function scheduleInboxRefresh() {
-      if (typeof document !== "undefined" && document.hidden) return;
-      if (refreshTimerRef.current) return;
-      refreshTimerRef.current = setTimeout(() => {
-        refreshTimerRef.current = null;
-        if (typeof document !== "undefined" && document.hidden) return;
-        qc.invalidateQueries({
-          queryKey: ["inbox-conversations"],
-          refetchType: "active",
-        });
-      }, 8000);
-      scheduleCountsRefresh();
+    function refetchInboxAfterSseGap() {
+      qc.invalidateQueries({
+        queryKey: ["inbox-conversations"],
+        refetchType: "active",
+      });
+      qc.invalidateQueries({
+        queryKey: ["conversations", "tab-counts"],
+        refetchType: "active",
+      });
     }
 
-    // Badges das 8 abas: 8s (era 1s). 20 operadores × cada msg virava
-    // 20 scans de counts. Distribuição tem poll 20s/30s + SSE próprio.
-    function scheduleCountsRefresh() {
-      if (countsTimerRef.current) return;
-      countsTimerRef.current = setTimeout(() => {
-        countsTimerRef.current = null;
-        qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
-      }, 8000);
+    /** Card fora da página cacheada: hidrata via GET ?ids=, não relista a aba. */
+    function scheduleMissingCardHydrate(conversationId: string) {
+      if (isCachedConversation404(conversationId)) return;
+      if (inFlightMissingHydrateIdsRef.current.has(conversationId)) return;
+      if (pendingMissingHydrateIdsRef.current.has(conversationId)) return;
+      pendingMissingHydrateIdsRef.current.add(conversationId);
+      if (missingHydrateTimerRef.current) return;
+      missingHydrateTimerRef.current = setTimeout(() => {
+        missingHydrateTimerRef.current = null;
+        const ids = [...pendingMissingHydrateIdsRef.current].filter(
+          (id) => !isCachedConversation404(id),
+        );
+        pendingMissingHydrateIdsRef.current.clear();
+        if (ids.length === 0) return;
+        for (const id of ids) inFlightMissingHydrateIdsRef.current.add(id);
+        void (async () => {
+          try {
+            const rows = await getConversationsByIds(ids);
+            if (!alive) return;
+            for (const row of rows) {
+              applyConversationRowToInboxCaches(qc, row);
+            }
+          } catch {
+            // Batch falhou: não relista. Refresh explícito / reconnect cobre.
+          } finally {
+            for (const id of ids) inFlightMissingHydrateIdsRef.current.delete(id);
+          }
+        })();
+      }, 1000);
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a
@@ -689,7 +733,9 @@ export function useInboxRealtime(options: {
       }, 1000);
     }
 
-    const unsubscribe = subscribeSSEEvents("/api/sse/messages", {
+    const unsubscribe = subscribeSSEEvents(
+      "/api/sse/messages",
+      {
       new_message: (raw: unknown) => {
         try {
           const data = raw as NewMessagePayload;
@@ -725,13 +771,11 @@ export function useInboxRealtime(options: {
           // (conversa nova/fora da página = mudança estrutural).
           const patch = patchInboxConversationCard(qc, data);
           if (patch.found) {
-            // Mesma fila (cliente já em Aguardando, agente já em
-            // Respondidas): preview basta. counts=1 só quando a aba muda.
-            if (patch.tabMoved) scheduleCountsRefresh();
+            // Preview in-place; badges ±1 se tabMoved. Sem GET counts/lista.
           } else if (isEventMessageType(data.messageType)) {
             // Timeline fora da 1ª página: não relista nem re-agrega.
-          } else {
-            scheduleInboxRefresh();
+          } else if (data.conversationId) {
+            scheduleMissingCardHydrate(data.conversationId);
           }
           if (!isEventMessageType(data.messageType)) {
             scheduleDailyStatsRefresh();
@@ -825,9 +869,7 @@ export function useInboxRealtime(options: {
           return;
         }
         if (!id) {
-          // Sem conversationId não dá pra patchar o card. Counts/chips
-          // bastam — relistar a fila inteira × ~20 abas era o rabo.
-          scheduleCountsRefresh();
+          // Sem conversationId não dá pra patchar o card nem o badge.
           scheduleDailyStatsRefresh();
           return;
         }
@@ -835,7 +877,6 @@ export function useInboxRealtime(options: {
           if (!eventTouchesOpenConversation(qc, id, activeRef.current)) {
             removeConversationFromInboxCaches(qc, id);
           }
-          scheduleCountsRefresh();
           scheduleDailyStatsRefresh();
           return;
         }
@@ -843,11 +884,12 @@ export function useInboxRealtime(options: {
         if (completeRow) {
           applyConversationRowToInboxCaches(qc, completeRow);
         } else if (applyConversationUpdatedPatch(qc, payload)) {
-          // Card na lista atualizado sem GET :id.
+          // Card + badges ±1 sem GET :id / counts=1.
         } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
+        } else if (!findCachedConversationRow(qc, id)) {
+          scheduleMissingCardHydrate(id);
         }
-        scheduleCountsRefresh();
         scheduleDailyStatsRefresh();
       },
 
@@ -929,21 +971,23 @@ export function useInboxRealtime(options: {
           });
         }
       },
-    });
+      },
+      refetchInboxAfterSseGap,
+    );
 
     return () => {
       alive = false;
       unsubscribe();
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-      if (countsTimerRef.current) clearTimeout(countsTimerRef.current);
-      countsTimerRef.current = null;
+      if (missingHydrateTimerRef.current) clearTimeout(missingHydrateTimerRef.current);
+      missingHydrateTimerRef.current = null;
       if (dailyStatsTimerRef.current) clearTimeout(dailyStatsTimerRef.current);
       dailyStatsTimerRef.current = null;
       if (cardSyncTimerRef.current) clearTimeout(cardSyncTimerRef.current);
       cardSyncTimerRef.current = null;
       pendingCardSyncIdsRef.current.clear();
+      pendingMissingHydrateIdsRef.current.clear();
       inFlightCardSyncIdsRef.current.clear();
+      inFlightMissingHydrateIdsRef.current.clear();
     };
   }, [enabled, qc]);
 }

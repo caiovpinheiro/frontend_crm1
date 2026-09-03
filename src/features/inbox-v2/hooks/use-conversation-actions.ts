@@ -12,6 +12,10 @@ import {
   type ConversationListRow,
 } from "../api";
 import { distributionOutcomeToast } from "@/features/distribution/outcome-toast";
+import {
+  applyConversationFieldsToInboxCaches,
+  applyInboxConversationRow,
+} from "./apply-outbound-inbox-card";
 import { messagesKey } from "./use-messages";
 
 /** Atribuir conversa (assign) — comportamento otimista. */
@@ -28,7 +32,13 @@ export function useAssignConversation() {
         assignedToId: vars.assignedToId,
       }),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
+        assignedToId: vars.assignedToId,
+        assignedTo:
+          vars.assignedToId == null
+            ? null
+            : { id: vars.assignedToId, name: "", type: "HUMAN" },
+      });
       qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
@@ -85,8 +95,15 @@ export function useTransferConversation() {
         toast.success("Conversa transferida");
       }
 
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-      qc.invalidateQueries({ queryKey: ["conversations"] });
+      if (vars.assignedToId !== undefined) {
+        applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
+          assignedToId: vars.assignedToId,
+          assignedTo:
+            vars.assignedToId == null
+              ? null
+              : { id: vars.assignedToId, name: "", type: "HUMAN" },
+        });
+      }
       qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
@@ -234,8 +251,34 @@ export function useToggleConversationResolve(
         );
       }
 
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-      qc.invalidateQueries({ queryKey: ["conversations"] });
+      if (newId && data.conversation) {
+        applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
+          status: "RESOLVED",
+          closedAt: new Date().toISOString(),
+          followUpAt: null,
+        });
+        const seeded = qc.getQueryData<ConversationListRow>([
+          "inbox-conversation",
+          newId,
+        ]);
+        if (seeded) applyInboxConversationRow(qc, seeded);
+      } else if (!isReopen) {
+        applyConversationFieldsToInboxCaches(
+          qc,
+          vars.conversationId,
+          vars.followUp
+            ? {
+                status: "OPEN",
+                closedAt: null,
+                followUpAt: new Date().toISOString(),
+              }
+            : {
+                status: "RESOLVED",
+                closedAt: new Date().toISOString(),
+                followUpAt: null,
+              },
+        );
+      }
       // Atualiza timeline e activity-feed do deal vinculado à conversa.
       qc.invalidateQueries({ queryKey: ["deal-timeline-v2"] });
       qc.invalidateQueries({ queryKey: ["activity-feed"] });

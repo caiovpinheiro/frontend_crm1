@@ -2,8 +2,19 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 
-import { hasInboxServerFilters, type ConversationListRow, type InboxFilters, type InboxTab } from "../api";
-import { inboxQueueTabFor, rowBelongsToAnyInboxTab, rowStaysOnAutomacaoTab } from "../inbox-queue-tab";
+import {
+  hasInboxServerFilters,
+  type ConversationListRow,
+  type InboxFilters,
+  type InboxTab,
+  type TabCounts,
+} from "../api";
+import {
+  applyTabCountMove,
+  inboxQueueTabFor,
+  rowBelongsToAnyInboxTab,
+  rowStaysOnAutomacaoTab,
+} from "../inbox-queue-tab";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 
 /**
@@ -60,7 +71,24 @@ function bumpPageTotals(pages: InboxListPage[], delta: number): InboxListPage[] 
   );
 }
 
-function findCachedConversationRow(
+/** ±1 nos badges cacheados. Não dispara GET `?counts=1`. */
+export function patchInboxTabCounts(
+  qc: QueryClient,
+  from: InboxTab | null | undefined,
+  to: InboxTab | null | undefined,
+): void {
+  if (!from && !to) return;
+  const entries = qc.getQueriesData<TabCounts>({
+    queryKey: ["conversations", "tab-counts"],
+  });
+  for (const [queryKey, cached] of entries) {
+    if (!cached) continue;
+    const next = applyTabCountMove(cached, from, to);
+    if (next !== cached) qc.setQueryData(queryKey, next);
+  }
+}
+
+export function findCachedConversationRow(
   qc: QueryClient,
   conversationId: string,
 ): ConversationListRow | null {
@@ -76,6 +104,120 @@ function findCachedConversationRow(
     }
   }
   return null;
+}
+
+function applyRowToInboxListCaches(
+  qc: QueryClient,
+  row: ConversationListRow,
+): void {
+  const entries = qc.getQueriesData<InboxListCache>({
+    queryKey: ["inbox-conversations"],
+  });
+  for (const [queryKey, cached] of entries) {
+    if (!cached?.pages) continue;
+    const tabs = inboxTabsFromQueryKey(queryKey);
+    if (tabs.length === 0) continue;
+
+    let found = false;
+    const pagesAfterPatch = cached.pages.map((page) => {
+      const items = page?.items;
+      if (!items) return page;
+      const idx = items.findIndex(
+        (c) =>
+          conversationMatchesId(c, row.id) ||
+          (row.number != null && conversationMatchesId(c, String(row.number))),
+      );
+      if (idx < 0) return page;
+      found = true;
+      const nextItems = items.slice();
+      nextItems[idx] = { ...items[idx], ...row };
+      return { ...page, items: nextItems };
+    });
+
+    const belongs =
+      tabs.length === 1 && tabs[0] === "automacao"
+        ? found && rowStaysOnAutomacaoTab(row)
+        : tabs.includes("automacao") && found && rowStaysOnAutomacaoTab(row)
+          ? true
+          : rowBelongsToAnyInboxTab(row, tabs);
+
+    if (found && belongs) {
+      qc.setQueryData(queryKey, { ...cached, pages: pagesAfterPatch });
+      continue;
+    }
+
+    if (found && !belongs) {
+      const pages = pagesAfterPatch.map((page) => {
+        const items = page?.items;
+        if (!items?.length) return page;
+        const nextItems = items.filter(
+          (c) =>
+            !conversationMatchesId(c, row.id) &&
+            !(row.number != null && conversationMatchesId(c, String(row.number))),
+        );
+        if (nextItems.length === items.length) return page;
+        return { ...page, items: nextItems };
+      });
+      qc.setQueryData(queryKey, {
+        ...cached,
+        pages: bumpPageTotals(pages, -1),
+      });
+      continue;
+    }
+
+    if (!found && belongs) {
+      if (inboxSearchFromQueryKey(queryKey)) continue;
+      if (hasInboxServerFilters(inboxFiltersFromQueryKey(queryKey))) continue;
+      const pages = cached.pages.slice();
+      const first = pages[0] ?? { items: [] };
+      pages[0] = {
+        ...first,
+        items: [row, ...(first.items ?? [])],
+      };
+      qc.setQueryData(queryKey, {
+        ...cached,
+        pages: bumpPageTotals(pages, 1),
+      });
+    }
+  }
+}
+
+/** Insere/atualiza um row completo nas listas + ±1 nos badges. Sem GET. */
+export function applyInboxConversationRow(
+  qc: QueryClient,
+  row: ConversationListRow,
+): void {
+  const existing =
+    findCachedConversationRow(qc, row.id) ??
+    (row.number != null
+      ? findCachedConversationRow(qc, String(row.number))
+      : null);
+  const fromTab = existing ? inboxQueueTabFor(existing) : null;
+  applyRowToInboxListCaches(qc, row);
+  qc.setQueryData(["inbox-conversation", row.id], row);
+  if (row.number != null) {
+    qc.setQueryData(["inbox-conversation", String(row.number)], row);
+  }
+  patchInboxTabCounts(qc, fromTab, inboxQueueTabFor(row));
+}
+
+/** Merge de campos no card cacheado + ±1 nos badges. Sem GET lista/counts. */
+export function applyConversationFieldsToInboxCaches(
+  qc: QueryClient,
+  conversationId: string,
+  fields: Partial<ConversationListRow>,
+): boolean {
+  const existing = findCachedConversationRow(qc, conversationId);
+  if (!existing) return false;
+  const fromTab = inboxQueueTabFor(existing);
+  const next = { ...existing, ...fields };
+  applyRowToInboxListCaches(qc, next);
+  qc.setQueryData(["inbox-conversation", next.id], next);
+  if (next.number != null) {
+    qc.setQueryData(["inbox-conversation", String(next.number)], next);
+  }
+  patchInboxTabCounts(qc, fromTab, inboxQueueTabFor(next));
+  return true;
 }
 
 export function applyOutboundPreviewToInboxCaches(
@@ -96,8 +238,7 @@ export function applyOutboundPreviewToInboxCaches(
       ? preview.timestamp
       : new Date().toISOString();
   const content = typeof preview?.content === "string" ? preview.content : "";
-  const next: ConversationListRow = {
-    ...existing,
+  applyConversationFieldsToInboxCaches(qc, conversationId, {
     lastMessageAt: ts,
     updatedAt: ts,
     lastMessageDirection: "out",
@@ -118,78 +259,5 @@ export function applyOutboundPreviewToInboxCaches(
           },
         }
       : {}),
-  };
-  const prevTab = inboxQueueTabFor(existing);
-  const nextTab = inboxQueueTabFor(next);
-
-  const entries = qc.getQueriesData<InboxListCache>({
-    queryKey: ["inbox-conversations"],
   });
-  for (const [queryKey, cached] of entries) {
-    if (!cached?.pages) continue;
-    const tabs = inboxTabsFromQueryKey(queryKey);
-    if (tabs.length === 0) continue;
-
-    let found = false;
-    const pagesAfterPatch = cached.pages.map((page) => {
-      const items = page?.items;
-      if (!items) return page;
-      const idx = items.findIndex((c) =>
-        conversationMatchesId(c, conversationId),
-      );
-      if (idx < 0) return page;
-      found = true;
-      const nextItems = items.slice();
-      nextItems[idx] = { ...items[idx], ...next };
-      return { ...page, items: nextItems };
-    });
-
-    const belongs =
-      tabs.length === 1 && tabs[0] === "automacao"
-        ? found && rowStaysOnAutomacaoTab(next)
-        : tabs.includes("automacao") && found && rowStaysOnAutomacaoTab(next)
-          ? true
-          : rowBelongsToAnyInboxTab(next, tabs);
-
-    if (found && belongs) {
-      qc.setQueryData(queryKey, { ...cached, pages: pagesAfterPatch });
-      continue;
-    }
-
-    if (found && !belongs) {
-      const pages = pagesAfterPatch.map((page) => {
-        const items = page?.items;
-        if (!items?.length) return page;
-        const nextItems = items.filter(
-          (c) => !conversationMatchesId(c, conversationId),
-        );
-        if (nextItems.length === items.length) return page;
-        return { ...page, items: nextItems };
-      });
-      qc.setQueryData(queryKey, {
-        ...cached,
-        pages: bumpPageTotals(pages, -1),
-      });
-      continue;
-    }
-
-    if (!found && belongs) {
-      if (inboxSearchFromQueryKey(queryKey)) continue;
-      if (hasInboxServerFilters(inboxFiltersFromQueryKey(queryKey))) continue;
-      const pages = cached.pages.slice();
-      const first = pages[0] ?? { items: [] };
-      pages[0] = {
-        ...first,
-        items: [next, ...(first.items ?? [])],
-      };
-      qc.setQueryData(queryKey, {
-        ...cached,
-        pages: bumpPageTotals(pages, 1),
-      });
-    }
-  }
-
-  if (prevTab !== nextTab) {
-    void qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
-  }
 }

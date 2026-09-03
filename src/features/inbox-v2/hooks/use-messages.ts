@@ -138,8 +138,8 @@ export function useMessages(conversationId: string | null) {
     },
     enabled: !!conversationId && !isInboxConversationNumberParam(conversationId),
     staleTime: 20_000,
-    // SSE invalida na hora em new_message da conversa ativa; o poll é só
-    // safety-net. 90s (era 45s) — ver storm de 28/ago/26.
+    // SSE invalida na hora em new_message da conversa ativa. Poll só
+    // das mensagens do ticket aberto — não toca lista/counts.
     refetchInterval: 90_000,
     refetchOnWindowFocus: false,
   });
@@ -254,8 +254,6 @@ export function useSendMessage(conversationId: string | null) {
         qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
         qc.invalidateQueries({ queryKey: ["deal"] });
         qc.invalidateQueries({ queryKey: ["contact"] });
-        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-        qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       } else if (!vars.asNote) {
         // HAR 31/ago: onSuccess relistava 56KB + counts. SSE já patcha o
         // card; daqui só atualizamos o cache (preview + troca de aba).
@@ -447,8 +445,6 @@ export function useSendAttachment(conversationId: string | null) {
         qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
         qc.invalidateQueries({ queryKey: ["deal"] });
         qc.invalidateQueries({ queryKey: ["contact"] });
-        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
-        qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       } else {
         applyOutboundPreviewToInboxCaches(qc, conversationId, {
           content: data.message?.content,
