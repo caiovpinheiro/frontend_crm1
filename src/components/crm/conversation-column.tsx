@@ -87,6 +87,7 @@ interface ConversationColumnProps {
    */
   renderCardSlots?: (conversation: Conversation) => {
     assigneeSlot?: React.ReactNode
+    menuSlot?: React.ReactNode
   }
   /**
    * Infinite scroll: callback disparado quando o scroll chega perto do
@@ -215,6 +216,41 @@ function statusVisual(tab: { id?: string; label?: string } | string | undefined)
   return { Icon: IconClock, bg: "var(--color-lead-bg)", fg: "var(--color-lead)" }
 }
 
+function groupConversationsByQueue(
+  conversations: Conversation[],
+  selectedIds: readonly string[],
+): Array<{ id: string | null; label: string | null; items: Conversation[] }> {
+  const shouldGroup =
+    selectedIds.includes("todos") || selectedIds.length > 1
+  if (!shouldGroup) {
+    return [{ id: null, label: null, items: conversations }]
+  }
+  const buckets = new Map<string, Conversation[]>()
+  for (const c of conversations) {
+    const key = c.queueTab || "_other"
+    const list = buckets.get(key) ?? []
+    list.push(c)
+    buckets.set(key, list)
+  }
+  const sections: Array<{
+    id: string | null
+    label: string | null
+    items: Conversation[]
+  }> = []
+  for (const item of INBOX_QUEUE_ITEMS) {
+    if (item.id === "todos") continue
+    const items = buckets.get(item.id)
+    if (items?.length) {
+      sections.push({ id: item.id, label: item.label, items })
+    }
+  }
+  const other = buckets.get("_other")
+  if (other?.length) {
+    sections.push({ id: "_other", label: "Outras", items: other })
+  }
+  return sections
+}
+
 function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
   const groups: {
     key: string
@@ -328,6 +364,7 @@ export function ConversationColumn({
   const urgency = urgencyCount ?? conversations.filter((c) => c.urgent).length
 
   const selectedQueueIds = selectedTabIds ?? (tabs[activeTab]?.id ? [tabs[activeTab]!.id!] : [])
+  const queueSections = groupConversationsByQueue(displayed, selectedQueueIds)
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
   const currentTab = selectedItems[0] ?? tabs[activeTab]
@@ -369,10 +406,12 @@ export function ConversationColumn({
     if (!el) return
     const r = el.getBoundingClientRect()
     const top = r.bottom + 6
+    const width = Math.max(r.width, 400)
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
     setDropdownPos({
       top,
-      left: r.left,
-      width: r.width,
+      left,
+      width,
       maxHeight: Math.max(220, window.innerHeight - top - 12),
     })
     function onDocClick(e: MouseEvent) {
@@ -516,7 +555,7 @@ export function ConversationColumn({
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
-              width: Math.max(dropdownPos.width, 300),
+              width: dropdownPos.width,
               maxHeight: dropdownPos.maxHeight,
               isolation: "isolate",
             }}
@@ -629,9 +668,9 @@ export function ConversationColumn({
                 </div>
               ))}
             </div>
-            <p className="flex items-center gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-1.5 font-body text-[11px] text-[var(--text-muted)]">
-              <IconInfoCircle size={13} className="shrink-0" />
-              Marque várias filas para ver juntas. Contagens por fila.
+            <p className="flex shrink-0 items-start gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-2 font-body text-[11px] leading-snug text-[var(--text-muted)]">
+              <IconInfoCircle size={13} className="mt-px shrink-0" />
+              <span>Marque várias filas para ver juntas. Contagens por fila.</span>
             </p>
           </div>,
           document.body,
@@ -707,23 +746,36 @@ export function ConversationColumn({
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : (
           <>
-            {displayed.map((conversation) => {
-              const slots = renderCardSlots?.(conversation)
-              return (
-                <ConversationCard
-                  key={conversation.id}
-                  conversation={{
-                    ...conversation,
-                    active: conversation.id === activeConversationId,
-                  }}
-                  onClick={() => onSelectConversation?.(conversation.id)}
-                  assigneeSlot={slots?.assigneeSlot}
-                  selectionMode={selectionMode}
-                  selected={selectedIds?.has(conversation.id) ?? false}
-                  onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
-                />
-              )
-            })}
+            {queueSections.map((section) => (
+              <div key={section.id ?? "flat"} className="flex flex-col gap-1.5">
+                {section.label ? (
+                  <p className="sticky top-0 z-10 bg-[var(--glass-bg-panel)] px-1 pb-0.5 pt-1 font-display text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    {section.label}
+                    <span className="ml-1.5 font-semibold tabular-nums normal-case tracking-normal text-[var(--text-muted)]">
+                      {section.items.length}
+                    </span>
+                  </p>
+                ) : null}
+                {section.items.map((conversation) => {
+                  const slots = renderCardSlots?.(conversation)
+                  return (
+                    <ConversationCard
+                      key={conversation.id}
+                      conversation={{
+                        ...conversation,
+                        active: conversation.id === activeConversationId,
+                      }}
+                      onClick={() => onSelectConversation?.(conversation.id)}
+                      assigneeSlot={slots?.assigneeSlot}
+                      menuSlot={slots?.menuSlot}
+                      selectionMode={selectionMode}
+                      selected={selectedIds?.has(conversation.id) ?? false}
+                      onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
+                    />
+                  )
+                })}
+              </div>
+            ))}
             {displayed.length === 0 && !isLoadingMore && (
               <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
                 Nenhuma conversa encontrada.
