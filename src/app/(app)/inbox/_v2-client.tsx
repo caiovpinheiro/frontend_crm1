@@ -109,7 +109,7 @@ import {
 } from "@/features/inbox-v2/extras/channel-switch-confirm";
 import type { ConversationListRow } from "@/features/inbox-v2/api";
 import { postConversationAction } from "@/features/inbox-v2/api";
-import { inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { inboxQueueSectionFor, inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -1219,8 +1219,11 @@ export default function InboxV2ClientPage({
     () =>
       displayRows
         .filter(Boolean)
-        .map((r) => toConversationCard(r, { active: r.id === activeId })),
-    [displayRows, activeId],
+        .map((r) => ({
+          ...toConversationCard(r, { active: r.id === activeId }),
+          queueTab: inboxQueueSectionFor(r, tab),
+        })),
+    [displayRows, activeId, tab],
   );
   const contactName = activeRow?.contact?.name ?? "";
   const pinnedMessageIds = useMemo(
