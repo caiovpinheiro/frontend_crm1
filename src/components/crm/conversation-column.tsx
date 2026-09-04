@@ -633,36 +633,37 @@ export function ConversationColumn({
       {/* Uma linha: filas | Clock (2+) | refresh | mais — densidade h-9 */}
       <div className="mb-2 flex items-center gap-1.5">
         <div data-tour="inbox-queues" className="mr-0.5 min-w-0 flex-1">
-          <TooltipGlass label={triggerTitle} side="bottom">
-            <button
-              ref={dropdownBtnRef}
-              type="button"
-              onClick={() => setDropdownOpen((v) => !v)}
-              aria-haspopup="listbox"
-              aria-expanded={dropdownOpen}
-              aria-label={triggerTitle}
-              className="flex h-9 min-w-0 w-full flex-1 items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm"
-            >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Copy className="h-3.5 w-3.5" aria-hidden />
+          {/* Sem TooltipGlass no gatilho: Radix Trigger asChild compete com o
+              ref/posicionamento do portal e a modal de filas não abria. */}
+          <button
+            ref={dropdownBtnRef}
+            type="button"
+            onClick={() => setDropdownOpen((v) => !v)}
+            title={triggerTitle}
+            aria-haspopup="listbox"
+            aria-expanded={dropdownOpen}
+            aria-label={triggerTitle}
+            className="flex h-9 min-w-0 w-full flex-1 items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm"
+          >
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Copy className="h-3.5 w-3.5" aria-hidden />
+            </span>
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+              {currentTabLabel}
+            </span>
+            {currentTabCount != null && (
+              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
+                {currentTabCount.toLocaleString("pt-BR")}
               </span>
-              <span className="min-w-0 truncate text-sm font-semibold text-foreground">
-                {currentTabLabel}
-              </span>
-              {currentTabCount != null && (
-                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
-                  {currentTabCount.toLocaleString("pt-BR")}
-                </span>
+            )}
+            <ChevronDown
+              className={cn(
+                "ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                dropdownOpen && "rotate-180",
               )}
-              <ChevronDown
-                className={cn(
-                  "ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
-                  dropdownOpen && "rotate-180",
-                )}
-                aria-hidden
-              />
-            </button>
-          </TooltipGlass>
+              aria-hidden
+            />
+          </button>
         </div>
         {selectedQueueIds.length >= 2 ? (
           <TooltipGlass label={ORDENACAO_ROTULOS[ordenacao]} side="bottom">
