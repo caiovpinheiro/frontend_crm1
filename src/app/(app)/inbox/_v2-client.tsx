@@ -1346,50 +1346,50 @@ export default function InboxV2ClientPage({
   const [soundMuted, setSoundMuted] = useInboxSoundMuted();
   const columnMoreMenuNode = (
     <div data-tour="inbox-list-more" className="relative shrink-0">
-    <DropdownGlass
-      matchTriggerWidth={false}
-      className="min-w-[220px]"
-      align="end"
-      options={[
-        {
-          value: "sound",
-          label: "Notificações",
-          icon: soundMuted ? <IconBellOff size={15} /> : <IconBell size={15} />,
-          trailing: !soundMuted ? (
-            <IconCircleCheck size={15} className="text-[var(--brand-primary)]" />
-          ) : undefined,
-        },
-        {
-          value: "select",
-          label: "Seleção de múltiplas",
-          icon: <IconSquareCheck size={15} />,
-          trailing: selectionMode ? (
-            <IconCircleCheck size={15} className="text-[var(--brand-primary)]" />
-          ) : undefined,
-        },
-      ]}
-      onValueChange={(v) => {
-        if (v === "sound") setSoundMuted(!soundMuted);
-        if (v === "select") {
-          if (selectionMode) exitSelectionMode();
-          else setSelectionMode(true);
+      <DropdownGlass
+        matchTriggerWidth={false}
+        className="min-w-[220px]"
+        align="end"
+        options={[
+          {
+            value: "sound",
+            label: "Notificações",
+            icon: soundMuted ? <IconBellOff size={15} /> : <IconBell size={15} />,
+            trailing: !soundMuted ? (
+              <IconCircleCheck size={15} className="text-[var(--brand-primary)]" />
+            ) : undefined,
+          },
+          {
+            value: "select",
+            label: "Seleção de múltiplas",
+            icon: <IconSquareCheck size={15} />,
+            trailing: selectionMode ? (
+              <IconCircleCheck size={15} className="text-[var(--brand-primary)]" />
+            ) : undefined,
+          },
+        ]}
+        onValueChange={(v) => {
+          if (v === "sound") setSoundMuted(!soundMuted);
+          if (v === "select") {
+            if (selectionMode) exitSelectionMode();
+            else setSelectionMode(true);
+          }
+        }}
+        trigger={
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-label="Abrir menu de opções"
+            className="group flex h-11 w-11 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+          >
+            <Plus
+              className="h-5 w-5 transition-transform group-data-[state=open]:rotate-45"
+              aria-hidden
+            />
+            <span className="sr-only">Abrir menu de opções</span>
+          </button>
         }
-      }}
-      trigger={
-        <button
-          type="button"
-          aria-haspopup="menu"
-          aria-label="Abrir menu de opções"
-          className="group flex shrink-0 items-center justify-center p-1 text-primary transition-colors hover:text-primary/80"
-        >
-          <Plus
-            className="h-6 w-6 transition-transform group-data-[state=open]:rotate-45"
-            aria-hidden
-          />
-          <span className="sr-only">Abrir menu de opções</span>
-        </button>
-      }
-    />
+      />
     </div>
   );
 
