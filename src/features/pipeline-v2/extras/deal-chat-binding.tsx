@@ -456,11 +456,84 @@ export function useDealChatBinding(params: {
   const [olderArmed, setOlderArmed] = useState(false);
   const pinSettledRef = useRef(false);
   const viewportPrefetchDoneRef = useRef<string | null>(null);
+  const pendingJumpIdRef = useRef<string | null>(null);
+  const jumpAttemptsRef = useRef(0);
+  const MAX_JUMP_OLDER_PAGES = 40;
+
   useEffect(() => {
     setOlderArmed(false);
     pinSettledRef.current = false;
     viewportPrefetchDoneRef.current = null;
+    pendingJumpIdRef.current = null;
+    jumpAttemptsRef.current = 0;
   }, [effectiveConversationId]);
+
+  const highlightMessage = useCallback((messageId: string) => {
+    setHighlightId(messageId);
+    window.setTimeout(
+      () => setHighlightId((cur) => (cur === messageId ? null : cur)),
+      1600,
+    );
+  }, []);
+
+  const findJumpTargetEl = useCallback((messageId: string) => {
+    const els = document.querySelectorAll<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`,
+    );
+    return els[els.length - 1] ?? null;
+  }, []);
+
+  const scrollToMessage = useCallback(
+    (messageId: string) => {
+      const el = findJumpTargetEl(messageId);
+      if (el) {
+        pendingJumpIdRef.current = null;
+        jumpAttemptsRef.current = 0;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        highlightMessage(messageId);
+        return;
+      }
+      if (!hasOlder && !hasOlderTickets) return;
+      pendingJumpIdRef.current = messageId;
+      jumpAttemptsRef.current = 0;
+      setOlderArmed(true);
+      setShowScrollDown(true);
+      if (!isFetchingOlder) void fetchOlderRef.current();
+    },
+    [findJumpTargetEl, highlightMessage, hasOlder, hasOlderTickets, isFetchingOlder],
+  );
+
+  useEffect(() => {
+    const id = pendingJumpIdRef.current;
+    if (!id) return;
+    const el = findJumpTargetEl(id);
+    if (el) {
+      pendingJumpIdRef.current = null;
+      jumpAttemptsRef.current = 0;
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        highlightMessage(id);
+      });
+      return;
+    }
+    if (isFetchingOlder) return;
+    const canPage = hasOlder || hasOlderTickets;
+    if (!canPage || jumpAttemptsRef.current >= MAX_JUMP_OLDER_PAGES) {
+      pendingJumpIdRef.current = null;
+      jumpAttemptsRef.current = 0;
+      return;
+    }
+    jumpAttemptsRef.current += 1;
+    void fetchOlderRef.current();
+  }, [
+    bubbles,
+    isFetchingOlder,
+    hasOlder,
+    hasOlderTickets,
+    findJumpTargetEl,
+    highlightMessage,
+  ]);
+
   useEffect(() => {
     if (!hasOlder || isFetchingOlder) return;
     const el = findScrollEl();
@@ -566,20 +639,6 @@ export function useDealChatBinding(params: {
       setUnreadCount((n) => n + 1);
     }
   }, [bubbles, effectiveConversationId, findScrollEl, scrollToEnd, hasOlderTickets]);
-
-  const scrollToMessage = useCallback((messageId: string) => {
-    // O chat do deal fica num drawer; pode haver a mesma âncora montada no
-    // inbox por baixo. Pega a ÚLTIMA ocorrência no DOM (o drawer é renderizado
-    // depois) pra rolar dentro do painel certo.
-    const els = document.querySelectorAll<HTMLElement>(
-      `[data-message-id="${CSS.escape(messageId)}"]`,
-    );
-    const el = els[els.length - 1];
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setHighlightId(messageId);
-    window.setTimeout(() => setHighlightId((cur) => (cur === messageId ? null : cur)), 1600);
-  }, []);
 
   const handleBannerClick = useCallback(() => {
     if (pinnedMessagesPreview.length === 0) return;
