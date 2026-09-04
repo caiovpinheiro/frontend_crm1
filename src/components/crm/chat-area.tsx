@@ -276,29 +276,6 @@ export function ChatArea({
       setActivePinIndex(0)
     }
   }, [pins.length, activePinIndex])
-
-  // Rola até a mensagem fixada e a destaca por ~1.6s (estilo WhatsApp).
-  const scrollToMessage = useCallback((messageId: string) => {
-    const container = messagesRef.current
-    if (!container) return
-    const el = container.querySelector<HTMLElement>(
-      `[data-message-id="${CSS.escape(messageId)}"]`,
-    )
-    if (!el) return
-    el.scrollIntoView({ behavior: "smooth", block: "center" })
-    setHighlightId(messageId)
-    window.setTimeout(() => setHighlightId((cur) => (cur === messageId ? null : cur)), 1600)
-  }, [])
-
-  // Clique no banner: rola até a fixada atual e avança pra próxima (ciclo).
-  const handleBannerClick = useCallback(() => {
-    if (pins.length === 0) return
-    const current = pins[Math.min(activePinIndex, pins.length - 1)]
-    if (current) scrollToMessage(current.id)
-    if (pins.length > 1) {
-      setActivePinIndex((i) => (i + 1) % pins.length)
-    }
-  }, [pins, activePinIndex, scrollToMessage])
   const isControlled = onSendMessage !== undefined
   const { data: session } = useSession()
 
@@ -371,6 +348,90 @@ export function ChatArea({
   const [olderArmed, setOlderArmed] = useState(false)
   const pinSettledRef = useRef(false)
   const viewportPrefetchDoneRef = useRef<string | null>(null)
+  // Citação/pin fora da fatia: pagina older (mesmo path do scroll-up)
+  // até achar a âncora — sem mudar open/prefetch/gesto.
+  const pendingJumpIdRef = useRef<string | null>(null)
+  const jumpAttemptsRef = useRef(0)
+  const MAX_JUMP_OLDER_PAGES = 40
+
+  const highlightMessage = useCallback((messageId: string) => {
+    setHighlightId(messageId)
+    window.setTimeout(
+      () => setHighlightId((cur) => (cur === messageId ? null : cur)),
+      1600,
+    )
+  }, [])
+
+  const findMessageEl = useCallback((messageId: string) => {
+    const container = messagesRef.current
+    if (!container) return null
+    return container.querySelector<HTMLElement>(
+      `[data-message-id="${CSS.escape(messageId)}"]`,
+    )
+  }, [])
+
+  const scrollToMessage = useCallback(
+    (messageId: string) => {
+      const el = findMessageEl(messageId)
+      if (el) {
+        pendingJumpIdRef.current = null
+        jumpAttemptsRef.current = 0
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+        highlightMessage(messageId)
+        return
+      }
+      if (!onLoadOlderRef.current) return
+      const canPage = hasOlder || hasOlderTickets
+      if (!canPage) return
+      pendingJumpIdRef.current = messageId
+      jumpAttemptsRef.current = 0
+      stickToBottomRef.current = false
+      setOlderArmed(true)
+      setShowScrollDown(true)
+      if (!isLoadingOlder) onLoadOlderRef.current()
+    },
+    [findMessageEl, highlightMessage, hasOlder, hasOlderTickets, isLoadingOlder],
+  )
+
+  useEffect(() => {
+    const id = pendingJumpIdRef.current
+    if (!id) return
+    const el = findMessageEl(id)
+    if (el) {
+      pendingJumpIdRef.current = null
+      jumpAttemptsRef.current = 0
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+        highlightMessage(id)
+      })
+      return
+    }
+    if (isLoadingOlder) return
+    const canPage = hasOlder || hasOlderTickets
+    if (!canPage || jumpAttemptsRef.current >= MAX_JUMP_OLDER_PAGES) {
+      pendingJumpIdRef.current = null
+      jumpAttemptsRef.current = 0
+      return
+    }
+    jumpAttemptsRef.current += 1
+    onLoadOlderRef.current?.()
+  }, [
+    messages,
+    isLoadingOlder,
+    hasOlder,
+    hasOlderTickets,
+    findMessageEl,
+    highlightMessage,
+  ])
+
+  const handleBannerClick = useCallback(() => {
+    if (pins.length === 0) return
+    const current = pins[Math.min(activePinIndex, pins.length - 1)]
+    if (current) scrollToMessage(current.id)
+    if (pins.length > 1) {
+      setActivePinIndex((i) => (i + 1) % pins.length)
+    }
+  }, [pins, activePinIndex, scrollToMessage])
 
   const pinToBottom = (container: HTMLElement) => {
     container.scrollTop = container.scrollHeight - container.clientHeight
@@ -421,6 +482,8 @@ export function ChatArea({
       pinSettledRef.current = false
       viewportPrefetchDoneRef.current = null
       stickToBottomRef.current = true
+      pendingJumpIdRef.current = null
+      jumpAttemptsRef.current = 0
       setShowScrollDown(false)
       setUnreadCount(0)
       prevFirstIdRef.current = null
