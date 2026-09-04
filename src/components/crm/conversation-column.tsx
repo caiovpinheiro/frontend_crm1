@@ -921,7 +921,7 @@ export function ConversationColumn({
         data-tour="inbox-list"
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0.5 [-webkit-overflow-scrolling:touch]"
       >
-        <div className="flex min-h-full flex-col gap-1.5">
+        <div className="flex min-h-full flex-col gap-2">
         {isLoading ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : noQueuesSelected ? (
@@ -953,7 +953,7 @@ export function ConversationColumn({
 
               if (!section.id || !section.label) {
                 return (
-                  <div key="flat" className="flex flex-col gap-1.5">
+                  <div key="flat" className="flex flex-col gap-2">
                     {renderCards(section.items)}
                   </div>
                 )

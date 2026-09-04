@@ -248,24 +248,18 @@ export function ConversationCard({
         if ((e.target as HTMLElement | null)?.closest?.("a")) e.preventDefault()
       }}
       className={cn(
-        // Borda trocada para `--glass-border-subtle` (0.30 alpha vs 0.55):
-        // alinha com a referência v0 que tem cards "flutuando" sem
-        // contorno explícito.
         // shrink-0: a lista é flex-col + overflow-y-auto — sem isso, N cards
         // comprimem (flex-shrink:1) em barras cinza uniformes.
-        "relative shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-lg)] border border-transparent shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-all duration-200",
-        // Nao-selecionado: fundo cinza clarinho (mais opaco / menos "branco puro")
-        // pra contrastar com o card selecionado. Hover intensifica levemente.
-        "bg-[color-mix(in_srgb,var(--glass-bg-overlay)_60%,rgba(148,163,184,0.10))]",
-        "hover:bg-[var(--glass-bg-overlay)]",
-        // Selecionado: fundo branco + ring inset (ring externo era clipado
-        // pelo overflow-y-auto da lista — 1º card perdia a borda de cima).
+        "relative shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-[var(--glass-shadow-sm)] transition-[border-color,box-shadow,background-color] duration-200",
+        "hover:border-primary/40 hover:shadow-[var(--glass-shadow)]",
+        // Selecionado: ring inset (ring externo era clipado pelo
+        // overflow-y-auto da lista — 1º card perdia a borda de cima).
         conversation.active &&
-          "bg-white border-[var(--brand-primary)]/55 ring-2 ring-inset ring-[var(--brand-primary)]/30 shadow-[0_2px_8px_rgba(91,111,245,0.12)] hover:bg-white",
+          "border-[var(--brand-primary)]/55 bg-card ring-2 ring-inset ring-[var(--brand-primary)]/30 shadow-[var(--shadow-indigo-glow)] hover:border-[var(--brand-primary)]/55 hover:bg-card hover:shadow-[var(--shadow-indigo-glow)]",
         conversation.inactive && "opacity-70",
         // Marcada (modo seleção): mesmo anel do brand, sem exigir foco/hover.
         selectionMode && selected &&
-          "bg-white border-[var(--brand-primary)]/55 ring-2 ring-inset ring-[var(--brand-primary)]/30 hover:bg-white",
+          "border-[var(--brand-primary)]/55 bg-card ring-2 ring-inset ring-[var(--brand-primary)]/30 hover:border-[var(--brand-primary)]/55 hover:bg-card",
       )}
     >
       <div className="px-3 py-2 @max-[280px]:px-2 @max-[280px]:py-1.5">
