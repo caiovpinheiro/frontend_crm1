@@ -1379,9 +1379,9 @@ export default function InboxV2ClientPage({
         <button
           type="button"
           aria-label="Mais opções da lista"
-          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary data-[state=open]:border-primary data-[state=open]:bg-primary data-[state=open]:text-primary-foreground"
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary data-[state=open]:border-primary data-[state=open]:bg-primary data-[state=open]:text-primary-foreground"
         >
-          <IconChevronDown size={20} stroke={2.4} />
+          <IconChevronDown size={18} stroke={2.4} />
         </button>
       }
     />

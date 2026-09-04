@@ -593,7 +593,7 @@ export function ConversationColumn({
       )}
 
       {/* Uma linha: filas | Clock (2+) | refresh | mais */}
-      <div className="mb-2 flex items-center gap-3">
+      <div className="mb-2 flex items-center gap-1.5">
         <div data-tour="inbox-queues" className="min-w-0 flex-1">
           <button
             ref={dropdownBtnRef}
@@ -638,13 +638,13 @@ export function ConversationColumn({
               setAndPersistMultiQueueView(porTempo ? "by-queue" : "by-time")
             }
             className={cn(
-              "flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow-sm transition-colors",
+              "flex size-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-colors",
               porTempo
                 ? "bg-primary text-primary-foreground"
                 : "bg-card text-muted-foreground",
             )}
           >
-            <Clock className="size-5" aria-hidden />
+            <Clock className="size-[18px]" aria-hidden />
             <span className="sr-only">
               {porTempo
                 ? "Visão por tempo ativa. Clique para agrupar por fila."
@@ -661,12 +661,12 @@ export function ConversationColumn({
               disabled={isRefreshing}
               data-tour="inbox-refresh"
               className={cn(
-                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-primary disabled:opacity-60",
+                "flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-primary disabled:opacity-60",
                 isRefreshing && "text-primary",
               )}
             >
               <IconRefresh
-                size={20}
+                size={18}
                 stroke={2}
                 className={cn(isRefreshing && "animate-spin")}
               />
