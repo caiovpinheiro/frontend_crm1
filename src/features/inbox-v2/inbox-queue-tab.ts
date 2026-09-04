@@ -23,7 +23,7 @@ function lastMessageDirection(row: ConversationListRow): "in" | "out" | null {
  *  `hasAgentReply` vier true tratamos como reply contável (seguro p/ abas). */
 function hasCountableReply(row: ConversationListRow): boolean | null {
   if (row.hasHumanReply === true || row.hasAgentReply === true) return true;
-  if (row.hasHumanReply === false && row.hasAgentReply !== true) return false;
+  if (row.hasHumanReply === false) return false;
   return null;
 }
 
