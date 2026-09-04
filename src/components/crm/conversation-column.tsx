@@ -15,12 +15,11 @@ import {
   IconSparkles,
   IconAlertTriangle,
   IconInfoCircle,
-  IconRefresh,
   IconPhone,
   IconCheck,
   type Icon as TablerIcon,
 } from "@tabler/icons-react"
-import { Clock } from "lucide-react"
+import { Clock, RefreshCw } from "lucide-react"
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -493,9 +492,6 @@ export function ConversationColumn({
   const selectedQueueSum = inboxQueueSelectedCount(selectedQueueIds, queueCounts)
   // 1 fila: badge daquela fila. 2+: "N Filas" + soma das parcelas — nunca list.total.
   const currentTabCount = selectedQueueSum
-  const currentVisual = isMulti
-    ? { Icon: IconMessages, bg: "var(--color-enterprise-bg)", fg: "var(--brand-primary)" }
-    : statusVisual(currentTab)
   const triggerTitle = isMulti
     ? selectedItems.map((t) => t.label).join(", ")
     : (currentTab?.title ?? currentTab?.label)
@@ -593,7 +589,7 @@ export function ConversationColumn({
       )}
 
       {/* Uma linha: filas | Clock (2+) | refresh | mais */}
-      <div className="mb-2 flex items-center gap-1.5">
+      <div className="mb-2 flex items-center gap-3">
         <div data-tour="inbox-queues" className="min-w-0 flex-1">
           <button
             ref={dropdownBtnRef}
@@ -602,28 +598,20 @@ export function ConversationColumn({
             title={triggerTitle}
             aria-haspopup="listbox"
             aria-expanded={dropdownOpen}
-            className="flex h-10 min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)]"
+            className="flex min-w-0 w-full flex-1 items-center gap-3 rounded-full border border-border bg-card px-5 py-2.5 text-left shadow-sm"
           >
-            <span
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-              style={{ background: currentVisual.bg, color: currentVisual.fg }}
-            >
-              <currentVisual.Icon size={15} stroke={2.2} />
+            <span className="min-w-0 truncate text-base font-semibold text-foreground">
+              {currentTabLabel}
             </span>
-            <span className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span className="min-w-0 truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
-                {currentTabLabel}
+            {currentTabCount != null && (
+              <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-2 text-sm font-semibold text-primary-foreground tabular-nums">
+                {currentTabCount.toLocaleString("pt-BR")}
               </span>
-              {currentTabCount != null && (
-                <span className="shrink-0 rounded-full bg-[var(--brand-primary)] px-1.5 py-px text-[10.5px] font-bold tabular-nums text-white">
-                  {currentTabCount.toLocaleString("pt-BR")}
-                </span>
-              )}
-            </span>
+            )}
             <IconChevronDown
-              size={15}
+              size={16}
               className={cn(
-                "shrink-0 text-[var(--text-muted)] transition-transform",
+                "ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform",
                 dropdownOpen && "rotate-180",
               )}
             />
@@ -638,13 +626,13 @@ export function ConversationColumn({
               setAndPersistMultiQueueView(porTempo ? "by-queue" : "by-time")
             }
             className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-full shadow-sm transition-colors",
+              "flex shrink-0 items-center justify-center p-1 transition-colors",
               porTempo
-                ? "bg-primary text-primary-foreground"
-                : "bg-card text-muted-foreground",
+                ? "text-amber-500 hover:text-amber-500"
+                : "text-muted-foreground hover:text-amber-500",
             )}
           >
-            <Clock className="size-[18px]" aria-hidden />
+            <Clock className="h-6 w-6" aria-hidden />
             <span className="sr-only">
               {porTempo
                 ? "Visão por tempo ativa. Clique para agrupar por fila."
@@ -660,15 +648,11 @@ export function ConversationColumn({
               onClick={() => onRefresh()}
               disabled={isRefreshing}
               data-tour="inbox-refresh"
-              className={cn(
-                "flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-primary disabled:opacity-60",
-                isRefreshing && "text-primary",
-              )}
+              className="flex shrink-0 items-center justify-center p-1 text-emerald-600 transition-colors hover:text-emerald-700 disabled:opacity-60"
             >
-              <IconRefresh
-                size={18}
-                stroke={2}
-                className={cn(isRefreshing && "animate-spin")}
+              <RefreshCw
+                className={cn("h-6 w-6", isRefreshing && "animate-spin")}
+                aria-hidden
               />
             </button>
           </TooltipGlass>
