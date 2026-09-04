@@ -33,6 +33,8 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TagChip } from "@/components/crm/tag-chip";
+import { SendToChatTrigger } from "@/features/team-chat/send-to-chat-dialog";
+import { IconMessage } from "@tabler/icons-react";
 
 import { NavRail } from "@/components/crm/nav-rail";
 import { ConversationColumn } from "@/components/crm/conversation-column";
@@ -330,8 +332,12 @@ export default function InboxV2ClientPage({
     }
     const allowed = new Set(visibleTabs.map((t) => t.id));
     const next = tab.filter((t) => allowed.has(t));
+    // Seleção vazia é válida (empty state). Só força default quando havia
+    // filas selecionadas e todas ficaram inválidas para o papel.
     if (next.length === 0) {
-      setTab([visibleTabs[0]?.id ?? DEFAULT_INBOX_TAB]);
+      if (tab.length > 0) {
+        setTab([visibleTabs[0]?.id ?? DEFAULT_INBOX_TAB]);
+      }
     } else if (next.length !== tab.length) {
       setTab(next);
     }
@@ -477,7 +483,8 @@ export default function InboxV2ClientPage({
     // Só busca depois da sessão + prefs (tab/filtros do localStorage).
     // Sem isso: (1) query disabled → isLoading=false → empty flash;
     // (2) fetch com tab default "esperando" antes de hidratar a aba salva.
-    enabled: isAuthenticated && tabHydrated && filtersHydrated,
+    // Sem filas selecionadas → empty state (não busca).
+    enabled: isAuthenticated && tabHydrated && filtersHydrated && tab.length > 0,
   });
   const handleLoadMore = useCallback(() => {
     if (!hasNextPage || isFetchingNextPage || isPlaceholderData) return;
@@ -492,7 +499,10 @@ export default function InboxV2ClientPage({
     sessionStatus === "loading" ||
     !tabHydrated ||
     !filtersHydrated ||
-    (isAuthenticated && !listData && !isListError);
+    (isAuthenticated &&
+      tab.length > 0 &&
+      !listData &&
+      !isListError);
 
   // Ordena (default: última atividade primeiro) e filtra a janela de 24h.
   // Usa `lastMessageAt` (com fallback p/ `lastInboundAt`) para casar a ordem
@@ -1369,9 +1379,9 @@ export default function InboxV2ClientPage({
         <button
           type="button"
           aria-label="Mais opções da lista"
-          className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 text-[var(--text-muted)] shadow-[var(--glass-shadow-sm)] transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] data-[state=open]:border-[var(--brand-primary)] data-[state=open]:bg-[var(--brand-primary)] data-[state=open]:text-white"
+          className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary data-[state=open]:border-primary data-[state=open]:bg-primary data-[state=open]:text-primary-foreground"
         >
-          <IconChevronDown size={16} stroke={2.4} />
+          <IconChevronDown size={20} stroke={2.4} />
         </button>
       }
     />
@@ -1576,6 +1586,14 @@ export default function InboxV2ClientPage({
       isLoading={listBootstrapping}
       className="h-full min-h-0"
       renderCardSlots={(c) => ({
+        menuSlot: (
+          <SendToChatTrigger
+            target={{ type: "conversation", id: c.id, number: c.number ?? null }}
+            className="grid size-6 place-items-center rounded-full text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)]"
+          >
+            <IconMessage size={13} stroke={2} />
+          </SendToChatTrigger>
+        ),
         assigneeSlot: (
           <RequirePermission
             permission="conversation:reassign_others"
