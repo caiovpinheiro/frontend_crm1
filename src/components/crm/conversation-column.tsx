@@ -588,9 +588,9 @@ export function ConversationColumn({
         </div>
       )}
 
-      {/* Uma linha: filas | Clock (2+) | refresh | mais — todos h-11 */}
-      <div className="mb-2 flex items-center gap-2">
-        <div data-tour="inbox-queues" className="mr-1 min-w-0 flex-1">
+      {/* Uma linha: filas | Clock (2+) | refresh | mais — densidade h-10 */}
+      <div className="mb-2 flex items-center gap-1.5">
+        <div data-tour="inbox-queues" className="mr-0.5 min-w-0 flex-1">
           <button
             ref={dropdownBtnRef}
             type="button"
@@ -598,44 +598,45 @@ export function ConversationColumn({
             title={triggerTitle}
             aria-haspopup="listbox"
             aria-expanded={dropdownOpen}
-            className="flex h-11 min-w-0 w-full flex-1 items-center gap-2.5 rounded-full border border-border bg-card px-2.5 text-left shadow-sm"
+            className="flex h-10 min-w-0 w-full flex-1 items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Copy className="h-4 w-4" aria-hidden />
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Copy className="h-3.5 w-3.5" aria-hidden />
             </span>
-            <span className="min-w-0 truncate text-[15px] font-semibold text-foreground">
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
               {currentTabLabel}
             </span>
             {currentTabCount != null && (
-              <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground tabular-nums">
+              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[10.5px] font-semibold text-primary-foreground tabular-nums">
                 {currentTabCount.toLocaleString("pt-BR")}
               </span>
             )}
             <ChevronDown
               className={cn(
-                "ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                "ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
                 dropdownOpen && "rotate-180",
               )}
               aria-hidden
             />
           </button>
         </div>
-        {isMulti ? (
+        {selectedQueueIds.length >= 2 ? (
           <button
             type="button"
+            data-tour="inbox-multi-queue-view"
             aria-pressed={porTempo}
             title={porTempo ? "Por hora (ligado)" : "Por fila (desligado)"}
             onClick={() =>
               setAndPersistMultiQueueView(porTempo ? "by-queue" : "by-time")
             }
             className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm transition-colors",
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-colors",
               porTempo
-                ? "bg-amber-500 text-white"
-                : "bg-card text-muted-foreground hover:text-amber-500",
+                ? "border-amber-500 bg-amber-500 text-amber-950"
+                : "border-border bg-card text-muted-foreground hover:text-amber-600",
             )}
           >
-            <Clock className="h-5 w-5" aria-hidden />
+            <Clock className="h-4 w-4" aria-hidden />
             <span className="sr-only">
               {porTempo
                 ? "Por hora (ligado). Clique para agrupar por fila."
@@ -651,10 +652,10 @@ export function ConversationColumn({
               onClick={() => onRefresh()}
               disabled={isRefreshing}
               data-tour="inbox-refresh"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground disabled:opacity-60"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground disabled:opacity-60"
             >
               <RefreshCw
-                className={cn("h-5 w-5", isRefreshing && "animate-spin")}
+                className={cn("h-4 w-4", isRefreshing && "animate-spin")}
                 aria-hidden
               />
             </button>

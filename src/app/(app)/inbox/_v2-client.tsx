@@ -1381,10 +1381,10 @@ export default function InboxV2ClientPage({
             type="button"
             aria-haspopup="menu"
             aria-label="Abrir menu de opções"
-            className="group flex h-11 w-11 items-center justify-center rounded-full bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+            className="group flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground"
           >
             <Plus
-              className="h-5 w-5 transition-transform group-data-[state=open]:rotate-45"
+              className="h-4 w-4 transition-transform group-data-[state=open]:rotate-45"
               aria-hidden
             />
             <span className="sr-only">Abrir menu de opções</span>
