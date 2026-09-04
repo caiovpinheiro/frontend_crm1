@@ -268,21 +268,28 @@ function groupConversationsByQueue(
 
 const COLLAPSED_QUEUES_KEY = "inbox:collapsed-queues"
 const MULTI_QUEUE_ORDENACAO_KEY = "inbox:multi-queue-ordenacao"
-/** @deprecated migrado para `inbox:multi-queue-ordenacao` (0|1|2|3) */
+/** @deprecated migrado para `inbox:multi-queue-ordenacao` (0|1|2) */
 const MULTI_QUEUE_VIEW_KEY_LEGACY = "inbox:multi-queue-view"
 
-/** 0 = Por fila | 1 = Por hora | 2 = novo→velho | 3 = velho→novo */
-type Ordenacao = 0 | 1 | 2 | 3
+/** 0 = Por fila | 1 = Mais novas primeiro | 2 = Mais antigas primeiro */
+type Ordenacao = 0 | 1 | 2
 
 const ORDENACAO_ROTULOS = [
   "Por fila",
-  "Por hora",
   "Mais novas primeiro",
   "Mais antigas primeiro",
 ] as const
 
 function isOrdenacao(v: number): v is Ordenacao {
-  return v === 0 || v === 1 || v === 2 || v === 3
+  return v === 0 || v === 1 || v === 2
+}
+
+/** Migra ciclo antigo 0|1|2|3 → 0|1|2 (remove o passo “Por hora” sem direção). */
+function migrateOrdenacao(n: number): Ordenacao {
+  if (n === 0) return 0
+  if (n === 1 || n === 2) return 1
+  if (n === 3) return 2
+  return 0
 }
 
 function readCollapsedQueues(): Set<string> {
@@ -316,7 +323,7 @@ function readOrdenacao(): Ordenacao {
     const raw = window.localStorage.getItem(MULTI_QUEUE_ORDENACAO_KEY)
     if (raw != null) {
       const n = Number(raw)
-      if (isOrdenacao(n)) return n
+      if (Number.isFinite(n)) return migrateOrdenacao(n)
     }
     const legacy = window.localStorage.getItem(MULTI_QUEUE_VIEW_KEY_LEGACY)
     if (legacy === "by-time") return 1
@@ -355,10 +362,8 @@ function flatItemsForOrdenacao(
   items: Conversation[],
   ordenacao: Ordenacao,
 ): Conversation[] {
-  if (ordenacao === 2) return sortConversationsByActivity(items, "desc")
-  if (ordenacao === 1 || ordenacao === 3) {
-    return sortConversationsByActivity(items, "asc")
-  }
+  if (ordenacao === 1) return sortConversationsByActivity(items, "desc")
+  if (ordenacao === 2) return sortConversationsByActivity(items, "asc")
   return items
 }
 
@@ -453,7 +458,7 @@ export function ConversationColumn({
   const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(
     () => new Set(),
   )
-  // 0 = Por fila | 1 = Por hora | 2 = novo→velho | 3 = velho→novo
+  // 0 = Por fila | 1 = Mais novas primeiro | 2 = Mais antigas primeiro
   // Só afeta apresentação — não refetch.
   const [ordenacao, setOrdenacao] = useState<Ordenacao>(0)
   useEffect(() => {
@@ -472,7 +477,7 @@ export function ConversationColumn({
   }
   const cycleOrdenacao = () => {
     setOrdenacao((v) => {
-      const next = ((v + 1) % 4) as Ordenacao
+      const next = ((v + 1) % 3) as Ordenacao
       writeOrdenacao(next)
       return next
     })
@@ -679,12 +684,12 @@ export function ConversationColumn({
               )}
             >
               <Clock className="h-4 w-4" aria-hidden />
-              {ordenacao === 2 ? (
+              {ordenacao === 1 ? (
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
                   <ArrowDown className="h-2.5 w-2.5" aria-hidden />
                 </span>
               ) : null}
-              {ordenacao === 3 ? (
+              {ordenacao === 2 ? (
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
                   <ArrowUp className="h-2.5 w-2.5" aria-hidden />
                 </span>
