@@ -1377,19 +1377,20 @@ export default function InboxV2ClientPage({
           }
         }}
         trigger={
-          <TooltipGlass label="Mais opções" side="bottom">
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-label="Abrir menu de opções"
-              className="group flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-            >
-              <Plus
-                className="h-4 w-4 transition-transform group-data-[state=open]:rotate-45"
-                aria-hidden
-              />
-            </button>
-          </TooltipGlass>
+          // TooltipGlass não pode envolver o trigger do DropdownGlass (asChild
+          // aninhado): o menu deixa de abrir.
+          <button
+            type="button"
+            title="Mais opções"
+            aria-haspopup="menu"
+            aria-label="Abrir menu de opções"
+            className="group flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          >
+            <Plus
+              className="h-4 w-4 transition-transform group-data-[state=open]:rotate-45"
+              aria-hidden
+            />
+          </button>
         }
       />
     </div>
