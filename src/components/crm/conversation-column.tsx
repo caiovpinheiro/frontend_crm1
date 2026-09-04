@@ -32,6 +32,7 @@ import { TooltipGlass } from "./tooltip-glass"
 import { ConversationCard, type Conversation } from "./conversation-card"
 import { CheckboxGlass } from "./checkbox-glass"
 import { QueueSection } from "@/features/inbox-v2/extras/queue-section"
+import { PageSegmentedControl } from "@/components/crm/page-toolbar"
 
 interface ConversationColumnProps {
   conversations: Conversation[]
@@ -260,6 +261,9 @@ function groupConversationsByQueue(
 }
 
 const COLLAPSED_QUEUES_KEY = "inbox:collapsed-queues"
+const MULTI_QUEUE_VIEW_KEY = "inbox:multi-queue-view"
+
+type MultiQueueView = "by-queue" | "by-time"
 
 function readCollapsedQueues(): Set<string> {
   if (typeof window === "undefined") return new Set()
@@ -284,6 +288,37 @@ function writeCollapsedQueues(ids: Set<string>) {
   } catch {
     /* localStorage indisponível */
   }
+}
+
+function readMultiQueueView(): MultiQueueView {
+  if (typeof window === "undefined") return "by-queue"
+  try {
+    const raw = window.localStorage.getItem(MULTI_QUEUE_VIEW_KEY)
+    if (raw === "by-time" || raw === "by-queue") return raw
+  } catch {
+    /* localStorage indisponível */
+  }
+  return "by-queue"
+}
+
+function writeMultiQueueView(mode: MultiQueueView) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(MULTI_QUEUE_VIEW_KEY, mode)
+  } catch {
+    /* localStorage indisponível */
+  }
+}
+
+/** Mesmo critério de `_v2-client` / `activityTs`: lastMessageAt ?? lastInboundAt. */
+function conversationActivityTs(c: Conversation): number {
+  return c.lastActivityAt ? Date.parse(c.lastActivityAt) || 0 : 0
+}
+
+function sortConversationsOldestFirst(items: Conversation[]): Conversation[] {
+  return [...items].sort(
+    (a, b) => conversationActivityTs(a) - conversationActivityTs(b),
+  )
 }
 
 function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
@@ -377,8 +412,12 @@ export function ConversationColumn({
   const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(
     () => new Set(),
   )
+  // Visão multi-fila: seções (default) vs lista plana cronológica.
+  // Só afeta apresentação — não refetch.
+  const [multiQueueView, setMultiQueueView] = useState<MultiQueueView>("by-queue")
   useEffect(() => {
     setCollapsedQueues(readCollapsedQueues())
+    setMultiQueueView(readMultiQueueView())
   }, [])
   const persistCollapsed = (next: Set<string>) => {
     setCollapsedQueues(next)
@@ -389,6 +428,10 @@ export function ConversationColumn({
     if (next.has(queueId)) next.delete(queueId)
     else next.add(queueId)
     persistCollapsed(next)
+  }
+  const setAndPersistMultiQueueView = (mode: MultiQueueView) => {
+    setMultiQueueView(mode)
+    writeMultiQueueView(mode)
   }
 
   const [internalTab, setInternalTab] = useState(0)
@@ -419,10 +462,24 @@ export function ConversationColumn({
   const urgency = urgencyCount ?? conversations.filter((c) => c.urgent).length
 
   const selectedQueueIds = selectedTabIds ?? (tabs[activeTab]?.id ? [tabs[activeTab]!.id!] : [])
-  const queueSections = groupConversationsByQueue(displayed, selectedQueueIds)
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
   const noQueuesSelected = selectedQueueIds.length === 0
+  // 2+ filas: "Por fila" = seções; "Por tempo" = lista plana (mais antigas primeiro).
+  // 0–1 fila: lista plana na ordem já carregada (toggle oculto).
+  const useQueueSections = isMulti && multiQueueView === "by-queue"
+  const queueSections = useQueueSections
+    ? groupConversationsByQueue(displayed, selectedQueueIds)
+    : [
+        {
+          id: null,
+          label: null,
+          items:
+            isMulti && multiQueueView === "by-time"
+              ? sortConversationsOldestFirst(displayed)
+              : displayed,
+        },
+      ]
   const currentTab = selectedItems[0] ?? tabs[activeTab]
   const queueCounts: Record<string, number> = {}
   for (const t of tabs) {
@@ -535,8 +592,8 @@ export function ConversationColumn({
       )}
 
       {/* Seletor de status + toggle de filtro na mesma linha */}
-      <div className="mb-2 flex items-center gap-2 @max-[240px]:gap-1">
-      <div data-tour="inbox-queues" className="flex min-w-0 flex-1">
+      <div className="mb-2 flex flex-wrap items-center gap-2 @max-[240px]:gap-1">
+      <div data-tour="inbox-queues" className="flex min-w-0 flex-1 basis-[12rem]">
       <button
         ref={dropdownBtnRef}
         type="button"
@@ -571,6 +628,19 @@ export function ConversationColumn({
         />
       </button>
       </div>
+      {isMulti ? (
+        <PageSegmentedControl
+          aria-label="Visão das filas selecionadas"
+          size="compact"
+          value={multiQueueView}
+          onChange={(v) => setAndPersistMultiQueueView(v as MultiQueueView)}
+          items={[
+            { value: "by-queue", label: "Por fila" },
+            { value: "by-time", label: "Por tempo" },
+          ]}
+          className="shrink-0"
+        />
+      ) : null}
       {onRefresh ? (
         <TooltipGlass label="Atualizar fila" side="bottom">
           <button
@@ -850,7 +920,7 @@ export function ConversationColumn({
                 </QueueSection>
               )
             })}
-            {displayed.length === 0 && !isLoadingMore && !isMulti && (
+            {displayed.length === 0 && !isLoadingMore && (!isMulti || multiQueueView === "by-time") && (
               <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
                 Nenhuma conversa encontrada.
               </div>

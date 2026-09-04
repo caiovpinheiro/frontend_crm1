@@ -106,6 +106,11 @@ export interface Conversation {
   resolved?: boolean
   /** Fila da inbox para agrupar a lista (entrada, esperando, …). */
   queueTab?: string
+  /**
+   * ISO da última atividade (`lastMessageAt ?? lastInboundAt`).
+   * Usado só para ordenar a visão multi-fila "Por tempo" (mais antigas primeiro).
+   */
+  lastActivityAt?: string | null
 }
 
 interface ConversationCardProps {

@@ -332,6 +332,8 @@ export function toConversationCard(
     // Canal de origem — substitui o status dot pelo logo da plataforma
     // no canto inferior direito do avatar.
     channel: row.channel ?? null,
+    // Timestamp cru para sort "Por tempo" (mais antigas primeiro).
+    lastActivityAt: lastActivity,
   };
 }
 
