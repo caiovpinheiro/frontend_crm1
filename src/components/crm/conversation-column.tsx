@@ -88,7 +88,6 @@ interface ConversationColumnProps {
    */
   renderCardSlots?: (conversation: Conversation) => {
     assigneeSlot?: React.ReactNode
-    menuSlot?: React.ReactNode
   }
   /**
    * Infinite scroll: callback disparado quando o scroll chega perto do
@@ -816,7 +815,6 @@ export function ConversationColumn({
                       }}
                       onClick={() => onSelectConversation?.(conversation.id)}
                       assigneeSlot={slots?.assigneeSlot}
-                      menuSlot={slots?.menuSlot}
                       selectionMode={selectionMode}
                       selected={selectedIds?.has(conversation.id) ?? false}
                       onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
