@@ -31,6 +31,7 @@ import { type TabItem } from "./tabs-glass"
 import { TooltipGlass } from "./tooltip-glass"
 import { ConversationCard, type Conversation } from "./conversation-card"
 import { CheckboxGlass } from "./checkbox-glass"
+import { QueueSection } from "@/features/inbox-v2/extras/queue-section"
 
 interface ConversationColumnProps {
   conversations: Conversation[]
@@ -87,6 +88,7 @@ interface ConversationColumnProps {
    */
   renderCardSlots?: (conversation: Conversation) => {
     assigneeSlot?: React.ReactNode
+    menuSlot?: React.ReactNode
   }
   /**
    * Infinite scroll: callback disparado quando o scroll chega perto do
@@ -215,6 +217,75 @@ function statusVisual(tab: { id?: string; label?: string } | string | undefined)
   return { Icon: IconClock, bg: "var(--color-lead-bg)", fg: "var(--color-lead)" }
 }
 
+type QueueListSection = {
+  id: string | null
+  label: string | null
+  items: Conversation[]
+}
+
+/**
+ * 0 filas → sem seções (empty state no caller).
+ * 1 fila → lista plana (sem header).
+ * 2+ filas → uma seção por fila, na ordem do seletor (`selectedIds`).
+ */
+function groupConversationsByQueue(
+  conversations: Conversation[],
+  selectedIds: readonly string[],
+): QueueListSection[] {
+  if (selectedIds.length === 0) return []
+  if (selectedIds.length === 1) {
+    return [{ id: null, label: null, items: conversations }]
+  }
+
+  const buckets = new Map<string, Conversation[]>()
+  for (const c of conversations) {
+    const key = c.queueTab || "_other"
+    const list = buckets.get(key) ?? []
+    list.push(c)
+    buckets.set(key, list)
+  }
+
+  const sections: QueueListSection[] = []
+  // Ordem do catálogo (= seletor), não a ordem interna de `INBOX_TAB_IDS`.
+  for (const item of INBOX_QUEUE_ITEMS) {
+    if (item.id === "todos") continue
+    if (!selectedIds.includes(item.id)) continue
+    sections.push({
+      id: item.id,
+      label: item.label,
+      items: buckets.get(item.id) ?? [],
+    })
+  }
+  return sections
+}
+
+const COLLAPSED_QUEUES_KEY = "inbox:collapsed-queues"
+
+function readCollapsedQueues(): Set<string> {
+  if (typeof window === "undefined") return new Set()
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_QUEUES_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((id): id is string => typeof id === "string"))
+  } catch {
+    return new Set()
+  }
+}
+
+function writeCollapsedQueues(ids: Set<string>) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(
+      COLLAPSED_QUEUES_KEY,
+      JSON.stringify([...ids]),
+    )
+  } catch {
+    /* localStorage indisponível */
+  }
+}
+
 function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
   const groups: {
     key: string
@@ -300,6 +371,27 @@ export function ConversationColumn({
     io.observe(el)
     return () => io.disconnect()
   }, [hasMore, isLoading, isLoadingMore])
+
+  // Seções recolhidas (2+ filas). Default = todas expandidas.
+  // Não altera ao marcar/desmarcar filas — só o botão global e o toggle
+  // por seção. Persistido como as demais prefs do inbox.
+  const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(
+    () => new Set(),
+  )
+  useEffect(() => {
+    setCollapsedQueues(readCollapsedQueues())
+  }, [])
+  const persistCollapsed = (next: Set<string>) => {
+    setCollapsedQueues(next)
+    writeCollapsedQueues(next)
+  }
+  const toggleQueueCollapsed = (queueId: string) => {
+    const next = new Set(collapsedQueues)
+    if (next.has(queueId)) next.delete(queueId)
+    else next.add(queueId)
+    persistCollapsed(next)
+  }
+
   const [internalTab, setInternalTab] = useState(0)
   const isControlledTabs = tabsOverride !== undefined
   const tabs: ReadonlyArray<TabItem> = isControlledTabs ? tabsOverride : DEFAULT_TABS
@@ -328,8 +420,29 @@ export function ConversationColumn({
   const urgency = urgencyCount ?? conversations.filter((c) => c.urgent).length
 
   const selectedQueueIds = selectedTabIds ?? (tabs[activeTab]?.id ? [tabs[activeTab]!.id!] : [])
+  const queueSections = groupConversationsByQueue(displayed, selectedQueueIds)
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
+  const noQueuesSelected = selectedQueueIds.length === 0
+  const multiSectionIds = queueSections
+    .map((s) => s.id)
+    .filter((id): id is string => !!id)
+  const allSectionsCollapsed =
+    isMulti &&
+    multiSectionIds.length > 0 &&
+    multiSectionIds.every((id) => collapsedQueues.has(id))
+  const collapseOrExpandAll = () => {
+    if (!isMulti) return
+    if (allSectionsCollapsed) {
+      const next = new Set(collapsedQueues)
+      for (const id of multiSectionIds) next.delete(id)
+      persistCollapsed(next)
+      return
+    }
+    const next = new Set(collapsedQueues)
+    for (const id of multiSectionIds) next.add(id)
+    persistCollapsed(next)
+  }
   const currentTab = selectedItems[0] ?? tabs[activeTab]
   const queueCounts: Record<string, number> = {}
   for (const t of tabs) {
@@ -369,16 +482,24 @@ export function ConversationColumn({
     if (!el) return
     const r = el.getBoundingClientRect()
     const top = r.bottom + 6
+    const width = Math.max(r.width, 400)
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
     setDropdownPos({
       top,
-      left: r.left,
-      width: r.width,
+      left,
+      width,
       maxHeight: Math.max(220, window.innerHeight - top - 12),
     })
     function onDocClick(e: MouseEvent) {
       const target = e.target as Node
       if (el?.contains(target)) return
       if (dropdownMenuRef.current?.contains(target)) return
+      if (
+        target instanceof Element &&
+        target.closest(".driver-overlay, .driver-popover")
+      ) {
+        return
+      }
       setDropdownOpen(false)
     }
     function onKey(e: KeyboardEvent) {
@@ -438,6 +559,7 @@ export function ConversationColumn({
 
       {/* Seletor de status + toggle de filtro na mesma linha */}
       <div className="mb-2 flex items-center gap-2 @max-[240px]:gap-1">
+      <div data-tour="inbox-queues" className="flex min-w-0 flex-1">
       <button
         ref={dropdownBtnRef}
         type="button"
@@ -445,7 +567,7 @@ export function ConversationColumn({
         title={triggerTitle}
         aria-haspopup="listbox"
         aria-expanded={dropdownOpen}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
+        className="flex min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
       >
         <span
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
@@ -471,6 +593,7 @@ export function ConversationColumn({
           )}
         />
       </button>
+      </div>
       {onRefresh ? (
         <TooltipGlass label="Atualizar fila" side="bottom">
           <button
@@ -478,6 +601,7 @@ export function ConversationColumn({
             aria-label="Atualizar fila"
             onClick={() => onRefresh()}
             disabled={isRefreshing}
+            data-tour="inbox-refresh"
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-60",
               isRefreshing && "text-[var(--brand-primary)]",
@@ -507,7 +631,7 @@ export function ConversationColumn({
             style={{
               top: dropdownPos.top,
               left: dropdownPos.left,
-              width: Math.max(dropdownPos.width, 300),
+              width: dropdownPos.width,
               maxHeight: dropdownPos.maxHeight,
               isolation: "isolate",
             }}
@@ -521,7 +645,13 @@ export function ConversationColumn({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-1 py-0.5">
               {groupQueueTabs(tabs).map((group) => (
-                <div key={group.key} className="mb-0.5 last:mb-0">
+                <div
+                  key={group.key}
+                  {...(group.key !== "__row-0"
+                    ? { "data-tour": `inbox-queue-group-${group.key}` }
+                    : {})}
+                  className="mb-0.5 last:mb-0"
+                >
                   {group.label ? (
                     <p
                       className={cn(
@@ -545,6 +675,7 @@ export function ConversationColumn({
                         role="option"
                         aria-selected={isActive}
                         title={tab.title ?? tab.description}
+                        {...(tab.id === "todos" ? { "data-tour": "inbox-queue-todos" } : {})}
                         onClick={() => {
                           if (tabId && onToggleTab) {
                             onToggleTab(tabId)
@@ -613,9 +744,9 @@ export function ConversationColumn({
                 </div>
               ))}
             </div>
-            <p className="flex items-center gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-1.5 font-body text-[11px] text-[var(--text-muted)]">
-              <IconInfoCircle size={13} className="shrink-0" />
-              Marque várias filas para ver juntas. Contagens por fila.
+            <p className="flex shrink-0 items-start gap-1.5 border-t border-[var(--glass-border-subtle)] px-3 py-2 font-body text-[11px] leading-snug text-[var(--text-muted)]">
+              <IconInfoCircle size={13} className="mt-px shrink-0" />
+              <span>Marque várias filas para ver juntas. Contagens por fila.</span>
             </p>
           </div>,
           document.body,
@@ -683,31 +814,77 @@ export function ConversationColumn({
           encolhem (flex-shrink:1) e viram barras cinza. Espelho do DealQueue. */}
       <div
         ref={listScrollRef}
+        data-tour="inbox-list"
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0.5 [-webkit-overflow-scrolling:touch]"
       >
         <div className="flex min-h-full flex-col gap-1.5">
         {isLoading ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : noQueuesSelected ? (
+          <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
+            Selecione ao menos uma fila para ver as conversas
+          </div>
         ) : (
           <>
-            {displayed.map((conversation) => {
-              const slots = renderCardSlots?.(conversation)
+            {isMulti ? (
+              <div className="flex justify-end px-1 pb-0.5">
+                <button
+                  type="button"
+                  onClick={collapseOrExpandAll}
+                  className="rounded-md px-1.5 py-0.5 font-display text-[11px] font-semibold text-[var(--brand-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40"
+                >
+                  {allSectionsCollapsed ? "Expandir todas" : "Recolher todas"}
+                </button>
+              </div>
+            ) : null}
+            {queueSections.map((section) => {
+              const renderCards = (items: Conversation[]) =>
+                items.map((conversation) => {
+                  const slots = renderCardSlots?.(conversation)
+                  return (
+                    <ConversationCard
+                      key={conversation.id}
+                      conversation={{
+                        ...conversation,
+                        active: conversation.id === activeConversationId,
+                      }}
+                      onClick={() => onSelectConversation?.(conversation.id)}
+                      assigneeSlot={slots?.assigneeSlot}
+                      menuSlot={slots?.menuSlot}
+                      selectionMode={selectionMode}
+                      selected={selectedIds?.has(conversation.id) ?? false}
+                      onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
+                    />
+                  )
+                })
+
+              if (!section.id || !section.label) {
+                return (
+                  <div key="flat" className="flex flex-col gap-1.5">
+                    {renderCards(section.items)}
+                  </div>
+                )
+              }
+
+              const visual = statusVisual({ id: section.id, label: section.label })
+              const collapsed = collapsedQueues.has(section.id)
               return (
-                <ConversationCard
-                  key={conversation.id}
-                  conversation={{
-                    ...conversation,
-                    active: conversation.id === activeConversationId,
-                  }}
-                  onClick={() => onSelectConversation?.(conversation.id)}
-                  assigneeSlot={slots?.assigneeSlot}
-                  selectionMode={selectionMode}
-                  selected={selectedIds?.has(conversation.id) ?? false}
-                  onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
-                />
+                <QueueSection
+                  key={section.id}
+                  id={section.id}
+                  label={section.label}
+                  count={section.items.length}
+                  collapsed={collapsed}
+                  onToggle={() => toggleQueueCollapsed(section.id!)}
+                  Icon={visual.Icon}
+                  iconBg={visual.bg}
+                  iconFg={visual.fg}
+                >
+                  {renderCards(section.items)}
+                </QueueSection>
               )
             })}
-            {displayed.length === 0 && !isLoadingMore && (
+            {displayed.length === 0 && !isLoadingMore && !isMulti && (
               <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
                 Nenhuma conversa encontrada.
               </div>
