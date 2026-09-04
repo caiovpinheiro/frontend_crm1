@@ -83,7 +83,7 @@ export function QueueSection({
             collapsed ? "opacity-0" : "opacity-100",
           )}
         >
-          <div className="flex flex-col gap-1.5 pt-1">
+          <div className="flex flex-col gap-2 pt-1">
             {count === 0 ? (
               <p className="px-2 py-2 text-center text-[11px] text-[var(--text-muted)]">
                 Nenhuma conversa nesta fila
