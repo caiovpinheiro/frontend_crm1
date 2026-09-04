@@ -104,6 +104,8 @@ export interface Conversation {
   lastMessageSendError?: string | null
   /** Conversa finalizada/resolvida — exibe badge visual no card. */
   resolved?: boolean
+  /** Fila da inbox para agrupar a lista (entrada, esperando, …). */
+  queueTab?: string
 }
 
 interface ConversationCardProps {
