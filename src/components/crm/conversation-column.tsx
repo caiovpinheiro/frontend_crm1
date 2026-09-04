@@ -373,8 +373,7 @@ export function ConversationColumn({
   }, [hasMore, isLoading, isLoadingMore])
 
   // Seções recolhidas (2+ filas). Default = todas expandidas.
-  // Não altera ao marcar/desmarcar filas — só o botão global e o toggle
-  // por seção. Persistido como as demais prefs do inbox.
+  // Toggle só por seção; persistido como as demais prefs do inbox.
   const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(
     () => new Set(),
   )
@@ -424,25 +423,6 @@ export function ConversationColumn({
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
   const noQueuesSelected = selectedQueueIds.length === 0
-  const multiSectionIds = queueSections
-    .map((s) => s.id)
-    .filter((id): id is string => !!id)
-  const allSectionsCollapsed =
-    isMulti &&
-    multiSectionIds.length > 0 &&
-    multiSectionIds.every((id) => collapsedQueues.has(id))
-  const collapseOrExpandAll = () => {
-    if (!isMulti) return
-    if (allSectionsCollapsed) {
-      const next = new Set(collapsedQueues)
-      for (const id of multiSectionIds) next.delete(id)
-      persistCollapsed(next)
-      return
-    }
-    const next = new Set(collapsedQueues)
-    for (const id of multiSectionIds) next.add(id)
-    persistCollapsed(next)
-  }
   const currentTab = selectedItems[0] ?? tabs[activeTab]
   const queueCounts: Record<string, number> = {}
   for (const t of tabs) {
@@ -451,13 +431,10 @@ export function ConversationColumn({
   const currentTabLabel = inboxQueueTriggerLabel(
     selectedQueueIds,
     INBOX_QUEUE_ITEMS,
-    queueCounts,
   )
   const selectedQueueSum = inboxQueueSelectedCount(selectedQueueIds, queueCounts)
-  // 1 fila: badge daquela fila. 2 filas: "0 + 3" sem badge extra.
-  // 3+: "4 filas" + soma das parcelas — nunca list.total (união infla).
-  const currentTabCount =
-    isMulti && selectedQueueIds.length === 2 ? undefined : selectedQueueSum
+  // 1 fila: badge daquela fila. 2+: "N Filas" + soma das parcelas — nunca list.total.
+  const currentTabCount = selectedQueueSum
   const currentVisual = isMulti
     ? { Icon: IconMessages, bg: "var(--color-enterprise-bg)", fg: "var(--brand-primary)" }
     : statusVisual(currentTab)
@@ -826,17 +803,6 @@ export function ConversationColumn({
           </div>
         ) : (
           <>
-            {isMulti ? (
-              <div className="flex justify-end px-1 pb-0.5">
-                <button
-                  type="button"
-                  onClick={collapseOrExpandAll}
-                  className="rounded-md px-1.5 py-0.5 font-display text-[11px] font-semibold text-[var(--brand-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40"
-                >
-                  {allSectionsCollapsed ? "Expandir todas" : "Recolher todas"}
-                </button>
-              </div>
-            ) : null}
             {queueSections.map((section) => {
               const renderCards = (items: Conversation[]) =>
                 items.map((conversation) => {
