@@ -1221,7 +1221,10 @@ export default function InboxV2ClientPage({
         .filter(Boolean)
         .map((r) => ({
           ...toConversationCard(r, { active: r.id === activeId }),
-          queueTab: inboxQueueSectionFor(r, tab),
+          queueTab:
+            r.queueTab && tab.includes(r.queueTab)
+              ? r.queueTab
+              : inboxQueueSectionFor(r, tab),
         })),
     [displayRows, activeId, tab],
   );

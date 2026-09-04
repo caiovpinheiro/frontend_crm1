@@ -27,6 +27,10 @@ import {
 } from "../api";
 
 import { isPreviewMode } from "@/lib/preview-mode";
+import {
+  INBOX_QUEUE_SECTION_ORDER,
+  inboxQueueSectionPriority,
+} from "../inbox-queue-tab";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
 /**
@@ -36,6 +40,93 @@ import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
  * sempre visível e disparava página atrás de página.
  */
 const PAGE_SIZE = 50;
+
+/**
+ * Filas específicas para fetch paralelo. `todos`/`abertas` e aba única
+ * continuam no GET com `tab=` único (ou join legado).
+ */
+function tabsForParallelFetch(
+  tab: InboxTab | readonly InboxTab[],
+): InboxTab[] | null {
+  const tabs = (typeof tab === "string" ? [tab] : [...tab]).filter(Boolean);
+  if (tabs.length <= 1) return null;
+  if (tabs.some((t) => t === "todos" || t === "abertas")) return null;
+  return tabs;
+}
+
+function activityTs(r: ConversationListRow) {
+  return new Date(r.lastMessageAt ?? r.lastInboundAt ?? r.updatedAt ?? 0).getTime();
+}
+
+function channelKey(c: ConversationListRow["channel"]) {
+  return typeof c === "string" ? c : JSON.stringify(c ?? "");
+}
+
+function groupKey(r: ConversationListRow) {
+  return r.contact?.id ? `c:${r.contact.id}::${channelKey(r.channel)}` : `id:${r.id}`;
+}
+
+/**
+ * Uma página por fila em paralelo, tag `queueTab`, claim exclusivo
+ * (ligar → entrada → …) para a lista multi-seção não misturar buckets.
+ */
+async function listConversationsTaggedByTab(args: {
+  tabs: readonly InboxTab[];
+  filters: InboxFilters;
+  search: string;
+  page: number;
+}): Promise<ConversationListResponse> {
+  const pages = await Promise.all(
+    args.tabs.map(async (tab) => {
+      const res = await listConversations({
+        tab,
+        ...args.filters,
+        search: args.search,
+        perPage: PAGE_SIZE,
+        page: args.page,
+      });
+      return { tab, res };
+    }),
+  );
+
+  const claimOrder = [
+    ...INBOX_QUEUE_SECTION_ORDER.filter((t) => args.tabs.includes(t)),
+    ...args.tabs.filter((t) => !INBOX_QUEUE_SECTION_ORDER.includes(t)),
+  ];
+
+  const claimed = new Map<string, ConversationListRow>();
+  const claimedGroups = new Set<string>();
+  for (const tab of claimOrder) {
+    const pack = pages.find((p) => p.tab === tab);
+    if (!pack) continue;
+    for (const row of pack.res.items ?? []) {
+      if (!row?.id) continue;
+      const gk = groupKey(row);
+      if (claimed.has(row.id) || claimedGroups.has(gk)) continue;
+      claimed.set(row.id, { ...row, queueTab: tab });
+      claimedGroups.add(gk);
+    }
+  }
+
+  const items = [...claimed.values()].sort((a, b) => activityTs(b) - activityTs(a));
+  const hasMore = pages.some((p) => {
+    const perPage = p.res.perPage ?? PAGE_SIZE;
+    const n = p.res.items?.length ?? 0;
+    if (p.res.hasMore === true) return true;
+    if (p.res.hasMore === false) return false;
+    return n >= perPage;
+  });
+  const total = pages.reduce((sum, p) => sum + (p.res.total ?? 0), 0);
+
+  return {
+    items,
+    total,
+    page: args.page,
+    perPage: PAGE_SIZE,
+    hasMore,
+    nextCursor: null,
+  };
+}
 
 /**
  * Lista paginada (infinite) de conversas da aba ativa.
@@ -54,9 +145,24 @@ export function useConversations(params: {
   enabled?: boolean;
 }) {
   const tabKey = typeof params.tab === "string" ? params.tab : params.tab.join(",");
+  const parallelTabs = tabsForParallelFetch(params.tab);
   const query = useInfiniteQuery<ConversationListResponse>({
     queryKey: ["inbox-conversations", tabKey, params.filters, params.search],
     queryFn: ({ pageParam }) => {
+      if (parallelTabs) {
+        const page =
+          typeof pageParam === "number"
+            ? pageParam
+            : typeof pageParam === "string" && /^\d+$/.test(pageParam)
+              ? Number(pageParam)
+              : 1;
+        return listConversationsTaggedByTab({
+          tabs: parallelTabs,
+          filters: params.filters,
+          search: params.search,
+          page,
+        });
+      }
       const base = {
         tab: params.tab,
         ...params.filters,
@@ -75,6 +181,12 @@ export function useConversations(params: {
     getNextPageParam: (last) => {
       const perPage = last.perPage ?? PAGE_SIZE;
       const itemCount = last.items?.length ?? 0;
+      if (parallelTabs) {
+        if (last.hasMore === false) return undefined;
+        if (last.hasMore === true) return (last.page ?? 1) + 1;
+        if (itemCount === 0) return undefined;
+        return (last.page ?? 1) + 1;
+      }
       if (itemCount < perPage) return undefined;
       if (last.hasMore === false) return undefined;
       if (last.nextCursor) return last.nextCursor;
@@ -123,30 +235,40 @@ export function useConversations(params: {
     // qualquer nova mensagem reabre como ticket novo). Também cobre o dedupe
     // antigo por `id` (mesma conversa repetida entre páginas do infinite
     // scroll quando ela "pula" de página no servidor).
-    const activityTs = (r: ConversationListRow) =>
-      new Date(r.lastMessageAt ?? r.lastInboundAt ?? r.updatedAt ?? 0).getTime();
-    const channelKey = (c: ConversationListRow["channel"]) =>
-      typeof c === "string" ? c : JSON.stringify(c ?? "");
-    const groupKey = (r: ConversationListRow) =>
-      r.contact?.id ? `c:${r.contact.id}::${channelKey(r.channel)}` : `id:${r.id}`;
     const byGroup = new Map<string, ConversationListRow>();
     for (const row of flat) {
       if (!row?.id) continue;
       const key = groupKey(row);
       const prev = byGroup.get(key);
-      if (!prev || activityTs(row) >= activityTs(prev)) byGroup.set(key, row);
+      if (!prev) {
+        byGroup.set(key, row);
+        continue;
+      }
+      const prevPri = inboxQueueSectionPriority(prev.queueTab ?? undefined);
+      const nextPri = inboxQueueSectionPriority(row.queueTab ?? undefined);
+      if (nextPri < prevPri) {
+        byGroup.set(key, row);
+        continue;
+      }
+      if (nextPri === prevPri && activityTs(row) >= activityTs(prev)) {
+        byGroup.set(key, {
+          ...row,
+          queueTab: row.queueTab ?? prev.queueTab,
+        });
+      }
     }
     const items: ConversationListRow[] = [...byGroup.values()];
     const last = pages[pages.length - 1];
+    const anyMore = pages.some((p) => p?.hasMore === true);
     return {
       items,
       total: last.total,
       page: last.page,
       perPage: last.perPage,
-      hasMore: last.hasMore,
+      hasMore: parallelTabs ? anyMore || last.hasMore : last.hasMore,
       nextCursor: last.nextCursor ?? null,
     };
-  }, [query.data]);
+  }, [query.data, parallelTabs]);
 
   return {
     data,
