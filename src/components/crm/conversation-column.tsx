@@ -275,10 +275,10 @@ const MULTI_QUEUE_VIEW_KEY_LEGACY = "inbox:multi-queue-view"
 type Ordenacao = 0 | 1 | 2 | 3
 
 const ORDENACAO_ROTULOS = [
-  "Por fila (desligado)",
-  "Por hora (ligado)",
-  "Por hora · do mais novo para o mais velho",
-  "Por hora · do mais velho para o mais novo",
+  "Por fila",
+  "Por hora",
+  "Mais novas primeiro",
+  "Mais antigas primeiro",
 ] as const
 
 function isOrdenacao(v: number): v is Ordenacao {
@@ -632,72 +632,83 @@ export function ConversationColumn({
       {/* Uma linha: filas | Clock (2+) | refresh | mais — densidade h-9 */}
       <div className="mb-2 flex items-center gap-1.5">
         <div data-tour="inbox-queues" className="mr-0.5 min-w-0 flex-1">
-          <button
-            ref={dropdownBtnRef}
-            type="button"
-            onClick={() => setDropdownOpen((v) => !v)}
-            title={triggerTitle}
-            aria-haspopup="listbox"
-            aria-expanded={dropdownOpen}
-            className="flex h-9 min-w-0 w-full flex-1 items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm"
-          >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Copy className="h-3.5 w-3.5" aria-hidden />
-            </span>
-            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
-              {currentTabLabel}
-            </span>
-            {currentTabCount != null && (
-              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
-                {currentTabCount.toLocaleString("pt-BR")}
+          <TooltipGlass label={triggerTitle} side="bottom">
+            <button
+              ref={dropdownBtnRef}
+              type="button"
+              onClick={() => setDropdownOpen((v) => !v)}
+              aria-haspopup="listbox"
+              aria-expanded={dropdownOpen}
+              aria-label={triggerTitle}
+              className="flex h-9 min-w-0 w-full flex-1 items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm"
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Copy className="h-3.5 w-3.5" aria-hidden />
               </span>
-            )}
-            <ChevronDown
-              className={cn(
-                "ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
-                dropdownOpen && "rotate-180",
+              <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+                {currentTabLabel}
+              </span>
+              {currentTabCount != null && (
+                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
+                  {currentTabCount.toLocaleString("pt-BR")}
+                </span>
               )}
-              aria-hidden
-            />
-          </button>
+              <ChevronDown
+                className={cn(
+                  "ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                  dropdownOpen && "rotate-180",
+                )}
+                aria-hidden
+              />
+            </button>
+          </TooltipGlass>
         </div>
         {selectedQueueIds.length >= 2 ? (
-          <button
-            type="button"
-            data-tour="inbox-multi-queue-view"
-            aria-pressed={ligado}
-            title={ORDENACAO_ROTULOS[ordenacao]}
-            onClick={cycleOrdenacao}
-            className={cn(
-              "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-colors",
-              ligado
-                ? "border-amber-500 bg-amber-500 text-white"
-                : "border-border bg-card text-muted-foreground hover:text-amber-600",
-            )}
-          >
-            <Clock className="h-4 w-4" aria-hidden />
-            {ordenacao === 2 ? (
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
-                <ArrowDown className="h-2.5 w-2.5" aria-hidden />
-              </span>
-            ) : null}
-            {ordenacao === 3 ? (
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
-                <ArrowUp className="h-2.5 w-2.5" aria-hidden />
-              </span>
-            ) : null}
-            <span className="sr-only">{ORDENACAO_ROTULOS[ordenacao]}</span>
-          </button>
-        ) : null}
-        {onRefresh ? (
-          <TooltipGlass label="Atualizar fila" side="bottom">
+          <TooltipGlass label={ORDENACAO_ROTULOS[ordenacao]} side="bottom">
             <button
               type="button"
-              aria-label="Atualizar fila"
+              data-tour="inbox-multi-queue-view"
+              aria-pressed={ligado}
+              aria-label={ORDENACAO_ROTULOS[ordenacao]}
+              onClick={cycleOrdenacao}
+              className={cn(
+                "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-colors",
+                ligado
+                  ? "border-amber-500 bg-amber-500 text-primary-foreground"
+                  : "border-border bg-card text-muted-foreground hover:text-amber-600",
+              )}
+            >
+              <Clock className="h-4 w-4" aria-hidden />
+              {ordenacao === 2 ? (
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
+                  <ArrowDown className="h-2.5 w-2.5" aria-hidden />
+                </span>
+              ) : null}
+              {ordenacao === 3 ? (
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
+                  <ArrowUp className="h-2.5 w-2.5" aria-hidden />
+                </span>
+              ) : null}
+            </button>
+          </TooltipGlass>
+        ) : null}
+        {onRefresh ? (
+          <TooltipGlass
+            label={isRefreshing ? "Sincronizando conversas…" : "Atualizar fila"}
+            side="bottom"
+          >
+            <button
+              type="button"
+              aria-label={isRefreshing ? "Sincronizando conversas" : "Atualizar fila"}
               onClick={() => onRefresh()}
               disabled={isRefreshing}
               data-tour="inbox-refresh"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground disabled:opacity-60"
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-colors disabled:opacity-100",
+                isRefreshing
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
             >
               <RefreshCw
                 className={cn("h-4 w-4", isRefreshing && "animate-spin")}

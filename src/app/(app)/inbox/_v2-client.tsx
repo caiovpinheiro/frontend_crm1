@@ -1376,18 +1376,19 @@ export default function InboxV2ClientPage({
           }
         }}
         trigger={
-          <button
-            type="button"
-            aria-haspopup="menu"
-            aria-label="Abrir menu de opções"
-            className="group flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground"
-          >
-            <Plus
-              className="h-4 w-4 transition-transform group-data-[state=open]:rotate-45"
-              aria-hidden
-            />
-            <span className="sr-only">Abrir menu de opções</span>
-          </button>
+          <TooltipGlass label="Mais opções" side="bottom">
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-label="Abrir menu de opções"
+              className="group flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+            >
+              <Plus
+                className="h-4 w-4 transition-transform group-data-[state=open]:rotate-45"
+                aria-hidden
+              />
+            </button>
+          </TooltipGlass>
         }
       />
     </div>
