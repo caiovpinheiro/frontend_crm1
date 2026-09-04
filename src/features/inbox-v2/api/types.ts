@@ -88,6 +88,18 @@ export interface ConversationListRow {
     /** HUMAN | AI | … — usado para Assumir / Devolver à IA. */
     type?: string | null;
   } | null;
+  /**
+   * Reply humano já ocorreu (`Conversation.hasHumanReply`).
+   * Sem isto, assignee+inbound parece Aguardando mas ainda é Entrada.
+   */
+  hasHumanReply?: boolean | null;
+  /** Reply de agente/automação (`Conversation.hasAgentReply`). */
+  hasAgentReply?: boolean | null;
+  /**
+   * Fila de origem quando a lista veio de fetch por aba (multi-queue).
+   * Tem prioridade sobre heurística ao montar seções.
+   */
+  queueTab?: InboxTab | null;
   lastInboundAt: string | null;
   /**
    * Coluna denormalizada (`Conversation.lastMessageDirection`).

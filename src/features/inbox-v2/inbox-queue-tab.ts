@@ -19,6 +19,14 @@ function lastMessageDirection(row: ConversationListRow): "in" | "out" | null {
   );
 }
 
+/** Espelha `countableReplyWhere(false)` — setting ON não chega no card; se
+ *  `hasAgentReply` vier true tratamos como reply contável (seguro p/ abas). */
+function hasCountableReply(row: ConversationListRow): boolean | null {
+  if (row.hasHumanReply === true || row.hasAgentReply === true) return true;
+  if (row.hasHumanReply === false && row.hasAgentReply !== true) return false;
+  return null;
+}
+
 /**
  * Fila canônica da conversa (a mais específica). Usado ao abrir um hit
  * da busca para mudar a aba da inbox junto com o ticket.
@@ -39,6 +47,11 @@ export function inboxQueueTabFor(row: ConversationListRow): InboxTab {
   // ou não — espelha `tabToWhere` no backend.
   if (assigneeType === "AI") return "agente_ia";
   if (!row.assignedToId) return "entrada";
+
+  // Entrada (backend): assignee HUMANO ainda sem reply contável — o cliente
+  // pode ter falado por último (`lastMessageDirection=in`) sem ser Aguardando.
+  const countable = hasCountableReply(row);
+  if (countable === false) return "entrada";
 
   const dir = lastMessageDirection(row);
   if (dir === "in") return "esperando";
@@ -79,6 +92,11 @@ export function rowBelongsToInboxTab(
     // Sem dono e sem inbound = órfão/robô — não é Entrada (tabToWhere).
     if (!row.assignedToId && !row.lastInboundAt) return false;
     return true;
+  }
+  if (tab === "esperando" || tab === "respondidas") {
+    // Sem sinal de reply contável, não afirme Aguardando/Respondidas
+    // (evita roubar Entrada quando a API ainda não manda hasHumanReply).
+    if (hasCountableReply(row) === false) return false;
   }
   return canonical === tab;
 }
@@ -156,10 +174,15 @@ export function rowBelongsToAnyInboxTab(
   return tabs.some((tab) => rowBelongsToInboxTab(row, tab));
 }
 
-const INBOX_QUEUE_SECTION_ORDER: readonly InboxTab[] = [
+/**
+ * Ordem de claim exclusivo nas seções multi-fila.
+ * `ligar` é overlay: quando selecionada, fica na frente para não ser
+ * absorvida por Entrada/Aguardando (mesmo ticket conta nas duas abas no BE).
+ */
+export const INBOX_QUEUE_SECTION_ORDER: readonly InboxTab[] = [
+  "ligar",
   "entrada",
   "esperando",
-  "ligar",
   "respondidas",
   "resolvidos",
   "agente_ia",
@@ -168,10 +191,16 @@ const INBOX_QUEUE_SECTION_ORDER: readonly InboxTab[] = [
   "erro",
 ];
 
+export function inboxQueueSectionPriority(tab: InboxTab | null | undefined): number {
+  if (!tab) return 999;
+  const i = INBOX_QUEUE_SECTION_ORDER.indexOf(tab);
+  return i < 0 ? 500 : i;
+}
+
 /**
  * Em qual seção da lista o card entra quando várias filas (ou Todas)
- * estão visíveis. Ordem do catálogo; overlay `ligar` só se a fila estiver
- * selecionada (ou em Todas).
+ * estão visíveis. Prefere `row.queueTab` (tag do fetch por aba); senão
+ * claim exclusivo na ordem de `INBOX_QUEUE_SECTION_ORDER`.
  */
 export function inboxQueueSectionFor(
   row: ConversationListRow,
@@ -179,6 +208,9 @@ export function inboxQueueSectionFor(
 ): InboxTab {
   const specific = selected.filter((t) => t !== "todos" && t !== "abertas");
   const pool = specific.length > 0 ? specific : INBOX_QUEUE_SECTION_ORDER;
+
+  if (row.queueTab && pool.includes(row.queueTab)) return row.queueTab;
+
   for (const tab of INBOX_QUEUE_SECTION_ORDER) {
     if (!pool.includes(tab)) continue;
     if (rowBelongsToInboxTab(row, tab)) return tab;
