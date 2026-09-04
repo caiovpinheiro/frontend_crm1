@@ -18,6 +18,7 @@ import "@/lib/auth-types";
 import { PreviewMocksInstaller } from "@/components/preview-mocks-installer";
 import { NativeApkUpdateDialog } from "@/components/layout/native-apk-update-dialog";
 import { BootSplash } from "@/components/layout/boot-splash";
+import { shouldSkipBootSplashFromEnv } from "@/lib/boot-splash-env";
 import { Providers } from "./providers";
 import "./globals.css";
 import "@/components/crm/b-loader.css";
@@ -96,8 +97,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
-  // Skip full-page boot splash in local/dev so hard reload shows the app immediately.
-  const showBootSplash = process.env.NODE_ENV !== "development";
+  // Skip splash for local `next dev` and EasyPanel DEV builds (NODE_ENV is
+  // production there — gate on NEXT_PUBLIC_* / crm-dev host, not NODE_ENV alone).
+  const showBootSplash = !shouldSkipBootSplashFromEnv();
 
   return (
     <html
@@ -135,10 +137,29 @@ export default async function RootLayout({
           }}
         />
         {showBootSplash ? (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function () {
+  try {
+    var h = (location.hostname || "").toLowerCase();
+    var skip = h.indexOf("crm-dev") !== -1;
+    if (!skip && h.length > 15 && h.slice(-15) === ".easypanel.host") {
+      skip = h.slice(0, -15).indexOf("dev") !== -1;
+    }
+    if (!skip) return;
+    var el = document.documentElement;
+    el.classList.remove("bl-booting");
+    el.setAttribute("data-skip-boot-splash", "1");
+  } catch (e) {}
+})();`,
+            }}
+          />
+        ) : null}
+        {showBootSplash ? (
           <style
             dangerouslySetInnerHTML={{
               __html:
-                "html.bl-booting{overflow:hidden}html.bl-booting #crm-app,html.bl-booting [data-sonner-toaster],html.bl-booting [data-app-loading-screen]{content-visibility:hidden;visibility:hidden;pointer-events:none}",
+                "html.bl-booting{overflow:hidden}html.bl-booting #crm-app,html.bl-booting [data-sonner-toaster],html.bl-booting [data-app-loading-screen]{content-visibility:hidden;visibility:hidden;pointer-events:none}html[data-skip-boot-splash] #app-loader{display:none!important}",
             }}
           />
         ) : null}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { BLoader } from "@/components/crm/b-loader";
+import { shouldSkipBootSplashClient } from "@/lib/boot-splash-env";
 
 const MIN_MS = 2400;
 const MAX_MS = 4000;
@@ -11,14 +12,15 @@ const EXIT_MS = 500;
 /**
  * Splash do primeiro HTML: logo full, app atrás invisível (`html.bl-booting`).
  * Some depois de um ciclo mínimo — navegações client não remontam.
- * Em development o root layout não monta isto (app aparece na hora).
+ * Skip: local `next dev`, NEXT_PUBLIC_SKIP_BOOT_SPLASH / APP_ENV, ou host crm-dev.
  */
 export function BootSplash() {
   const [phase, setPhase] = useState<"in" | "out" | "gone">("in");
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
+    if (shouldSkipBootSplashClient()) {
       document.documentElement.classList.remove("bl-booting");
+      document.documentElement.setAttribute("data-skip-boot-splash", "1");
       setPhase("gone");
       return;
     }
@@ -48,7 +50,7 @@ export function BootSplash() {
     };
   }, []);
 
-  if (process.env.NODE_ENV === "development" || phase === "gone") return null;
+  if (phase === "gone") return null;
 
   return (
     <BLoader
