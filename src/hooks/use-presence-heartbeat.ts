@@ -11,14 +11,14 @@ import { useEffect, useRef } from "react";
 const MIN_PING_GAP_MS = 8_000;
 
 /**
- * Envia um ping para `/api/agents/me/ping` a cada `intervalMs` (default 90s).
+ * Envia um ping para `/api/agents/me/ping` a cada `intervalMs` (default 180s)
+ * enquanto a aba estiver visível.
  *
- * Diferente da versão anterior, o timer roda tanto com a aba visível
- * quanto em segundo plano — o navegador pode throttlar `setInterval`
- * em abas ocultas (~1 ping/min), o que ainda cabe na tolerância do
- * sweeper (`SYSTEM_PRESENCE_STALE_MS = 150s`). Quando a aba volta ao
- * foco/visibilidade, dispara um ping imediato para reidratar a
- * presença sem esperar o próximo tick.
+ * Com `document.hidden`, o timer pausa — presença de uso só conta CRM
+ * em primeiro plano. Quando a aba volta ao foco/visibilidade, dispara
+ * um ping imediato para reidratar a presença sem esperar o próximo tick.
+ *
+ * Tolerância do sweeper: `SYSTEM_PRESENCE_STALE_MS = 300s`.
  *
  * Falhas são silenciadas — presença é best-effort.
  */
@@ -26,7 +26,7 @@ export function usePresenceHeartbeat(options?: {
   intervalMs?: number;
   enabled?: boolean;
 }) {
-  const { intervalMs = 90_000, enabled = true } = options ?? {};
+  const { intervalMs = 180_000, enabled = true } = options ?? {};
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inFlightRef = useRef(false);
   const lastPingAtRef = useRef(0);
@@ -36,6 +36,7 @@ export function usePresenceHeartbeat(options?: {
     if (typeof window === "undefined") return;
 
     async function ping() {
+      if (typeof document !== "undefined" && document.hidden) return;
       const now = Date.now();
       if (inFlightRef.current) return;
       if (now - lastPingAtRef.current < MIN_PING_GAP_MS) return;
@@ -55,18 +56,35 @@ export function usePresenceHeartbeat(options?: {
       }
     }
 
+    function clearTimer() {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    function startTimer() {
+      clearTimer();
+      timerRef.current = setInterval(() => void ping(), intervalMs);
+    }
+
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
         void ping();
+        startTimer();
+      } else {
+        clearTimer();
       }
     }
 
     function onFocus() {
-      void ping();
+      if (!document.hidden) void ping();
     }
 
-    void ping();
-    timerRef.current = setInterval(() => void ping(), intervalMs);
+    if (!document.hidden) {
+      void ping();
+      startTimer();
+    }
 
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("focus", onFocus);
@@ -74,10 +92,7 @@ export function usePresenceHeartbeat(options?: {
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("focus", onFocus);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      clearTimer();
     };
   }, [intervalMs, enabled]);
 }
