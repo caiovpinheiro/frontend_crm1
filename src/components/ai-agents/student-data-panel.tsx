@@ -68,16 +68,33 @@ export function StudentDataPanel() {
         credentials: "include",
         body: form,
       });
+      if (res.status === 202) {
+        return parseApiResponse<{
+          operationId: string;
+          total: number;
+          fileName: string;
+        }>(res, "Erro ao enfileirar importação.");
+      }
       return parseApiResponse<{ totalRows: number; skipped: number; fileName: string }>(
         res,
         "Erro ao enviar arquivo.",
       );
     },
     onSuccess: (d) => {
-      toast.success(
-        `Importado: ${d.totalRows} registros${d.skipped ? ` (${d.skipped} linhas ignoradas)` : ""}.`,
-      );
+      if ("operationId" in d && d.operationId) {
+        toast.success(
+          `Importação enfileirada (${d.total} linhas). Acompanhe o progresso — a base será atualizada em breve.`,
+        );
+      } else if ("totalRows" in d) {
+        toast.success(
+          `Importado: ${d.totalRows} registros${d.skipped ? ` (${d.skipped} linhas ignoradas)` : ""}.`,
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["academic-records-status"] });
+      // Revalida de novo após o worker processar (best-effort).
+      window.setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["academic-records-status"] });
+      }, 8_000);
     },
     onError: (e) => {
       toast.error(e instanceof Error ? e.message : "Erro ao importar.");
