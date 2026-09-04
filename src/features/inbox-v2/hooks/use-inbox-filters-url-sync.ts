@@ -102,7 +102,10 @@ export function isInboxTab(raw: string | null | undefined): raw is InboxTab {
   return !!raw && (INBOX_TAB_IDS as readonly string[]).includes(raw);
 }
 
-/** Normaliza a seleção: `todos` é exclusivo; ids inválidos somem; vazio → default. */
+/**
+ * Normaliza a seleção: `todos` é exclusivo; ids inválidos somem.
+ * Lista vazia é válida (empty state "selecione ao menos uma fila").
+ */
 export function normalizeInboxTabs(tabs: readonly InboxTab[]): InboxTab[] {
   if (tabs.includes("todos")) return ["todos"];
   const seen = new Set<InboxTab>();
@@ -112,7 +115,7 @@ export function normalizeInboxTabs(tabs: readonly InboxTab[]): InboxTab[] {
     seen.add(id);
     out.push(id);
   }
-  return out.length > 0 ? out : [DEFAULT_INBOX_TAB];
+  return out;
 }
 
 /** `entrada` ou `entrada,esperando` — compatível com o valor único antigo. */
@@ -135,12 +138,15 @@ export function toggleInboxTab(
   current: readonly InboxTab[],
   id: InboxTab,
 ): InboxTab[] {
-  if (id === "todos") return ["todos"];
+  if (id === "todos") {
+    // Já só em "Todas" → desmarca tudo (0 filas). Senão → exclusivo.
+    return current.length === 1 && current[0] === "todos" ? [] : ["todos"];
+  }
   const withoutTodos = current.filter((t) => t !== "todos");
   const next = withoutTodos.includes(id)
     ? withoutTodos.filter((t) => t !== id)
     : [...withoutTodos, id];
-  return normalizeInboxTabs(next.length > 0 ? next : [id]);
+  return normalizeInboxTabs(next);
 }
 
 // ── localStorage (fallback quando a URL vem sem filtros) ─────────────

@@ -31,6 +31,7 @@ import { type TabItem } from "./tabs-glass"
 import { TooltipGlass } from "./tooltip-glass"
 import { ConversationCard, type Conversation } from "./conversation-card"
 import { CheckboxGlass } from "./checkbox-glass"
+import { QueueSection } from "@/features/inbox-v2/extras/queue-section"
 
 interface ConversationColumnProps {
   conversations: Conversation[]
@@ -216,15 +217,26 @@ function statusVisual(tab: { id?: string; label?: string } | string | undefined)
   return { Icon: IconClock, bg: "var(--color-lead-bg)", fg: "var(--color-lead)" }
 }
 
+type QueueListSection = {
+  id: string | null
+  label: string | null
+  items: Conversation[]
+}
+
+/**
+ * 0 filas → sem seções (empty state no caller).
+ * 1 fila → lista plana (sem header).
+ * 2+ filas → uma seção por fila, na ordem do seletor (`selectedIds`).
+ */
 function groupConversationsByQueue(
   conversations: Conversation[],
   selectedIds: readonly string[],
-): Array<{ id: string | null; label: string | null; items: Conversation[] }> {
-  const shouldGroup =
-    selectedIds.includes("todos") || selectedIds.length > 1
-  if (!shouldGroup) {
+): QueueListSection[] {
+  if (selectedIds.length === 0) return []
+  if (selectedIds.length === 1) {
     return [{ id: null, label: null, items: conversations }]
   }
+
   const buckets = new Map<string, Conversation[]>()
   for (const c of conversations) {
     const key = c.queueTab || "_other"
@@ -232,23 +244,46 @@ function groupConversationsByQueue(
     list.push(c)
     buckets.set(key, list)
   }
-  const sections: Array<{
-    id: string | null
-    label: string | null
-    items: Conversation[]
-  }> = []
+
+  const sections: QueueListSection[] = []
+  // Ordem do catálogo (= seletor), não a ordem interna de `INBOX_TAB_IDS`.
   for (const item of INBOX_QUEUE_ITEMS) {
     if (item.id === "todos") continue
-    const items = buckets.get(item.id)
-    if (items?.length) {
-      sections.push({ id: item.id, label: item.label, items })
-    }
-  }
-  const other = buckets.get("_other")
-  if (other?.length) {
-    sections.push({ id: "_other", label: "Outras", items: other })
+    if (!selectedIds.includes(item.id)) continue
+    sections.push({
+      id: item.id,
+      label: item.label,
+      items: buckets.get(item.id) ?? [],
+    })
   }
   return sections
+}
+
+const COLLAPSED_QUEUES_KEY = "inbox:collapsed-queues"
+
+function readCollapsedQueues(): Set<string> {
+  if (typeof window === "undefined") return new Set()
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_QUEUES_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((id): id is string => typeof id === "string"))
+  } catch {
+    return new Set()
+  }
+}
+
+function writeCollapsedQueues(ids: Set<string>) {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(
+      COLLAPSED_QUEUES_KEY,
+      JSON.stringify([...ids]),
+    )
+  } catch {
+    /* localStorage indisponível */
+  }
 }
 
 function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
@@ -336,6 +371,27 @@ export function ConversationColumn({
     io.observe(el)
     return () => io.disconnect()
   }, [hasMore, isLoading, isLoadingMore])
+
+  // Seções recolhidas (2+ filas). Default = todas expandidas.
+  // Não altera ao marcar/desmarcar filas — só o botão global e o toggle
+  // por seção. Persistido como as demais prefs do inbox.
+  const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(
+    () => new Set(),
+  )
+  useEffect(() => {
+    setCollapsedQueues(readCollapsedQueues())
+  }, [])
+  const persistCollapsed = (next: Set<string>) => {
+    setCollapsedQueues(next)
+    writeCollapsedQueues(next)
+  }
+  const toggleQueueCollapsed = (queueId: string) => {
+    const next = new Set(collapsedQueues)
+    if (next.has(queueId)) next.delete(queueId)
+    else next.add(queueId)
+    persistCollapsed(next)
+  }
+
   const [internalTab, setInternalTab] = useState(0)
   const isControlledTabs = tabsOverride !== undefined
   const tabs: ReadonlyArray<TabItem> = isControlledTabs ? tabsOverride : DEFAULT_TABS
@@ -367,6 +423,26 @@ export function ConversationColumn({
   const queueSections = groupConversationsByQueue(displayed, selectedQueueIds)
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
+  const noQueuesSelected = selectedQueueIds.length === 0
+  const multiSectionIds = queueSections
+    .map((s) => s.id)
+    .filter((id): id is string => !!id)
+  const allSectionsCollapsed =
+    isMulti &&
+    multiSectionIds.length > 0 &&
+    multiSectionIds.every((id) => collapsedQueues.has(id))
+  const collapseOrExpandAll = () => {
+    if (!isMulti) return
+    if (allSectionsCollapsed) {
+      const next = new Set(collapsedQueues)
+      for (const id of multiSectionIds) next.delete(id)
+      persistCollapsed(next)
+      return
+    }
+    const next = new Set(collapsedQueues)
+    for (const id of multiSectionIds) next.add(id)
+    persistCollapsed(next)
+  }
   const currentTab = selectedItems[0] ?? tabs[activeTab]
   const queueCounts: Record<string, number> = {}
   for (const t of tabs) {
@@ -744,19 +820,26 @@ export function ConversationColumn({
         <div className="flex min-h-full flex-col gap-1.5">
         {isLoading ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
+        ) : noQueuesSelected ? (
+          <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
+            Selecione ao menos uma fila para ver as conversas
+          </div>
         ) : (
           <>
-            {queueSections.map((section) => (
-              <div key={section.id ?? "flat"} className="flex flex-col gap-1.5">
-                {section.label ? (
-                  <p className="sticky top-0 z-10 bg-[var(--glass-bg-panel)] px-1 pb-0.5 pt-1 font-display text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                    {section.label}
-                    <span className="ml-1.5 font-semibold tabular-nums normal-case tracking-normal text-[var(--text-muted)]">
-                      {section.items.length}
-                    </span>
-                  </p>
-                ) : null}
-                {section.items.map((conversation) => {
+            {isMulti ? (
+              <div className="flex justify-end px-1 pb-0.5">
+                <button
+                  type="button"
+                  onClick={collapseOrExpandAll}
+                  className="rounded-md px-1.5 py-0.5 font-display text-[11px] font-semibold text-[var(--brand-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40"
+                >
+                  {allSectionsCollapsed ? "Expandir todas" : "Recolher todas"}
+                </button>
+              </div>
+            ) : null}
+            {queueSections.map((section) => {
+              const renderCards = (items: Conversation[]) =>
+                items.map((conversation) => {
                   const slots = renderCardSlots?.(conversation)
                   return (
                     <ConversationCard
@@ -773,10 +856,35 @@ export function ConversationColumn({
                       onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
                     />
                   )
-                })}
-              </div>
-            ))}
-            {displayed.length === 0 && !isLoadingMore && (
+                })
+
+              if (!section.id || !section.label) {
+                return (
+                  <div key="flat" className="flex flex-col gap-1.5">
+                    {renderCards(section.items)}
+                  </div>
+                )
+              }
+
+              const visual = statusVisual({ id: section.id, label: section.label })
+              const collapsed = collapsedQueues.has(section.id)
+              return (
+                <QueueSection
+                  key={section.id}
+                  id={section.id}
+                  label={section.label}
+                  count={section.items.length}
+                  collapsed={collapsed}
+                  onToggle={() => toggleQueueCollapsed(section.id!)}
+                  Icon={visual.Icon}
+                  iconBg={visual.bg}
+                  iconFg={visual.fg}
+                >
+                  {renderCards(section.items)}
+                </QueueSection>
+              )
+            })}
+            {displayed.length === 0 && !isLoadingMore && !isMulti && (
               <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
                 Nenhuma conversa encontrada.
               </div>
