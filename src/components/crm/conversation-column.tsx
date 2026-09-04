@@ -280,10 +280,6 @@ const ORDENACAO_ROTULOS = [
   "Mais antigas primeiro",
 ] as const
 
-function isOrdenacao(v: number): v is Ordenacao {
-  return v === 0 || v === 1 || v === 2
-}
-
 /** Migra ciclo antigo 0|1|2|3 → 0|1|2 (remove o passo “Por hora” sem direção). */
 function migrateOrdenacao(n: number): Ordenacao {
   if (n === 0) return 0
