@@ -174,7 +174,8 @@ export function PageSegmentedControl({
   return (
     <div
       className={cn(
-        "flex shrink-0 flex-nowrap gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-1",
+        "flex shrink-0 flex-nowrap items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-1",
+        compact ? "h-10" : null,
         className,
       )}
       role="tablist"
@@ -192,7 +193,7 @@ export function PageSegmentedControl({
             className={cn(
               "shrink-0 cursor-pointer whitespace-nowrap rounded-full font-display font-bold transition-colors",
               compact
-                ? "px-3 py-1 text-xs"
+                ? "h-full px-2.5 text-[11px] leading-none"
                 : "px-4 py-2 text-[13px]",
               active
                 ? "bg-[var(--glass-bg-modal)] text-[var(--brand-primary)] shadow-[var(--glass-shadow-sm)]"
