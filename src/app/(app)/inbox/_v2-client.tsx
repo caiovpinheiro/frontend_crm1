@@ -26,6 +26,7 @@ import {
   IconSquareCheck,
   IconX,
 } from "@tabler/icons-react";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
@@ -1345,7 +1346,7 @@ export default function InboxV2ClientPage({
   // (persistida no localStorage). O ping em si toca no useInboxRealtime.
   const [soundMuted, setSoundMuted] = useInboxSoundMuted();
   const columnMoreMenuNode = (
-    <div data-tour="inbox-list-more" className="flex shrink-0">
+    <div data-tour="inbox-list-more" className="relative shrink-0">
     <DropdownGlass
       matchTriggerWidth={false}
       className="min-w-[220px]"
@@ -1378,10 +1379,15 @@ export default function InboxV2ClientPage({
       trigger={
         <button
           type="button"
-          aria-label="Mais opções da lista"
-          className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary data-[state=open]:border-primary data-[state=open]:bg-primary data-[state=open]:text-primary-foreground"
+          aria-haspopup="menu"
+          aria-label="Abrir menu de opções"
+          className="group flex shrink-0 items-center justify-center p-1 text-primary transition-colors hover:text-primary/80"
         >
-          <IconChevronDown size={18} stroke={2.4} />
+          <Plus
+            className="h-6 w-6 transition-transform group-data-[state=open]:rotate-45"
+            aria-hidden
+          />
+          <span className="sr-only">Abrir menu de opções</span>
         </button>
       }
     />
