@@ -65,6 +65,45 @@ describe("applyOutboundPreviewToInboxCaches", () => {
     expect(answered?.pages[0]?.items[0]?.id).toBe("cuid_340458");
     expect(answered?.pages[0]?.items[0]?.lastMessageDirection).toBe("out");
   });
+
+  it("sai de Entrada (hasHumanReply=false) para Respondidas ao enviar", () => {
+    const qc = new QueryClient();
+    const conv = row({
+      hasHumanReply: false,
+      hasAgentReply: false,
+      queueTab: "entrada",
+    });
+    qc.setQueryData(["inbox-conversations", "entrada", {}, ""], {
+      pages: [{ items: [conv], total: 1 }],
+      pageParams: [1],
+    });
+    qc.setQueryData(["inbox-conversations", "respondidas", {}, ""], {
+      pages: [{ items: [], total: 0 }],
+      pageParams: [1],
+    });
+
+    applyOutboundPreviewToInboxCaches(qc, "cuid_340458", {
+      content: "Olá",
+      messageType: "text",
+    });
+
+    const entrada = qc.getQueryData<InboxListCache>([
+      "inbox-conversations",
+      "entrada",
+      {},
+      "",
+    ]);
+    const answered = qc.getQueryData<InboxListCache>([
+      "inbox-conversations",
+      "respondidas",
+      {},
+      "",
+    ]);
+
+    expect(entrada?.pages[0]?.items).toEqual([]);
+    expect(answered?.pages[0]?.items[0]?.hasHumanReply).toBe(true);
+    expect(answered?.pages[0]?.items[0]?.lastMessageDirection).toBe("out");
+  });
 });
 
 describe("inboxConversationApiId", () => {

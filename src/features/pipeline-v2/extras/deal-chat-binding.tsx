@@ -874,6 +874,7 @@ export function useDealChatBinding(params: {
             onReactMessage={isNoteBubble ? undefined : handleReact}
             onPinMessage={isNoteBubble ? undefined : handlePinMessage}
             onFavoriteMessage={isNoteBubble ? undefined : handleFavorite}
+            onJumpToQuotedMessage={isNoteBubble ? undefined : scrollToMessage}
           />
           )}
           </div>

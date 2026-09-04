@@ -132,6 +132,11 @@ function patchInboxConversationCard(
           unreadCount: (conv.unreadCount ?? 0) + 1,
         }
       : {}),
+    // Outbound humano/agente: sem isto Entrada (hasHumanReply=false) não
+    // promove para Respondidas — card sobe e fica como não respondido.
+    ...(direction === "out"
+      ? { hasHumanReply: true, hasAgentReply: true }
+      : {}),
     ...(data.assignedToId !== undefined
       ? { assignedToId: data.assignedToId }
       : {}),
@@ -153,8 +158,11 @@ function patchInboxConversationCard(
         }
       : {}),
   };
-  applyConversationRowToInboxCaches(qc, next);
   const nextTab = inboxQueueTabFor(next);
+  if (conv.queueTab && conv.queueTab !== nextTab) {
+    next.queueTab = nextTab;
+  }
+  applyConversationRowToInboxCaches(qc, next);
   return {
     found: true,
     tabMoved: nextTab !== prevTab,

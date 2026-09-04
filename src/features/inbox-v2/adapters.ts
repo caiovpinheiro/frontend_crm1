@@ -593,6 +593,7 @@ export function toMessageBubble(
     // veio vazio/null, não renderiza cabeçalho de citação.
     replyTo: dto.replyToPreview
       ? {
+          messageId: dto.replyToId ?? null,
           snippet: dto.replyToPreview,
           // Sem `dto.replyToDirection` explícito no DTO por ora; heurística:
           // se a mensagem atual é inbound (cliente respondeu), o alvo é

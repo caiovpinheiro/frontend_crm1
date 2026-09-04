@@ -874,6 +874,7 @@ export function ChatArea({
                       onReactMessage={onReactMessage}
                       onPinMessage={onPinMessage}
                       onFavoriteMessage={onFavoriteMessage}
+                      onJumpToQuotedMessage={scrollToMessage}
                     />
                   )}
                 </div>
