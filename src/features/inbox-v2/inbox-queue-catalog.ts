@@ -118,22 +118,15 @@ function catalogSelected(
   return items.filter((item) => selectedIds.includes(item.id));
 }
 
-/** Rótulo do gatilho: 1 = nome; 2 = "0 + 3"; 3+ = "4 filas". */
+/** Rótulo do gatilho: 1 = nome da fila; 2+ = "N Filas" (badge à parte). */
 export function inboxQueueTriggerLabel(
   selectedIds: readonly string[],
   items: readonly InboxQueueItem[] = INBOX_QUEUE_ITEMS,
-  counts?: InboxQueueCounts,
 ): string {
   const selected = catalogSelected(selectedIds, items);
   if (selected.length === 0) return "Filas";
   if (selected.length === 1) return selected[0]?.label ?? "Filas";
-  if (selected.length === 2) {
-    const parts = selected.map((item) => readQueueCount(counts, item.id));
-    if (parts.every((n): n is number => typeof n === "number")) {
-      return `${parts[0]} + ${parts[1]}`;
-    }
-  }
-  return `${selected.length} filas`;
+  return `${selected.length} Filas`;
 }
 
 /** Soma das contagens das filas do catálogo (badge / select-all). */
