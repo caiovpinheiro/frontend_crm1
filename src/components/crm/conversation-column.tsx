@@ -591,78 +591,85 @@ export function ConversationColumn({
         </div>
       )}
 
-      {/* Seletor de status + toggle de filtro na mesma linha */}
+      {/* Esquerda: Filas + visão; direita: refresh + mais. Toggle cola no seletor. */}
       <div className="mb-2 flex flex-wrap items-center gap-2 @max-[240px]:gap-1">
-      <div data-tour="inbox-queues" className="flex min-w-0 flex-1 basis-[12rem]">
-      <button
-        ref={dropdownBtnRef}
-        type="button"
-        onClick={() => setDropdownOpen((v) => !v)}
-        title={triggerTitle}
-        aria-haspopup="listbox"
-        aria-expanded={dropdownOpen}
-        className="flex min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 py-1.5 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
-      >
-        <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-          style={{ background: currentVisual.bg, color: currentVisual.fg }}
-        >
-          <currentVisual.Icon size={15} stroke={2.2} />
-        </span>
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 @max-[240px]:hidden">
-          <span className="min-w-0 truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
-            {currentTabLabel}
-          </span>
-          {currentTabCount != null && (
-            <span className="shrink-0 rounded-full bg-[var(--brand-primary)] px-1.5 py-px text-[10.5px] font-bold tabular-nums text-white">
-              {currentTabCount.toLocaleString("pt-BR")}
-            </span>
-          )}
-        </span>
-        <IconChevronDown
-          size={15}
-          className={cn(
-            "shrink-0 text-[var(--text-muted)] transition-transform",
-            dropdownOpen && "rotate-180",
-          )}
-        />
-      </button>
-      </div>
-      {isMulti ? (
-        <PageSegmentedControl
-          aria-label="Visão das filas selecionadas"
-          size="compact"
-          value={multiQueueView}
-          onChange={(v) => setAndPersistMultiQueueView(v as MultiQueueView)}
-          items={[
-            { value: "by-queue", label: "Por fila" },
-            { value: "by-time", label: "Por tempo" },
-          ]}
-          className="shrink-0"
-        />
-      ) : null}
-      {onRefresh ? (
-        <TooltipGlass label="Atualizar fila" side="bottom">
-          <button
-            type="button"
-            aria-label="Atualizar fila"
-            onClick={() => onRefresh()}
-            disabled={isRefreshing}
-            data-tour="inbox-refresh"
-            className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-60",
-              isRefreshing && "text-[var(--brand-primary)]",
-            )}
+        <div className="flex min-w-0 items-center gap-2">
+          <div
+            data-tour="inbox-queues"
+            className="min-w-0 max-w-[min(100%,16rem)] shrink"
           >
-            <IconRefresh
-              size={17}
-              stroke={2}
-              className={cn(isRefreshing && "animate-spin")}
+            <button
+              ref={dropdownBtnRef}
+              type="button"
+              onClick={() => setDropdownOpen((v) => !v)}
+              title={triggerTitle}
+              aria-haspopup="listbox"
+              aria-expanded={dropdownOpen}
+              className="flex h-10 min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
+            >
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                style={{ background: currentVisual.bg, color: currentVisual.fg }}
+              >
+                <currentVisual.Icon size={15} stroke={2.2} />
+              </span>
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 @max-[240px]:hidden">
+                <span className="min-w-0 truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
+                  {currentTabLabel}
+                </span>
+                {currentTabCount != null && (
+                  <span className="shrink-0 rounded-full bg-[var(--brand-primary)] px-1.5 py-px text-[10.5px] font-bold tabular-nums text-white">
+                    {currentTabCount.toLocaleString("pt-BR")}
+                  </span>
+                )}
+              </span>
+              <IconChevronDown
+                size={15}
+                className={cn(
+                  "shrink-0 text-[var(--text-muted)] transition-transform",
+                  dropdownOpen && "rotate-180",
+                )}
+              />
+            </button>
+          </div>
+          {isMulti ? (
+            <PageSegmentedControl
+              aria-label="Visão das filas selecionadas"
+              size="compact"
+              value={multiQueueView}
+              onChange={(v) => setAndPersistMultiQueueView(v as MultiQueueView)}
+              items={[
+                { value: "by-queue", label: "Por fila" },
+                { value: "by-time", label: "Por tempo" },
+              ]}
+              className="shrink-0"
             />
-          </button>
-        </TooltipGlass>
-      ) : null}
-      {filterSlot}
+          ) : null}
+        </div>
+        <div className="ml-auto flex shrink-0 items-center gap-2 @max-[240px]:gap-1">
+          {onRefresh ? (
+            <TooltipGlass label="Atualizar fila" side="bottom">
+              <button
+                type="button"
+                aria-label="Atualizar fila"
+                onClick={() => onRefresh()}
+                disabled={isRefreshing}
+                data-tour="inbox-refresh"
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-60",
+                  isRefreshing && "text-[var(--brand-primary)]",
+                )}
+              >
+                <IconRefresh
+                  size={17}
+                  stroke={2}
+                  className={cn(isRefreshing && "animate-spin")}
+                />
+              </button>
+            </TooltipGlass>
+          ) : null}
+          {filterSlot}
+        </div>
       </div>
 
       {dropdownOpen &&
