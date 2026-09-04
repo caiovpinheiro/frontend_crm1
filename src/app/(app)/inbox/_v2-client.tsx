@@ -33,8 +33,6 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TagChip } from "@/components/crm/tag-chip";
-import { SendToChatTrigger } from "@/features/team-chat/send-to-chat-dialog";
-import { IconMessage } from "@tabler/icons-react";
 
 import { NavRail } from "@/components/crm/nav-rail";
 import { ConversationColumn } from "@/components/crm/conversation-column";
@@ -1586,14 +1584,6 @@ export default function InboxV2ClientPage({
       isLoading={listBootstrapping}
       className="h-full min-h-0"
       renderCardSlots={(c) => ({
-        menuSlot: (
-          <SendToChatTrigger
-            target={{ type: "conversation", id: c.id, number: c.number ?? null }}
-            className="grid size-6 place-items-center rounded-full text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)]"
-          >
-            <IconMessage size={13} stroke={2} />
-          </SendToChatTrigger>
-        ),
         assigneeSlot: (
           <RequirePermission
             permission="conversation:reassign_others"
