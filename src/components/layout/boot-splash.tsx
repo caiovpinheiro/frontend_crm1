@@ -11,11 +11,18 @@ const EXIT_MS = 500;
 /**
  * Splash do primeiro HTML: logo full, app atrás invisível (`html.bl-booting`).
  * Some depois de um ciclo mínimo — navegações client não remontam.
+ * Em development o root layout não monta isto (app aparece na hora).
  */
 export function BootSplash() {
   const [phase, setPhase] = useState<"in" | "out" | "gone">("in");
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      document.documentElement.classList.remove("bl-booting");
+      setPhase("gone");
+      return;
+    }
+
     const started = Date.now();
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -41,7 +48,7 @@ export function BootSplash() {
     };
   }, []);
 
-  if (phase === "gone") return null;
+  if (process.env.NODE_ENV === "development" || phase === "gone") return null;
 
   return (
     <BLoader

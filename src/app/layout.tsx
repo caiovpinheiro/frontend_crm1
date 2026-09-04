@@ -96,12 +96,14 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  // Skip full-page boot splash in local/dev so hard reload shows the app immediately.
+  const showBootSplash = process.env.NODE_ENV !== "development";
 
   return (
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`bl-booting bg-background ${dmSans.variable} ${plusJakarta.variable}`}
+      className={`${showBootSplash ? "bl-booting " : ""}bg-background ${dmSans.variable} ${plusJakarta.variable}`}
       data-chat-theme="azul"
       style={{ fontFamily: "var(--font-sans)" }}
     >
@@ -132,14 +134,16 @@ export default async function RootLayout({
 })();`,
           }}
         />
-        <style
-          dangerouslySetInnerHTML={{
-            __html:
-              "html.bl-booting{overflow:hidden}html.bl-booting #crm-app,html.bl-booting [data-sonner-toaster],html.bl-booting [data-app-loading-screen]{content-visibility:hidden;visibility:hidden;pointer-events:none}",
-          }}
-        />
+        {showBootSplash ? (
+          <style
+            dangerouslySetInnerHTML={{
+              __html:
+                "html.bl-booting{overflow:hidden}html.bl-booting #crm-app,html.bl-booting [data-sonner-toaster],html.bl-booting [data-app-loading-screen]{content-visibility:hidden;visibility:hidden;pointer-events:none}",
+            }}
+          />
+        ) : null}
         <link rel="preload" href="/brand/logo-b.png" as="image" />
-        <BootSplash />
+        {showBootSplash ? <BootSplash /> : null}
         <PreviewMocksInstaller />
         <div id="crm-app">
           <Providers session={session}>
