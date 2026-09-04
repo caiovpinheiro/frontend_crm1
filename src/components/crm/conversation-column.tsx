@@ -20,6 +20,7 @@ import {
   IconCheck,
   type Icon as TablerIcon,
 } from "@tabler/icons-react"
+import { Clock } from "lucide-react"
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -32,7 +33,6 @@ import { TooltipGlass } from "./tooltip-glass"
 import { ConversationCard, type Conversation } from "./conversation-card"
 import { CheckboxGlass } from "./checkbox-glass"
 import { QueueSection } from "@/features/inbox-v2/extras/queue-section"
-import { PageSegmentedControl } from "@/components/crm/page-toolbar"
 
 interface ConversationColumnProps {
   conversations: Conversation[]
@@ -465,9 +465,10 @@ export function ConversationColumn({
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
   const noQueuesSelected = selectedQueueIds.length === 0
-  // 2+ filas: "Por fila" = seções; "Por tempo" = lista plana (mais antigas primeiro).
+  // 2+ filas: porTempo=false = seções; porTempo=true = lista plana (mais antigas primeiro).
   // 0–1 fila: lista plana na ordem já carregada (toggle oculto).
-  const useQueueSections = isMulti && multiQueueView === "by-queue"
+  const porTempo = multiQueueView === "by-time"
+  const useQueueSections = isMulti && !porTempo
   const queueSections = useQueueSections
     ? groupConversationsByQueue(displayed, selectedQueueIds)
     : [
@@ -475,7 +476,7 @@ export function ConversationColumn({
           id: null,
           label: null,
           items:
-            isMulti && multiQueueView === "by-time"
+            isMulti && porTempo
               ? sortConversationsOldestFirst(displayed)
               : displayed,
         },
@@ -591,85 +592,88 @@ export function ConversationColumn({
         </div>
       )}
 
-      {/* Esquerda: Filas + visão; direita: refresh + mais. Toggle cola no seletor. */}
-      <div className="mb-2 flex flex-wrap items-center gap-2 @max-[240px]:gap-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <div
-            data-tour="inbox-queues"
-            className="min-w-0 max-w-[min(100%,16rem)] shrink"
+      {/* Uma linha: filas | Clock (2+) | refresh | mais */}
+      <div className="mb-2 flex items-center gap-3">
+        <div data-tour="inbox-queues" className="min-w-0 flex-1">
+          <button
+            ref={dropdownBtnRef}
+            type="button"
+            onClick={() => setDropdownOpen((v) => !v)}
+            title={triggerTitle}
+            aria-haspopup="listbox"
+            aria-expanded={dropdownOpen}
+            className="flex h-10 min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)]"
           >
-            <button
-              ref={dropdownBtnRef}
-              type="button"
-              onClick={() => setDropdownOpen((v) => !v)}
-              title={triggerTitle}
-              aria-haspopup="listbox"
-              aria-expanded={dropdownOpen}
-              className="flex h-10 min-w-0 w-full items-center gap-2.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-2 pr-3 text-left shadow-[0_2px_10px_rgba(100,130,180,0.12)] backdrop-blur-sm transition-shadow hover:shadow-[0_3px_14px_rgba(100,130,180,0.20)] @max-[240px]:gap-1.5 @max-[240px]:pr-2"
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+              style={{ background: currentVisual.bg, color: currentVisual.fg }}
             >
-              <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                style={{ background: currentVisual.bg, color: currentVisual.fg }}
-              >
-                <currentVisual.Icon size={15} stroke={2.2} />
+              <currentVisual.Icon size={15} stroke={2.2} />
+            </span>
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="min-w-0 truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
+                {currentTabLabel}
               </span>
-              <span className="flex min-w-0 flex-1 items-center gap-1.5 @max-[240px]:hidden">
-                <span className="min-w-0 truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
-                  {currentTabLabel}
+              {currentTabCount != null && (
+                <span className="shrink-0 rounded-full bg-[var(--brand-primary)] px-1.5 py-px text-[10.5px] font-bold tabular-nums text-white">
+                  {currentTabCount.toLocaleString("pt-BR")}
                 </span>
-                {currentTabCount != null && (
-                  <span className="shrink-0 rounded-full bg-[var(--brand-primary)] px-1.5 py-px text-[10.5px] font-bold tabular-nums text-white">
-                    {currentTabCount.toLocaleString("pt-BR")}
-                  </span>
-                )}
-              </span>
-              <IconChevronDown
-                size={15}
-                className={cn(
-                  "shrink-0 text-[var(--text-muted)] transition-transform",
-                  dropdownOpen && "rotate-180",
-                )}
+              )}
+            </span>
+            <IconChevronDown
+              size={15}
+              className={cn(
+                "shrink-0 text-[var(--text-muted)] transition-transform",
+                dropdownOpen && "rotate-180",
+              )}
+            />
+          </button>
+        </div>
+        {isMulti ? (
+          <button
+            type="button"
+            aria-pressed={porTempo}
+            title={porTempo ? "Por tempo (mais antigas primeiro)" : "Por fila (seções)"}
+            onClick={() =>
+              setAndPersistMultiQueueView(porTempo ? "by-queue" : "by-time")
+            }
+            className={cn(
+              "flex h-12 w-12 shrink-0 items-center justify-center rounded-full shadow-sm transition-colors",
+              porTempo
+                ? "bg-primary text-primary-foreground"
+                : "bg-card text-muted-foreground",
+            )}
+          >
+            <Clock className="size-5" aria-hidden />
+            <span className="sr-only">
+              {porTempo
+                ? "Visão por tempo ativa. Clique para agrupar por fila."
+                : "Visão por fila ativa. Clique para ordenar por tempo."}
+            </span>
+          </button>
+        ) : null}
+        {onRefresh ? (
+          <TooltipGlass label="Atualizar fila" side="bottom">
+            <button
+              type="button"
+              aria-label="Atualizar fila"
+              onClick={() => onRefresh()}
+              disabled={isRefreshing}
+              data-tour="inbox-refresh"
+              className={cn(
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-primary disabled:opacity-60",
+                isRefreshing && "text-primary",
+              )}
+            >
+              <IconRefresh
+                size={20}
+                stroke={2}
+                className={cn(isRefreshing && "animate-spin")}
               />
             </button>
-          </div>
-          {isMulti ? (
-            <PageSegmentedControl
-              aria-label="Visão das filas selecionadas"
-              size="compact"
-              value={multiQueueView}
-              onChange={(v) => setAndPersistMultiQueueView(v as MultiQueueView)}
-              items={[
-                { value: "by-queue", label: "Por fila" },
-                { value: "by-time", label: "Por tempo" },
-              ]}
-              className="shrink-0"
-            />
-          ) : null}
-        </div>
-        <div className="ml-auto flex shrink-0 items-center gap-2 @max-[240px]:gap-1">
-          {onRefresh ? (
-            <TooltipGlass label="Atualizar fila" side="bottom">
-              <button
-                type="button"
-                aria-label="Atualizar fila"
-                onClick={() => onRefresh()}
-                disabled={isRefreshing}
-                data-tour="inbox-refresh"
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)] disabled:opacity-60",
-                  isRefreshing && "text-[var(--brand-primary)]",
-                )}
-              >
-                <IconRefresh
-                  size={17}
-                  stroke={2}
-                  className={cn(isRefreshing && "animate-spin")}
-                />
-              </button>
-            </TooltipGlass>
-          ) : null}
-          {filterSlot}
-        </div>
+          </TooltipGlass>
+        ) : null}
+        {filterSlot}
       </div>
 
       {dropdownOpen &&
@@ -927,7 +931,7 @@ export function ConversationColumn({
                 </QueueSection>
               )
             })}
-            {displayed.length === 0 && !isLoadingMore && (!isMulti || multiQueueView === "by-time") && (
+            {displayed.length === 0 && !isLoadingMore && (!isMulti || porTempo) && (
               <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
                 Nenhuma conversa encontrada.
               </div>
