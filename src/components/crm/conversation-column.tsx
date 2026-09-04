@@ -19,7 +19,7 @@ import {
   IconCheck,
   type Icon as TablerIcon,
 } from "@tabler/icons-react"
-import { Clock, RefreshCw } from "lucide-react"
+import { ChevronDown, Clock, Copy, RefreshCw } from "lucide-react"
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -588,9 +588,9 @@ export function ConversationColumn({
         </div>
       )}
 
-      {/* Uma linha: filas | Clock (2+) | refresh | mais */}
-      <div className="mb-2 flex items-center gap-3">
-        <div data-tour="inbox-queues" className="min-w-0 flex-1">
+      {/* Uma linha: filas | Clock (2+) | refresh | mais — todos h-11 */}
+      <div className="mb-2 flex items-center gap-2">
+        <div data-tour="inbox-queues" className="mr-1 min-w-0 flex-1">
           <button
             ref={dropdownBtnRef}
             type="button"
@@ -598,22 +598,25 @@ export function ConversationColumn({
             title={triggerTitle}
             aria-haspopup="listbox"
             aria-expanded={dropdownOpen}
-            className="flex min-w-0 w-full flex-1 items-center gap-3 rounded-full border border-border bg-card px-5 py-2.5 text-left shadow-sm"
+            className="flex h-11 min-w-0 w-full flex-1 items-center gap-2.5 rounded-full border border-border bg-card px-2.5 text-left shadow-sm"
           >
-            <span className="min-w-0 truncate text-base font-semibold text-foreground">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Copy className="h-4 w-4" aria-hidden />
+            </span>
+            <span className="min-w-0 truncate text-[15px] font-semibold text-foreground">
               {currentTabLabel}
             </span>
             {currentTabCount != null && (
-              <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-2 text-sm font-semibold text-primary-foreground tabular-nums">
+              <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground tabular-nums">
                 {currentTabCount.toLocaleString("pt-BR")}
               </span>
             )}
-            <IconChevronDown
-              size={16}
+            <ChevronDown
               className={cn(
                 "ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform",
                 dropdownOpen && "rotate-180",
               )}
+              aria-hidden
             />
           </button>
         </div>
@@ -621,22 +624,22 @@ export function ConversationColumn({
           <button
             type="button"
             aria-pressed={porTempo}
-            title={porTempo ? "Por tempo (mais antigas primeiro)" : "Por fila (seções)"}
+            title={porTempo ? "Por hora (ligado)" : "Por fila (desligado)"}
             onClick={() =>
               setAndPersistMultiQueueView(porTempo ? "by-queue" : "by-time")
             }
             className={cn(
-              "flex shrink-0 items-center justify-center p-1 transition-colors",
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm transition-colors",
               porTempo
-                ? "text-amber-500 hover:text-amber-500"
-                : "text-muted-foreground hover:text-amber-500",
+                ? "bg-amber-500 text-white"
+                : "bg-card text-muted-foreground hover:text-amber-500",
             )}
           >
-            <Clock className="h-6 w-6" aria-hidden />
+            <Clock className="h-5 w-5" aria-hidden />
             <span className="sr-only">
               {porTempo
-                ? "Visão por tempo ativa. Clique para agrupar por fila."
-                : "Visão por fila ativa. Clique para ordenar por tempo."}
+                ? "Por hora (ligado). Clique para agrupar por fila."
+                : "Por fila (desligado). Clique para ordenar por hora."}
             </span>
           </button>
         ) : null}
@@ -648,10 +651,10 @@ export function ConversationColumn({
               onClick={() => onRefresh()}
               disabled={isRefreshing}
               data-tour="inbox-refresh"
-              className="flex shrink-0 items-center justify-center p-1 text-emerald-600 transition-colors hover:text-emerald-700 disabled:opacity-60"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground disabled:opacity-60"
             >
               <RefreshCw
-                className={cn("h-6 w-6", isRefreshing && "animate-spin")}
+                className={cn("h-5 w-5", isRefreshing && "animate-spin")}
                 aria-hidden
               />
             </button>
