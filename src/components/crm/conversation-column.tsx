@@ -19,7 +19,14 @@ import {
   IconCheck,
   type Icon as TablerIcon,
 } from "@tabler/icons-react"
-import { ChevronDown, Clock, Copy, RefreshCw } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Clock,
+  Copy,
+  RefreshCw,
+} from "lucide-react"
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -260,9 +267,23 @@ function groupConversationsByQueue(
 }
 
 const COLLAPSED_QUEUES_KEY = "inbox:collapsed-queues"
-const MULTI_QUEUE_VIEW_KEY = "inbox:multi-queue-view"
+const MULTI_QUEUE_ORDENACAO_KEY = "inbox:multi-queue-ordenacao"
+/** @deprecated migrado para `inbox:multi-queue-ordenacao` (0|1|2|3) */
+const MULTI_QUEUE_VIEW_KEY_LEGACY = "inbox:multi-queue-view"
 
-type MultiQueueView = "by-queue" | "by-time"
+/** 0 = Por fila | 1 = Por hora | 2 = novo→velho | 3 = velho→novo */
+type Ordenacao = 0 | 1 | 2 | 3
+
+const ORDENACAO_ROTULOS = [
+  "Por fila (desligado)",
+  "Por hora (ligado)",
+  "Por hora · do mais novo para o mais velho",
+  "Por hora · do mais velho para o mais novo",
+] as const
+
+function isOrdenacao(v: number): v is Ordenacao {
+  return v === 0 || v === 1 || v === 2 || v === 3
+}
 
 function readCollapsedQueues(): Set<string> {
   if (typeof window === "undefined") return new Set()
@@ -289,21 +310,27 @@ function writeCollapsedQueues(ids: Set<string>) {
   }
 }
 
-function readMultiQueueView(): MultiQueueView {
-  if (typeof window === "undefined") return "by-queue"
+function readOrdenacao(): Ordenacao {
+  if (typeof window === "undefined") return 0
   try {
-    const raw = window.localStorage.getItem(MULTI_QUEUE_VIEW_KEY)
-    if (raw === "by-time" || raw === "by-queue") return raw
+    const raw = window.localStorage.getItem(MULTI_QUEUE_ORDENACAO_KEY)
+    if (raw != null) {
+      const n = Number(raw)
+      if (isOrdenacao(n)) return n
+    }
+    const legacy = window.localStorage.getItem(MULTI_QUEUE_VIEW_KEY_LEGACY)
+    if (legacy === "by-time") return 1
+    if (legacy === "by-queue") return 0
   } catch {
     /* localStorage indisponível */
   }
-  return "by-queue"
+  return 0
 }
 
-function writeMultiQueueView(mode: MultiQueueView) {
+function writeOrdenacao(value: Ordenacao) {
   if (typeof window === "undefined") return
   try {
-    window.localStorage.setItem(MULTI_QUEUE_VIEW_KEY, mode)
+    window.localStorage.setItem(MULTI_QUEUE_ORDENACAO_KEY, String(value))
   } catch {
     /* localStorage indisponível */
   }
@@ -314,10 +341,25 @@ function conversationActivityTs(c: Conversation): number {
   return c.lastActivityAt ? Date.parse(c.lastActivityAt) || 0 : 0
 }
 
-function sortConversationsOldestFirst(items: Conversation[]): Conversation[] {
+function sortConversationsByActivity(
+  items: Conversation[],
+  dir: "asc" | "desc",
+): Conversation[] {
+  const mul = dir === "asc" ? 1 : -1
   return [...items].sort(
-    (a, b) => conversationActivityTs(a) - conversationActivityTs(b),
+    (a, b) => mul * (conversationActivityTs(a) - conversationActivityTs(b)),
   )
+}
+
+function flatItemsForOrdenacao(
+  items: Conversation[],
+  ordenacao: Ordenacao,
+): Conversation[] {
+  if (ordenacao === 2) return sortConversationsByActivity(items, "desc")
+  if (ordenacao === 1 || ordenacao === 3) {
+    return sortConversationsByActivity(items, "asc")
+  }
+  return items
 }
 
 function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
@@ -411,12 +453,12 @@ export function ConversationColumn({
   const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(
     () => new Set(),
   )
-  // Visão multi-fila: seções (default) vs lista plana cronológica.
+  // 0 = Por fila | 1 = Por hora | 2 = novo→velho | 3 = velho→novo
   // Só afeta apresentação — não refetch.
-  const [multiQueueView, setMultiQueueView] = useState<MultiQueueView>("by-queue")
+  const [ordenacao, setOrdenacao] = useState<Ordenacao>(0)
   useEffect(() => {
     setCollapsedQueues(readCollapsedQueues())
-    setMultiQueueView(readMultiQueueView())
+    setOrdenacao(readOrdenacao())
   }, [])
   const persistCollapsed = (next: Set<string>) => {
     setCollapsedQueues(next)
@@ -428,9 +470,12 @@ export function ConversationColumn({
     else next.add(queueId)
     persistCollapsed(next)
   }
-  const setAndPersistMultiQueueView = (mode: MultiQueueView) => {
-    setMultiQueueView(mode)
-    writeMultiQueueView(mode)
+  const cycleOrdenacao = () => {
+    setOrdenacao((v) => {
+      const next = ((v + 1) % 4) as Ordenacao
+      writeOrdenacao(next)
+      return next
+    })
   }
 
   const [internalTab, setInternalTab] = useState(0)
@@ -464,20 +509,16 @@ export function ConversationColumn({
   const selectedItems = tabs.filter((t) => t.id && selectedQueueIds.includes(t.id))
   const isMulti = selectedQueueIds.length > 1
   const noQueuesSelected = selectedQueueIds.length === 0
-  // 2+ filas: porTempo=false = seções; porTempo=true = lista plana (mais antigas primeiro).
-  // 0–1 fila: lista plana na ordem já carregada (toggle oculto).
-  const porTempo = multiQueueView === "by-time"
-  const useQueueSections = isMulti && !porTempo
+  // 2+ filas + ordenacao 0 = seções; caso contrário lista plana (1 fila ou Por hora+).
+  const ligado = ordenacao > 0
+  const useQueueSections = isMulti && ordenacao === 0
   const queueSections = useQueueSections
     ? groupConversationsByQueue(displayed, selectedQueueIds)
     : [
         {
           id: null,
           label: null,
-          items:
-            isMulti && porTempo
-              ? sortConversationsOldestFirst(displayed)
-              : displayed,
+          items: flatItemsForOrdenacao(displayed, ordenacao),
         },
       ]
   const currentTab = selectedItems[0] ?? tabs[activeTab]
@@ -588,7 +629,7 @@ export function ConversationColumn({
         </div>
       )}
 
-      {/* Uma linha: filas | Clock (2+) | refresh | mais — densidade h-10 */}
+      {/* Uma linha: filas | Clock (2+) | refresh | mais — densidade h-9 */}
       <div className="mb-2 flex items-center gap-1.5">
         <div data-tour="inbox-queues" className="mr-0.5 min-w-0 flex-1">
           <button
@@ -598,16 +639,16 @@ export function ConversationColumn({
             title={triggerTitle}
             aria-haspopup="listbox"
             aria-expanded={dropdownOpen}
-            className="flex h-10 min-w-0 w-full flex-1 items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm"
+            className="flex h-9 min-w-0 w-full flex-1 items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm"
           >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Copy className="h-3.5 w-3.5" aria-hidden />
             </span>
             <span className="min-w-0 truncate text-sm font-semibold text-foreground">
               {currentTabLabel}
             </span>
             {currentTabCount != null && (
-              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[10.5px] font-semibold text-primary-foreground tabular-nums">
+              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
                 {currentTabCount.toLocaleString("pt-BR")}
               </span>
             )}
@@ -624,24 +665,28 @@ export function ConversationColumn({
           <button
             type="button"
             data-tour="inbox-multi-queue-view"
-            aria-pressed={porTempo}
-            title={porTempo ? "Por hora (ligado)" : "Por fila (desligado)"}
-            onClick={() =>
-              setAndPersistMultiQueueView(porTempo ? "by-queue" : "by-time")
-            }
+            aria-pressed={ligado}
+            title={ORDENACAO_ROTULOS[ordenacao]}
+            onClick={cycleOrdenacao}
             className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm transition-colors",
-              porTempo
-                ? "border-amber-500 bg-amber-500 text-amber-950"
+              "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border shadow-sm transition-colors",
+              ligado
+                ? "border-amber-500 bg-amber-500 text-white"
                 : "border-border bg-card text-muted-foreground hover:text-amber-600",
             )}
           >
             <Clock className="h-4 w-4" aria-hidden />
-            <span className="sr-only">
-              {porTempo
-                ? "Por hora (ligado). Clique para agrupar por fila."
-                : "Por fila (desligado). Clique para ordenar por hora."}
-            </span>
+            {ordenacao === 2 ? (
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
+                <ArrowDown className="h-2.5 w-2.5" aria-hidden />
+              </span>
+            ) : null}
+            {ordenacao === 3 ? (
+              <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card text-foreground shadow-sm ring-1 ring-border">
+                <ArrowUp className="h-2.5 w-2.5" aria-hidden />
+              </span>
+            ) : null}
+            <span className="sr-only">{ORDENACAO_ROTULOS[ordenacao]}</span>
           </button>
         ) : null}
         {onRefresh ? (
@@ -652,7 +697,7 @@ export function ConversationColumn({
               onClick={() => onRefresh()}
               disabled={isRefreshing}
               data-tour="inbox-refresh"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground disabled:opacity-60"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground disabled:opacity-60"
             >
               <RefreshCw
                 className={cn("h-4 w-4", isRefreshing && "animate-spin")}
@@ -919,7 +964,7 @@ export function ConversationColumn({
                 </QueueSection>
               )
             })}
-            {displayed.length === 0 && !isLoadingMore && (!isMulti || porTempo) && (
+            {displayed.length === 0 && !isLoadingMore && (!isMulti || ligado) && (
               <div className="px-2 py-6 text-center text-xs text-[var(--text-muted)]">
                 Nenhuma conversa encontrada.
               </div>
