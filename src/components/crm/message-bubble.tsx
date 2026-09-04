@@ -288,6 +288,8 @@ export interface Message {
    * lateral (verde p/ nossa mensagem, cinza p/ mensagem do cliente).
    */
   replyTo?: {
+    /** Id da bolha citada (`externalId ?? id`) — mesmo espaço de `message.id`. */
+    messageId?: string | null
     snippet: string
     direction?: "in" | "out"
     senderName?: string | null
@@ -363,6 +365,8 @@ export interface MessageBubbleProps {
   onPinMessage?: (message: Message) => void
   /** Ao clicar em "Favoritar": adiciona à lista de favoritas do agente. */
   onFavoriteMessage?: (message: Message) => void
+  /** Ao clicar na citação: rola até a mensagem original no thread. */
+  onJumpToQuotedMessage?: (messageId: string) => void
 }
 
 /** Emojis exibidos na barra rápida de reações — padrão WhatsApp. */
@@ -1402,6 +1406,7 @@ export function MessageBubble({
   onReactMessage,
   onPinMessage,
   onFavoriteMessage,
+  onJumpToQuotedMessage,
 }: MessageBubbleProps) {
   const isOutgoing = message.type === "outgoing"
   const isBot = message.isBot ?? false
@@ -1741,6 +1746,8 @@ export function MessageBubble({
               direction={message.replyTo.direction ?? "out"}
               senderName={message.replyTo.senderName ?? null}
               onLightBg={!isOutgoing}
+              messageId={message.replyTo.messageId ?? null}
+              onJump={onJumpToQuotedMessage}
             />
           )}
           {/* Conteúdo: mídia (áudio/imagem/vídeo/documento) ou texto */}
@@ -1823,11 +1830,15 @@ function QuotedPreview({
   direction,
   senderName,
   onLightBg,
+  messageId,
+  onJump,
 }: {
   snippet: string
   direction: "in" | "out"
   senderName: string | null
   onLightBg: boolean
+  messageId?: string | null
+  onJump?: (messageId: string) => void
 }) {
   const label = senderName || (direction === "out" ? "Você" : "Cliente")
   // Cores hardcoded p/ atravessar dark/light sem depender de --text-*.
@@ -1835,9 +1846,35 @@ function QuotedPreview({
   const border = onLightBg ? "#5b6ff5" : "#ffffff"
   const labelColor = onLightBg ? "#4338ca" : "#e0e7ff"
   const textColor = onLightBg ? "#334155" : "rgba(255,255,255,0.88)"
+  const canJump = Boolean(messageId && onJump)
   return (
     <div
-      className="mb-1.5 overflow-hidden rounded-md pl-2"
+      role={canJump ? "button" : undefined}
+      tabIndex={canJump ? 0 : undefined}
+      aria-label={canJump ? "Ir para a mensagem citada" : undefined}
+      onClick={
+        canJump
+          ? (e) => {
+              e.stopPropagation()
+              onJump!(messageId!)
+            }
+          : undefined
+      }
+      onKeyDown={
+        canJump
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                onJump!(messageId!)
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        "mb-1.5 overflow-hidden rounded-md pl-2",
+        canJump && "cursor-pointer transition-opacity hover:opacity-90",
+      )}
       style={{ background: bg, borderLeft: `3px solid ${border}` }}
     >
       <div className="px-2 py-1">

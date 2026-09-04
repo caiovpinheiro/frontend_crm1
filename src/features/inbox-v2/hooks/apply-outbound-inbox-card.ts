@@ -244,10 +244,15 @@ export function applyOutboundPreviewToInboxCaches(
       ? preview.timestamp
       : new Date().toISOString();
   const content = typeof preview?.content === "string" ? preview.content : "";
-  applyConversationFieldsToInboxCaches(qc, conversationId, {
+  // Sem hasHumanReply o card de Entrada (flag false explícita) NÃO sai da
+  // fila: inboxQueueTabFor trata countable===false antes de lastMessageDirection.
+  // Espelha HUMAN_OUTBOUND_REPLY_MARK do backend.
+  const patched: Partial<ConversationListRow> = {
     lastMessageAt: ts,
     updatedAt: ts,
     lastMessageDirection: "out",
+    hasHumanReply: true,
+    hasAgentReply: true,
     lastMessagePreview: {
       content,
       messageType: preview?.messageType ?? "",
@@ -265,5 +270,10 @@ export function applyOutboundPreviewToInboxCaches(
           },
         }
       : {}),
-  });
+  };
+  const nextTab = inboxQueueTabFor({ ...existing, ...patched });
+  if (existing.queueTab && existing.queueTab !== nextTab) {
+    patched.queueTab = nextTab;
+  }
+  applyConversationFieldsToInboxCaches(qc, conversationId, patched);
 }
