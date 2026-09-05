@@ -171,6 +171,7 @@ export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
   let users = Array.isArray(data?.users) ? data.users : [];
   let tags = Array.isArray(data?.tags) ? data.tags : [];
   const sources = Array.isArray(data?.sources) ? data.sources : [];
+  const utmSources = Array.isArray(data?.utmSources) ? data.utmSources : [];
   let lossReasons = Array.isArray(data?.lossReasons) ? data.lossReasons : [];
 
   // 2) Fallback: chama endpoints individuais (que existem há mais tempo) p/
@@ -252,6 +253,7 @@ export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
     dealCustomFields,
     contactCustomFields,
     sources,
+    utmSources,
     lossReasons,
   } as FilterOptionsResponse;
 }

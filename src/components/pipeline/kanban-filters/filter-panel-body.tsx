@@ -861,6 +861,22 @@ function PropertiesColumn({
         />
       </PropertyRow>
 
+      {/* utm_source (informação rastreada) */}
+      <PropertyRow
+        label="utm_source"
+        active={!!((draft.utmSources ?? []).filter((s) => s !== SOURCE_NONE).length || draft.withoutUtmSource)}
+      >
+        <SourcesMultiPick
+          sources={options?.utmSources ?? []}
+          selected={(draft.utmSources ?? []).filter((s) => s !== SOURCE_NONE)}
+          withoutSource={draft.withoutUtmSource}
+          onChange={(ids, withoutSource) => {
+            setDraftField("utmSources", ids.length ? ids : undefined);
+            setDraftField("withoutUtmSource", withoutSource || undefined);
+          }}
+        />
+      </PropertyRow>
+
       {/* Responsável */}
       <PropertyRow label="Usuários" active={!!(draft.ownerIds?.length || draft.withoutOwner)}>
         <UsersMultiPick

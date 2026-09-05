@@ -52,6 +52,9 @@ export type AdvancedDealFilters = {
   sources?: string[];
   /** true = só leads sem origem. */
   withoutSource?: boolean;
+  /** utm_source do contato (Contact.adUtmSource). Pode incluir `SOURCE_NONE`. */
+  utmSources?: string[];
+  withoutUtmSource?: boolean;
   /** Motivos de perda (Deal.lostReason) — match exato com a tabulação. */
   lostReasons?: string[];
   tagIds?: string[];
@@ -99,6 +102,8 @@ export type FilterOptionsResponse = {
   dealCustomFields: CustomField[];
   contactCustomFields: CustomField[];
   sources: string[];
+  /** Valores distintos de Contact.adUtmSource. */
+  utmSources?: string[];
   /** Motivos de perda: catálogo ativo + motivos livres já usados. */
   lossReasons?: string[];
 };
@@ -155,6 +160,7 @@ export function countActiveFilters(f: AdvancedDealFilters | null | undefined): n
   if (f.ownerIds?.length || f.withoutOwner) n++;
   if (f.withoutContact) n++;
   if (f.sources?.length || f.withoutSource) n++;
+  if (f.utmSources?.length || f.withoutUtmSource) n++;
   if (f.lostReasons?.length) n++;
   if (f.tagIds?.length || f.withoutTags) n++;
   if (f.contactSearch?.trim()) n++;

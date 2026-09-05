@@ -35,6 +35,7 @@ import { WebhookStepConfig } from "@/components/automations/webhook-step-config"
 import { ProductPicker } from "@/components/automations/send-product-config";
 import { TagStepInput } from "@/components/automations/tag-step-input";
 import { useCustomFieldConditionMeta } from "@/components/automations/editor-data";
+import { useContactSources } from "@/hooks/use-contact-sources";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import {
@@ -1994,6 +1995,13 @@ const CONDITION_FIELD_GROUPS: FieldGroup[] = [
       { value: "contact.leadScore", label: "Lead score", hint: "numérico" },
       { value: "contact.lifecycleStage", label: "Etapa do ciclo" },
       { value: "contact.source", label: "Origem" },
+      { value: "contact.adUtmSource", label: "utm_source" },
+      { value: "contact.adUtmMedium", label: "utm_medium" },
+      { value: "contact.adUtmCampaign", label: "utm_campaign" },
+      { value: "contact.adUtmContent", label: "utm_content" },
+      { value: "contact.adUtmTerm", label: "utm_term" },
+      { value: "contact.gclid", label: "gclid" },
+      { value: "contact.fbclid", label: "fbclid" },
       // 27/mai/26 — Campo de tags. Junto com os ops `has_tag` /
       // `not_has_tag`, permite criar branches do tipo "se o contato
       // tem a tag X". O picker de valor mostra um dropdown puxando
@@ -2358,6 +2366,9 @@ function ConditionValueInput({
       />
     );
   }
+  if (field === "contact.source") {
+    return <ContactSourcePickerValue value={str} onChange={onChange} />;
+  }
   if (field === "contact.lifecycleStage") {
     return (
       <DropdownGlass
@@ -2483,6 +2494,57 @@ function PipelinePickerValue({
       options={pipelines.map((p) => ({ value: p.id, label: p.name }))}
       onValueChange={onChange}
     />
+  );
+}
+
+/**
+ * Picker de origem (Contact.source) — lista valores já usados na org.
+ * Permite texto livre se a origem ainda não existir (digitação no dropdown).
+ */
+function ContactSourcePickerValue({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const { data: sources = [], isLoading } = useContactSources(true);
+  const options = useMemo(() => {
+    const base = [
+      { value: "", label: "Selecione…" },
+      ...sources.map((s) => ({ value: s, label: s })),
+    ];
+    if (value && !sources.includes(value)) {
+      base.push({ value, label: value });
+    }
+    return base;
+  }, [sources, value]);
+
+  if (isLoading && !value) {
+    return (
+      <div className="flex h-9 items-center rounded-md border border-border bg-[var(--color-bg-subtle)] px-3 text-[11px] italic text-[var(--color-ink-muted)]">
+        Carregando origens…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <DropdownGlass
+        triggerClassName="h-9 text-[12px] w-full"
+        searchable
+        placeholder="Selecione uma origem…"
+        value={value}
+        options={options}
+        onValueChange={onChange}
+      />
+      <Input
+        className="h-8 text-[12px]"
+        placeholder="Ou digite uma origem…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
   );
 }
 

@@ -110,6 +110,22 @@ export function dealFilterChips(
     });
   }
 
+  if (filters.withoutUtmSource) {
+    chips.push({
+      id: "utmsource",
+      title: "Sem utm_source",
+      count: 1,
+      onRemove: () => onPatch({ withoutUtmSource: undefined }),
+    });
+  } else if (filters.utmSources && filters.utmSources.length > 0) {
+    chips.push({
+      id: "utmsource",
+      title: "utm_source",
+      count: filters.utmSources.length,
+      onRemove: () => onPatch({ utmSources: undefined }),
+    });
+  }
+
   if (filters.lostReasons && filters.lostReasons.length > 0) {
     chips.push({
       id: "lost",

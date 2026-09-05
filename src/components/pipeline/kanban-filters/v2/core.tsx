@@ -657,6 +657,55 @@ export function SourcesSection({ draft, options, setDraftField, toggleArray }: S
   );
 }
 
+export function UtmSourcesSection({ draft, options, setDraftField, toggleArray }: SectionProps) {
+  const allSources = options?.utmSources ?? [];
+  const selected = (draft.utmSources ?? []).filter((s) => s !== SOURCE_NONE);
+  const selectedKeys = draft.withoutUtmSource
+    ? ["__none__", ...selected]
+    : selected;
+
+  return (
+    <FieldCard
+      label="utm_source"
+      active={!!(selected.length || draft.withoutUtmSource)}
+      onClear={() => {
+        setDraftField("utmSources", undefined);
+        setDraftField("withoutUtmSource", undefined);
+      }}
+    >
+      <MultiSelectDropdown
+        placeholder="Selecionar utm_source…"
+        emptyLabel="Nenhum utm_source cadastrado."
+        searchable={allSources.length > 6}
+        searchPlaceholder="Buscar utm_source…"
+        selected={selectedKeys}
+        options={[
+          {
+            value: "__none__",
+            label: "Sem utm_source",
+            searchText: "Sem utm_source",
+          },
+          ...allSources.map((source) => ({
+            value: source,
+            label: source,
+            searchText: source,
+          })),
+        ]}
+        onToggle={(value) => {
+          if (value === "__none__") {
+            const next = !draft.withoutUtmSource;
+            setDraftField("withoutUtmSource", next || undefined);
+            if (next) setDraftField("utmSources", undefined);
+            return;
+          }
+          setDraftField("withoutUtmSource", undefined);
+          setDraftField("utmSources", toggleArray(selected, value));
+        }}
+      />
+    </FieldCard>
+  );
+}
+
 export function LossReasonsSection({ draft, options, setDraftField, toggleArray }: SectionProps) {
   const reasons = options?.lossReasons ?? [];
   if (reasons.length === 0) return null;
