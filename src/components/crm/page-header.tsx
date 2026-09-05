@@ -10,8 +10,12 @@ import { ChevronLeft } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-/** Page title/search stay outside the Y-scroller (zoom breaks `sticky`). */
-export const PAGE_HEADER_STICKY_CLASS = "bg-[var(--bg-base)]"
+/**
+ * Sticky chrome height marker — sem fundo próprio.
+ * Canvas `.v2-screen` já é `--bg-base`. Fundo no header + `zoom` do
+ * `.v2-root` gerava hairline/contorno (lido como “quadrado” em Contatos).
+ */
+export const PAGE_HEADER_STICKY_CLASS = "bg-transparent"
 
 export const PAGE_HEADER_STICKY_ATTR = "data-sticky-page-header"
 
@@ -45,8 +49,10 @@ export function PageChrome({
         className,
       )}
     >
-      {/* Acima do list-col-head sticky (z-30) — Filtrar/período sobrepõem a lista. */}
-      <div className="relative z-40 w-full shrink-0 bg-[var(--bg-base)]">{header}</div>
+      {/* Acima do list-col-head sticky (z-30) — Filtrar/período sobrepõem a lista.
+          Sem fundo próprio: o canvas `.v2-screen` já é `--bg-base`. Fundo aqui
+          + zoom do `.v2-root` pintava um retângulo com hairline no header. */}
+      <div className="relative z-40 w-full shrink-0 bg-transparent">{header}</div>
       <div
         data-page-scroll={page ? undefined : ""}
         className={cn(
@@ -152,7 +158,7 @@ function Identity({
   titleAccessory?: React.ReactNode
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 items-center gap-3 border-0 bg-transparent shadow-none outline-none">
       {back ? (
         <Link
           href={back.href}
@@ -163,10 +169,8 @@ function Identity({
         </Link>
       ) : null}
 
-      {/* Só o glifo — sem tile/borda. Contorno do quadrado no canvas
-          cinza era lido como defeito (Contatos); Pipeline “ok” era
-          quando o fundo escondia o mesmo chrome. */}
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center text-primary [&>svg]:size-[22px]">
+      {/* Glifo solto — sem slot/tile/borda/fundo. */}
+      <span className="inline-flex shrink-0 border-0 bg-transparent text-primary shadow-none outline-none ring-0 [&>svg]:size-[22px]">
         {icon}
       </span>
 
