@@ -4,6 +4,7 @@ import { createContext, useContext, type CSSProperties, type HTMLAttributes, typ
 
 import {
   LIST_CARD_HEAD_CLASS,
+  LIST_CARD_HEAD_STATIC_CLASS,
   LIST_CARD_ROW_CLASS,
   LIST_CARD_STACK_CLASS,
 } from "@/components/crm/sortable-header"
@@ -44,7 +45,9 @@ export function DataView({
       <div
         className={cn(
           isTabela
-            ? "rounded-xl border border-border bg-card"
+            // overflow-hidden: clipa o head no raio — sem isto o sticky
+            // list-col-head (bg canvas) “corta” os cantos da borda.
+            ? "overflow-hidden rounded-xl border border-border bg-card"
             : LIST_CARD_STACK_CLASS,
           className,
           "w-full min-w-max",
@@ -53,7 +56,10 @@ export function DataView({
         <div
           className={cn(
             columnClass,
-            LIST_CARD_HEAD_CLASS,
+            isTabela
+              ? LIST_CARD_HEAD_STATIC_CLASS
+              : LIST_CARD_HEAD_CLASS,
+            isTabela && "border-b border-border bg-secondary/40",
             "w-full",
           )}
           style={style}
