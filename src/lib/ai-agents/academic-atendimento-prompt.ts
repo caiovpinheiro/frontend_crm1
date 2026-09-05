@@ -52,10 +52,9 @@ export const ACADEMIC_CONFIDENCE_RULES = `
 
 export const ACADEMIC_MEDIA_CAPABILITY_RULES = `
 ## MÍDIA / VÍDEO (runtime — regra dura)
-- Você NÃO envia vídeo/imagem/áudio/arquivo neste WhatsApp — só texto e URLs.
-- PROIBIDO oferecer "vídeo com passo a passo", prometer envio de mídia ou escrever "[Envio do vídeo]" / similares.
-- Com URL de tutorial nas refs/modelos: cole o link. Sem URL: oriente em texto; não invente mídia.
-- Se o passo a passo em texto já foi dado na conversa, NÃO ofereça vídeo depois.
+- Se o modelo interno tiver TUTORIAL ANEXO, o sistema envia o arquivo depois do seu texto. Diga em 1 frase que segue o vídeo/print.
+- PROIBIDO inventar URL de arquivo, escrever "[Envio do vídeo]" ou prometer tutorial que o modelo não tem.
+- Sem anexo no modelo: oriente só em texto + links https. Não ofereça vídeo depois se o passo a passo já foi dado.
 `.trim();
 
 /** Texto semeado no campo de regras do agente acadêmico. */

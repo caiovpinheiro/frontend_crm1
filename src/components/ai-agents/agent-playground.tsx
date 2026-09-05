@@ -32,6 +32,7 @@ type RunResponse = {
   costUsd: number;
   autonomyMode: "AUTONOMOUS" | "DRAFT";
   toolCalls: Array<{ name: string; args: unknown; result: unknown }>;
+  followUpMedia?: Array<{ url: string; mimeType: string | null; name: string | null }>;
   error?: string;
   message?: string;
 };
@@ -108,7 +109,13 @@ export function AgentPlayground({
           });
         }
         if (data.text) {
-          next.push({ role: "assistant", content: data.text });
+          const mediaNote =
+            data.followUpMedia && data.followUpMedia.length > 0
+              ? `\n\n📎 Anexo que o WhatsApp enviaria: ${data.followUpMedia
+                  .map((m) => m.name || m.mimeType || "arquivo")
+                  .join(", ")}`
+              : "";
+          next.push({ role: "assistant", content: `${data.text}${mediaNote}` });
         }
         return next;
       });
