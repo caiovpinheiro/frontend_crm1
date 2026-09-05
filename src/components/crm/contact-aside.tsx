@@ -34,6 +34,7 @@ import {
   IconUser,
   IconX,
   IconAffiliate,
+  IconWorld,
 } from "@tabler/icons-react"
 import { useAsideViewMode, type AsideViewMode } from "@/hooks/use-aside-view-mode"
 import {
@@ -695,7 +696,7 @@ export function ContactAside({
   // Estados de modo edição
   const [contactEditMode, setContactEditMode] = useState(false)
   const [dealFieldsEditMode, setDealFieldsEditMode] = useState(false)
-  const { data: contactSources = [] } = useContactSources(contactEditMode)
+  const { data: contactSources = [] } = useContactSources(true)
   const canEditContact = useCan("contact:edit")
   const canEditDeal = useCan("deal:edit")
 
@@ -1096,6 +1097,22 @@ export function ContactAside({
                                     textClassName="text-right font-display text-[13px] font-semibold text-[var(--text-primary)]"
                                   />
                                 </Row>
+                                {/* Origem (Contact.source) — sempre visível no card Contato,
+                                    logo após Email. Não usar contact.origin (fallback "—"). */}
+                                <Row label="Origem" icon={<IconWorld size={12} />} compact={viewMode === "compact"}>
+                                  <InlineNativeEditor
+                                    value={native("source", contact.source?.trim() || "")}
+                                    entityType="contact"
+                                    entityId={contact.contactId}
+                                    fieldKey="source"
+                                    placeholder="Adicionar origem"
+                                    editMode={contactEditMode}
+                                    invalidateKeys={contactInvalidateKeys}
+                                    suggestions={contactSources}
+                                    onSaved={(v) => setNativeValues((p) => ({ ...p, source: v }))}
+                                    textClassName="text-right font-display text-[13px] font-semibold text-[var(--text-primary)]"
+                                  />
+                                </Row>
                                 {/* @ do WhatsApp — somente leitura (vem do
                                     webhook Meta, nao editavel). So aparece
                                     quando o contato tem username capturado. */}
@@ -1120,20 +1137,6 @@ export function ContactAside({
                                     </TooltipGlass>
                                   </Row>
                                 )}
-                                <Row label="Origem" icon={<IconAffiliate size={12} />} compact={viewMode === "compact"}>
-                                  <InlineNativeEditor
-                                    value={native("source", contact.source ?? contact.origin ?? "")}
-                                    entityType="contact"
-                                    entityId={contact.contactId}
-                                    fieldKey="source"
-                                    placeholder="Adicionar origem"
-                                    editMode={contactEditMode}
-                                    invalidateKeys={contactInvalidateKeys}
-                                    suggestions={contactSources}
-                                    onSaved={(v) => setNativeValues((p) => ({ ...p, source: v }))}
-                                    textClassName="text-right font-display text-[13px] font-semibold text-[var(--text-primary)]"
-                                  />
-                                </Row>
                                 {isFilled(contact.cpf) && <Row label="CPF" value={contact.cpf} icon={<IconId size={12} />} compact={viewMode === "compact"} />}
                                 {isFilled(contact.rg) && <Row label="RG" value={contact.rg} icon={<IconId size={12} />} compact={viewMode === "compact"} />}
                                 {isFilled(contact.cep) && <Row label="CEP" value={contact.cep} icon={<IconMapPin size={12} />} compact={viewMode === "compact"} />}
