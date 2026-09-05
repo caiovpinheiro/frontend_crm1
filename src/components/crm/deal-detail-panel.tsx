@@ -120,6 +120,10 @@ import { resolveHighlight, SEVERITY_COLORS } from "@/lib/highlight"
 import { InlineFieldEditor } from "@/components/crm/fields/inline-field-editor"
 import { InlineNativeEditor } from "@/components/crm/fields/inline-native-editor"
 import { DealLostReasonField } from "@/components/crm/deal-lost-reason-field"
+import {
+  TrackedInfoSection,
+  type TrackedAttribution,
+} from "@/components/crm/tracked-info-section"
 
 interface DealOwner {
   initials: string
@@ -158,6 +162,8 @@ export interface DealDetail {
   /** Motivo registrado ao marcar o deal como perdido (texto livre OU label
    *  cadastrado). Exibido em destaque no cabeçalho da sidebar. */
   lostReason?: string | null
+  /** Informação rastreada do contato (UTM / click IDs / Meta) — seção Contato. */
+  tracked?: TrackedAttribution | null
 }
 
 type TabId = "conversa" | "atividades" | "notas" | "timeline" | "chamadas"
@@ -378,6 +384,7 @@ export function DealDetailPanel({
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   // Optimistic updates para campos nativos do deal
   const [dealNative, setDealNative] = useState<Record<string, string>>({})
+  const [trackedOverrides, setTrackedOverrides] = useState<TrackedAttribution>({})
   // Modo edição para campos personalizados do negócio
   const [dealCustomEditMode, setDealCustomEditMode] = useState(false)
 
@@ -388,6 +395,7 @@ export function DealDetailPanel({
   useEffect(() => {
     setFieldValues({})
     setDealNative({})
+    setTrackedOverrides({})
   }, [deal?.id])
   const [sectionOrder, reorderSections] = useSectionOrder<SidebarSection>(
     SIDEBAR_STORAGE_KEY,
@@ -1218,6 +1226,22 @@ export function DealDetailPanel({
                                             </Row>
                                           )}
                                         </div>
+                                        {deal.contactId ? (
+                                          <div className="px-3.5 pb-2">
+                                            <TrackedInfoSection
+                                              values={{
+                                                ...(deal.tracked ?? {}),
+                                                ...trackedOverrides,
+                                              }}
+                                              contactId={deal.contactId}
+                                              invalidateKeys={[["contact-sidebar", deal.contactId]]}
+                                              compact={viewMode === "compact"}
+                                              onSaved={(key, v) =>
+                                                setTrackedOverrides((p) => ({ ...p, [key]: v }))
+                                              }
+                                            />
+                                          </div>
+                                        ) : null}
                                     </FieldCard>
                                   )}
 
