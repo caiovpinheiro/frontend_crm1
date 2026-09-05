@@ -12,10 +12,11 @@
  *  - `qualificationQuestions`  — perguntas obrigatórias.
  *  - `businessHours`           — horário de atendimento.
  *  - `outputStyle`             — estilo de saída (conversational|structured).
+ *  - `autoClosePolicy`         — quando a IA pode encerrar o ticket.
  *
- * O schema guarda `qualificationQuestions` e `businessHours` como
- * JSONB; este módulo centraliza a normalização e validação pra que
- * o resto do código nunca precise lidar com `unknown`.
+ * O schema guarda `qualificationQuestions`, `businessHours` e
+ * `autoClosePolicy` como JSONB; este módulo centraliza a normalização
+ * e validação pra que o resto do código nunca precise lidar com `unknown`.
  */
 
 export type HandoffMode = "KEEP_OWNER" | "SPECIFIC_USER" | "UNASSIGN";
@@ -230,6 +231,52 @@ export function matchHandoffKeyword(
 
 function stripAccents(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// ── Encerramento automático ──────────────────────────────────
+
+export type AutoCloseMode = "off" | "explicit" | "understood";
+
+export const AUTO_CLOSE_MODES: AutoCloseMode[] = [
+  "off",
+  "explicit",
+  "understood",
+];
+
+export function isAutoCloseMode(v: unknown): v is AutoCloseMode {
+  return typeof v === "string" && AUTO_CLOSE_MODES.includes(v as AutoCloseMode);
+}
+
+export type AutoClosePolicy = {
+  mode: AutoCloseMode;
+  keywords: string[];
+  message: string | null;
+};
+
+export function defaultAutoClosePolicy(): AutoClosePolicy {
+  return { mode: "understood", keywords: [], message: null };
+}
+
+export function normalizeAutoClosePolicy(v: unknown): AutoClosePolicy {
+  const base = defaultAutoClosePolicy();
+  if (!v || typeof v !== "object" || Array.isArray(v)) return base;
+  const r = v as Record<string, unknown>;
+  const keywords: string[] = [];
+  if (Array.isArray(r.keywords)) {
+    for (const raw of r.keywords) {
+      if (typeof raw !== "string") continue;
+      const s = raw.trim();
+      if (s && !keywords.includes(s)) keywords.push(s);
+    }
+  }
+  return {
+    mode: isAutoCloseMode(r.mode) ? r.mode : base.mode,
+    keywords,
+    message:
+      typeof r.message === "string" && r.message.trim()
+        ? r.message.trim()
+        : null,
+  };
 }
 
 // ── Opening message templating ───────────────────────────────
