@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils"
  * Filtrar permanece DENTRO da pílula; calendário fica FORA.
  */
 export const SEARCH_PILL_INPUT_CLASS =
-  "h-10 w-full rounded-full border border-border bg-card pl-9 font-body text-[13px] text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/40"
+  "h-10 w-full rounded-full border border-border bg-card pl-9 font-body text-[13px] text-foreground shadow-none outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/40"
 
 export const SEARCH_FILTER_BTN_CLASS =
   "absolute right-1.5 top-1/2 z-[1] flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold leading-none transition-colors"
@@ -214,7 +214,7 @@ export function SearchFilterBar({
       )}
       <div
         className={cn(
-          "flex h-10 w-full min-w-0 items-center overflow-hidden rounded-full border border-border bg-card shadow-sm",
+          "flex h-10 w-full min-w-0 items-center overflow-hidden rounded-full border border-border bg-card shadow-none",
           "focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/40",
           hasChips ? "pl-3" : "pl-9",
           padRight,

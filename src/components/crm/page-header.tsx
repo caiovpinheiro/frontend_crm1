@@ -163,7 +163,7 @@ function Identity({
         </Link>
       ) : null}
 
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--brand-primary)]">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-border bg-card text-primary shadow-none">
         {icon}
       </div>
 

@@ -53,7 +53,7 @@ export function ViewToggle({
     <div
       role="group"
       aria-label="Modo de visualização"
-      className="flex h-10 items-center rounded-full border border-border bg-card p-1"
+      className="flex h-10 items-center rounded-full border border-border bg-card p-1 shadow-none"
     >
       <button
         type="button"

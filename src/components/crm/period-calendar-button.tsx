@@ -186,7 +186,7 @@ export function PeriodCalendarButton({
         aria-pressed={active}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "flex size-10 shrink-0 items-center justify-center rounded-full border shadow-none transition-colors",
           active || open
             ? "border-primary bg-primary text-primary-foreground"
             : "border-border bg-card text-muted-foreground hover:text-foreground",
