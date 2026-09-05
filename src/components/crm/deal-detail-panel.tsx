@@ -1206,6 +1206,21 @@ export function DealDetailPanel({
                                               <span className="min-w-0 truncate text-right font-display text-[13px] font-semibold text-[var(--text-primary)]" title={deal.email ?? undefined}>{deal.email || <span className="italic text-slate-400">+ Adicionar</span>}</span>
                                             )}
                                           </Row>
+                                          {deal.contactId ? (
+                                            <Row label="Origem" icon={<IconAffiliate size={12} />} compact={viewMode === "compact"}>
+                                              <InlineNativeEditor
+                                                value={dealNative["source"] ?? (deal.contactSource ?? "")}
+                                                entityType="contact"
+                                                entityId={deal.contactId}
+                                                fieldKey="source"
+                                                placeholder="Adicionar origem"
+                                                invalidateKeys={[["contact-sidebar", deal.contactId]]}
+                                                suggestions={contactSources}
+                                                onSaved={(v) => setDealNative((p) => ({ ...p, source: v }))}
+                                                textClassName="text-right font-display text-[13px] font-semibold text-[var(--text-primary)]"
+                                              />
+                                            </Row>
+                                          ) : null}
                                           {/* @ WhatsApp — só leitura, vem do webhook Meta */}
                                           {deal.whatsappUsername && (
                                             <Row
