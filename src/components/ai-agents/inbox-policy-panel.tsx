@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { formLabelClass } from "@/components/ui/form-dialog";
 import { defaultInboxPolicy, type InboxPolicy } from "@/lib/ai-agents/steering";
 
 /** Espelho dos textos default do backend (human-queue-policy). */
@@ -47,7 +48,7 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
       />
 
       <div className="grid gap-1.5">
-        <Label htmlFor="conf-threshold">
+        <Label htmlFor="conf-threshold" className={formLabelClass}>
           Limiar de confiança (0 a 1)
         </Label>
         <Input
@@ -84,7 +85,7 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
       />
 
       <div className="grid gap-1.5">
-        <Label>Palavras extras de retenção</Label>
+        <Label className={formLabelClass}>Palavras extras de retenção</Label>
         <ChipInput
           values={value.retentionKeywords}
           onChange={(retentionKeywords) => patch({ retentionKeywords })}
@@ -106,7 +107,7 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
       />
 
       <div className="grid gap-1.5">
-        <Label>Palavras extras de dúvida comercial</Label>
+        <Label className={formLabelClass}>Palavras extras de dúvida comercial</Label>
         <ChipInput
           values={value.courseShoppingKeywords}
           onChange={(courseShoppingKeywords) =>
@@ -124,7 +125,7 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
         </p>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <Label>Acolhimento</Label>
+            <Label className={formLabelClass}>Acolhimento</Label>
             <ChipInput
               values={value.departmentAliases.acolhimento}
               onChange={(acolhimento) =>
@@ -139,7 +140,7 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
             />
           </div>
           <div className="grid gap-1.5">
-            <Label>Retenção</Label>
+            <Label className={formLabelClass}>Retenção</Label>
             <ChipInput
               values={value.departmentAliases.retencao}
               onChange={(retencao) =>
@@ -154,7 +155,7 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
             />
           </div>
           <div className="grid gap-1.5">
-            <Label>Atendimento</Label>
+            <Label className={formLabelClass}>Atendimento</Label>
             <ChipInput
               values={value.departmentAliases.atendimento}
               onChange={(atendimento) =>
@@ -182,7 +183,9 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
           </p>
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor="msg-handoff">Handoff para humano (geral)</Label>
+          <Label htmlFor="msg-handoff" className={formLabelClass}>
+            Handoff para humano (geral)
+          </Label>
           <Textarea
             id="msg-handoff"
             value={value.handoffMessage ?? ""}
@@ -195,7 +198,9 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
           />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor="msg-retencao">Handoff de retenção</Label>
+          <Label htmlFor="msg-retencao" className={formLabelClass}>
+            Handoff de retenção
+          </Label>
           <Textarea
             id="msg-retencao"
             value={value.retentionHandoffMessage ?? ""}
@@ -222,7 +227,9 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
           onChange={(inauguralEnabled) => patch({ inauguralEnabled })}
         />
         <div className="grid gap-1.5">
-          <Label htmlFor="inaugural-url">URL do YouTube</Label>
+          <Label htmlFor="inaugural-url" className={formLabelClass}>
+            URL do YouTube
+          </Label>
           <Input
             id="inaugural-url"
             value={value.inauguralUrl ?? ""}
@@ -233,7 +240,9 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
           />
         </div>
         <div className="grid gap-1.5">
-          <Label>Datas (YYYY-MM-DD, horário de Brasília)</Label>
+          <Label className={formLabelClass}>
+            Datas (YYYY-MM-DD, horário de Brasília)
+          </Label>
           <ChipInput
             values={value.inauguralDates}
             onChange={(inauguralDates) => patch({ inauguralDates })}

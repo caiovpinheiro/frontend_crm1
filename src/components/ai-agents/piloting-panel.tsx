@@ -17,21 +17,37 @@
  */
 
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
-import { IconAlertTriangle as AlertTriangle, IconBan as Ban, IconRobot as Bot, IconCalendarClock as CalendarClock, IconChecks as CheckCheck, IconClock as Clock, IconEye as Eye, IconHeartHandshake as Handshake, IconKeyboard as Keyboard, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSparkles as Sparkles, IconTrash as Trash2, IconUserCheck as UserCheck } from "@tabler/icons-react";
+import { IconAlertTriangle as AlertTriangle, IconBan as Ban, IconRobot as Bot, IconCalendarClock as CalendarClock, IconChecks as CheckCheck, IconClock as Clock, IconDoorExit as DoorExit, IconEye as Eye, IconHeartHandshake as Handshake, IconKeyboard as Keyboard, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSparkles as Sparkles, IconTrash as Trash2, IconUserCheck as UserCheck } from "@tabler/icons-react";
+import {
+  Ban as LucideBan,
+  CalendarClock as LucideCalendar,
+  Clock as LucideClock,
+  Keyboard as LucideKeyboard,
+  LogOut as LucideLogOut,
+  MessageCircle as LucideMessage,
+  Sparkles as LucideSparkles,
+  UserCheck as LucideUserCheck,
+  type LucideIcon,
+} from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { formLabelClass } from "@/components/ui/form-dialog";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import type {
+  AutoCloseMode,
+  AutoClosePolicy,
   BusinessHoursConfig,
   BusinessHoursSlot,
   HandoffMode,
   OutputStyle,
   QualificationQuestion,
 } from "@/lib/ai-agents/piloting";
+import { defaultAutoClosePolicy } from "@/lib/ai-agents/piloting";
 import { cn } from "@/lib/utils";
 
 export type PilotingValue = {
@@ -48,6 +64,7 @@ export type PilotingValue = {
   simulateTyping: boolean;
   typingPerCharMs: number;
   markMessagesRead: boolean;
+  autoClosePolicy: AutoClosePolicy;
 };
 
 export function createDefaultPiloting(): PilotingValue {
@@ -70,44 +87,56 @@ export function createDefaultPiloting(): PilotingValue {
     simulateTyping: true,
     typingPerCharMs: 25,
     markMessagesRead: true,
+    autoClosePolicy: defaultAutoClosePolicy(),
   };
 }
+
+export type PilotingPresentation = "details" | "accordion";
 
 type Props = {
   value: PilotingValue;
   onChange: (next: PilotingValue) => void;
+  presentation?: PilotingPresentation;
 };
 
 type UserOption = { id: string; name: string; email: string };
 
-export function PilotingPanel({ value, onChange }: Props) {
+export function PilotingPanel({
+  value,
+  onChange,
+  presentation = "details",
+}: Props) {
   const patch = React.useCallback(
     (p: Partial<PilotingValue>) => onChange({ ...value, ...p }),
     [value, onChange],
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start gap-3 rounded-xl border border-[var(--color-info-border)] bg-[var(--color-info-bg)] p-3">
-        <Bot className="mt-0.5 size-4 shrink-0 text-[var(--color-info)]" />
-        <div className="text-[12px] leading-relaxed text-[var(--text-primary)]">
-          <div className="font-semibold">Pilotagem do agente</div>
-          <div className="mt-0.5 text-[var(--text-secondary)]">
-            Controles operacionais que funcionam fora do prompt — saudação,
-            timers de inatividade, palavras-chave de handoff, qualificação
-            obrigatória e horário de atendimento. Use isso pra garantir
-            comportamento previsível mesmo quando o LLM improvisar.
+    <div className="space-y-3">
+      {presentation === "details" && (
+        <div className="flex items-start gap-3 rounded-xl border border-[var(--color-info-border)] bg-[var(--color-info-bg)] p-3">
+          <Bot className="mt-0.5 size-4 shrink-0 text-[var(--color-info)]" />
+          <div className="text-[12px] leading-relaxed text-[var(--text-primary)]">
+            <div className="font-semibold">Pilotagem do agente</div>
+            <div className="mt-0.5 text-[var(--text-secondary)]">
+              Controles operacionais que funcionam fora do prompt — saudação,
+              timers de inatividade, encerramento automático, palavras-chave
+              de handoff, qualificação obrigatória e horário de atendimento.
+              Use isso pra garantir comportamento previsível mesmo quando o
+              LLM improvisar.
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <OpeningSection value={value} patch={patch} />
-      <StyleSection value={value} patch={patch} />
-      <HumanBehaviorSection value={value} patch={patch} />
-      <InactivitySection value={value} patch={patch} />
-      <KeywordSection value={value} patch={patch} />
-      <QualificationSection value={value} patch={patch} />
-      <BusinessHoursSection value={value} patch={patch} />
+      <OpeningSection value={value} patch={patch} presentation={presentation} />
+      <StyleSection value={value} patch={patch} presentation={presentation} />
+      <HumanBehaviorSection value={value} patch={patch} presentation={presentation} />
+      <InactivitySection value={value} patch={patch} presentation={presentation} />
+      <KeywordSection value={value} patch={patch} presentation={presentation} />
+      <AutoCloseSection value={value} patch={patch} presentation={presentation} />
+      <QualificationSection value={value} patch={patch} presentation={presentation} />
+      <BusinessHoursSection value={value} patch={patch} presentation={presentation} />
     </div>
   );
 }
@@ -116,32 +145,61 @@ export function PilotingPanel({ value, onChange }: Props) {
 
 function Section({
   icon: Icon,
+  lucideIcon: Lucide,
   title,
   description,
   children,
+  presentation = "details",
+  enabled,
+  onEnabledChange,
 }: {
   icon: React.ComponentType<{ className?: string }>;
+  lucideIcon?: LucideIcon;
   title: string;
   description: string;
   children: React.ReactNode;
+  presentation?: PilotingPresentation;
+  enabled?: boolean;
+  onEnabledChange?: (v: boolean) => void;
 }) {
+  const HeaderIcon = presentation === "accordion" && Lucide ? Lucide : Icon;
+  const showSwitch = presentation === "accordion" && onEnabledChange;
+
   return (
-    <details className="group rounded-xl border bg-muted/10">
+    <details className="group rounded-xl border border-border bg-card">
       <summary className="flex cursor-pointer items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-muted/30">
-        <div className="flex items-start gap-3">
-          <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          <div>
-            <div className="text-sm font-semibold">{title}</div>
-            <div className="mt-0.5 text-[12px] text-muted-foreground">
+        <div className="flex min-w-0 items-start gap-3">
+          <HeaderIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-foreground">{title}</div>
+            <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
               {description}
             </div>
           </div>
         </div>
-        <span className="text-xs text-muted-foreground transition-transform group-open:rotate-180">
-          ▾
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {showSwitch && (
+            <span
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <Switch
+                checked={!!enabled}
+                onCheckedChange={onEnabledChange}
+                aria-label={`${enabled ? "Desligar" : "Ligar"} ${title}`}
+              />
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground transition-transform group-open:rotate-180">
+            ▾
+          </span>
+        </div>
       </summary>
-      <div className="space-y-3 border-t bg-background/50 p-4">{children}</div>
+      <div className="space-y-3 border-t border-border bg-muted/20 p-4">
+        {children}
+      </div>
     </details>
   );
 }
@@ -199,9 +257,11 @@ function previewGreeting(raw: string): string {
 function OpeningSection({
   value,
   patch,
+  presentation,
 }: {
   value: PilotingValue;
   patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
 }) {
   const [showPreview, setShowPreview] = React.useState(false);
   const signals = React.useMemo(
@@ -216,6 +276,24 @@ function OpeningSection({
   return (
     <Section
       icon={MessageCircle}
+      lucideIcon={LucideMessage}
+      presentation={presentation}
+      enabled={value.openingMessage.trim().length > 0}
+      onEnabledChange={
+        presentation === "accordion"
+          ? (on) =>
+              patch(
+                on
+                  ? value.openingMessage.trim()
+                    ? {}
+                    : {
+                        openingMessage:
+                          "Oi {{contact.firstName}}! Como posso te ajudar hoje?",
+                      }
+                  : { openingMessage: "", openingDelayMs: 0 },
+              )
+          : undefined
+      }
       title="Saudação inicial"
       description="Mensagem enviada UMA vez, na primeira vez que o agente fala com o cliente."
     >
@@ -230,7 +308,9 @@ function OpeningSection({
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="pilot-opening">Texto da saudação</Label>
+        <Label htmlFor="pilot-opening" className={formLabelClass}>
+          Texto da saudação
+        </Label>
         <Textarea
           id="pilot-opening"
           rows={3}
@@ -238,7 +318,7 @@ function OpeningSection({
           onChange={(e) => patch({ openingMessage: e.target.value })}
           placeholder="Ex.: Oi {{contact.firstName}}! Tudo bem? Sou o agente virtual. Como posso te ajudar hoje?"
           className={cn(
-            "resize-none",
+            "resize-none text-sm",
             signals.length > 0 && "border-[var(--color-warning)] focus-visible:ring-[var(--color-warning)]/40",
           )}
         />
@@ -294,7 +374,7 @@ function OpeningSection({
       )}
 
       <div className="grid gap-2 sm:max-w-xs">
-        <Label htmlFor="pilot-opening-delay">
+        <Label htmlFor="pilot-opening-delay" className={formLabelClass}>
           Delay antes de enviar (segundos)
         </Label>
         <Input
@@ -323,13 +403,17 @@ function OpeningSection({
 function StyleSection({
   value,
   patch,
+  presentation,
 }: {
   value: PilotingValue;
   patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
 }) {
   return (
     <Section
       icon={Sparkles}
+      lucideIcon={LucideSparkles}
+      presentation={presentation}
       title="Estilo de resposta"
       description="Força o agente a responder como humano em WhatsApp, evitando ficha técnica."
     >
@@ -344,8 +428,8 @@ function StyleSection({
               : "border-border hover:bg-muted/40",
           )}
         >
-          <div className="font-medium">Conversacional (recomendado)</div>
-          <div className="mt-0.5 text-[12px] text-muted-foreground">
+          <div className="text-sm font-medium">Conversacional (recomendado)</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
             Texto corrido, 1–4 frases, sem bullets/markdown. Sempre termina
             com uma pergunta curta.
           </div>
@@ -360,8 +444,8 @@ function StyleSection({
               : "border-border hover:bg-muted/40",
           )}
         >
-          <div className="font-medium">Estruturado</div>
-          <div className="mt-0.5 text-[12px] text-muted-foreground">
+          <div className="text-sm font-medium">Estruturado</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
             Permite listas, markdown e cabeçalhos. Use pra suporte
             técnico ou FAQ.
           </div>
@@ -376,9 +460,11 @@ function StyleSection({
 function HumanBehaviorSection({
   value,
   patch,
+  presentation,
 }: {
   value: PilotingValue;
   patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
 }) {
   // Prévia do tempo de "digitando" pra uma mensagem de referência.
   // 120 chars ~ frase média que o agente manda (3 linhas).
@@ -392,6 +478,19 @@ function HumanBehaviorSection({
   return (
     <Section
       icon={Keyboard}
+      lucideIcon={LucideKeyboard}
+      presentation={presentation}
+      enabled={value.simulateTyping || value.markMessagesRead}
+      onEnabledChange={
+        presentation === "accordion"
+          ? (on) =>
+              patch(
+                on
+                  ? { simulateTyping: true, markMessagesRead: true }
+                  : { simulateTyping: false, markMessagesRead: false },
+              )
+          : undefined
+      }
       title="Comportamento humano"
       description="Mostra “digitando…” e marca a mensagem como lida (✔✔ azul) no WhatsApp do cliente antes de responder."
     >
@@ -414,7 +513,9 @@ function HumanBehaviorSection({
 
       {value.simulateTyping && (
         <div className="grid gap-2 sm:max-w-xs">
-          <Label htmlFor="pilot-typing-pace">Velocidade de digitação</Label>
+          <Label htmlFor="pilot-typing-pace" className={formLabelClass}>
+            Velocidade de digitação
+          </Label>
           <DropdownGlass
             options={[
               { value: "10", label: "Rápida (10ms/char · ~6000 cpm)" },
@@ -481,7 +582,7 @@ function ToggleCard({
       </span>
       <div className="flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium">{title}</span>
+          <span className="text-sm font-medium">{title}</span>
           <span
             className={cn(
               "inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
@@ -496,7 +597,7 @@ function ToggleCard({
             />
           </span>
         </div>
-        <div className="mt-1 text-[12px] text-muted-foreground">
+        <div className="mt-1 text-xs text-muted-foreground">
           {description}
         </div>
       </div>
@@ -509,9 +610,11 @@ function ToggleCard({
 function InactivitySection({
   value,
   patch,
+  presentation,
 }: {
   value: PilotingValue;
   patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
 }) {
   const { data: teamUsers = [] } = useTeamUsersQuery<{
     id?: unknown;
@@ -535,11 +638,22 @@ function InactivitySection({
   return (
     <Section
       icon={Clock}
+      lucideIcon={LucideClock}
+      presentation={presentation}
+      enabled={value.inactivityTimerMs > 0}
+      onEnabledChange={
+        presentation === "accordion"
+          ? (on) =>
+              patch({ inactivityTimerMs: on ? 30 * 60_000 : 0 })
+          : undefined
+      }
       title="Handoff por inatividade"
       description="Se o cliente parar de responder por X minutos depois do agente falar, transfere pra humano."
     >
       <div className="grid gap-2 sm:max-w-xs">
-        <Label htmlFor="pilot-timer">Inatividade (minutos)</Label>
+        <Label htmlFor="pilot-timer" className={formLabelClass}>
+          Inatividade (minutos)
+        </Label>
         <Input
           id="pilot-timer"
           type="number"
@@ -562,7 +676,7 @@ function InactivitySection({
       {value.inactivityTimerMs > 0 && (
         <>
           <div className="grid gap-2">
-            <Label>Para quem transferir</Label>
+            <Label className={formLabelClass}>Para quem transferir</Label>
             <div className="grid gap-2 sm:grid-cols-3">
               <HandoffCard
                 active={value.inactivityHandoffMode === "KEEP_OWNER"}
@@ -589,7 +703,9 @@ function InactivitySection({
 
           {value.inactivityHandoffMode === "SPECIFIC_USER" && (
             <div className="grid gap-2 sm:max-w-sm">
-              <Label htmlFor="pilot-handoff-user">Consultor</Label>
+              <Label htmlFor="pilot-handoff-user" className={formLabelClass}>
+                Consultor
+              </Label>
               <DropdownGlass
                 options={users.map((u) => ({
                   value: u.id,
@@ -604,7 +720,7 @@ function InactivitySection({
           )}
 
           <div className="grid gap-2">
-            <Label htmlFor="pilot-farewell">
+            <Label htmlFor="pilot-farewell" className={formLabelClass}>
               Mensagem de despedida (opcional)
             </Label>
             <Textarea
@@ -615,7 +731,7 @@ function InactivitySection({
                 patch({ inactivityFarewellMessage: e.target.value })
               }
               placeholder="Ex.: Vou passar a conversa pra um consultor humano pra te dar continuidade, tá?"
-              className="resize-none"
+              className="resize-none text-sm"
             />
             <p className="text-[11px] text-muted-foreground">
               Enviada antes do handoff. Aceita as mesmas variáveis da saudação.
@@ -649,7 +765,7 @@ function HandoffCard({
           : "border-border hover:bg-muted/40",
       )}
     >
-      <div className="flex items-center gap-2 font-medium">
+      <div className="flex items-center gap-2 text-sm font-medium">
         {active ? (
           <UserCheck className="size-3.5 text-[var(--brand-primary)]" />
         ) : (
@@ -657,7 +773,7 @@ function HandoffCard({
         )}
         {title}
       </div>
-      <div className="mt-0.5 text-[12px] text-muted-foreground">
+      <div className="mt-0.5 text-xs text-muted-foreground">
         {description}
       </div>
     </button>
@@ -669,9 +785,11 @@ function HandoffCard({
 function KeywordSection({
   value,
   patch,
+  presentation,
 }: {
   value: PilotingValue;
   patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
 }) {
   const [draft, setDraft] = React.useState("");
 
@@ -692,6 +810,16 @@ function KeywordSection({
   return (
     <Section
       icon={Ban}
+      lucideIcon={LucideBan}
+      presentation={presentation}
+      enabled={value.keywordHandoffs.length > 0}
+      onEnabledChange={
+        presentation === "accordion"
+          ? (on) => {
+              if (!on) patch({ keywordHandoffs: [] });
+            }
+          : undefined
+      }
       title="Palavras-chave que forçam handoff"
       description="Se a mensagem do cliente contém alguma dessas, transfere IMEDIATAMENTE pra humano."
     >
@@ -745,14 +873,192 @@ function KeywordSection({
   );
 }
 
+// ── Seção 4b: Encerramento automático ────────────────────────
+
+const AUTO_CLOSE_CARDS: Array<{
+  mode: AutoCloseMode;
+  title: string;
+  description: string;
+}> = [
+  {
+    mode: "off",
+    title: "Desligado",
+    description: "A IA nunca encerra o ticket. Só se despede por texto.",
+  },
+  {
+    mode: "explicit",
+    title: "Só pedido explícito",
+    description:
+      "Encerra se o aluno pedir para encerrar/finalizar, ou se bater numa palavra-chave abaixo. “Obrigado” e “boa noite” não fecham.",
+  },
+  {
+    mode: "understood",
+    title: "Quando a IA entender",
+    description:
+      "A IA encerra quando concluir que o aluno não precisa mais — e dispara a automação Encerramento.",
+  },
+];
+
+function AutoCloseSection({
+  value,
+  patch,
+  presentation,
+}: {
+  value: PilotingValue;
+  patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
+}) {
+  const policy = value.autoClosePolicy;
+  const [draft, setDraft] = React.useState("");
+
+  const setPolicy = (next: Partial<AutoClosePolicy>) =>
+    patch({ autoClosePolicy: { ...policy, ...next } });
+
+  const addKeyword = () => {
+    const k = draft.trim();
+    if (!k) return;
+    if (policy.keywords.includes(k)) {
+      setDraft("");
+      return;
+    }
+    setPolicy({ keywords: [...policy.keywords, k] });
+    setDraft("");
+  };
+
+  const removeKeyword = (k: string) =>
+    setPolicy({ keywords: policy.keywords.filter((x) => x !== k) });
+
+  return (
+    <Section
+      icon={DoorExit}
+      lucideIcon={LucideLogOut}
+      presentation={presentation}
+      enabled={policy.mode !== "off"}
+      onEnabledChange={
+        presentation === "accordion"
+          ? (on) =>
+              patch({
+                autoClosePolicy: {
+                  ...policy,
+                  mode: on ? "explicit" : "off",
+                },
+              })
+          : undefined
+      }
+      title="Encerramento automático"
+      description="Quando o atendimento for só da IA, fecha o ticket e dispara a automação Encerramento."
+    >
+      <div className="grid gap-2 sm:grid-cols-3">
+        {AUTO_CLOSE_CARDS.map((card) => (
+          <button
+            key={card.mode}
+            type="button"
+            onClick={() => setPolicy({ mode: card.mode })}
+            className={cn(
+              "rounded-xl border p-3 text-left text-sm transition-colors",
+              policy.mode === card.mode
+                ? "border-[var(--brand-primary)] bg-[var(--brand-primary)]/10"
+                : "border-border hover:bg-muted/40",
+            )}
+          >
+            <div className="text-sm font-medium">{card.title}</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              {card.description}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {policy.mode !== "off" && (
+        <>
+          <div className="grid gap-2">
+            <Label className={formLabelClass}>
+              Palavras-chave que forçam encerramento
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addKeyword();
+                  }
+                }}
+                placeholder='Ex.: "era só isso", "pode fechar", "já resolvi"'
+              />
+              <Button type="button" variant="outline" onClick={addKeyword}>
+                <Plus className="size-4" />
+                Adicionar
+              </Button>
+            </div>
+            {policy.keywords.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">
+                Sem extras. O detector interno já cobre “encerrar”,
+                “finalizar”, “era só isso”, “não preciso mais”.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {policy.keywords.map((k) => (
+                  <span
+                    key={k}
+                    className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-[12px]"
+                  >
+                    {k}
+                    <button
+                      type="button"
+                      onClick={() => removeKeyword(k)}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label={`Remover "${k}"`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="pilot-autoclose-msg" className={formLabelClass}>
+              Mensagem ao encerrar (opcional)
+            </Label>
+            <Textarea
+              id="pilot-autoclose-msg"
+              rows={2}
+              value={policy.message ?? ""}
+              onChange={(e) => setPolicy({ message: e.target.value || null })}
+              placeholder="Ex.: Combinado, {{contact.firstName}}! Qualquer coisa é só chamar."
+              className="resize-none text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Enviada antes de fechar. Aceita as mesmas variáveis da
+              saudação. Vazio = frase padrão do sistema.
+            </p>
+          </div>
+        </>
+      )}
+
+      <div className="rounded-lg border border-dashed bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+        <strong className="text-foreground">Como funciona:</strong> só
+        encerra se ninguém humano tiver respondido nesta conversa. O
+        fechamento dispara o mesmo gatilho do encerramento manual
+        (automação Encerramento).
+      </div>
+    </Section>
+  );
+}
+
 // ── Seção 5: Qualificação ────────────────────────────────────
 
 function QualificationSection({
   value,
   patch,
+  presentation,
 }: {
   value: PilotingValue;
   patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
 }) {
   const [draftQuestion, setDraftQuestion] = React.useState("");
   const [draftHint, setDraftHint] = React.useState("");
@@ -781,6 +1087,16 @@ function QualificationSection({
   return (
     <Section
       icon={UserCheck}
+      lucideIcon={LucideUserCheck}
+      presentation={presentation}
+      enabled={value.qualificationQuestions.length > 0}
+      onEnabledChange={
+        presentation === "accordion"
+          ? (on) => {
+              if (!on) patch({ qualificationQuestions: [] });
+            }
+          : undefined
+      }
       title="Perguntas obrigatórias de qualificação"
       description="O agente não transfere pra humano enquanto essas informações não forem coletadas."
     >
@@ -862,9 +1178,11 @@ const DAYS = [
 function BusinessHoursSection({
   value,
   patch,
+  presentation,
 }: {
   value: PilotingValue;
   patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
 }) {
   const bh = value.businessHours;
 
@@ -927,6 +1245,12 @@ function BusinessHoursSection({
   return (
     <Section
       icon={CalendarClock}
+      lucideIcon={LucideCalendar}
+      presentation={presentation}
+      enabled={bh.enabled}
+      onEnabledChange={
+        presentation === "accordion" ? toggleEnabled : undefined
+      }
       title="Horário de atendimento"
       description="Fora do horário, o agente não responde. Pode enviar mensagem automática avisando."
     >
@@ -944,7 +1268,9 @@ function BusinessHoursSection({
       {bh.enabled && (
         <>
           <div className="grid gap-2 sm:max-w-xs">
-            <Label htmlFor="pilot-tz">Fuso horário</Label>
+            <Label htmlFor="pilot-tz" className={formLabelClass}>
+              Fuso horário
+            </Label>
             <DropdownGlass
               options={[
                 { value: "America/Sao_Paulo", label: "America/Sao_Paulo" },
@@ -962,7 +1288,7 @@ function BusinessHoursSection({
           </div>
 
           <div className="space-y-2">
-            <Label>Dias e horários</Label>
+            <Label className={formLabelClass}>Dias e horários</Label>
             <div className="space-y-1.5">
               {DAYS.map((d) => {
                 const slot = bh.weekdays.find((s) => s.day === d.id);
@@ -1015,7 +1341,7 @@ function BusinessHoursSection({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="pilot-offhours">
+            <Label htmlFor="pilot-offhours" className={formLabelClass}>
               Mensagem fora do horário (opcional)
             </Label>
             <Textarea
@@ -1028,7 +1354,7 @@ function BusinessHoursSection({
                 })
               }
               placeholder="Ex.: Oi {{contact.firstName}}! Já recebemos sua mensagem. Nosso time responde de segunda a sexta, 9h às 18h."
-              className="resize-none"
+              className="resize-none text-sm"
             />
           </div>
         </>

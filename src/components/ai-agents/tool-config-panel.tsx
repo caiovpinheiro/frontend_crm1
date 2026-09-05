@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { formLabelClass } from "@/components/ui/form-dialog";
 import {
   emptyToolPolicy,
   isEmptyToolPolicy,
@@ -146,7 +147,7 @@ export function ToolConfigPanel({
   );
 }
 
-function ToolPolicyForm({
+export function ToolPolicyForm({
   tool,
   enabled,
   policy,
@@ -355,7 +356,7 @@ function Field({
 }) {
   return (
     <div className="grid gap-1.5">
-      <Label>{label}</Label>
+      <Label className={formLabelClass}>{label}</Label>
       {children}
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
