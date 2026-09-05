@@ -45,6 +45,7 @@ import { resolveHighlight, SEVERITY_COLORS, type HighlightSeverity } from "@/lib
 import { InlineFieldEditor } from "@/components/crm/fields/inline-field-editor"
 import { InlineNativeEditor } from "@/components/crm/fields/inline-native-editor"
 import { useContactSources } from "@/hooks/use-contact-sources"
+import { TrackedInfoSection } from "@/components/crm/tracked-info-section"
 import { formatPhoneDisplay } from "@/lib/phone"
 import { DealProductsSection } from "@/components/pipeline/deal-detail/sidebar"
 import { useSectionOrder } from "@/hooks/use-section-order"
@@ -84,6 +85,10 @@ export interface ContactDetails {
   email?: string
   /** @ do WhatsApp (Contact.whatsappUsername), quando disponível. */
   whatsappUsername?: string
+  /** Origem do lead (Contact.source). */
+  source?: string | null
+  /** UTM / ads — card Informação rastreada. */
+  tracked?: import("@/components/crm/tracked-info-section").TrackedAttribution
   cpf?: string
   rg?: string
   cep?: string
@@ -676,6 +681,9 @@ export function ContactAside({
   // Updates otimísticos
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   const [nativeValues, setNativeValues] = useState<Record<string, string>>({})
+  const [trackedOverrides, setTrackedOverrides] = useState<
+    import("@/components/crm/tracked-info-section").TrackedAttribution
+  >({})
   const native = (key: string, fallback: string | undefined) => nativeValues[key] ?? fallback
 
   // Chaves de invalidação de cache para este contato
@@ -719,6 +727,8 @@ export function ContactAside({
   useEffect(() => {
     setExpandedDealId(deals.length === 1 ? deals[0]?.id ?? null : null)
     setDealFieldsSectionOpen(deals.length < 2)
+    setNativeValues({})
+    setTrackedOverrides({})
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset só quando muda o conjunto de deals
   }, [contact.contactId, dealIdsKey])
 
@@ -1107,6 +1117,20 @@ export function ContactAside({
                                     </TooltipGlass>
                                   </Row>
                                 )}
+                                <Row label="Origem" icon={<IconAffiliate size={12} />} compact={viewMode === "compact"}>
+                                  <InlineNativeEditor
+                                    value={native("source", contact.source ?? contact.origin ?? "")}
+                                    entityType="contact"
+                                    entityId={contact.contactId}
+                                    fieldKey="source"
+                                    placeholder="Adicionar origem"
+                                    editMode={contactEditMode}
+                                    invalidateKeys={contactInvalidateKeys}
+                                    suggestions={contactSources}
+                                    onSaved={(v) => setNativeValues((p) => ({ ...p, source: v }))}
+                                    textClassName="text-right font-display text-[13px] font-semibold text-[var(--text-primary)]"
+                                  />
+                                </Row>
                                 {isFilled(contact.cpf) && <Row label="CPF" value={contact.cpf} icon={<IconId size={12} />} compact={viewMode === "compact"} />}
                                 {isFilled(contact.rg) && <Row label="RG" value={contact.rg} icon={<IconId size={12} />} compact={viewMode === "compact"} />}
                                 {isFilled(contact.cep) && <Row label="CEP" value={contact.cep} icon={<IconMapPin size={12} />} compact={viewMode === "compact"} />}
@@ -1117,6 +1141,20 @@ export function ContactAside({
                                   <Row label="Data de Nascimento" value={contact.birthDate} icon={<IconCalendarEvent size={12} />} compact={viewMode === "compact"} />
                                 )}
                               </div>
+
+                              <TrackedInfoSection
+                                values={{
+                                  ...(contact.tracked ?? {}),
+                                  ...trackedOverrides,
+                                }}
+                                contactId={contact.contactId}
+                                editMode={contactEditMode}
+                                invalidateKeys={contactInvalidateKeys}
+                                compact={viewMode === "compact"}
+                                onSaved={(key, v) =>
+                                  setTrackedOverrides((p) => ({ ...p, [key]: v }))
+                                }
+                              />
 
                               {/* Campos personalizados de contato — com agrupamento visual (PRD) */}
                               {resolvedContactPanelFields.length > 0 && (() => {

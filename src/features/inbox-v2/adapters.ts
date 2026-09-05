@@ -746,6 +746,31 @@ export interface ContactAsideView {
   email: string;
   /** @ do WhatsApp (Contact.whatsappUsername), quando disponível. */
   whatsappUsername?: string;
+  /** Texto livre Contact.source (origem do lead). */
+  source?: string | null;
+  /** Atribuição UTM / ads (card Informação rastreada). */
+  tracked?: {
+    adUtmSource?: string | null;
+    adUtmMedium?: string | null;
+    adUtmCampaign?: string | null;
+    adUtmContent?: string | null;
+    adUtmTerm?: string | null;
+    utmId?: string | null;
+    utmReferrer?: string | null;
+    referrer?: string | null;
+    gclid?: string | null;
+    fbclid?: string | null;
+    googleClientId?: string | null;
+    ttadId?: string | null;
+    ttadName?: string | null;
+    adCtwaClid?: string | null;
+    adSourceId?: string | null;
+    adResolvedId?: string | null;
+    adResolvedName?: string | null;
+    adHeadline?: string | null;
+    adResolvedAdsetName?: string | null;
+    adResolvedCampaignName?: string | null;
+  };
   cpf: string;
   rg: string;
   cep: string;
@@ -924,6 +949,29 @@ export function toContactAside(
     phone: contact?.phone ?? row.contact?.phone ?? FALLBACK_FIELD,
     email: contact?.email ?? row.contact?.email ?? FALLBACK_FIELD,
     whatsappUsername: contact?.whatsappUsername ?? undefined,
+    source: contact?.source ?? null,
+    tracked: {
+      adUtmSource: contact?.adUtmSource ?? null,
+      adUtmMedium: contact?.adUtmMedium ?? null,
+      adUtmCampaign: contact?.adUtmCampaign ?? null,
+      adUtmContent: contact?.adUtmContent ?? null,
+      adUtmTerm: contact?.adUtmTerm ?? null,
+      utmId: contact?.utmId ?? null,
+      utmReferrer: contact?.utmReferrer ?? null,
+      referrer: contact?.referrer ?? null,
+      gclid: contact?.gclid ?? null,
+      fbclid: contact?.fbclid ?? null,
+      googleClientId: contact?.googleClientId ?? null,
+      ttadId: contact?.ttadId ?? null,
+      ttadName: contact?.ttadName ?? null,
+      adCtwaClid: contact?.adCtwaClid ?? null,
+      adSourceId: contact?.adSourceId ?? null,
+      adResolvedId: contact?.adResolvedId ?? null,
+      adResolvedName: contact?.adResolvedName ?? null,
+      adHeadline: contact?.adHeadline ?? null,
+      adResolvedAdsetName: contact?.adResolvedAdsetName ?? null,
+      adResolvedCampaignName: contact?.adResolvedCampaignName ?? null,
+    },
     cpf: contact?.cpf ?? FALLBACK_FIELD,
     rg: contact?.rg ?? FALLBACK_FIELD,
     cep: contact?.cep ?? FALLBACK_FIELD,

@@ -168,6 +168,27 @@ export interface ContactDetail {
   whatsappUsername?: string | null;
   /** Origem do lead (Contact.source). */
   source?: string | null;
+  /** Informação rastreada (UTM / click IDs / Meta CTWA). */
+  adUtmSource?: string | null;
+  adUtmMedium?: string | null;
+  adUtmCampaign?: string | null;
+  adUtmContent?: string | null;
+  adUtmTerm?: string | null;
+  utmId?: string | null;
+  utmReferrer?: string | null;
+  referrer?: string | null;
+  gclid?: string | null;
+  fbclid?: string | null;
+  googleClientId?: string | null;
+  ttadId?: string | null;
+  ttadName?: string | null;
+  adCtwaClid?: string | null;
+  adSourceId?: string | null;
+  adResolvedId?: string | null;
+  adResolvedName?: string | null;
+  adHeadline?: string | null;
+  adResolvedAdsetName?: string | null;
+  adResolvedCampaignName?: string | null;
   avatarUrl?: string | null;
   cpf?: string | null;
   rg?: string | null;
