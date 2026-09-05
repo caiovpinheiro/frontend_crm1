@@ -163,7 +163,10 @@ function Identity({
         </Link>
       ) : null}
 
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-border bg-card text-primary shadow-none">
+      {/* Mesmo DNA do ícone do KpiCard (brand): fill soft, sem borda/sombra.
+          Tile branco+borda no canvas cinza lia como “sombra” (Contatos);
+          no Pipeline o fundo mais claro mascarava o mesmo chrome. */}
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-chip-blue-soft text-chip-blue shadow-none [box-shadow:none]">
         {icon}
       </div>
 
