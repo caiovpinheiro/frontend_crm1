@@ -39,6 +39,10 @@ import { ScopeSection } from "./sections/scope-section";
 import { ToolsSection } from "./sections/tools-section";
 import { SidebarNav } from "./sidebar-nav";
 import {
+  SimpleEditor,
+  applySimpleSaveDefaults,
+} from "./simple-editor";
+import {
   EMPTY_AGENT_SETTINGS,
   PREVIEW_AGENT_SETTINGS,
   isPreviewAgentId,
@@ -159,6 +163,7 @@ export function AgentSettingsDialog({
 }) {
   const open = id !== null;
   const preview = isPreviewAgentId(id);
+  const [advanced, setAdvanced] = React.useState(false);
   const [section, setSection] = React.useState<AgentSectionId>("identity");
   const [form, setForm] = React.useState<AgentSettingsValues>(EMPTY_AGENT_SETTINGS);
   const [submitting, setSubmitting] = React.useState(false);
@@ -175,7 +180,10 @@ export function AgentSettingsDialog({
   });
 
   React.useEffect(() => {
-    if (open) setSection("identity");
+    if (open) {
+      setSection("identity");
+      setAdvanced(false);
+    }
   }, [open, id]);
 
   React.useEffect(() => {
@@ -216,6 +224,7 @@ export function AgentSettingsDialog({
         ...form.inboxPolicy,
         scope: form.attendanceScope,
       };
+      const simple = applySimpleSaveDefaults(form);
       const res = await fetch(apiUrl(`/api/ai-agents/${id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -227,9 +236,9 @@ export function AgentSettingsDialog({
           temperature: form.temperature,
           dailyTokenCap: form.dailyTokenCap,
           enabledTools: form.enabledTools,
-          systemPromptOverride: form.systemPromptOverride.trim() || null,
+          systemPromptOverride: simple.systemPromptOverride.trim() || null,
           systemPromptTemplate: form.systemPromptTemplate.trim() || undefined,
-          steeringRules: form.steeringRules.trim() || null,
+          steeringRules: simple.steeringRules.trim() || null,
           productPolicy: form.productPolicy.trim() || null,
           toolConfig: form.toolConfig,
           inboxPolicy,
@@ -241,7 +250,7 @@ export function AgentSettingsDialog({
           inactivityHandoffUserId: form.piloting.inactivityHandoffUserId,
           inactivityFarewellMessage:
             form.piloting.inactivityFarewellMessage.trim() || null,
-          keywordHandoffs: form.piloting.keywordHandoffs,
+          keywordHandoffs: simple.piloting.keywordHandoffs,
           qualificationQuestions: form.piloting.qualificationQuestions,
           businessHours: form.piloting.businessHours.enabled
             ? form.piloting.businessHours
@@ -294,9 +303,18 @@ export function AgentSettingsDialog({
           <p className="text-xs text-muted-foreground">
             {preview
               ? "Prévia local — não persiste no banco."
-              : "Configuração do agente · uma seção por vez"}
+              : advanced
+                ? "Modo avançado"
+                : "Configuração simples"}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setAdvanced((v) => !v)}
+          className="ms-auto shrink-0 text-xs font-medium text-primary hover:underline"
+        >
+          {advanced ? "Voltar ao simples" : "Avançado"}
+        </button>
       </header>
 
       {!preview && (isLoading || !data) ? (
@@ -306,9 +324,17 @@ export function AgentSettingsDialog({
       ) : (
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
-            <SidebarNav active={section} onChange={setSection} />
+            {advanced && <SidebarNav active={section} onChange={setSection} />}
             <ScrollArea className="min-h-0 flex-1 px-6 py-5 text-sm">
-              {section === "identity" && (
+              {!advanced && id && (
+                <SimpleEditor
+                  agentId={id}
+                  preview={preview}
+                  form={form}
+                  onChange={setForm}
+                />
+              )}
+              {advanced && section === "identity" && (
                 <IdentitySection
                   agentId={preview ? null : id}
                   name={form.name}
@@ -325,7 +351,7 @@ export function AgentSettingsDialog({
                   onAutonomyModeChange={(v) => patch("autonomyMode", v)}
                 />
               )}
-              {section === "rules" && (
+              {advanced && section === "rules" && (
                 <RulesSection
                   archetype={form.archetype}
                   steeringRules={form.steeringRules}
@@ -336,14 +362,14 @@ export function AgentSettingsDialog({
                   onTemplateChange={(v) => patch("systemPromptTemplate", v)}
                 />
               )}
-              {section === "scope" && (
+              {advanced && section === "scope" && (
                 <ScopeSection
                   value={form.attendanceScope}
                   onChange={(v) => patch("attendanceScope", v)}
                   preview={preview}
                 />
               )}
-              {section === "tools" && (
+              {advanced && section === "tools" && (
                 <ToolsSection
                   enabledTools={form.enabledTools}
                   onToggleTool={toggleTool}
@@ -353,19 +379,19 @@ export function AgentSettingsDialog({
                   onProductPolicyChange={(v) => patch("productPolicy", v)}
                 />
               )}
-              {section === "piloting" && (
+              {advanced && section === "piloting" && (
                 <PilotingSection
                   value={form.piloting}
                   onChange={(v) => patch("piloting", v)}
                 />
               )}
-              {section === "inbox" && (
+              {advanced && section === "inbox" && (
                 <InboxSection
                   value={form.inboxPolicy}
                   onChange={(v) => patch("inboxPolicy", v)}
                 />
               )}
-              {section === "knowledge" && id && (
+              {advanced && section === "knowledge" && id && (
                 <KnowledgeSection agentId={id} preview={preview} />
               )}
             </ScrollArea>
