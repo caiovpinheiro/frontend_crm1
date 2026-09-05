@@ -80,7 +80,7 @@ Fonte de verdade: `PageHeader` (`src/components/crm/page-header.tsx`) + pílula 
 
 Identidade à **esquerda**; cluster busca + Filtrar + calendário + hamburger **sempre à direita** (`PAGE_HEADER_CONTROLS_CLASS`: `ml-auto`, `w-max`, `justify-end`). Em telas estreitas o cluster pode quebrar para a segunda linha, **alinhado ao fim** — não como bloco `w-full` à esquerda sob o título.
 
-- Ícone: `h-11 w-11` (`44px`), `rounded-[var(--radius-lg)]`, `bg-chip-blue-soft text-chip-blue` (mesmo DNA do `KpiCard` brand). Sem borda e sem shadow — tile branco no canvas cinza lia como sombra.
+- Ícone: glifo `text-primary` em slot `h-11 w-11` (sem tile, sem borda, sem shadow). Contorno de quadrado no canvas cinza era lido como defeito.
 - Título: `font-display text-[22px] font-bold leading-tight tracking-tight`.
 - Pílula: `h-10 rounded-full`, `pl-9`, `text-[13px]`, largura canônica `w-[32rem] max-w-full` (`PAGE_HEADER_SEARCH_SLOT_CLASS`). Lupa `left-3.5` size 15. Sem `shadow-sm`.
 - **Filtrar dentro da pílula**: `absolute right-1.5 h-7 rounded-full px-2.5 text-[11px] font-semibold` + ícone sliders 15px.

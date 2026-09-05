@@ -163,12 +163,12 @@ function Identity({
         </Link>
       ) : null}
 
-      {/* Mesmo DNA do ícone do KpiCard (brand): fill soft, sem borda/sombra.
-          Tile branco+borda no canvas cinza lia como “sombra” (Contatos);
-          no Pipeline o fundo mais claro mascarava o mesmo chrome. */}
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-chip-blue-soft text-chip-blue shadow-none [box-shadow:none]">
+      {/* Só o glifo — sem tile/borda. Contorno do quadrado no canvas
+          cinza era lido como defeito (Contatos); Pipeline “ok” era
+          quando o fundo escondia o mesmo chrome. */}
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center text-primary [&>svg]:size-[22px]">
         {icon}
-      </div>
+      </span>
 
       <div className="flex min-w-0 items-center gap-2">
         <h1 className="truncate font-display text-[22px] font-bold leading-tight tracking-tight text-[var(--text-primary)]">
