@@ -24,6 +24,7 @@ import {
   QuickFiltersList,
   SearchSection,
   SourcesSection,
+  UtmSourcesSection,
   StagesSection,
   StatusSection,
   TagsSection,
@@ -52,6 +53,7 @@ function groupCount(id: GroupId, f: AdvancedDealFilters): number {
       if (f.statuses?.length) n++;
       if (f.stageIds?.length) n++;
       if (f.sources?.length || f.withoutSource) n++;
+      if (f.utmSources?.length || f.withoutUtmSource) n++;
       if (f.valueFrom != null || f.valueTo != null) n++;
       break;
     case "people":
@@ -200,6 +202,7 @@ export function FilterModalTwoCol({
                 <StatusSection {...section} />
                 <StagesSection {...section} />
                 <SourcesSection {...section} />
+                <UtmSourcesSection {...section} />
                 <ValueSection {...section} />
               </>
             )}

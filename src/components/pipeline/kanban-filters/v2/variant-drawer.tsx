@@ -22,6 +22,7 @@ import {
   QuickFiltersList,
   SearchSection,
   SourcesSection,
+  UtmSourcesSection,
   StagesSection,
   StatusSection,
   TagsSection,
@@ -105,6 +106,7 @@ export function FilterDrawer({
           <StatusSection {...section} />
           <StagesSection {...section} />
           <SourcesSection {...section} />
+          <UtmSourcesSection {...section} />
           <OwnersSection {...section} />
           <ContactSection {...section} />
           <ValueSection {...section} />

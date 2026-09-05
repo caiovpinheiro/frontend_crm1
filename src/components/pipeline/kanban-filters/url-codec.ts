@@ -57,6 +57,8 @@ export const DEAL_FILTER_URL_KEYS = [
   "tagmode",
   "source",
   "nosource",
+  "utmsource",
+  "noutmsource",
   "lost",
   "created",
   "closed",
@@ -145,6 +147,9 @@ export function dealFiltersToUrlParams(
 ): Record<string, string | null> {
   const f = filters ?? {};
   const sources = (f.sources ?? []).map((s) => (s === SOURCE_NONE ? NONE : s));
+  const utmSources = (f.utmSources ?? []).map((s) =>
+    s === SOURCE_NONE ? NONE : s,
+  );
   return {
     name: f.search?.trim() ? f.search.trim() : null,
     status: encodeCsv(f.statuses),
@@ -154,6 +159,8 @@ export function dealFiltersToUrlParams(
     tagmode: f.tagIds?.length && f.tagMode && f.tagMode !== "any" ? f.tagMode : null,
     source: encodeCsv(sources),
     nosource: f.withoutSource ? "1" : null,
+    utmsource: encodeCsv(utmSources),
+    noutmsource: f.withoutUtmSource ? "1" : null,
     lost: encodeCsv(f.lostReasons),
     created: encodeDateRange(f.createdAt),
     closed: encodeDateRange(f.closedAt),
@@ -216,6 +223,12 @@ export function dealFiltersFromUrlParams(
   );
   if (sources.length) out.sources = sources;
   if (decodeBool(params.get("nosource")) === true) out.withoutSource = true;
+
+  const utmSources = decodeCsv(params.get("utmsource")).map((s) =>
+    s.toLowerCase() === NONE ? SOURCE_NONE : s,
+  );
+  if (utmSources.length) out.utmSources = utmSources;
+  if (decodeBool(params.get("noutmsource")) === true) out.withoutUtmSource = true;
 
   const lostReasons = decodeCsv(params.get("lost"));
   if (lostReasons.length) out.lostReasons = lostReasons;

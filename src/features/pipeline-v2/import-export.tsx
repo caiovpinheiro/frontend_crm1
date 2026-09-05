@@ -123,6 +123,19 @@ const SYSTEM_FIELDS: Record<ImportEntity, SystemField[]> = {
     { key: "phone", label: "Telefone" },
     { key: "lifecycle_stage", label: "Ciclo de vida" },
     { key: "source", label: "Origem" },
+    { key: "utm_source", label: "utm_source" },
+    { key: "utm_medium", label: "utm_medium" },
+    { key: "utm_campaign", label: "utm_campaign" },
+    { key: "utm_content", label: "utm_content" },
+    { key: "utm_term", label: "utm_term" },
+    { key: "utm_id", label: "utm_id" },
+    { key: "utm_referrer", label: "utm_referrer" },
+    { key: "referrer", label: "referrer" },
+    { key: "gclid", label: "gclid" },
+    { key: "fbclid", label: "fbclid" },
+    { key: "gclientid", label: "gclientid" },
+    { key: "ttad_id", label: "ttad_id" },
+    { key: "ttad_name", label: "ttad_name" },
     { key: "company", label: "Empresa" },
     { key: "assigned_to_name", label: "Responsável" },
     { key: "assigned_to_email", label: "E-mail do responsável" },
@@ -140,6 +153,7 @@ const SYSTEM_FIELDS: Record<ImportEntity, SystemField[]> = {
     { key: "contact_name", label: "Nome do contato (criar se não existir)" },
     { key: "contact_email", label: "E-mail do contato" },
     { key: "contact_phone", label: "Telefone do contato" },
+    { key: "contact_source", label: "Origem do contato" },
     { key: "company_name", label: "Nome da empresa" },
     { key: "owner_name", label: "Responsável" },
     { key: "owner_email", label: "E-mail do responsável" },
@@ -213,6 +227,10 @@ const ALIAS_OVERRIDES_BY_ENTITY: Record<ImportEntity, Record<string, string>> = 
     e_mail_do_responsavel: "owner_email",
     email_do_responsavel: "owner_email",
     email_responsavel: "owner_email",
+    // Origem no CSV de negócios → Contact.source
+    origem: "contact_source",
+    origem_do_contato: "contact_source",
+    source: "contact_source",
 
     // ── Aliases Kommo PT-BR (template oficial) ──
     // Lead/negócio

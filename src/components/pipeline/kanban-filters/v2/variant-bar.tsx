@@ -22,6 +22,7 @@ import {
   QuickFiltersList,
   SearchSection,
   SourcesSection,
+  UtmSourcesSection,
   StagesSection,
   StatusSection,
   TagsSection,
@@ -103,6 +104,7 @@ export function FilterBar({
               <SearchSection {...section} />
               <StatusSection {...section} />
               <SourcesSection {...section} />
+              <UtmSourcesSection {...section} />
             </div>
             <div className="space-y-3">
               <StagesSection {...section} />

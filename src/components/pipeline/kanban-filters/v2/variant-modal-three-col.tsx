@@ -29,6 +29,7 @@ import {
   QuickFiltersList,
   SearchSection,
   SourcesSection,
+  UtmSourcesSection,
   StagesSection,
   StatusSection,
   ValueSection,
@@ -71,6 +72,7 @@ function middleTabCount(id: MiddleTab, f: AdvancedDealFilters): number {
       (f.search?.trim() ? 1 : 0) +
       (f.stageIds?.length ? 1 : 0) +
       (f.sources?.length || f.withoutSource ? 1 : 0) +
+      (f.utmSources?.length || f.withoutUtmSource ? 1 : 0) +
       (f.statuses?.length ? 1 : 0) +
       (f.lostReasons?.length ? 1 : 0) +
       (f.valueFrom != null || f.valueTo != null ? 1 : 0)
@@ -519,6 +521,7 @@ export function FilterModalThreeCol({
           <LossReasonsSection {...section} />
           <StagesSection {...section} />
           <SourcesSection {...section} />
+          <UtmSourcesSection {...section} />
           <OwnersSection {...section} />
           <ContactSection {...section} />
           <ConversationSection {...section} />
@@ -627,6 +630,7 @@ export function FilterModalThreeCol({
                   <div className="grid grid-cols-[repeat(auto-fit,minmax(min(220px,100%),1fr))] items-stretch gap-3 [&>*]:h-full">
                     <StagesSection {...section} />
                     <SourcesSection {...section} />
+          <UtmSourcesSection {...section} />
                     <StatusSection {...section} />
                     <LossReasonsSection {...section} />
                   </div>

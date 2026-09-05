@@ -32,6 +32,7 @@ import {
   type ConditionBranch,
   type ConditionRule,
 } from "@/lib/automation-condition"
+import { useContactSources } from "@/hooks/use-contact-sources"
 import { FlowVariableInput } from "./flow-variable-picker"
 import type { NodeConfig } from "@/lib/flow-data"
 
@@ -370,6 +371,7 @@ function ConditionValue({
   const depts = useDepartmentOptions()
   const stages = useStageOptions()
   const pipelines = usePipelineOptions()
+  const sourcesQuery = useContactSources(field === "contact.source")
   const lookup = useConditionNameLookup()
   const { byPath: customFieldMeta } = useCustomFieldConditionMeta()
   const savedLabel = lookup[value] ?? (looksLikeOpaqueId(value) ? value : undefined)
@@ -385,6 +387,32 @@ function ConditionValue({
         options={optionsWithSaved(tags.options, value, savedLabel)}
         onValueChange={(v) => onChange(v, true)}
       />
+    )
+  }
+  if (field === "contact.source") {
+    const sourceOpts = (sourcesQuery.data ?? []).map((s) => ({
+      value: s,
+      label: s,
+    }))
+    return (
+      <div className="space-y-1.5">
+        <DropdownGlass
+          triggerClassName="w-full"
+          searchable
+          placeholder={
+            sourcesQuery.isLoading && !value ? "Carregando…" : "Selecione uma origem…"
+          }
+          value={value}
+          options={optionsWithSaved(sourceOpts, value)}
+          onValueChange={(v) => onChange(v, true)}
+        />
+        <Input
+          className="h-8 text-[12px]"
+          placeholder="Ou digite uma origem…"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </div>
     )
   }
   if (CONDITION_SCHEDULE_OPS.has(op)) {
