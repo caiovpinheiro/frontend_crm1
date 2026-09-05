@@ -48,7 +48,9 @@ export function TransferPopover({
   const [agentFilter, setAgentFilter] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: users = [], isLoading: loadingUsers } = useTeamUsers(open);
+  const { data: users = [], isLoading: loadingUsers } = useTeamUsers(open, {
+    includeAi: true,
+  });
   const { data: departments = [], isLoading: loadingDepts } = useDepartments(open);
   const transfer = useTransferConversation();
 
@@ -157,7 +159,7 @@ export function TransferPopover({
               type="text"
               value={agentFilter}
               onChange={(e) => setAgentFilter(e.target.value)}
-              placeholder="Buscar pessoa…"
+              placeholder="Buscar pessoa ou agente IA…"
               className="mb-1.5 w-full rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-1.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]/40"
             />
             <ul className="max-h-32 overflow-y-auto">
@@ -194,6 +196,11 @@ export function TransferPopover({
                         />
                         <span className="truncate">
                           {u.name ?? u.email ?? "—"}
+                          {u.type === "AI" && (
+                            <span className="ml-1 text-[11px] text-[var(--text-muted)]">
+                              IA
+                            </span>
+                          )}
                           {isCurrent && (
                             <span className="ml-1 text-[11px] text-[var(--text-muted)]">
                               (atual)
