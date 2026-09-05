@@ -12,6 +12,7 @@ import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import type { DealDetail } from "@/components/crm/deal-detail-panel";
+import { pickTrackedAttribution } from "@/components/crm/tracked-info-section";
 import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
 import type { BoardStage } from "@/components/pipeline/kanban-board";
 import { SalesHubView } from "@/components/pipeline/sales-hub-view";
@@ -531,6 +532,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
           (dealDetail as { status?: "OPEN" | "WON" | "LOST" }).status ?? null,
         lostReason:
           (dealDetail as { lostReason?: string | null }).lostReason ?? null,
+        tracked: pickTrackedAttribution(dealContact),
       };
     }
 
@@ -564,6 +566,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
       status:
         (boardDealSeed.status as "OPEN" | "WON" | "LOST" | undefined) ?? null,
       lostReason: boardDealSeed.lostReason ?? null,
+      tracked: pickTrackedAttribution(dealContact),
     };
   }, [
     dealDetail,
@@ -571,6 +574,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     activeDealStageName,
     pipelines,
     pipelineId,
+    dealContact,
   ]);
 
   // Sem sessão o middleware redireciona; renderizar o shell aqui prendia a

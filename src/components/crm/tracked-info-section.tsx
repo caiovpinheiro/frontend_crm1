@@ -70,6 +70,35 @@ function isFilled(v: string | null | undefined): boolean {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+/** Extrai campos de atribuição de um contato (API) para a seção Contato. */
+export function pickTrackedAttribution(
+  contact: Partial<TrackedAttribution> | null | undefined,
+): TrackedAttribution {
+  if (!contact) return {};
+  return {
+    adUtmSource: contact.adUtmSource ?? null,
+    adUtmMedium: contact.adUtmMedium ?? null,
+    adUtmCampaign: contact.adUtmCampaign ?? null,
+    adUtmContent: contact.adUtmContent ?? null,
+    adUtmTerm: contact.adUtmTerm ?? null,
+    utmId: contact.utmId ?? null,
+    utmReferrer: contact.utmReferrer ?? null,
+    referrer: contact.referrer ?? null,
+    gclid: contact.gclid ?? null,
+    fbclid: contact.fbclid ?? null,
+    googleClientId: contact.googleClientId ?? null,
+    ttadId: contact.ttadId ?? null,
+    ttadName: contact.ttadName ?? null,
+    adCtwaClid: contact.adCtwaClid ?? null,
+    adSourceId: contact.adSourceId ?? null,
+    adResolvedId: contact.adResolvedId ?? null,
+    adResolvedName: contact.adResolvedName ?? null,
+    adHeadline: contact.adHeadline ?? null,
+    adResolvedAdsetName: contact.adResolvedAdsetName ?? null,
+    adResolvedCampaignName: contact.adResolvedCampaignName ?? null,
+  };
+}
+
 type Props = {
   values: TrackedAttribution;
   contactId: string;
@@ -87,7 +116,8 @@ export function TrackedInfoSection({
   compact = false,
   onSaved,
 }: Props) {
-  const [open, setOpen] = React.useState(true);
+  // Sempre inicia fechada — só abre ao clicar (pedido produto / paridade Kommo).
+  const [open, setOpen] = React.useState(false);
 
   const editableFilled = TRACKED_EDITABLE_FIELDS.filter((f) =>
     isFilled(values[f.key]),
@@ -100,7 +130,12 @@ export function TrackedInfoSection({
 
   return (
     <div className="mt-2 border-t border-slate-100 pt-2">
-      <div className="mb-1.5 flex items-baseline justify-between gap-2 px-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="mb-1.5 flex w-full items-baseline justify-between gap-2 px-0.5 text-left"
+      >
         <div className="min-w-0">
           <p className="font-display text-[12px] font-bold text-[var(--text-primary)]">
             Informação rastreada:
@@ -110,14 +145,10 @@ export function TrackedInfoSection({
             {metaFilled > 0 ? ` · Meta ${metaFilled}` : ""}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="shrink-0 text-[11px] font-medium text-slate-400 hover:text-[var(--brand-primary)]"
-        >
+        <span className="shrink-0 text-[11px] font-medium text-slate-400 hover:text-[var(--brand-primary)]">
           {open ? "ocultar" : "mostrar"}
-        </button>
-      </div>
+        </span>
+      </button>
 
       {open && (
         <div className="space-y-0">

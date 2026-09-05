@@ -45,6 +45,7 @@ import { DealCard } from "@/components/crm/deal-card";
 import { ScrollMap } from "@/components/crm/scroll-map";
 import { ScrollMapVertical } from "@/components/crm/scroll-map-vertical";
 import { DealDetailPanel, type DealDetail } from "@/components/crm/deal-detail-panel";
+import { pickTrackedAttribution } from "@/components/crm/tracked-info-section";
 import { DealProductsSection, DealQuotasSection } from "@/components/pipeline/deal-detail/sidebar";
 import { CallHistoryList } from "@/features/softphone/components/call-history-list";
 import { ActivitiesPanel } from "@/components/pipeline/deal-workspace/panels/activities";
@@ -789,6 +790,7 @@ export default function KanbanV2ClientPage({
         status: (dealDetail as { status?: "OPEN" | "WON" | "LOST" }).status ?? null,
         lostReason:
           (dealDetail as { lostReason?: string | null }).lostReason ?? null,
+        tracked: pickTrackedAttribution(dealContact),
       };
     }
 
@@ -822,8 +824,9 @@ export default function KanbanV2ClientPage({
       },
       status: (boardDealSeed.status as "OPEN" | "WON" | "LOST" | undefined) ?? null,
       lostReason: boardDealSeed.lostReason ?? null,
+      tracked: pickTrackedAttribution(dealContact),
     };
-  }, [dealDetail, boardDealSeed, activeDealStageName, pipelines, pipelineId]);
+  }, [dealDetail, boardDealSeed, activeDealStageName, pipelines, pipelineId, dealContact]);
 
   // Negócio SEM contato vinculado: cria um contato com o telefone/email
   // digitado e vincula ao deal (o painel chama isso via customSave do
