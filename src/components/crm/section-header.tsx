@@ -176,7 +176,7 @@ export function HeaderPillToggle<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex items-center rounded-full border border-border bg-card p-1">
+    <div className="flex items-center rounded-full border border-border bg-card p-1 shadow-none">
       {options.map(({ key, label, icon: Icon }) => {
         const active = value === key
         return (
