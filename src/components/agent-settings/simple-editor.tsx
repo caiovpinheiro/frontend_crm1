@@ -174,8 +174,10 @@ export function SimpleEditor({
               Se falar em cancelar, perguntar o motivo
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Uma pergunta antes de mandar para Retenção. Também tira
-              “cancelar” das palavras que transferem sozinhas.
+              Uma pergunta antes de Retenção. Tira “cancelar” das palavras
+              que transferem sozinhas. Fora do expediente (seg–sex 8h–19h,
+              sáb 9h–16h) o agente deve dizer quando o time volta — nunca
+              “já já”.
             </p>
             {leftoverKeywords.length > 0 && !askReason && (
               <p className="mt-1 text-xs text-destructive">
