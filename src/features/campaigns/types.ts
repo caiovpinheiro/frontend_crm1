@@ -80,7 +80,17 @@ export interface CampaignStats {
   status: CampaignStatus;
   startedAt?: string | null;
   completedAt?: string | null;
-  failureReasons: { reason: string; count: number }[];
+  failureReasons: {
+    reason: string;
+    count: number;
+    code?: number | null;
+    action?: string | null;
+    kind?: "eligibility" | "operational";
+  }[];
+  /** Bloqueio da Meta (lista, opt-out, marketing) — não é falha do disparo. */
+  eligibilityFailedCount?: number;
+  /** Token, template, rate-limit, pagamento, etc. */
+  operationalFailedCount?: number;
 }
 
 export interface CampaignRecipient {

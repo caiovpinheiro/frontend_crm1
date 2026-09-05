@@ -37,6 +37,7 @@ const CATALOG: Record<number, string> = {
   131047: "Fora da janela de 24h — só é possível reengajar com template aprovado. Use uma campanha de template (HSM) aprovado em vez de texto livre.",
   131049: "A Meta limitou esta mensagem de marketing para preservar o engajamento. Envie menos mensagens de marketing ao mesmo usuário; espace os disparos.",
   130472: "Número do usuário faz parte de um experimento da Meta (marketing). Comportamento esperado em alguns números; tente outro destinatário.",
+  131050: "O destinatário recusou mensagens de marketing neste WhatsApp. Não reenvie marketing a este número. Use conversa de serviço (janela 24h) ou outro canal.",
   131021: "O destinatário não pode ser o próprio remetente. Use um número de destino diferente do número de envio.",
   // ── Parâmetros / payload ────────────────────────────────────
   100: "Parâmetro inválido na requisição à Meta. Revise o conteúdo/variáveis da mensagem ou template.",

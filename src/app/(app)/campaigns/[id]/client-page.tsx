@@ -30,6 +30,14 @@ import { cn } from "@/lib/utils";
 import { rewriteNumericPath } from "@/lib/public-path";
 import { PageTourButton } from "@/features/product-tour";
 
+import { apiUrl } from "@/lib/api";
+import { downloadCsvFromApi } from "@/features/data-io/download-csv";
+import { summarizeSendError } from "@/lib/meta-error-catalog";
+import { CampaignFailureLists } from "@/features/campaigns/failure-lists";
+import {
+  campaignRecipientsExportUrl,
+  type FailureErrorCode,
+} from "@/features/campaigns/api";
 import {
   useAudienceOptions,
   useCampaign,
@@ -87,8 +95,10 @@ export default function CampaignDetailClientPage() {
   const isAuth = authStatus === "authenticated";
 
   const [recipientFilter, setRecipientFilter] = useState("");
+  const [errorCodeFilter, setErrorCodeFilter] = useState<FailureErrorCode | null>(null);
   const [page, setPage] = useState(1);
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
+  const [exportBusy, setExportBusy] = useState<string | null>(null);
 
   const toggleError = (recipientId: string) =>
     setExpandedErrors((prev) => {
@@ -121,7 +131,12 @@ export default function CampaignDetailClientPage() {
 
   const recipientsQuery = useCampaignRecipients(
     campaignId,
-    { status: recipientFilter || undefined, page, perPage: RECIPIENT_PER_PAGE },
+    {
+      status: recipientFilter || undefined,
+      errorCode: errorCodeFilter ?? undefined,
+      page,
+      perPage: RECIPIENT_PER_PAGE,
+    },
     !!campaign,
   );
 
@@ -167,7 +182,11 @@ export default function CampaignDetailClientPage() {
   const readPct = rate(read, sent);
   const repliedPct = rate(replied, sent);
   const failedPct = rate(failed, sent || total);
-  const highFailure = failedPct >= 5;
+  const eligibilityFailed = stats?.eligibilityFailedCount ?? 0;
+  const operationalFailed =
+    stats?.operationalFailedCount ?? Math.max(0, failed - eligibilityFailed);
+  const operationalPct = rate(operationalFailed, sent || total);
+  const highFailure = operationalPct >= 5;
 
   const canPause = campaign.status === "SENDING" || campaign.status === "PROCESSING";
   const canResume = campaign.status === "PAUSED";
@@ -188,6 +207,64 @@ export default function CampaignDetailClientPage() {
           toast.error(err instanceof Error ? err.message : "Erro ao executar ação na campanha."),
       },
     );
+  };
+
+  const viewFailureList = (code: FailureErrorCode) => {
+    setRecipientFilter("FAILED");
+    setErrorCodeFilter(code);
+    setPage(1);
+  };
+
+  const downloadFailures = async (code?: FailureErrorCode | "all") => {
+    const key = String(code ?? "all");
+    setExportBusy(key);
+    try {
+      await downloadCsvFromApi(
+        apiUrl(
+          campaignRecipientsExportUrl(campaignId, {
+            status: "FAILED",
+            errorCode: code && code !== "all" ? code : undefined,
+          }),
+        ),
+        `campanha-falhas${code && code !== "all" ? `-${code}` : ""}.csv`,
+      );
+      toast.success("Lista baixada.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível baixar a lista.");
+    } finally {
+      setExportBusy(null);
+    }
+  };
+
+  const copyFailurePhones = async (code: FailureErrorCode) => {
+    setExportBusy(String(code));
+    try {
+      const res = await fetch(
+        apiUrl(
+          campaignRecipientsExportUrl(campaignId, {
+            status: "FAILED",
+            errorCode: code,
+            format: "phones",
+          }),
+        ),
+        { credentials: "include" },
+      );
+      if (!res.ok) {
+        throw new Error("Não foi possível copiar os telefones.");
+      }
+      const text = (await res.text()).trim();
+      if (!text) {
+        toast.error("Nenhum telefone nesta lista.");
+        return;
+      }
+      await navigator.clipboard.writeText(text);
+      const count = text.split("\n").filter(Boolean).length;
+      toast.success(`${count} telefones copiados.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível copiar os telefones.");
+    } finally {
+      setExportBusy(null);
+    }
   };
 
   const recipients = recipientsQuery.data?.items ?? [];
@@ -316,22 +393,15 @@ export default function CampaignDetailClientPage() {
           {highFailure ? (
             <div className="mt-4 flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
               <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
-              Taxa de falha alta: {failedPct}%
+              Taxa de falha operacional alta: {operationalPct}%
+            </div>
+          ) : eligibilityFailed > 0 ? (
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+              <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+              A Meta não entregou {nf(eligibilityFailed)} mensagens (lista, opt-out ou limite de marketing). Não é falha do disparo.
             </div>
           ) : null}
 
-          {stats?.failureReasons && stats.failureReasons.length > 0 ? (
-            <div className="mt-4 flex flex-col gap-1.5">
-              {stats.failureReasons.map((reason) => (
-                <div key={reason.reason} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="truncate text-muted-foreground">{reason.reason}</span>
-                  <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-bold tabular-nums text-destructive">
-                    {reason.count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
         </section>
 
         <section data-tour="campaign-detail-recipients" className={cn(CARD_SURFACE_CLASS, "flex min-h-[420px] flex-col p-5")}>
@@ -344,6 +414,7 @@ export default function CampaignDetailClientPage() {
                   type="button"
                   onClick={() => {
                     setRecipientFilter(filter.value);
+                    setErrorCodeFilter(null);
                     setPage(1);
                   }}
                   className={cn(
@@ -358,6 +429,15 @@ export default function CampaignDetailClientPage() {
               ))}
             </div>
           </div>
+          {errorCodeFilter != null ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Filtrando falhas
+              {errorCodeFilter === "other"
+                ? " sem código da Meta"
+                : ` · cód. ${errorCodeFilter}`}
+              .
+            </p>
+          ) : null}
 
           <div className="mt-4 flex min-h-0 flex-1 flex-col">
             {recipientsQuery.isLoading ? (
@@ -402,10 +482,10 @@ export default function CampaignDetailClientPage() {
                             <button
                               type="button"
                               onClick={() => toggleError(recipient.id)}
-                              title={recipient.errorMessage}
+                              title={summarizeSendError(recipient.errorMessage)}
                               className="max-w-[180px] truncate text-xs text-destructive underline-offset-2 hover:underline"
                             >
-                              {recipient.errorMessage}
+                              {summarizeSendError(recipient.errorMessage)}
                             </button>
                           ) : null}
                           {recipient.repliedAt ? (
@@ -433,7 +513,7 @@ export default function CampaignDetailClientPage() {
                       </div>
                       {recipient.errorMessage && expandedErrors.has(recipient.id) ? (
                         <p className="mt-1.5 whitespace-pre-wrap break-words rounded-xl border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-xs leading-relaxed text-destructive">
-                          {recipient.errorMessage}
+                          {summarizeSendError(recipient.errorMessage)}
                         </p>
                       ) : null}
                     </div>
@@ -444,6 +524,18 @@ export default function CampaignDetailClientPage() {
           </div>
         </section>
       </div>
+
+      {stats?.failureReasons && stats.failureReasons.length > 0 ? (
+        <CampaignFailureLists
+          reasons={stats.failureReasons}
+          activeCode={errorCodeFilter}
+          busyKey={exportBusy}
+          onView={viewFailureList}
+          onDownload={(code) => void downloadFailures(code)}
+          onCopyPhones={(code) => void copyFailurePhones(code)}
+          onDownloadAll={() => void downloadFailures("all")}
+        />
+      ) : null}
 
       {recipientPages > 1 ? (
         <PaginationGlass

@@ -3,7 +3,8 @@
  *   GET   /api/campaigns?status&type&search&page&perPage
  *   GET   /api/campaigns/[id]
  *   GET   /api/campaigns/[id]/stats
- *   GET   /api/campaigns/[id]/recipients?status&page&perPage
+ *   GET   /api/campaigns/[id]/recipients?status&errorCode&page&perPage
+ *   GET   /api/campaigns/[id]/recipients/export?status&errorCode&format
  *   POST  /api/campaigns                          -> cria rascunho
  *   POST  /api/campaigns/[id]/{launch|pause|resume|cancel}
  *   POST  /api/campaigns/preview                  -> contagem + amostra
@@ -140,24 +141,47 @@ export function fetchCampaignStats(id: string): Promise<CampaignStats> {
   );
 }
 
+export type FailureErrorCode = number | "other";
+
 export interface FetchRecipientsParams {
   status?: string;
+  errorCode?: FailureErrorCode;
   page?: number;
   perPage?: number;
+}
+
+function recipientsQuery(params: FetchRecipientsParams = {}): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (params.status) sp.set("status", params.status);
+  if (params.errorCode != null) sp.set("errorCode", String(params.errorCode));
+  if (params.page) sp.set("page", String(params.page));
+  sp.set("perPage", String(params.perPage ?? 20));
+  return sp;
 }
 
 export function fetchRecipients(
   id: string,
   params: FetchRecipientsParams = {},
 ): Promise<RecipientsResponse> {
-  const sp = new URLSearchParams();
-  if (params.status) sp.set("status", params.status);
-  if (params.page) sp.set("page", String(params.page));
-  sp.set("perPage", String(params.perPage ?? 20));
   return getJson<RecipientsResponse>(
-    `/api/campaigns/${id}/recipients?${sp.toString()}`,
+    `/api/campaigns/${id}/recipients?${recipientsQuery(params).toString()}`,
     "Erro ao carregar destinatários.",
   );
+}
+
+export function campaignRecipientsExportUrl(
+  id: string,
+  params: {
+    status?: string;
+    errorCode?: FailureErrorCode;
+    format?: "csv" | "phones";
+  } = {},
+): string {
+  const sp = new URLSearchParams();
+  sp.set("status", params.status ?? "FAILED");
+  if (params.errorCode != null) sp.set("errorCode", String(params.errorCode));
+  if (params.format) sp.set("format", params.format);
+  return `/api/campaigns/${id}/recipients/export?${sp.toString()}`;
 }
 
 export function createCampaign(
