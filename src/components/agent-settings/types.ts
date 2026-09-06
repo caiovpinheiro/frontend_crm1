@@ -251,7 +251,7 @@ export const SECTION_META: Record<
   },
   inbox: {
     label: "Inbox",
-    description: "Interceptos de confiança, retenção e mensagens de handoff.",
+    description: "Interceptos de confiança, retenção e aula inaugural.",
   },
   knowledge: {
     label: "Conhecimento",

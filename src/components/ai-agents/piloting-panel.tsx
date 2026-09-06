@@ -60,6 +60,9 @@ export type PilotingValue = {
   keywordHandoffs: string[];
   qualificationQuestions: QualificationQuestion[];
   businessHours: BusinessHoursConfig;
+  /// Fila humana (inboxPolicy.handoffMessage). Vazio = fallback do backend.
+  handoffMessage: string;
+  retentionHandoffMessage: string;
   outputStyle: OutputStyle;
   simulateTyping: boolean;
   typingPerCharMs: number;
@@ -83,6 +86,8 @@ export function createDefaultPiloting(): PilotingValue {
       weekdays: [],
       offHoursMessage: "",
     },
+    handoffMessage: "",
+    retentionHandoffMessage: "",
     outputStyle: "conversational",
     simulateTyping: true,
     typingPerCharMs: 25,
@@ -120,10 +125,8 @@ export function PilotingPanel({
             <div className="font-semibold">Pilotagem do agente</div>
             <div className="mt-0.5 text-[var(--text-secondary)]">
               Controles operacionais que funcionam fora do prompt — saudação,
-              timers de inatividade, encerramento automático, palavras-chave
-              de handoff, qualificação obrigatória e horário de atendimento.
-              Use isso pra garantir comportamento previsível mesmo quando o
-              LLM improvisar.
+              timers, fila humana, encerramento, palavras-chave e horário do
+              time. Texto e expediente da fila não ficam no código: edita aqui.
             </div>
           </div>
         </div>
@@ -1187,17 +1190,20 @@ function BusinessHoursSection({
   const bh = value.businessHours;
 
   const toggleEnabled = (enabled: boolean) => {
-    // Se ligando e sem slots, bota um default seg-sex 9h-18h.
+    // Sem slots: fallback SAC (seg–sex 8–19, sáb 9–16).
     if (enabled && bh.weekdays.length === 0) {
       patch({
         businessHours: {
           ...bh,
           enabled: true,
-          weekdays: [1, 2, 3, 4, 5].map((day) => ({
-            day,
-            start: "09:00",
-            end: "18:00",
-          })),
+          weekdays: [
+            ...[1, 2, 3, 4, 5].map((day) => ({
+              day,
+              start: "08:00",
+              end: "19:00",
+            })),
+            { day: 6, start: "09:00", end: "16:00" },
+          ],
         },
       });
       return;
@@ -1220,7 +1226,11 @@ function BusinessHoursSection({
           ...bh,
           weekdays: [
             ...bh.weekdays,
-            { day, start: "09:00", end: "18:00" },
+            {
+              day,
+              start: day === 6 ? "09:00" : "08:00",
+              end: day === 6 ? "16:00" : "19:00",
+            },
           ].sort((a, b) => a.day - b.day),
         },
       });
@@ -1251,8 +1261,8 @@ function BusinessHoursSection({
       onEnabledChange={
         presentation === "accordion" ? toggleEnabled : undefined
       }
-      title="Horário de atendimento"
-      description="Fora do horário, o agente não responde. Pode enviar mensagem automática avisando."
+      title="Horário e fila humana"
+      description="Expediente do consultor. A IA continua; estes textos são o que o aluno recebe na fila."
     >
       <div className="flex items-center gap-2">
         <label className="inline-flex items-center gap-2 text-sm">
@@ -1340,25 +1350,57 @@ function BusinessHoursSection({
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="pilot-offhours" className={formLabelClass}>
-              Mensagem fora do horário (opcional)
-            </Label>
-            <Textarea
-              id="pilot-offhours"
-              rows={2}
-              value={bh.offHoursMessage ?? ""}
-              onChange={(e) =>
-                patch({
-                  businessHours: { ...bh, offHoursMessage: e.target.value },
-                })
-              }
-              placeholder="Ex.: Oi {{contact.firstName}}! Já recebemos sua mensagem. Nosso time responde de segunda a sexta, 9h às 18h."
-              className="resize-none text-sm"
-            />
-          </div>
         </>
       )}
+
+      <div className="grid gap-2">
+        <Label htmlFor="pilot-handoff" className={formLabelClass}>
+          Mensagem de fila (sempre)
+        </Label>
+        <Textarea
+          id="pilot-handoff"
+          rows={3}
+          value={value.handoffMessage}
+          onChange={(e) => patch({ handoffMessage: e.target.value })}
+          placeholder="Vazio = usa a mensagem fora do horário, ou o texto padrão do sistema. Se preencher, vale de dia e de noite."
+          className="resize-y text-sm"
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="pilot-offhours" className={formLabelClass}>
+          Mensagem fora do expediente
+        </Label>
+        <Textarea
+          id="pilot-offhours"
+          rows={3}
+          value={bh.offHoursMessage ?? ""}
+          onChange={(e) =>
+            patch({
+              businessHours: { ...bh, offHoursMessage: e.target.value },
+            })
+          }
+          placeholder="Combinado — já registrei seu pedido com a equipe. O atendimento humano retoma às 8h…"
+          className="resize-y text-sm"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Este é o texto das 8h. Sem horário ligado, o sistema ainda usa o
+          expediente SAC (seg–sex 8h–19h, sáb 9h–16h) só para saber se está
+          fechado.
+        </p>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="pilot-retention" className={formLabelClass}>
+          Mensagem de retenção
+        </Label>
+        <Textarea
+          id="pilot-retention"
+          rows={2}
+          value={value.retentionHandoffMessage}
+          onChange={(e) => patch({ retentionHandoffMessage: e.target.value })}
+          placeholder="Vazio = texto padrão de trancamento/cancelamento."
+          className="resize-y text-sm"
+        />
+      </div>
     </Section>
   );
 }

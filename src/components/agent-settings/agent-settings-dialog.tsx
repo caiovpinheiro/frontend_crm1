@@ -107,6 +107,8 @@ function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
       data.qualificationQuestions,
     ),
     businessHours: bh,
+    handoffMessage: inboxPolicy.handoffMessage ?? "",
+    retentionHandoffMessage: inboxPolicy.retentionHandoffMessage ?? "",
     outputStyle: normalizeOutputStyle(data.outputStyle),
     simulateTyping:
       typeof data.simulateTyping === "boolean" ? data.simulateTyping : true,
@@ -223,6 +225,9 @@ export function AgentSettingsDialog({
         ...defaultInboxPolicy(),
         ...form.inboxPolicy,
         scope: form.attendanceScope,
+        handoffMessage: form.piloting.handoffMessage.trim() || null,
+        retentionHandoffMessage:
+          form.piloting.retentionHandoffMessage.trim() || null,
       };
       const simple = applySimpleSaveDefaults(form);
       const res = await fetch(apiUrl(`/api/ai-agents/${id}`), {

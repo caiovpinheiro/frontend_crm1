@@ -6,15 +6,8 @@ import { ChipInput } from "@/components/ai-agents/chip-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { formLabelClass } from "@/components/ui/form-dialog";
 import { defaultInboxPolicy, type InboxPolicy } from "@/lib/ai-agents/steering";
-
-/** Espelho dos textos default do backend (human-queue-policy). */
-const DEFAULT_HANDOFF_PLACEHOLDER =
-  "Padrão: “Combinado — já pedi para a equipe te atender. Assim que um(a) consultor(a) puder, continua com você por aqui…”";
-const DEFAULT_RETENTION_PLACEHOLDER =
-  "Padrão: “Entendi! Sobre *trancamento/cancelamento* já pedi para o setor de *Retenção* te atender…”";
 
 type Props = {
   value: InboxPolicy;
@@ -172,51 +165,10 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
-        <div>
-          <div className="text-sm font-semibold">
-            Mensagens de saída do atendimento
-          </div>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">
-            Vazio = texto padrão que o agente já usa hoje, que ajusta a frase
-            conforme o expediente humano (seg–sex 8h–19h, sáb 9h–16h).
-          </p>
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="msg-handoff" className={formLabelClass}>
-            Handoff para humano (geral)
-          </Label>
-          <Textarea
-            id="msg-handoff"
-            value={value.handoffMessage ?? ""}
-            onChange={(e) =>
-              patch({ handoffMessage: e.target.value.trim() || null })
-            }
-            rows={3}
-            className="resize-y rounded-xl text-sm"
-            placeholder={DEFAULT_HANDOFF_PLACEHOLDER}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="msg-retencao" className={formLabelClass}>
-            Handoff de retenção
-          </Label>
-          <Textarea
-            id="msg-retencao"
-            value={value.retentionHandoffMessage ?? ""}
-            onChange={(e) =>
-              patch({ retentionHandoffMessage: e.target.value.trim() || null })
-            }
-            rows={3}
-            className="resize-y rounded-xl text-sm"
-            placeholder={DEFAULT_RETENTION_PLACEHOLDER}
-          />
-        </div>
-        <p className="text-[11px] text-muted-foreground">
-          Texto fixo aqui não recalcula horário — se citar horário na
-          mensagem, ela vai igual de madrugada também.
-        </p>
-      </div>
+      <p className="rounded-xl border bg-muted/10 p-3 text-[12px] text-muted-foreground">
+        Textos de fila humana (8h, retenção) ficam em{" "}
+        <span className="font-medium text-foreground">Pilotagem → Horário e fila humana</span>.
+      </p>
 
       <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
         <ToggleRow

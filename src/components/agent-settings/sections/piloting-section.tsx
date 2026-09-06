@@ -18,7 +18,7 @@ export function PilotingSection({
     <div className="space-y-5">
       <SectionHeader
         title="Pilotagem"
-        description="Saudação, estilo, handoff, encerramento automático e horário — valem mesmo se o modelo improvisar."
+        description="Saudação, fila humana, horário do consultor e encerramento — valem mesmo se o modelo improvisar. Textos da fila ficam aqui, não no código."
       />
       <PilotingPanel
         value={value}
