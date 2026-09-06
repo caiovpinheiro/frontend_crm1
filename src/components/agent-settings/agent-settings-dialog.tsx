@@ -151,6 +151,10 @@ function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
     inboxPolicy,
     piloting,
     archetype,
+    openaiApiKey: "",
+    hasOwnOpenaiKey: data.hasOwnOpenaiKey === true,
+    openaiApiKeyHint:
+      typeof data.openaiApiKeyHint === "string" ? data.openaiApiKeyHint : null,
   };
 }
 
@@ -240,6 +244,9 @@ export function AgentSettingsDialog({
           model: form.model,
           temperature: form.temperature,
           dailyTokenCap: form.dailyTokenCap,
+          ...(form.openaiApiKey.trim()
+            ? { openaiApiKey: form.openaiApiKey.trim() }
+            : {}),
           enabledTools: form.enabledTools,
           systemPromptOverride: simple.systemPromptOverride.trim() || null,
           systemPromptTemplate: form.systemPromptTemplate.trim() || undefined,
@@ -354,6 +361,10 @@ export function AgentSettingsDialog({
                   onDailyTokenCapChange={(v) => patch("dailyTokenCap", v)}
                   autonomyMode={form.autonomyMode as AutonomyMode}
                   onAutonomyModeChange={(v) => patch("autonomyMode", v)}
+                  openaiApiKey={form.openaiApiKey}
+                  onOpenaiApiKeyChange={(v) => patch("openaiApiKey", v)}
+                  hasOwnOpenaiKey={form.hasOwnOpenaiKey}
+                  openaiApiKeyHint={form.openaiApiKeyHint}
                 />
               )}
               {advanced && section === "rules" && (
