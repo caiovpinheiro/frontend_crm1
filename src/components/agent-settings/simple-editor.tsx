@@ -12,6 +12,7 @@ import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
 import { defaultAcademicSteeringRules } from "@/lib/ai-agents/academic-atendimento-prompt";
 import { cn } from "@/lib/utils";
 
+import { OpenAiKeyField } from "./openai-key-field";
 import type { AgentSettingsValues } from "./types";
 
 /** Palavras que o backend transfere SEM passar pelo modelo. */
@@ -135,6 +136,13 @@ export function SimpleEditor({
             </div>
           </div>
         </div>
+        <OpenAiKeyField
+          value={form.openaiApiKey}
+          onChange={(v) => onChange({ ...form, openaiApiKey: v })}
+          hasSavedKey={form.hasOwnOpenaiKey}
+          savedHint={form.openaiApiKeyHint}
+          idPrefix="simple"
+        />
       </section>
 
       <section className="space-y-3">

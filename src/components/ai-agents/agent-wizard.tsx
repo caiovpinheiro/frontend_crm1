@@ -105,6 +105,7 @@ export function AgentWizard({
   const [tone, setTone] = React.useState(TONE_PRESETS[0]);
   const [model, setModel] = React.useState("gpt-4o-mini");
   const [temperature, setTemperature] = React.useState(0.7);
+  const [openaiApiKey, setOpenaiApiKey] = React.useState("");
   const [override, setOverride] = React.useState("");
   const [productPolicy, setProductPolicy] = React.useState("");
   const [enabledTools, setEnabledTools] = React.useState<string[]>([]);
@@ -138,6 +139,7 @@ export function AgentWizard({
       setTone(TONE_PRESETS[0]);
       setModel("gpt-4o-mini");
       setTemperature(0.7);
+      setOpenaiApiKey("");
       setOverride("");
       setProductPolicy("");
       setEnabledTools([]);
@@ -150,8 +152,13 @@ export function AgentWizard({
   const currentIndex = STEPS.findIndex((s) => s.id === step);
   const isLast = step === "review";
 
+  const openaiKeyLooksValid = /^sk-[A-Za-z0-9_-]{10,}$/.test(
+    openaiApiKey.trim(),
+  );
+
   const canAdvance = () => {
     if (step === "identity") return name.trim().length > 0;
+    if (step === "personality") return openaiKeyLooksValid;
     if (step === "tools") return enabledTools.length > 0;
     return true;
   };
@@ -179,6 +186,7 @@ export function AgentWizard({
           language,
           model,
           temperature,
+          ...(openaiApiKey.trim() ? { openaiApiKey: openaiApiKey.trim() } : {}),
           systemPromptOverride: override.trim() || null,
           productPolicy: productPolicy.trim() || null,
           enabledTools,
@@ -234,6 +242,8 @@ export function AgentWizard({
                 setModel={setModel}
                 temperature={temperature}
                 setTemperature={setTemperature}
+                openaiApiKey={openaiApiKey}
+                setOpenaiApiKey={setOpenaiApiKey}
                 override={override}
                 setOverride={setOverride}
               />
@@ -263,6 +273,7 @@ export function AgentWizard({
                 enabledTools={enabledTools}
                 hasOverride={override.trim().length > 0}
                 hasProductPolicy={productPolicy.trim().length > 0}
+                hasOpenaiKey={openaiKeyLooksValid}
                 autonomyMode={autonomyMode}
                 setAutonomyMode={setAutonomyMode}
               />
@@ -300,7 +311,12 @@ export function AgentWizard({
             <Button
               type="button"
               onClick={handleSubmit}
-              disabled={submitting || !name.trim() || enabledTools.length === 0}
+              disabled={
+                submitting ||
+                !name.trim() ||
+                enabledTools.length === 0 ||
+                !openaiKeyLooksValid
+              }
             >
               {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               Criar agente
@@ -478,6 +494,8 @@ function PersonalityStep({
   setModel,
   temperature,
   setTemperature,
+  openaiApiKey,
+  setOpenaiApiKey,
   override,
   setOverride,
 }: {
@@ -490,9 +508,13 @@ function PersonalityStep({
   setModel: (v: string) => void;
   temperature: number;
   setTemperature: (v: number) => void;
+  openaiApiKey: string;
+  setOpenaiApiKey: (v: string) => void;
   override: string;
   setOverride: (v: string) => void;
 }) {
+  const keyTouched = openaiApiKey.trim().length > 0;
+  const keyValid = /^sk-[A-Za-z0-9_-]{10,}$/.test(openaiApiKey.trim());
   // Renderiza o template trocando placeholders por valores atuais.
   const preview = React.useMemo(() => {
     const base = archetype.systemPromptTemplate
@@ -564,6 +586,29 @@ function PersonalityStep({
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="w-openai-key">Chave OpenAI do agente</Label>
+        <Input
+          id="w-openai-key"
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          value={openaiApiKey}
+          onChange={(e) => setOpenaiApiKey(e.target.value)}
+          placeholder="sk-…"
+          className="font-mono"
+        />
+        <p className="text-[11px] text-[var(--text-muted)]">
+          Cada agente usa a própria conta OpenAI — não há chave global. Sem
+          uma chave válida o agente não responde. Fica cifrada no banco.
+        </p>
+        {keyTouched && !keyValid && (
+          <p className="text-[11px] text-[var(--color-danger-text)]">
+            Formato inválido. Esperado algo como <code>sk-…</code>.
+          </p>
+        )}
       </div>
 
       <div className="grid gap-2">
@@ -744,6 +789,7 @@ function ReviewStep({
   enabledTools,
   hasOverride,
   hasProductPolicy,
+  hasOpenaiKey,
   autonomyMode,
   setAutonomyMode,
 }: {
@@ -756,6 +802,7 @@ function ReviewStep({
   enabledTools: string[];
   hasOverride: boolean;
   hasProductPolicy: boolean;
+  hasOpenaiKey: boolean;
   autonomyMode: AutonomyMode;
   setAutonomyMode: (v: AutonomyMode) => void;
 }) {
@@ -779,6 +826,10 @@ function ReviewStep({
           <ReviewField
             label="Temperatura"
             value={temperature.toFixed(1)}
+          />
+          <ReviewField
+            label="Chave OpenAI"
+            value={hasOpenaiKey ? "Configurada" : "Faltando"}
           />
           <ReviewField
             label="Instruções extras"

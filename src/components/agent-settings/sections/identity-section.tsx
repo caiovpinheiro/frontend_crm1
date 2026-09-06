@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
 
+import { OpenAiKeyField } from "../openai-key-field";
 import { FieldHelp, SectionHeader } from "../section-header";
 import { AGENT_MODELS, type AutonomyMode } from "../types";
 
@@ -28,6 +29,10 @@ export function IdentitySection({
   onDailyTokenCapChange,
   autonomyMode,
   onAutonomyModeChange,
+  openaiApiKey,
+  onOpenaiApiKeyChange,
+  hasOwnOpenaiKey,
+  openaiApiKeyHint,
 }: {
   agentId: string | null;
   name: string;
@@ -42,6 +47,10 @@ export function IdentitySection({
   onDailyTokenCapChange: (v: number) => void;
   autonomyMode: AutonomyMode;
   onAutonomyModeChange: (v: AutonomyMode) => void;
+  openaiApiKey: string;
+  onOpenaiApiKeyChange: (v: string) => void;
+  hasOwnOpenaiKey: boolean;
+  openaiApiKeyHint: string | null;
 }) {
   return (
     <div className="space-y-5">
@@ -134,6 +143,14 @@ export function IdentitySection({
           </FieldHelp>
         </div>
       </div>
+
+      <OpenAiKeyField
+        value={openaiApiKey}
+        onChange={onOpenaiApiKeyChange}
+        hasSavedKey={hasOwnOpenaiKey}
+        savedHint={openaiApiKeyHint}
+        idPrefix="ag"
+      />
 
       <div>
         <p className={formLabelClass}>Modo</p>

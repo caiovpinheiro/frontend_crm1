@@ -44,6 +44,12 @@ export type AgentSettingsValues = {
   inboxPolicy: InboxPolicy;
   piloting: PilotingValue;
   archetype: AgentArchetype;
+  /** Buffer de digitação da chave OpenAI. Só envia ao backend se não vazio. */
+  openaiApiKey: string;
+  /** Do GET — indica que já existe chave cifrada salva. Read-only. */
+  hasOwnOpenaiKey: boolean;
+  /** Do GET — últimos dígitos da chave salva, para exibir. Read-only. */
+  openaiApiKeyHint: string | null;
 };
 
 /** Fallback de empty state — não é backend fake. */
@@ -64,6 +70,9 @@ export const EMPTY_AGENT_SETTINGS: AgentSettingsValues = {
   inboxPolicy: defaultInboxPolicy(),
   piloting: createDefaultPiloting(),
   archetype: "ATENDIMENTO",
+  openaiApiKey: "",
+  hasOwnOpenaiKey: false,
+  openaiApiKeyHint: null,
 };
 
 export const AGENT_MODELS = [
@@ -207,6 +216,9 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
     },
   },
   archetype: "ATENDIMENTO",
+  openaiApiKey: "",
+  hasOwnOpenaiKey: false,
+  openaiApiKeyHint: null,
 };
 
 export const PREVIEW_AGENT_ROW = {
