@@ -155,6 +155,7 @@ function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
     hasOwnOpenaiKey: data.hasOwnOpenaiKey === true,
     openaiApiKeyHint:
       typeof data.openaiApiKeyHint === "string" ? data.openaiApiKeyHint : null,
+    clearOpenaiApiKey: false,
   };
 }
 
@@ -218,8 +219,8 @@ export function AgentSettingsDialog({
     e.preventDefault();
     if (!id) return;
     if (preview) {
-      toast("preview — não salva no banco");
-      onSaved();
+      // Só o sentinela `__preview__` (lista vazia). Agente real nunca entra aqui.
+      toast.error("Prévia local — crie um agente real para gravar no banco.");
       return;
     }
     setSubmitting(true);
@@ -246,7 +247,9 @@ export function AgentSettingsDialog({
           dailyTokenCap: form.dailyTokenCap,
           ...(form.openaiApiKey.trim()
             ? { openaiApiKey: form.openaiApiKey.trim() }
-            : {}),
+            : form.clearOpenaiApiKey
+              ? { openaiApiKey: null }
+              : {}),
           enabledTools: form.enabledTools,
           systemPromptOverride: simple.systemPromptOverride.trim() || null,
           systemPromptTemplate: form.systemPromptTemplate.trim() || undefined,
@@ -284,6 +287,7 @@ export function AgentSettingsDialog({
           typeof d.message === "string" ? d.message : "Erro ao salvar.",
         );
       }
+      toast.success("Agente salvo.");
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro.");
@@ -362,7 +366,19 @@ export function AgentSettingsDialog({
                   autonomyMode={form.autonomyMode as AutonomyMode}
                   onAutonomyModeChange={(v) => patch("autonomyMode", v)}
                   openaiApiKey={form.openaiApiKey}
-                  onOpenaiApiKeyChange={(v) => patch("openaiApiKey", v)}
+                  onOpenaiApiKeyChange={(v) => {
+                    patch("openaiApiKey", v);
+                    patch("clearOpenaiApiKey", false);
+                  }}
+                  onOpenaiApiKeyClear={() => {
+                    setForm((prev) => ({
+                      ...prev,
+                      openaiApiKey: "",
+                      hasOwnOpenaiKey: false,
+                      openaiApiKeyHint: null,
+                      clearOpenaiApiKey: true,
+                    }));
+                  }}
                   hasOwnOpenaiKey={form.hasOwnOpenaiKey}
                   openaiApiKeyHint={form.openaiApiKeyHint}
                 />
@@ -432,7 +448,12 @@ export function AgentSettingsDialog({
               type="submit"
               variant="primary"
               className={formDialogPrimaryClass}
-              disabled={submitting}
+              disabled={submitting || preview}
+              title={
+                preview
+                  ? "Prévia — use Novo agente para gravar no banco"
+                  : undefined
+              }
             >
               {submitting && <Loader2 className="size-4 animate-spin" />}
               Salvar

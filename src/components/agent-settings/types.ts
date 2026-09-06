@@ -50,6 +50,8 @@ export type AgentSettingsValues = {
   hasOwnOpenaiKey: boolean;
   /** Do GET — últimos dígitos da chave salva, para exibir. Read-only. */
   openaiApiKeyHint: string | null;
+  /** true após "Remover" — PUT manda `openaiApiKey: null`. */
+  clearOpenaiApiKey: boolean;
 };
 
 /** Fallback de empty state — não é backend fake. */
@@ -73,6 +75,7 @@ export const EMPTY_AGENT_SETTINGS: AgentSettingsValues = {
   openaiApiKey: "",
   hasOwnOpenaiKey: false,
   openaiApiKeyHint: null,
+  clearOpenaiApiKey: false,
 };
 
 export const AGENT_MODELS = [
@@ -219,6 +222,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
   openaiApiKey: "",
   hasOwnOpenaiKey: false,
   openaiApiKeyHint: null,
+  clearOpenaiApiKey: false,
 };
 
 export const PREVIEW_AGENT_ROW = {

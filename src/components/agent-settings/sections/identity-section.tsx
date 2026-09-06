@@ -31,6 +31,7 @@ export function IdentitySection({
   onAutonomyModeChange,
   openaiApiKey,
   onOpenaiApiKeyChange,
+  onOpenaiApiKeyClear,
   hasOwnOpenaiKey,
   openaiApiKeyHint,
 }: {
@@ -49,6 +50,7 @@ export function IdentitySection({
   onAutonomyModeChange: (v: AutonomyMode) => void;
   openaiApiKey: string;
   onOpenaiApiKeyChange: (v: string) => void;
+  onOpenaiApiKeyClear: () => void;
   hasOwnOpenaiKey: boolean;
   openaiApiKeyHint: string | null;
 }) {
@@ -147,6 +149,7 @@ export function IdentitySection({
       <OpenAiKeyField
         value={openaiApiKey}
         onChange={onOpenaiApiKeyChange}
+        onClear={onOpenaiApiKeyClear}
         hasSavedKey={hasOwnOpenaiKey}
         savedHint={openaiApiKeyHint}
         idPrefix="ag"
