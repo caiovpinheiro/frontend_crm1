@@ -49,6 +49,8 @@ type AiStatus = {
   configured: boolean;
   source?: "database" | "env" | "none";
   preview?: string | null;
+  /** Backend pós chave-por-agente: sempre true; não há chave global. */
+  perAgent?: boolean;
 };
 
 async function fetchAiStatus(): Promise<AiStatus> {
@@ -89,7 +91,12 @@ export default function AIAgentsPage({
     queryFn: fetchAiStatus,
     staleTime: 30_000,
   });
-  const aiDisabled = aiStatus ? !aiStatus.configured : false;
+  // Chave OpenAI é por agente (`perAgent`). O GET global sempre vem
+  // `configured: false` — não pode bloquear criar/editar/testar, senão a
+  // lista vazia só mostra o card `__preview__` e o Salvar não grava.
+  const aiDisabled = aiStatus
+    ? !aiStatus.perAgent && !aiStatus.configured
+    : false;
 
   const toggleMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -197,12 +204,14 @@ export default function AIAgentsPage({
           <div className="flex items-start gap-2">
             <CircleAlert className="mt-0.5 size-4 shrink-0" />
             <div className="min-w-0 flex-1 break-words">
-              <p className="font-medium">Playground e RAG ativos — Inbox nas próximas fases</p>
+              <p className="font-medium">
+                Chave OpenAI por agente — cadastre no editor (Identidade)
+              </p>
               <p className="mt-0.5 text-[13px] leading-relaxed opacity-90">
-                Crie, configure, alimente com documentos e teste agentes pelo
-                botão <Play className="inline size-3.5 -translate-y-0.5" />{" "}
-                Testar. O acoplamento automático ao WhatsApp (modo autônomo e
-                rascunho com aprovação humana) chega na próxima fase.
+                Cada agente usa a própria conta OpenAI (cifrada no banco). Crie
+                o agente, cole a chave em Identidade e teste pelo botão{" "}
+                <Play className="inline size-3.5 -translate-y-0.5" /> Testar.
+                Sem chave global em Configurações → IA.
               </p>
             </div>
           </div>
@@ -369,7 +378,7 @@ function AgentListCard({
               preview
                 ? "Playground indisponível na prévia"
                 : aiDisabled
-                  ? "IA desativada — configure a chave da OpenAI em Configurações → IA"
+                  ? "IA desativada — cadastre a chave OpenAI no agente"
                   : "Testar no playground"
             }
             onClick={onTest}

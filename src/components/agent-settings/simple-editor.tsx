@@ -138,7 +138,22 @@ export function SimpleEditor({
         </div>
         <OpenAiKeyField
           value={form.openaiApiKey}
-          onChange={(v) => onChange({ ...form, openaiApiKey: v })}
+          onChange={(v) =>
+            onChange({
+              ...form,
+              openaiApiKey: v,
+              clearOpenaiApiKey: false,
+            })
+          }
+          onClear={() =>
+            onChange({
+              ...form,
+              openaiApiKey: "",
+              hasOwnOpenaiKey: false,
+              openaiApiKeyHint: null,
+              clearOpenaiApiKey: true,
+            })
+          }
           hasSavedKey={form.hasOwnOpenaiKey}
           savedHint={form.openaiApiKeyHint}
           idPrefix="simple"

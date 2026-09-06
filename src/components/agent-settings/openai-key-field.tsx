@@ -20,10 +20,12 @@ import { FieldHelp } from "./section-header";
  *   o usuário digitou algo (`value.trim()`).
  * - `hasSavedKey` + `savedHint` vêm do GET (`hasOwnOpenaiKey` /
  *   `openaiApiKeyHint`). A chave cifrada nunca chega ao front.
+ * - `onClear` → PUT com `openaiApiKey: null` (remove a chave salva).
  */
 export function OpenAiKeyField({
   value,
   onChange,
+  onClear,
   hasSavedKey = false,
   savedHint = null,
   idPrefix = "ag",
@@ -31,6 +33,7 @@ export function OpenAiKeyField({
 }: {
   value: string;
   onChange: (v: string) => void;
+  onClear?: () => void;
   hasSavedKey?: boolean;
   savedHint?: string | null;
   idPrefix?: string;
@@ -84,15 +87,31 @@ export function OpenAiKeyField({
           <span className="font-mono text-xs text-muted-foreground">
             Chave salva · sk-…{savedHint ?? "••••"}
           </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() => setEditing(true)}
-          >
-            Trocar
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={() => setEditing(true)}
+            >
+              Trocar
+            </Button>
+            {onClear && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="rounded-full text-destructive hover:text-destructive"
+                onClick={() => {
+                  onChange("");
+                  onClear();
+                }}
+              >
+                Remover
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
