@@ -48,6 +48,7 @@ import type {
   QualificationQuestion,
 } from "@/lib/ai-agents/piloting";
 import { defaultAutoClosePolicy } from "@/lib/ai-agents/piloting";
+import type { UnknownAnswerMode } from "@/lib/ai-agents/steering";
 import { cn } from "@/lib/utils";
 
 export type PilotingValue = {
@@ -63,6 +64,10 @@ export type PilotingValue = {
   /// Fila humana (inboxPolicy.handoffMessage). Vazio = fallback do backend.
   handoffMessage: string;
   retentionHandoffMessage: string;
+  /// Política de "não sei" (inboxPolicy). Vazio = o modelo formula.
+  unknownAnswerMode: UnknownAnswerMode;
+  unknownAnswerMessage: string;
+  useMessageModels: boolean;
   outputStyle: OutputStyle;
   simulateTyping: boolean;
   typingPerCharMs: number;
@@ -88,6 +93,9 @@ export function createDefaultPiloting(): PilotingValue {
     },
     handoffMessage: "",
     retentionHandoffMessage: "",
+    unknownAnswerMode: "handoff",
+    unknownAnswerMessage: "",
+    useMessageModels: true,
     outputStyle: "conversational",
     simulateTyping: true,
     typingPerCharMs: 25,
@@ -1399,6 +1407,63 @@ function BusinessHoursSection({
           onChange={(e) => patch({ retentionHandoffMessage: e.target.value })}
           placeholder="Vazio = texto padrão de trancamento/cancelamento."
           className="resize-y text-sm"
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="pilot-unknown-mode" className={formLabelClass}>
+          Quando o agente não souber responder
+        </Label>
+        <DropdownGlass
+          options={[
+            { value: "handoff", label: "Admitir e transferir para humano" },
+            {
+              value: "clarify",
+              label: "Perguntar para destravar; transferir se insistir",
+            },
+            {
+              value: "acknowledge",
+              label: "Admitir e seguir o atendimento, sem transferir",
+            },
+          ]}
+          value={value.unknownAnswerMode}
+          onValueChange={(v) =>
+            patch({ unknownAnswerMode: v as UnknownAnswerMode })
+          }
+          triggerClassName="w-full"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Vale quando a pergunta é factual e nem a base de conhecimento nem os
+          modelos internos cobrem o assunto.
+        </p>
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="pilot-unknown-msg" className={formLabelClass}>
+          Frase ao admitir que não sabe
+        </Label>
+        <Textarea
+          id="pilot-unknown-msg"
+          rows={2}
+          value={value.unknownAnswerMessage}
+          onChange={(e) => patch({ unknownAnswerMessage: e.target.value })}
+          placeholder="Vazio = o modelo formula com o tom configurado."
+          className="resize-y text-sm"
+        />
+      </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Label className={formLabelClass}>
+            Consultar os Modelos internos como base
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            O agente busca os modelos da tela Internos por relevância e usa
+            como fonte, incluindo os tutoriais anexados.
+          </p>
+        </div>
+        <Switch
+          checked={value.useMessageModels}
+          onCheckedChange={(c) => patch({ useMessageModels: c })}
+          aria-label="Consultar os Modelos internos como base"
         />
       </div>
     </Section>
