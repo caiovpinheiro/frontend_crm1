@@ -67,6 +67,9 @@ export type PilotingValue = {
   /// Política de "não sei" (inboxPolicy). Vazio = o modelo formula.
   unknownAnswerMode: UnknownAnswerMode;
   unknownAnswerMessage: string;
+  /// Orientação padrão para documento vencido (inboxPolicy). Vazio = o agente
+  /// só para de usar o documento.
+  knowledgeExpiredInstruction: string;
   useMessageModels: boolean;
   outputStyle: OutputStyle;
   simulateTyping: boolean;
@@ -95,6 +98,7 @@ export function createDefaultPiloting(): PilotingValue {
     retentionHandoffMessage: "",
     unknownAnswerMode: "handoff",
     unknownAnswerMessage: "",
+    knowledgeExpiredInstruction: "",
     useMessageModels: true,
     outputStyle: "conversational",
     simulateTyping: true,
@@ -1449,6 +1453,25 @@ function BusinessHoursSection({
           placeholder="Vazio = o modelo formula com o tom configurado."
           className="resize-y text-sm"
         />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="pilot-expired-knowledge" className={formLabelClass}>
+          Quando um documento da base vencer
+        </Label>
+        <Textarea
+          id="pilot-expired-knowledge"
+          rows={2}
+          value={value.knowledgeExpiredInstruction}
+          onChange={(e) =>
+            patch({ knowledgeExpiredInstruction: e.target.value })
+          }
+          placeholder="Ex.: as novas datas ainda não foram divulgadas, oriente a pessoa a aguardar."
+          className="resize-y text-sm"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          Orientação padrão, usada quando o documento vencido não tem um texto
+          próprio. Vazio = o agente apenas para de usar o documento.
+        </p>
       </div>
       <div className="flex items-start justify-between gap-3">
         <div>

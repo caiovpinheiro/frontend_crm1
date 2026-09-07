@@ -111,6 +111,7 @@ function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
     retentionHandoffMessage: inboxPolicy.retentionHandoffMessage ?? "",
     unknownAnswerMode: inboxPolicy.unknownAnswerMode,
     unknownAnswerMessage: inboxPolicy.unknownAnswerMessage ?? "",
+    knowledgeExpiredInstruction: inboxPolicy.knowledgeExpiredInstruction ?? "",
     useMessageModels: inboxPolicy.useMessageModels,
     outputStyle: normalizeOutputStyle(data.outputStyle),
     simulateTyping:
@@ -239,6 +240,8 @@ export function AgentSettingsDialog({
         unknownAnswerMode: form.piloting.unknownAnswerMode,
         unknownAnswerMessage:
           form.piloting.unknownAnswerMessage.trim() || null,
+        knowledgeExpiredInstruction:
+          form.piloting.knowledgeExpiredInstruction.trim() || null,
         useMessageModels: form.piloting.useMessageModels,
       };
       const simple = applySimpleSaveDefaults(form);

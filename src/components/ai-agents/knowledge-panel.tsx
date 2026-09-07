@@ -2,6 +2,8 @@
 
 import {
   IconAlertCircle as AlertCircle,
+  IconCalendarClock as CalendarClock,
+  IconCalendarOff as CalendarOff,
   IconCircleCheck as CheckCircle2,
   IconEye as Eye,
   IconFileText as FileText,
@@ -15,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { InputGlass } from "@/components/crm/input-glass";
 import { PaginationGlass } from "@/components/crm/pagination-glass";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
@@ -42,6 +45,9 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 
 type KnowledgeStatus = "PENDING" | "INDEXING" | "READY" | "FAILED";
 
+/** `silent` só para de usar o documento; `instruct` também orienta o agente. */
+type ExpiredBehavior = "silent" | "instruct";
+
 type KnowledgeDoc = {
   id: string;
   title: string;
@@ -51,6 +57,14 @@ type KnowledgeDoc = {
   status: KnowledgeStatus;
   errorMessage: string | null;
   chunkCount: number;
+  /** Dia (`YYYY-MM-DD`) já resolvido no fuso do agente pelo backend. */
+  validFromDay: string | null;
+  validUntilDay: string | null;
+  expiredBehavior: ExpiredBehavior;
+  expiredInstruction: string | null;
+  /** Calculado no servidor — não depende do relógio do navegador. */
+  expired: boolean;
+  notYetValid: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -69,6 +83,7 @@ type KnowledgeList = {
 };
 
 const MAX_CONTENT_CHARS = 500_000;
+const MAX_EXPIRED_INSTRUCTION_CHARS = 2_000;
 
 /**
  * Colunas da lista. `LIST_ACTIONS_TRACK` mantém o cabeçalho e as linhas
@@ -362,14 +377,14 @@ function DocRow({
             </p>
           ) : (
             <p className="truncate text-[11px] text-muted-foreground">
-              {sourceLabel(doc.source)} · {formatBytes(doc.sizeBytes)} ·{" "}
-              {new Date(doc.createdAt).toLocaleDateString("pt-BR")}
+              {sourceLabel(doc.source)} · {formatBytes(doc.sizeBytes)}
+              {validityHint(doc) ? ` · ${validityHint(doc)}` : ""}
             </p>
           )}
         </div>
       </div>
 
-      <StatusBadge status={doc.status} />
+      <SituationBadge doc={doc} />
 
       <span className="text-right text-[13px] tabular-nums text-muted-foreground">
         {doc.chunkCount.toLocaleString("pt-BR")}
@@ -442,6 +457,11 @@ function DocFormDialog({
   const isEdit = docId !== null;
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
+  const [validFrom, setValidFrom] = React.useState("");
+  const [validUntil, setValidUntil] = React.useState("");
+  const [expiredBehavior, setExpiredBehavior] =
+    React.useState<ExpiredBehavior>("instruct");
+  const [expiredInstruction, setExpiredInstruction] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [loadedKey, setLoadedKey] = React.useState<string | null>(null);
 
@@ -474,6 +494,12 @@ function DocFormDialog({
   if (targetKey !== null && targetKey !== loadedKey) {
     setTitle(isEdit && detail ? detail.title : "");
     setContent(isEdit && detail ? (detail.content ?? "") : "");
+    setValidFrom(isEdit && detail ? (detail.validFromDay ?? "") : "");
+    setValidUntil(isEdit && detail ? (detail.validUntilDay ?? "") : "");
+    setExpiredBehavior(isEdit && detail ? detail.expiredBehavior : "instruct");
+    setExpiredInstruction(
+      isEdit && detail ? (detail.expiredInstruction ?? "") : "",
+    );
     setError(null);
     setLoadedKey(targetKey);
   }
@@ -488,7 +514,14 @@ function DocFormDialog({
         {
           method: isEdit ? "PUT" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: title.trim(), content }),
+          body: JSON.stringify({
+            title: title.trim(),
+            content,
+            validFrom: validFrom || null,
+            validUntil: validUntil || null,
+            expiredBehavior,
+            expiredInstruction: expiredInstruction.trim() || null,
+          }),
         },
       );
       return parseApiResponse<KnowledgeDoc>(
@@ -593,6 +626,81 @@ function DocFormDialog({
             </p>
           </div>
 
+          {/* Validade. O painel roda num modal estreito: colunas responsivas,
+              nada de largura fixa lado a lado. */}
+          <div className="space-y-3 rounded-xl border border-border bg-card px-3.5 py-3">
+            <div>
+              <p className="text-[13px] font-medium text-foreground">
+                Validade do conteúdo
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Deixe em branco se o conteúdo não vence. Fora do período o
+                agente para de usar este documento como informação.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <span className={formLabelClass}>Passa a valer em</span>
+                <InputGlass
+                  type="date"
+                  className={formControlClass}
+                  value={validFrom}
+                  onChange={(e) => setValidFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={formLabelClass}>Vale até</span>
+                <InputGlass
+                  type="date"
+                  className={formControlClass}
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <span className={formLabelClass}>
+                Quando este documento vencer
+              </span>
+              <DropdownGlass
+                options={[
+                  {
+                    value: "instruct",
+                    label: "Parar de usar e orientar o agente",
+                  },
+                  { value: "silent", label: "Apenas parar de usar" },
+                ]}
+                value={expiredBehavior}
+                onValueChange={(v) =>
+                  setExpiredBehavior(v as ExpiredBehavior)
+                }
+                triggerClassName="w-full"
+              />
+            </div>
+
+            {expiredBehavior === "instruct" && (
+              <div>
+                <span className={formLabelClass}>
+                  O que o agente deve fazer no lugar
+                </span>
+                <Textarea
+                  rows={3}
+                  value={expiredInstruction}
+                  onChange={(e) => setExpiredInstruction(e.target.value)}
+                  placeholder="Ex.: as novas datas ainda não foram divulgadas, oriente a pessoa a aguardar o comunicado."
+                  className="w-full resize-y rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm"
+                  maxLength={MAX_EXPIRED_INSTRUCTION_CHARS}
+                />
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Em branco = o agente usa a orientação padrão configurada nas
+                  configurações do agente.
+                </p>
+              </div>
+            )}
+          </div>
+
           {error && (
             <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
@@ -678,6 +786,16 @@ function DocViewDialog({
               Não foi possível preparar este documento: {detail.errorMessage}
             </p>
           )}
+          {detail?.expired && (
+            <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+              Validade encerrada em{" "}
+              {formatDay(detail.validUntilDay ?? "")} — o agente não usa mais
+              este conteúdo como informação.
+              {detail.expiredBehavior === "instruct"
+                ? " Ele segue a orientação configurada para depois do vencimento."
+                : ""}
+            </p>
+          )}
           {(detail?.status === "PENDING" || detail?.status === "INDEXING") && (
             <p className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
               Documento em preparação — o agente ainda não o usa nas respostas.
@@ -692,6 +810,48 @@ function DocViewDialog({
       )}
     </FormDialog>
   );
+}
+
+/**
+ * Situação efetiva na coluna estreita do modal: um documento pronto mas fora
+ * da validade não está servindo o agente, e é isso que o operador precisa ver
+ * sem abrir o documento.
+ */
+function SituationBadge({ doc }: { doc: KnowledgeDoc }) {
+  if (doc.status === "READY" && doc.expired) {
+    return (
+      <Badge
+        variant="secondary"
+        className="w-max gap-1 bg-destructive/15 text-destructive hover:bg-destructive/15"
+      >
+        <CalendarOff className="size-3" /> Vencido
+      </Badge>
+    );
+  }
+  if (doc.status === "READY" && doc.notYetValid) {
+    return (
+      <Badge variant="outline" className="w-max gap-1">
+        <CalendarClock className="size-3" /> Agendado
+      </Badge>
+    );
+  }
+  return <StatusBadge status={doc.status} />;
+}
+
+/** "vale até 21/12/2026" / "vencido em 21/12/2026" para a linha de apoio. */
+function validityHint(doc: KnowledgeDoc): string {
+  if (doc.notYetValid && doc.validFromDay) {
+    return `passa a valer em ${formatDay(doc.validFromDay)}`;
+  }
+  if (!doc.validUntilDay) return "";
+  return doc.expired
+    ? `venceu em ${formatDay(doc.validUntilDay)}`
+    : `vale até ${formatDay(doc.validUntilDay)}`;
+}
+
+function formatDay(day: string): string {
+  const [y, m, d] = day.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 function StatusBadge({ status }: { status: KnowledgeStatus }) {
