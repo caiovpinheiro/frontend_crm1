@@ -73,8 +73,12 @@ const MAX_CONTENT_CHARS = 500_000;
 /**
  * Colunas da lista. `LIST_ACTIONS_TRACK` mantém o cabeçalho e as linhas
  * resolvendo a coluna de ações com a mesma largura.
+ *
+ * O painel roda dentro do modal do agente, bem mais estreito que uma página de
+ * lista: origem, tamanho e data ficam na linha de apoio do título para o track
+ * flexível não colapsar a zero.
  */
-const GRID_TEMPLATE = `minmax(0,1fr) 7rem 8.5rem 6rem 6.5rem 7.5rem ${LIST_ACTIONS_TRACK}`;
+const GRID_TEMPLATE = `minmax(0,1fr) 8.5rem 5rem ${LIST_ACTIONS_TRACK}`;
 
 /**
  * Painel da base de conhecimento do agente — o operador vê, cria, edita e
@@ -241,11 +245,8 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
             style={{ gridTemplateColumns: GRID_TEMPLATE }}
           >
             <ListColumnLabel>Documento</ListColumnLabel>
-            <ListColumnLabel>Origem</ListColumnLabel>
             <ListColumnLabel>Situação</ListColumnLabel>
             <ListColumnLabel align="right">Trechos</ListColumnLabel>
-            <ListColumnLabel align="right">Tamanho</ListColumnLabel>
-            <ListColumnLabel align="right">Criado em</ListColumnLabel>
             <ListColumnLabel align="right">Ações</ListColumnLabel>
           </div>
 
@@ -349,7 +350,7 @@ function DocRow({
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">
-            {doc.title}
+            {doc.title.trim() || "Documento sem título"}
           </p>
           {doc.status === "FAILED" && doc.errorMessage ? (
             <p className="truncate text-[11px] text-destructive">
@@ -359,24 +360,19 @@ function DocRow({
             <p className="truncate text-[11px] text-muted-foreground">
               O agente ainda não usa este documento nas respostas.
             </p>
-          ) : null}
+          ) : (
+            <p className="truncate text-[11px] text-muted-foreground">
+              {sourceLabel(doc.source)} · {formatBytes(doc.sizeBytes)} ·{" "}
+              {new Date(doc.createdAt).toLocaleDateString("pt-BR")}
+            </p>
+          )}
         </div>
       </div>
-
-      <span className="truncate text-[13px] text-muted-foreground">
-        {sourceLabel(doc.source)}
-      </span>
 
       <StatusBadge status={doc.status} />
 
       <span className="text-right text-[13px] tabular-nums text-muted-foreground">
         {doc.chunkCount.toLocaleString("pt-BR")}
-      </span>
-      <span className="text-right text-[13px] tabular-nums text-muted-foreground">
-        {formatBytes(doc.sizeBytes)}
-      </span>
-      <span className="text-right text-[13px] tabular-nums text-muted-foreground">
-        {new Date(doc.createdAt).toLocaleDateString("pt-BR")}
       </span>
 
       <div className={LIST_ACTIONS_CELL_CLASS}>
