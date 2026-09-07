@@ -5,6 +5,7 @@ import {
   Inbox,
   Radar,
   ShieldCheck,
+  Signpost,
   Target,
   User,
   Wrench,
@@ -18,6 +19,7 @@ import { SECTION_META, type AgentSectionId } from "./types";
 const SECTION_ICONS: Record<AgentSectionId, LucideIcon> = {
   identity: User,
   rules: ShieldCheck,
+  messageRules: Signpost,
   scope: Target,
   tools: Wrench,
   piloting: Radar,
@@ -28,6 +30,7 @@ const SECTION_ICONS: Record<AgentSectionId, LucideIcon> = {
 const SECTIONS: AgentSectionId[] = [
   "identity",
   "rules",
+  "messageRules",
   "scope",
   "tools",
   "piloting",

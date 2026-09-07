@@ -16,6 +16,7 @@ import {
 export type AgentSectionId =
   | "identity"
   | "rules"
+  | "messageRules"
   | "scope"
   | "tools"
   | "piloting"
@@ -163,6 +164,30 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
   inboxPolicy: {
     confidenceThreshold: 0.4,
     lowConfidenceHandoff: true,
+    messageRules: [
+      {
+        id: "preview-assunto-polo",
+        label: "Assunto de polo",
+        enabled: true,
+        anyOf: ["polo"],
+        allOf: [],
+        noneOf: [],
+        action: "answer_with_knowledge",
+        department: null,
+        message: null,
+      },
+      {
+        id: "preview-cancelamento",
+        label: "Cancelamento, trancamento ou desistência",
+        enabled: true,
+        anyOf: ["cancel", "tranc", "desist"],
+        allOf: [],
+        noneOf: [],
+        action: "transfer_department",
+        department: "Retenção",
+        message: null,
+      },
+    ],
     interceptRetention: true,
     interceptCourseShopping: true,
     retentionKeywords: ["trancar", "cancelar matrícula", "reembolso"],
@@ -258,6 +283,10 @@ export const SECTION_META: Record<
   rules: {
     label: "Regras",
     description: "Instruções de atendimento injetadas no prompt a cada mensagem.",
+  },
+  messageRules: {
+    label: "Assuntos",
+    description: "Quando a mensagem for sobre um assunto, qual é o próximo passo.",
   },
   scope: {
     label: "Escopo",

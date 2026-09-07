@@ -33,6 +33,7 @@ import {
   InboxSection,
   KnowledgeSection,
 } from "./sections/placeholder-section";
+import { MessageRulesSection } from "./sections/message-rules-section";
 import { PilotingSection } from "./sections/piloting-section";
 import { RulesSection } from "./sections/rules-section";
 import { ScopeSection } from "./sections/scope-section";
@@ -412,6 +413,18 @@ export function AgentSettingsDialog({
                   onOverrideChange={(v) => patch("systemPromptOverride", v)}
                   template={form.systemPromptTemplate}
                   onTemplateChange={(v) => patch("systemPromptTemplate", v)}
+                />
+              )}
+              {advanced && section === "messageRules" && (
+                <MessageRulesSection
+                  agentId={preview ? null : id}
+                  value={form.inboxPolicy.messageRules}
+                  onChange={(messageRules) =>
+                    patch("inboxPolicy", {
+                      ...form.inboxPolicy,
+                      messageRules,
+                    })
+                  }
                 />
               )}
               {advanced && section === "scope" && (

@@ -16,6 +16,11 @@
  * Assim o primeiro deploy não muda nada até o consultor editar na tela.
  */
 
+import {
+  normalizeMessageRules,
+  type MessageRule,
+} from "@/lib/ai-agents/message-rules";
+
 // ── Tool config ───────────────────────────────────────────────
 
 export type ToolPolicy = {
@@ -320,6 +325,10 @@ export type InboxPolicy = {
   /// Liga/desliga o handoff automático por baixa confiança.
   lowConfidenceHandoff: boolean;
 
+  /// "Quando a mensagem for sobre ISTO, o próximo passo é AQUILO".
+  /// Avaliadas na ordem da lista, antes de qualquer intercepto.
+  messageRules: MessageRule[];
+
   /// Interceptos determinísticos do inbox-handler.
   interceptRetention: boolean;
   interceptCourseShopping: boolean;
@@ -380,6 +389,7 @@ export function defaultInboxPolicy(): InboxPolicy {
   return {
     confidenceThreshold: null,
     lowConfidenceHandoff: true,
+    messageRules: [],
     interceptRetention: true,
     interceptCourseShopping: true,
     retentionKeywords: [],
@@ -421,6 +431,10 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
   return {
     confidenceThreshold: threshold,
     lowConfidenceHandoff: boolOr(r.lowConfidenceHandoff, base.lowConfidenceHandoff),
+    // O backend devolve a lista já normalizada (inclusive as regras
+    // semeadas pelo pack) — a tela precisa mostrá-las para não apagá-las
+    // no primeiro "Salvar".
+    messageRules: normalizeMessageRules(r.messageRules),
     interceptRetention: boolOr(r.interceptRetention, base.interceptRetention),
     interceptCourseShopping: boolOr(
       r.interceptCourseShopping,
