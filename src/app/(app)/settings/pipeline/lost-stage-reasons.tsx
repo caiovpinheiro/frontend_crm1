@@ -174,7 +174,7 @@ export function LostStageReasonsPanel({ pipelineId }: { pipelineId: string }) {
 
   if (metaQuery.isLoading) {
     return (
-      <AppLoading variant="inline" size="sm" className="mb-3 min-h-[112px]" />
+      <AppLoading variant="inline" className="mb-3 min-h-[112px]" />
     );
   }
 
