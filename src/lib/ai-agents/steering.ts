@@ -355,6 +355,10 @@ export type InboxPolicy = {
   unknownAnswerMode: UnknownAnswerMode;
   /// Frase usada ao admitir que não sabe. `null` = o modelo formula.
   unknownAnswerMessage: string | null;
+
+  /// Orientação padrão quando um documento da base vence e o próprio
+  /// documento não traz um texto. `null` = só para de usar o documento.
+  knowledgeExpiredInstruction: string | null;
 };
 
 export type UnknownAnswerMode = "handoff" | "clarify" | "acknowledge";
@@ -390,6 +394,7 @@ export function defaultInboxPolicy(): InboxPolicy {
     useMessageModels: true,
     unknownAnswerMode: "handoff",
     unknownAnswerMessage: null,
+    knowledgeExpiredInstruction: null,
   };
 }
 
@@ -441,6 +446,7 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
       ? r.unknownAnswerMode
       : base.unknownAnswerMode,
     unknownAnswerMessage: nullableText(r.unknownAnswerMessage),
+    knowledgeExpiredInstruction: nullableText(r.knowledgeExpiredInstruction),
   };
 }
 
