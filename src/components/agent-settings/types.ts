@@ -180,6 +180,10 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
       "Vou te conectar com um consultor humano agora. Ele já vai ver o histórico.",
     retentionHandoffMessage:
       "Entendi que você quer revisar a matrícula. Vou te passar para retenção.",
+    useMessageModels: true,
+    unknownAnswerMode: "handoff",
+    unknownAnswerMessage:
+      "Essa eu não sei te responder com certeza, e prefiro não chutar.",
   },
   piloting: {
     ...createDefaultPiloting(),

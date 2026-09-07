@@ -347,7 +347,30 @@ export type InboxPolicy = {
   /// código, que já ajusta a frase ao expediente humano.
   handoffMessage: string | null;
   retentionHandoffMessage: string | null;
+
+  /// Usa os Modelos internos (tela Internos) como fonte de RAG.
+  useMessageModels: boolean;
+
+  /// O que o agente faz quando não tem base para responder.
+  unknownAnswerMode: UnknownAnswerMode;
+  /// Frase usada ao admitir que não sabe. `null` = o modelo formula.
+  unknownAnswerMessage: string | null;
 };
+
+export type UnknownAnswerMode = "handoff" | "clarify" | "acknowledge";
+
+export const UNKNOWN_ANSWER_MODES: UnknownAnswerMode[] = [
+  "handoff",
+  "clarify",
+  "acknowledge",
+];
+
+function isUnknownAnswerMode(v: unknown): v is UnknownAnswerMode {
+  return (
+    typeof v === "string" &&
+    UNKNOWN_ANSWER_MODES.includes(v as UnknownAnswerMode)
+  );
+}
 
 export function defaultInboxPolicy(): InboxPolicy {
   return {
@@ -364,6 +387,9 @@ export function defaultInboxPolicy(): InboxPolicy {
     scope: defaultAttendanceScope(),
     handoffMessage: null,
     retentionHandoffMessage: null,
+    useMessageModels: true,
+    unknownAnswerMode: "handoff",
+    unknownAnswerMessage: null,
   };
 }
 
@@ -410,6 +436,11 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
     scope: normalizeAttendanceScope(r.scope),
     handoffMessage: nullableText(r.handoffMessage),
     retentionHandoffMessage: nullableText(r.retentionHandoffMessage),
+    useMessageModels: boolOr(r.useMessageModels, base.useMessageModels),
+    unknownAnswerMode: isUnknownAnswerMode(r.unknownAnswerMode)
+      ? r.unknownAnswerMode
+      : base.unknownAnswerMode,
+    unknownAnswerMessage: nullableText(r.unknownAnswerMessage),
   };
 }
 
