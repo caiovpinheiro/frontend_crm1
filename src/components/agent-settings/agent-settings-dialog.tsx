@@ -294,7 +294,17 @@ export function AgentSettingsDialog({
           typeof d.message === "string" ? d.message : "Erro ao salvar.",
         );
       }
+      // O backend salva e devolve avisos quando a combinação escolhida não
+      // sobrevive ao runtime (ex.: transferir sem o cliente pedir humano).
+      const saved = (await res.json().catch(() => ({}))) as {
+        warnings?: Array<{ message?: unknown }>;
+      };
       toast.success("Agente salvo.");
+      for (const w of saved.warnings ?? []) {
+        if (typeof w?.message === "string") {
+          toast.warning(w.message, { duration: 12000 });
+        }
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro.");
