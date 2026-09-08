@@ -1,5 +1,6 @@
 export * from "./api";
 export * from "./hooks";
+export * from "./providers";
 export * from "./components/connect-email-modal";
 export * from "./components/email-sidebar";
 export * from "./components/email-list";
