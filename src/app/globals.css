@@ -1488,8 +1488,10 @@
    Fluxo de atendimento — tokens do editor visual (React Flow)
    ══════════════════════════════════════════════════════════════════ */
 :root {
-  --brand: oklch(0.52 0.21 277);
+  /* Azul da marca (#2f66f2) e violeta de acento (#6a37d6) — tour e CTAs. */
+  --brand: oklch(0.55 0.22 264);
   --brand-foreground: oklch(0.985 0 0);
+  --accent-violet: oklch(0.51 0.2 293);
 
   --route-navigation: oklch(0.6 0.13 233);
   --route-response: oklch(0.62 0.16 150);
@@ -1510,8 +1512,9 @@
 }
 
 .dark {
-  --brand: oklch(0.62 0.2 277);
+  --brand: oklch(0.62 0.2 264);
   --brand-foreground: oklch(0.985 0 0);
+  --accent-violet: oklch(0.68 0.18 293);
   --route-navigation: oklch(0.68 0.13 233);
   --route-response: oklch(0.72 0.16 150);
   --route-error: oklch(0.7 0.19 22);
@@ -1532,4 +1535,5 @@
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-accent-violet: var(--accent-violet);
 }

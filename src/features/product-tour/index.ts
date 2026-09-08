@@ -21,3 +21,4 @@ export { registerSettingsTourBridge } from "./settings-tour-bridge";
 export { registerTabulationsTourBridge } from "./tabulations-tour-bridge";
 export { registerTeamTourBridge } from "./team-tour-bridge";
 export { PageTourButton } from "./page-tour-button";
+export { TourCard, type TourCardProps } from "@/components/onboarding/tour-card";

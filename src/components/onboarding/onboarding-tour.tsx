@@ -1,9 +1,9 @@
 "use client";
 
-import { IconArrowRight as ArrowRight, IconBell as Bell, IconMessage as MessageSquare, IconSparkles as Sparkles, IconBolt as Zap } from "@tabler/icons-react";
+import { IconBell as Bell, IconMessage as MessageSquare, IconSparkles as Sparkles, IconBolt as Zap } from "@tabler/icons-react";
 import * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { TourCard } from "@/components/onboarding/tour-card";
 
 type Step = {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
@@ -50,8 +50,8 @@ export interface OnboardingTourProps {
 }
 
 /**
- * Tour de onboarding leve — 4 passos overlay com ícone, título, corpo, dots
- * e CTA. Responsivo (sheet bottom em mobile, dialog centralizado em desktop).
+ * Tour de onboarding leve — 4 passos overlay com o card Gradiente Vibrante.
+ * Responsivo (sheet bottom em mobile, dialog centralizado em desktop).
  *
  * IMPORTANTE: não abre mais automaticamente. Para exibir, controle via prop
  * `open` (ex.: a partir de um botão "Ajuda"). A persistência por localStorage
@@ -87,11 +87,14 @@ export function OnboardingTour({ open: openProp, onOpenChange }: OnboardingTourP
     }
   };
 
+  const back = () => {
+    setStep((s) => Math.max(0, s - 1));
+  };
+
   if (!open) return null;
   const current = STEPS[step];
   if (!current) return null;
   const Icon = current.icon;
-  const isLast = step === STEPS.length - 1;
 
   return (
     <div
@@ -107,59 +110,19 @@ export function OnboardingTour({ open: openProp, onOpenChange }: OnboardingTourP
         aria-modal="true"
         aria-label={current.title}
         onClick={(e) => e.stopPropagation()}
-        className={cn(
-          "relative w-full max-w-md overflow-hidden rounded-3xl bg-[var(--color-bg-card)] shadow-[var(--shadow-lg)] ring-1 ring-[var(--color-border)] dark:bg-[var(--glass-bg-modal)] dark:ring-slate-800",
-          "animate-in fade-in slide-in-from-bottom-6 duration-300",
-        )}
+        className="animate-in fade-in slide-in-from-bottom-6 duration-300"
       >
-        <div className="bg-linear-to-br from-[var(--color-primary-soft)] via-transparent to-[var(--color-lavender-muted)] p-6 pb-4 text-center">
-          <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/20">
-            <Icon className="size-7" strokeWidth={2.2} />
-          </div>
-          <h2 className="font-display text-[20px] font-extrabold tracking-tight text-[var(--text-primary)] dark:text-slate-50">
-            {current.title}
-          </h2>
-          <p className="mt-2 text-[14px] leading-relaxed text-[var(--color-ink-soft)] dark:text-[var(--text-faint)]">
-            {current.body}
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--glass-border-subtle)] bg-[var(--color-bg-subtle)]/50 px-5 py-4 dark:border-[var(--glass-border)] dark:bg-[var(--glass-bg-modal)]/40">
-          <div className="flex items-center gap-1.5">
-            {STEPS.map((_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "h-1.5 rounded-full transition-all",
-                  i === step
-                    ? "w-6 bg-primary"
-                    : i < step
-                      ? "w-1.5 bg-primary/50"
-                      : "w-1.5 bg-[var(--glass-border-subtle)] dark:bg-slate-700",
-                )}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            {!isLast && (
-              <button
-                type="button"
-                onClick={dismiss}
-                className="text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-foreground dark:text-[var(--color-ink-muted)] dark:hover:text-[var(--color-text-muted)]"
-              >
-                Pular
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={next}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-white shadow-[var(--shadow-indigo-glow)] transition-colors hover:bg-primary/90 active:scale-95"
-            >
-              {current.cta ?? "Próximo"}
-              <ArrowRight className="size-3.5" strokeWidth={2.6} />
-            </button>
-          </div>
-        </div>
+        <TourCard
+          title={current.title}
+          description={current.body}
+          current={step + 1}
+          total={STEPS.length}
+          onNext={next}
+          onBack={back}
+          onClose={dismiss}
+          nextLabel={current.cta ?? "Próximo"}
+          icon={<Icon className="size-5 text-brand-foreground" strokeWidth={2.2} />}
+        />
       </div>
     </div>
   );

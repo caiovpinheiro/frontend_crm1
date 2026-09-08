@@ -1,6 +1,6 @@
 /**
- * Tema Driver.js alinhado ao DS v2 (tokens de `globals-v2.css`).
- * Sem hex fixo — dark mode herda `.v2-dark` / `.dark` no <html>.
+ * Casca do Driver.js: posicionamento + seta. O visual do card mora no
+ * `TourCard` (React) montado em onPopoverRender.
  */
 
 .driver-popover.bwipo-driver-popover {
@@ -11,95 +11,57 @@
   max-height: none !important;
   /* Evita o fallback do Driver.js (`bottom: 10px` + `top`) esticar o box. */
   bottom: auto !important;
-  background-color: var(--glass-bg-modal);
-  color: var(--text-primary);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--glass-shadow-lg);
-  padding: 1.05rem 1.15rem 0.85rem;
-  min-width: 18rem;
-  max-width: min(24rem, calc(100vw - 2rem));
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  min-width: 0;
+  max-width: none;
+  overflow: visible;
   font-family: inherit;
   --driver-popover-font-family: inherit;
 }
 
-.driver-popover.bwipo-driver-popover .driver-popover-title {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-  line-height: 1.3;
-}
-
-.driver-popover.bwipo-driver-popover .driver-popover-description {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  line-height: 1.45;
-}
-
-.driver-popover.bwipo-driver-popover .driver-popover-progress-text {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
+.driver-popover.bwipo-driver-popover .driver-popover-title,
+.driver-popover.bwipo-driver-popover .driver-popover-description,
+.driver-popover.bwipo-driver-popover .driver-popover-footer,
 .driver-popover.bwipo-driver-popover .driver-popover-close-btn {
-  color: var(--text-muted);
-  background: transparent;
-  border: 0;
-  text-shadow: none;
+  display: none !important;
 }
 
-.driver-popover.bwipo-driver-popover .driver-popover-close-btn:hover {
-  color: var(--text-primary);
+/* Losango 16px; o Driver.js continua calculando lado e alinhamento. */
+.driver-popover.bwipo-driver-popover .driver-popover-arrow {
+  border: none !important;
+  width: 16px;
+  height: 16px;
+  background-color: var(--color-brand);
+  transform: rotate(45deg);
+  box-sizing: border-box;
 }
 
-.driver-popover.bwipo-driver-popover .driver-popover-footer-btn {
-  text-shadow: none;
-  font-size: 12.5px;
-  font-weight: 600;
-  padding: 0.4rem 0.9rem;
-  border-radius: 9999px;
+/* Popover abaixo do alvo — seta no topo, funde com o cabeçalho. */
+.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-bottom {
+  bottom: calc(100% - 8px);
+  background-color: var(--color-brand);
 }
 
-.driver-popover.bwipo-driver-popover .driver-popover-next-btn,
-.driver-popover.bwipo-driver-popover .driver-popover-done-btn {
-  background-color: var(--brand-primary);
-  color: var(--color-primary-foreground);
-  border: 0;
+/* Popover acima do alvo — seta na base, funde com o corpo. */
+.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-top {
+  top: calc(100% - 8px);
+  background-color: var(--color-card);
 }
 
-.driver-popover.bwipo-driver-popover .driver-popover-next-btn:hover,
-.driver-popover.bwipo-driver-popover .driver-popover-done-btn:hover {
-  filter: brightness(0.95);
-}
-
-.driver-popover.bwipo-driver-popover .driver-popover-prev-btn {
-  background-color: var(--glass-bg-overlay, var(--color-card));
-  color: var(--text-primary);
-  border: 1px solid var(--glass-border);
-}
-
-.driver-popover.bwipo-driver-popover .driver-popover-navigation-btns {
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
+/* Popover à esquerda / direita do alvo. */
 .driver-popover.bwipo-driver-popover .driver-popover-arrow-side-left {
-  border-left-color: var(--glass-bg-modal);
+  left: calc(100% - 8px);
+  background-color: var(--color-card);
 }
 
 .driver-popover.bwipo-driver-popover .driver-popover-arrow-side-right {
-  border-right-color: var(--glass-bg-modal);
-}
-
-.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-top {
-  border-top-color: var(--glass-bg-modal);
-}
-
-.driver-popover.bwipo-driver-popover .driver-popover-arrow-side-bottom {
-  border-bottom-color: var(--glass-bg-modal);
+  right: calc(100% - 8px);
+  background-color: var(--color-card);
 }
 
 /* Copy/lixeira do gatilho ficam visíveis no tour (o card só mostra no hover). */

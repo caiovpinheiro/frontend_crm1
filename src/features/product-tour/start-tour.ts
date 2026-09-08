@@ -16,6 +16,7 @@ import {
 import { setSettingsTourOpen } from "./settings-tour-bridge";
 import { setTabulationsTourView } from "./tabulations-tour-bridge";
 import { setTeamTourTab } from "./team-tour-bridge";
+import { mountTourCard, unmountTourCard } from "./mount-tour-card";
 import "./product-tour.css";
 import { getTour } from "./tour-registry";
 import type { PageTour, PageTourCta, PageTourStep } from "./tour-types";
@@ -510,32 +511,8 @@ function runCta(cta: PageTourCta): void {
   }
 }
 
-function injectStepCtas(popover: PopoverDOM, tour: PageTour): void {
-  const nav = popover.footerButtons;
-  if (!nav) return;
-  const idx = activeTour?.getActiveIndex() ?? 0;
-  const step = tour.steps[idx];
-  const ctas = (tour.ctas ?? []).filter((c) => c.onElement === step?.element);
-  for (const extra of nav.querySelectorAll("[data-tour-cta]")) {
-    const keep = ctas.some((c) => c.label === extra.textContent);
-    if (!keep) extra.remove();
-  }
-  for (const cta of ctas) {
-    if (
-      [...nav.querySelectorAll("[data-tour-cta]")].some(
-        (el) => el.textContent === cta.label,
-      )
-    ) {
-      continue;
-    }
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.dataset.tourCta = "1";
-    btn.className = "driver-popover-footer-btn driver-popover-next-btn";
-    btn.textContent = cta.label;
-    btn.addEventListener("click", () => runCta(cta));
-    nav.appendChild(btn);
-  }
+function renderTourCard(popover: PopoverDOM, tour: PageTour): void {
+  mountTourCard(popover, tour, activeTour?.getActiveIndex() ?? 0, runCta);
 }
 
 export function queuePageTour(id: string): void {
@@ -598,7 +575,8 @@ export function startPageTour(id: string): void {
     onPopoverRender: (popover) => {
       hugPopover(popover.wrapper);
       restackTourChrome();
-      injectStepCtas(popover, tour);
+      renderTourCard(popover, tour);
+      snapDriverToElement(activeTour?.getActiveElement() ?? undefined);
     },
     onHighlighted: (element) => {
       const snap = () => snapDriverToElement(element);
@@ -622,6 +600,7 @@ export function startPageTour(id: string): void {
       void goToStepIndex((state.activeIndex ?? 1) - 1);
     },
     onDestroyed: () => {
+      unmountTourCard();
       applyBuilderTourStep({});
       setSettingsTourOpen(false);
       removeTourFallbacks();
@@ -633,6 +612,7 @@ export function startPageTour(id: string): void {
 }
 
 export function stopPageTour(): void {
+  unmountTourCard();
   applyBuilderTourStep({});
   setSettingsTourOpen(false);
   removeTourFallbacks();
