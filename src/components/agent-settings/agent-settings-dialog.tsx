@@ -204,7 +204,14 @@ export function AgentSettingsDialog({
       setForm(structuredClone(PREVIEW_AGENT_SETTINGS));
       return;
     }
-    if (data) setForm(hydrateFromApi(data));
+    if (!data) return;
+    try {
+      setForm(hydrateFromApi(data));
+    } catch (err) {
+      console.error("[agent-settings] hydrateFromApi", err);
+      setError("Não foi possível ler a configuração do agente.");
+      setForm(EMPTY_AGENT_SETTINGS);
+    }
   }, [preview, data]);
 
   const patch = <K extends keyof AgentSettingsValues>(
