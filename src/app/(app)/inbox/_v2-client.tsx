@@ -124,12 +124,7 @@ import {
   useInboxFilterUrlState,
 } from "@/features/inbox-v2/hooks/use-inbox-filters-url-sync";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import {
-  dealDetailKey,
-  useDealDetail,
-  usePipelines,
-} from "@/features/pipeline-v2/hooks";
-import { getDeal } from "@/features/pipeline-v2/api";
+import { useDealDetail, usePipelines } from "@/features/pipeline-v2/hooks";
 import { StagePicker } from "@/features/pipeline-v2/extras/stage-picker";
 import { AssigneePopover as DealOwnerPopover } from "@/features/pipeline-v2/extras/assignee-popover";
 import { MoveToStageMenu } from "@/features/pipeline-v2/extras/move-to-stage-menu";
@@ -1166,16 +1161,6 @@ export default function InboxV2ClientPage({
     setMobilePaneTab("chat");
   }
 
-  function handlePickSearchDeal(id: string) {
-    setSearchInput("");
-    void qc.prefetchQuery({
-      queryKey: dealDetailKey(id),
-      queryFn: () => getDeal(id),
-      staleTime: 30_000,
-    });
-    router.push(`/pipeline?deal=${encodeURIComponent(id)}`);
-  }
-
   async function handleSend(value: string) {
     if (!conversationApiId) return;
     try {
@@ -1315,7 +1300,6 @@ export default function InboxV2ClientPage({
       filters={filters}
       onChangeFilters={setFilters}
       onPickConversation={handlePickSearchConversation}
-      onPickDeal={handlePickSearchDeal}
     />
   );
 
@@ -1326,7 +1310,6 @@ export default function InboxV2ClientPage({
       filters={filters}
       onChangeFilters={setFilters}
       onPickConversation={handlePickSearchConversation}
-      onPickDeal={handlePickSearchDeal}
       period={inboxPeriodNode}
       trailing={<PageTourButton tourId="inbox" />}
     />
@@ -1342,7 +1325,6 @@ export default function InboxV2ClientPage({
       filters={filters}
       onChangeFilters={setFilters}
       onPickConversation={handlePickSearchConversation}
-      onPickDeal={handlePickSearchDeal}
       placeholder="Buscar..."
       className={cn(
         "min-w-0",
