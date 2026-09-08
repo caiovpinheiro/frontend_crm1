@@ -22,7 +22,7 @@ import {
   type HandoffMode,
 } from "@/lib/ai-agents/piloting";
 import {
-  defaultInboxPolicy,
+  mergeInboxPolicy,
   normalizeAttendanceScope,
   normalizeInboxPolicy,
   normalizeToolConfig,
@@ -232,9 +232,11 @@ export function AgentSettingsDialog({
     setSubmitting(true);
     setError(null);
     try {
-      const inboxPolicy = {
-        ...defaultInboxPolicy(),
-        ...form.inboxPolicy,
+      // Parte do que o backend grava em `inboxPolicy` não tem tela aqui
+      // (mídia, política de transferência, horário da equipe). Por isso o
+      // PUT sai do que o backend devolveu, com a edição por cima — e não
+      // de `defaultInboxPolicy()`, que só conhece os campos desta tela.
+      const inboxPolicy = mergeInboxPolicy(form.inboxPolicy, {
         scope: form.attendanceScope,
         handoffMessage: form.piloting.handoffMessage.trim() || null,
         retentionHandoffMessage:
@@ -245,7 +247,7 @@ export function AgentSettingsDialog({
         knowledgeExpiredInstruction:
           form.piloting.knowledgeExpiredInstruction.trim() || null,
         useMessageModels: form.piloting.useMessageModels,
-      };
+      });
       const simple = applySimpleSaveDefaults(form);
       const res = await fetch(apiUrl(`/api/ai-agents/${id}`), {
         method: "PUT",

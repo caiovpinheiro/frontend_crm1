@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { formLabelClass } from "@/components/ui/form-dialog";
-import { defaultInboxPolicy, type InboxPolicy } from "@/lib/ai-agents/steering";
+import { mergeInboxPolicy, type InboxPolicy } from "@/lib/ai-agents/steering";
 
 type Props = {
   value: InboxPolicy;
@@ -15,8 +15,10 @@ type Props = {
 };
 
 export function InboxPolicyPanel({ value, onChange }: Props) {
+  // Sem reinjetar `defaultInboxPolicy()`: os campos que esta tela não
+  // conhece vêm dentro de `value` e têm de sair dela intactos.
   const patch = (partial: Partial<InboxPolicy>) =>
-    onChange({ ...defaultInboxPolicy(), ...value, ...partial });
+    onChange(mergeInboxPolicy(value, partial));
 
   const threshold =
     value.confidenceThreshold == null

@@ -112,6 +112,22 @@ function unknownPolicyKeys(v: Record<string, unknown>): string[] {
   return Object.keys(v).filter((k) => !KNOWN_TOOL_POLICY_KEYS.has(k));
 }
 
+/**
+ * Copia de `r` só o que `known` não lista. Mesma ideia do
+ * `unknownPolicyKeys` acima, mas reaproveitável pelos outros tipos que
+ * também são cópia do backend (`InboxPolicy`, `AttendanceScope`).
+ */
+function carryUnknown(
+  r: Record<string, unknown>,
+  known: ReadonlySet<string>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(r)) {
+    if (!known.has(k)) out[k] = r[k];
+  }
+  return out;
+}
+
 function strList(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   const out: string[] = [];
@@ -351,11 +367,19 @@ export function defaultAttendanceScope(): AttendanceScope {
   };
 }
 
+const KNOWN_ATTENDANCE_SCOPE_KEYS: ReadonlySet<string> = new Set(
+  Object.keys(defaultAttendanceScope()),
+);
+
 export function normalizeAttendanceScope(v: unknown): AttendanceScope {
   const base = defaultAttendanceScope();
   if (!v || typeof v !== "object" || Array.isArray(v)) return base;
   const r = v as Record<string, unknown>;
-  return {
+  // `scope` vai no PUT vindo de `form.attendanceScope`, não de dentro de
+  // `inboxPolicy` — a preservação do nível de cima não cobre ele. Mesmo
+  // motivo do `ToolPolicy`: campo novo do backend passa intacto.
+  const carried = carryUnknown(r, KNOWN_ATTENDANCE_SCOPE_KEYS);
+  const known: AttendanceScope = {
     allowedPipelineIds: strList(r.allowedPipelineIds),
     blockedPipelineIds: strList(r.blockedPipelineIds),
     allowedStageIds: strList(r.allowedStageIds),
@@ -366,6 +390,7 @@ export function normalizeAttendanceScope(v: unknown): AttendanceScope {
     action: r.action === "ignore" ? "ignore" : "handoff",
     message: nullableText(r.message),
   };
+  return { ...carried, ...known };
 }
 
 /** true se o escopo não restringe nada — o agente atende qualquer conversa. */
@@ -474,10 +499,32 @@ function boolOr(v: unknown, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
 }
 
+/**
+ * ATENÇÃO — mesma armadilha do `ToolPolicy` (ver KNOWN_TOOL_POLICY_KEYS).
+ * `InboxPolicy` aqui é CÓPIA do tipo do backend, e a tela salva o objeto
+ * inteiro. Enquanto esta normalização DESCARTAVA chave desconhecida, todo
+ * campo que só o backend conhece era apagado no próximo "Salvar", mesmo
+ * sem ninguém abrir a seção relacionada.
+ *
+ * Aconteceu com `media`, `transferPolicy`, `inboundBatchWindowMinutes` e o
+ * bloco de atendimento humano (`humanAttendanceHours`, `queueMessage`,
+ * `audioHandoffMessage`…): política de transferência e horário da equipe
+ * voltavam ao default a cada salvamento, e o efeito no atendimento era
+ * lido como "o agente não respeita as diretrizes".
+ *
+ * O backend é a autoridade: ele renormaliza o PUT com a lista de campos
+ * DELE (e com o vertical pack), então nada que ele não reconheça chega ao
+ * banco. Preservar não deixa lixo. Há teste travando o round-trip.
+ */
+const KNOWN_INBOX_POLICY_KEYS: ReadonlySet<string> = new Set(
+  Object.keys(defaultInboxPolicy()),
+);
+
 export function normalizeInboxPolicy(v: unknown): InboxPolicy {
   const base = defaultInboxPolicy();
   if (!v || typeof v !== "object" || Array.isArray(v)) return base;
   const r = v as Record<string, unknown>;
+  const carried = carryUnknown(r, KNOWN_INBOX_POLICY_KEYS);
 
   let threshold: number | null = null;
   if (typeof r.confidenceThreshold === "number" &&
@@ -490,7 +537,7 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
       ? (r.departmentAliases as Record<string, unknown>)
       : {};
 
-  return {
+  const known: InboxPolicy = {
     confidenceThreshold: threshold,
     lowConfidenceHandoff: boolOr(r.lowConfidenceHandoff, base.lowConfidenceHandoff),
     // O backend devolve a lista já normalizada (inclusive as regras
@@ -524,6 +571,62 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
     unknownAnswerMessage: nullableText(r.unknownAnswerMessage),
     knowledgeExpiredInstruction: nullableText(r.knowledgeExpiredInstruction),
   };
+  return { ...carried, ...known };
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Aplica a edição da tela SOBRE a policy que veio do backend.
+ *
+ * Não reinjeta `defaultInboxPolicy()`. O spread de defaults locais era a
+ * segunda metade do bug: mesmo com a normalização preservando a chave
+ * desconhecida, remontar o PUT a partir dos defaults DESTA tela grava
+ * default local por cima da configuração real — e os defaults daqui nem
+ * batem com os do backend, que ainda aplica o vertical pack.
+ *
+ * Objeto aninhado é mesclado em vez de substituído. `media` tem um
+ * sub-objeto `actions` com uma ação por tipo de mídia: com spread raso,
+ * uma edição que tocasse só `media.handoffMessage` levaria junto um
+ * `actions` incompleto e apagaria a escolha por tipo. Por isso a mescla
+ * desce um nível dentro do bloco aninhado — e só um, que é o quanto o
+ * formato tem.
+ */
+export function mergeInboxPolicy(
+  base: InboxPolicy,
+  patch: Partial<InboxPolicy>,
+): InboxPolicy {
+  const out: Record<string, unknown> = {
+    ...(base as unknown as Record<string, unknown>),
+  };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    const prev = out[key];
+    out[key] =
+      isPlainObject(prev) && isPlainObject(value)
+        ? mergeNested(prev, value)
+        : value;
+  }
+  return out as unknown as InboxPolicy;
+}
+
+/** Mescla o bloco aninhado descendo um nível (ex.: `media.actions`). */
+function mergeNested(
+  prev: Record<string, unknown>,
+  next: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...prev };
+  for (const [key, value] of Object.entries(next)) {
+    if (value === undefined) continue;
+    const before = out[key];
+    out[key] =
+      isPlainObject(before) && isPlainObject(value)
+        ? { ...before, ...value }
+        : value;
+  }
+  return out;
 }
 
 /** true se algum dos termos extras aparece na mensagem (sem acento/caixa). */
