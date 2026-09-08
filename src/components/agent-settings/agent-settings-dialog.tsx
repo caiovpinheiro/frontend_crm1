@@ -28,6 +28,7 @@ import {
   normalizeToolConfig,
 } from "@/lib/ai-agents/steering";
 
+import { CrmFieldsSection } from "./sections/crm-fields-section";
 import { IdentitySection } from "./sections/identity-section";
 import {
   InboxSection,
@@ -442,6 +443,14 @@ export function AgentSettingsDialog({
                   onToolConfigChange={(v) => patch("toolConfig", v)}
                   productPolicy={form.productPolicy}
                   onProductPolicyChange={(v) => patch("productPolicy", v)}
+                />
+              )}
+              {advanced && section === "crmFields" && (
+                <CrmFieldsSection
+                  enabledTools={form.enabledTools}
+                  onToggleTool={toggleTool}
+                  toolConfig={form.toolConfig}
+                  onToolConfigChange={(v) => patch("toolConfig", v)}
                 />
               )}
               {advanced && section === "piloting" && (

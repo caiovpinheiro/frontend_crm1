@@ -19,6 +19,7 @@ export type AgentSectionId =
   | "messageRules"
   | "scope"
   | "tools"
+  | "crmFields"
   | "piloting"
   | "inbox"
   | "knowledge";
@@ -295,6 +296,10 @@ export const SECTION_META: Record<
   tools: {
     label: "Ferramentas",
     description: "O que o agente pode executar no CRM e no WhatsApp.",
+  },
+  crmFields: {
+    label: "Campos do CRM",
+    description: "Quais campos do cadastro o agente pode ler em conversa.",
   },
   piloting: {
     label: "Pilotagem",

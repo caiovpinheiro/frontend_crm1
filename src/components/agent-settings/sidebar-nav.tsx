@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  Database,
   Inbox,
   Radar,
   ShieldCheck,
@@ -22,6 +23,7 @@ const SECTION_ICONS: Record<AgentSectionId, LucideIcon> = {
   messageRules: Signpost,
   scope: Target,
   tools: Wrench,
+  crmFields: Database,
   piloting: Radar,
   inbox: Inbox,
   knowledge: BookOpen,
@@ -33,6 +35,7 @@ const SECTIONS: AgentSectionId[] = [
   "messageRules",
   "scope",
   "tools",
+  "crmFields",
   "piloting",
   "inbox",
   "knowledge",
