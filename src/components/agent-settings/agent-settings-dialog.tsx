@@ -447,6 +447,7 @@ export function AgentSettingsDialog({
               )}
               {advanced && section === "crmFields" && (
                 <CrmFieldsSection
+                  agentId={preview ? null : id}
                   enabledTools={form.enabledTools}
                   onToggleTool={toggleTool}
                   toolConfig={form.toolConfig}
