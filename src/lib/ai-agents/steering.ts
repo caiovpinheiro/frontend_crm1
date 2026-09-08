@@ -86,6 +86,32 @@ export function emptyToolPolicy(): ToolPolicy {
   };
 }
 
+/**
+ * ATENÇÃO — `ToolPolicy` aqui é uma CÓPIA do tipo do backend
+ * (`src/lib/ai-agents/steering.ts` lá). O backend é a autoridade: ele
+ * normaliza de novo, com a lista de campos DELE, tudo o que esta tela
+ * manda no PUT.
+ *
+ * Por isso esta tela NÃO precisa conhecer todo campo do backend, e
+ * `normalizeToolPolicy` PRESERVA chave desconhecida em vez de descartá-la.
+ * Quando descartava, um campo novo do backend era apagado do banco no
+ * próximo "Salvar" desta tela — mesmo sem ninguém abrir a seção
+ * relacionada. Aconteceu com `readableFields` e depois com
+ * `sensitiveTerms`.
+ *
+ * Não é lixo no JSON: o que chega aqui foi o backend que gravou, e o que
+ * ele não reconhecer no PUT ele descarta do lado dele. Se você for
+ * "limpar" a passagem abaixo, é esta classe de bug que volta — há teste
+ * travando o comportamento.
+ */
+const KNOWN_TOOL_POLICY_KEYS: ReadonlySet<string> = new Set(
+  Object.keys(emptyToolPolicy()),
+);
+
+function unknownPolicyKeys(v: Record<string, unknown>): string[] {
+  return Object.keys(v).filter((k) => !KNOWN_TOOL_POLICY_KEYS.has(k));
+}
+
 function strList(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   const out: string[] = [];
@@ -117,7 +143,10 @@ export function normalizeToolPolicy(v: unknown): ToolPolicy {
   const base = emptyToolPolicy();
   if (!v || typeof v !== "object" || Array.isArray(v)) return base;
   const r = v as Record<string, unknown>;
-  return {
+  // Campo que só o backend conhece passa intacto (ver KNOWN_TOOL_POLICY_KEYS).
+  const carried: Record<string, unknown> = {};
+  for (const k of unknownPolicyKeys(r)) carried[k] = r[k];
+  const known: ToolPolicy = {
     disabledArgs: strList(r.disabledArgs),
     argHints: strMap(r.argHints),
     defaults: strMap(r.defaults),
@@ -133,10 +162,20 @@ export function normalizeToolPolicy(v: unknown): ToolPolicy {
     allowOrgWideSearch: Boolean(r.allowOrgWideSearch),
     sensitiveTerms: strList(r.sensitiveTerms),
   };
+  return { ...carried, ...known };
 }
 
-/** Uma policy é "vazia" quando não restringe nada — não precisa persistir. */
+/**
+ * Uma policy é "vazia" quando não restringe nada — não precisa persistir.
+ *
+ * Chave desconhecida conta como conteúdo: descartar a policy porque os
+ * campos QUE ESTA TELA CONHECE estão vazios apagaria a configuração que o
+ * backend gravou num campo mais novo.
+ */
 export function isEmptyToolPolicy(p: ToolPolicy): boolean {
+  if (unknownPolicyKeys(p as unknown as Record<string, unknown>).length > 0) {
+    return false;
+  }
   return (
     p.disabledArgs.length === 0 &&
     Object.keys(p.argHints).length === 0 &&
