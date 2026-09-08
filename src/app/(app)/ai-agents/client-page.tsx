@@ -48,7 +48,7 @@ export default function AIAgentsV2ClientPage() {
 
 function AgentsPanel() {
   return (
-    <div className="min-w-0 overflow-x-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-3 backdrop-blur-md sm:p-4">
+    <div className="min-w-0 overflow-x-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-3 backdrop-blur-md sm:p-4 [&:has([data-agent-settings])]:p-0">
       <OldAIAgentsPage embedded />
     </div>
   );
