@@ -25,6 +25,26 @@ export const EMAIL_PROVIDER_PRESETS: EmailProviderPreset[] = [
     smtpPort: 465,
     smtpEncryption: "SSL_TLS",
   },
+  {
+    id: "gmail",
+    label: "Gmail / Google Workspace",
+    imapHost: "imap.gmail.com",
+    imapPort: 993,
+    imapEncryption: "SSL_TLS",
+    smtpHost: "smtp.gmail.com",
+    smtpPort: 587,
+    smtpEncryption: "STARTTLS",
+  },
+  {
+    id: "outlook",
+    label: "Outlook / Microsoft 365",
+    imapHost: "outlook.office365.com",
+    imapPort: 993,
+    imapEncryption: "SSL_TLS",
+    smtpHost: "smtp.office365.com",
+    smtpPort: 587,
+    smtpEncryption: "STARTTLS",
+  },
 ];
 
 export function getEmailProviderPreset(id: string): EmailProviderPreset | undefined {
@@ -59,6 +79,31 @@ export function emailProviderOptions() {
       value: CUSTOM_EMAIL_PROVIDER_ID,
       label: "Outro (configurar manualmente)",
       description: "Informe os servidores IMAP e SMTP",
+    },
+  ];
+}
+
+export type EmailProviderChoice = {
+  id: string;
+  label: string;
+  imapLine?: string;
+  smtpLine?: string;
+  hint?: string;
+};
+
+/** Opções do dropdown (IMAP/SMTP em linhas separadas; custom sem host). */
+export function emailProviderChoices(): EmailProviderChoice[] {
+  return [
+    ...EMAIL_PROVIDER_PRESETS.map((p) => ({
+      id: p.id,
+      label: p.label,
+      imapLine: `${p.imapHost}:${p.imapPort}`,
+      smtpLine: `${p.smtpHost}:${p.smtpPort}`,
+    })),
+    {
+      id: CUSTOM_EMAIL_PROVIDER_ID,
+      label: "Outro (configurar manualmente)",
+      hint: "Informe os servidores IMAP e SMTP",
     },
   ];
 }
