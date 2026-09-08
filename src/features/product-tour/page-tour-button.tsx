@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { HelpCircle, Play, Sparkles } from "lucide-react";
 
+import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
 import { cn } from "@/lib/utils";
 
 import { hasTour } from "./tour-registry";
@@ -50,14 +52,42 @@ export function PageTourButton({
   onStartTour?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  const portalTarget = useModalPortalContainer();
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    const update = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const box = trigger.getBoundingClientRect();
+      setCoords({
+        top: box.bottom + 8,
+        right: Math.max(8, window.innerWidth - box.right),
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (rootRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
       setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
@@ -86,6 +116,7 @@ export function PageTourButton({
   return (
     <div ref={rootRef} className="relative inline-flex shrink-0">
       <button
+        ref={triggerRef}
         type="button"
         aria-label="Abrir ajuda"
         aria-expanded={open}
@@ -102,36 +133,41 @@ export function PageTourButton({
         <HelpCircle className="size-4" aria-hidden="true" />
       </button>
 
-      {open ? (
-        <div
-          id={menuId}
-          role="menu"
-          aria-label="Ajuda"
-          className="absolute top-11 right-0 z-50 w-60 origin-top-right overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5 animate-in fade-in zoom-in-95 duration-150 ease-out"
-        >
-          <div className={cn("flex items-center gap-2 px-3.5 py-2.5", TOUR_GRADIENT_R)}>
-            <Sparkles className="size-3.5 text-white/90" aria-hidden="true" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/90">
-              Ajuda
-            </p>
-          </div>
-          <div className="p-1.5">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={startTour}
-              className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      {open && coords && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={menuRef}
+              id={menuId}
+              role="menu"
+              aria-label="Ajuda"
+              style={{ top: coords.top, right: coords.right }}
+              className="fixed z-(--z-popover) w-60 origin-top-right overflow-hidden rounded-2xl border border-border bg-card shadow-xl shadow-black/5 animate-in fade-in zoom-in-95 duration-150 ease-out"
             >
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
-                <Play className="size-3 fill-current" aria-hidden="true" />
-              </span>
-              <span className="text-sm font-medium text-foreground">
-                {tourActionLabel(tourId)}
-              </span>
-            </button>
-          </div>
-        </div>
-      ) : null}
+              <div className={cn("flex items-center gap-2 px-3.5 py-2.5", TOUR_GRADIENT_R)}>
+                <Sparkles className="size-3.5 text-white/90" aria-hidden="true" />
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/90">
+                  Ajuda
+                </p>
+              </div>
+              <div className="p-1.5">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={startTour}
+                  className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
+                    <Play className="size-3 fill-current" aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-medium text-foreground">
+                    {tourActionLabel(tourId)}
+                  </span>
+                </button>
+              </div>
+            </div>,
+            portalTarget ?? document.body,
+          )
+        : null}
     </div>
   );
 }
