@@ -54,7 +54,7 @@ export function buttonGlassClassName({
   className?: string
 }) {
   return cn(
-    "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full font-display font-semibold outline-none transition-all duration-150",
+    "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full font-display font-semibold outline-none transition-all duration-150 disabled:pointer-events-auto disabled:opacity-50 disabled:hover:translate-y-0",
     variant === 'primary' && "bg-[var(--brand-primary)] text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] hover:bg-[var(--brand-primary-dark)] hover:-translate-y-0.5",
     variant === 'glass' && "bg-[var(--glass-bg-strong)] backdrop-blur-md border border-[var(--glass-border)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] hover:bg-[var(--glass-bg-overlay)]",
     variant === 'danger' && "bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] shadow-[0_4px_14px_rgba(239,68,68,0.35)] hover:bg-[color-mix(in_srgb,var(--color-destructive)_88%,black)] hover:-translate-y-0.5",

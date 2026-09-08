@@ -93,9 +93,9 @@ export function SectionHeader({
   const actionsNode =
     period || actions || menuNode ? (
       <>
-        {period}
-        {actions}
-        {menuNode}
+        {period ? <div className="shrink-0">{period}</div> : null}
+        {actions ? <div className="min-w-0 w-0 flex-1">{actions}</div> : null}
+        {menuNode ? <div className="shrink-0">{menuNode}</div> : null}
       </>
     ) : undefined
 
@@ -128,36 +128,41 @@ export function HeaderTabs<T extends string>({
   onChange: (t: T) => void
 }) {
   return (
-    <nav className="flex flex-wrap items-center gap-1 rounded-full border border-border bg-card p-1">
-      {tabs.map(({ key, label, badge }) => {
-        const active = value === key
-        return (
-          <button
-            key={key}
-            type="button"
-            onClick={() => onChange(key)}
-            aria-current={active ? "page" : undefined}
-            className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors ${
-              active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {label}
-            {badge !== undefined && (
-              <span
-                className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums ${
-                  active
-                    ? "bg-primary-foreground/20 text-primary-foreground"
-                    : "bg-secondary text-muted-foreground"
-                }`}
-              >
-                {badge}
-              </span>
-            )}
-          </button>
-        )
-      })}
+    <nav
+      className="toolbar-hscroll min-w-0 w-full max-w-full overflow-x-auto overscroll-x-contain"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      <div className="inline-flex w-max flex-nowrap items-center gap-1 rounded-full border border-border bg-card p-1">
+        {tabs.map(({ key, label, badge }) => {
+          const active = value === key
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onChange(key)}
+              aria-current={active ? "page" : undefined}
+              className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-semibold transition-colors ${
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+              {badge !== undefined && (
+                <span
+                  className={`flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums ${
+                    active
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  {badge}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
     </nav>
   )
 }
@@ -176,7 +181,7 @@ export function HeaderPillToggle<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex items-center rounded-full border border-border bg-card p-1 shadow-none">
+    <div className="inline-flex w-max shrink-0 items-center rounded-full border border-border bg-card p-1 shadow-none">
       {options.map(({ key, label, icon: Icon }) => {
         const active = value === key
         return (
@@ -185,7 +190,7 @@ export function HeaderPillToggle<T extends string>({
             type="button"
             onClick={() => onChange(key)}
             aria-pressed={active}
-            className={`flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors ${
+            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-semibold transition-colors sm:px-3.5 ${
               active
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground"

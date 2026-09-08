@@ -205,19 +205,23 @@ export default function CampaignsClientPage() {
             />
           }
           actions={
-            <>
-              <ViewToggle value={view} onChange={setView} />
-              <HeaderPillToggle
-                options={[
-                  { key: "automations", label: "Automações" },
-                  { key: "campaigns", label: "Campanhas" },
-                ]}
-                value="campaigns"
-                onChange={(v) => {
-                  if (v === "automations") router.push("/automations");
-                }}
-              />
-            </>
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+              <div data-tour="campaigns-section-switcher" className="shrink-0">
+                <HeaderPillToggle
+                  options={[
+                    { key: "automations", label: "Automações" },
+                    { key: "campaigns", label: "Campanhas" },
+                  ]}
+                  value="campaigns"
+                  onChange={(v) => {
+                    if (v === "automations") router.push("/automations");
+                  }}
+                />
+              </div>
+              <div data-tour="campaigns-view" className="shrink-0">
+                <ViewToggle value={view} onChange={setView} />
+              </div>
+            </div>
           }
           menuSlot={<CampaignsActionsMenu />}
         />

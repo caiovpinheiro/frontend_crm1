@@ -361,19 +361,23 @@ export default function V2AutomationsClientPage() {
             />
           }
           actions={
-            <>
-              <ViewToggle value={view} onChange={setView} />
-              <HeaderPillToggle
-                options={[
-                  { key: "automations", label: "Automações" },
-                  { key: "campaigns", label: "Campanhas" },
-                ]}
-                value="automations"
-                onChange={(v) => {
-                  if (v === "campaigns") router.push("/campaigns")
-                }}
-              />
-            </>
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+              <div data-tour="automations-section-switcher" className="shrink-0">
+                <HeaderPillToggle
+                  options={[
+                    { key: "automations", label: "Automações" },
+                    { key: "campaigns", label: "Campanhas" },
+                  ]}
+                  value="automations"
+                  onChange={(v) => {
+                    if (v === "campaigns") router.push("/campaigns")
+                  }}
+                />
+              </div>
+              <div data-tour="automations-view" className="shrink-0">
+                <ViewToggle value={view} onChange={setView} />
+              </div>
+            </div>
           }
           menuSlot={
             <AutomationsActionsMenu
