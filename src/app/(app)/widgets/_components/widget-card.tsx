@@ -10,6 +10,7 @@ import {
   IconLoader2 as Loader2,
   IconPhone as Phone,
   IconPlus as Plus,
+  IconPower as Power,
   IconPuzzle as Puzzle,
   IconRobot as Bot,
   IconCalendar as Calendar,
@@ -275,10 +276,18 @@ export function WidgetCard({
   );
 }
 
+/** Liga/desliga o motor, no mesmo formato do power do agente de IA: só o
+ *  ícone, verde quando ligado e cinza quando desligado. */
 function DistributionPowerButton() {
   const settingsQuery = useDistributionSettings();
   const updateSettings = useUpdateDistributionSettings();
-  const enabled = settingsQuery.data?.enabled ?? true;
+  const saved = settingsQuery.data?.enabled ?? true;
+  // Enquanto o PUT não volta, mostra o estado pedido — sem isso o ícone só
+  // muda depois do round-trip e parece que o clique não fez nada.
+  const pendingEnabled = updateSettings.isPending
+    ? updateSettings.variables?.enabled
+    : undefined;
+  const enabled = pendingEnabled ?? saved;
   const busy = updateSettings.isPending || settingsQuery.isLoading;
 
   return (
@@ -290,22 +299,31 @@ function DistributionPowerButton() {
           { enabled: !enabled },
           {
             onSuccess: (data) =>
-              toast.success(data.enabled ? "Distribuição ligada." : "Distribuição desligada."),
+              toast.success(
+                data.enabled ? "Distribuição ligada." : "Distribuição desligada.",
+              ),
             onError: (e) =>
-              toast.error(e instanceof Error ? e.message : "Erro ao salvar configuração."),
+              toast.error(
+                e instanceof Error ? e.message : "Erro ao salvar configuração.",
+              ),
           },
         );
       }}
       title={enabled ? "Desligar distribuição" : "Ligar distribuição"}
+      aria-label={enabled ? "Desligar distribuição" : "Ligar distribuição"}
       aria-pressed={enabled}
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 font-display text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex size-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-60",
         enabled
-          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+          ? "text-emerald-600 hover:bg-emerald-50"
+          : "text-slate-400 hover:bg-slate-100",
       )}
     >
-      {enabled ? "Desligar" : "Ligar"}
+      {busy ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Power className="size-4" />
+      )}
     </button>
   );
 }
