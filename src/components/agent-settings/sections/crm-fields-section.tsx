@@ -182,7 +182,18 @@ export function CrmFieldsSection({
 
   const releasedFields = fields.filter(isReadable);
   const sensitiveReleased = releasedFields.filter((f) => f.sensitiveHint).length;
-  const nothingReleased = releasedFields.length === 0 && !globalWildcard;
+  const nothingReleased = readableFields.length === 0;
+
+  /// Chaves salvas que não existem mais no catálogo (campo personalizado
+  /// apagado depois de liberado). Só avisa — quem remove é o operador.
+  const orphanKeys =
+    fields.length === 0
+      ? []
+      : readableFields.filter(
+          (k) =>
+            !k.includes("*") &&
+            !fields.some((f) => fold(f.key) === fold(k)),
+        );
 
   return (
     <div className="space-y-5">
@@ -244,6 +255,10 @@ export function CrmFieldsSection({
               quebrado: é a configuração inicial de todo agente.
             </p>
           </>
+        ) : isLoading ? (
+          <p className="text-sm font-medium text-foreground">
+            Carregando os campos liberados…
+          </p>
         ) : (
           <>
             <p className="text-sm font-medium text-foreground">
@@ -256,6 +271,15 @@ export function CrmFieldsSection({
                 ? `${sensitiveReleased} ${sensitiveReleased === 1 ? "deles é marcado" : "deles são marcados"} como possível dado pessoal. O agente poderá dizer esses valores em conversa.`
                 : "Os demais campos voltam ao agente só como rótulo, sem valor."}
             </p>
+            {orphanKeys.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sem correspondência no CRM (campo apagado depois de liberado):{" "}
+                <span className="text-foreground">
+                  {orphanKeys.join(", ")}
+                </span>
+                .
+              </p>
+            )}
           </>
         )}
         {readableFields.length > 0 && (
