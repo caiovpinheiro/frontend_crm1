@@ -213,13 +213,19 @@ export function retryPending(): Promise<RetryResult> {
 export interface DistributionSettings {
   respectDepartment: boolean;
   autoOnInbound: boolean;
+  /** Kill switch do motor. Default true quando a API ainda não manda o campo. */
+  enabled: boolean;
 }
 
 export function fetchDistributionSettings(): Promise<DistributionSettings> {
   return getJson<DistributionSettings>(
     "/api/distribution/settings",
     "Erro ao carregar configurações de distribuição.",
-  );
+  ).then((s) => ({
+    respectDepartment: Boolean(s.respectDepartment),
+    autoOnInbound: s.autoOnInbound !== false,
+    enabled: s.enabled !== false,
+  }));
 }
 
 /** Atualização parcial: envie só as chaves que quer alterar. */

@@ -19,8 +19,14 @@ import {
 } from "@tabler/icons-react";
 import type { Icon as LucideIcon } from "@tabler/icons-react";
 
+import { toast } from "sonner";
+
 import { DistributionIcon } from "@/components/icons/distribution-icon";
 import { cn } from "@/lib/utils";
+import {
+  useDistributionSettings,
+  useUpdateDistributionSettings,
+} from "@/features/distribution/hooks";
 
 import type { WidgetDto } from "@/features/widgets/types";
 
@@ -150,6 +156,9 @@ export function WidgetCard({
         </span>
         <div className="flex flex-col items-end gap-1">
           <StatusBadge installed={installed} comingSoon={comingSoon} disabled={disabled} />
+          {widget.slug === "smart_distribution" && installed && !disabled && canManage && (
+            <DistributionPowerButton />
+          )}
           {widget.ownerType === "PARTNER" && widget.partnerName && (
             <span className="font-display text-[9px] font-bold uppercase tracking-[0.6px] text-slate-400">
               Parceiro: {widget.partnerName}
@@ -263,6 +272,41 @@ export function WidgetCard({
         )}
       </div>
     </article>
+  );
+}
+
+function DistributionPowerButton() {
+  const settingsQuery = useDistributionSettings();
+  const updateSettings = useUpdateDistributionSettings();
+  const enabled = settingsQuery.data?.enabled ?? true;
+  const busy = updateSettings.isPending || settingsQuery.isLoading;
+
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => {
+        updateSettings.mutate(
+          { enabled: !enabled },
+          {
+            onSuccess: (data) =>
+              toast.success(data.enabled ? "Distribuição ligada." : "Distribuição desligada."),
+            onError: (e) =>
+              toast.error(e instanceof Error ? e.message : "Erro ao salvar configuração."),
+          },
+        );
+      }}
+      title={enabled ? "Desligar distribuição" : "Ligar distribuição"}
+      aria-pressed={enabled}
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full px-2.5 py-1 font-display text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        enabled
+          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+      )}
+    >
+      {enabled ? "Desligar" : "Ligar"}
+    </button>
   );
 }
 

@@ -47,6 +47,9 @@ export function distributionOutcomeToast(
   if (reason === "SMART_DISTRIBUTION_NOT_ENABLED") {
     return { tone: "error", message: "Módulo de Distribuição não habilitado." };
   }
+  if (reason === "DISTRIBUTION_DISABLED") {
+    return { tone: "warning", message: "Distribuição desligada. Nenhum consultor foi atribuído." };
+  }
   if (reason === "NO_DEPARTMENT") {
     return {
       tone: "warning",
