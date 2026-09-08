@@ -79,6 +79,10 @@ interface InboxSearchFilterBarProps {
   className?: string;
   onPickConversation?: (row: ConversationListRow) => void;
   onPickDeal?: (id: string) => void;
+  /** Calendário na mesma linha da pílula (mobile APK). */
+  period?: React.ReactNode;
+  /** Tour (?) ao lado do calendário. */
+  trailing?: React.ReactNode;
 }
 
 const CHANNEL_TYPE_LABELS: Record<string, string> = {
@@ -575,6 +579,8 @@ export function InboxSearchFilterBar({
   className,
   onPickConversation,
   onPickDeal,
+  period,
+  trailing,
 }: InboxSearchFilterBarProps) {
   const [open, setOpen] = React.useState(false);
   const activeCount = countActive(filters);
@@ -605,25 +611,35 @@ export function InboxSearchFilterBar({
     else pickDeal(hit.deal.id);
   }
 
+  const rowEnd = Boolean(period || trailing)
+
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div ref={menu.wrapRef}>
-        <FilterSearchTrigger
-          search={search}
-          onSearch={onSearch}
-          onFocus={() => menu.setFocused(true)}
-          onKeyDown={(e) => menu.onInputKeyDown(e, pickActiveHit)}
-          onOpenFilters={() => {
-            setOpen(true);
-            menu.close();
-          }}
-          filtersOpen={open}
-          activeCount={activeCount}
-          placeholder={placeholder}
-          ariaLabel="Buscar conversas e negócios"
-          tooltipLabel="Filtrar conversas"
-          chips={chips}
-        />
+      <div className={cn("flex min-w-0 items-center gap-2", rowEnd && "w-full")}>
+        <div ref={menu.wrapRef} className={cn("min-w-0", rowEnd ? "relative flex-1 !w-auto" : undefined)}>
+          <FilterSearchTrigger
+            search={search}
+            onSearch={onSearch}
+            onFocus={() => menu.setFocused(true)}
+            onKeyDown={(e) => menu.onInputKeyDown(e, pickActiveHit)}
+            onOpenFilters={() => {
+              setOpen(true);
+              menu.close();
+            }}
+            filtersOpen={open}
+            activeCount={activeCount}
+            placeholder={placeholder}
+            ariaLabel="Buscar conversas e negócios"
+            tooltipLabel="Filtrar conversas"
+            chips={chips}
+          />
+        </div>
+        {rowEnd ? (
+          <div className="flex shrink-0 items-center gap-2">
+            {period}
+            {trailing}
+          </div>
+        ) : null}
       </div>
       {menu.showHits && menu.coords && typeof document !== "undefined" && (
         <InboxSearchResultsPanel

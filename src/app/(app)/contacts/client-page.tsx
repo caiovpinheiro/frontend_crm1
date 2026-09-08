@@ -614,7 +614,7 @@ export default function V2ContactsClientPage() {
           }
         />
         }
-        bodyClassName="gap-4"
+        bodyClassName="gap-4 max-lg:!overflow-x-hidden"
       >
 
         {isLoading ? (
@@ -622,8 +622,9 @@ export default function V2ContactsClientPage() {
         ) : (
         <>
         {/* KPI cards — mobile: 4 quadrados em h-scroll; desktop: grid */}
-        <section className="w-full shrink-0" aria-label="Indicadores de contatos">
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden lg:hidden">
+        <section data-tour="contacts-kpis" className="w-full min-w-0 shrink-0" aria-label="Indicadores de contatos">
+          <div className="toolbar-hscroll min-w-0 max-w-full lg:hidden">
+            <div className="flex w-max flex-nowrap items-stretch gap-2 pr-4">
             {SEGMENTS.map((seg) => {
               const val = seg.value(statsQuery.data);
               const active = segment === seg.id;
@@ -661,6 +662,7 @@ export default function V2ContactsClientPage() {
                 </button>
               );
             })}
+            </div>
           </div>
 
           <div className="hidden w-full gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-4">
@@ -1326,6 +1328,81 @@ function ColumnsDialog({
   );
 }
 
+function ContactRowActions({
+  contact: c,
+  tour,
+  openingLeadId,
+  onOpenLead,
+  onEdit,
+}: {
+  contact: ContactListItemDto;
+  tour?: boolean;
+  openingLeadId: string | null;
+  onOpenLead: (c: ContactListItemDto) => void;
+  onEdit: (c: ContactListItemDto) => void;
+}) {
+  return (
+    <div
+      className={LIST_ACTIONS_CELL_CLASS}
+      {...(tour ? { "data-tour": "contacts-row-actions" } : {})}
+    >
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onOpenLead(c); }}
+        disabled={openingLeadId === c.id}
+        aria-label={`Abrir lead de ${c.name}`}
+        title="Abrir lead (cria se não existir)"
+        className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+      >
+        {openingLeadId === c.id ? <IconLoader2 size={16} className="animate-spin" /> : <IconMessageCircle size={16} />}
+      </button>
+      <a href={c.phone ? `tel:${c.phone}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Ligar" aria-disabled={!c.phone} className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
+        <IconPhone size={16} />
+      </a>
+      <a href={c.email ? `mailto:${c.email}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Enviar e-mail" aria-disabled={!c.email} className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
+        <IconMail size={16} />
+      </a>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onEdit(c); }}
+        aria-label={`Editar ${c.name}`}
+        className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--brand-primary)] transition-colors hover:bg-[var(--color-primary-soft)]"
+      >
+        <IconPencil size={16} />
+      </button>
+    </div>
+  );
+}
+
+function ContactRowIdentity({
+  contact: c,
+  onEdit,
+}: {
+  contact: ContactListItemDto;
+  onEdit: (c: ContactListItemDto) => void;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <ChatAvatar
+        user={{ id: c.id, name: c.name, imageUrl: c.avatarUrl ?? null }}
+        phone={c.phone}
+        channel={c.phone ? "whatsapp" : null}
+        size={AVATAR_SIZE.md}
+      />
+      <div className="min-w-0 flex-1 leading-tight">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit(c); }}
+          className="block w-full truncate text-left font-display text-[14px] font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--brand-primary)]"
+        >
+          {c.name}
+        </button>
+        <div className="truncate font-body text-[12px] text-[var(--text-muted)]">{c.email ?? "—"}</div>
+      </div>
+    </div>
+  );
+}
+
 function CardsView({
   view = "cards",
   items, selected, allChecked, someChecked, onToggleAll, onToggleOne, columns, getWidth, setWidth, sortBy, sortOrder, onSort, onEdit, onOpenLead, openingLeadId,
@@ -1386,8 +1463,7 @@ function CardsView({
     </>
   );
 
-  return (
-    <ListHScroll scrollerClassName="pb-1">
+  const listTable = (
     <DataView
       view={view}
       columnClass="grid w-full items-center justify-start gap-4"
@@ -1412,63 +1488,81 @@ function CardsView({
             <span onClick={(e) => e.stopPropagation()}>
               <CheckboxGlass checked={isSelected} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} />
             </span>
-
-            <div className="flex min-w-0 items-center gap-2.5">
-              <ChatAvatar
-                user={{ id: c.id, name: c.name, imageUrl: c.avatarUrl ?? null }}
-                phone={c.phone}
-                channel={c.phone ? "whatsapp" : null}
-                size={AVATAR_SIZE.md}
-              />
-              <div className="min-w-0 flex-1 leading-tight">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onEdit(c); }}
-                  className="block w-full truncate text-left font-display text-[14px] font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--brand-primary)]"
-                >
-                  {c.name}
-                </button>
-                <div className="truncate font-body text-[12px] text-[var(--text-muted)]">{c.email ?? "—"}</div>
-              </div>
-            </div>
-
+            <ContactRowIdentity contact={c} onEdit={onEdit} />
             {columns.map((col) => (
               <div key={col.key} className="min-w-0">
                 {col.cell(c)}
               </div>
             ))}
-
-            <div className={LIST_ACTIONS_CELL_CLASS}>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onOpenLead(c); }}
-                disabled={openingLeadId === c.id}
-                aria-label={`Abrir lead de ${c.name}`}
-                title="Abrir lead (cria se não existir)"
-                className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)] disabled:opacity-50"
-              >
-                {openingLeadId === c.id ? <IconLoader2 size={16} className="animate-spin" /> : <IconMessageCircle size={16} />}
-              </button>
-              <a href={c.phone ? `tel:${c.phone}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Ligar" aria-disabled={!c.phone} className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
-                <IconPhone size={16} />
-              </a>
-              <a href={c.email ? `mailto:${c.email}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Enviar e-mail" aria-disabled={!c.email} className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
-                <IconMail size={16} />
-              </a>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onEdit(c); }}
-                aria-label={`Editar ${c.name}`}
-                className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--brand-primary)] transition-colors hover:bg-[var(--color-primary-soft)]"
-              >
-                <IconPencil size={16} />
-              </button>
-            </div>
+            <ContactRowActions
+              contact={c}
+              tour={i === 0}
+              openingLeadId={openingLeadId}
+              onOpenLead={onOpenLead}
+              onEdit={onEdit}
+            />
           </DataRow>
         );
       })}
     </DataView>
-    </ListHScroll>
+  );
+
+  return (
+    <>
+      <div className="relative min-w-0 lg:hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 z-20 w-10 bg-gradient-to-l from-[color-mix(in_srgb,var(--text-primary)_28%,transparent)] to-transparent"
+        />
+        <div className="list-freeze-hscroll min-w-0">{listTable}</div>
+      </div>
+
+      <div className="hidden min-w-0 lg:block">
+        <ListHScroll scrollerClassName="pb-1">
+          <DataView
+            view={view}
+            columnClass="grid w-full items-center justify-start gap-4"
+            header={header}
+            className={LIST_PAGE_STACK_CLASS}
+            style={{ gridTemplateColumns: gridTemplate }}
+          >
+            {items.map((c, i) => {
+              const isSelected = selected.has(c.id);
+              return (
+                <DataRow
+                  key={`${c.id}-lg`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onEdit(c)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEdit(c); } }}
+                  className={cn(
+                    "group cursor-pointer",
+                    isSelected && "border-primary bg-primary/10",
+                  )}
+                >
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <CheckboxGlass checked={isSelected} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} />
+                  </span>
+                  <ContactRowIdentity contact={c} onEdit={onEdit} />
+                  {columns.map((col) => (
+                    <div key={col.key} className="min-w-0">
+                      {col.cell(c)}
+                    </div>
+                  ))}
+                  <ContactRowActions
+                    contact={c}
+                    tour={i === 0}
+                    openingLeadId={openingLeadId}
+                    onOpenLead={onOpenLead}
+                    onEdit={onEdit}
+                  />
+                </DataRow>
+              );
+            })}
+          </DataView>
+        </ListHScroll>
+      </div>
+    </>
   );
 }
 
