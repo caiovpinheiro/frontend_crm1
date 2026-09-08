@@ -575,6 +575,23 @@ html[data-nav-expanded="true"] {
   width: 0;
 }
 
+/* Coluna congelada + faixa extra: pan-x no miolo, pan-y na lista (APK). */
+.v2-screen .list-freeze-hscroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.v2-root .v2-screen .list-freeze-hscroll::-webkit-scrollbar,
+.v2-root .v2-screen .list-freeze-hscroll::-webkit-scrollbar-track,
+.v2-root .v2-screen .list-freeze-hscroll::-webkit-scrollbar-thumb {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
 /* Chips Kommo na pílula de busca: H-scroll sem barra nativa do Windows.
    `scrollbar-width` no Chromium desliga ::-webkit-scrollbar e devolve
    a barra clássica (setas + ~17px) — por isso o hide é o mesmo do kanban. */

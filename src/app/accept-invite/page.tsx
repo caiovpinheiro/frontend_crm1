@@ -1,5 +1,5 @@
 import AcceptInviteForm from "./accept-invite-form";
-import { apiServerGet } from "@/lib/api-server";
+import { apiServerFetch } from "@/lib/api-server";
 
 type Props = {
   searchParams: Promise<{ token?: string }>;
@@ -33,10 +33,28 @@ export default async function AcceptInvitePage({ searchParams }: Props) {
   }
 
   try {
-    const data = await apiServerGet<InviteValidation>(
+    const res = await apiServerFetch(
       `/api/invites/validate?token=${encodeURIComponent(token)}`,
+      { method: "GET" },
     );
-    if (!data) {
+    if (!res.ok) {
+      let message = "Este convite não foi encontrado ou já expirou.";
+      try {
+        const body = (await res.json()) as { message?: string };
+        if (typeof body.message === "string" && body.message.trim()) {
+          message = body.message;
+        }
+      } catch {
+        /* corpo não-JSON */
+      }
+      if (res.status === 401) {
+        message =
+          "Não foi possível validar o convite. Peça um novo link ao administrador.";
+      }
+      return <FullScreenError title="Convite inválido" message={message} />;
+    }
+    const data = (await res.json()) as InviteValidation;
+    if (!data?.invite) {
       return (
         <FullScreenError
           title="Convite inválido"

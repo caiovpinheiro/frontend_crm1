@@ -1319,6 +1319,19 @@ export default function InboxV2ClientPage({
     />
   );
 
+  const inboxSearchFilterWithPeriodNode = (
+    <InboxSearchFilterBar
+      search={searchInput}
+      onSearch={setSearchInput}
+      filters={filters}
+      onChangeFilters={setFilters}
+      onPickConversation={handlePickSearchConversation}
+      onPickDeal={handlePickSearchDeal}
+      period={inboxPeriodNode}
+      trailing={<PageTourButton tourId="inbox" />}
+    />
+  );
+
   // Variante compacta para a barra mobile (Voltar | busca | Chat/Negócio).
   // Instância separada — estado de busca/filtros vive no pai; não montar
   // junto com `inboxSearchFilterNode` na mesma branch visual.
@@ -2187,13 +2200,8 @@ export default function InboxV2ClientPage({
               <PageHeader
                 icon={pageHeader.icon}
                 title={pageHeader.title}
-                center={activeId ? undefined : inboxSearchFilterNode}
-                actions={
-                  <>
-                    {activeId ? null : inboxPeriodNode}
-                    <PageTourButton tourId="inbox" />
-                  </>
-                }
+                center={activeId ? undefined : inboxSearchFilterWithPeriodNode}
+                actions={activeId ? <PageTourButton tourId="inbox" /> : undefined}
               />,
             )}
             {!activeId ? (
