@@ -11,6 +11,12 @@ import { SwitchGlass } from "@/components/crm/switch-glass";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { connectEmailAccount, testEmailConnection } from "../api/accounts";
 import type { ConnectEmailInput, EmailEncryption, EmailVisibility } from "../api/types";
+import {
+  CUSTOM_EMAIL_PROVIDER_ID,
+  applyEmailProviderPreset,
+  emailProviderOptions,
+  getEmailProviderPreset,
+} from "../providers";
 
 interface Props {
   open: boolean;
@@ -37,12 +43,17 @@ const DEFAULT_FORM: ConnectEmailInput = {
 export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
   const [step, setStep] = React.useState<Step>("email");
   const [form, setForm] = React.useState<ConnectEmailInput>(DEFAULT_FORM);
+  const [providerId, setProviderId] = React.useState("");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
+
+  const selectedPreset = getEmailProviderPreset(providerId);
+  const isCustom = providerId === CUSTOM_EMAIL_PROVIDER_ID;
 
   function resetAndClose() {
     setStep("email");
     setForm(DEFAULT_FORM);
+    setProviderId("");
     setErrors({});
     onOpenChange(false);
   }
@@ -52,9 +63,21 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
     if (errors[key]) setErrors((prev) => { const n = { ...prev }; delete n[key]; return n; });
   }
 
+  function handleProviderChange(id: string) {
+    setProviderId(id);
+    if (errors.provider) setErrors((prev) => { const n = { ...prev }; delete n.provider; return n; });
+    const preset = getEmailProviderPreset(id);
+    if (preset) setForm((prev) => applyEmailProviderPreset(prev, preset));
+  }
+
   function handleStep1Continue() {
+    const next: Record<string, string> = {};
+    if (!providerId) next.provider = "Selecione o provedor de e-mail.";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      setErrors({ email: "Insira um endereço de e-mail válido." });
+      next.email = "Insira um endereço de e-mail válido.";
+    }
+    if (Object.keys(next).length) {
+      setErrors(next);
       return;
     }
     setErrors({});
@@ -88,7 +111,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
         size="lg"
         icon={<IconMail size={20} />}
         title="Conecte seu endereço de e-mail"
-        description="Conecte uma conta de e-mail para enviar, receber e vincular mensagens automaticamente aos seus contatos no CRM."
+        description="Escolha o provedor e informe o e-mail. Os servidores IMAP/SMTP são preenchidos automaticamente."
         footer={
           <>
             <ButtonGlass variant="glass" onClick={resetAndClose}>Cancelar</ButtonGlass>
@@ -96,20 +119,31 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
           </>
         }
       >
-        <div>
-          <Label htmlFor="email-input">Endereço de e-mail</Label>
-          <InputGlass
-            id="email-input"
-            type="email"
-            placeholder="voce@empresa.com"
-            value={form.email}
-            onChange={(e) => setField("email", e.target.value)}
-            className="mt-1"
-            autoFocus
-          />
-          {errors.email && (
-            <p className="text-xs text-destructive mt-1">{errors.email}</p>
-          )}
+        <div className="flex flex-col gap-4">
+          <FieldRow label="Provedor" error={errors.provider}>
+            <DropdownGlass
+              value={providerId}
+              onValueChange={handleProviderChange}
+              placeholder="Selecione o provedor"
+              wrapLabels
+              options={emailProviderOptions()}
+            />
+          </FieldRow>
+          <div>
+            <Label htmlFor="email-input">Endereço de e-mail</Label>
+            <InputGlass
+              id="email-input"
+              type="email"
+              placeholder="voce@empresa.com"
+              value={form.email}
+              onChange={(e) => setField("email", e.target.value)}
+              className="mt-1"
+              autoFocus
+            />
+            {errors.email && (
+              <p className="text-xs text-destructive mt-1">{errors.email}</p>
+            )}
+          </div>
         </div>
       </FormDialog>
     );
@@ -150,65 +184,85 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                 />
               </FieldRow>
 
-              {/* IMAP */}
-              <div className="grid grid-cols-[1fr_100px_140px] gap-2">
-                <FieldRow label="Servidor IMAP" error={errors.imap_host}>
-                  <InputGlass
-                    placeholder="imap.gmail.com"
-                    value={form.imapHost}
-                    onChange={(e) => setField("imapHost", e.target.value)}
-                  />
-                </FieldRow>
-                <FieldRow label="Porta" error={errors.imap_port}>
-                  <InputGlass
-                    type="number"
-                    placeholder="993"
-                    value={form.imapPort}
-                    onChange={(e) => setField("imapPort", Number(e.target.value))}
-                  />
-                </FieldRow>
-                <FieldRow label="Criptografia">
-                  <DropdownGlass
-                    value={form.imapEncryption}
-                    onValueChange={(v) => setField("imapEncryption", v as EmailEncryption)}
-                    options={[
-                      { value: "SSL_TLS", label: "SSL/TLS" },
-                      { value: "STARTTLS", label: "STARTTLS" },
-                      { value: "NONE", label: "Nenhuma" },
-                    ]}
-                  />
-                </FieldRow>
-              </div>
+              {selectedPreset && !isCustom ? (
+                <div className="rounded-xl border border-border bg-card px-3 py-2.5">
+                  <p className="text-sm font-medium text-foreground">{selectedPreset.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    IMAP {selectedPreset.imapHost}:{selectedPreset.imapPort} {encryptionLabel(selectedPreset.imapEncryption)}
+                    {" · "}
+                    SMTP {selectedPreset.smtpHost}:{selectedPreset.smtpPort} {encryptionLabel(selectedPreset.smtpEncryption)}
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-1.5 text-xs font-semibold text-primary hover:underline"
+                    onClick={() => handleProviderChange(CUSTOM_EMAIL_PROVIDER_ID)}
+                  >
+                    Configurar servidores manualmente
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* IMAP */}
+                  <div className="grid grid-cols-[1fr_100px_140px] gap-2">
+                    <FieldRow label="Servidor IMAP" error={errors.imap_host}>
+                      <InputGlass
+                        placeholder="imap.gmail.com"
+                        value={form.imapHost}
+                        onChange={(e) => setField("imapHost", e.target.value)}
+                      />
+                    </FieldRow>
+                    <FieldRow label="Porta" error={errors.imap_port}>
+                      <InputGlass
+                        type="number"
+                        placeholder="993"
+                        value={form.imapPort}
+                        onChange={(e) => setField("imapPort", Number(e.target.value))}
+                      />
+                    </FieldRow>
+                    <FieldRow label="Criptografia">
+                      <DropdownGlass
+                        value={form.imapEncryption}
+                        onValueChange={(v) => setField("imapEncryption", v as EmailEncryption)}
+                        options={[
+                          { value: "SSL_TLS", label: "SSL/TLS" },
+                          { value: "STARTTLS", label: "STARTTLS" },
+                          { value: "NONE", label: "Nenhuma" },
+                        ]}
+                      />
+                    </FieldRow>
+                  </div>
 
-              {/* SMTP */}
-              <div className="grid grid-cols-[1fr_100px_140px] gap-2">
-                <FieldRow label="Servidor SMTP" error={errors.smtp_host}>
-                  <InputGlass
-                    placeholder="smtp.gmail.com"
-                    value={form.smtpHost}
-                    onChange={(e) => setField("smtpHost", e.target.value)}
-                  />
-                </FieldRow>
-                <FieldRow label="Porta" error={errors.smtp_port}>
-                  <InputGlass
-                    type="number"
-                    placeholder="587"
-                    value={form.smtpPort}
-                    onChange={(e) => setField("smtpPort", Number(e.target.value))}
-                  />
-                </FieldRow>
-                <FieldRow label="Criptografia">
-                  <DropdownGlass
-                    value={form.smtpEncryption}
-                    onValueChange={(v) => setField("smtpEncryption", v as EmailEncryption)}
-                    options={[
-                      { value: "STARTTLS", label: "STARTTLS" },
-                      { value: "SSL_TLS", label: "SSL/TLS" },
-                      { value: "NONE", label: "Nenhuma" },
-                    ]}
-                  />
-                </FieldRow>
-              </div>
+                  {/* SMTP */}
+                  <div className="grid grid-cols-[1fr_100px_140px] gap-2">
+                    <FieldRow label="Servidor SMTP" error={errors.smtp_host}>
+                      <InputGlass
+                        placeholder="smtp.gmail.com"
+                        value={form.smtpHost}
+                        onChange={(e) => setField("smtpHost", e.target.value)}
+                      />
+                    </FieldRow>
+                    <FieldRow label="Porta" error={errors.smtp_port}>
+                      <InputGlass
+                        type="number"
+                        placeholder="587"
+                        value={form.smtpPort}
+                        onChange={(e) => setField("smtpPort", Number(e.target.value))}
+                      />
+                    </FieldRow>
+                    <FieldRow label="Criptografia">
+                      <DropdownGlass
+                        value={form.smtpEncryption}
+                        onValueChange={(v) => setField("smtpEncryption", v as EmailEncryption)}
+                        options={[
+                          { value: "STARTTLS", label: "STARTTLS" },
+                          { value: "SSL_TLS", label: "SSL/TLS" },
+                          { value: "NONE", label: "Nenhuma" },
+                        ]}
+                      />
+                    </FieldRow>
+                  </div>
+                </>
+              )}
 
               {/* Visibilidade */}
               <FieldRow label="Visibilidade">
@@ -263,6 +317,12 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
       </>
     </FormDialog>
   );
+}
+
+function encryptionLabel(enc: EmailEncryption) {
+  if (enc === "SSL_TLS") return "SSL/TLS";
+  if (enc === "STARTTLS") return "STARTTLS";
+  return "Nenhuma";
 }
 
 function FieldRow({
