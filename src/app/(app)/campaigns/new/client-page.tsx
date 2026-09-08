@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -26,6 +26,7 @@ import {
   formLabelClass,
 } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   PageTourButton,
   registerCreateWizardBridge,
@@ -144,6 +145,7 @@ export default function NewCampaignClientPage() {
 
   const [sendRate, setSendRate] = useState(80);
   const [scheduledAt, setScheduledAt] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const channelsQuery = useChannels(isAuth);
   const segmentsQuery = useSegments(isAuth);
@@ -291,6 +293,25 @@ export default function NewCampaignClientPage() {
     });
   }
 
+  function handleNext() {
+    if (step === 1 && !name.trim()) {
+      toast.error("Informe o nome da campanha para continuar.");
+      nameInputRef.current?.focus();
+      nameInputRef.current?.scrollIntoView({ block: "center" });
+      return;
+    }
+    if (step === 1 && !useLastConversationChannel && !channelId) {
+      toast.error("Selecione um canal de envio.");
+      return;
+    }
+    if (step === 2 && audienceMode === "segment" && !segmentId) {
+      toast.error("Selecione um segmento.");
+      return;
+    }
+    if (!canAdvance()) return;
+    setStep((s) => (s + 1) as StepId);
+  }
+
   const stepMeta = STEPS[step - 1];
 
   return (
@@ -300,6 +321,7 @@ export default function NewCampaignClientPage() {
         if (!next) closeWizard();
       }}
       size="xl"
+      mobileFullScreen
       title="Nova campanha"
       description={`Passo ${step} de 3 · ${stepMeta.label}`}
       icon={
@@ -334,10 +356,9 @@ export default function NewCampaignClientPage() {
             <ButtonGlass
               type="button"
               variant="primary"
-              className={formDialogPrimaryClass}
-              disabled={!canAdvance()}
+              className={cn(formDialogPrimaryClass, "max-lg:w-full")}
               data-tour="campaign-create-next"
-              onClick={() => setStep((s) => (s + 1) as StepId)}
+              onClick={handleNext}
             >
               Continuar
             </ButtonGlass>
@@ -374,13 +395,13 @@ export default function NewCampaignClientPage() {
       {step === 1 ? (
         <div className="space-y-5">
           <div data-tour="campaign-create-name">
-            <span className={formLabelClass}>Nome da campanha</span>
+            <span className={formLabelClass}>Nome da campanha *</span>
             <InputGlass
+              ref={nameInputRef}
               className={formControlClass}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex.: Black Friday 2026"
-              autoFocus
             />
           </div>
 

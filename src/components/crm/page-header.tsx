@@ -52,7 +52,7 @@ export function PageChrome({
       {/* Acima do list-col-head sticky (z-30) — Filtrar/período sobrepõem a lista.
           Sem fundo próprio: o canvas `.v2-screen` já é `--bg-base`. Fundo aqui
           + zoom do `.v2-root` pintava um retângulo com hairline no header. */}
-      <div className="relative z-40 w-full shrink-0 bg-transparent">{header}</div>
+      <div className="relative z-40 w-full min-w-0 shrink-0 bg-transparent">{header}</div>
       <div
         data-page-scroll={page ? undefined : ""}
         className={cn(
@@ -119,7 +119,7 @@ export type PageHeaderBack = {
 
 /** Cluster de busca + ações — sempre à direita, wrap alinhado ao fim. */
 export const PAGE_HEADER_CONTROLS_CLASS =
-  "ml-auto flex min-w-0 w-max max-w-full flex-wrap items-center justify-end gap-2"
+  "ml-auto flex min-w-0 w-max max-w-full flex-wrap items-center justify-end gap-2 max-lg:w-full"
 
 /** Slot da pílula — largura canônica 32rem; `h-10` vem do input. */
 export const PAGE_HEADER_SEARCH_SLOT_CLASS =
@@ -214,7 +214,7 @@ export function PageHeader({
         <div className={PAGE_HEADER_CONTROLS_CLASS}>
           {center ? <div className={PAGE_HEADER_SEARCH_SLOT_CLASS}>{center}</div> : null}
           {actions ? (
-            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+            <div className="flex min-w-0 max-w-full items-center gap-2 max-lg:w-full">{actions}</div>
           ) : null}
         </div>
       ) : null}

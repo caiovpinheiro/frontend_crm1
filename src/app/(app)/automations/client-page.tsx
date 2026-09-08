@@ -362,11 +362,8 @@ export default function V2AutomationsClientPage() {
             />
           }
           actions={
-            <>
-              <div data-tour="automations-view" className="flex shrink-0">
-                <ViewToggle value={view} onChange={setView} />
-              </div>
-              <div data-tour="automations-section-switcher" className="flex shrink-0">
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+              <div data-tour="automations-section-switcher" className="shrink-0">
                 <HeaderPillToggle
                   options={[
                     { key: "automations", label: "Automações" },
@@ -378,7 +375,10 @@ export default function V2AutomationsClientPage() {
                   }}
                 />
               </div>
-            </>
+              <div data-tour="automations-view" className="shrink-0">
+                <ViewToggle value={view} onChange={setView} />
+              </div>
+            </div>
           }
           menuSlot={
             <div className="flex items-center gap-2">

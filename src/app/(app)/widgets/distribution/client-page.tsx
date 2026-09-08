@@ -353,7 +353,7 @@ export default function DistributionClientPage({
     !(!useDemo && respQuery.error);
 
   return (
-    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_1fr] gap-4 overflow-hidden p-4">
+    <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] gap-4 overflow-hidden p-4">
       {navRail ?? <NavRailSpacer />}
 
       <PageChrome
@@ -407,13 +407,13 @@ export default function DistributionClientPage({
           }
           actions={
             smartInstalled || view === "coverage" ? (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 w-full flex-nowrap items-center gap-2">
                 {view !== "coverage" && smartInstalled ? (
                   <div data-tour="distribution-view" className="flex shrink-0">
                     <ViewToggle value={listView} onChange={setListView} />
                   </div>
                 ) : null}
-                <div data-tour="distribution-tabs" className="flex shrink-0">
+                <div data-tour="distribution-tabs" className="min-w-0 w-0 flex-1">
                 <HeaderTabs
                   tabs={[
                     { key: "team", label: "Equipe", badge: teamListCount },
@@ -430,7 +430,7 @@ export default function DistributionClientPage({
                     type="button"
                     onClick={() => setShowAdmins((v) => !v)}
                     className={cn(
-                      "inline-flex size-8 cursor-pointer items-center justify-center rounded-full border transition-colors",
+                      "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
                       showAdmins
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border bg-card text-muted-foreground hover:text-foreground",

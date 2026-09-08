@@ -116,6 +116,8 @@ export interface FormDialogProps {
   className?: string;
   /** Conteúdo extra no header (ex.: botão de tour), à esquerda do X. */
   headerAccessory?: React.ReactNode;
+  /** No APK, o wizard ocupa a tela inteira (footer acessível). */
+  mobileFullScreen?: boolean;
   children: React.ReactNode;
 }
 
@@ -131,6 +133,7 @@ export function FormDialog({
   bodyClassName,
   className,
   headerAccessory,
+  mobileFullScreen = false,
   children,
 }: FormDialogProps) {
   const handleOpenChange = React.useCallback(
@@ -145,7 +148,13 @@ export function FormDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         size={SIZE_TO_DIALOG[size]}
-        panelClassName={cn("relative", className)}
+        className={mobileFullScreen ? "max-lg:open:p-0" : undefined}
+        panelClassName={cn(
+          "relative",
+          mobileFullScreen &&
+            "max-lg:h-[100dvh] max-lg:max-h-[100dvh] max-lg:rounded-none",
+          className,
+        )}
         bodyClassName="flex flex-col gap-0 overflow-hidden p-0"
       >
         <DialogHeader className="shrink-0 px-6 pb-1 pt-5 text-left">
@@ -181,7 +190,7 @@ export function FormDialog({
         </div>
 
         {footer ? (
-          <DialogFooter className="shrink-0 border-t border-border bg-card px-6 py-4 sm:flex-row sm:justify-end">
+          <DialogFooter className="z-20 shrink-0 border-t border-border bg-card px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end">
             {footer}
           </DialogFooter>
         ) : null}
