@@ -59,7 +59,7 @@ export function InboxSearchResultsPanel({
   activeIndex: number;
   onActiveIndexChange: (index: number) => void;
   onPickContact: (contact: ContactListItemDto) => void;
-  onPickDeal: (id: string) => void;
+  onPickDeal: (deal: DealListItemDto) => void;
   onSeeAll?: () => void;
 }) {
   const empty = !loading && contacts.length === 0 && deals.length === 0;
@@ -106,7 +106,7 @@ export function InboxSearchResultsPanel({
                 deal={deal}
                 active={index === activeIndex}
                 onHover={() => onActiveIndexChange(index)}
-                onClick={() => onPickDeal(deal.id)}
+                onClick={() => onPickDeal(deal)}
               />
             );
           })}
@@ -163,6 +163,8 @@ function DealHit({
   onClick: () => void;
 }) {
   const name = sanitizeContactName(deal.contact?.name) || deal.title || "Negócio";
+  const phone =
+    formatPhoneDisplay(deal.contact?.phone) || deal.contact?.phone?.trim() || null;
   const stage = deal.stage?.name?.trim() || null;
 
   return (
@@ -174,18 +176,18 @@ function DealHit({
         overlay={<IconBriefcase size={10} />}
       />
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
-            {name}
-          </span>
-          {deal.number != null && (
-            <span className="shrink-0 font-body text-[12px] tabular-nums text-[var(--text-muted)]">
-              #{deal.number}
-            </span>
-          )}
+        <span className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
+          {name}
         </span>
-        <span className="mt-0.5 truncate font-body text-[12px] text-[var(--text-secondary)]">
-          {stage ? `Etapa ${stage}` : deal.title}
+        <span className="mt-0.5 flex items-center gap-1.5 font-body text-[12px] text-[var(--text-secondary)]">
+          {phone ? (
+            <>
+              <IconPhone size={12} className="shrink-0 text-[var(--text-muted)]" />
+              <span className="truncate">{phone}</span>
+            </>
+          ) : (
+            <span className="truncate">{stage ? `Etapa ${stage}` : deal.title}</span>
+          )}
         </span>
       </span>
       <OmnisearchStatusPill tone={deal.status === "LOST" ? "danger" : "success"}>

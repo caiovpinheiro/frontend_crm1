@@ -57,6 +57,7 @@ import {
 } from "@/features/inbox-v2/api";
 import { normalizeInboxFilters } from "@/features/inbox-v2/api/types";
 import type { ContactListItemDto } from "@/features/directory-v2/api";
+import type { DealListItemDto } from "@/features/pipeline-v2/api/list";
 import { formatConnectionPhone } from "@/lib/connection-label";
 import { SOURCE_NONE } from "@/components/pipeline/kanban-filters/types";
 import { useContactSources } from "@/hooks/use-contact-sources";
@@ -82,7 +83,6 @@ interface InboxSearchFilterBarProps {
   placeholder?: string;
   className?: string;
   onPickConversation?: (row: ConversationListRow) => void;
-  onPickDeal?: (id: string) => void;
   /** Calendário na mesma linha da pílula (mobile APK). */
   period?: React.ReactNode;
   /** Tour (?) ao lado do calendário. */
@@ -582,7 +582,6 @@ export function InboxSearchFilterBar({
   placeholder = "Pesquisar e filtrar...",
   className,
   onPickConversation,
-  onPickDeal,
   period,
   trailing,
 }: InboxSearchFilterBarProps) {
@@ -611,17 +610,31 @@ export function InboxSearchFilterBar({
     }
   }
 
-  function pickDeal(id: string) {
-    onPickDeal?.(id);
-    onSearch("");
-    menu.close();
+  async function pickDeal(deal: DealListItemDto) {
+    const contactId = deal.contactId || deal.contact?.id;
+    if (!contactId) {
+      toast.error("Negócio sem contato para abrir a conversa.");
+      return;
+    }
+    try {
+      const row = await findCurrentInboxConversationForContact(contactId);
+      if (!row) {
+        toast.error("Nenhuma conversa encontrada para este negócio.");
+        return;
+      }
+      onPickConversation?.(row);
+      onSearch("");
+      menu.close();
+    } catch {
+      toast.error("Não foi possível abrir a conversa.");
+    }
   }
 
   function pickActiveHit() {
     const hit = flatHits[menu.activeIndex] ?? flatHits[0];
     if (!hit) return;
     if (hit.kind === "contact") void pickContact(hit.contact);
-    else pickDeal(hit.deal.id);
+    else void pickDeal(hit.deal);
   }
 
   const rowEnd = Boolean(period || trailing)
@@ -664,7 +677,7 @@ export function InboxSearchFilterBar({
           activeIndex={menu.activeIndex}
           onActiveIndexChange={menu.setActiveIndex}
           onPickContact={pickContact}
-          onPickDeal={pickDeal}
+          onPickDeal={(deal) => void pickDeal(deal)}
           onSeeAll={menu.close}
         />
       )}

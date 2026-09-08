@@ -13,7 +13,7 @@ import { fetchDealsList, type DealListItemDto } from "@/features/pipeline-v2/api
 import { listConversations, type ConversationListRow } from "../api";
 
 const RESULT_LIMIT = 8;
-/** Só no fallback: tickets extras pra colapsar 1 contato. */
+/** Tickets/negócios extras pra colapsar 1 hit por pessoa. */
 const FETCH_LIMIT = 80;
 
 function isOpenTicket(row: ConversationListRow) {
@@ -38,11 +38,16 @@ function preferSearchTicket(
   return ticketRecency(b) > ticketRecency(a) ? b : a;
 }
 
-function contactGroupKey(row: ConversationListRow) {
-  if (row.contact?.id) return `id:${row.contact.id}`;
-  const digits = phoneDigits(row.contact?.phone);
+/** Telefone primeiro: tickets/contatos duplicados do mesmo número viram um hit. */
+function identityKey(id?: string | null, phone?: string | null) {
+  const digits = phoneDigits(phone);
   if (digits.length >= 8) return `tel:${digits.slice(-11)}`;
-  return `ticket:${row.id}`;
+  if (id) return `id:${id}`;
+  return null;
+}
+
+function contactGroupKey(row: ConversationListRow) {
+  return identityKey(row.contact?.id, row.contact?.phone) ?? `ticket:${row.id}`;
 }
 
 /** Um hit por contato: ticket OPEN, senão o mais recente. */
@@ -63,6 +68,67 @@ export function collapseConversationsByContact(
       return ticketRecency(b) - ticketRecency(a);
     })
     .slice(0, limit);
+}
+
+function isOpenDeal(deal: DealListItemDto) {
+  return deal.status === "OPEN";
+}
+
+function dealRecency(deal: DealListItemDto) {
+  return Date.parse(deal.updatedAt ?? deal.createdAt ?? "") || 0;
+}
+
+function preferSearchDeal(a: DealListItemDto, b: DealListItemDto): DealListItemDto {
+  const aOpen = isOpenDeal(a);
+  const bOpen = isOpenDeal(b);
+  if (aOpen !== bOpen) return aOpen ? a : b;
+  return dealRecency(b) > dealRecency(a) ? b : a;
+}
+
+function dealGroupKey(deal: DealListItemDto) {
+  return (
+    identityKey(deal.contactId ?? deal.contact?.id, deal.contact?.phone) ??
+    `deal:${deal.id}`
+  );
+}
+
+/** Um negócio por pessoa (aberto primeiro). */
+export function collapseDealsByContact(
+  deals: DealListItemDto[],
+  limit = RESULT_LIMIT,
+): DealListItemDto[] {
+  const byContact = new Map<string, DealListItemDto>();
+  for (const deal of deals) {
+    const key = dealGroupKey(deal);
+    const prev = byContact.get(key);
+    byContact.set(key, prev ? preferSearchDeal(prev, deal) : deal);
+  }
+  return [...byContact.values()]
+    .sort((a, b) => {
+      const openDelta = Number(isOpenDeal(b)) - Number(isOpenDeal(a));
+      if (openDelta !== 0) return openDelta;
+      return dealRecency(b) - dealRecency(a);
+    })
+    .slice(0, limit);
+}
+
+function collapseContactsByIdentity(
+  contacts: ContactListItemDto[],
+  limit = RESULT_LIMIT,
+): ContactListItemDto[] {
+  const byKey = new Map<string, ContactListItemDto>();
+  for (const contact of contacts) {
+    const key = identityKey(contact.id, contact.phone) ?? `id:${contact.id}`;
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, contact);
+      continue;
+    }
+    const prevTs = Date.parse(prev.updatedAt ?? "") || 0;
+    const nextTs = Date.parse(contact.updatedAt ?? "") || 0;
+    byKey.set(key, nextTs >= prevTs ? contact : prev);
+  }
+  return [...byKey.values()].slice(0, limit);
 }
 
 function contactFromTicket(row: ConversationListRow): ContactListItemDto {
@@ -98,7 +164,7 @@ export function useInboxOmnisearch(search: string, enabled = true) {
 
   const contacts = useQuery({
     queryKey: ["inbox-omnisearch", "contacts", query],
-    queryFn: () => fetchContacts({ search: query, page: 1, perPage: RESULT_LIMIT }),
+    queryFn: () => fetchContacts({ search: query, page: 1, perPage: FETCH_LIMIT }),
     enabled: ready,
     staleTime: 15_000,
     retry: false,
@@ -123,19 +189,28 @@ export function useInboxOmnisearch(search: string, enabled = true) {
 
   const deals = useQuery({
     queryKey: ["inbox-omnisearch", "deals", query],
-    queryFn: () => fetchDealsList({ search: query, page: 1, perPage: RESULT_LIMIT }),
+    queryFn: () => fetchDealsList({ search: query, page: 1, perPage: FETCH_LIMIT }),
     enabled: ready,
     staleTime: 15_000,
   });
 
   const contactItems: ContactListItemDto[] =
     (contacts.data?.items?.length ?? 0) > 0
-      ? (contacts.data?.items ?? [])
+      ? collapseContactsByIdentity(contacts.data?.items ?? [])
       : collapseConversationsByContact(
           (conversationFallback.data?.items ?? []).filter(Boolean),
         ).map(contactFromTicket);
 
-  const dealItems: DealListItemDto[] = deals.data?.items ?? [];
+  const contactKeys = new Set(
+    contactItems.map((c) => identityKey(c.id, c.phone) ?? `id:${c.id}`),
+  );
+
+  const dealItems: DealListItemDto[] = collapseDealsByContact(
+    deals.data?.items ?? [],
+  ).filter((deal) => {
+    const key = dealGroupKey(deal);
+    return !contactKeys.has(key);
+  });
 
   return {
     query,
