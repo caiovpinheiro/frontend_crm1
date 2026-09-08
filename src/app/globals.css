@@ -223,6 +223,9 @@
   --shadow-indigo-glow: 0 6px 20px -4px rgba(91, 111, 245, 0.35);
   --shadow-lavender-glow: 0 6px 20px -4px rgba(167, 139, 250, 0.30);
   --shadow-green-glow: 0 6px 20px -6px rgba(16, 185, 129, 0.30);
+
+  /* Dropdown / popover: fade + scale 0.96→1 */
+  --animate-pop-in: pop-in 160ms ease-out;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1484,12 +1487,21 @@
   animation: soft-pulse 2s infinite ease-in-out;
 }
 
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in {
+  animation: pop-in 160ms ease-out both;
+}
+
 /* ══════════════════════════════════════════════════════════════════
    Fluxo de atendimento — tokens do editor visual (React Flow)
    ══════════════════════════════════════════════════════════════════ */
 :root {
   --brand: oklch(0.52 0.21 277);
   --brand-foreground: oklch(0.985 0 0);
+  --accent-violet: oklch(0.58 0.2 300);
 
   --route-navigation: oklch(0.6 0.13 233);
   --route-response: oklch(0.62 0.16 150);
@@ -1532,4 +1544,5 @@
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-accent-violet: var(--accent-violet);
 }
