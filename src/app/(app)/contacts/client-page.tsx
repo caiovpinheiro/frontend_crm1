@@ -1471,7 +1471,7 @@ function CardsView({
       className={LIST_PAGE_STACK_CLASS}
       style={{ gridTemplateColumns: gridTemplate }}
     >
-      {items.map((c) => {
+      {items.map((c, i) => {
         const isSelected = selected.has(c.id);
         return (
           <DataRow
