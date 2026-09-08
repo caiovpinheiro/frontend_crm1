@@ -119,7 +119,7 @@ export type PageHeaderBack = {
 
 /** Cluster de busca + ações — sempre à direita, wrap alinhado ao fim. */
 export const PAGE_HEADER_CONTROLS_CLASS =
-  "ml-auto flex min-w-0 w-max max-w-full flex-wrap items-center justify-end gap-2 max-lg:w-full"
+  "ml-auto flex min-w-0 w-max max-w-full flex-wrap items-center justify-end gap-2"
 
 /** Slot da pílula — largura canônica 32rem; `h-10` vem do input. */
 export const PAGE_HEADER_SEARCH_SLOT_CLASS =
@@ -214,7 +214,7 @@ export function PageHeader({
         <div className={PAGE_HEADER_CONTROLS_CLASS}>
           {center ? <div className={PAGE_HEADER_SEARCH_SLOT_CLASS}>{center}</div> : null}
           {actions ? (
-            <div className="flex min-w-0 max-w-full items-center gap-2 max-lg:w-full">{actions}</div>
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
           ) : null}
         </div>
       ) : null}

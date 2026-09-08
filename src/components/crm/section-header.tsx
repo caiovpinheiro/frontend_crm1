@@ -93,9 +93,9 @@ export function SectionHeader({
   const actionsNode =
     period || actions || menuNode ? (
       <>
-        {period ? <div className="shrink-0">{period}</div> : null}
-        {actions ? <div className="min-w-0 w-0 flex-1">{actions}</div> : null}
-        {menuNode ? <div className="shrink-0">{menuNode}</div> : null}
+        {period}
+        {actions}
+        {menuNode}
       </>
     ) : undefined
 
