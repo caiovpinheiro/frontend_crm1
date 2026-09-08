@@ -3536,7 +3536,10 @@ function GlassSwitch({
 function DistributionEnabledToggle() {
   const settingsQuery = useDistributionSettings();
   const updateSettings = useUpdateDistributionSettings();
-  const enabled = settingsQuery.data?.enabled ?? true;
+  const pendingEnabled = updateSettings.isPending
+    ? updateSettings.variables?.enabled
+    : undefined;
+  const enabled = pendingEnabled ?? settingsQuery.data?.enabled ?? true;
 
   return (
     <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>

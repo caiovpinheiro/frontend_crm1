@@ -229,15 +229,27 @@ export function fetchDistributionSettings(): Promise<DistributionSettings> {
 }
 
 /** Atualização parcial: envie só as chaves que quer alterar. */
-export function updateDistributionSettings(
+export async function updateDistributionSettings(
   input: Partial<DistributionSettings>,
 ): Promise<DistributionSettings> {
-  return sendJson<DistributionSettings>(
+  const raw = await sendJson<Partial<DistributionSettings> | undefined>(
     "/api/distribution/settings",
     "PUT",
     input,
     "Erro ao salvar configurações de distribuição.",
   );
+  // Backend antigo devolve o objeto SEM `enabled` e ignora a chave em silêncio.
+  // Sem esta checagem o botão diz "desligada" e o motor continua rodando.
+  if (input.enabled !== undefined && typeof raw?.enabled !== "boolean") {
+    throw new Error(
+      "Backend ainda não suporta ligar/desligar a distribuição. Atualize a API.",
+    );
+  }
+  return {
+    respectDepartment: Boolean(raw?.respectDepartment),
+    autoOnInbound: raw?.autoOnInbound !== false,
+    enabled: raw?.enabled !== false,
+  };
 }
 
 export interface DistributionLog {
