@@ -82,6 +82,7 @@ export interface EvaluatedResponsibleSummary {
 export type DistributionReason =
   | "ASSIGNED"
   | "SMART_DISTRIBUTION_NOT_ENABLED"
+  | "DISTRIBUTION_DISABLED"
   | "NO_ELIGIBLE_RESPONSIBLE"
   | "NO_DEPARTMENT"
   | "RETIRED_WHATSAPP_CHANNEL"

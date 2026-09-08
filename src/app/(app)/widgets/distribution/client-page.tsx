@@ -528,7 +528,10 @@ export default function DistributionClientPage({
               </section>
 
               {canManage && !useDemo && view === "team" && (
-                <AutoOnInboundToggle showTour />
+                <>
+                  <DistributionEnabledToggle />
+                  <AutoOnInboundToggle showTour />
+                </>
               )}
 
               {simResult && (
@@ -3588,6 +3591,47 @@ function GlassSwitch({
         )}
       />
     </button>
+  );
+}
+
+/** Liga/desliga o motor de verdade (inbound, drenagem, automação, IA). */
+function DistributionEnabledToggle() {
+  const settingsQuery = useDistributionSettings();
+  const updateSettings = useUpdateDistributionSettings();
+  const enabled = settingsQuery.data?.enabled ?? true;
+
+  return (
+    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
+      <div className="min-w-0">
+        <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
+          Distribuição {enabled ? "ligada" : "desligada"}
+        </p>
+        <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
+          {enabled
+            ? "Ligado: o motor atribui consultor nas conversas novas e drena a fila de espera."
+            : "Desligado: ninguém é atribuído automaticamente. Clique de novo para religar."}
+        </p>
+      </div>
+      <GlassSwitch
+        checked={enabled}
+        disabled={updateSettings.isPending || settingsQuery.isLoading}
+        onClick={() => {
+          updateSettings.mutate(
+            { enabled: !enabled },
+            {
+              onSuccess: (data) =>
+                toast.success(
+                  data.enabled ? "Distribuição ligada." : "Distribuição desligada.",
+                ),
+              onError: (e) =>
+                toast.error(
+                  e instanceof Error ? e.message : "Erro ao salvar configuração.",
+                ),
+            },
+          );
+        }}
+      />
+    </div>
   );
 }
 
