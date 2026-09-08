@@ -56,7 +56,7 @@ export function SimpleEditor({
   onChange: (next: AgentSettingsValues) => void;
 }) {
   const askReason = hasCancelReasonRule(form.systemPromptOverride);
-  const leftoverKeywords = form.piloting.keywordHandoffs.filter((k) =>
+  const leftoverKeywords = (form.piloting.keywordHandoffs ?? []).filter((k) =>
     INSTANT_HANDOFF_WORDS.some((w) =>
       k
         .normalize("NFD")
