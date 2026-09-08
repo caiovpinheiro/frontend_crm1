@@ -23,7 +23,13 @@ import { startPageTour } from "./start-tour";
  * Gatilho discreto de ajuda no header. Não inicia o tour sozinho:
  * o Driver.js só roda depois de "Fazer tour desta página".
  */
-export function PageTourButton({ tourId }: { tourId: string }) {
+export function PageTourButton({
+  tourId,
+  size = "md",
+}: {
+  tourId: string;
+  size?: "sm" | "md";
+}) {
   const [open, setOpen] = useState(false);
 
   if (!hasTour(tourId)) return null;
@@ -33,7 +39,8 @@ export function PageTourButton({ tourId }: { tourId: string }) {
       <DropdownMenuTrigger
         aria-label="Ajuda desta página"
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "flex shrink-0 items-center justify-center rounded-full border transition-colors",
+          size === "sm" ? "size-8" : "size-10",
           open
             ? "border-primary bg-primary text-primary-foreground"
             : "border-border bg-card text-muted-foreground hover:text-foreground",
