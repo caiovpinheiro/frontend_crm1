@@ -8,10 +8,6 @@ import * as React from "react";
 
 import { AgentSettingsDialog } from "@/components/agent-settings/agent-settings-dialog";
 import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
-import {
   PREVIEW_AGENT_ROW,
   isPreviewAgentId,
 } from "@/components/agent-settings/types";
@@ -136,6 +132,24 @@ export default function AIAgentsPage({
     if (ok) deleteMutation.mutate(id);
   };
 
+  if (editingId) {
+    return (
+      <div className="w-full min-w-0">
+        <AgentSettingsDialog
+          id={editingId}
+          onOpenChange={(v) => {
+            if (!v) setEditingId(null);
+          }}
+          onSaved={() => {
+            setEditingId(null);
+            queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+          }}
+        />
+        {dialog}
+      </div>
+    );
+  }
+
   const newAgentButton = (
     <Button
       onClick={() => setCreating(true)}
@@ -238,30 +252,6 @@ export default function AIAgentsPage({
           </div>
         </div>
       )}
-
-      <Dialog
-        open={editingId !== null}
-        onOpenChange={(v) => {
-          if (!v) setEditingId(null);
-        }}
-      >
-        <DialogContent
-          size="2xl"
-          bodyClassName="p-0 gap-0"
-          panelClassName="max-h-[min(90dvh,52rem)]"
-        >
-          <AgentSettingsDialog
-            id={editingId}
-            onOpenChange={(v) => {
-              if (!v) setEditingId(null);
-            }}
-            onSaved={() => {
-              setEditingId(null);
-              queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
-            }}
-          />
-        </DialogContent>
-      </Dialog>
 
       <AgentWizard
         open={creating}

@@ -123,6 +123,14 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
 
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => setMounted(true), []);
+    // Clique que abre o modal ainda está no ar: o `<dialog>` vira top-layer
+    // e o mesmo pointerup/click cai no backdrop → abre e fecha. Ignora
+    // dismiss nesse intervalo.
+    const ignoreDismissUntil = React.useRef(0);
+    const shouldIgnoreDismiss = React.useCallback(
+      () => Date.now() < ignoreDismissUntil.current,
+      [],
+    );
 
     // Reexecuta quando `mounted` fica true — o portal só existe após isso.
     React.useEffect(() => {
@@ -130,7 +138,10 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
       const el = internalRef.current;
       if (!el) return;
       if (open) {
-        if (!el.open) el.showModal();
+        if (!el.open) {
+          ignoreDismissUntil.current = Date.now() + 400;
+          el.showModal();
+        }
       } else if (el.open) {
         el.close();
       }
@@ -139,13 +150,21 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
     React.useEffect(() => {
       const el = internalRef.current;
       if (!el) return;
-      const onClose = () => onOpenChange?.(false);
+      const onClose = () => {
+        if (shouldIgnoreDismiss()) {
+          if (!el.open) el.showModal();
+          return;
+        }
+        onOpenChange?.(false);
+      };
       el.addEventListener("close", onClose);
       return () => el.removeEventListener("close", onClose);
-    }, [onOpenChange]);
+    }, [onOpenChange, shouldIgnoreDismiss]);
 
     const onDialogClick = (e: React.MouseEvent<HTMLDialogElement>) => {
-      if (e.target === internalRef.current) onOpenChange?.(false);
+      if (e.target !== internalRef.current) return;
+      if (shouldIgnoreDismiss()) return;
+      onOpenChange?.(false);
     };
 
     // Fechado: some do DOM. Um `<dialog>` invisível com `fixed inset-0 z-50`
@@ -170,6 +189,7 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
         onClick={onDialogClick}
         onCancel={(e) => {
           e.preventDefault();
+          if (shouldIgnoreDismiss()) return;
           onOpenChange?.(false);
         }}
         {...props}
