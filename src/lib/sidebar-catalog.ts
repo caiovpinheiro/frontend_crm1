@@ -4,6 +4,7 @@ import {
   ClipboardList,
   Kanban,
   LayoutGrid,
+  Lightbulb,
   ListChecks,
   Mail,
   MessageCircle,
@@ -118,6 +119,15 @@ export const SIDEBAR_CATALOG: readonly SidebarCatalogItem[] = [
     description: "Chat interno do time — diretas e canais.",
     locked: false,
     requiredPermission: "nav:team-chat",
+  },
+  {
+    key: "bwipo-keeps",
+    title: "Bwipo Keeps",
+    href: "/bwipo-keeps",
+    icon: Lightbulb,
+    description: "Notas pessoais, listas e anexos.",
+    locked: false,
+    requiredPermission: "nav:bwipo-keeps",
   },
   {
     key: "activities",

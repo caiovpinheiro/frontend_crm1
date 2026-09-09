@@ -40,19 +40,18 @@ import {
   IconX,
   IconLock,
   IconChevronDown,
+  IconBulb,
 } from "@tabler/icons-react"
 
-export type ChatTabId = "conversa" | "notas" | "atividades" | "timeline" | "chamadas"
+export type ChatTabId = "conversa" | "notas" | "atividades" | "timeline" | "chamadas" | "keeps"
 
 const CHAT_TABS: { id: ChatTabId; label: string; icon: React.ComponentType<{ size?: number; stroke?: number }> }[] = [
   { id: "conversa", label: "Conversa", icon: IconMessageCircle },
   { id: "atividades", label: "Tarefas", icon: IconChecklist },
   { id: "notas", label: "Notas", icon: IconNote },
   { id: "timeline", label: "Timeline", icon: IconClock },
-  // IB8: nova aba "Chamadas" no topo do inbox, espelhando a aba
-  // homonima do DealDetailPanel para padronizar acesso aos logs de
-  // telefonia entre os dois paineis.
   { id: "chamadas", label: "Chamadas", icon: IconPhone },
+  { id: "keeps", label: "keeps", icon: IconBulb },
 ]
 
 /**
@@ -133,6 +132,7 @@ interface ChatAreaProps {
   /** IB8: conteudo da aba "Chamadas" (logs de telefonia). Quando ausente,
    *  a aba "Chamadas" nao aparece. */
   callsSlot?: React.ReactNode
+  keepsSlot?: React.ReactNode
   /** Contagens opcionais exibidas como badge em cada aba. */
   tabCounts?: Partial<Record<ChatTabId, number>>
 
@@ -227,6 +227,7 @@ export function ChatArea({
   activitiesSlot,
   timelineSlot,
   callsSlot,
+  keepsSlot,
   tabCounts,
   onReplyMessage,
   onForwardMessage,
@@ -283,7 +284,7 @@ export function ChatArea({
   // Abas opt-in: so aparecem quando ha conteudo para pelo menos uma aba
   // alem de "Conversa".
   const tabsEnabled = Boolean(
-    notesSlot || activitiesSlot || timelineSlot || callsSlot,
+    notesSlot || activitiesSlot || timelineSlot || callsSlot || keepsSlot,
   )
   const [activeTab, setActiveTab] = useState<ChatTabId>("conversa")
 
@@ -680,6 +681,7 @@ export function ChatArea({
                   atividades: !activitiesSlot,
                   timeline: !timelineSlot,
                   chamadas: !callsSlot,
+                  keeps: !keepsSlot,
                 }}
               />
             </div>
@@ -741,7 +743,9 @@ export function ChatArea({
               ? activitiesSlot
               : activeTab === "chamadas"
                 ? callsSlot
-                : timelineSlot}
+                : activeTab === "keeps"
+                  ? keepsSlot
+                  : timelineSlot}
         </div>
       ) : (
         <>

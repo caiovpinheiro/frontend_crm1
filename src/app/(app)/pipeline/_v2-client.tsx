@@ -45,6 +45,7 @@ import { DealCard } from "@/components/crm/deal-card";
 import { ScrollMap } from "@/components/crm/scroll-map";
 import { ScrollMapVertical } from "@/components/crm/scroll-map-vertical";
 import { DealDetailPanel, type DealDetail } from "@/components/crm/deal-detail-panel";
+import { KeepPeekPanel } from "@/features/keeps/keep-peek-panel";
 import { pickTrackedAttribution } from "@/components/crm/tracked-info-section";
 import { DealProductsSection, DealQuotasSection } from "@/components/pipeline/deal-detail/sidebar";
 import { CallHistoryList } from "@/features/softphone/components/call-history-list";
@@ -1397,8 +1398,9 @@ export default function KanbanV2ClientPage({
         }
         conversationDepartmentId={dealConversationDepartmentId}
         conversationRequiresTabulation={dealConversationRequiresTabulation}
-        tabContentOverride={
-          activeDealId
+        tabContentOverride={{
+          keeps: <KeepPeekPanel />,
+          ...(activeDealId
             ? {
                 notas: (
                   <DealNotesTab
@@ -1429,8 +1431,8 @@ export default function KanbanV2ClientPage({
                   </div>
                 ),
               }
-            : undefined
-        }
+            : {}),
+        }}
         productsSlot={
           activeDealId ? (
             <div className="flex flex-col gap-3">
