@@ -48,6 +48,16 @@ export function RelayFormDialog({ open, onOpenChange, settings, onSave }: Props)
     setError(null);
   }, [open, settings]);
 
+  /* Convenção de porta → criptografia (mesma regra das contas de e-mail):
+     * 465 = TLS implícito; 25/587/2525/8025 = STARTTLS. Só sugere na troca
+     * de porta — o usuário ainda pode virar o toggle manualmente depois. */
+  function handlePortChange(value: string) {
+    setPort(value);
+    const n = Number(value);
+    if (n === 465) setSecure(true);
+    else if ([25, 587, 2525, 8025].includes(n)) setSecure(false);
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -127,7 +137,7 @@ export function RelayFormDialog({ open, onOpenChange, settings, onSave }: Props)
             <InputGlass
               className={formControlClass}
               value={port}
-              onChange={(e) => setPort(e.target.value)}
+              onChange={(e) => handlePortChange(e.target.value)}
               inputMode="numeric"
               placeholder="587"
             />
