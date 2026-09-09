@@ -44,6 +44,7 @@ export function FilterColumnsModal({
   children: ReactNode
 }) {
   const hScrollRef = useRef<HTMLDivElement>(null)
+  const hInnerRef = useRef<HTMLDivElement>(null)
   const [hMetrics, setHMetrics] = useState({
     overflow: false,
     atStart: true,
@@ -55,7 +56,7 @@ export function FilterColumnsModal({
     if (!el) return
     const max = Math.max(0, el.scrollWidth - el.clientWidth)
     setHMetrics({
-      overflow: max > 1,
+      overflow: max > 4,
       atStart: el.scrollLeft <= 1,
       atEnd: el.scrollLeft >= max - 1,
     })
@@ -65,6 +66,14 @@ export function FilterColumnsModal({
     if (!open) return
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose()
+      if (e.key === "ArrowLeft") {
+        e.preventDefault()
+        scrollColumns(-1)
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault()
+        scrollColumns(1)
+      }
     }
     document.addEventListener("keydown", onKey)
     const prev = document.body.style.overflow
@@ -76,7 +85,6 @@ export function FilterColumnsModal({
   }, [open, onClose])
 
   const columnCount = Children.toArray(children).filter(Boolean).length
-  const wide = columnCount > 4
 
   useLayoutEffect(() => {
     if (!open) return
@@ -100,18 +108,19 @@ export function FilterColumnsModal({
   }, [open])
 
   useLayoutEffect(() => {
-    if (!open || !wide) return
+    if (!open) return
     const el = hScrollRef.current
     if (!el) return
     syncHScroll()
     el.addEventListener("scroll", syncHScroll, { passive: true })
     const ro = new ResizeObserver(syncHScroll)
     ro.observe(el)
+    if (hInnerRef.current) ro.observe(hInnerRef.current)
     return () => {
       el.removeEventListener("scroll", syncHScroll)
       ro.disconnect()
     }
-  }, [open, wide, columnCount, children, syncHScroll])
+  }, [open, columnCount, children, syncHScroll])
 
   function scrollColumns(dir: -1 | 1) {
     const el = hScrollRef.current
@@ -129,7 +138,7 @@ export function FilterColumnsModal({
       : `${count} ${count === 1 ? "filtro selecionado" : "filtros selecionados"}`
 
   return createPortal(
-    <div className="fixed inset-0 z-(--z-popover) flex items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-(--z-popover) flex items-center justify-center overflow-hidden p-0 sm:p-4">
       <div
         className="absolute inset-0 bg-background/75 backdrop-blur-[2px]"
         onMouseDown={onClose}
@@ -139,12 +148,7 @@ export function FilterColumnsModal({
         role="dialog"
         aria-modal="true"
         aria-label={labelledBy ?? title}
-        className={cn(
-          "relative flex max-h-[min(84vh,720px)] flex-col overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
-          wide
-            ? "w-full max-w-6xl"
-            : "w-max max-w-[min(96vw,72rem)]",
-        )}
+        className="relative flex max-h-[min(84vh,720px)] w-max min-w-0 max-w-[min(96vw,72rem)] flex-col overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg"
       >
         <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
           <div className="min-w-0 space-y-0.5">
@@ -173,58 +177,37 @@ export function FilterColumnsModal({
           </div>
         </header>
 
-        <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
             ref={hScrollRef}
-            className={cn(
-              "filter-columns-hscroll min-h-0 overflow-y-hidden overscroll-x-contain",
-              wide ? "h-full overflow-x-auto" : "overflow-x-hidden",
-            )}
+            className="filter-columns-hscroll h-full min-h-0 w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
           >
             <div
-              className={cn(
-                "flex w-max flex-nowrap",
-                wide
-                  ? "h-full min-h-0 items-stretch [&_section]:h-full [&_section]:max-h-none"
-                  : "items-start",
-              )}
+              ref={hInnerRef}
+              className="flex h-full min-h-0 w-max flex-nowrap items-stretch [&_section]:h-full [&_section]:max-h-none"
             >
               {children}
             </div>
           </div>
-          {wide && hMetrics.overflow && !hMetrics.atStart ? (
+          {hMetrics.overflow && !hMetrics.atStart ? (
             <button
               type="button"
               onClick={() => scrollColumns(-1)}
               aria-label="Categorias anteriores"
-              className={cn(
-                "group absolute inset-y-0 left-0 z-10 flex w-16 cursor-pointer items-center justify-start border-0 bg-transparent",
-                "opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100",
-              )}
+              className="absolute inset-y-0 left-0 z-10 flex w-14 items-center justify-start border-0 bg-gradient-to-r from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_80%,transparent)] to-transparent"
             >
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_72%,transparent)] to-transparent shadow-[inset_18px_0_22px_-10px_color-mix(in_srgb,var(--foreground)_22%,transparent)]"
-              />
               <span className="relative z-10 ml-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
                 <ChevronLeft className="size-4" />
               </span>
             </button>
           ) : null}
-          {wide && hMetrics.overflow && !hMetrics.atEnd ? (
+          {hMetrics.overflow && !hMetrics.atEnd ? (
             <button
               type="button"
               onClick={() => scrollColumns(1)}
               aria-label="Próximas categorias"
-              className={cn(
-                "group absolute inset-y-0 right-0 z-10 flex w-16 cursor-pointer items-center justify-end border-0 bg-transparent",
-                "opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100",
-              )}
+              className="absolute inset-y-0 right-0 z-10 flex w-14 items-center justify-end border-0 bg-gradient-to-l from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_80%,transparent)] to-transparent"
             >
-              <span
-                aria-hidden
-                className="pointer-events-none absolute inset-0 bg-gradient-to-l from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_72%,transparent)] to-transparent shadow-[inset_-18px_0_22px_-10px_color-mix(in_srgb,var(--foreground)_22%,transparent)]"
-              />
               <span className="relative z-10 mr-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
                 <ChevronRight className="size-4" />
               </span>
