@@ -12,6 +12,7 @@ import {
   IconPlus as Plus,
   IconRefresh as RefreshCcw,
   IconTrash as Trash2,
+  IconUpload as Upload,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
@@ -84,6 +85,17 @@ type KnowledgeList = {
 
 const MAX_CONTENT_CHARS = 500_000;
 const MAX_EXPIRED_INSTRUCTION_CHARS = 2_000;
+
+/** Espelho de `MAX_UPLOAD_BYTES` (backend `services/ai/knowledge-extract.ts`). */
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+/**
+ * O que o extrator do backend sabe ler. PDF é recusado com mensagem
+ * explícita (as libs pesam dezenas de MB e não resolvem PDF escaneado) e
+ * imagem exigiria visão/OCR — por isso nenhum dos dois entra no `accept`,
+ * em vez de aceitar e falhar depois do upload.
+ */
+const UPLOAD_ACCEPT = ".txt,.md,.markdown,.csv,.tsv,.docx";
 
 /**
  * Colunas da lista. `LIST_ACTIONS_TRACK` mantém o cabeçalho e as linhas
@@ -195,6 +207,47 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
     onSuccess: invalidate,
   });
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+
+  const uploadMut = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      // Sem `Content-Type` de propósito: o navegador precisa gerar o
+      // boundary do multipart, e fixar o header quebra o parse no servidor.
+      const res = await apiFetch(`/api/ai-agents/${agentId}/knowledge`, {
+        method: "POST",
+        body: form,
+      });
+      return parseApiResponse<KnowledgeDoc>(
+        res,
+        "Não foi possível enviar o arquivo.",
+      );
+    },
+    onSuccess: () => {
+      setUploadError(null);
+      invalidate();
+    },
+    onError: (e) =>
+      setUploadError(
+        e instanceof Error ? e.message : "Não foi possível enviar o arquivo.",
+      ),
+  });
+
+  const pickFile = (file: File | null) => {
+    if (!file) return;
+    // Barra aqui para não gastar o upload inteiro e receber 400 no fim.
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setUploadError(
+        `"${file.name}" tem ${formatBytes(file.size)} — o limite é ${formatBytes(MAX_UPLOAD_BYTES)}.`,
+      );
+      return;
+    }
+    setUploadError(null);
+    uploadMut.mutate(file);
+  };
+
   const docs = data?.items ?? [];
   const total = data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
@@ -204,19 +257,58 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <p className="max-w-prose text-xs text-muted-foreground">
           Documentos que o agente consulta antes de responder. Cole roteiros,
-          perguntas frequentes e regras — o agente busca o trecho mais próximo
-          da dúvida do cliente.
+          perguntas frequentes e regras — ou anexe um arquivo — e o agente
+          busca o trecho mais próximo da dúvida do cliente.
         </p>
-        <ButtonGlass
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={openCreate}
-        >
-          <Plus className="size-3.5" />
-          Novo documento
-        </ButtonGlass>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={UPLOAD_ACCEPT}
+            className="hidden"
+            onChange={(e) => {
+              pickFile(e.target.files?.[0] ?? null);
+              // Zera para o mesmo arquivo poder ser reenviado depois de um erro.
+              e.target.value = "";
+            }}
+          />
+          <ButtonGlass
+            type="button"
+            variant="glass"
+            size="sm"
+            disabled={uploadMut.isPending}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploadMut.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Upload className="size-3.5" />
+            )}
+            {uploadMut.isPending ? "Enviando..." : "Anexar arquivo"}
+          </ButtonGlass>
+          <ButtonGlass
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={openCreate}
+          >
+            <Plus className="size-3.5" />
+            Novo documento
+          </ButtonGlass>
+        </div>
       </div>
+
+      {uploadError ? (
+        <p className="rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {uploadError}
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Arquivos aceitos: .txt, .md, .csv, .tsv e .docx (até{" "}
+          {formatBytes(MAX_UPLOAD_BYTES)}). PDF e imagem ainda não — converta
+          para .docx ou .txt antes de enviar.
+        </p>
+      )}
 
       <SearchFilterBar
         value={search}
