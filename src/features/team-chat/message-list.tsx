@@ -170,7 +170,7 @@ export function MessageList({
               {isDirect && room.peer ? (
                 <Avatar person={toPerson(room.peer)} size="lg" showPresence />
               ) : (
-                <GroupGlyph seed={room.id} size={56} />
+                <GroupGlyph seed={room.id} size={56} imageUrl={room.avatarUrl} name={room.name} />
               )}
               <p className="mt-3 text-[15px] font-semibold text-[var(--orbita-text)]">
                 {isDirect ? room.name : `#${room.name}`}

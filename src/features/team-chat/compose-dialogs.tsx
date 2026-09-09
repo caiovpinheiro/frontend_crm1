@@ -5,14 +5,18 @@ import { Hash, MessagesSquare } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
-import { FormDialog } from "@/components/ui/form-dialog";
+import { FormDialog, formLabelClass } from "@/components/ui/form-dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-import { Avatar } from "./avatar";
+import { uploadTeamChatAttachment } from "./api";
+import { Avatar, GroupGlyph } from "./avatar";
 import { useTeamChatColleagues, useTeamChatMutations } from "./hooks";
 import { toPerson } from "./helpers";
 import type { TeamChatPerson, TeamChatRoom } from "./types";
+
+const GROUP_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const GROUP_PHOTO_MAX_BYTES = 4 * 1024 * 1024;
 
 function resetCompose(
   setPicked: (v: string[]) => void,
@@ -106,12 +110,35 @@ export function AddMembersDialog({
   meId: string;
 }) {
   const { data } = useTeamChatColleagues(open);
-  const { addMembers } = useTeamChatMutations();
+  const { addMembers, updateRoom } = useTeamChatMutations();
   const [picked, setPicked] = useState<string[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const inRoom = new Set(room.members.map((m) => m.id));
   const people = (data?.colleagues ?? []).filter(
     (p) => p.id !== meId && !inRoom.has(p.id),
   );
+  const photoBusy = uploadingPhoto || updateRoom.isPending;
+
+  async function applyGroupPhoto(file: File) {
+    if (!GROUP_PHOTO_TYPES.has(file.type)) {
+      toast.error("Use uma imagem JPG, PNG ou WEBP.");
+      return;
+    }
+    if (file.size > GROUP_PHOTO_MAX_BYTES) {
+      toast.error("Imagem muito grande (máx. 4 MB).");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const attachment = await uploadTeamChatAttachment(room.id, file);
+      await updateRoom.mutateAsync({ roomId: room.id, avatarUrl: attachment.url });
+      toast.success("Foto do grupo atualizada");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível atualizar a foto.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
 
   return (
     <FormDialog
@@ -150,6 +177,44 @@ export function AddMembersDialog({
         </>
       }
     >
+      <div className="mb-4 flex items-center gap-3">
+        <GroupGlyph seed={room.id} size={56} imageUrl={room.avatarUrl} name={room.name} />
+        <div className="min-w-0 flex-1">
+          <label htmlFor="team-chat-group-photo" className={formLabelClass}>
+            Foto do grupo
+          </label>
+          <input
+            id="team-chat-group-photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={photoBusy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void applyGroupPhoto(file);
+            }}
+            className="block w-full text-[13px] text-foreground file:mr-3 file:rounded-full file:border file:border-border file:bg-card file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-foreground"
+          />
+          {room.avatarUrl ? (
+            <button
+              type="button"
+              disabled={photoBusy}
+              onClick={() => {
+                updateRoom.mutate(
+                  { roomId: room.id, avatarUrl: null },
+                  {
+                    onSuccess: () => toast.success("Foto do grupo removida"),
+                    onError: (e: Error) => toast.error(e.message),
+                  },
+                );
+              }}
+              className="mt-1.5 text-[12px] font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
+            >
+              Remover foto
+            </button>
+          ) : null}
+        </div>
+      </div>
       <PeoplePicker people={people} picked={picked} onToggle={(id) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))} />
     </FormDialog>
   );

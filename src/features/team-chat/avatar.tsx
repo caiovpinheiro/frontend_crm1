@@ -79,11 +79,22 @@ export function Avatar({
   );
 }
 
-export function GroupGlyph({ seed, size = 40 }: { seed: string; size?: number }) {
+export function GroupGlyph({
+  seed,
+  size = 40,
+  imageUrl,
+  name,
+}: {
+  seed: string;
+  size?: number;
+  imageUrl?: string | null;
+  name?: string;
+}) {
   const tone = getOrbitaChannelTonal(seed);
+  const photo = normalizeAvatarUrl(imageUrl);
   return (
     <div
-      className="grid shrink-0 place-items-center"
+      className="relative grid shrink-0 place-items-center overflow-hidden border border-border"
       style={{
         width: size,
         height: size,
@@ -91,8 +102,21 @@ export function GroupGlyph({ seed, size = 40 }: { seed: string; size?: number })
         background: tone.bg,
         color: tone.fg,
       }}
+      title={name}
     >
-      <Hash className="h-4 w-4" />
+      <Hash className="h-4 w-4" aria-hidden={Boolean(photo)} />
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photo}
+          alt={name ?? "Foto do grupo"}
+          className="absolute inset-0 size-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      ) : null}
     </div>
   );
 }

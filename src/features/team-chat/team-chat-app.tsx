@@ -26,7 +26,7 @@ import {
   usePingTeamChatTyping,
   useOrbitaFavorites,
 } from "./hooks";
-import { favoriteKey } from "./helpers";
+import { favoriteKey, isGroupRoom } from "./helpers";
 import type { DirectRow, TeamChatRoom } from "./types";
 
 export function TeamChatApp() {
@@ -72,7 +72,7 @@ export function TeamChatApp() {
     });
   }, [rooms, colleagues, meId]);
 
-  const groups = rooms.filter((r) => r.kind === "GROUP");
+  const groups = rooms.filter((r) => isGroupRoom(r));
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
   const notesQuery = useTeamChatNotes(selectedId, notesOpen || !!selectedId);
   const notes = notesQuery.data?.notes ?? [];
@@ -194,7 +194,7 @@ export function TeamChatApp() {
           setComposeOpen(false);
         }}
       />
-      {selected?.kind === "GROUP" && (
+      {selected && isGroupRoom(selected) && (
         <AddMembersDialog
           open={addOpen}
           onOpenChange={setAddOpen}

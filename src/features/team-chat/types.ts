@@ -1,4 +1,4 @@
-export type TeamChatKind = "DM" | "GROUP";
+export type TeamChatKind = "DM" | "GROUP" | "CHANNEL";
 
 export type TeamChatDepartment = {
   id: string;
@@ -22,6 +22,7 @@ export type TeamChatRoom = {
   kind: TeamChatKind;
   name: string;
   topic: string | null;
+  avatarUrl: string | null;
   lastMessageAt: string;
   lastPreview: string | null;
   createdAt: string;

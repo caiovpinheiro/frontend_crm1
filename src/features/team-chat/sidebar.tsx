@@ -102,7 +102,7 @@ function ChatRow({
             <Avatar person={toPerson(item.row.person)} size="md" showPresence />
           </div>
         ) : (
-          <GroupGlyph seed={item.room.id} size={40} />
+          <GroupGlyph seed={item.room.id} size={40} imageUrl={item.room.avatarUrl} name={item.room.name} />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1">
