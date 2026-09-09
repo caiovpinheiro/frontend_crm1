@@ -284,6 +284,12 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                     pode ter desativado IMAP com autenticação básica.
                   </p>
                 )}
+                {providerId === "uol-host" && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Use o e-mail completo e a senha da caixa (não senha de app).
+                    No UOL Host, ative o IMAP em Webmail → Configurar IMAP/POP antes de conectar.
+                  </p>
+                )}
               </div>
 
               {selectedPreset && !isCustom ? (
