@@ -18,10 +18,10 @@ import { PageHeader, pageHeaderPrimaryCtaClass } from "@/components/ui/page-head
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgentPlayground } from "@/components/ai-agents/agent-playground";
 import { AgentWizard } from "@/components/ai-agents/agent-wizard";
-import { StudentDataPanel } from "@/components/ai-agents/student-data-panel";
 import { ARCHETYPES } from "@/lib/ai-agents/archetypes";
 import { cn, getInitials } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toast } from "sonner";
 
 type AgentRow = {
   id: string;
@@ -106,11 +106,22 @@ export default function AIAgentsPage({
       const res = await fetch(apiUrl(`/api/ai-agents/${id}/toggle-active`), {
         method: "POST",
       });
-      if (!res.ok) throw new Error("Erro ao alternar status.");
+      // O backend recusa ligar agente autônomo sem escopo nem documento
+      // (`AgentReadinessError`). Sem ler a mensagem, o clique no play
+      // parecia não fazer nada.
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(
+          typeof d.message === "string" ? d.message : "Erro ao alternar status.",
+        );
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "Erro ao alternar status.");
     },
   });
 
@@ -219,8 +230,6 @@ export default function AIAgentsPage({
           </div>
         </div>
       )}
-
-      <StudentDataPanel />
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

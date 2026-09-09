@@ -4,6 +4,7 @@ import { BookOpen, MessageSquareText, UserRound } from "lucide-react";
 import * as React from "react";
 
 import { KnowledgePanel } from "@/components/ai-agents/knowledge-panel";
+import { StudentDataPanel } from "@/components/ai-agents/student-data-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -229,7 +230,15 @@ export function SimpleEditor({
             Prévia — cole documentos depois de criar o agente no banco.
           </div>
         ) : (
-          <KnowledgePanel agentId={agentId} />
+          <div className="space-y-6">
+            <KnowledgePanel agentId={agentId} />
+            {/* Mesma base org-wide da aba Conhecimento do modo avançado.
+                Fica nos dois porque o modo simples não tem outra porta
+                de entrada para o relatório de matriculados. */}
+            <div className="border-t border-border pt-6">
+              <StudentDataPanel />
+            </div>
+          </div>
         )}
       </section>
     </div>

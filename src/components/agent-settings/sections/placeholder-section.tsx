@@ -2,6 +2,7 @@
 
 import { InboxPolicyPanel } from "@/components/ai-agents/inbox-policy-panel";
 import { KnowledgePanel } from "@/components/ai-agents/knowledge-panel";
+import { StudentDataPanel } from "@/components/ai-agents/student-data-panel";
 import type { InboxPolicy } from "@/lib/ai-agents/steering";
 
 import { SectionHeader } from "../section-header";
@@ -45,7 +46,15 @@ export function InboxSection({
   );
 }
 
-/** KnowledgePanel já funciona no editor; 0 docs ainda é feature real. */
+/**
+ * KnowledgePanel já funciona no editor; 0 docs ainda é feature real.
+ *
+ * O relatório de matriculados vive aqui junto dos documentos porque para
+ * o operador as duas coisas são "o que o agente sabe". A diferença de
+ * escopo (documentos por agente, relatório por organização) está dita no
+ * texto de cada bloco — o `StudentDataPanel` não recebe `agentId` de
+ * propósito, a API dele é org-wide.
+ */
 export function KnowledgeSection({
   agentId,
   preview = false,
@@ -57,14 +66,19 @@ export function KnowledgeSection({
     <div className="space-y-5">
       <SectionHeader
         title="Conhecimento"
-        description="Cole playbooks e FAQs. O agente consulta os trechos mais relevantes em cada resposta."
+        description="O que o agente consulta para responder: documentos de texto e a base de alunos matriculados."
       />
       {preview ? (
         <div className="rounded-xl border border-dashed border-border py-8 text-center text-xs text-muted-foreground">
           Nenhum documento ainda. O agente vai responder só com o prompt.
         </div>
       ) : (
-        <KnowledgePanel agentId={agentId} />
+        <div className="space-y-6">
+          <KnowledgePanel agentId={agentId} />
+          <div className="border-t border-border pt-6">
+            <StudentDataPanel />
+          </div>
+        </div>
       )}
     </div>
   );

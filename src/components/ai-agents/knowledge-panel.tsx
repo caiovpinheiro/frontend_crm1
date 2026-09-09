@@ -90,12 +90,12 @@ const MAX_EXPIRED_INSTRUCTION_CHARS = 2_000;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 /**
- * O que o extrator do backend sabe ler. PDF é recusado com mensagem
- * explícita (as libs pesam dezenas de MB e não resolvem PDF escaneado) e
- * imagem exigiria visão/OCR — por isso nenhum dos dois entra no `accept`,
- * em vez de aceitar e falhar depois do upload.
+ * O que o extrator do backend sabe ler. PDF digitalizado (foto das
+ * páginas) entra no `accept` mas falha no servidor com mensagem própria:
+ * não dá para saber se tem camada de texto antes de abrir o arquivo.
+ * Imagem exigiria visão/OCR e continua fora.
  */
-const UPLOAD_ACCEPT = ".txt,.md,.markdown,.csv,.tsv,.docx";
+const UPLOAD_ACCEPT = ".txt,.md,.markdown,.csv,.tsv,.docx,.pdf";
 
 /**
  * Colunas da lista. `LIST_ACTIONS_TRACK` mantém o cabeçalho e as linhas
@@ -304,9 +304,9 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
         </p>
       ) : (
         <p className="text-[11px] text-muted-foreground">
-          Arquivos aceitos: .txt, .md, .csv, .tsv e .docx (até{" "}
-          {formatBytes(MAX_UPLOAD_BYTES)}). PDF e imagem ainda não — converta
-          para .docx ou .txt antes de enviar.
+          Arquivos aceitos: .pdf, .docx, .txt, .md, .csv e .tsv (até{" "}
+          {formatBytes(MAX_UPLOAD_BYTES)}). PDF digitalizado (foto das páginas)
+          não tem texto para ler — envie a versão original.
         </p>
       )}
 

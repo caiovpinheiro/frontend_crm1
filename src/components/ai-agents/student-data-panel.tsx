@@ -169,12 +169,17 @@ export function StudentDataPanel() {
           <div className="min-w-0">
             <h3 className="text-sm font-semibold">Dados dos alunos (matriculados)</h3>
             <p className="mt-0.5 text-[12px] text-muted-foreground">
-              Suba o relatório de matriculados (Excel/CSV). O agente usa esses
-              dados como <b>contexto interno</b> (curso, polo, situação) para
-              atender e rotear melhor, casando por telefone/e-mail/CPF do
-              contato. Por segurança, o agente <b>não divulga</b> dados pessoais
-              ao aluno — se ele pedir informação específica, é transferido para
-              um consultor. Cada upload substitui a base anterior.
+              Suba o relatório de matriculados (.xlsx, .xlsm, .xls, .ods ou
+              .csv). O agente usa esses dados como <b>contexto interno</b>
+              (curso, polo, situação) para atender e rotear melhor, casando por
+              telefone/e-mail/CPF do contato. Por segurança, o agente{" "}
+              <b>não divulga</b> dados pessoais ao aluno — se ele pedir
+              informação específica, é transferido para um consultor.
+            </p>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              Esta base é <b>uma só para toda a empresa</b>, compartilhada por
+              todos os agentes — não é exclusiva deste agente. Cada upload
+              substitui a base anterior.
             </p>
             {isLoading ? (
               <p className="mt-2 text-[12px] text-muted-foreground">Carregando…</p>
@@ -194,7 +199,7 @@ export function StudentDataPanel() {
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx,.xls,.ods,.csv"
+            accept=".xlsx,.xlsm,.xls,.ods,.csv"
             onChange={onFile}
             className="hidden"
           />
