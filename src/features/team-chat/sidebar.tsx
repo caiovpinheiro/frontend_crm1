@@ -101,7 +101,7 @@ function ChatRow({
   return (
     <div
       className={cn(
-        "group flex min-h-[76px] w-full items-center gap-3 px-4 py-3 text-left transition-colors",
+        "group flex min-h-[76px] w-full items-center gap-3 border-b border-[var(--team-chat-line)] px-4 py-3 text-left transition-colors",
         active ? "bg-[var(--orbita-list-selected-bg)]" : "hover:bg-[var(--orbita-field)]",
       )}
     >
@@ -327,7 +327,7 @@ export function Sidebar({
               <MoreVertical className="h-5 w-5" />
             </HeaderIcon>
             {menuOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-[var(--orbita-radius-inner)] bg-[var(--orbita-block)] py-1 shadow-lg">
+              <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-[var(--orbita-radius-inner)] border border-[var(--team-chat-line)] bg-[var(--orbita-block)] py-1 shadow-lg">
                 <button
                   type="button"
                   onClick={() => {
@@ -350,7 +350,7 @@ export function Sidebar({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Pesquisar conversas"
-            className="h-11 w-full rounded-[10px] bg-[var(--orbita-field)] py-2.5 pl-10 pr-3 text-[15px] text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]"
+            className="h-11 w-full rounded-[10px] border border-[var(--team-chat-line)] bg-[var(--orbita-field)] py-2.5 pl-10 pr-3 text-[15px] text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]"
           />
         </div>
 
@@ -363,7 +363,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-black/[0.04] py-1 dark:border-white/[0.06]" aria-label="Conversas" data-tour="bwipo-chat-list">
+      <nav className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto border-t-2 border-[var(--team-chat-line)] py-1" aria-label="Conversas" data-tour="bwipo-chat-list">
         {loading ? (
           <AppLoading variant="inline" className="min-h-0 flex-1 lg:hidden" />
         ) : error ? (
@@ -406,7 +406,7 @@ export function Sidebar({
               ? sections.map((section) => {
                   const visual = teamChatFilterVisual(section.id);
                   return (
-                    <div key={section.id} className="px-2">
+                    <div key={section.id} className="mx-2 mb-2 overflow-hidden rounded-xl border border-[var(--team-chat-line)] bg-[var(--orbita-chrome)]">
                       <QueueSection
                         id={section.id}
                         label={section.label}

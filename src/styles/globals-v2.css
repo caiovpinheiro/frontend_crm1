@@ -210,7 +210,7 @@
   --inbox-sla-warn: var(--color-warning);
   --inbox-sla-late: var(--color-danger);
   --inbox-focus: color-mix(in srgb, var(--brand-primary) 40%, transparent);
-  --inbox-thread-base: color-mix(in srgb, var(--bg-base) 70%, white);
+  --inbox-thread-base: var(--inbox-surface);
 
   /* Cores semânticas */
   --color-success:       #2f9e6b;
@@ -814,7 +814,7 @@ html[data-nav-expanded="true"] {
   --inbox-brand: var(--brand-primary);
   --inbox-text: var(--text-primary);
   --inbox-text-muted: var(--text-muted);
-  --inbox-thread-base: color-mix(in srgb, var(--bg-base) 88%, black);
+  --inbox-thread-base: var(--inbox-surface);
 
   /* Funil operacional (dashboard) — tema escuro */
   --pipeline-surface:         #152033;

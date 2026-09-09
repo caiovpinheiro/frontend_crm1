@@ -42,7 +42,7 @@ export function QueueSection({
         aria-controls={bodyId}
         onClick={onToggle}
         className={cn(
-          "sticky top-0 z-10 flex w-full items-center gap-2 rounded-xl px-1.5 py-1.5 text-left",
+          "sticky top-0 z-10 flex w-full items-center gap-2 rounded-xl border-b border-[var(--team-chat-line,var(--color-border))] px-1.5 py-1.5 text-left",
           "bg-card outline-none transition-colors hover:bg-[var(--glass-bg-strong)]",
           "focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40",
         )}

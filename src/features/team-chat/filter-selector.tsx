@@ -225,7 +225,7 @@ export function TeamChatFilterSelector({
         aria-expanded={open}
         aria-label={triggerTitle}
         className={cn(
-          "flex h-9 min-w-0 w-full items-center gap-2 rounded-full border border-border bg-card px-2 text-left shadow-sm",
+          "flex h-9 min-w-0 w-full items-center gap-2 rounded-full border border-[var(--team-chat-line)] bg-card px-2 text-left shadow-sm",
           "outline-none focus-visible:ring-2 focus-visible:ring-[var(--inbox-focus)]",
         )}
       >

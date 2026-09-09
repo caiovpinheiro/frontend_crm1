@@ -39,8 +39,8 @@ export function NotesPanel({
   }
 
   return (
-    <aside className="flex h-full flex-col border-l border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
+    <aside className="flex h-full flex-col border-l-2 border-[var(--team-chat-line)] bg-card">
+      <header className="flex items-center justify-between border-b-2 border-[var(--team-chat-line)] bg-card px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-full bg-muted text-primary">
             <StickyNote className="h-4 w-4" />
@@ -54,7 +54,7 @@ export function NotesPanel({
           <X className="h-4 w-4" />
         </button>
       </header>
-      <div className="border-b border-border p-3">
+      <div className="border-b border-[var(--team-chat-line)] p-3">
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

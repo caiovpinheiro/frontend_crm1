@@ -115,7 +115,7 @@ export function TeamChatApp() {
     <div className="team-chat-shell flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
       <div
         className={cn(
-          "flex h-full min-h-0 w-[340px] min-w-[320px] shrink-0 flex-col border-r border-[var(--orbita-divider)]",
+          "flex h-full min-h-0 w-[340px] min-w-[320px] shrink-0 flex-col",
           selected ? "hidden lg:flex" : "flex",
         )}
       >
@@ -139,6 +139,13 @@ export function TeamChatApp() {
           typing={typing}
         />
       </div>
+      <div
+        aria-hidden
+        className={cn(
+          "w-px shrink-0 self-stretch bg-[var(--team-chat-line)]",
+          selected ? "hidden lg:block" : "block",
+        )}
+      />
 
       <section
         data-tour="bwipo-chat-stage"
@@ -308,8 +315,8 @@ function Thread({
             })
           }
         />
-        <div className="relative z-20 shrink-0 overflow-visible px-3 pb-4 pt-2" data-tour="bwipo-chat-composer">
-          <div className="overflow-visible rounded-[16px] bg-[var(--orbita-block)] ring-1 ring-[var(--orbita-divider)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
+        <div className="relative z-20 shrink-0 border-t-2 border-[var(--team-chat-line)] bg-[var(--orbita-chrome)] px-3 pb-3 pt-2" data-tour="bwipo-chat-composer">
+          <div className="overflow-visible rounded-[16px] border border-[var(--team-chat-line)] bg-[var(--orbita-block)]">
             <Composer
               roomId={room.id}
               placeholder="Digite uma mensagem"
