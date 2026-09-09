@@ -42,7 +42,7 @@ export function Avatar({
       title={person.name}
     >
       <div
-        className="relative flex size-full items-center justify-center overflow-hidden font-display font-bold leading-none ring-1 ring-[var(--team-chat-line,var(--color-border-strong))]"
+        className="relative flex size-full items-center justify-center overflow-hidden font-display font-bold leading-none"
         style={{
           background: tone.bg,
           color: tone.fg,
@@ -83,7 +83,7 @@ export function GroupGlyph({ seed, size = 40 }: { seed: string; size?: number })
   const tone = getOrbitaChannelTonal(seed);
   return (
     <div
-      className="grid shrink-0 place-items-center ring-1 ring-[var(--team-chat-line,var(--color-border-strong))]"
+      className="grid shrink-0 place-items-center"
       style={{
         width: size,
         height: size,

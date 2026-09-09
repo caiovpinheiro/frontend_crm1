@@ -126,7 +126,7 @@ export function MessageList({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {pinned.length > 0 && (
-        <div className="sticky top-0 z-10 shrink-0 border-b border-[var(--team-chat-line)] bg-[var(--orbita-block-soft)] px-4 py-2">
+        <div className="sticky top-0 z-10 shrink-0 bg-[var(--orbita-block-soft)] px-4 py-2">
           <div className="flex w-full items-start gap-2">
             <Pin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--orbita-text-secondary)]" />
             <div className="min-w-0 flex-1 space-y-1">
@@ -163,10 +163,10 @@ export function MessageList({
           onRetry={onRetry}
         />
       ) : (
-      <div className="chat-scroll chat-thread-texture flex-1 overflow-y-auto px-4 py-3 md:px-10">
+      <div className="chat-scroll flex-1 overflow-y-auto px-4 py-3 md:px-10">
         <div className="flex min-h-full w-full flex-col">
           <div className="mb-4 flex justify-center">
-            <div className="flex max-w-sm flex-col items-center rounded-xl border border-[var(--team-chat-line)] bg-[var(--orbita-chrome)] px-6 py-5 text-center">
+            <div className="flex max-w-sm flex-col items-center rounded-2xl bg-[var(--orbita-block)]/92 px-6 py-5 text-center shadow-sm">
               {isDirect && room.peer ? (
                 <Avatar person={toPerson(room.peer)} size="lg" showPresence />
               ) : (
