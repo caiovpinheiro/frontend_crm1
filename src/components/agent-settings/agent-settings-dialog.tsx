@@ -64,7 +64,8 @@ function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
     data.archetype === "SDR" ||
     data.archetype === "VENDEDOR" ||
     data.archetype === "SUPORTE" ||
-    data.archetype === "TABULACAO"
+    data.archetype === "TABULACAO" ||
+    data.archetype === "ENCERRAMENTO"
       ? data.archetype
       : "ATENDIMENTO"
   ) as AgentArchetype;

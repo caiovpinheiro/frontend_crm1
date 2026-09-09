@@ -31,7 +31,8 @@ export type AgentArchetype =
   | "ATENDIMENTO"
   | "VENDEDOR"
   | "SUPORTE"
-  | "TABULACAO";
+  | "TABULACAO"
+  | "ENCERRAMENTO";
 
 /** Contrato do formulário — espelha GET/PUT `/api/ai-agents/:id`. */
 export type AgentSettingsValues = {
