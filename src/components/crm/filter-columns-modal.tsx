@@ -48,23 +48,16 @@ export function FilterColumnsModal({
     overflow: false,
     atStart: true,
     atEnd: true,
-    thumbLeft: 0,
-    thumbWidth: 100,
   })
 
   const syncHScroll = useCallback(() => {
     const el = hScrollRef.current
     if (!el) return
     const max = Math.max(0, el.scrollWidth - el.clientWidth)
-    const overflow = max > 1
-    const thumbWidth = el.scrollWidth > 0 ? (el.clientWidth / el.scrollWidth) * 100 : 100
-    const thumbLeft = el.scrollWidth > 0 ? (el.scrollLeft / el.scrollWidth) * 100 : 0
     setHMetrics({
-      overflow,
+      overflow: max > 1,
       atStart: el.scrollLeft <= 1,
       atEnd: el.scrollLeft >= max - 1,
-      thumbLeft,
-      thumbWidth,
     })
   }, [])
 
@@ -121,15 +114,11 @@ export function FilterColumnsModal({
   }, [open, wide, columnCount, children, syncHScroll])
 
   function scrollColumns(dir: -1 | 1) {
-    hScrollRef.current?.scrollBy({ left: dir * 256, behavior: "smooth" })
-  }
-
-  function jumpHScroll(clientX: number, track: HTMLDivElement) {
     const el = hScrollRef.current
     if (!el) return
-    const rect = track.getBoundingClientRect()
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
-    el.scrollLeft = ratio * Math.max(0, el.scrollWidth - el.clientWidth)
+    const column = el.querySelector("section")
+    const step = column instanceof HTMLElement ? column.offsetWidth : 256
+    el.scrollBy({ left: dir * step, behavior: "smooth" })
   }
 
   if (!open || typeof document === "undefined") return null
@@ -184,69 +173,62 @@ export function FilterColumnsModal({
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="relative min-h-0 flex-1">
-            {wide && hMetrics.overflow ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => scrollColumns(-1)}
-                  disabled={hMetrics.atStart}
-                  className="absolute left-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm disabled:opacity-30"
-                  aria-label="Categorias anteriores"
-                >
-                  <ChevronLeft className="size-4" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollColumns(1)}
-                  disabled={hMetrics.atEnd}
-                  className="absolute right-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm disabled:opacity-30"
-                  aria-label="Próximas categorias"
-                >
-                  <ChevronRight className="size-4" aria-hidden />
-                </button>
-              </>
-            ) : null}
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <div
+            ref={hScrollRef}
+            className={cn(
+              "filter-columns-hscroll min-h-0 overflow-y-hidden overscroll-x-contain",
+              wide ? "h-full overflow-x-auto" : "overflow-x-hidden",
+            )}
+          >
             <div
-              ref={hScrollRef}
               className={cn(
-                "filter-columns-hscroll min-h-0 overflow-y-hidden overscroll-x-contain",
-                wide ? "h-full overflow-x-auto" : "overflow-x-hidden",
+                "flex w-max flex-nowrap",
+                wide
+                  ? "h-full min-h-0 items-stretch [&_section]:h-full [&_section]:max-h-none"
+                  : "items-start",
               )}
             >
-              <div
-                className={cn(
-                  "flex w-max flex-nowrap",
-                  wide
-                    ? "h-full min-h-0 items-stretch [&_section]:h-full [&_section]:max-h-none"
-                    : "items-start",
-                )}
-              >
-                {children}
-              </div>
+              {children}
             </div>
           </div>
-          {wide && hMetrics.overflow ? (
-            <div className="shrink-0 border-t border-border/40 px-5 py-2">
-              <div
-                role="scrollbar"
-                aria-orientation="horizontal"
-                aria-valuenow={Math.round(hMetrics.thumbLeft)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                className="relative h-2 cursor-pointer rounded-full bg-border"
-                onPointerDown={(e) => jumpHScroll(e.clientX, e.currentTarget)}
-              >
-                <div
-                  className="absolute inset-y-0 rounded-full bg-muted-foreground/45"
-                  style={{
-                    left: `${hMetrics.thumbLeft}%`,
-                    width: `${hMetrics.thumbWidth}%`,
-                  }}
-                />
-              </div>
-            </div>
+          {wide && hMetrics.overflow && !hMetrics.atStart ? (
+            <button
+              type="button"
+              onClick={() => scrollColumns(-1)}
+              aria-label="Categorias anteriores"
+              className={cn(
+                "group absolute inset-y-0 left-0 z-10 flex w-16 cursor-pointer items-center justify-start border-0 bg-transparent",
+                "opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100",
+              )}
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_72%,transparent)] to-transparent shadow-[inset_18px_0_22px_-10px_color-mix(in_srgb,var(--foreground)_22%,transparent)]"
+              />
+              <span className="relative z-10 ml-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
+                <ChevronLeft className="size-4" />
+              </span>
+            </button>
+          ) : null}
+          {wide && hMetrics.overflow && !hMetrics.atEnd ? (
+            <button
+              type="button"
+              onClick={() => scrollColumns(1)}
+              aria-label="Próximas categorias"
+              className={cn(
+                "group absolute inset-y-0 right-0 z-10 flex w-16 cursor-pointer items-center justify-end border-0 bg-transparent",
+                "opacity-0 transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100",
+              )}
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 bg-gradient-to-l from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_72%,transparent)] to-transparent shadow-[inset_-18px_0_22px_-10px_color-mix(in_srgb,var(--foreground)_22%,transparent)]"
+              />
+              <span className="relative z-10 mr-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
+                <ChevronRight className="size-4" />
+              </span>
+            </button>
           ) : null}
         </div>
 
