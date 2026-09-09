@@ -640,9 +640,12 @@ export function InboxSearchFilterBar({
   const rowEnd = Boolean(period || trailing)
 
   return (
-    <div data-tour="inbox-search" className={cn("flex flex-col gap-2", className)}>
-      <div className={cn("flex min-w-0 items-center gap-2", rowEnd && "w-full")}>
-        <div ref={menu.wrapRef} className={cn("min-w-0", rowEnd ? "relative flex-1 !w-auto" : undefined)}>
+    <div data-tour="inbox-search" className={cn("flex w-full min-w-0 flex-col gap-2", className)}>
+      <div className="flex w-full min-w-0 items-center gap-2">
+        <div
+          ref={menu.wrapRef}
+          className={cn("relative min-w-0 flex-1", rowEnd ? undefined : "w-full")}
+        >
           <FilterSearchTrigger
             search={search}
             onSearch={onSearch}

@@ -74,8 +74,8 @@ export function FilterColumnsModal({
 
   if (!open || typeof document === "undefined") return null
 
-  const columnCount = Children.toArray(children).length
-  const tall = columnCount > 4
+  const columnCount = Children.toArray(children).filter(Boolean).length
+  const wide = columnCount > 4
 
   const countLabel =
     count === 0
@@ -94,8 +94,10 @@ export function FilterColumnsModal({
         aria-modal="true"
         aria-label={labelledBy ?? title}
         className={cn(
-          "relative grid w-full max-w-6xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
-          tall ? "h-[min(84vh,720px)]" : "max-h-[min(84vh,720px)]",
+          "relative flex max-h-[min(84vh,720px)] flex-col overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
+          wide
+            ? "w-full max-w-6xl"
+            : "w-max max-w-[min(96vw,72rem)]",
         )}
       >
         <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
@@ -125,12 +127,22 @@ export function FilterColumnsModal({
           </div>
         </header>
 
-        <div className="min-h-0 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <div
             ref={hScrollRef}
-            className="filter-columns-hscroll h-full min-h-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            className={cn(
+              "filter-columns-hscroll min-h-0 overflow-y-hidden overscroll-x-contain",
+              wide ? "h-full overflow-x-auto" : "overflow-x-hidden",
+            )}
           >
-            <div className="flex h-full min-h-0 w-max min-w-full flex-nowrap items-stretch">
+            <div
+              className={cn(
+                "flex w-max flex-nowrap",
+                wide
+                  ? "h-full min-h-0 items-stretch [&_section]:h-full [&_section]:max-h-none"
+                  : "items-start",
+              )}
+            >
               {children}
             </div>
           </div>
@@ -169,7 +181,8 @@ export function FilterCategoryColumn({
   return (
     <section
       className={cn(
-        "flex h-full min-h-0 w-[min(16rem,85vw)] shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
+        "flex min-h-0 w-[min(16rem,85vw)] shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
+        "max-h-[min(calc(84vh-11rem),36rem)]",
         className,
       )}
     >
