@@ -93,7 +93,7 @@ export const stepDescription: Record<string, string> = {
   check_agent_status: "Verifica se o responsavel da conversa esta online.",
   ask_ai_agent: "Consulta um agente de IA e salva a resposta em variavel.",
   transfer_to_ai_agent:
-    "Transfere o atendimento pra um agente IA, que assume a conversa automaticamente.",
+    "Transfere pra um agente IA. Classificador de tabulação lê o histórico e aplica o motivo, sem WhatsApp.",
   consume_stock:
     "Reduz o estoque dos produtos do negócio. Bloqueia se faltar saldo (sem estoque negativo).",
   execute_distribution:

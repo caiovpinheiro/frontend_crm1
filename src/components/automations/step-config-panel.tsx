@@ -3119,6 +3119,7 @@ const ARCHETYPE_LABEL: Record<string, string> = {
   ATENDIMENTO: "Atendimento",
   VENDEDOR: "Vendedor",
   SUPORTE: "Suporte",
+  TABULACAO: "Tabulação",
 };
 
 function ExecuteDistributionDeptsDraft({
@@ -3455,12 +3456,21 @@ function TransferToAIAgentStepConfig({
       <div className="rounded-lg border border-[var(--color-lavender)]/30 bg-[var(--color-lavender-soft)] p-3 text-[11px] leading-relaxed text-[var(--color-text-primary)]">
         <p className="mb-1 font-semibold">Como funciona</p>
         <p>
-          Este passo atribui a conversa a um <b>agente de IA</b>. A partir
-          deste ponto, o agente assume o atendimento — cada nova mensagem do
-          cliente é respondida pelo agente (ou rascunhada pra operador humano
-          aprovar, se o modo for DRAFT). Para devolver pro humano, o próprio
-          agente pode executar um handoff via tool, ou adicione outro passo
-          `Atribuir responsável` apontando pra um humano.
+          {selected?.archetype === "TABULACAO" ? (
+            <>
+              Este agente é um <b>classificador</b>: lê o histórico, aplica
+              uma folha da árvore de tabulações e encerra se a conversa
+              ainda estiver aberta. <b>Não envia WhatsApp</b>.
+            </>
+          ) : (
+            <>
+              Este passo atribui a conversa a um <b>agente de IA</b>. A
+              partir deste ponto, o agente assume o atendimento — cada nova
+              mensagem do cliente é respondida pelo agente (ou rascunhada
+              pra operador humano aprovar, se o modo for DRAFT). Agente de
+              Tabulação classifica em silêncio, sem falar com o cliente.
+            </>
+          )}
         </p>
       </div>
 

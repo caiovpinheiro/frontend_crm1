@@ -26,7 +26,12 @@ export type AgentSectionId =
 
 export type AutonomyMode = "AUTONOMOUS" | "DRAFT";
 
-export type AgentArchetype = "SDR" | "ATENDIMENTO" | "VENDEDOR" | "SUPORTE";
+export type AgentArchetype =
+  | "SDR"
+  | "ATENDIMENTO"
+  | "VENDEDOR"
+  | "SUPORTE"
+  | "TABULACAO";
 
 /** Contrato do formulário — espelha GET/PUT `/api/ai-agents/:id`. */
 export type AgentSettingsValues = {
