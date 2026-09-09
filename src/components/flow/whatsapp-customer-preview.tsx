@@ -385,7 +385,7 @@ export function WhatsAppCustomerPreview({
                       {body ? (
                         <WaText
                           text={body}
-                          className="whitespace-pre-wrap text-[11px] leading-[14px] text-[#111b21]"
+                          className="whitespace-pre-wrap break-words text-[11px] leading-[14px] text-[#111b21]"
                         />
                       ) : null}
                       {footer ? (

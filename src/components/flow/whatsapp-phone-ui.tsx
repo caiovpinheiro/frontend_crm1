@@ -410,7 +410,7 @@ export function WhatsAppBotBubble({
           <p className="mb-px text-[11px] font-bold leading-[14px] text-[#111b21]">{header}</p>
         ) : null}
         {body ? (
-          <WaText text={body} className="whitespace-pre-wrap text-[11px] leading-[14px] text-[#111b21]" />
+          <WaText text={body} className="whitespace-pre-wrap break-words text-[11px] leading-[14px] text-[#111b21]" />
         ) : null}
         {footer ? (
           <p className="mt-px text-[9px] leading-[12px] text-[#8696a0]">{footer}</p>

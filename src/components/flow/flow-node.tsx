@@ -147,7 +147,7 @@ function InlineText({
           setEditing(false)
         }
       },
-      className: `nodrag nopan w-full rounded-md border border-ring bg-background px-1.5 py-1 outline-none ${className ?? ""}`,
+      className: `nodrag nopan nowheel w-full rounded-md border border-ring bg-background px-1.5 py-1 outline-none ${className ?? ""}`,
       style,
       placeholder,
       onClick: (e: React.MouseEvent) => {
@@ -173,7 +173,7 @@ function InlineText({
 
   return (
     <span
-      className={`cursor-text ${className ?? ""}`}
+      className={`cursor-text break-words ${className ?? ""}`}
       style={style}
       title="Duplo clique para editar"
       onDoubleClick={(e) => {
@@ -398,7 +398,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
         <InlineText
           value={d.title}
           onCommit={(v) => updateNodeData(id, { title: v })}
-          className={`flex-1 text-sm font-bold ${isMilestone ? "text-white" : "text-card-foreground"}`}
+          className={`min-w-0 flex-1 text-sm font-bold ${isMilestone ? "text-white" : "text-card-foreground"}`}
           placeholder="Sem título"
         />
         <div
@@ -474,7 +474,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
         stepType === "ask_ai_agent" ||
         stepType === "transfer_to_ai_agent" ||
         stepType === "execute_distribution" ? (
-          <span className="block leading-relaxed">
+          <span className="block break-words leading-relaxed">
             {preview || (
               <span className={isMilestone ? "text-white/50" : "text-muted-foreground/50"}>
                 {previewPlaceholder(stepType)}
@@ -540,7 +540,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
                   <div className="flex min-w-0 flex-1 items-center justify-end gap-1 text-right text-[12px] leading-tight">
                     {o.key === "else" ? (
                       <span
-                        className="inline-block max-w-full font-medium"
+                        className="inline-block max-w-full break-words font-medium"
                         style={{ color: isMilestone ? "rgba(255,255,255,0.92)" : "var(--route-error)" }}
                       >
                         {o.label || "Senão"}
