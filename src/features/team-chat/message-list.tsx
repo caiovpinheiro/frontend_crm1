@@ -163,7 +163,7 @@ export function MessageList({
           onRetry={onRetry}
         />
       ) : (
-      <div className="chat-scroll flex-1 overflow-y-auto px-4 py-3 md:px-10">
+      <div className="chat-scroll chat-thread-texture flex-1 overflow-y-auto px-4 py-3 md:px-10">
         <div className="flex min-h-full w-full flex-col">
           <div className="mb-4 flex justify-center">
             <div className="flex max-w-sm flex-col items-center rounded-2xl bg-[var(--orbita-block)]/92 px-6 py-5 text-center shadow-sm">

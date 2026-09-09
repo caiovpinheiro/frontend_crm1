@@ -199,6 +199,19 @@
   --brand-secondary:     #6a37d6;
   --brand-accent:        #6a37d6;
 
+  /* bWiPO Chat — aliases (mesma paleta; sem hex extra). */
+  --inbox-brand: var(--brand-primary);
+  --inbox-surface: var(--glass-bg-modal);
+  --inbox-surface-muted: var(--bg-base);
+  --inbox-text: var(--text-primary);
+  --inbox-text-muted: var(--text-muted);
+  --inbox-border: var(--glass-border);
+  --inbox-sla-ok: var(--color-success);
+  --inbox-sla-warn: var(--color-warning);
+  --inbox-sla-late: var(--color-danger);
+  --inbox-focus: color-mix(in srgb, var(--brand-primary) 40%, transparent);
+  --inbox-thread-base: color-mix(in srgb, var(--bg-base) 70%, white);
+
   /* Cores semânticas */
   --color-success:       #2f9e6b;
   --color-success-text:  #2f9e6b;
@@ -797,6 +810,11 @@ html[data-nav-expanded="true"] {
   --text-secondary: #94a3b8;
   --text-muted:     #64748b;
   --text-faint:     #475569;
+
+  --inbox-brand: var(--brand-primary);
+  --inbox-text: var(--text-primary);
+  --inbox-text-muted: var(--text-muted);
+  --inbox-thread-base: color-mix(in srgb, var(--bg-base) 88%, black);
 
   /* Funil operacional (dashboard) — tema escuro */
   --pipeline-surface:         #152033;

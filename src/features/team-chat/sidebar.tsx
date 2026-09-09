@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MoreVertical, Search, SquarePen, Star } from "lucide-react";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
@@ -10,15 +10,23 @@ import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { PageTourButton } from "@/features/product-tour";
 import { cn } from "@/lib/utils";
 
+import { QueueSection } from "@/features/inbox-v2/extras/queue-section";
+
 import { Avatar, GroupGlyph } from "./avatar";
+import {
+  DEFAULT_TEAM_CHAT_FILTERS,
+  TEAM_CHAT_FILTERS,
+  teamChatFilterVisual,
+  toggleTeamChatFilter,
+  type TeamChatFilterId,
+} from "./filter-catalog";
+import { TeamChatFilterSelector } from "./filter-selector";
 import {
   favoriteKey,
   formatListTime,
   toPerson,
 } from "./helpers";
 import type { DirectRow, TeamChatRoom } from "./types";
-
-type ListFilter = "all" | "unread" | "favorites" | "groups";
 
 type ChatListItem =
   | {
@@ -196,7 +204,10 @@ export function Sidebar({
   typing?: Record<string, { userId: string; name: string }>;
 }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<ListFilter>("all");
+  const [selectedFilters, setSelectedFilters] = useState<TeamChatFilterId[]>(
+    () => [...DEFAULT_TEAM_CHAT_FILTERS],
+  );
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const q = query.trim().toLowerCase();
@@ -251,21 +262,52 @@ export function Sidebar({
     return out.sort((a, b) => b.at - a.at || a.name.localeCompare(b.name, "pt-BR"));
   }, [directs, groups, typing]);
 
-  const visible = useMemo(() => {
-    return items.filter((item) => {
-      if (filter === "unread" && item.unread <= 0) return false;
-      if (filter === "favorites" && !favorites.includes(item.favId)) return false;
-      if (filter === "groups" && item.kind !== "group") return false;
-      if (!q) return true;
-      return item.name.toLowerCase().includes(q) || item.preview.toLowerCase().includes(q);
-    });
-  }, [items, filter, favorites, q]);
+  const matchesFilter = useCallback(
+    (item: ChatListItem, id: TeamChatFilterId) => {
+      if (id === "diretas") return item.kind === "dm";
+      if (id === "grupos") return item.kind === "group";
+      if (id === "unread") return item.unread > 0;
+      return favorites.includes(item.favId);
+    },
+    [favorites],
+  );
 
-  const pills: { id: ListFilter; label: string; count?: number }[] = [
-    { id: "all", label: "Tudo" },
-    { id: "unread", label: "Não lidas", count: unreadTotal },
-    { id: "favorites", label: "Favoritas", count: favorites.length },
-  ];
+  const searched = useMemo(() => {
+    if (!q) return items;
+    return items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) || item.preview.toLowerCase().includes(q),
+    );
+  }, [items, q]);
+
+  const visible = useMemo(() => {
+    if (selectedFilters.length === 0) return [];
+    return searched.filter((item) => selectedFilters.some((id) => matchesFilter(item, id)));
+  }, [searched, selectedFilters, matchesFilter]);
+
+  const sections = useMemo(() => {
+    if (selectedFilters.length < 2) return null;
+    return selectedFilters.map((id) => {
+      const meta = TEAM_CHAT_FILTERS.find((item) => item.id === id)!;
+      return {
+        id,
+        label: meta.label,
+        items: searched.filter((item) => matchesFilter(item, id)),
+      };
+    });
+  }, [selectedFilters, searched, matchesFilter]);
+
+  const counts = {
+    diretas: directs.length,
+    grupos: groups.length,
+    unread: unreadTotal,
+    favorites: favorites.length,
+  };
+
+  const allCollapsed =
+    !!sections &&
+    sections.length > 0 &&
+    sections.every((s) => collapsed.has(s.id));
 
   return (
     <aside className="orbita-block flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
@@ -312,28 +354,12 @@ export function Sidebar({
           />
         </div>
 
-        <div className="mt-3 flex gap-4 border-b border-black/[0.06] dark:border-white/[0.08]" data-tour="bwipo-chat-filters">
-          {pills.map((pill) => {
-            const selected = filter === pill.id;
-            return (
-              <button
-                key={pill.id}
-                type="button"
-                onClick={() => setFilter(pill.id)}
-                className={cn(
-                  "-mb-px flex items-center gap-1.5 border-b-2 pb-2 text-[13px] font-medium transition-colors",
-                  selected
-                    ? "border-[var(--orbita-selected)] text-[var(--orbita-selected)]"
-                    : "border-transparent text-[var(--orbita-text-secondary)] hover:text-[var(--orbita-text)]",
-                )}
-              >
-                {pill.label}
-                {(pill.count ?? 0) > 0 && !selected && (
-                  <span className="text-[11px] tabular-nums">{pill.count}</span>
-                )}
-              </button>
-            );
-          })}
+        <div className="mt-3" data-tour="bwipo-chat-filters">
+          <TeamChatFilterSelector
+            selectedIds={selectedFilters}
+            counts={counts}
+            onToggle={(id) => setSelectedFilters((cur) => toggleTeamChatFilter(cur, id))}
+          />
         </div>
       </div>
 
@@ -344,35 +370,101 @@ export function Sidebar({
           <div className={cn(CARD_SURFACE_CLASS, "mx-4 mt-6 px-4 py-8 text-center")}>
             <p className="text-sm text-destructive">{error}</p>
           </div>
+        ) : selectedFilters.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+            <p className="font-display text-[14px] font-semibold text-[var(--inbox-text)]">
+              Nenhuma fila selecionada
+            </p>
+            <p className="mt-1 max-w-[16rem] text-[12px] leading-relaxed text-[var(--inbox-text-muted)]">
+              Selecione ao menos uma fila no seletor acima para ver as conversas.
+            </p>
+          </div>
         ) : visible.length === 0 ? (
           <div className={cn(CARD_SURFACE_CLASS, "mx-4 mt-6 px-4 py-8 text-center")}>
             <p className="text-sm text-muted-foreground">
-            {filter === "unread" && !q
-              ? "Nenhuma conversa não lida."
-              : filter === "favorites" && !q
-                ? "Nenhuma conversa favorita."
-                : filter === "groups" && !q
-                  ? "Nenhum grupo ainda."
-                : q
-                  ? "Nenhuma conversa encontrada."
-                  : "Nenhuma conversa ainda."}
+              {q ? "Nenhuma conversa encontrada." : "Nenhuma conversa nesta fila."}
             </p>
           </div>
         ) : (
-          visible.map((item) => (
-            <ChatRow
-              key={item.key}
-              item={item}
-              active={item.kind === "dm" ? item.row.room?.id === activeId : item.room.id === activeId}
-              favorited={favorites.includes(item.favId)}
-              onClick={() => {
-                if (item.kind === "group") onSelectRoom(item.room.id);
-                else if (item.row.room) onSelectRoom(item.row.room.id);
-                else onSelectPerson(item.row.person.id);
-              }}
-              onToggleFavorite={() => onToggleFavorite(item.favId)}
-            />
-          ))
+          <>
+            {sections && sections.length >= 2 ? (
+              <div className="flex justify-end px-4 pb-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsed(
+                      allCollapsed ? new Set() : new Set(sections.map((s) => s.id)),
+                    )
+                  }
+                  className="rounded-md px-1.5 py-0.5 font-display text-[11px] font-semibold text-[var(--inbox-brand)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--inbox-focus)]"
+                >
+                  {allCollapsed ? "Expandir todas" : "Recolher todas"}
+                </button>
+              </div>
+            ) : null}
+            {sections
+              ? sections.map((section) => {
+                  const visual = teamChatFilterVisual(section.id);
+                  return (
+                    <div key={section.id} className="px-2">
+                      <QueueSection
+                        id={section.id}
+                        label={section.label}
+                        count={section.items.length}
+                        collapsed={collapsed.has(section.id)}
+                        onToggle={() =>
+                          setCollapsed((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(section.id)) next.delete(section.id);
+                            else next.add(section.id);
+                            return next;
+                          })
+                        }
+                        Icon={visual.Icon}
+                        iconBg={visual.bg}
+                        iconFg={visual.fg}
+                      >
+                        {section.items.map((item) => (
+                          <ChatRow
+                            key={`${section.id}-${item.key}`}
+                            item={item}
+                            active={
+                              item.kind === "dm"
+                                ? item.row.room?.id === activeId
+                                : item.room.id === activeId
+                            }
+                            favorited={favorites.includes(item.favId)}
+                            onClick={() => {
+                              if (item.kind === "group") onSelectRoom(item.room.id);
+                              else if (item.row.room) onSelectRoom(item.row.room.id);
+                              else onSelectPerson(item.row.person.id);
+                            }}
+                            onToggleFavorite={() => onToggleFavorite(item.favId)}
+                          />
+                        ))}
+                      </QueueSection>
+                    </div>
+                  );
+                })
+              : visible.map((item) => (
+                  <ChatRow
+                    key={item.key}
+                    item={item}
+                    active={
+                      item.kind === "dm"
+                        ? item.row.room?.id === activeId
+                        : item.room.id === activeId
+                    }
+                    favorited={favorites.includes(item.favId)}
+                    onClick={() => {
+                      if (item.kind === "group") onSelectRoom(item.room.id);
+                      else if (item.row.room) onSelectRoom(item.row.room.id);
+                      else onSelectPerson(item.row.person.id);
+                    }}
+                    onToggleFavorite={() => onToggleFavorite(item.favId)}
+                  />
+                ))}
+          </>
         )}
       </nav>
     </aside>

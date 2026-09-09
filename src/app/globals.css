@@ -262,6 +262,24 @@
   --bg-gradient: #f4f6fb;
   --bg-base: #f4f6fb;
 
+  /* ── bWiPO Chat / Inbox — aliases semânticos (sem hex novo) ──
+     Paleta fechada: 1 marca (logo #2f66f2), neutros (canvas/ink/borda),
+     acentos SLA (ok / atenção / atrasado). Qualquer tela nova herda daqui. */
+  --inbox-brand: var(--color-primary);
+  --inbox-surface: var(--color-card);
+  --inbox-surface-muted: var(--bg-base);
+  --inbox-text: var(--color-foreground);
+  --inbox-text-muted: var(--color-ink-muted);
+  --inbox-border: var(--color-border);
+  --inbox-sla-ok: var(--color-success);
+  --inbox-sla-warn: var(--color-warning);
+  --inbox-sla-late: var(--color-destructive);
+  --inbox-space: 0.25rem; /* 4px — escala de espaçamento */
+  --inbox-radius: var(--radius-xl);
+  --inbox-focus: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  --inbox-thread-base: color-mix(in srgb, var(--bg-base) 70%, white);
+  --inbox-thread-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' fill='none' stroke='%232f66f2' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round' opacity='0.10'%3E%3Crect x='22' y='28' width='30' height='20' rx='7'/%3E%3Cpath d='M30 48v8l8-8'/%3E%3Ccircle cx='140' cy='42' r='13'/%3E%3Cpath d='M134 42l5 5 10-10'/%3E%3Cpath d='M46 130l5 12 12 5-12 5-5 12-5-12-12-5 12-5z'/%3E%3Crect x='124' y='118' width='30' height='28' rx='5'/%3E%3Cpath d='M124 128h30M132 114v10M146 114v10'/%3E%3C/svg%3E");
+
   /* Toast filled oficial: classes Tailwind v4 exatas do ZIP de referência. */
   --toast-success-bg: oklch(69.6% 0.17 162.48);  /* emerald-500 / #00bc7d */
   --toast-error-bg: oklch(63.7% 0.237 25.331);   /* red-500     / #fb2c36 */
@@ -1150,100 +1168,22 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   AppLoading — marca 3D em cima + anel-cometa embaixo
-   (arte de referência: B + trilha + ponta branca/magenta).
+   AppLoading — loader Formação vive em b-loader.css.
    app-loading-halo ainda pulsa o ponto do mobile-more-sheet.
    ══════════════════════════════════════════════════════════════════ */
 @keyframes app-loading-halo {
   0%, 100% { opacity: 0.35; transform: scale(1); }
   50%      { opacity: 0.8;  transform: scale(1.1); }
 }
-@keyframes brand-loader-spin {
-  to { transform: rotate(360deg); }
-}
-@keyframes brand-loader-breathe {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.92; transform: scale(1.04); }
-}
-
 .app-loading-halo {
   animation: app-loading-halo 2.4s ease-in-out infinite;
 }
 
-.brand-loader {
-  gap: 10px;
-}
-.brand-loader-mark {
-  filter:
-    drop-shadow(0 0 10px color-mix(in srgb, var(--color-sky) 55%, transparent))
-    drop-shadow(0 0 18px color-mix(in srgb, #d946ef 32%, transparent));
-}
-.brand-loader:not(.app-loading-watermark) .brand-loader-mark {
-  transform-origin: 50% 50%;
-  animation: brand-loader-breathe 2.6s ease-in-out infinite;
-}
-
-.brand-loader-orbit {
-  position: relative;
-  width: 28px;
-  height: 28px;
-}
-.brand-loader-track {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  border: 1.5px solid color-mix(in srgb, var(--foreground) 16%, transparent);
-}
-.brand-loader-comet {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0 76%,
-    #d946ef 88%,
-    #fff 97%,
-    transparent 100%
-  );
-  mask: radial-gradient(
-    farthest-side,
-    transparent calc(100% - 2.45px),
-    #000 calc(100% - 2.2px)
-  );
-  -webkit-mask: radial-gradient(
-    farthest-side,
-    transparent calc(100% - 2.45px),
-    #000 calc(100% - 2.2px)
-  );
-  filter: drop-shadow(0 0 4px #d946ef) drop-shadow(0 0 1px #fff);
-  transform-origin: 50% 50%;
-}
-.brand-loader-orbit.is-spinning .brand-loader-comet {
-  animation: brand-loader-spin 1.05s linear infinite;
-}
-
-/* Inbox / deal: marca grande e translúcida, sem anel colorido. */
-@keyframes app-loading-watermark {
-  0%, 100% { opacity: 0.1; }
-  50%      { opacity: 0.2; }
-}
-.app-loading-watermark {
-  pointer-events: none;
-  animation: app-loading-watermark 2.8s ease-in-out infinite;
-}
-.app-loading-watermark img {
-  filter: saturate(0.35);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .app-loading-halo,
-  .brand-loader-orbit.is-spinning .brand-loader-comet,
-  .brand-loader:not(.app-loading-watermark) .brand-loader-mark,
-  .app-loading-watermark {
+  .app-loading-halo {
     animation: none;
+    opacity: 0.5;
   }
-  .app-loading-halo { opacity: 0.5; }
-  .app-loading-watermark { opacity: 0.14; }
 }
 
 /* Modal Telefonia IP — paleta sólida (light/dark) alinhada ao mockup */
@@ -1292,8 +1232,8 @@
   --orbita-radius-inner: 12px;
   --orbita-radius-avatar: 999px;
   --orbita-gap: 10px;
-  --orbita-selected: #5b6ff5;
-  --orbita-unread-bg: #5b6ff5;
+  --orbita-selected: var(--inbox-brand, #2f66f2);
+  --orbita-unread-bg: var(--inbox-brand, #2f66f2);
   --orbita-unread-fg: #ffffff;
   --orbita-divider: rgba(91, 111, 245, 0.14);
   --orbita-text: #1e2a3b;
@@ -1413,9 +1353,10 @@
 }
 
 .team-chat-shell [data-wa-thread] {
-  background-color: var(--orbita-paper);
-  background-image: var(--orbita-paper-pattern);
-  background-size: var(--orbita-paper-size, 18px);
+  background-color: var(--inbox-thread-base);
+  background-image: var(--inbox-thread-pattern);
+  background-repeat: repeat;
+  background-size: 192px 192px;
 }
 
 .team-chat-shell .chat-scroll {
@@ -1547,4 +1488,18 @@
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-accent-violet: var(--accent-violet);
+}
+
+/* Thread do chat — textura vetorial tileável (marca, baixa opacidade). */
+.chat-thread-texture {
+  background-color: var(--inbox-thread-base);
+  background-image: var(--inbox-thread-pattern);
+  background-repeat: repeat;
+  background-size: 192px 192px;
+}
+
+.v2-dark .chat-thread-texture,
+.dark .chat-thread-texture {
+  --inbox-thread-base: color-mix(in srgb, var(--bg-base) 88%, black);
+  --inbox-thread-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' fill='none' stroke='%237b8df7' stroke-width='1.15' stroke-linecap='round' stroke-linejoin='round' opacity='0.16'%3E%3Crect x='22' y='28' width='30' height='20' rx='7'/%3E%3Cpath d='M30 48v8l8-8'/%3E%3Ccircle cx='140' cy='42' r='13'/%3E%3Cpath d='M134 42l5 5 10-10'/%3E%3Cpath d='M46 130l5 12 12 5-12 5-5 12-5-12-12-5 12-5z'/%3E%3Crect x='124' y='118' width='30' height='28' rx='5'/%3E%3Cpath d='M124 128h30M132 114v10M146 114v10'/%3E%3C/svg%3E");
 }

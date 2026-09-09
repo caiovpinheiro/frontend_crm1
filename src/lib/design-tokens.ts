@@ -95,6 +95,19 @@ export const dt = {
     sessionExpiredCard:
       "mx-3 my-2 flex items-center gap-3 rounded-xl border border-[var(--color-danger-subtle)] bg-card px-3 py-2.5 shadow-[0_2px_8px_rgba(220,38,38,0.08)]",
     noteLabel: "text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground",
+    thread: "chat-thread-texture",
+  },
+
+  /** Inbox / bWiPO Chat — tipografia e SLA via tokens de tema. */
+  inbox: {
+    label: "text-[12px] font-medium text-[var(--inbox-text-muted)]",
+    body: "text-[14px] text-[var(--inbox-text)]",
+    title: "font-display text-[16px] font-semibold tracking-tight text-[var(--inbox-text)]",
+    slaOk: "text-[var(--inbox-sla-ok)]",
+    slaWarn: "text-[var(--inbox-sla-warn)]",
+    slaLate: "text-[var(--inbox-sla-late)]",
+    focus:
+      "outline-none focus-visible:ring-2 focus-visible:ring-[var(--inbox-focus)]",
   },
 
   /**
