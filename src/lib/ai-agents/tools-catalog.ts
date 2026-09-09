@@ -98,15 +98,15 @@ export const TOOLS_CATALOG: ToolDescriptor[] = [
     description:
       "Tira a conversa do agente de IA e atribui a um operador humano via fila de Distribuição. Usado sempre que o tema sair do escopo do agente.",
     category: "handoff",
-    defaultForArchetypes: ["SDR", "ATENDIMENTO", "VENDEDOR", "SUPORTE"],
+    defaultForArchetypes: ["SDR", "ATENDIMENTO", "VENDEDOR", "SUPORTE", "ENCERRAMENTO"],
   },
   {
     id: "close_conversation",
     label: "Encerrar conversa",
     description:
-      "Encerra o atendimento e dispara a automação de Encerramento — somente quando nenhum humano respondeu ainda. Use para o aluno que pede explicitamente para finalizar com a IA.",
+      "Encerra o ticket e dispara a automação de Encerramento. No arquétipo Encerramento também vale depois de atendimento humano.",
     category: "handoff",
-    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE"],
+    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE", "ENCERRAMENTO"],
   },
   {
     id: "list_tabulations",

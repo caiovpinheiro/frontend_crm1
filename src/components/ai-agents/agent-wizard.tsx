@@ -124,6 +124,7 @@ export function AgentWizard({
       setTone(a.defaultTone);
       setModel(a.suggestedModel);
       setEnabledTools(a.defaultTools);
+      if (a.id === "ENCERRAMENTO") setAutonomyMode("AUTONOMOUS");
     }
     lastAppliedArchetype.current = archetype;
   }, [archetype]);

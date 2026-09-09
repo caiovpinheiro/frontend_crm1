@@ -3120,6 +3120,7 @@ const ARCHETYPE_LABEL: Record<string, string> = {
   VENDEDOR: "Vendedor",
   SUPORTE: "Suporte",
   TABULACAO: "Tabulação",
+  ENCERRAMENTO: "Encerramento",
 };
 
 function ExecuteDistributionDeptsDraft({
@@ -3462,6 +3463,15 @@ function TransferToAIAgentStepConfig({
               entende a dúvida ou o problema e aplica a folha mais
               próxima em toda a árvore da organização (qualquer
               departamento). <b>Não envia WhatsApp</b> e não encerra.
+            </>
+          ) : selected?.archetype === "ENCERRAMENTO" ? (
+            <>
+              Este agente espera a próxima mensagem do contato. Se for
+              finalização (ok, obrigado, valeu…), responde{" "}
+              <b>Obrigado. Se precisar estamos aqui para ajudar</b> e
+              encerra — a automação de Encerramento segue. Se for
+              dúvida nova, transfere para humano. <b>Não cumprimenta</b>{" "}
+              na transferência.
             </>
           ) : (
             <>
