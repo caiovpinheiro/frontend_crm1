@@ -17,6 +17,11 @@ import {
   type ToolPolicy,
 } from "@/lib/ai-agents/steering";
 import { TOOLS_CATALOG, type ToolDescriptor } from "@/lib/ai-agents/tools-catalog";
+import {
+  ACADEMIC_RECORD_FIELDS,
+  isAcademicFieldReadable,
+  toggleAcademicField,
+} from "@/lib/ai-agents/academic-fields";
 import { cn } from "@/lib/utils";
 
 const ACTIVITY_TYPES = [
@@ -294,6 +299,62 @@ export function ToolPolicyForm({
 
       {tool.id === "consultar_matricula" && (
         <>
+          <Field
+            label="Campos do relatório que o agente pode dizer"
+            hint="Nada é liberado por padrão. O que não estiver marcado o agente sabe que existe, mas não recebe o valor — ele encaminha para um consultor em vez de responder. CPF, data de nascimento e telefone do relatório nunca são liberáveis: servem para localizar o aluno."
+          >
+            <div className="grid gap-1.5">
+              {ACADEMIC_RECORD_FIELDS.map((f) => {
+                const on = isAcademicFieldReadable(policy.readableFields, f.key);
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        readableFields: toggleAcademicField(
+                          policy.readableFields,
+                          f.key,
+                        ),
+                      })
+                    }
+                    className={cn(
+                      "flex items-start gap-2 rounded-lg border p-2 text-left text-[13px] transition-colors",
+                      on
+                        ? "border-indigo-500 bg-[var(--color-indigo-soft)] dark:border-indigo-400 dark:bg-indigo-950/30"
+                        : "border-border hover:bg-muted/40",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
+                        on
+                          ? "border-indigo-500 bg-indigo-500 text-white"
+                          : "border-border",
+                      )}
+                    >
+                      {on && <span className="text-[10px]">✓</span>}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-1.5 font-medium">
+                        {f.label}
+                        {f.sensitiveHint && (
+                          <span className="rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] font-normal text-amber-700 dark:text-amber-300">
+                            dado sensível
+                          </span>
+                        )}
+                      </span>
+                      {f.warning && (
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                          {f.warning}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
           <Field
             label="Política da consulta"
             hint="Texto injetado na ferramenta. Vazio = política padrão do código."
