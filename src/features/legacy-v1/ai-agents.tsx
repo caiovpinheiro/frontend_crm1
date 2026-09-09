@@ -29,7 +29,7 @@ type AgentRow = {
   name: string;
   email: string;
   avatarUrl: string | null;
-  archetype: "SDR" | "ATENDIMENTO" | "VENDEDOR" | "SUPORTE";
+  archetype: "SDR" | "ATENDIMENTO" | "VENDEDOR" | "SUPORTE" | "TABULACAO";
   model: string;
   autonomyMode: "AUTONOMOUS" | "DRAFT";
   enabledTools: string[];
