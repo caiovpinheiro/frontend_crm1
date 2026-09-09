@@ -10,6 +10,8 @@ import {
   addTeamChatNote,
   createTeamChatRoom,
   deleteTeamChatNote,
+  listMyWorkItems,
+  listRoomWorkItems,
   listTeamChatColleagues,
   listTeamChatMessages,
   listTeamChatNotes,
@@ -21,7 +23,7 @@ import {
   sendTeamChatMessage,
 } from "./api";
 import { loadOrbitaFavorites, saveOrbitaFavorites } from "./helpers";
-import type { TeamChatAttachment, TeamChatMessage, TeamChatNote } from "./types";
+import type { TeamChatAttachment, TeamChatMessage, TeamChatNote, WorkItem } from "./types";
 
 export function useOrbitaFavorites() {
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -46,6 +48,8 @@ const ROOMS_KEY = "team-chat-rooms";
 const MESSAGES_KEY = "team-chat-messages";
 const PEOPLE_KEY = "team-chat-colleagues";
 const NOTES_KEY = "team-chat-notes";
+const MY_WORK_ITEMS_KEY = "team-chat-work-items-mine";
+const ROOM_WORK_ITEMS_KEY = "team-chat-work-items";
 
 function patchMessage(qc: ReturnType<typeof useQueryClient>, msg: TeamChatMessage) {
   qc.setQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, msg.roomId], (prev) => {
@@ -100,6 +104,36 @@ export function useTeamChatNotes(roomId: string | null, enabled = true) {
     enabled: !!roomId && enabled,
     retry: retryUnlessTimeout,
   });
+}
+
+export function useMyWorkItems(enabled = true) {
+  return useQuery({
+    queryKey: [MY_WORK_ITEMS_KEY],
+    queryFn: listMyWorkItems,
+    enabled,
+    retry: retryUnlessTimeout,
+  });
+}
+
+export function useRoomWorkItems(roomId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [ROOM_WORK_ITEMS_KEY, roomId],
+    queryFn: () => listRoomWorkItems(roomId as string),
+    enabled: !!roomId && enabled,
+    retry: retryUnlessTimeout,
+  });
+}
+
+export function patchRoomWorkItem(qc: ReturnType<typeof useQueryClient>, item: WorkItem) {
+  qc.setQueryData<{ items: WorkItem[] }>([ROOM_WORK_ITEMS_KEY, item.roomId], (prev) => {
+    if (!prev) return { items: [item] };
+    const idx = prev.items.findIndex((w) => w.id === item.id);
+    if (idx === -1) return { items: [item, ...prev.items] };
+    const items = [...prev.items];
+    items[idx] = item;
+    return { items };
+  });
+  qc.invalidateQueries({ queryKey: [MY_WORK_ITEMS_KEY] });
 }
 
 export function useTeamChatMutations() {
@@ -250,6 +284,12 @@ export function useTeamChatRealtime(activeRoomId: string | null, enabled = true)
         bumpRooms();
         if (!data.message) return;
         patchMessage(qc, data.message);
+      },
+      team_chat_work_item_updated: (raw) => {
+        const data = raw as { roomId?: string; workItem?: WorkItem };
+        if (data.workItem) patchRoomWorkItem(qc, data.workItem);
+        else if (data.roomId) qc.invalidateQueries({ queryKey: [ROOM_WORK_ITEMS_KEY, data.roomId] });
+        qc.invalidateQueries({ queryKey: [MY_WORK_ITEMS_KEY] });
       },
     });
   }, [qc, enabled]);

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from "react";
 import {
   Bold,
+  Calendar,
+  CheckSquare,
   FileText,
   Highlighter,
   Image,
@@ -107,6 +109,7 @@ export function Composer({
   onSend,
   onTyping,
   onClearQuote,
+  onCreateWorkItem,
 }: {
   roomId: string;
   placeholder: string;
@@ -114,6 +117,7 @@ export function Composer({
   onSend: (input: { content: string; attachments: TeamChatAttachment[] }) => Promise<void> | void;
   onTyping?: () => void;
   onClearQuote?: () => void;
+  onCreateWorkItem?: (type: "checklist" | "meeting") => void;
 }) {
   const [value, setValue] = useState("");
   const [pending, setPending] = useState<Staged[]>([]);
@@ -695,6 +699,30 @@ export function Composer({
                     >
                       <Highlighter className="h-4 w-4 text-muted-foreground" /> Destacar texto
                     </button>
+                    {onCreateWorkItem && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlusOpen(false);
+                            onCreateWorkItem("checklist");
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-foreground hover:bg-[var(--orbita-block-soft)]"
+                        >
+                          <CheckSquare className="h-4 w-4 text-muted-foreground" /> Checklist
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlusOpen(false);
+                            onCreateWorkItem("meeting");
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-foreground hover:bg-[var(--orbita-block-soft)]"
+                        >
+                          <Calendar className="h-4 w-4 text-muted-foreground" /> Reunião
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

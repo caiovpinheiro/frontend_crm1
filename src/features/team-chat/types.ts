@@ -60,6 +60,81 @@ export type TeamChatMessage = {
   attachments?: TeamChatAttachment[];
   createdAt: string;
   author: TeamChatPerson | null;
+  workItemId?: string | null;
+};
+
+export type CrmAnchorType = "deal" | "conversation" | "contact";
+
+export type CrmCard =
+  | {
+      kind: "crm";
+      restricted: false;
+      type: CrmAnchorType;
+      id: string;
+      number: number | null;
+      title: string;
+      typeLabel: string;
+      status: string | null;
+      ownerName: string | null;
+      value: number | null;
+      href: string;
+    }
+  | {
+      kind: "crm";
+      restricted: true;
+      type: CrmAnchorType;
+      typeLabel: string;
+    };
+
+export type RecordSearchHit = {
+  type: CrmAnchorType;
+  id: string;
+  number: number | null;
+  title: string;
+  subtitle: string | null;
+  href: string;
+};
+
+export type WorkItemType = "checklist" | "ata" | "pauta" | "feedback" | "meeting";
+
+export type WorkItemEntryInput = {
+  text: string;
+  assigneeId?: string | null;
+  dueAt?: string | null;
+};
+
+export type WorkItemEntry = {
+  id: string;
+  text: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  dueAt: string | null;
+  status: "open" | "done";
+  sortOrder: number;
+  completedAt: string | null;
+};
+
+export type WorkItem = {
+  id: string;
+  type: WorkItemType;
+  title: string;
+  originType: string;
+  originId: string;
+  roomId: string | null;
+  visibility: string;
+  createdById: string;
+  createdByName: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  callUrl: string | null;
+  recurrenceKey: string | null;
+  participantIds: string[];
+  createdAt: string;
+  done: number;
+  total: number;
+  entries: WorkItemEntry[];
+  crmCard: CrmCard | null;
+  originLabel: string | null;
 };
 
 export type TeamChatNote = {

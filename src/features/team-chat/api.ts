@@ -1,11 +1,15 @@
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import type {
+  RecordSearchHit,
   TeamChatAttachment,
   TeamChatDepartment,
   TeamChatMessage,
   TeamChatNote,
   TeamChatPerson,
   TeamChatRoom,
+  WorkItem,
+  WorkItemEntryInput,
+  WorkItemType,
 } from "./types";
 
 async function json<T>(res: Promise<Response>, fallback: string): Promise<T> {
@@ -148,5 +152,140 @@ export async function deleteTeamChatNote(noteId: string): Promise<{ ok: boolean 
   return json(
     apiFetch(`/api/team-chat/notes/${noteId}`, { method: "DELETE" }),
     "Não foi possível excluir a nota.",
+  );
+}
+
+export async function listRoomWorkItems(roomId: string): Promise<{ items: WorkItem[] }> {
+  return json(
+    apiFetch(`/api/team-chat/work-items?roomId=${encodeURIComponent(roomId)}`),
+    "Não foi possível carregar os checklists.",
+  );
+}
+
+export async function listMyWorkItems(): Promise<{ items: WorkItem[] }> {
+  return json(apiFetch("/api/team-chat/work-items/mine"), "Não foi possível carregar as pendências.");
+}
+
+export async function createTeamChatWorkItem(input: {
+  type: WorkItemType;
+  title: string;
+  originType: "room" | "meeting" | "message";
+  originId: string;
+  roomId?: string | null;
+  visibility?: "canal" | "privado" | "participantes";
+  anchor?: { type: string; id: string } | null;
+  entries?: WorkItemEntryInput[];
+  startsAt?: string | null;
+  endsAt?: string | null;
+  callUrl?: string | null;
+  recurrenceKey?: string | null;
+  participantIds?: string[];
+  postMessage?: boolean;
+}): Promise<WorkItem> {
+  return json(
+    apiFetch("/api/team-chat/work-items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível criar o item.",
+  );
+}
+
+export async function updateTeamChatWorkItem(
+  id: string,
+  input: {
+    title?: string;
+    anchor?: { type: string; id: string } | null;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    callUrl?: string | null;
+    participantIds?: string[];
+  },
+): Promise<WorkItem> {
+  return json(
+    apiFetch(`/api/team-chat/work-items/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível atualizar o item.",
+  );
+}
+
+export async function addWorkItemEntry(id: string, input: WorkItemEntryInput): Promise<WorkItem> {
+  return json(
+    apiFetch(`/api/team-chat/work-items/${id}/entries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível adicionar o item.",
+  );
+}
+
+export async function updateWorkItemEntry(
+  id: string,
+  entryId: string,
+  input: {
+    text?: string;
+    assigneeId?: string | null;
+    dueAt?: string | null;
+    status?: "open" | "done";
+  },
+): Promise<WorkItem> {
+  return json(
+    apiFetch(`/api/team-chat/work-items/${id}/entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível atualizar o item.",
+  );
+}
+
+export async function extractWorkItemEntries(
+  text: string,
+): Promise<{ title: string; entries: WorkItemEntryInput[] }> {
+  return json(
+    apiFetch("/api/team-chat/work-items/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }),
+    "Não foi possível extrair os itens.",
+  );
+}
+
+export async function generateChecklistFromMeeting(id: string): Promise<WorkItem> {
+  return json(
+    apiFetch(`/api/team-chat/work-items/${id}/generate-checklist`, { method: "POST" }),
+    "Não foi possível gerar o checklist.",
+  );
+}
+
+export async function messageToChecklist(
+  roomId: string,
+  messageId: string,
+  input: {
+    title?: string;
+    entries?: WorkItemEntryInput[];
+    anchor?: { type: string; id: string } | null;
+  } = {},
+): Promise<WorkItem> {
+  return json(
+    apiFetch(`/api/team-chat/rooms/${roomId}/messages/${messageId}/to-checklist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível criar o checklist.",
+  );
+}
+
+export async function searchTeamChatRecords(q: string): Promise<{ records: RecordSearchHit[] }> {
+  return json(
+    apiFetch(`/api/team-chat/records/search?q=${encodeURIComponent(q)}`),
+    "Não foi possível buscar registros.",
   );
 }

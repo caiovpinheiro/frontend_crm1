@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, Fragment } from "react";
-import { Copy, Download, FileText, Pin, PinOff, Reply, SmilePlus, X } from "lucide-react";
+import { CheckSquare, Copy, Download, FileText, Pin, PinOff, Reply, SmilePlus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 
 import { Avatar, GroupGlyph } from "./avatar";
 import { dayKey, formatClock, formatDayLabel, getOrbitaNameColor, REACTION_EMOJIS, toPerson } from "./helpers";
-import type { TeamChatAttachment, TeamChatMessage, TeamChatReaction, TeamChatRoom } from "./types";
+import type { TeamChatAttachment, TeamChatMessage, TeamChatReaction, TeamChatRoom, WorkItem } from "./types";
+import { WorkItemCard } from "./work-item-card";
 
 function formatChatText(text: string, mine: boolean): ReactNode {
   if (!text) return text;
@@ -94,9 +95,13 @@ export function MessageList({
   error = null,
   onRetry,
   query = "",
+  workItems = [],
   onToggleReaction,
   onTogglePin,
   onReply,
+  onWorkItemChange,
+  onLinkRecord,
+  onToChecklist,
 }: {
   room: TeamChatRoom;
   messages: TeamChatMessage[];
@@ -104,9 +109,13 @@ export function MessageList({
   error?: string | null;
   onRetry?: () => void;
   query?: string;
+  workItems?: WorkItem[];
   onToggleReaction: (id: string, emoji: string) => void;
   onTogglePin: (id: string) => void;
   onReply?: (message: TeamChatMessage) => void;
+  onWorkItemChange?: (item: WorkItem) => void;
+  onLinkRecord?: (item: WorkItem) => void;
+  onToChecklist?: (message: TeamChatMessage) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const isDirect = room.kind === "DM";
@@ -225,6 +234,7 @@ export function MessageList({
                       last={last}
                       mine={mine}
                       showName={!isDirect}
+                      workItem={msg.workItemId ? workItems.find((w) => w.id === msg.workItemId) : undefined}
                       peerOnline={
                         isDirect
                           ? Boolean(room.peer?.systemOnline)
@@ -233,6 +243,9 @@ export function MessageList({
                       onToggleReaction={onToggleReaction}
                       onTogglePin={onTogglePin}
                       onReply={onReply}
+                      onWorkItemChange={onWorkItemChange}
+                      onLinkRecord={onLinkRecord}
+                      onToChecklist={onToChecklist}
                     />
                   </Fragment>
                 );
@@ -267,10 +280,14 @@ function MessageRow({
   last,
   mine,
   showName,
+  workItem,
   peerOnline,
   onToggleReaction,
   onTogglePin,
   onReply,
+  onWorkItemChange,
+  onLinkRecord,
+  onToChecklist,
 }: {
   message: TeamChatMessage;
   meId: string;
@@ -280,10 +297,14 @@ function MessageRow({
   last: boolean;
   mine: boolean;
   showName: boolean;
+  workItem?: WorkItem;
   peerOnline: boolean;
   onToggleReaction: (id: string, emoji: string) => void;
   onTogglePin: (id: string) => void;
   onReply?: (message: TeamChatMessage) => void;
+  onWorkItemChange?: (item: WorkItem) => void;
+  onLinkRecord?: (item: WorkItem) => void;
+  onToChecklist?: (message: TeamChatMessage) => void;
 }) {
   const [picker, setPicker] = useState(false);
   const [, bumpTick] = useState(0);
@@ -301,7 +322,8 @@ function MessageRow({
     <div className={cn("flex w-full flex-col", mine ? "items-end" : "items-start", first ? "mt-3" : "mt-[2px]")}>
       <div
         className={cn(
-          "group/msg flex max-w-[65%] items-end gap-1.5",
+          "group/msg flex items-end gap-1.5",
+          workItem ? "max-w-[26rem]" : "max-w-[65%]",
           mine ? "flex-row-reverse" : "flex-row",
         )}
       >
@@ -320,6 +342,13 @@ function MessageRow({
             </span>
           )}
           <div className={cn("relative w-fit max-w-full", reactions.length > 0 && "mb-3")}>
+            {workItem ? (
+              <WorkItemCard
+                item={workItem}
+                onChange={onWorkItemChange}
+                onLinkRecord={onLinkRecord}
+              />
+            ) : (
             <MessageBody
               message={message}
               mine={mine}
@@ -328,6 +357,7 @@ function MessageRow({
               time={formatClock(message.createdAt)}
               tick={tick}
             />
+            )}
             {reactions.length > 0 && (
               <div
                 className={cn(
@@ -384,6 +414,18 @@ function MessageRow({
                     className="grid h-7 w-7 place-items-center text-muted-foreground hover:text-foreground"
                   >
                     <Reply className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipGlass>
+              )}
+              {onToChecklist && !message.workItemId && (
+                <TooltipGlass label="Transformar em checklist" side="top">
+                  <button
+                    type="button"
+                    onClick={() => onToChecklist(message)}
+                    aria-label="Transformar em checklist"
+                    className="grid h-7 w-7 place-items-center text-muted-foreground hover:text-foreground"
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
                   </button>
                 </TooltipGlass>
               )}

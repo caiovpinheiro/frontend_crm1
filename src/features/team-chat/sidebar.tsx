@@ -21,6 +21,7 @@ import {
 } from "./filter-catalog";
 import { FilterSelector } from "./filter-selector";
 import { favoriteKey, formatListTime, toPerson } from "./helpers";
+import { MyPendenciesButton, MyPendenciesPanel } from "./my-pendencies";
 import type { DirectRow, TeamChatRoom } from "./types";
 
 const QUEUES_STORAGE_KEY = "bwipo-chat-queues";
@@ -228,6 +229,7 @@ export function Sidebar({
   const [selectedQueues, setSelectedQueues] = useState<TeamChatQueueId[]>(DEFAULT_TEAM_CHAT_QUEUES);
   const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(() => new Set());
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pendenciesOpen, setPendenciesOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const q = query.trim().toLowerCase();
 
@@ -401,6 +403,15 @@ export function Sidebar({
         </div>
       </div>
 
+      {pendenciesOpen ? (
+        <MyPendenciesPanel
+          onOpenRoom={(id) => {
+            setPendenciesOpen(false);
+            onSelectRoom(id);
+          }}
+          onClose={() => setPendenciesOpen(false)}
+        />
+      ) : (
       <nav
         className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1.5"
         aria-label="Conversas"
@@ -467,6 +478,10 @@ export function Sidebar({
           </>
         )}
       </nav>
+      )}
+      <div className="shrink-0 border-t border-[var(--orbita-divider)]">
+        <MyPendenciesButton open={pendenciesOpen} onToggle={() => setPendenciesOpen((v) => !v)} />
+      </div>
     </aside>
   );
 }

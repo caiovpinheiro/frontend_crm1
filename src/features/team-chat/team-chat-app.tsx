@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
@@ -16,6 +17,10 @@ import { MessageList } from "./message-list";
 import { NotesPanel } from "./notes-panel";
 import { Sidebar } from "./sidebar";
 import {
+  patchRoomWorkItem,
+  usePingTeamChatTyping,
+  useOrbitaFavorites,
+  useRoomWorkItems,
   useTeamChatColleagues,
   useTeamChatMessages,
   useTeamChatMutations,
@@ -23,11 +28,14 @@ import {
   useTeamChatRealtime,
   useTeamChatRooms,
   useTeamChatTyping,
-  usePingTeamChatTyping,
-  useOrbitaFavorites,
 } from "./hooks";
 import { favoriteKey } from "./helpers";
-import type { DirectRow, TeamChatRoom } from "./types";
+import type { DirectRow, TeamChatMessage, TeamChatRoom, WorkItem, WorkItemType } from "./types";
+import {
+  CreateWorkItemDialog,
+  LinkRecordDialog,
+  MessageToChecklistDialog,
+} from "./work-item-dialogs";
 
 export function TeamChatApp() {
   const { data: session, status } = useSession();
@@ -255,19 +263,34 @@ function Thread({
   onToggleFavorite: () => void;
   onAddMembers: () => void;
 }) {
+  const qc = useQueryClient();
   const { data, isError, error, refetch } = useTeamChatMessages(room.id);
+  const workItemsQuery = useRoomWorkItems(room.id);
   const { send, react, pin } = useTeamChatMutations();
   const messages = data?.messages ?? [];
+  const workItems = workItemsQuery.data?.items ?? [];
   const messagesError =
     error instanceof Error ? error.message : isError ? "Não foi possível carregar as mensagens." : null;
   const [chatQuery, setChatQuery] = useState("");
   const [quote, setQuote] = useState<{ author: string; text: string } | null>(null);
+  const [createType, setCreateType] = useState<WorkItemType | null>(null);
+  const [toChecklist, setToChecklist] = useState<TeamChatMessage | null>(null);
+  const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const pingTyping = usePingTeamChatTyping(room.id);
 
   useEffect(() => {
     setChatQuery("");
     setQuote(null);
+    setCreateType(null);
+    setToChecklist(null);
+    setLinkItemId(null);
   }, [room.id]);
+
+  function onWorkItemReady(item: WorkItem) {
+    patchRoomWorkItem(qc, item);
+    void qc.invalidateQueries({ queryKey: ["team-chat-messages", room.id] });
+    void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -295,6 +318,7 @@ function Thread({
             void refetch();
           }}
           query={chatQuery}
+          workItems={workItems}
           onToggleReaction={(id, emoji) =>
             react.mutate({ roomId: room.id, messageId: id, emoji }, { onError: (e: Error) => toast.error(e.message) })
           }
@@ -307,6 +331,9 @@ function Thread({
               text: msg.content.trim() || (msg.attachments?.[0]?.name ?? "Anexo"),
             })
           }
+          onWorkItemChange={onWorkItemReady}
+          onLinkRecord={(item) => setLinkItemId(item.id)}
+          onToChecklist={(msg) => setToChecklist(msg)}
         />
         <div className="relative z-20 shrink-0 overflow-visible border-t border-border bg-[var(--orbita-block)] px-3 pb-4 pt-2" data-tour="bwipo-chat-composer">
           <div className="overflow-visible rounded-[16px] border border-border bg-[var(--orbita-block)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
@@ -316,6 +343,7 @@ function Thread({
               quote={quote}
               onTyping={pingTyping}
               onClearQuote={() => setQuote(null)}
+              onCreateWorkItem={(type) => setCreateType(type)}
               onSend={async (payload) => {
                 await send.mutateAsync({
                   roomId: room.id,
@@ -327,6 +355,33 @@ function Thread({
           </div>
         </div>
       </div>
+      <CreateWorkItemDialog
+        open={createType !== null}
+        onOpenChange={(v) => {
+          if (!v) setCreateType(null);
+        }}
+        roomId={room.id}
+        type={createType ?? "checklist"}
+        onCreated={onWorkItemReady}
+      />
+      <MessageToChecklistDialog
+        open={toChecklist !== null}
+        onOpenChange={(v) => {
+          if (!v) setToChecklist(null);
+        }}
+        roomId={room.id}
+        messageId={toChecklist?.id ?? ""}
+        seedText={toChecklist?.content ?? ""}
+        onCreated={onWorkItemReady}
+      />
+      <LinkRecordDialog
+        open={linkItemId !== null}
+        onOpenChange={(v) => {
+          if (!v) setLinkItemId(null);
+        }}
+        workItemId={linkItemId}
+        onLinked={onWorkItemReady}
+      />
     </div>
   );
 }
