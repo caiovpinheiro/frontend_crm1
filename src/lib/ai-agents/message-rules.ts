@@ -8,13 +8,15 @@ export type MessageRuleAction =
   | "answer_with_knowledge"
   | "transfer_department"
   | "transfer_human"
-  | "fixed_reply";
+  | "fixed_reply"
+  | "add_tag";
 
 export const MESSAGE_RULE_ACTIONS: MessageRuleAction[] = [
   "answer_with_knowledge",
   "transfer_department",
   "transfer_human",
   "fixed_reply",
+  "add_tag",
 ];
 
 export type MessageRule = {
@@ -27,6 +29,8 @@ export type MessageRule = {
   action: MessageRuleAction;
   department: string | null;
   message: string | null;
+  /// Só em `add_tag`: nome da tag, exatamente como está no CRM.
+  tagName: string | null;
 };
 
 /** Rótulos em linguagem de operador — nunca o nome técnico. */
@@ -49,6 +53,10 @@ export const MESSAGE_RULE_ACTION_LABELS: Record<
   fixed_reply: {
     label: "Responder com um texto fixo",
     hint: "O agente envia exatamente o texto escrito, sem chamar o modelo.",
+  },
+  add_tag: {
+    label: "Marcar uma tag no contato",
+    hint: "Dispara as automações com gatilho 'Tag adicionada'. A tag precisa já existir no CRM.",
   },
 };
 
@@ -93,6 +101,7 @@ export function normalizeMessageRules(v: unknown): MessageRule[] {
       action: r.action,
       department: text(r.department),
       message: text(r.message),
+      tagName: text(r.tagName),
     });
   }
   return out;
@@ -116,5 +125,6 @@ export function emptyMessageRule(): MessageRule {
     action: "answer_with_knowledge",
     department: null,
     message: null,
+    tagName: null,
   };
 }

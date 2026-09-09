@@ -176,6 +176,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
         action: "answer_with_knowledge",
         department: null,
         message: null,
+        tagName: null,
       },
       {
         id: "preview-cancelamento",
@@ -187,6 +188,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
         action: "transfer_department",
         department: "Retenção",
         message: null,
+        tagName: null,
       },
     ],
     interceptRetention: true,

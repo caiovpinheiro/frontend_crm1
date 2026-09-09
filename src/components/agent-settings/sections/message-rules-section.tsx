@@ -12,6 +12,7 @@ import {
   IconTrash as Trash2,
   IconUsers as Users,
   IconDirections as Signpost,
+  IconTag as Tag,
 } from "@tabler/icons-react";
 import * as React from "react";
 
@@ -44,6 +45,7 @@ const ACTION_ICON: Record<MessageRuleAction, React.ElementType> = {
   transfer_department: Signpost,
   transfer_human: Users,
   fixed_reply: MessageSquare,
+  add_tag: Tag,
 };
 
 type Department = { id: string; name: string };
@@ -92,6 +94,7 @@ export function MessageRulesSection({
       department:
         rule.action === "transfer_department" ? rule.department : null,
       message: rule.action === "answer_with_knowledge" ? null : rule.message,
+      tagName: rule.action === "add_tag" ? rule.tagName : null,
     };
     onChange(
       isNew
@@ -348,10 +351,27 @@ function RuleDialog({
   onChange: (next: MessageRule) => void;
   onSave: (rule: MessageRule) => void;
 }) {
+  // Tags existentes: a regra marca tag, não cria. Tag inventada não é
+  // gatilho de automação nenhuma, então a escolha é fechada na lista.
+  const { data: tags = [] } = useQuery({
+    queryKey: ["ai-agent-tags"],
+    queryFn: async (): Promise<string[]> => {
+      const res = await fetch(apiUrl("/api/tags"));
+      if (!res.ok) return [];
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.tags ?? []);
+      return (list as Array<{ name?: string }>)
+        .map((t) => t.name)
+        .filter((n): n is string => Boolean(n));
+    },
+    staleTime: 60_000,
+  });
+
   const invalid =
     rule.anyOf.length === 0 ||
     (rule.action === "transfer_department" && !rule.department) ||
-    (rule.action === "fixed_reply" && !rule.message?.trim());
+    (rule.action === "fixed_reply" && !rule.message?.trim()) ||
+    (rule.action === "add_tag" && !rule.tagName?.trim());
 
   return (
     <FormDialog
@@ -493,12 +513,48 @@ function RuleDialog({
           </div>
         )}
 
+        {rule.action === "add_tag" && (
+          <div>
+            <label className={formLabelClass} htmlFor="rule-tag">
+              Tag *
+            </label>
+            <select
+              id="rule-tag"
+              value={rule.tagName ?? ""}
+              onChange={(e) =>
+                onChange({ ...rule, tagName: e.target.value || null })
+              }
+              className={cn(formControlClass, "w-full px-3")}
+            >
+              <option value="">Escolha uma tag</option>
+              {tags.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+              {rule.tagName && !tags.includes(rule.tagName) && (
+                <option value={rule.tagName}>
+                  {rule.tagName} (não existe mais no CRM)
+                </option>
+              )}
+            </select>
+            <FieldHelp>
+              Marcar a tag dispara as automações com gatilho “Tag
+              adicionada”. A tag precisa já existir — a regra não cria tag
+              nova. Se a automação já responde ao cliente, deixe a mensagem
+              abaixo em branco para o agente não falar duas vezes.
+            </FieldHelp>
+          </div>
+        )}
+
         {rule.action !== "answer_with_knowledge" && (
           <div>
             <label className={formLabelClass} htmlFor="rule-message">
               {rule.action === "fixed_reply"
                 ? "Texto que o agente envia *"
-                : "Mensagem antes de transferir"}
+                : rule.action === "add_tag"
+                  ? "Mensagem ao marcar a tag"
+                  : "Mensagem antes de transferir"}
             </label>
             <Textarea
               id="rule-message"
@@ -514,7 +570,9 @@ function RuleDialog({
               placeholder={
                 rule.action === "fixed_reply"
                   ? "Ex.: Nosso polo funciona de 8h às 18h."
-                  : "Vazio = o agente usa o texto de fila da Pilotagem."
+                  : rule.action === "add_tag"
+                    ? "Vazio = o agente fica calado e quem responde é a automação."
+                    : "Vazio = o agente usa o texto de fila da Pilotagem."
               }
             />
           </div>
