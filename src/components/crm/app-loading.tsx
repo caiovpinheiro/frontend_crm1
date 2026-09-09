@@ -9,9 +9,8 @@ import { cn } from "@/lib/utils";
 /**
  * Estado de carregamento ÚNICO do app.
  *
- * Composição da arte de loader: marca 3D estática em cima + anel-cometa
- * embaixo (trilha + ponta branca/magenta). Só o cometa gira, sempre
- * horário. O loader não imita o layout de destino.
+ * Arte: marca 3D estática + anel-cometa (trilha + ponta branca/magenta).
+ * Só o cometa gira, sempre horário. O loader não imita o layout de destino.
  *
  * Segurança: nunca fica girando pra sempre. Passado `timeoutMs` sem o
  * conteúdo assumir, troca para um estado de erro explícito com ação de
@@ -52,7 +51,7 @@ export type AppLoadingProps = {
   className?: string;
 };
 
-function BrandMark({
+export function BrandMark({
   spinning,
   size = "default",
   tone = "solid",

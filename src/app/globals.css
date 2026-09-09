@@ -1150,8 +1150,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   AppLoading — marca 3D em cima + anel-cometa embaixo
-   (arte de referência: B + trilha + ponta branca/magenta).
+   AppLoading — marca B + anel-cometa. Formação fica no lab.
    app-loading-halo ainda pulsa o ponto do mobile-more-sheet.
    ══════════════════════════════════════════════════════════════════ */
 @keyframes app-loading-halo {
@@ -1222,7 +1221,6 @@
   animation: brand-loader-spin 1.05s linear infinite;
 }
 
-/* Inbox / deal: marca grande e translúcida, sem anel colorido. */
 @keyframes app-loading-watermark {
   0%, 100% { opacity: 0.1; }
   50%      { opacity: 0.2; }
