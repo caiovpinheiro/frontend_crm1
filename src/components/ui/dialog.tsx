@@ -148,7 +148,10 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
       if (e.target === internalRef.current) onOpenChange?.(false);
     };
 
-    if (!mounted) return null;
+    // Fechado: some do DOM. Um `<dialog>` invisível com `fixed inset-0 z-50`
+    // (wizard/playground sempre montados) interceptava o clique do lápis —
+    // o editor abria e o mesmo clique caía no backdrop e fechava.
+    if (!mounted || !open) return null;
 
     return createPortal(
       <dialog

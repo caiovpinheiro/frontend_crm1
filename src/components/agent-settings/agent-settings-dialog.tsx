@@ -184,10 +184,12 @@ export function AgentSettingsDialog({
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["ai-agent", id],
     queryFn: async () => {
-      const res = await fetch(apiUrl(`/api/ai-agents/${id}`));
+      const res = await fetch(apiUrl(`/api/ai-agents/${id}`), {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Erro ao carregar agente.");
       return res.json() as Promise<Record<string, unknown>>;
     },
@@ -366,7 +368,21 @@ export function AgentSettingsDialog({
         </button>
       </header>
 
-      {!preview && (isLoading || !data) ? (
+      {!preview && isError ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+          <p className="text-sm text-destructive">
+            Não foi possível carregar este agente.
+          </p>
+          <ButtonGlass
+            type="button"
+            variant="glass"
+            className={formDialogCancelClass}
+            onClick={() => void refetch()}
+          >
+            Tentar de novo
+          </ButtonGlass>
+        </div>
+      ) : !preview && (isLoading || !data) ? (
         <div className="flex flex-1 items-center justify-center py-16">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
