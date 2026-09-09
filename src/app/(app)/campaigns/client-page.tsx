@@ -337,7 +337,6 @@ function CampaignsSearchFilterBar({
         filterOpen={open}
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
-        onFocus={() => setOpen(true)}
         chips={
           statusFilter
             ? [{ id: "status", title: "Status", count: 1, onRemove: () => onStatusChange("") }]

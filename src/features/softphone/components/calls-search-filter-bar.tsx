@@ -93,7 +93,6 @@ export function CallsSearchFilterBar({
         filterOpen={open}
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
-        onFocus={() => setOpen(true)}
         chips={[
           ...(filters.direction
             ? [{
