@@ -1537,7 +1537,6 @@ function FeedSearchFilterBar({
         filterOpen={open}
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
-        onFocus={() => setOpen(true)}
         chips={[
           ...(entity !== "ALL"
             ? [{ id: "entity", title: "Entidade", count: 1, onRemove: () => onEntityChange("ALL") }]

@@ -597,7 +597,6 @@ function AutomationsSearchFilterBar({
         filterOpen={open}
         activeCount={activeCount}
         onFilterClick={() => setOpen((o) => !o)}
-        onFocus={() => setOpen(true)}
         chips={
           filter !== 0
             ? [{ id: "status", title: "Status", count: 1, onRemove: () => onFilterChange(0) }]
