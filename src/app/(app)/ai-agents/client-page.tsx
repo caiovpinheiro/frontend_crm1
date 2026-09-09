@@ -36,7 +36,7 @@ export default function AIAgentsV2ClientPage() {
         <TabsGlass tabs={tabs} activeTab={activeTab} onChange={setActiveTab} scrollable />
 
         {/* A tela de agentes fica montada: voltar para ela não perde estado. */}
-        <div className={academicTab ? "hidden" : "contents"}>
+        <div className={academicTab ? "hidden" : "min-w-0"}>
           <AgentsPanel />
         </div>
 
