@@ -1,4 +1,8 @@
-import type { DirectRow, TeamChatDepartment, TeamChatPerson } from "./types";
+import type { DirectRow, TeamChatDepartment, TeamChatKind, TeamChatPerson } from "./types";
+
+export function isGroupRoom(room: { kind: TeamChatKind | string }) {
+  return room.kind === "GROUP" || room.kind === "CHANNEL";
+}
 
 export const REACTION_EMOJIS = ["🔥", "👍", "❤️", "🎉", "👏", "😂", "🙌", "👀"] as const;
 

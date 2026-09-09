@@ -82,6 +82,20 @@ export async function uploadTeamChatAttachment(
   return data.attachment;
 }
 
+export async function updateTeamChatRoom(
+  roomId: string,
+  input: { avatarUrl: string | null },
+): Promise<TeamChatRoom> {
+  return json(
+    apiFetch(`/api/team-chat/rooms/${roomId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível atualizar o grupo.",
+  );
+}
+
 export async function addTeamChatMembers(roomId: string, memberIds: string[]): Promise<TeamChatRoom> {
   return json(
     apiFetch(`/api/team-chat/rooms/${roomId}/members`, {

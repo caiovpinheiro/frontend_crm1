@@ -8,7 +8,7 @@ import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { cn } from "@/lib/utils";
 
 import { Avatar, AvatarStack, GroupGlyph } from "./avatar";
-import { PRESENCE_TEXT, presenceLabel, toPerson } from "./helpers";
+import { isGroupRoom, PRESENCE_TEXT, presenceLabel, toPerson } from "./helpers";
 import type { TeamChatRoom } from "./types";
 
 function IconButton({
@@ -116,7 +116,14 @@ export function ChatHeader({
               <Avatar person={lead} size="sm" showPresence />
             </div>
           ) : (
-            <GroupGlyph seed={room.id} size={36} />
+            <button
+              type="button"
+              onClick={onAddMembers}
+              aria-label="Editar grupo"
+              className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <GroupGlyph seed={room.id} size={36} imageUrl={room.avatarUrl} name={room.name} />
+            </button>
           )}
           <div className="min-w-0">
             <h2 className="truncate text-[15px] font-semibold text-[var(--orbita-text)]">
@@ -138,7 +145,7 @@ export function ChatHeader({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {room.kind === "GROUP" && (
+          {isGroupRoom(room) && (
             <HeaderAction label="Adicionar membros" onClick={onAddMembers}>
               <UserPlus className="h-[18px] w-[18px]" />
             </HeaderAction>

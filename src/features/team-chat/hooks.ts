@@ -10,6 +10,7 @@ import {
   addTeamChatNote,
   createTeamChatRoom,
   deleteTeamChatNote,
+  updateTeamChatRoom,
   listMyWorkItems,
   listRoomWorkItems,
   listTeamChatColleagues,
@@ -23,7 +24,7 @@ import {
   sendTeamChatMessage,
 } from "./api";
 import { loadOrbitaFavorites, saveOrbitaFavorites } from "./helpers";
-import type { TeamChatAttachment, TeamChatMessage, TeamChatNote, WorkItem } from "./types";
+import type { TeamChatAttachment, TeamChatMessage, TeamChatNote, TeamChatRoom, WorkItem } from "./types";
 
 export function useOrbitaFavorites() {
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -165,6 +166,17 @@ export function useTeamChatMutations() {
       qc.invalidateQueries({ queryKey: [MESSAGES_KEY, vars.roomId] });
     },
   });
+  const updateRoom = useMutation({
+    mutationFn: ({ roomId, avatarUrl }: { roomId: string; avatarUrl: string | null }) =>
+      updateTeamChatRoom(roomId, { avatarUrl }),
+    onSuccess: (room) => {
+      qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+        if (!prev) return prev;
+        return { rooms: prev.rooms.map((r) => (r.id === room.id ? { ...r, ...room } : r)) };
+      });
+      qc.invalidateQueries({ queryKey: [ROOMS_KEY] });
+    },
+  });
   const react = useMutation({
     mutationFn: ({ roomId, messageId, emoji }: { roomId: string; messageId: string; emoji: string }) =>
       reactTeamChatMessage(roomId, messageId, emoji),
@@ -200,7 +212,7 @@ export function useTeamChatMutations() {
       }));
     },
   });
-  return { createRoom, send, addMembers, react, pin, addNote, toggleNotePin, removeNote };
+  return { createRoom, send, addMembers, updateRoom, react, pin, addNote, toggleNotePin, removeNote };
 }
 
 export type TeamChatTypingMap = Record<string, { userId: string; name: string }>;
