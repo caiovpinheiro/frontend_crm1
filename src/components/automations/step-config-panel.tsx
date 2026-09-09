@@ -3458,9 +3458,10 @@ function TransferToAIAgentStepConfig({
         <p>
           {selected?.archetype === "TABULACAO" ? (
             <>
-              Este agente é um <b>classificador</b>: lê o histórico, aplica
-              uma folha da árvore de tabulações e encerra se a conversa
-              ainda estiver aberta. <b>Não envia WhatsApp</b>.
+              Este agente é um <b>classificador</b>: lê o histórico e
+              grava a folha de tabulação. <b>Não envia WhatsApp</b> e
+              não encerra — o passo Encerrar conversa seguinte fecha o
+              ticket já com o motivo.
             </>
           ) : (
             <>
