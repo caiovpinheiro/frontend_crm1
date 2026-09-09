@@ -21,7 +21,7 @@ export default function LoadersShowcasePage() {
           Loaders
         </h1>
         <p className="text-sm text-muted-foreground">
-          Formação é o loader de produção. As outras são o lab antigo. Clique no card para tela cheia.
+          O app usa a marca B + anel-cometa. Formação e as outras ficam no lab. Clique no card para tela cheia.
         </p>
       </header>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

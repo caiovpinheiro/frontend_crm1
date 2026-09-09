@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import "./loader-lab.css";
 
 export const LOADER_VARIANTS = [
-  { slug: "formacao", title: "Formação", hint: "Produção — contorno desenhado + marca." },
+  { slug: "formacao", title: "Formação", hint: "Lab — contorno desenhado + marca." },
   { slug: "bar", title: "Barra", hint: "Trilha horizontal com segmento luminoso." },
   { slug: "orbit", title: "Órbita", hint: "Anel ao redor do B com um orbe." },
   { slug: "dots", title: "Pulsos", hint: "Brilho sob a marca + três pontos." },
