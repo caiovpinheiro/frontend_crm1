@@ -76,13 +76,9 @@ function formatScheduledAt(iso: string): string {
 function formatConfirmWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("pt-BR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  const time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return `${date} às ${time}`;
 }
 
 function startOfDay(d: Date) {
@@ -413,7 +409,7 @@ function ReschedulePane({
   const chips: Array<{ label: string; when: Date }> = [
     { label: "10 min", when: addMinutes(now, 10) },
     { label: "30 min", when: addMinutes(now, 30) },
-    { label: "1 hora", when: addMinutes(now, 60) },
+    { label: "1h", when: addMinutes(now, 60) },
     { label: "Amanhã 09:00", when: tomorrowAtNine() },
   ];
 
@@ -562,7 +558,7 @@ function ReschedulePane({
         })}
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-[var(--glass-border-subtle)] pt-3">
+      <div className="sticky bottom-0 mt-auto flex items-center justify-between gap-2 border-t border-border bg-[var(--glass-bg-modal)] pt-3">
         <p className="min-w-0 truncate text-[12px] text-[var(--inbox-text-muted)]">
           {selected ? (
             <>

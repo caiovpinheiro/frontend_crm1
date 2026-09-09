@@ -100,7 +100,7 @@ export function ChatHeader({
   const people = room.members.map(toPerson);
 
   return (
-    <header className="shrink-0 border-b border-black/[0.06] bg-[var(--orbita-chrome)] dark:border-white/[0.06]">
+    <header className="shrink-0 border-b border-border bg-[var(--orbita-chrome)]">
       <div className="flex h-[60px] items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <button
@@ -187,7 +187,7 @@ export function ChatHeader({
         </div>
       </div>
       {searchOpen && (
-        <div className="mt-0 border-t border-black/[0.04] px-4 pb-3 pt-2 dark:border-white/[0.06]">
+        <div className="mt-0 border-t border-border px-4 pb-3 pt-2">
           <div className="flex items-center gap-2 rounded-[var(--orbita-radius-inner)] bg-[var(--orbita-field)] px-3 py-2">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input

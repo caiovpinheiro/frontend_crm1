@@ -28,6 +28,18 @@
    ajustes pontuais "só no modo escuro do CRM" sem mexer no `dark:` global. */
 @custom-variant v2-dark (&:where(.v2-dark, .v2-dark *));
 
+/* Força esquema claro no documento. Regras de tema escuro via SO só
+   valem em `:root:not(.light)` — a classe `light` no <html> neutraliza. */
+html.light {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+  }
+}
+
 /* ══════════════════════════════════════════════════════════════════
    GLASS DESIGN SYSTEM v2 — CRM EduIT
    Glassmorphism-first · Plus Jakarta Sans (display) + DM Sans (body)
@@ -1311,7 +1323,8 @@
   --orbita-selected: var(--inbox-brand, #2f66f2);
   --orbita-unread-bg: var(--inbox-brand, #2f66f2);
   --orbita-unread-fg: #ffffff;
-  --orbita-divider: rgba(91, 111, 245, 0.14);
+  --orbita-divider: var(--color-border);
+  --orbita-outline: var(--color-border);
   --orbita-text: #1e2a3b;
   --orbita-text-secondary: #5b6b82;
   --orbita-text-tertiary: #8490a3;
@@ -1322,7 +1335,8 @@
   --orbita-bubble-sent-bg: #5b6ff5;
   --orbita-bubble-sent-text: #ffffff;
   --orbita-bubble-sent-meta: rgba(255, 255, 255, 0.72);
-  --orbita-bubble-received-border: rgba(91, 111, 245, 0.10);
+  --orbita-bubble-received-border: var(--color-border);
+  --orbita-thread-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='340' fill='none' stroke='%232f66f2' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round' opacity='0.035'%3E%3Cpath d='M42 48h40a8 8 0 0 1 8 8v20a8 8 0 0 1-8 8H62l-10 8v-8H42a8 8 0 0 1-8-8V56a8 8 0 0 1 8-8z'/%3E%3Ccircle cx='268' cy='62' r='13'/%3E%3Cpath d='M261 62l5 5 10-10'/%3E%3Crect x='52' y='248' width='30' height='26' rx='3'/%3E%3Cpath d='M52 257h30M60 243v10M74 243v10'/%3E%3Cpath d='M258 252l5.2 10.4 11.5 1.2-8.8 7.6 2.6 11.2L258 276l-10.5 6.4 2.6-11.2-8.8-7.6 11.5-1.2z'/%3E%3Ccircle cx='170' cy='168' r='15'/%3E%3Cpath d='M170 160v10l7 4'/%3E%3C/svg%3E");
   --orbita-paper-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18'%3E%3Ccircle cx='1.5' cy='1.5' r='1.15' fill='%235b6ff5' fill-opacity='0.07'/%3E%3C/svg%3E");
   --orbita-paper-size: 18px;
   --orbita-avatar-1: #e8674c;
@@ -1380,10 +1394,11 @@
   --orbita-bubble-sent-bg: #5b6ff5;
   --orbita-bubble-sent-text: #ffffff;
   --orbita-bubble-sent-meta: rgba(255, 255, 255, 0.72);
-  --orbita-bubble-received-border: rgba(167, 139, 250, 0.16);
+  --orbita-bubble-received-border: var(--color-border);
   --orbita-selected: #a78bfa;
   --orbita-unread-bg: #8b7cf6;
-  --orbita-divider: rgba(167, 139, 250, 0.16);
+  --orbita-divider: var(--color-border);
+  --orbita-outline: var(--color-border);
   --orbita-paper-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18'%3E%3Ccircle cx='1.5' cy='1.5' r='1.15' fill='%23a78bfa' fill-opacity='0.08'/%3E%3C/svg%3E");
   --orbita-paper-size: 18px;
 }
@@ -1404,6 +1419,7 @@
 
 .orbita-block {
   background: var(--orbita-block);
+  border: 1px solid var(--color-border);
   border-radius: var(--orbita-radius-block);
   min-width: 0;
   overflow: hidden;
@@ -1428,22 +1444,23 @@
   border-radius: var(--orbita-radius-avatar) !important;
 }
 
-.team-chat-shell [data-wa-thread] {
-  background-color: var(--orbita-paper);
-  background-image: var(--orbita-paper-pattern);
+.team-chat-shell [data-wa-thread],
+.team-chat-shell .chat-thread-texture {
+  background-color: var(--orbita-block);
+  background-image: var(--orbita-thread-pattern);
   background-repeat: repeat;
-  background-size: var(--orbita-paper-size, 18px);
+  background-size: 340px 340px;
 }
 
 .team-chat-shell .chat-scroll {
   scrollbar-color: color-mix(in oklch, var(--color-muted-foreground) 40%, transparent) transparent;
 }
 
-/* Órbita selected item */
+/* Órbita selected item — card de lista (rounded-xl), só no bWiPO Chat */
 .orbita-item-selected {
   background: var(--orbita-list-selected-bg);
   color: var(--orbita-list-selected-name);
-  border-radius: var(--orbita-radius-inner);
+  border-radius: var(--radius-xl);
 }
 
 /* Focus visible for accessibility in Rely — not on the composer field */
@@ -1469,11 +1486,12 @@
 .orbita-bubble-received {
   background: var(--orbita-block);
   color: var(--orbita-text);
-  box-shadow: inset 0 0 0 0.5px var(--orbita-bubble-received-border);
+  border: 1px solid var(--color-border);
 }
 .orbita-bubble-sent {
   background: var(--orbita-bubble-sent-bg);
   color: var(--orbita-bubble-sent-text);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, var(--orbita-bubble-sent-bg));
 }
 
 .chat-scroll {
@@ -1566,16 +1584,10 @@
   --color-accent-violet: var(--accent-violet);
 }
 
-/* Thread do chat — textura vetorial tileável (marca, baixa opacidade). */
-.chat-thread-texture {
-  background-color: var(--inbox-thread-base);
-  background-image: var(--inbox-thread-pattern);
+/* Thread do bWiPO Chat — textura vetorial tileável (só no team-chat). */
+.team-chat-shell .chat-thread-texture {
+  background-color: var(--orbita-block);
+  background-image: var(--orbita-thread-pattern);
   background-repeat: repeat;
-  background-size: 400px 400px;
-}
-
-.v2-dark .chat-thread-texture,
-.dark .chat-thread-texture {
-  --inbox-thread-base: var(--inbox-surface);
-  --inbox-thread-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' fill='none' stroke='%237b8df7' stroke-width='0.7' stroke-linecap='round' stroke-linejoin='round' opacity='0.035'%3E%3Crect x='64' y='72' width='12' height='8' rx='3'/%3E%3Cpath d='M67 80v3l3-3'/%3E%3Ccircle cx='312' cy='88' r='5.5'/%3E%3Cpath d='M309.4 88l1.8 1.8 4-4'/%3E%3Cpath d='M96 308l1.6 4 4.4 1.6-4.4 1.6-1.6 4-1.6-4-4.4-1.6 4.4-1.6z'/%3E%3Crect x='296' y='296' width='13' height='11' rx='2'/%3E%3Cpath d='M296 300.5h13M299.5 293v5M305.5 293v5'/%3E%3C/svg%3E");
+  background-size: 340px 340px;
 }

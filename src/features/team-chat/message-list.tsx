@@ -166,7 +166,7 @@ export function MessageList({
       <div className="chat-scroll flex-1 overflow-y-auto px-4 py-3 md:px-10">
         <div className="flex min-h-full w-full flex-col">
           <div className="mb-4 flex justify-center">
-            <div className="flex max-w-sm flex-col items-center rounded-2xl bg-[var(--orbita-block)]/92 px-6 py-5 text-center shadow-sm">
+            <div className="flex max-w-sm flex-col items-center rounded-2xl border border-border bg-[var(--orbita-block)] px-6 py-5 text-center">
               {isDirect && room.peer ? (
                 <Avatar person={toPerson(room.peer)} size="lg" showPresence />
               ) : (
@@ -190,7 +190,7 @@ export function MessageList({
                 if (msg.kind === "SYSTEM") {
                   return (
                     <div key={msg.id} className="my-2 flex justify-center">
-                      <span className="rounded-[var(--orbita-radius-inner)] bg-[var(--orbita-block-soft)] px-3 py-1 text-[12px] text-muted-foreground">
+                      <span className="rounded-[var(--orbita-radius-inner)] border border-border bg-[var(--orbita-block-soft)] px-3 py-1 text-[12px] text-muted-foreground">
                         {msg.content}
                       </span>
                     </div>
@@ -211,7 +211,7 @@ export function MessageList({
                   <Fragment key={msg.id}>
                     {showDay && (
                       <div className="sticky top-2 z-[2] my-3 flex justify-center">
-                        <span className="rounded-full bg-[var(--orbita-block)] px-3 py-1 text-[12px] font-medium text-muted-foreground shadow-sm">
+                        <span className="rounded-full border border-border bg-[var(--orbita-block)] px-3 py-1 text-[12px] font-medium text-muted-foreground">
                           {formatDayLabel(msg.createdAt)}
                         </span>
                       </div>

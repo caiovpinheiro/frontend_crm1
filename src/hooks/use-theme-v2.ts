@@ -28,20 +28,19 @@ function readStored(): ThemeV2 {
   if (typeof window === "undefined") return "light";
   const explicit = readExplicitStored();
   if (explicit) return explicit;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return "light";
 }
 
 function applyTheme(t: ThemeV2) {
   if (typeof document === "undefined") return;
   const isDark = t === "dark";
-  document.documentElement.classList.toggle(DARK_CLASS, isDark);
+  const el = document.documentElement;
+  // Classe `light` sempre presente: neutraliza @media (prefers-color-scheme: dark).
+  el.classList.add("light");
+  el.classList.toggle(DARK_CLASS, isDark);
   // Tokens shadcn (text-foreground, bg-muted, text-ink-*) vivem em globals.css sob `.dark`.
-  document.documentElement.classList.toggle("dark", isDark);
-  // Mantém form controls/scrollbars nativos (checkbox, select, etc.) coerentes
-  // com o tema — mesmo valor que o script anti-FOUC em layout.tsx já seta.
-  document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+  el.classList.toggle("dark", isDark);
+  el.style.colorScheme = "light";
 }
 
 /**

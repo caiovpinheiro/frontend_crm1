@@ -285,7 +285,7 @@ function Thread({
           onAddMembers={onAddMembers}
         />
       </div>
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden" data-wa-thread data-tour="bwipo-chat-messages">
+      <div className="chat-thread-texture relative flex min-h-0 flex-1 flex-col overflow-hidden" data-wa-thread data-tour="bwipo-chat-messages">
         <MessageList
           room={room}
           messages={messages}
@@ -308,8 +308,8 @@ function Thread({
             })
           }
         />
-        <div className="relative z-20 shrink-0 overflow-visible px-3 pb-4 pt-2" data-tour="bwipo-chat-composer">
-          <div className="overflow-visible rounded-[16px] bg-[var(--orbita-block)] ring-1 ring-[var(--orbita-divider)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
+        <div className="relative z-20 shrink-0 overflow-visible border-t border-border bg-[var(--orbita-block)] px-3 pb-4 pt-2" data-tour="bwipo-chat-composer">
+          <div className="overflow-visible rounded-[16px] border border-border bg-[var(--orbita-block)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
             <Composer
               roomId={room.id}
               placeholder="Digite uma mensagem"
@@ -334,7 +334,7 @@ function Thread({
 function LandingEmpty() {
   return (
     <div
-      className="flex flex-1 flex-col items-center justify-center px-6"
+      className="chat-thread-texture flex flex-1 flex-col items-center justify-center px-6"
       data-wa-thread
     >
       <div
