@@ -1,8 +1,16 @@
 "use client"
 
-import { Children, useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
+import {
+  Children,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { createPortal } from "react-dom"
-import { RotateCw, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, RotateCw, X } from "lucide-react"
 
 import { FilterApplyButton } from "@/components/crm/filter-popover"
 import { formDialogCancelClass } from "@/components/ui/form-dialog"
@@ -36,6 +44,29 @@ export function FilterColumnsModal({
   children: ReactNode
 }) {
   const hScrollRef = useRef<HTMLDivElement>(null)
+  const [hMetrics, setHMetrics] = useState({
+    overflow: false,
+    atStart: true,
+    atEnd: true,
+    thumbLeft: 0,
+    thumbWidth: 100,
+  })
+
+  const syncHScroll = useCallback(() => {
+    const el = hScrollRef.current
+    if (!el) return
+    const max = Math.max(0, el.scrollWidth - el.clientWidth)
+    const overflow = max > 1
+    const thumbWidth = el.scrollWidth > 0 ? (el.clientWidth / el.scrollWidth) * 100 : 100
+    const thumbLeft = el.scrollWidth > 0 ? (el.scrollLeft / el.scrollWidth) * 100 : 0
+    setHMetrics({
+      overflow,
+      atStart: el.scrollLeft <= 1,
+      atEnd: el.scrollLeft >= max - 1,
+      thumbLeft,
+      thumbWidth,
+    })
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -50,6 +81,9 @@ export function FilterColumnsModal({
       document.body.style.overflow = prev
     }
   }, [open, onClose])
+
+  const columnCount = Children.toArray(children).filter(Boolean).length
+  const wide = columnCount > 4
 
   useLayoutEffect(() => {
     if (!open) return
@@ -72,10 +106,33 @@ export function FilterColumnsModal({
     return () => el.removeEventListener("wheel", onWheel)
   }, [open])
 
-  if (!open || typeof document === "undefined") return null
+  useLayoutEffect(() => {
+    if (!open || !wide) return
+    const el = hScrollRef.current
+    if (!el) return
+    syncHScroll()
+    el.addEventListener("scroll", syncHScroll, { passive: true })
+    const ro = new ResizeObserver(syncHScroll)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener("scroll", syncHScroll)
+      ro.disconnect()
+    }
+  }, [open, wide, columnCount, children, syncHScroll])
 
-  const columnCount = Children.toArray(children).filter(Boolean).length
-  const wide = columnCount > 4
+  function scrollColumns(dir: -1 | 1) {
+    hScrollRef.current?.scrollBy({ left: dir * 256, behavior: "smooth" })
+  }
+
+  function jumpHScroll(clientX: number, track: HTMLDivElement) {
+    const el = hScrollRef.current
+    if (!el) return
+    const rect = track.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    el.scrollLeft = ratio * Math.max(0, el.scrollWidth - el.clientWidth)
+  }
+
+  if (!open || typeof document === "undefined") return null
 
   const countLabel =
     count === 0
@@ -127,25 +184,70 @@ export function FilterColumnsModal({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <div
-            ref={hScrollRef}
-            className={cn(
-              "filter-columns-hscroll min-h-0 overflow-y-hidden overscroll-x-contain",
-              wide ? "h-full overflow-x-auto" : "overflow-x-hidden",
-            )}
-          >
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="relative min-h-0 flex-1">
+            {wide && hMetrics.overflow ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => scrollColumns(-1)}
+                  disabled={hMetrics.atStart}
+                  className="absolute left-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm disabled:opacity-30"
+                  aria-label="Categorias anteriores"
+                >
+                  <ChevronLeft className="size-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scrollColumns(1)}
+                  disabled={hMetrics.atEnd}
+                  className="absolute right-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm disabled:opacity-30"
+                  aria-label="Próximas categorias"
+                >
+                  <ChevronRight className="size-4" aria-hidden />
+                </button>
+              </>
+            ) : null}
             <div
+              ref={hScrollRef}
               className={cn(
-                "flex w-max flex-nowrap",
-                wide
-                  ? "h-full min-h-0 items-stretch [&_section]:h-full [&_section]:max-h-none"
-                  : "items-start",
+                "filter-columns-hscroll min-h-0 overflow-y-hidden overscroll-x-contain",
+                wide ? "h-full overflow-x-auto" : "overflow-x-hidden",
               )}
             >
-              {children}
+              <div
+                className={cn(
+                  "flex w-max flex-nowrap",
+                  wide
+                    ? "h-full min-h-0 items-stretch [&_section]:h-full [&_section]:max-h-none"
+                    : "items-start",
+                )}
+              >
+                {children}
+              </div>
             </div>
           </div>
+          {wide && hMetrics.overflow ? (
+            <div className="shrink-0 border-t border-border/40 px-5 py-2">
+              <div
+                role="scrollbar"
+                aria-orientation="horizontal"
+                aria-valuenow={Math.round(hMetrics.thumbLeft)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className="relative h-2 cursor-pointer rounded-full bg-border"
+                onPointerDown={(e) => jumpHScroll(e.clientX, e.currentTarget)}
+              >
+                <div
+                  className="absolute inset-y-0 rounded-full bg-muted-foreground/45"
+                  style={{
+                    left: `${hMetrics.thumbLeft}%`,
+                    width: `${hMetrics.thumbWidth}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <footer className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-[var(--dropdown-solid-bg)] px-5 py-3.5 sm:px-6">
