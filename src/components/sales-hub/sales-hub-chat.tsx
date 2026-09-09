@@ -21,6 +21,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 import { ChatArea } from "@/components/crm/chat-area";
+import { KeepPeekPanel } from "@/features/keeps/keep-peek-panel";
 import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
@@ -370,6 +371,7 @@ export function SalesHubChat({
             <CallHistoryList embedded contactId={contactId} />
           </div>
         }
+        keepsSlot={<KeepPeekPanel />}
         composerSlot={
           <Composer
             conversationId={conversationId}

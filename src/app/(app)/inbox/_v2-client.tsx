@@ -38,6 +38,7 @@ import { TagChip } from "@/components/crm/tag-chip";
 import { NavRail } from "@/components/crm/nav-rail";
 import { ConversationColumn } from "@/components/crm/conversation-column";
 import { ChatArea } from "@/components/crm/chat-area";
+import { KeepPeekPanel } from "@/features/keeps/keep-peek-panel";
 import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
 import { FavoritesPanel } from "@/components/crm/favorites-panel";
@@ -2020,6 +2021,7 @@ export default function InboxV2ClientPage({
         activitiesSlot={activitiesSlot}
         timelineSlot={timelineSlot}
         callsSlot={callsSlot}
+        keepsSlot={<KeepPeekPanel />}
       />
     ) : (
       <EmptyChatArea />

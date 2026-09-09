@@ -811,6 +811,28 @@ html[data-nav-expanded="true"] {
   }
 }
 
+.keep-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25rem 0;
+}
+.keep-editor li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.keep-editor li[data-type="taskItem"] > label {
+  margin-top: 0.2rem;
+}
+.keep-editor img {
+  max-width: 100%;
+  border-radius: 0.75rem;
+}
+.keep-editor a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
 /* ══════════════════════════════════════════════════════════════════
    DARK MODE v2 — ativado pela classe .v2-dark no <html>
    ══════════════════════════════════════════════════════════════════ */

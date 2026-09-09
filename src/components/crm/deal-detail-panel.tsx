@@ -27,6 +27,7 @@ import {
   IconNote,
   IconClock,
   IconPhone,
+  IconBulb,
   IconPaperclip,
   IconMoodSmile,
   IconMicrophone,
@@ -166,7 +167,7 @@ export interface DealDetail {
   tracked?: TrackedAttribution | null
 }
 
-type TabId = "conversa" | "atividades" | "notas" | "timeline" | "chamadas"
+type TabId = "conversa" | "atividades" | "notas" | "timeline" | "chamadas" | "keeps"
 
 interface DealDetailPanelProps {
   isOpen: boolean
@@ -304,6 +305,7 @@ const TABS: { id: TabId; label: string; icon: React.ComponentType<{ size?: numbe
   { id: "notas", label: "Notas", icon: IconNote },
   { id: "timeline", label: "Timeline", icon: IconClock },
   { id: "chamadas", label: "Chamadas", icon: IconPhone },
+  { id: "keeps", label: "keeps", icon: IconBulb },
 ]
 
 // ─────────────────────────────────────────────────────────────────

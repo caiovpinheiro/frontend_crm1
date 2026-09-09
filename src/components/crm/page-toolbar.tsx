@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ArrowLeft, Menu, Plus, Search } from "lucide-react";
 
+import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { cn } from "@/lib/utils";
 
 /**
@@ -360,11 +361,14 @@ export function PageActionsMenu({
   "aria-label": ariaLabel = "Ações",
   className,
   menuClassName,
+  tooltip,
 }: {
   items: PageActionsMenuItem[];
   "aria-label"?: string;
   className?: string;
   menuClassName?: string;
+  /** Texto abaixo do botão + / hamburger no hover. */
+  tooltip?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [coords, setCoords] = React.useState<{ top: number; right: number } | null>(null);
@@ -424,41 +428,53 @@ export function PageActionsMenu({
 
   const hasForcedPrimary = items.some((it) => it.primary === true);
   const soleItem = items.length === 1 ? items[0] : null;
+  const tip = (node: React.ReactElement) =>
+    tooltip ? (
+      <TooltipGlass label={tooltip} side="bottom">
+        {node}
+      </TooltipGlass>
+    ) : (
+      node
+    );
 
   if (soleItem) {
     return (
       <div className={cn("relative shrink-0", className)}>
-        <button
-          type="button"
-          onClick={soleItem.onClick}
-          disabled={soleItem.disabled}
-          aria-label={soleItem.label || ariaLabel}
-          className={cn(
-            pageActionsMenuTriggerClass,
-            soleItem.disabled && "cursor-not-allowed opacity-40",
-          )}
-        >
-          <Plus size={18} strokeWidth={2} />
-        </button>
+        {tip(
+          <button
+            type="button"
+            onClick={soleItem.onClick}
+            disabled={soleItem.disabled}
+            aria-label={soleItem.label || ariaLabel}
+            className={cn(
+              pageActionsMenuTriggerClass,
+              soleItem.disabled && "cursor-not-allowed opacity-40",
+            )}
+          >
+            <Plus size={18} strokeWidth={2} />
+          </button>,
+        )}
       </div>
     );
   }
 
   return (
     <div className={cn("relative shrink-0", className)}>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label={ariaLabel}
-        aria-expanded={open}
-        className={cn(
-          pageActionsMenuTriggerClass,
-          open && "ring-2 ring-[var(--brand-primary)]/35 brightness-95",
-        )}
-      >
-        <Menu size={18} strokeWidth={2} />
-      </button>
+      {tip(
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-label={ariaLabel}
+          aria-expanded={open}
+          className={cn(
+            pageActionsMenuTriggerClass,
+            open && "ring-2 ring-[var(--brand-primary)]/35 brightness-95",
+          )}
+        >
+          <Menu size={18} strokeWidth={2} />
+        </button>,
+      )}
       {open && coords && typeof document !== "undefined"
         ? createPortal(
             <div
