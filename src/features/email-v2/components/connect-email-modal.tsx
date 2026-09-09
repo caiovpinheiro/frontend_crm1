@@ -110,19 +110,63 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
     setStep(2);
   }
 
+  function applyApiError(field: string, message: string) {
+    const shownInline =
+      field === "email" ||
+      field === "password" ||
+      (isCustom &&
+        (field === "imap_host" ||
+          field === "imap_port" ||
+          field === "smtp_host" ||
+          field === "smtp_port"));
+    setErrors({
+      [field]: message,
+      ...(shownInline ? {} : { form: message }),
+    });
+  }
+
+  function buildConnectPayload(): ConnectEmailInput | null {
+    const next: Record<string, string> = {};
+    if (!form.password) next.password = "Senha do e-mail é obrigatória.";
+    const preset = getEmailProviderPreset(providerId);
+    const payload = preset ? applyEmailProviderPreset(form, preset) : form;
+    if (!payload.imapHost.trim()) next.imap_host = "Servidor IMAP é obrigatório.";
+    if (!payload.smtpHost.trim()) next.smtp_host = "Servidor SMTP é obrigatório.";
+    if (!Number.isInteger(payload.imapPort) || payload.imapPort < 1 || payload.imapPort > 65535) {
+      next.imap_port = "Porta IMAP inválida.";
+    }
+    if (!Number.isInteger(payload.smtpPort) || payload.smtpPort < 1 || payload.smtpPort > 65535) {
+      next.smtp_port = "Porta SMTP inválida.";
+    }
+    if (Object.keys(next).length) {
+      const [field, message] = Object.entries(next)[0];
+      const shownInline =
+        field === "password" ||
+        (isCustom && (field.startsWith("imap") || field.startsWith("smtp")));
+      setErrors({
+        ...next,
+        ...(shownInline ? {} : { form: message }),
+      });
+      return null;
+    }
+    return payload;
+  }
+
   async function handleConnect() {
+    const payload = buildConnectPayload();
+    if (!payload) return;
     setLoading(true);
     setErrors({});
     try {
-      const result = await connectEmailAccount(form);
+      const result = await connectEmailAccount(payload);
       if (!result.ok) {
-        setErrors({ [result.field]: result.message });
+        applyApiError(result.field, result.message);
         return;
       }
       onSuccess(result.account.id);
       resetAndClose();
     } catch {
-      setErrors({ email: "Erro inesperado. Tente novamente." });
+      applyApiError("form", "Erro inesperado. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -228,6 +272,18 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                 {errors.password && (
                   <p className="mt-1 text-xs text-destructive">{errors.password}</p>
                 )}
+                {providerId === "gmail" && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Gmail e Google Workspace exigem uma senha de app, não a senha da conta.
+                    Ative a verificação em duas etapas e gere a senha em Conta Google → Senhas de app.
+                  </p>
+                )}
+                {providerId === "outlook" && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Outlook e Microsoft 365 podem exigir senha de app, ou o administrador
+                    pode ter desativado IMAP com autenticação básica.
+                  </p>
+                )}
               </div>
 
               {selectedPreset && !isCustom ? (
@@ -323,8 +379,10 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                 </>
               )}
 
-              {errors.email && (
-                <p className="text-xs text-destructive">{errors.email}</p>
+              {(errors.form || (errors.email && step === 2)) && (
+                <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {errors.form ?? errors.email}
+                </p>
               )}
 
               <div>
