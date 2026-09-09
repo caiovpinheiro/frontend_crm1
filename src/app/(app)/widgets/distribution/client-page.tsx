@@ -3673,7 +3673,7 @@ function DepartmentsDistributionPanel() {
           </p>
           <p className="font-body text-[11.5px] text-[var(--text-muted)]">
             {respectDepartment
-              ? "Ligado: conversas com departamento vão só para os membros dele. Sem departamento → distribui para todos os elegíveis."
+              ? "Ligado: conversas com departamento vão só para os membros dele. Sem departamento → espera na fila até a automação ou a IA definir o departamento."
               : "Desligado: distribuição clássica — todos os atendimentos vão para todos os elegíveis, ignorando departamento."}
           </p>
         </div>

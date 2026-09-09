@@ -5,6 +5,18 @@ documenta **por que** algo foi feito, não **o que**.
 
 ---
 
+### 2026-09-09 — Copy: departamento ligado não distribui org-wide
+
+**Decisão.** Texto do toggle “Respeitar departamento da conversa”: sem departamento o lead espera o roteamento (automação/IA), não cai no pool geral.
+
+**Contexto.** Alinhado ao backend (Cruzeiro EaD / Danubia): inbound org-wide vazava leads de SAC/Retenção para Acolhimento.
+
+**Alternativas descartadas.** Manter “sem departamento → todos os elegíveis”.
+
+**Impacto.** `widgets/distribution/client-page.tsx`.
+
+---
+
 ### 2026-09-03 — Mapeamento de variáveis só em template com slots
 
 **Decisão.** No disparador (`/campaigns/new`), o bloco “Variáveis do template” só monta se o template tiver header IMAGE/VIDEO/DOCUMENT ou placeholders Meta no corpo/cabeçalho TEXT. Lista templates via `/api/whatsapp-template-configs/approved` (traz `headerFormat` + previews).
