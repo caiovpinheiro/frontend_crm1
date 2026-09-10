@@ -10,7 +10,32 @@ import type { ActionStepType } from "@/lib/automation-workflow";
 import { stepTypeLabel } from "@/lib/automation-workflow";
 import { cn } from "@/lib/utils";
 
-import { STEP_GROUPS, stepColor, stepDescription, stepIcon } from "./add-step-node";
+import { DISTRIBUTION_LEADS_ENTRY, STEP_GROUPS, stepColor, stepDescription, stepIcon } from "./add-step-node";
+
+/** Entrada do picker: tipo do step + variante opcional (label/preset). */
+type PickerEntry = {
+  type: ActionStepType;
+  label?: string;
+  description?: string;
+  presetConfig?: Record<string, unknown>;
+};
+
+/**
+ * STEP_GROUPS + variantes (ex.: "Distribuição por Leads" logo após
+ * "Executar distribuição" em Ações). COMPUTADO EM RUNTIME (dentro do
+ * useMemo) de propósito: este módulo e `add-step-node` importam um ao outro
+ * — ler STEP_GROUPS no top-level quebra a inicialização (TDZ).
+ */
+function pickerGroups(): { title: string; items: PickerEntry[] }[] {
+  return STEP_GROUPS.map((g) => ({
+    title: g.title,
+    items: g.items.flatMap((type): PickerEntry[] =>
+      type === "execute_distribution"
+        ? [{ type }, { ...DISTRIBUTION_LEADS_ENTRY }]
+        : [{ type }],
+    ),
+  }));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StepPickerModal — modal central premium "O que deseja automatizar?"
@@ -60,7 +85,7 @@ function normalize(s: string) {
 type StepPickerModalProps = {
   open: boolean;
   onClose: () => void;
-  onSelect: (type: ActionStepType) => void;
+  onSelect: (type: ActionStepType, presetConfig?: Record<string, unknown>) => void;
   title?: string;
   subtitle?: string;
 };
@@ -120,12 +145,13 @@ export function StepPickerModal({
 
   const q = normalize(query.trim());
   const filteredGroups = React.useMemo(() => {
-    if (!q) return STEP_GROUPS;
-    return STEP_GROUPS.map((g) => ({
+    const groups = pickerGroups();
+    if (!q) return groups;
+    return groups.map((g) => ({
       ...g,
-      items: g.items.filter((type) => {
-        const label = normalize(stepTypeLabel(type));
-        const desc = normalize(stepDescription[type] ?? "");
+      items: g.items.filter((entry) => {
+        const label = normalize(entry.label ?? stepTypeLabel(entry.type));
+        const desc = normalize(entry.description ?? stepDescription[entry.type] ?? "");
         return label.includes(q) || desc.includes(q);
       }),
     })).filter((g) => g.items.length > 0);
@@ -273,12 +299,12 @@ export function StepPickerModal({
                       </div>
 
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                        {group.items.map((type) => (
+                        {group.items.map((entry) => (
                           <StepCard
-                            key={type}
-                            type={type}
+                            key={entry.label ?? entry.type}
+                            entry={entry}
                             onClick={() => {
-                              onSelect(type);
+                              onSelect(entry.type, entry.presetConfig);
                               onClose();
                             }}
                           />
@@ -357,14 +383,14 @@ function CloseButton({ onClose }: { onClose: () => void }) {
 // ──────────────────────────────────────────────────────────────────────────
 
 function StepCard({
-  type,
+  entry,
   onClick,
 }: {
-  type: ActionStepType;
+  entry: PickerEntry;
   onClick: () => void;
 }) {
-  const Icon = stepIcon[type] ?? Sparkles;
-  const color = stepColor[type] ?? "text-[var(--text-muted)]";
+  const Icon = stepIcon[entry.type] ?? Sparkles;
+  const color = stepColor[entry.type] ?? "text-[var(--text-muted)]";
 
   return (
     <motion.button
@@ -390,10 +416,10 @@ function StepCard({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13.5px] font-bold tracking-tight text-[var(--text-primary)]">
-          {stepTypeLabel(type)}
+          {entry.label ?? stepTypeLabel(entry.type)}
         </p>
         <p className="mt-0.5 line-clamp-2 text-[11.5px] font-medium leading-snug tracking-tight text-[var(--text-muted)]">
-          {stepDescription[type] ?? ""}
+          {entry.description ?? stepDescription[entry.type] ?? ""}
         </p>
       </div>
     </motion.button>

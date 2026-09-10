@@ -48,7 +48,7 @@ import {
 } from "@/lib/automation-round-robin";
 import { cn } from "@/lib/utils";
 import { useThemeV2 } from "@/hooks/use-theme-v2";
-import { IconCopy as Copy, IconTrash as Trash2 } from "@tabler/icons-react";
+import { IconCopy as Copy, IconPlus as Plus, IconTrash as Trash2 } from "@tabler/icons-react";
 
 import type { ActionStepType } from "@/lib/automation-workflow";
 
@@ -752,13 +752,15 @@ function WorkflowCanvasInner({
   const connectedWaCount = connectedWaChannels.length;
   const connectedEmailCount = connectedEmailChannels.length;
 
-  const onAddStepRef = useRef<(type: ActionStepType, afterId: string | null) => void>(null!);
+  const onAddStepRef = useRef<
+    (type: ActionStepType, afterId: string | null, presetConfig?: Record<string, unknown>) => void
+  >(null!);
 
   const buildNodes = useCallback(
     (
       list: AutomationStep[],
       onDelete: (id: string) => void,
-      onAddStep: (type: ActionStepType, afterStepId: string | null) => void
+      onAddStep: (type: ActionStepType, afterStepId: string | null, presetConfig?: Record<string, unknown>) => void
     ): Node[] => {
       const channelLookup: Record<string, string> = {};
       for (const o of connectedWaChannels) channelLookup[o.id] = o.label;
@@ -1303,10 +1305,18 @@ function WorkflowCanvasInner({
   );
 
   const addStepAfter = useCallback(
-    (stepType: ActionStepType, afterStepId: string | null) => {
+    (
+      stepType: ActionStepType,
+      afterStepId: string | null,
+      presetConfig?: Record<string, unknown>,
+    ) => {
       const id = newStepId();
       const cur = stepsRef.current;
-      const config = defaultStepConfig(stepType) as Record<string, unknown>;
+      const config = {
+        ...(defaultStepConfig(stepType) as Record<string, unknown>),
+        // Variante (ex.: Distribuição por Leads → mode="leads").
+        ...(presetConfig ?? {}),
+      };
       config.__hasExplicitEdges = true;
       // Step novo é folha — marca explicitamente como "fim de ramo"
       // (ver comentário em handlePendingStepSelect).
@@ -1677,13 +1687,16 @@ function WorkflowCanvasInner({
   );
 
   const handlePendingStepSelect = useCallback(
-    (stepType: ActionStepType) => {
+    (stepType: ActionStepType, presetConfig?: Record<string, unknown>) => {
       if (!pendingConn) return;
       const { sourceId, sourceHandle, position: connPos } = pendingConn;
       setPendingConn(null);
 
       const id = newStepId();
-      const config = defaultStepConfig(stepType) as Record<string, unknown>;
+      const config = {
+        ...(defaultStepConfig(stepType) as Record<string, unknown>),
+        ...(presetConfig ?? {}),
+      };
       config.__rfPos = { x: connPos.x - 100, y: connPos.y };
       config.__hasExplicitEdges = true;
       // Step recém-criado é folha por default — marca explicitamente como
@@ -1965,11 +1978,41 @@ function WorkflowCanvasInner({
     null
   );
   const closeNodeMenu = useCallback(() => setNodeMenu(null), []);
+  // Menu de contexto do pane (clique-direito no vazio) — "Adicionar bloco".
+  const [paneMenu, setPaneMenu] = useState<{
+    x: number;
+    y: number;
+    flowPos: { x: number; y: number };
+  } | null>(null);
+  // Picker do "Adicionar bloco de automação" — no ponto clicado do pane ou
+  // logo após o nó clicado.
+  const [addBlockPicker, setAddBlockPicker] = useState<
+    | { kind: "pane"; flowPos: { x: number; y: number } }
+    | { kind: "after"; stepId: string }
+    | null
+  >(null);
   const onNodeContextMenu = useCallback((e: React.MouseEvent, node: Node) => {
     if (isAddStepNodeId(node.id) || node.id === TRIGGER_ID) return;
     e.preventDefault();
+    setPaneMenu(null);
     setNodeMenu({ id: node.id, x: e.clientX, y: e.clientY });
   }, []);
+
+  // Clique-direito no vazio do canvas: menu com "Adicionar bloco de
+  // automação" (insere o bloco no ponto clicado). O React Flow tipa o evento
+  // como MouseEvent DOM | React.MouseEvent — ambos têm clientX/clientY.
+  const onPaneContextMenu = useCallback(
+    (e: MouseEvent | React.MouseEvent) => {
+      e.preventDefault();
+      setNodeMenu(null);
+      setPaneMenu({
+        x: e.clientX,
+        y: e.clientY,
+        flowPos: screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+      });
+    },
+    [screenToFlowPosition]
+  );
 
   const onNodeDragStart = useCallback(
     (_: unknown, node: Node) => {
@@ -2128,15 +2171,21 @@ function WorkflowCanvasInner({
     [onStepsChange]
   );
 
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const stepType = readPaletteDragType(e.dataTransfer);
-      if (!stepType) return;
-      const dropPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+  /** Cria um step numa posição do canvas (drop da paleta ou menu de
+   *  contexto do pane), com auto-encadeamento ao último step quando
+   *  possível. Variantes aplicam `presetConfig` (ex.: mode="leads"). */
+  const insertStepAtFlowPos = useCallback(
+    (
+      stepType: ActionStepType,
+      flowPos: { x: number; y: number },
+      presetConfig?: Record<string, unknown>,
+    ) => {
       const id = newStepId();
-      const config = defaultStepConfig(stepType) as Record<string, unknown>;
-      config.__rfPos = { x: dropPos.x, y: dropPos.y };
+      const config = {
+        ...(defaultStepConfig(stepType) as Record<string, unknown>),
+        ...(presetConfig ?? {}),
+      };
+      config.__rfPos = { x: flowPos.x, y: flowPos.y };
       config.__hasExplicitEdges = true;
       const step: AutomationStep = { id, type: stepType, config };
       pendingSelectIdRef.current = id;
@@ -2176,7 +2225,21 @@ function WorkflowCanvasInner({
         onStepsChange([...cur, step]);
       }
     },
-    [onStepsChange, screenToFlowPosition]
+    [onStepsChange]
+  );
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const payload = readPaletteDragType(e.dataTransfer);
+      if (!payload) return;
+      insertStepAtFlowPos(
+        payload.type,
+        screenToFlowPosition({ x: e.clientX, y: e.clientY }),
+        payload.presetConfig,
+      );
+    },
+    [insertStepAtFlowPos, screenToFlowPosition]
   );
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -2214,6 +2277,7 @@ function WorkflowCanvasInner({
           onNodeDragStop={onNodeDragStop}
           onNodeClick={onNodeClick}
           onNodeContextMenu={onNodeContextMenu}
+          onPaneContextMenu={onPaneContextMenu}
           onNodeDragStart={onNodeDragStart}
           onNodeMouseEnter={(_e, node) => setHoveredNodeId(node.id)}
           onNodeMouseLeave={() => setHoveredNodeId(null)}
@@ -2283,6 +2347,53 @@ function WorkflowCanvasInner({
           }}
         />
 
+        {/* Menu de contexto do pane (clique-direito no vazio) */}
+        {paneMenu && (
+          <>
+            <div
+              className="fixed inset-0 z-(--z-overlay)"
+              onClick={() => setPaneMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setPaneMenu(null);
+              }}
+            />
+            <div
+              className="fixed z-(--z-sheet) min-w-[208px] overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] py-1 shadow-[var(--glass-shadow)] backdrop-blur-md"
+              style={{ top: paneMenu.y, left: paneMenu.x }}
+            >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-primary)]/12"
+                onClick={() => {
+                  setAddBlockPicker({ kind: "pane", flowPos: paneMenu.flowPos });
+                  setPaneMenu(null);
+                }}
+              >
+                <Plus className="size-4 text-[var(--text-secondary)]" strokeWidth={2.2} />
+                Adicionar bloco de automação
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Picker do "Adicionar bloco de automação" (pane ou após um nó) */}
+        <StepPickerModal
+          open={!!addBlockPicker}
+          title="Adicionar bloco de automação"
+          subtitle="Escolha o bloco para inserir no fluxo."
+          onSelect={(type, presetConfig) => {
+            if (!addBlockPicker) return;
+            if (addBlockPicker.kind === "pane") {
+              insertStepAtFlowPos(type, addBlockPicker.flowPos, presetConfig);
+            } else {
+              addStepAfter(type, addBlockPicker.stepId, presetConfig);
+            }
+            setAddBlockPicker(null);
+          }}
+          onClose={() => setAddBlockPicker(null)}
+        />
+
         {/* Menu de contexto do nó (clique-direito) */}
         {nodeMenu && (
           <>
@@ -2298,6 +2409,18 @@ function WorkflowCanvasInner({
               className="fixed z-(--z-sheet) min-w-[168px] overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] py-1 shadow-[var(--glass-shadow)] backdrop-blur-md"
               style={{ top: nodeMenu.y, left: nodeMenu.x }}
             >
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-primary)]/12"
+                onClick={() => {
+                  // Abre o picker para inserir um bloco logo após este nó.
+                  setAddBlockPicker({ kind: "after", stepId: nodeMenu.id });
+                  closeNodeMenu();
+                }}
+              >
+                <Plus className="size-4 text-[var(--text-secondary)]" strokeWidth={2.2} />
+                Adicionar bloco
+              </button>
               <button
                 type="button"
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-primary)]/12"

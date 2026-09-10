@@ -7,20 +7,40 @@ import { cn } from "@/lib/utils";
 import type { ActionStepType } from "@/lib/automation-workflow";
 import { stepTypeLabel } from "@/lib/automation-workflow";
 
-import { stepColor, stepIcon } from "./add-step-node";
+import { DISTRIBUTION_LEADS_ENTRY, stepColor, stepIcon } from "./add-step-node";
 
 const PALETTE_DRAG_TYPE = "application/x-automation-step";
 
+export type PaletteDragPayload = {
+  type: ActionStepType;
+  /** Config inicial do step (variantes, ex.: Distribuição por Leads). */
+  presetConfig?: Record<string, unknown>;
+};
+
 export function readPaletteDragType(
   dataTransfer: DataTransfer | null
-): ActionStepType | null {
+): PaletteDragPayload | null {
   if (!dataTransfer) return null;
   const raw = dataTransfer.getData(PALETTE_DRAG_TYPE);
   if (!raw) return null;
-  return raw as ActionStepType;
+  // Variantes carregam JSON { type, presetConfig }; itens simples, o type puro.
+  if (raw.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw) as PaletteDragPayload;
+      if (parsed && typeof parsed.type === "string") return parsed;
+    } catch {
+      /* cai no formato simples */
+    }
+  }
+  return { type: raw as ActionStepType };
 }
 
-type PaletteItem = { type: ActionStepType };
+type PaletteItem = {
+  type: ActionStepType;
+  /** Rótulo próprio (variante); default = stepTypeLabel(type). */
+  label?: string;
+  presetConfig?: Record<string, unknown>;
+};
 
 const GROUPS: { title: string; items: PaletteItem[] }[] = [
   {
@@ -38,6 +58,11 @@ const GROUPS: { title: string; items: PaletteItem[] }[] = [
       { type: "create_activity" },
       { type: "update_lead_score" },
       { type: "execute_distribution" },
+      {
+        type: DISTRIBUTION_LEADS_ENTRY.type,
+        label: DISTRIBUTION_LEADS_ENTRY.label,
+        presetConfig: DISTRIBUTION_LEADS_ENTRY.presetConfig,
+      },
     ],
   },
   {
@@ -94,7 +119,7 @@ export function NodePalette({
   className?: string;
   pinned?: boolean;
   onTogglePin?: () => void;
-  onAdd?: (type: ActionStepType) => void;
+  onAdd?: (type: ActionStepType, presetConfig?: Record<string, unknown>) => void;
 }) {
   return (
     <div
@@ -141,18 +166,23 @@ export function NodePalette({
             {g.title}
           </p>
           <ul className="flex flex-col gap-1">
-            {g.items.map(({ type }) => {
+            {g.items.map(({ type, label, presetConfig }) => {
               const Icon = stepIcon[type] ?? Plus;
               const color = stepColor[type] ?? "text-[var(--text-muted)]";
               return (
-                <li key={type}>
+                <li key={label ?? type}>
                   <button
                     type="button"
                     data-step-type={type}
                     draggable
-                    onClick={() => onAdd?.(type)}
+                    onClick={() => onAdd?.(type, presetConfig)}
                     onDragStart={(e) => {
-                      e.dataTransfer.setData(PALETTE_DRAG_TYPE, type);
+                      e.dataTransfer.setData(
+                        PALETTE_DRAG_TYPE,
+                        presetConfig
+                          ? JSON.stringify({ type, presetConfig })
+                          : type,
+                      );
                       e.dataTransfer.effectAllowed = "copy";
                     }}
                     className="group/item flex w-full cursor-grab items-center gap-2.5 rounded-xl border border-[var(--glass-border-subtle)] bg-[var(--color-bg-card)] px-2.5 py-2 text-left transition-all duration-200 hover:-translate-y-px hover:border-primary/30 hover:bg-[var(--color-primary-soft)]/40 hover:shadow-[var(--shadow-indigo-glow)] active:cursor-grabbing"
@@ -166,7 +196,7 @@ export function NodePalette({
                       <Icon className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1 text-[13px] font-bold leading-tight tracking-tight text-foreground">
-                      {stepTypeLabel(type)}
+                      {label ?? stepTypeLabel(type)}
                     </span>
                   </button>
                 </li>

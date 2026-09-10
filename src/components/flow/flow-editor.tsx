@@ -484,7 +484,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
   }, [nodes, activeNodeIds, selectedNodeId])
 
   const addNode = useCallback(
-    (type: ActionStepType, position?: { x: number; y: number }) => {
+    (type: ActionStepType, position?: { x: number; y: number }, presetConfig?: Record<string, unknown>) => {
       const ref = nodes.reduce((max, n) => Math.max(max, n.data.ref), 0) + 1
       const id = `node-${Date.now()}`
       const pos =
@@ -498,6 +498,8 @@ function InnerEditor({ automationId }: { automationId: string }) {
       const conn = pendingConn.current
       pendingConn.current = null
       const data = blankFlowNodeFromStep(type, ref)
+      // Variante de paleta (ex.: Distribuição por Leads → mode="leads").
+      if (presetConfig) data.config = { ...data.config, ...presetConfig }
       // Mesma convenção do editor legado: passo novo nasce como folha
       // explícita, senão o runtime cai no próximo item do array por engano.
       data.config = markExplicitEdges(data.config)
@@ -573,9 +575,9 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const onDrop = useCallback(
     (e: DragEvent) => {
       e.preventDefault()
-      const type = readPaletteDragType(e.dataTransfer)
-      if (!type) return
-      addNode(type, screenToFlowPosition({ x: e.clientX, y: e.clientY }))
+      const payload = readPaletteDragType(e.dataTransfer)
+      if (!payload) return
+      addNode(payload.type, screenToFlowPosition({ x: e.clientX, y: e.clientY }), payload.presetConfig)
     },
     [addNode, screenToFlowPosition],
   )
