@@ -5,7 +5,13 @@
  */
 
 import { apiUrl } from "@/lib/api";
+import { isPageMockMode } from "@/lib/page-mock-mode";
 
+import {
+  MOCK_LEADS_HISTORY,
+  MOCK_LEADS_PARTICIPANTS,
+  MOCK_LEADS_STATS,
+} from "./leads-mock";
 import type {
   LeadsHistoryFilters,
   LeadsHistoryResponse,
@@ -68,6 +74,7 @@ async function sendJson<T>(
 }
 
 export function fetchLeadsParticipants(): Promise<LeadsParticipantsResponse> {
+  if (isPageMockMode()) return Promise.resolve(MOCK_LEADS_PARTICIPANTS);
   return getJson<LeadsParticipantsResponse>(
     "/api/distribution/leads/participants",
     "Erro ao carregar participantes.",
@@ -103,6 +110,7 @@ function historySearchParams(
 export function fetchLeadsStats(
   filters: LeadsHistoryFilters,
 ): Promise<LeadsStatsResponse> {
+  if (isPageMockMode()) return Promise.resolve(MOCK_LEADS_STATS);
   const qs = historySearchParams(filters, null);
   return getJson<LeadsStatsResponse>(
     `/api/distribution/leads/stats${qs ? `?${qs}` : ""}`,
@@ -115,6 +123,7 @@ export function fetchLeadsHistory(
   cursor?: string | null,
   limit?: number,
 ): Promise<LeadsHistoryResponse> {
+  if (isPageMockMode()) return Promise.resolve(MOCK_LEADS_HISTORY);
   const qs = historySearchParams(filters, cursor, limit);
   return getJson<LeadsHistoryResponse>(
     `/api/distribution/leads/history?${qs}`,
