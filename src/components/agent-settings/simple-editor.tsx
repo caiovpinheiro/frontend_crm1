@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
-import { defaultAcademicSteeringRules } from "@/lib/ai-agents/academic-atendimento-prompt";
 import { cn } from "@/lib/utils";
 
 import { OpenAiKeyField } from "./openai-key-field";
@@ -162,22 +161,11 @@ export function SimpleEditor({
       </section>
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <MessageSquareText className="size-4 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">
-              2. Como deve atender
-            </h3>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() => setOverride(defaultAcademicSteeringRules())}
-          >
-            Carregar padrão acadêmico
-          </Button>
+        <div className="flex items-center gap-2">
+          <MessageSquareText className="size-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">
+            2. Como deve atender
+          </h3>
         </div>
         <p className="text-xs text-muted-foreground">
           Este texto é o que o agente lê em toda mensagem. Salva no campo que o

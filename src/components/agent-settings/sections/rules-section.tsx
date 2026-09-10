@@ -2,10 +2,7 @@
 
 import * as React from "react";
 
-import { defaultAcademicSteeringRules } from "@/lib/ai-agents/academic-atendimento-prompt";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
 
 import { FieldHelp, SectionHeader } from "../section-header";
@@ -19,8 +16,6 @@ export function RulesSection({
   onOverrideChange,
   template,
   onTemplateChange,
-  useOnlyOwnRules,
-  onUseOnlyOwnRulesChange,
 }: {
   archetype: AgentArchetype;
   steeringRules: string;
@@ -29,83 +24,22 @@ export function RulesSection({
   onOverrideChange: (v: string) => void;
   template: string;
   onTemplateChange: (v: string) => void;
-  useOnlyOwnRules: boolean;
-  onUseOnlyOwnRulesChange: (v: boolean) => void;
 }) {
-  const { confirm, dialog } = useConfirm();
   const composed = [template.trim(), steeringRules.trim(), override.trim()]
     .filter(Boolean)
     .join("\n\n");
 
-  async function loadDefaultRules() {
-    const fallback =
-      archetype === "ATENDIMENTO" ? defaultAcademicSteeringRules() : "";
-    // Substituir sem avisar ja apagou horas de regra escrita a mao: o
-    // botao troca o texto inteiro, nao acrescenta.
-    if (
-      steeringRules.trim() &&
-      !(await confirm({
-        title: "Substituir as regras deste agente?",
-        description:
-          "O texto de fábrica entra no lugar do que está escrito aqui — " +
-          "não é somado. O que você escreveu se perde ao salvar.",
-        confirmLabel: "Substituir",
-        destructive: true,
-      }))
-    ) {
-      return;
-    }
-    onSteeringRulesChange(fallback);
-  }
-
   return (
     <div className="space-y-5">
-      {dialog}
       <SectionHeader
         title="Regras"
         description="Estas regras entram no prompt a cada mensagem. O que você salvar aqui vale na hora — sem deploy."
       />
 
-      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card p-4">
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={useOnlyOwnRules}
-          onChange={(e) => onUseOnlyOwnRulesChange(e.target.checked)}
-        />
-        <span className="text-sm">
-          <span className="font-medium">Usar apenas as minhas regras</span>
-          <span className="mt-1 block text-[12px] leading-relaxed text-muted-foreground">
-            Desligado, o texto do pacote da vertical é <strong>somado</strong> ao
-            que você escreveu — e vence quando os dois se contradizem. Ligado,
-            vale só o que está nesta tela e na aba Conhecimento.
-          </span>
-          {useOnlyOwnRules && (
-            <span className="mt-2 block text-[12px] leading-relaxed text-[var(--color-warning-text,inherit)]">
-              Também param de entrar os textos automáticos de polos, prova,
-              portal, senha, primeiro acesso e certificado. Esse conteúdo passa
-              a ser seu: escreva o comportamento aqui e as informações na aba
-              Conhecimento.
-            </span>
-          )}
-        </span>
-      </label>
-
       <div>
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <label htmlFor="ag-steering" className={formLabelClass}>
-            Regras de atendimento
-          </label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() => void loadDefaultRules()}
-          >
-            Carregar padrão
-          </Button>
-        </div>
+        <label htmlFor="ag-steering" className={formLabelClass}>
+          Regras de atendimento
+        </label>
         <Textarea
           id="ag-steering"
           value={steeringRules}
@@ -118,6 +52,11 @@ export function RulesSection({
           }
           className="min-h-[140px] resize-y rounded-xl font-mono text-[12px] leading-relaxed"
         />
+        <FieldHelp>
+          {steeringRules.trim()
+            ? "Com texto aqui, o agente segue só este texto — nada do padrão é somado."
+            : "Vazio, o agente segue o texto padrão do arquétipo. O que você escrever passa a valer no lugar dele."}
+        </FieldHelp>
       </div>
 
       <div>

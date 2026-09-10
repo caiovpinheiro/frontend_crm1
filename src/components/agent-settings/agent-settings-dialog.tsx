@@ -453,13 +453,6 @@ export function AgentSettingsDialog({
                   onOverrideChange={(v) => patch("systemPromptOverride", v)}
                   template={form.systemPromptTemplate}
                   onTemplateChange={(v) => patch("systemPromptTemplate", v)}
-                  useOnlyOwnRules={form.inboxPolicy.useOnlyOwnRules}
-                  onUseOnlyOwnRulesChange={(useOnlyOwnRules) =>
-                    patch("inboxPolicy", {
-                      ...form.inboxPolicy,
-                      useOnlyOwnRules,
-                    })
-                  }
                 />
               )}
               {advanced && section === "messageRules" && (
