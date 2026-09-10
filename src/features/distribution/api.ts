@@ -26,6 +26,7 @@ import { normalizeExecuteDistributionResult } from "./outcome-toast";
 import {
   MOCK_DISTRIBUTION_PENDING,
   MOCK_DISTRIBUTION_RESPONSIBLES,
+  MOCK_DISTRIBUTION_SETTINGS,
 } from "./mock";
 
 async function getJson<T>(path: string, errLabel: string): Promise<T> {
@@ -223,6 +224,9 @@ export interface DistributionSettings {
 }
 
 export function fetchDistributionSettings(): Promise<DistributionSettings> {
+  if (isPageMockMode()) {
+    return Promise.resolve({ ...MOCK_DISTRIBUTION_SETTINGS });
+  }
   return getJson<DistributionSettings>(
     "/api/distribution/settings",
     "Erro ao carregar configurações de distribuição.",
@@ -238,6 +242,12 @@ export function fetchDistributionSettings(): Promise<DistributionSettings> {
 export async function updateDistributionSettings(
   input: Partial<DistributionSettings>,
 ): Promise<DistributionSettings> {
+  // Modo mock: grava em memória (sem backend) para os toggles da página
+  // funcionarem em demo/dev local.
+  if (isPageMockMode()) {
+    Object.assign(MOCK_DISTRIBUTION_SETTINGS, input);
+    return { ...MOCK_DISTRIBUTION_SETTINGS };
+  }
   const raw = await sendJson<Partial<DistributionSettings> | undefined>(
     "/api/distribution/settings",
     "PUT",

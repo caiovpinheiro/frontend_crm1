@@ -1,4 +1,17 @@
 import type { PendingResponse, ResponsiblesResponse } from "./types";
+import type { DistributionSettings } from "./api";
+
+/**
+ * Settings de exemplo — MUTÁVEL de propósito: no modo mock os toggles da
+ * página ("Distribuição automática", "Atribuir no primeiro inbound") gravam
+ * aqui em memória, sem backend.
+ */
+export const MOCK_DISTRIBUTION_SETTINGS: DistributionSettings = {
+  respectDepartment: false,
+  autoOnInbound: true,
+  enabled: true,
+  fallbackDepartmentId: null,
+};
 
 function ago(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();

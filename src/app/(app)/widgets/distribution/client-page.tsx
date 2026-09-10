@@ -584,7 +584,9 @@ export default function DistributionClientPage({
                 />
               </section>
 
-              {canManage && !useDemo && view === "team" && (
+              {/* Toggles reais do motor smart — também visíveis em demo
+                  (settings mockados em memória) para paridade local×DEV. */}
+              {canManage && view === "team" && (
                 <>
                   <DistributionEnabledToggle />
                   <AutoOnInboundToggle showTour />
