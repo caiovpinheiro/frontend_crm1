@@ -1,10 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { IconRobot } from "@tabler/icons-react";
-import { useQueryClient } from "@tanstack/react-query";
 
-import { AgentSettingsDialog } from "@/components/agent-settings/agent-settings-dialog";
 import { TabsGlass } from "@/components/crm/tabs-glass";
 import OldAIAgentsPage from "@/features/legacy-v1/ai-agents";
 import {
@@ -28,60 +26,29 @@ import { AppV2PageShell } from "../_v2-page-shell";
 export default function AIAgentsV2ClientPage() {
   // 0 = "Agentes"; 1..4 = abas do cockpit acadêmico.
   const [activeTab, setActiveTab] = useState(0);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const ignoreCloseUntil = useRef(0);
-  const queryClient = useQueryClient();
   const academicTab = activeTab > 0 ? ACADEMIC_TABS[activeTab - 1] : null;
 
   const tabs = [{ label: "Agentes" }, ...ACADEMIC_TABS.map((t) => ({ label: t.label }))];
 
-  const openEditor = (id: string) => {
-    ignoreCloseUntil.current = Date.now() + 500;
-    window.setTimeout(() => setEditingId(id), 0);
-  };
-
-  const closeEditor = () => {
-    if (Date.now() < ignoreCloseUntil.current) return;
-    setEditingId(null);
-  };
-
   return (
-    <AppV2PageShell
-      title={editingId ? "Editar agente" : "Agentes de IA"}
-      icon={<IconRobot size={22} />}
-    >
-      {editingId ? (
-        <div className="min-w-0 pb-6">
-          <AgentSettingsDialog
-            id={editingId}
-            onOpenChange={(open) => {
-              if (!open) closeEditor();
-            }}
-            onSaved={() => {
-              setEditingId(null);
-              queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
-            }}
-          />
-        </div>
-      ) : (
-        <div className="flex min-w-0 flex-col gap-3.5">
-          <TabsGlass tabs={tabs} activeTab={activeTab} onChange={setActiveTab} scrollable />
+    <AppV2PageShell title="Agentes de IA" icon={<IconRobot size={22} />}>
+      <div className="flex min-w-0 flex-col gap-3.5">
+        <TabsGlass tabs={tabs} activeTab={activeTab} onChange={setActiveTab} scrollable />
 
-          <div className={academicTab ? "hidden" : "min-w-0"}>
-            <AgentsPanel onEditAgent={openEditor} />
-          </div>
-
-          {academicTab && <AcademicCockpitTab tab={academicTab.id} active />}
+        <div className={academicTab ? "hidden" : "min-w-0"}>
+          <AgentsPanel />
         </div>
-      )}
+
+        {academicTab && <AcademicCockpitTab tab={academicTab.id} active />}
+      </div>
     </AppV2PageShell>
   );
 }
 
-function AgentsPanel({ onEditAgent }: { onEditAgent: (id: string) => void }) {
+function AgentsPanel() {
   return (
     <div className="min-w-0 overflow-x-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-3 backdrop-blur-md sm:p-4">
-      <OldAIAgentsPage embedded onEditAgent={onEditAgent} />
+      <OldAIAgentsPage embedded />
     </div>
   );
 }

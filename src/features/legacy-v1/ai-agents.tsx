@@ -71,12 +71,9 @@ const AUTONOMY_LABEL: Record<AgentRow["autonomyMode"], string> = {
 
 export default function AIAgentsPage({
   embedded = false,
-  onEditAgent,
 }: {
   /** Quando true, omite o `PageHeader` legado (título/descrição já vêm do shell v2). */
   embedded?: boolean;
-  /** Lápis: o shell v2 abre o editor fora do card (sem modal). */
-  onEditAgent?: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [testing, setTesting] = React.useState<{ id: string; name: string } | null>(null);
@@ -145,23 +142,6 @@ export default function AIAgentsPage({
       <Plus className="size-4" /> Novo agente
     </Button>
   );
-
-  if (editingId !== null && !onEditAgent) {
-    return (
-      <div className="w-full min-w-0">
-        <AgentSettingsDialog
-          id={editingId}
-          onOpenChange={(open) => {
-            if (!open) setEditingId(null);
-          }}
-          onSaved={() => {
-            setEditingId(null);
-            queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
-          }}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -248,10 +228,7 @@ export default function AIAgentsPage({
                 onTest={() => setTesting({ id: a.id, name: a.name })}
                 onToggle={() => toggleMutation.mutate(a.id)}
                 onDelete={() => handleDelete(a.id, a.name)}
-                onEdit={() => {
-                  if (onEditAgent) onEditAgent(a.id);
-                  else setEditingId(a.id);
-                }}
+                onEdit={() => setEditingId(a.id)}
               />
             ))}
           </div>
@@ -273,6 +250,17 @@ export default function AIAgentsPage({
         open={testing !== null}
         onOpenChange={(v) => {
           if (!v) setTesting(null);
+        }}
+      />
+
+      <AgentSettingsDialog
+        id={editingId}
+        onOpenChange={(open) => {
+          if (!open) setEditingId(null);
+        }}
+        onSaved={() => {
+          setEditingId(null);
+          queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
         }}
       />
 
@@ -408,11 +396,10 @@ function AgentListCard({
             size="icon"
             className="size-8"
             title="Editar"
-            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              window.setTimeout(() => onEdit(), 0);
+              onEdit();
             }}
           >
             <Pencil className="size-3.5" />
