@@ -23,6 +23,19 @@ type KnowledgeDoc = {
   createdAt: string;
 };
 
+/** GET /knowledge devolve envelope `{ items, total, page, perPage }` ou lista crua. */
+function unwrapKnowledgeDocs(payload: unknown): KnowledgeDoc[] {
+  if (Array.isArray(payload)) return payload as KnowledgeDoc[];
+  if (
+    payload &&
+    typeof payload === "object" &&
+    Array.isArray((payload as { items?: unknown }).items)
+  ) {
+    return (payload as { items: KnowledgeDoc[] }).items;
+  }
+  return [];
+}
+
 /**
  * Painel de gestão da base de conhecimento do agente.
  *
@@ -43,10 +56,10 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
     queryFn: async () => {
       const res = await fetch(apiUrl(`/api/ai-agents/${agentId}/knowledge`));
       if (!res.ok) throw new Error("Falha ao listar documentos.");
-      return (await res.json()) as KnowledgeDoc[];
+      return unwrapKnowledgeDocs(await res.json());
     },
     refetchInterval: (q) => {
-      const data = q.state.data as KnowledgeDoc[] | undefined;
+      const data = q.state.data;
       if (!data) return false;
       const anyBusy = data.some(
         (d) => d.status === "PENDING" || d.status === "INDEXING",
