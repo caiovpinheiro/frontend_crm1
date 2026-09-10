@@ -6,7 +6,6 @@ import Link from "next/link";
 import { IconAlertTriangle as AlertTriangle, IconRobot as Bot, IconAlertCircle as CircleAlert, IconPencil as Pencil, IconPlayerPlay as Play, IconPlus as Plus, IconPower as Power, IconAdjustments as Settings2, IconTrash as Trash2 } from "@tabler/icons-react";
 import * as React from "react";
 
-import { AgentSettingsDialog } from "@/components/agent-settings/agent-settings-dialog";
 import {
   PREVIEW_AGENT_ROW,
   isPreviewAgentId,
@@ -78,25 +77,7 @@ export default function AIAgentsPage({
   const queryClient = useQueryClient();
   const [testing, setTesting] = React.useState<{ id: string; name: string } | null>(null);
   const [creating, setCreating] = React.useState(false);
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  // Mesmo se o Dialog emitir onOpenChange(false) no clique do lápis,
-  // editingId (e o `open` controlado) só zera no próximo pointerdown.
-  const allowEditorClose = React.useRef(false);
   const { confirm, dialog } = useConfirm();
-
-  React.useEffect(() => {
-    if (editingId === null) {
-      allowEditorClose.current = false;
-      return;
-    }
-    allowEditorClose.current = false;
-    const openedAt = performance.now();
-    const unlock = (e: PointerEvent) => {
-      if (e.timeStamp >= openedAt) allowEditorClose.current = true;
-    };
-    window.addEventListener("pointerup", unlock, true);
-    return () => window.removeEventListener("pointerup", unlock, true);
-  }, [editingId]);
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["ai-agents"],
@@ -245,7 +226,6 @@ export default function AIAgentsPage({
                 onTest={() => setTesting({ id: a.id, name: a.name })}
                 onToggle={() => toggleMutation.mutate(a.id)}
                 onDelete={() => handleDelete(a.id, a.name)}
-                onEdit={() => setEditingId(a.id)}
               />
             ))}
           </div>
@@ -270,18 +250,6 @@ export default function AIAgentsPage({
         }}
       />
 
-      <AgentSettingsDialog
-        id={editingId}
-        onOpenChange={(open) => {
-          if (!open && allowEditorClose.current) setEditingId(null);
-        }}
-        onSaved={() => {
-          allowEditorClose.current = true;
-          setEditingId(null);
-          queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
-        }}
-      />
-
       {dialog}
     </div>
   );
@@ -296,7 +264,6 @@ function AgentListCard({
   onTest,
   onToggle,
   onDelete,
-  onEdit,
 }: {
   agent: AgentRow;
   preview: boolean;
@@ -306,7 +273,6 @@ function AgentListCard({
   onTest: () => void;
   onToggle: () => void;
   onDelete: () => void;
-  onEdit: () => void;
 }) {
   const arch = ARCHETYPE_MAP[a.archetype];
   return (
@@ -408,21 +374,32 @@ function AgentListCard({
           >
             <Power className="size-3.5" />
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            title="Editar"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onEdit();
-            }}
-          >
-            <Pencil className="size-3.5" />
-            <span className="sr-only">Editar</span>
-          </Button>
+          {preview ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              title="Prévia — não edita"
+              disabled
+            >
+              <Pencil className="size-3.5" />
+              <span className="sr-only">Editar</span>
+            </Button>
+          ) : (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              title="Editar"
+            >
+              <Link href={`/ai-agents/${a.id}`}>
+                <Pencil className="size-3.5" />
+                <span className="sr-only">Editar</span>
+              </Link>
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
