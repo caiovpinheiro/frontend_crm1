@@ -79,7 +79,17 @@ export default function AIAgentsPage({
   const [testing, setTesting] = React.useState<{ id: string; name: string } | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  const allowEditorClose = React.useRef(false);
   const { confirm, dialog } = useConfirm();
+
+  const openEditor = (id: string) => {
+    allowEditorClose.current = false;
+    setEditingId(id);
+    const unlock = () => {
+      allowEditorClose.current = true;
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true, once: true });
+  };
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["ai-agents"],
@@ -228,7 +238,7 @@ export default function AIAgentsPage({
                 onTest={() => setTesting({ id: a.id, name: a.name })}
                 onToggle={() => toggleMutation.mutate(a.id)}
                 onDelete={() => handleDelete(a.id, a.name)}
-                onEdit={() => setEditingId(a.id)}
+                onEdit={() => openEditor(a.id)}
               />
             ))}
           </div>
@@ -256,9 +266,10 @@ export default function AIAgentsPage({
       <AgentSettingsDialog
         id={editingId}
         onOpenChange={(open) => {
-          if (!open) setEditingId(null);
+          if (!open && allowEditorClose.current) setEditingId(null);
         }}
         onSaved={() => {
+          allowEditorClose.current = true;
           setEditingId(null);
           queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
         }}

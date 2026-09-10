@@ -2,17 +2,13 @@
 
 import { apiUrl } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, X } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { type PilotingValue } from "@/components/ai-agents/piloting-panel";
 import { ButtonGlass } from "@/components/crm/button-glass";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-} from "@/components/ui/dialog";
 import {
   formDialogCancelClass,
   formDialogPrimaryClass,
@@ -551,16 +547,80 @@ export function AgentSettingsDialog({
     return panel;
   }
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        size="2xl"
-        bodyClassName="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
-        panelClassName="h-[min(90dvh,52rem)]"
+    <AgentSettingsOverlay onClose={() => onOpenChange(false)}>
+      {panel}
+    </AgentSettingsOverlay>
+  );
+}
+
+/**
+ * Overlay próprio — sem `<dialog>.showModal()`.
+ * O top-layer nativo retargeta o clique do lápis pro backdrop e fecha
+ * na hora. Aqui o dismiss só vale depois de um pointerdown novo.
+ */
+function AgentSettingsOverlay({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  const [mounted, setMounted] = React.useState(false);
+  const allowClose = React.useRef(false);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+
+  React.useEffect(() => {
+    setMounted(true);
+    allowClose.current = false;
+    const unlock = () => {
+      allowClose.current = true;
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true, once: true });
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && allowClose.current) onCloseRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget && allowClose.current) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative flex h-[min(90dvh,52rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[var(--radius-2xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] text-[var(--text-primary)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
+        onPointerDown={(e) => e.stopPropagation()}
       >
-        <DialogClose />
-        {open ? panel : null}
-      </DialogContent>
-    </Dialog>
+        <button
+          type="button"
+          aria-label="Fechar"
+          className="absolute end-4 top-4 z-10 rounded-sm text-muted-foreground opacity-70 hover:opacity-100"
+          onClick={() => {
+            if (allowClose.current) onClose();
+          }}
+        >
+          <X className="size-4" />
+        </button>
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
