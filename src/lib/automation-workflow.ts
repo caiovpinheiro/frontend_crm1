@@ -691,6 +691,9 @@ export function summarizeStepConfig(stepType: string, config: unknown, lookup?: 
     case "consume_stock":
       return "Baixar estoque dos produtos do negócio";
     case "execute_distribution": {
+      // Modo explícito do bloco: "leads" = Distribuição por Leads (rodízio
+      // por peso); ausência/"smart" = Distribuição Inteligente atual.
+      if (c.mode === "leads") return "Distribuição por Leads (rodízio)";
       const storedNames = Array.isArray(c.departmentNames)
         ? (c.departmentNames as unknown[]).filter(
             (v): v is string => typeof v === "string" && v.trim().length > 0 && !looksLikeOpaqueId(v),
