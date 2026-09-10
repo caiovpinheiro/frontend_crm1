@@ -35,7 +35,7 @@ function writePinned(next: boolean) {
 export function NodePaletteDrawer({
   onAdd,
 }: {
-  onAdd?: (type: ActionStepType) => void;
+  onAdd?: (type: ActionStepType, presetConfig?: Record<string, unknown>) => void;
 }) {
   const [pinned, setPinned] = useState(false);
   const [open, setOpen] = useState(false);
@@ -144,8 +144,8 @@ export function NodePaletteDrawer({
           onTogglePin={togglePinned}
           onAdd={
             onAdd
-              ? (type) => {
-                  onAdd(type);
+              ? (type, presetConfig) => {
+                  onAdd(type, presetConfig);
                   if (!pinned) setOpen(false);
                 }
               : undefined

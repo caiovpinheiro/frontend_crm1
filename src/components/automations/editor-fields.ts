@@ -369,13 +369,23 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
   consume_stock: [{ kind: "info", text: "Baixa o estoque dos produtos do negócio. Bloqueia se faltar saldo." }],
   execute_distribution: [
     {
+      kind: "select",
+      key: "mode",
+      label: "Modo de distribuição",
+      options: [
+        { value: "smart", label: "Inteligente (elegibilidade + fila)" },
+        { value: "leads", label: "Por Leads (rodízio por peso)" },
+      ],
+      hint: "Inteligente = regra atual (elegibilidade, fila de espera). Por Leads = rodízio por peso (0–5) entre os consultores configurados na página Distribuição, sem fila de espera; quem já tem responsável é preservado.",
+    },
+    {
       kind: "departmentMulti",
       key: "departmentIds",
       label: "Departamentos",
       optional: true,
-      hint: "Vazio = distribuição geral. Com seleção, só membros desses departamentos.",
+      hint: "Só no modo Inteligente. Vazio = distribuição geral. Com seleção, só membros desses departamentos.",
     },
-    { kind: "text", key: "distributionType", label: "Tipo / segmento", optional: true },
+    { kind: "text", key: "distributionType", label: "Tipo / segmento (só no modo Inteligente)", optional: true },
   ],
 }
 
