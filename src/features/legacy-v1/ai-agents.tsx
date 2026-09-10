@@ -417,10 +417,11 @@ function AgentListCard({
             size="icon"
             className="size-8"
             title="Editar"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              onEdit();
+              window.setTimeout(() => onEdit(), 0);
             }}
           >
             <Pencil className="size-3.5" />

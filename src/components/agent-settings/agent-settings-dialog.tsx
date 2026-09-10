@@ -178,6 +178,16 @@ export function AgentSettingsDialog({
 }) {
   const open = id !== null;
   const preview = isPreviewAgentId(id);
+  const openedAtRef = React.useRef(Date.now());
+  React.useEffect(() => {
+    openedAtRef.current = Date.now();
+  }, [id]);
+  const requestClose = () => {
+    // O clique do lápis ainda está no ar: o botão Voltar/Cancelar monta
+    // no mesmo gesto e fecha na hora.
+    if (Date.now() - openedAtRef.current < 500) return;
+    onOpenChange(false);
+  };
   const [advanced, setAdvanced] = React.useState(false);
   const [section, setSection] = React.useState<AgentSectionId>("identity");
   const [form, setForm] = React.useState<AgentSettingsValues>(EMPTY_AGENT_SETTINGS);
@@ -341,7 +351,7 @@ export function AgentSettingsDialog({
       <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <button
           type="button"
-          onClick={() => onOpenChange(false)}
+          onClick={requestClose}
           className="inline-flex size-9 items-center justify-center rounded-[var(--radius-lg)] border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           aria-label="Voltar à lista"
         >
@@ -510,7 +520,7 @@ export function AgentSettingsDialog({
               type="button"
               variant="glass"
               className={formDialogCancelClass}
-              onClick={() => onOpenChange(false)}
+              onClick={requestClose}
             >
               Cancelar
             </ButtonGlass>
