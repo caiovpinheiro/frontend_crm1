@@ -110,6 +110,23 @@ export function updateLeadsParticipant(
   userId: string,
   input: UpdateLeadsParticipantInput,
 ): Promise<{ participant: unknown }> {
+  // Modo mock: grava em memória (sem backend) — os botões de peso/status da
+  // página respondem em demo/dev local.
+  if (isPageMockMode()) {
+    const p = MOCK_LEADS_PARTICIPANTS.participants.find(
+      (x) => x.userId === userId,
+    );
+    if (p) {
+      if (input.status !== undefined) p.status = input.status;
+      if (input.weight !== undefined) p.weight = input.weight;
+      p.slots = p.slots.map((s) => ({
+        ...s,
+        active: p.status === "ACTIVE" && s.slotIndex < p.weight,
+      }));
+      p.updatedAt = new Date().toISOString();
+    }
+    return Promise.resolve({ participant: p });
+  }
   return sendJson(
     `/api/distribution/leads/participants/${userId}`,
     "PUT",
