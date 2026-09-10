@@ -18,6 +18,8 @@ export function RulesSection({
   onOverrideChange,
   template,
   onTemplateChange,
+  useOnlyOwnRules,
+  onUseOnlyOwnRulesChange,
 }: {
   archetype: AgentArchetype;
   steeringRules: string;
@@ -26,6 +28,8 @@ export function RulesSection({
   onOverrideChange: (v: string) => void;
   template: string;
   onTemplateChange: (v: string) => void;
+  useOnlyOwnRules: boolean;
+  onUseOnlyOwnRulesChange: (v: boolean) => void;
 }) {
   const composed = [template.trim(), steeringRules.trim(), override.trim()]
     .filter(Boolean)
@@ -37,6 +41,31 @@ export function RulesSection({
         title="Regras"
         description="Estas regras entram no prompt a cada mensagem. O que você salvar aqui vale na hora — sem deploy."
       />
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card p-4">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={useOnlyOwnRules}
+          onChange={(e) => onUseOnlyOwnRulesChange(e.target.checked)}
+        />
+        <span className="text-sm">
+          <span className="font-medium">Usar apenas as minhas regras</span>
+          <span className="mt-1 block text-[12px] leading-relaxed text-muted-foreground">
+            Desligado, o texto do pacote da vertical é <strong>somado</strong> ao
+            que você escreveu — e vence quando os dois se contradizem. Ligado,
+            vale só o que está nesta tela e na aba Conhecimento.
+          </span>
+          {useOnlyOwnRules && (
+            <span className="mt-2 block text-[12px] leading-relaxed text-[var(--color-warning-text,inherit)]">
+              Também param de entrar os textos automáticos de polos, prova,
+              portal, senha, primeiro acesso e certificado. Esse conteúdo passa
+              a ser seu: escreva o comportamento aqui e as informações na aba
+              Conhecimento.
+            </span>
+          )}
+        </span>
+      </label>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-2">

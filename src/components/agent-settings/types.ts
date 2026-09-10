@@ -220,6 +220,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
       "Essa eu não sei te responder com certeza, e prefiro não chutar.",
     knowledgeExpiredInstruction:
       "Esse conteúdo saiu de validade: avise que ainda não há informação nova e oriente a pessoa a aguardar o próximo comunicado.",
+    useOnlyOwnRules: false,
   },
   piloting: {
     ...createDefaultPiloting(),

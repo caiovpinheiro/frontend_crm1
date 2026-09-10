@@ -455,6 +455,11 @@ export type InboxPolicy = {
   /// Orientação padrão quando um documento da base vence e o próprio
   /// documento não traz um texto. `null` = só para de usar o documento.
   knowledgeExpiredInstruction: string | null;
+
+  /// `true` = o texto do pacote de vertical (regras acadêmicas + os hints
+  /// de polos, prova, portal, senha, primeiro acesso e certificado) não é
+  /// somado. Vale só o que está escrito no agente.
+  useOnlyOwnRules: boolean;
 };
 
 export type UnknownAnswerMode = "handoff" | "clarify" | "acknowledge";
@@ -492,6 +497,7 @@ export function defaultInboxPolicy(): InboxPolicy {
     unknownAnswerMode: "handoff",
     unknownAnswerMessage: null,
     knowledgeExpiredInstruction: null,
+    useOnlyOwnRules: false,
   };
 }
 
@@ -570,6 +576,7 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
       : base.unknownAnswerMode,
     unknownAnswerMessage: nullableText(r.unknownAnswerMessage),
     knowledgeExpiredInstruction: nullableText(r.knowledgeExpiredInstruction),
+    useOnlyOwnRules: boolOr(r.useOnlyOwnRules, base.useOnlyOwnRules),
   };
   return { ...carried, ...known };
 }
