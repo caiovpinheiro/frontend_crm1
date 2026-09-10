@@ -108,6 +108,19 @@ function providerPill(provider: string): string {
   return provider;
 }
 
+function nfBr(value: number): string {
+  return value.toLocaleString("pt-BR");
+}
+
+/** Passo do slider da trava — números redondos em audiência grande. */
+function sendLimitStep(audienceCount: number): number {
+  if (audienceCount <= 100) return 1;
+  if (audienceCount <= 1_000) return 10;
+  if (audienceCount <= 10_000) return 50;
+  if (audienceCount <= 100_000) return 100;
+  return 500;
+}
+
 export default function NewCampaignClientPage() {
   const router = useRouter();
   const { status: authStatus } = useSession();
@@ -144,6 +157,8 @@ export default function NewCampaignClientPage() {
   );
 
   const [sendRate, setSendRate] = useState(80);
+  /** Trava por lote: null = dispara a audiência inteira. */
+  const [sendLimit, setSendLimit] = useState<number | null>(null);
   const [scheduledAt, setScheduledAt] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -239,6 +254,13 @@ export default function NewCampaignClientPage() {
     return missingVars > 0 || missingMedia;
   }, [type, selectedTemplate, templateComponents]);
 
+  const audienceCount = preview.data?.count ?? 0;
+  const limitStep = sendLimitStep(audienceCount);
+  // Audiência pode mudar depois de escolher a trava (voltar ao passo 2, tag
+  // nova). Limite maior que a audiência não trava nada.
+  const effectiveSendLimit =
+    sendLimit !== null && sendLimit < audienceCount ? sendLimit : null;
+
   function canAdvance(): boolean {
     switch (step) {
       case 1:
@@ -272,6 +294,7 @@ export default function NewCampaignClientPage() {
       useLastConversationChannel,
       sendRate,
     };
+    if (effectiveSendLimit) body.sendLimit = effectiveSendLimit;
     if (!useLastConversationChannel) body.channelId = channelId;
     if (audienceMode === "segment") body.segmentId = segmentId;
     else body.filters = filters;
@@ -750,6 +773,37 @@ export default function NewCampaignClientPage() {
             />
           </div>
 
+          {audienceCount > 1 ? (
+            <div>
+              <span className={formLabelClass}>
+                {effectiveSendLimit
+                  ? `Limite deste disparo — ${nfBr(effectiveSendLimit)} de ${nfBr(audienceCount)} contatos`
+                  : `Limite deste disparo — sem limite (${nfBr(audienceCount)} contatos)`}
+              </span>
+              <input
+                type="range"
+                min={limitStep}
+                max={audienceCount}
+                step={limitStep}
+                value={effectiveSendLimit ?? audienceCount}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  // Ponta direita = sem trava (o passo pode não fechar no
+                  // total exato da audiência).
+                  setSendLimit(
+                    value + limitStep > audienceCount ? null : value,
+                  );
+                }}
+                className="w-full accent-primary"
+              />
+              <p className="mt-1 text-[11.5px] text-muted-foreground">
+                {effectiveSendLimit
+                  ? `Envia ${nfBr(effectiveSendLimit)} e pausa. Os outros ${nfBr(audienceCount - effectiveSendLimit)} ficam guardados — você retoma na campanha quando quiser, um lote de cada vez.`
+                  : "Arraste para a esquerda para disparar só uma parte da audiência agora e retomar o resto depois."}
+              </p>
+            </div>
+          ) : null}
+
           <div>
             <span className={formLabelClass}>Agendamento (opcional)</span>
             <InputGlass
@@ -795,6 +849,12 @@ export default function NewCampaignClientPage() {
                     : "Filtros ad-hoc"
               }
             />
+            {effectiveSendLimit ? (
+              <ReviewRow
+                label="Limite"
+                value={`${nfBr(effectiveSendLimit)} por lote`}
+              />
+            ) : null}
             {type === "TEMPLATE" ? (
               <ReviewRow label="Template" value={templateName} />
             ) : null}

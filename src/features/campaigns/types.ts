@@ -36,6 +36,10 @@ export interface CampaignListItem {
   failedCount: number;
   readCount: number;
   repliedCount?: number;
+  /** Trava por lote: quantos destinatários por rodada (null = sem trava). */
+  sendLimit?: number | null;
+  /** Teto acumulado de processados (enviados + falhas) da rodada atual. */
+  sendCap?: number | null;
   scheduledAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
@@ -200,6 +204,8 @@ export interface CreateCampaignBody {
   textContent?: string;
   automationId?: string;
   sendRate?: number;
+  /** Trava por lote: envia só esta quantidade e pausa. null = sem trava. */
+  sendLimit?: number | null;
   scheduledAt?: string;
 }
 

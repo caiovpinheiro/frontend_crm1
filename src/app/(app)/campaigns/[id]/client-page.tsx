@@ -190,6 +190,9 @@ export default function CampaignDetailClientPage() {
 
   const canPause = campaign.status === "SENDING" || campaign.status === "PROCESSING";
   const canResume = campaign.status === "PAUSED";
+  const sendLimit = campaign.sendLimit ?? null;
+  const nextBatch = sendLimit ? Math.min(sendLimit, pending) : 0;
+  const lockedByLimit = canResume && nextBatch > 0;
   const canCancel = [
     "DRAFT",
     "SCHEDULED",
@@ -313,7 +316,8 @@ export default function CampaignDetailClientPage() {
           ) : null}
           {canResume ? (
             <HeaderPill onClick={() => run("resume")} disabled={action.isPending}>
-              <Play className="size-4" aria-hidden="true" /> Retomar
+              <Play className="size-4" aria-hidden="true" />{" "}
+              {lockedByLimit ? `Retomar (+${nf(nextBatch)})` : "Retomar"}
             </HeaderPill>
           ) : null}
           {canCancel ? (
@@ -366,6 +370,13 @@ export default function CampaignDetailClientPage() {
             <span>{sentPct}% enviado</span>
             <span className="tabular-nums">{nf(pending)} pendentes</span>
           </div>
+          {sendLimit ? (
+            <p className="mt-2 text-[12.5px] text-muted-foreground">
+              {lockedByLimit
+                ? `Pausada na trava de ${nf(sendLimit)} por lote — Retomar libera o próximo lote de ${nf(nextBatch)}.`
+                : `Trava de ${nf(sendLimit)} envios por lote.`}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
