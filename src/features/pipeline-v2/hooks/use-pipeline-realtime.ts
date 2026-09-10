@@ -255,3 +255,19 @@ export function usePipelineRealtime(enabled = true) {
 export function invalidatePipelineBoards(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ predicate: (q) => isBoardQueryKey(q.queryKey) });
 }
+
+/**
+ * Adia o refetch do kanban para depois do paint. No deal detail o
+ * invalidate síncrono re-renderiza o board inteiro e atrasa stop/envio
+ * de áudio (o inbox não monta o board, então não sente isso).
+ */
+export function schedulePipelineBoardInvalidation(
+  qc: ReturnType<typeof useQueryClient>,
+) {
+  const run = () => invalidatePipelineBoards(qc);
+  if (typeof globalThis.requestIdleCallback === "function") {
+    globalThis.requestIdleCallback(run, { timeout: 1200 });
+    return;
+  }
+  globalThis.setTimeout(run, 0);
+}

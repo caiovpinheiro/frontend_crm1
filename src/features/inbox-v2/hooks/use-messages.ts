@@ -20,7 +20,7 @@ import {
   type ReactionDto,
 } from "../api";
 
-import { invalidatePipelineBoards } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { schedulePipelineBoardInvalidation } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import { applyOutboundPreviewToInboxCaches } from "./apply-outbound-inbox-card";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
@@ -264,7 +264,7 @@ export function useSendMessage(conversationId: string | null) {
         });
       }
       // Rodapé "aguardando resposta" dos cards vem do board (lastMessage).
-      invalidatePipelineBoards(qc);
+      schedulePipelineBoardInvalidation(qc);
     },
   });
 }
@@ -452,7 +452,7 @@ export function useSendAttachment(conversationId: string | null) {
           timestamp: data.message?.createdAt,
         });
       }
-      invalidatePipelineBoards(qc);
+      schedulePipelineBoardInvalidation(qc);
     },
   });
 }

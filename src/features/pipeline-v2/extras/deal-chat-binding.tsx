@@ -9,7 +9,7 @@
  * pra serem plugados nas props correspondentes do DealDetailPanel.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment, type ComponentProps } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment, type ComponentProps } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -64,8 +64,9 @@ import {
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
 
-/** Draft local: tecla não re-renderiza o kanban nem o thread de áudios. */
-function IsolatedDealComposer({
+/** Draft e props estáveis: tecla/SSE do chat não re-renderizam o composer
+ *  (gravação de áudio no deal não espera o painel/kanban pintar). */
+const IsolatedDealComposer = memo(function IsolatedDealComposer({
   conversationId,
   onSend,
   onSendNote,
@@ -74,28 +75,32 @@ function IsolatedDealComposer({
   conversationId: string;
 }) {
   const [draft, setDraft] = useState("");
+  const send = useCallback(
+    async (value: string) => {
+      await onSend(value);
+      setDraft("");
+    },
+    [onSend],
+  );
+  const sendNote = useCallback(
+    async (value: string) => {
+      await Promise.resolve(onSendNote?.(value));
+      setDraft("");
+    },
+    [onSendNote],
+  );
 
   return (
     <Composer
       conversationId={conversationId}
       value={draft}
       onChange={setDraft}
-      onSend={async (value) => {
-        await onSend(value);
-        setDraft("");
-      }}
-      onSendNote={
-        onSendNote
-          ? async (value) => {
-              await Promise.resolve(onSendNote(value));
-              setDraft("");
-            }
-          : undefined
-      }
+      onSend={send}
+      onSendNote={onSendNote ? sendNote : undefined}
       {...rest}
     />
   );
-}
+});
 
 interface DealChatBindingResult {
   messagesNode: React.ReactNode;
@@ -267,6 +272,7 @@ export function useDealChatBinding(params: {
     isError: messagesFailed,
   } = useMessages(effectiveConversationId);
   const sendMutation = useSendMessage(effectiveConversationId);
+  const sendMutateAsync = sendMutation.mutateAsync;
   const reactMutation = useReactMessage(effectiveConversationId);
   const pinNoteMutation = usePinNote(effectiveConversationId);
   const pinMessageMutation = usePinMessage(effectiveConversationId);
@@ -650,11 +656,11 @@ export function useDealChatBinding(params: {
     }
   }, [pinnedMessagesPreview, activePinIndex, scrollToMessage]);
 
-  async function handleSend(value?: string) {
+  const handleSend = useCallback(async (value?: string) => {
     const t = (value ?? "").trim();
     if (!t || !effectiveConversationId) return;
     try {
-      await sendMutation.mutateAsync({
+      await sendMutateAsync({
         content: t,
         ...(replyTo ? { replyToId: replyTo.id } : {}),
         // Override só quando o canal escolhido difere do atual da conversa.
@@ -667,7 +673,13 @@ export function useDealChatBinding(params: {
       toast.error((e as Error)?.message || "Falha ao enviar");
       throw e;
     }
-  }
+  }, [
+    effectiveConversationId,
+    sendMutateAsync,
+    replyTo,
+    selectedChannelId,
+    conversationChannelId,
+  ]);
 
   // Handler do botão "Responder" — deriva o nome do citado a partir da
   // própria bolha (o backend não retorna esse campo diretamente).
@@ -739,16 +751,24 @@ export function useDealChatBinding(params: {
     );
   }
 
-  async function handleSendNote(value?: string) {
+  const handleSendNote = useCallback(async (value?: string) => {
     const t = (value ?? "").trim();
     if (!t || !effectiveConversationId) return;
     try {
-      await sendMutation.mutateAsync({ content: t, asNote: true });
+      await sendMutateAsync({ content: t, asNote: true });
     } catch (e) {
       toast.error((e as Error)?.message || "Falha ao salvar nota");
       throw e;
     }
-  }
+  }, [effectiveConversationId, sendMutateAsync]);
+
+  const handleCancelReply = useCallback(() => setReplyTo(null), []);
+  const handleRequestTemplate = useCallback(() => setTemplateOpen(true), []);
+  const handleExternalTemplateConsumed = useCallback(() => setExternalTemplate(null), []);
+  const composerDeals = useMemo(
+    () => (dealId ? [{ id: dealId, title: "Negócio atual" }] : undefined),
+    [dealId],
+  );
 
   // ── messages ────────────────────────────────────────────────
   let messagesNode: React.ReactNode;
@@ -1010,10 +1030,10 @@ export function useDealChatBinding(params: {
       contactName={contactName}
       dealId={dealId}
       dealTitle={undefined}
-      deals={dealId ? [{ id: dealId, title: "Negócio atual" }] : undefined}
+      deals={composerDeals}
       externalTemplate={externalTemplate}
-      onExternalTemplateConsumed={() => setExternalTemplate(null)}
-      onRequestTemplate={() => setTemplateOpen(true)}
+      onExternalTemplateConsumed={handleExternalTemplateConsumed}
+      onRequestTemplate={handleRequestTemplate}
       sessionExpired={!!sessionExpired}
       signatureAllowed={convFeatures.agentSignatureEnabled}
       signatureEditable={convFeatures.agentSignatureEditable}
@@ -1023,7 +1043,7 @@ export function useDealChatBinding(params: {
       lastMessageChannelId={lastMessageChannelId}
       onSelectChannel={setSelectedChannelId}
       replyTo={replyTo}
-      onCancelReply={() => setReplyTo(null)}
+      onCancelReply={handleCancelReply}
       isResolved={isResolved}
       conversationNumber={conversationNumber ?? null}
       departmentId={departmentId ?? null}
