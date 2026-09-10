@@ -26,6 +26,9 @@ export function pickVoiceRecorderMime(): string {
   return "audio/webm";
 }
 
+/** WebM só com header EBML (gravação abortada / onstop cedo) fica abaixo disso. */
+export const MIN_VOICE_BLOB_BYTES = 1024;
+
 export function voiceRecorderFileExt(mime: string): string {
   const base = mime.split(";")[0]?.trim().toLowerCase() ?? "";
   if (base.includes("ogg")) return "ogg";

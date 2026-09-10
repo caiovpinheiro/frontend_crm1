@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { TooltipHost } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  MIN_VOICE_BLOB_BYTES,
   pickVoiceRecorderMime,
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
 } from "@/lib/voice-recorder-format";
@@ -45,8 +46,14 @@ export function AudioRecorder({ onSend, disabled, className }: AudioRecorderProp
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.current.push(e.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunks.current, { type: mimeType });
-        setAudioBlob(blob); setAudioUrl(URL.createObjectURL(blob)); setState("preview");
         streamRef.current?.getTracks().forEach((t) => t.stop());
+        if (blob.size < MIN_VOICE_BLOB_BYTES) {
+          toast.error("Áudio incompleto. Grave novamente.");
+          setState("idle");
+          setDuration(0);
+          return;
+        }
+        setAudioBlob(blob); setAudioUrl(URL.createObjectURL(blob)); setState("preview");
       };
       recorder.start(250); setDuration(0); setState("recording");
       timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
@@ -58,7 +65,14 @@ export function AudioRecorder({ onSend, disabled, className }: AudioRecorderProp
     if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") mediaRecorder.current.stop();
   };
   const discard = () => { cleanup(); setAudioBlob(null); setAudioUrl(null); setDuration(0); setState("idle"); };
-  const send = () => { if (audioBlob) { onSend(audioBlob); discard(); } };
+  const send = () => {
+    if (!audioBlob || audioBlob.size < MIN_VOICE_BLOB_BYTES) {
+      toast.error("Áudio incompleto. Grave novamente.");
+      return;
+    }
+    onSend(audioBlob);
+    discard();
+  };
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
   if (state === "idle") {

@@ -16,6 +16,7 @@ import { ButtonGlass } from "@/components/crm/button-glass";
 import { useSendAttachment } from "@/features/inbox-v2/hooks";
 import { ensureMicrophonePermission } from "@/lib/native/permissions";
 import {
+  MIN_VOICE_BLOB_BYTES,
   pickVoiceRecorderMime,
   voiceRecorderFileExt,
   VOICE_RECORDER_AUDIO_CONSTRAINTS,
@@ -132,7 +133,12 @@ export function AudioRecorderButton({
     stopTimer();
 
     const blob = new Blob(chunksRef.current, { type: mimeRef.current });
-    if (blob.size === 0) { setRecState("idle"); setSeconds(0); return; }
+    if (blob.size < MIN_VOICE_BLOB_BYTES) {
+      toast.error("Áudio incompleto. Grave novamente.");
+      setRecState("idle");
+      setSeconds(0);
+      return;
+    }
 
     audioBlobRef.current = blob;
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
@@ -207,7 +213,7 @@ export function AudioRecorderButton({
     try { rec.stop(); } catch { /* already stopped */ }
     // Fallback: se `onstop` não disparar (webviews), finalizamos direto.
     // finalizeToPreview é idempotente (finalizedRef), então não duplica.
-    window.setTimeout(() => finalizeToPreview(), 250);
+    window.setTimeout(() => finalizeToPreview(), 800);
   }
 
   // ── Discard ───────────────────────────────────────────────────────
@@ -234,7 +240,10 @@ export function AudioRecorderButton({
   // ── Send ──────────────────────────────────────────────────────────
   async function sendAudio() {
     const blob = audioBlobRef.current;
-    if (!blob || blob.size === 0) { toast.error("Nenhum áudio para enviar"); return; }
+    if (!blob || blob.size < MIN_VOICE_BLOB_BYTES) {
+      toast.error("Áudio incompleto. Grave novamente.");
+      return;
+    }
     if (disabled) {
       onBlocked?.();
       return;
