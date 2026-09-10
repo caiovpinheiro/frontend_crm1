@@ -17,7 +17,6 @@ import { PageHeader, pageHeaderPrimaryCtaClass } from "@/components/ui/page-head
 import { Skeleton } from "@/components/ui/skeleton";
 import { AgentPlayground } from "@/components/ai-agents/agent-playground";
 import { AgentWizard } from "@/components/ai-agents/agent-wizard";
-import { StudentDataPanel } from "@/components/ai-agents/student-data-panel";
 import { ARCHETYPES } from "@/lib/ai-agents/archetypes";
 import { cn, getInitials } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -197,8 +196,6 @@ export default function AIAgentsPage({
           </div>
         </div>
       )}
-
-      <StudentDataPanel />
 
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -394,7 +391,7 @@ function AgentListCard({
               className="size-8"
               title="Editar"
             >
-              <Link href={`/ai-agents/${a.id}`}>
+              <Link href={`/ai-agents/${a.id}`} prefetch={false}>
                 <Pencil className="size-3.5" />
                 <span className="sr-only">Editar</span>
               </Link>

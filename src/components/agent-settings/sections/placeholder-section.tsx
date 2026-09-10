@@ -2,6 +2,7 @@
 
 import { InboxPolicyPanel } from "@/components/ai-agents/inbox-policy-panel";
 import { KnowledgePanel } from "@/components/ai-agents/knowledge-panel";
+import { StudentDataPanel } from "@/components/ai-agents/student-data-panel";
 import type { InboxPolicy } from "@/lib/ai-agents/steering";
 
 import { SectionHeader } from "../section-header";
@@ -64,7 +65,12 @@ export function KnowledgeSection({
           Nenhum documento ainda. O agente vai responder só com o prompt.
         </div>
       ) : (
-        <KnowledgePanel agentId={agentId} />
+        <div className="space-y-6">
+          <KnowledgePanel agentId={agentId} />
+          <div className="border-t border-border pt-6">
+            <StudentDataPanel />
+          </div>
+        </div>
       )}
     </div>
   );

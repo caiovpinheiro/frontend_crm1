@@ -1,15 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { IconRobot } from "@tabler/icons-react";
 
 import { TabsGlass } from "@/components/crm/tabs-glass";
 import OldAIAgentsPage from "@/features/legacy-v1/ai-agents";
-import {
-  ACADEMIC_TABS,
-  AcademicCockpitTab,
-} from "@/features/ai-agents/academic-cockpit";
+import { ACADEMIC_TABS } from "@/features/ai-agents/academic-cockpit";
 import { AppV2PageShell } from "../_v2-page-shell";
+
+const AcademicCockpitTab = dynamic(
+  () =>
+    import("@/features/ai-agents/academic-cockpit").then(
+      (m) => m.AcademicCockpitTab,
+    ),
+  { ssr: false },
+);
 
 /**
  * Fase 3 (migração v1→v2): rota canônica `/ai-agents` no shell v2.
