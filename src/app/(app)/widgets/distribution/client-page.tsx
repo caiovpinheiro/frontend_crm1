@@ -215,10 +215,27 @@ export default function DistributionClientPage({
   const [view, setView] = useState<DistributionView>(viewFromUrl ?? "team");
   // Seletor de página: "Distribuição Inteligente" (smart) × "Distribuição por
   // Leads" (leads). APENAS alterna a visualização — não muda motor nem
-  // automações. Deep link: ?mode=leads.
-  const [pageMode, setPageMode] = useState<"smart" | "leads">(
-    searchParams.get("mode") === "leads" ? "leads" : "smart",
-  );
+  // automações. Deep link: ?mode=leads. A query é lida só APÓS o mount:
+  // ler searchParams no estado inicial diverge do SSR (hydration mismatch).
+  const [pageMode, setPageMode] = useState<"smart" | "leads">("smart");
+  useEffect(() => {
+    if (searchParams.get("mode") === "leads") setPageMode("leads");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // A URL acompanha o modo (deep link ?mode=leads), preservando ?tab= e
+  // demais params. replaceState: sem navegação/re-render — o estado já mudou.
+  const changePageMode = (m: "smart" | "leads") => {
+    setPageMode(m);
+    const params = new URLSearchParams(window.location.search);
+    if (m === "leads") params.set("mode", "leads");
+    else params.delete("mode");
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
+    );
+  };
   useEffect(() => {
     registerDistributionTourBridge(setView);
     return () => registerDistributionTourBridge(null);
@@ -369,6 +386,42 @@ export default function DistributionClientPage({
         <SectionHeader
           icon={Shuffle}
           title="Distribuição"
+          titleAccessory={
+            smartInstalled ? (
+              /* Seletor de página: só alterna a visualização (smart × leads).
+                 Não altera motor nem automações. Fica junto ao título para não
+                 competir por espaço com as abas na linha de ações. */
+              <div
+                data-tour="distribution-mode"
+                className="ml-2 flex shrink-0 items-center rounded-full border border-border bg-card p-0.5"
+                role="tablist"
+                aria-label="Modo de distribuição"
+              >
+                {(
+                  [
+                    { key: "smart", label: "Inteligente" },
+                    { key: "leads", label: "Por Leads" },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    role="tab"
+                      aria-selected={pageMode === m.key}
+                      onClick={() => changePageMode(m.key)}
+                    className={cn(
+                      "h-7 cursor-pointer rounded-full px-3 text-[12px] font-semibold whitespace-nowrap transition-colors",
+                      pageMode === m.key
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : undefined
+          }
           search={
             pageMode === "smart" &&
             ((smartInstalled && view === "team") || view === "coverage")
@@ -419,56 +472,11 @@ export default function DistributionClientPage({
           actions={
             smartInstalled || view === "coverage" ? (
               <div className="flex min-w-0 w-full flex-nowrap items-center gap-2">
-                {/* Seletor de página: só alterna a visualização (smart × leads).
-                    Não altera motor nem automações. */}
-                <div
-                  data-tour="distribution-mode"
-                  className="flex shrink-0 items-center rounded-full border border-border bg-card p-0.5"
-                  role="tablist"
-                  aria-label="Modo de distribuição"
-                >
-                  {(
-                    [
-                      { key: "smart", label: "Inteligente" },
-                      { key: "leads", label: "Por Leads" },
-                    ] as const
-                  ).map((m) => (
-                    <button
-                      key={m.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={pageMode === m.key}
-                      onClick={() => setPageMode(m.key)}
-                      className={cn(
-                        "h-7 cursor-pointer rounded-full px-3 text-[12px] font-semibold whitespace-nowrap transition-colors",
-                        pageMode === m.key
-                          ? "bg-primary/15 text-primary"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
                 {pageMode === "smart" && view !== "coverage" && smartInstalled ? (
                   <div data-tour="distribution-view" className="flex shrink-0">
                     <ViewToggle value={listView} onChange={setListView} />
                   </div>
                 ) : null}
-                {pageMode === "smart" && (
-                <div data-tour="distribution-tabs" className="min-w-0 w-0 flex-1">
-                <HeaderTabs
-                  tabs={[
-                    { key: "team", label: "Equipe", badge: teamListCount },
-                    { key: "coverage", label: "Cobertura" },
-                    { key: "queue", label: "Fila de espera", badge: useDemo ? queueItems.length : pendingTotal },
-                    { key: "logs", label: "Logs" },
-                  ]}
-                  value={view}
-                  onChange={(v) => setView(v)}
-                />
-                </div>
-                )}
                 {adminCount > 0 && (
                   <button
                     type="button"
@@ -529,7 +537,25 @@ export default function DistributionClientPage({
             </div>
             ) : undefined
           }
-        />
+        >
+          {/* Abas do modo smart em linha própria abaixo do header — nunca
+              colapsam por falta de espaço na linha de ações. No modo leads a
+              página não tem abas (sem fila de espera). */}
+          {pageMode === "smart" && (smartInstalled || view === "coverage") && (
+            <div data-tour="distribution-tabs" className="w-full min-w-0">
+              <HeaderTabs
+                tabs={[
+                  { key: "team", label: "Equipe", badge: teamListCount },
+                  { key: "coverage", label: "Cobertura" },
+                  { key: "queue", label: "Fila de espera", badge: useDemo ? queueItems.length : pendingTotal },
+                  { key: "logs", label: "Logs" },
+                ]}
+                value={view}
+                onChange={(v) => setView(v)}
+              />
+            </div>
+          )}
+        </SectionHeader>
         }
         bodyClassName="gap-3 sm:gap-4"
       >
