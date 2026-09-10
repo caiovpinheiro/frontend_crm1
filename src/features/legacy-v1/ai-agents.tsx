@@ -79,7 +79,23 @@ export default function AIAgentsPage({
   const [testing, setTesting] = React.useState<{ id: string; name: string } | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
+  // Mesmo se o Dialog emitir onOpenChange(false) no clique do lápis,
+  // editingId (e o `open` controlado) só zera no próximo pointerdown.
+  const allowEditorClose = React.useRef(false);
   const { confirm, dialog } = useConfirm();
+
+  React.useEffect(() => {
+    if (editingId === null) {
+      allowEditorClose.current = false;
+      return;
+    }
+    allowEditorClose.current = false;
+    const unlock = () => {
+      allowEditorClose.current = true;
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true, once: true });
+    return () => window.removeEventListener("pointerdown", unlock, true);
+  }, [editingId]);
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["ai-agents"],
@@ -265,9 +281,10 @@ export default function AIAgentsPage({
       <AgentSettingsDialog
         id={editingId}
         onOpenChange={(open) => {
-          if (!open) setEditingId(null);
+          if (!open && allowEditorClose.current) setEditingId(null);
         }}
         onSaved={() => {
+          allowEditorClose.current = true;
           setEditingId(null);
           queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
         }}
