@@ -1,6 +1,11 @@
 ---
 description: Cards, listas e raios canônicos do CRM (DS visual)
-alwaysApply: true
+globs:
+  - src/app/**/*.tsx
+  - src/components/**/*.tsx
+  - src/features/**/*.tsx
+  - src/styles/**/*.css
+alwaysApply: false
 ---
 
 # Cards e raios canônicos
