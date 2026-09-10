@@ -10,6 +10,8 @@ import { ModalPortalContext } from "@/components/ui/modal-portal-context";
 type DialogContextValue = {
   open: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** False until a pointerdown happens while the dialog is already open. */
+  canDismiss: () => boolean;
 };
 
 const DialogContext = React.createContext<DialogContextValue | null>(null);
@@ -38,9 +40,30 @@ function Dialog({
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
   const isControlled = openProp !== undefined;
   const open = isControlled ? openProp : uncontrolledOpen;
+  // Clique que abre o modal já passou do pointerdown. O `<dialog>` sobe
+  // pra top-layer e o mesmo pointerup/click é retargetado no backdrop
+  // ou no X — sem um gate, abre e fecha no mesmo gesto. Só libera
+  // dismiss no próximo pointerdown, com o modal já aberto.
+  const allowDismiss = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!open) {
+      allowDismiss.current = false;
+      return;
+    }
+    allowDismiss.current = false;
+    const unlock = () => {
+      allowDismiss.current = true;
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true, once: true });
+    return () => window.removeEventListener("pointerdown", unlock, true);
+  }, [open]);
+
+  const canDismiss = React.useCallback(() => allowDismiss.current, []);
 
   const setOpen = React.useCallback(
     (next: boolean) => {
+      if (!next && !allowDismiss.current) return;
       if (!isControlled) setUncontrolledOpen(next);
       onOpenChange?.(next);
     },
@@ -48,8 +71,8 @@ function Dialog({
   );
 
   const value = React.useMemo(
-    () => ({ open, onOpenChange: setOpen }),
-    [open, setOpen]
+    () => ({ open, onOpenChange: setOpen, canDismiss }),
+    [open, setOpen, canDismiss]
   );
 
   return (
@@ -100,7 +123,7 @@ export interface DialogContentProps
 
 const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
   ({ className, children, size = "md", panelClassName, bodyClassName, showCloseButton: _showCloseButton, ...props }, ref) => {
-    const { open, onOpenChange } = useDialogContext("DialogContent");
+    const { open, onOpenChange, canDismiss } = useDialogContext("DialogContent");
     const internalRef = React.useRef<HTMLDialogElement | null>(null);
     // Nó publicado no contexto de portal: popovers/menus (DropdownGlass) portam
     // pra dentro do `<dialog>` (top-layer) em vez do body, senão ficam atrás do
@@ -136,48 +159,57 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
 
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => setMounted(true), []);
-    // Clique que abre o modal ainda está no ar: o `<dialog>` vira top-layer
-    // e o mesmo pointerup/click cai no backdrop → abre e fecha. Ignora
-    // dismiss nesse intervalo.
-    const ignoreDismissUntil = React.useRef(0);
-    const shouldIgnoreDismiss = React.useCallback(
-      () => Date.now() < ignoreDismissUntil.current,
-      [],
-    );
 
     // Reexecuta quando `mounted` fica true — o portal só existe após isso.
+    // rAF: showModal depois do evento atual, pra o clique do gatilho
+    // não cair no backdrop. O gate `canDismiss` é o que impede o close.
     React.useEffect(() => {
       if (!mounted) return;
       const el = internalRef.current;
       if (!el) return;
       if (open) {
-        if (!el.open) {
-          ignoreDismissUntil.current = Date.now() + 400;
-          el.showModal();
-        }
-      } else if (el.open) {
+        const raf = requestAnimationFrame(() => {
+          if (!el.isConnected) return;
+          if (!el.open) {
+            try {
+              el.showModal();
+            } catch {
+              /* already open / not connected */
+            }
+          }
+        });
+        return () => cancelAnimationFrame(raf);
+      }
+      if (el.open) {
         el.close();
       }
     }, [open, mounted]);
 
     React.useEffect(() => {
+      if (!mounted || !open) return;
       const el = internalRef.current;
       if (!el) return;
       const onClose = () => {
         if (leavingTopLayer.current) return;
-        if (shouldIgnoreDismiss()) {
-          if (!el.open) el.showModal();
+        if (!canDismiss()) {
+          if (!el.open && el.isConnected) {
+            try {
+              el.showModal();
+            } catch {
+              /* ignore */
+            }
+          }
           return;
         }
         onOpenChange?.(false);
       };
       el.addEventListener("close", onClose);
       return () => el.removeEventListener("close", onClose);
-    }, [onOpenChange, shouldIgnoreDismiss]);
+    }, [open, mounted, onOpenChange, canDismiss]);
 
     const onDialogClick = (e: React.MouseEvent<HTMLDialogElement>) => {
       if (e.target !== internalRef.current) return;
-      if (shouldIgnoreDismiss()) return;
+      if (!canDismiss()) return;
       onOpenChange?.(false);
     };
 
@@ -203,7 +235,7 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
         onClick={onDialogClick}
         onCancel={(e) => {
           e.preventDefault();
-          if (shouldIgnoreDismiss()) return;
+          if (!canDismiss()) return;
           onOpenChange?.(false);
         }}
         {...props}
@@ -306,7 +338,7 @@ export interface DialogCloseProps
 
 const DialogClose = React.forwardRef<HTMLButtonElement, DialogCloseProps>(
   ({ className, children, type = "button", onClick, ...props }, ref) => {
-    const { onOpenChange } = useDialogContext("DialogClose");
+    const { onOpenChange, canDismiss } = useDialogContext("DialogClose");
     return (
       <button
         ref={ref}
@@ -318,7 +350,7 @@ const DialogClose = React.forwardRef<HTMLButtonElement, DialogCloseProps>(
         aria-label="Fechar"
         onClick={(e) => {
           onClick?.(e);
-          if (!e.defaultPrevented) onOpenChange?.(false);
+          if (!e.defaultPrevented && canDismiss()) onOpenChange?.(false);
         }}
         {...props}
       >
