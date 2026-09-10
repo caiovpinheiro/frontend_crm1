@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { IconRobot } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { AgentSettingsDialog } from "@/components/agent-settings/agent-settings-dialog";
 import { TabsGlass } from "@/components/crm/tabs-glass";
 import OldAIAgentsPage from "@/features/legacy-v1/ai-agents";
 import {
@@ -26,9 +28,30 @@ import { AppV2PageShell } from "../_v2-page-shell";
 export default function AIAgentsV2ClientPage() {
   // 0 = "Agentes"; 1..4 = abas do cockpit acadêmico.
   const [activeTab, setActiveTab] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const academicTab = activeTab > 0 ? ACADEMIC_TABS[activeTab - 1] : null;
 
   const tabs = [{ label: "Agentes" }, ...ACADEMIC_TABS.map((t) => ({ label: t.label }))];
+
+  if (editingId) {
+    return (
+      <AppV2PageShell title="Editar agente" icon={<IconRobot size={22} />}>
+        <div className="min-w-0 pb-6">
+          <AgentSettingsDialog
+            id={editingId}
+            onOpenChange={(open) => {
+              if (!open) setEditingId(null);
+            }}
+            onSaved={() => {
+              setEditingId(null);
+              queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+            }}
+          />
+        </div>
+      </AppV2PageShell>
+    );
+  }
 
   return (
     <AppV2PageShell title="Agentes de IA" icon={<IconRobot size={22} />}>
@@ -37,7 +60,7 @@ export default function AIAgentsV2ClientPage() {
 
         {/* A tela de agentes fica montada: voltar para ela não perde estado. */}
         <div className={academicTab ? "hidden" : "min-w-0"}>
-          <AgentsPanel />
+          <AgentsPanel onEditAgent={setEditingId} />
         </div>
 
         {academicTab && <AcademicCockpitTab tab={academicTab.id} active />}
@@ -46,10 +69,10 @@ export default function AIAgentsV2ClientPage() {
   );
 }
 
-function AgentsPanel() {
+function AgentsPanel({ onEditAgent }: { onEditAgent: (id: string) => void }) {
   return (
-    <div className="min-w-0 overflow-x-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-3 backdrop-blur-md sm:p-4 [&:has([data-agent-settings])]:p-0">
-      <OldAIAgentsPage embedded />
+    <div className="min-w-0 overflow-x-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-3 backdrop-blur-md sm:p-4">
+      <OldAIAgentsPage embedded onEditAgent={onEditAgent} />
     </div>
   );
 }

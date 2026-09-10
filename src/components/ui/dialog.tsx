@@ -109,8 +109,21 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
       null
     );
 
+    const leavingTopLayer = React.useRef(false);
     const setRefs = React.useCallback(
       (node: HTMLDialogElement | null) => {
+        if (node === null) {
+          const prev = internalRef.current;
+          if (prev?.open) {
+            leavingTopLayer.current = true;
+            try {
+              prev.close();
+            } catch {
+              /* já saiu da top-layer */
+            }
+            leavingTopLayer.current = false;
+          }
+        }
         internalRef.current = node;
         setPortalNode(node);
         if (typeof ref === "function") ref(node);
@@ -151,6 +164,7 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
       const el = internalRef.current;
       if (!el) return;
       const onClose = () => {
+        if (leavingTopLayer.current) return;
         if (shouldIgnoreDismiss()) {
           if (!el.open) el.showModal();
           return;
