@@ -6,6 +6,7 @@ import Link from "next/link";
 import { IconAlertTriangle as AlertTriangle, IconRobot as Bot, IconAlertCircle as CircleAlert, IconPencil as Pencil, IconPlayerPlay as Play, IconPlus as Plus, IconPower as Power, IconAdjustments as Settings2, IconTrash as Trash2 } from "@tabler/icons-react";
 import * as React from "react";
 
+import { AgentSettingsDialog } from "@/components/agent-settings/agent-settings-dialog";
 import {
   PREVIEW_AGENT_ROW,
   isPreviewAgentId,
@@ -76,6 +77,7 @@ export default function AIAgentsPage({
   const queryClient = useQueryClient();
   const [testing, setTesting] = React.useState<{ id: string; name: string } | null>(null);
   const [creating, setCreating] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
   const { confirm, dialog } = useConfirm();
 
   const { data: agents = [], isLoading } = useQuery({
@@ -223,6 +225,7 @@ export default function AIAgentsPage({
                 onTest={() => setTesting({ id: a.id, name: a.name })}
                 onToggle={() => toggleMutation.mutate(a.id)}
                 onDelete={() => handleDelete(a.id, a.name)}
+                onEdit={() => setEditingId(a.id)}
               />
             ))}
           </div>
@@ -247,6 +250,17 @@ export default function AIAgentsPage({
         }}
       />
 
+      <AgentSettingsDialog
+        id={editingId}
+        onOpenChange={(open) => {
+          if (!open) setEditingId(null);
+        }}
+        onSaved={() => {
+          setEditingId(null);
+          queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+        }}
+      />
+
       {dialog}
     </div>
   );
@@ -261,6 +275,7 @@ function AgentListCard({
   onTest,
   onToggle,
   onDelete,
+  onEdit,
 }: {
   agent: AgentRow;
   preview: boolean;
@@ -270,6 +285,7 @@ function AgentListCard({
   onTest: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }) {
   const arch = ARCHETYPE_MAP[a.archetype];
   return (
@@ -371,32 +387,22 @@ function AgentListCard({
           >
             <Power className="size-3.5" />
           </Button>
-          {preview ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              title="Prévia — não edita"
-              disabled
-            >
-              <Pencil className="size-3.5" />
-              <span className="sr-only">Editar</span>
-            </Button>
-          ) : (
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              title="Editar"
-            >
-              <Link href={`/ai-agents/${a.id}`} prefetch={false}>
-                <Pencil className="size-3.5" />
-                <span className="sr-only">Editar</span>
-              </Link>
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            title={preview ? "Prévia — não edita" : "Editar"}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!preview) onEdit();
+            }}
+            disabled={preview}
+          >
+            <Pencil className="size-3.5" />
+            <span className="sr-only">Editar</span>
+          </Button>
           <Button
             type="button"
             variant="ghost"
