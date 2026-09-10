@@ -38,6 +38,8 @@ import {
   LazyChatVideo,
 } from "@/components/crm/lazy-chat-media";
 import { ResolveConfirmDialog } from "@/features/inbox-v2/extras/skip-automations-option";
+import { ProofreadDialog } from "@/features/inbox-v2/extras/proofread-dialog";
+import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import { Button } from "@/components/ui/button";
 import {
@@ -340,6 +342,8 @@ type AttachPopoverProps = {
   signatureEnabled: boolean;
   onToggleSignature: () => void;
   onEditSignature: () => void;
+  proofreadEnabled: boolean;
+  onToggleProofread: () => void;
   isResolved: boolean;
   statusPending: boolean;
   onToggleResolve: () => void;
@@ -356,6 +360,8 @@ function AttachPopover({
   signatureEnabled,
   onToggleSignature,
   onEditSignature,
+  proofreadEnabled,
+  onToggleProofread,
   isResolved,
   statusPending,
   onToggleResolve,
@@ -420,6 +426,14 @@ function AttachPopover({
         >
           <Pencil className="size-3.5 shrink-0" />
           Editar assinatura…
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="gap-2 px-2 py-1.5 text-[13px] hover:bg-muted focus:bg-muted"
+          onClick={onToggleProofread}
+        >
+          {proofreadEnabled
+            ? "Desligar corretor automático"
+            : "Ligar corretor automático"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -635,6 +649,7 @@ export function ChatWindow({
     }
   }, []);
   const effectiveSignature = (signature.trim() || agentName).trim();
+  const proofread = useProofreadSendGate();
 
   const typingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -1377,7 +1392,33 @@ export function ChatWindow({
     }
   }, [conversationId, queryClient, messagesKey]);
 
-  const onSend = React.useCallback(() => {
+  const commitOutbound = React.useCallback(
+    (payloadText: string, hasParkedMedia: boolean) => {
+      if (payloadText) {
+        sendMutation.mutate({
+          content: payloadText,
+          asNote: noteMode,
+          replyId: replyTo ? String(replyTo.id) : null,
+        });
+      }
+      if (hasParkedMedia) {
+        void flushPendingTemplateMedia();
+      }
+      setDraft("");
+      draftRef.current = "";
+      setActivePanel("none");
+      setReplyTo(null);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const ta = textareaRef.current;
+          if (ta && document.activeElement !== ta) ta.focus();
+        });
+      });
+    },
+    [flushPendingTemplateMedia, noteMode, replyTo, sendMutation],
+  );
+
+  const onSend = React.useCallback(async () => {
     const text = draft.trim();
     const hasParkedMedia = pendingTemplateMediaRef.current.length > 0;
     // NÃO bloqueamos por `sendMutation.isPending` — o agente precisa
@@ -1386,7 +1427,7 @@ export function ChatWindow({
     // otimista (nova bolha aparece na hora) e o servidor processa em
     // paralelo. O `setDraft("")` síncrono garante que Enters duplos
     // acidentais caiam no `if (!text)` e não duplicam mensagens.
-    if ((!text && !hasParkedMedia) || !conversationId) return;
+    if ((!text && !hasParkedMedia) || !conversationId || proofread.checking) return;
     // Assinatura do agente: quando o toggle está ligado e NÃO é nota interna,
     // prefixamos a assinatura em negrito (sintaxe WhatsApp `*nome*`) seguida
     // de dois pontos e UM espaço antes da mensagem. Formato INLINE — padrão
@@ -1414,44 +1455,31 @@ export function ChatWindow({
       shouldSign && !alreadyPrefixed
         ? `*${effectiveSignature}:* ${text}`
         : text;
-    if (text) {
-      sendMutation.mutate({
-        content: payloadText,
-        asNote: noteMode,
-        replyId: replyTo ? String(replyTo.id) : null,
-      });
+    if (text && !noteMode) {
+      const status = await proofread.gate(payloadText);
+      if (status === "block") return;
     }
-    if (hasParkedMedia) {
-      void flushPendingTemplateMedia();
-    }
-    setDraft("");
-    draftRef.current = "";
-    setActivePanel("none");
-    setReplyTo(null);
-    // Após enviar, o botão "Enviar" desaparece do DOM (condicional ao
-    // draft não vazio) — o React remove o nó e o browser realoca o
-    // foco no body. Devolvemos o foco ao textarea para que o agente
-    // possa digitar e disparar Enter de novo IMEDIATAMENTE, sem
-    // precisar clicar. Usamos dois `requestAnimationFrame` aninhados
-    // pra garantir que o foco aconteça DEPOIS do React commit + paint,
-    // sobrevivendo a outras re-renderizações que podem rolar no mesmo
-    // tick (ex.: `cancelQueries` da mutation otimista).
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const ta = textareaRef.current;
-        if (ta && document.activeElement !== ta) ta.focus();
-      });
-    });
+    commitOutbound(text ? payloadText : "", hasParkedMedia);
   }, [
     conversationId,
     draft,
     noteMode,
-    sendMutation,
     replyTo,
     signatureEnabled,
     effectiveSignature,
-    flushPendingTemplateMedia,
+    proofread,
+    commitOutbound,
   ]);
+
+  const handleSendCorrection = React.useCallback(
+    (text: string) => {
+      const next = text.trim();
+      if (!next) return;
+      proofread.close();
+      commitOutbound(next, pendingTemplateMediaRef.current.length > 0);
+    },
+    [commitOutbound, proofread],
+  );
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // CRÍTICO: dar prioridade ao slash menu — quando ele está aberto,
     // Up/Down/Enter/Esc/Tab DEVEM controlá-lo, e não disparar envio.
@@ -1766,7 +1794,11 @@ export function ChatWindow({
     },
     [conversationId, attachMutation],
   );
-  const isBusy = sendMutation.isPending || attachMutation.isPending || sequenceSending;
+  const isBusy =
+    sendMutation.isPending ||
+    attachMutation.isPending ||
+    sequenceSending ||
+    proofread.checking;
   const isResolved = conversationStatus === "RESOLVED";
 
   /** Composer Meta sem sessão ativa (textarea desabilitado) — mesmo critério do `disabled` do textarea. */
@@ -3934,6 +3966,10 @@ export function ChatWindow({
                   setSignatureDraft(signature);
                   setSignatureModalOpen(true);
                 }}
+                proofreadEnabled={proofread.enabled}
+                onToggleProofread={() =>
+                  proofread.persistEnabled(!proofread.enabled)
+                }
                 isResolved={isResolved}
                 statusPending={statusMutation.isPending}
                 onToggleResolve={handleToggleResolve}
@@ -4110,6 +4146,52 @@ export function ChatWindow({
                       <Pencil className="size-3.5" />
                     </button>
                   </TooltipHost>
+                  <span className="mx-1 h-4 w-px shrink-0 bg-[var(--glass-border)]" />
+                  <TooltipHost
+                    label={
+                      proofread.enabled
+                        ? "Desligar corretor automático"
+                        : "Ligar corretor automático"
+                    }
+                    side="top"
+                  >
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={proofread.enabled}
+                      aria-label={
+                        proofread.enabled
+                          ? "Desligar corretor automático"
+                          : "Ligar corretor automático"
+                      }
+                      onClick={() =>
+                        proofread.persistEnabled(!proofread.enabled)
+                      }
+                      className={cn(
+                        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+                        proofread.enabled ? "bg-primary" : "bg-ink-subtle/40",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "inline-block size-4 transform rounded-full bg-white shadow transition-transform",
+                          proofread.enabled
+                            ? "translate-x-[18px]"
+                            : "translate-x-[2px]",
+                        )}
+                      />
+                    </button>
+                  </TooltipHost>
+                  <span
+                    className={cn(
+                      "min-w-0 max-w-[160px] truncate text-[14px] font-bold transition-colors sm:max-w-none",
+                      proofread.enabled
+                        ? "text-foreground"
+                        : "text-[var(--color-ink-muted)]",
+                    )}
+                  >
+                    Corretor automático
+                  </span>
                 </div>
               </div>
 
@@ -4135,6 +4217,10 @@ export function ChatWindow({
                     setSignatureDraft(signature);
                     setSignatureModalOpen(true);
                   }}
+                  proofreadEnabled={proofread.enabled}
+                  onToggleProofread={() =>
+                    proofread.persistEnabled(!proofread.enabled)
+                  }
                   isResolved={isResolved}
                   statusPending={statusMutation.isPending}
                   onToggleResolve={handleToggleResolve}
@@ -4312,6 +4398,15 @@ export function ChatWindow({
         onConfirm={(skipAutomations) =>
           statusMutation.mutate({ action: "resolve", skipAutomations })
         }
+      />
+      <ProofreadDialog
+        open={proofread.open}
+        onOpenChange={(next) => {
+          if (!next) proofread.close();
+        }}
+        result={proofread.result}
+        sending={sendMutation.isPending}
+        onSendCorrection={handleSendCorrection}
       />
       <Dialog open={signatureModalOpen} onOpenChange={setSignatureModalOpen}>
         <DialogContent className="sm:max-w-[460px]">

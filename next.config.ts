@@ -144,6 +144,10 @@ const nextConfig: NextConfig = {
           source: "/api/wa-whatsapp-call",
           destination: "/wa-whatsapp-call",
         },
+        {
+          source: "/api/proofread",
+          destination: "/proofread",
+        },
         // SSE: afterFiles `/api/:path*` intercepta App Router e o proxy
         // de rewrite do Next relança hang-up como "failed to pipe response".
         {
