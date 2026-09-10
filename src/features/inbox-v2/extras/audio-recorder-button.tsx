@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { useSendAttachment } from "@/features/inbox-v2/hooks";
-import { ensureMicrophonePermission } from "@/lib/native/permissions";
+import { openMicrophoneStream } from "@/lib/native/permissions";
 import {
   MIN_VOICE_BLOB_BYTES,
   pickVoiceRecorderMime,
@@ -92,6 +92,8 @@ export function AudioRecorderButton({
   const [seconds,   setSeconds]     = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [playing,   setPlaying]     = useState(false);
+  /** Feedback local do clique — não notifica o Composer (evita unmount pesado antes do getUserMedia). */
+  const [starting,  setStarting]    = useState(false);
 
   // Wrapper que propaga o estado para o pai
   const setRecState = useCallback(
@@ -123,22 +125,29 @@ export function AudioRecorderButton({
   // webviews (Capacitor/WebView Android) não dispara de forma confiável —
   // era a causa do "stop não para" (timer/ondas continuavam). Chamado tanto
   // pelo `onstop` quanto diretamente pelo botão de parar.
-  const finalizeToPreview = useCallback(() => {
+  // `requireComplete`: se o blob ainda é só o header EBML, não trava —
+  // espera o `onstop` (ou o fallback de 800ms) em vez de descartar cedo.
+  const finalizeToPreview = useCallback((opts?: { requireComplete?: boolean }) => {
     if (finalizedRef.current) return;
     if (discardingRef.current) return; // discard() cuida da própria limpeza
-    finalizedRef.current = true;
-
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    stopTimer();
 
     const blob = new Blob(chunksRef.current, { type: mimeRef.current });
     if (blob.size < MIN_VOICE_BLOB_BYTES) {
+      if (opts?.requireComplete) return;
+      finalizedRef.current = true;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      stopTimer();
       toast.error("Áudio incompleto. Grave novamente.");
       setRecState("idle");
       setSeconds(0);
       return;
     }
+
+    finalizedRef.current = true;
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    stopTimer();
 
     audioBlobRef.current = blob;
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
@@ -154,19 +163,22 @@ export function AudioRecorderButton({
       onBlocked?.();
       return;
     }
+    if (starting || recState !== "idle") return;
     if (!conversationId) { toast.error("Selecione uma conversa antes de gravar"); return; }
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       toast.error("Gravação não suportada neste navegador"); return;
     }
-    const permission = await ensureMicrophonePermission();
-    if (!permission.ok) {
-      toast.error(permission.error ?? "Não foi possível acessar o microfone");
+    // Uma única abertura do mic. O pré-check antigo chamava getUserMedia,
+    // fechava a stream e abria de novo — no deal detail isso somava 1–2s.
+    setStarting(true);
+    const opened = await openMicrophoneStream(VOICE_RECORDER_AUDIO_CONSTRAINTS);
+    if (!opened.ok) {
+      setStarting(false);
+      toast.error(opened.error ?? "Não foi possível acessar o microfone");
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: VOICE_RECORDER_AUDIO_CONSTRAINTS,
-      });
+      const stream = opened.stream;
       streamRef.current = stream;
       chunksRef.current = [];
       discardingRef.current = false;
@@ -196,9 +208,12 @@ export function AudioRecorderButton({
 
       recorderRef.current = rec;
       rec.start(100);
+      setStarting(false);
       setRecState("recording");
       startTimer();
     } catch (err) {
+      opened.stream.getTracks().forEach((t) => t.stop());
+      setStarting(false);
       toast.error(err instanceof Error ? err.message : "Não foi possível acessar o microfone");
     }
   }
@@ -208,9 +223,13 @@ export function AudioRecorderButton({
     const rec = recorderRef.current;
     if (!rec) return;
     recorderRef.current = null;
+    stopTimer();
     // Flush do último buffer e stop; o `onstop` chama finalizeToPreview.
     try { rec.requestData?.(); } catch { /* noop */ }
     try { rec.stop(); } catch { /* already stopped */ }
+    // Se o último chunk já chegou, preview imediato. Blob incompleto
+    // (só header EBML) não trava — espera `onstop` ou o fallback.
+    window.setTimeout(() => finalizeToPreview({ requireComplete: true }), 0);
     // Fallback: se `onstop` não disparar (webviews), finalizamos direto.
     // finalizeToPreview é idempotente (finalizedRef), então não duplica.
     window.setTimeout(() => finalizeToPreview(), 800);
@@ -233,6 +252,7 @@ export function AudioRecorderButton({
     audioBlobRef.current = null;
     chunksRef.current = [];
     setPreviewUrl(null);
+    setStarting(false);
     setRecState("idle");
     setSeconds(0);
   }
@@ -253,14 +273,16 @@ export function AudioRecorderButton({
       if (!ok) return;
     }
     const ext = voiceRecorderFileExt(blob.type || mimeRef.current);
+    const fileName = `audio-${Date.now()}.${ext}`;
+    // Libera o composer na hora — o refetch do kanban no deal não segura o preview.
+    discard();
     sendAttachment.mutate(
-      { file: blob, fileName: `audio-${Date.now()}.${ext}` },
+      { file: blob, fileName },
       {
         onSuccess: (data) => {
           if (data.audioDelivery && data.audioDelivery !== "voice") {
             toast("Enviado como áudio (não como nota de voz)");
           }
-          discard();
         },
         onError: (err) => toast.error(err.message || "Falha ao enviar áudio"),
       },
@@ -402,10 +424,14 @@ export function AudioRecorderButton({
       size="icon"
       className={className}
       onClick={start}
-      disabled={sendAttachment.isPending || !conversationId || !!disabled}
+      disabled={sendAttachment.isPending || !conversationId || !!disabled || starting}
       title={disabled ? "Sessão encerrada — use um template" : "Gravar áudio"}
     >
-      <IconMicrophone size={20} />
+      {starting ? (
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--glass-border)] border-t-[var(--brand-primary)]" />
+      ) : (
+        <IconMicrophone size={20} />
+      )}
     </ButtonGlass>
   );
 }

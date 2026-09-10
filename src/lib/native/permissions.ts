@@ -64,6 +64,26 @@ export function ensureMicrophonePermission(): Promise<MediaPermissionResult> {
   return ensureMediaPermission({ audio: true }, "microfone");
 }
 
+/**
+ * Abre o microfone numa única chamada a `getUserMedia` (pede permissão se
+ * necessário) e devolve a stream. Usar no gravador de voz — o pré-check
+ * `ensureMicrophonePermission` abre e fecha a stream, o que no deal detail
+ * (página pesada) dobra o delay até a gravação começar.
+ */
+export async function openMicrophoneStream(
+  audio: boolean | MediaTrackConstraints = true,
+): Promise<{ ok: true; stream: MediaStream } | { ok: false; error: string }> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    return { ok: false, error: "Acesso ao microfone não suportado neste navegador." };
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio });
+    return { ok: true, stream };
+  } catch (err) {
+    return { ok: false, error: mediaErrorMessage(err, "microfone") };
+  }
+}
+
 /** Pré-checa/pede permissão de câmera. Funciona igual em browser e no APK. */
 export function ensureCameraPermission(): Promise<MediaPermissionResult> {
   return ensureMediaPermission({ video: true }, "câmera");
