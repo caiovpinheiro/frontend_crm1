@@ -71,14 +71,17 @@ const AUTONOMY_LABEL: Record<AgentRow["autonomyMode"], string> = {
 
 export default function AIAgentsPage({
   embedded = false,
+  onEditAgent,
 }: {
   /** Quando true, omite o `PageHeader` legado (título/descrição já vêm do shell v2). */
   embedded?: boolean;
+  /** Lápis: o shell v2 abre o editor fora do card (sem modal). */
+  onEditAgent?: (id: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [editingId, setEditingId] = React.useState<string | null>(null);
   const [testing, setTesting] = React.useState<{ id: string; name: string } | null>(null);
   const [creating, setCreating] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
   const { confirm, dialog } = useConfirm();
 
   const { data: agents = [], isLoading } = useQuery({
@@ -132,24 +135,6 @@ export default function AIAgentsPage({
     if (ok) deleteMutation.mutate(id);
   };
 
-  if (editingId) {
-    return (
-      <div className="w-full min-w-0">
-        <AgentSettingsDialog
-          id={editingId}
-          onOpenChange={(v) => {
-            if (!v) setEditingId(null);
-          }}
-          onSaved={() => {
-            setEditingId(null);
-            queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
-          }}
-        />
-        {dialog}
-      </div>
-    );
-  }
-
   const newAgentButton = (
     <Button
       onClick={() => setCreating(true)}
@@ -160,6 +145,23 @@ export default function AIAgentsPage({
       <Plus className="size-4" /> Novo agente
     </Button>
   );
+
+  if (editingId !== null && !onEditAgent) {
+    return (
+      <div className="w-full min-w-0">
+        <AgentSettingsDialog
+          id={editingId}
+          onOpenChange={(open) => {
+            if (!open) setEditingId(null);
+          }}
+          onSaved={() => {
+            setEditingId(null);
+            queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -245,8 +247,11 @@ export default function AIAgentsPage({
                 deletePending={deleteMutation.isPending}
                 onTest={() => setTesting({ id: a.id, name: a.name })}
                 onToggle={() => toggleMutation.mutate(a.id)}
-                onEdit={() => setEditingId(a.id)}
                 onDelete={() => handleDelete(a.id, a.name)}
+                onEdit={() => {
+                  if (onEditAgent) onEditAgent(a.id);
+                  else setEditingId(a.id);
+                }}
               />
             ))}
           </div>
@@ -284,8 +289,8 @@ function AgentListCard({
   deletePending,
   onTest,
   onToggle,
-  onEdit,
   onDelete,
+  onEdit,
 }: {
   agent: AgentRow;
   preview: boolean;
@@ -294,8 +299,8 @@ function AgentListCard({
   deletePending: boolean;
   onTest: () => void;
   onToggle: () => void;
-  onEdit: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }) {
   const arch = ARCHETYPE_MAP[a.archetype];
   return (
@@ -410,6 +415,7 @@ function AgentListCard({
             }}
           >
             <Pencil className="size-3.5" />
+            <span className="sr-only">Editar</span>
           </Button>
           <Button
             type="button"
