@@ -6,8 +6,14 @@
 import type {
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
+  LeadsSettingsResponse,
   LeadsStatsResponse,
 } from "./leads-types";
+
+/** Kill switch de exemplo — MUTÁVEL: o toggle da página grava aqui em mock. */
+export const MOCK_LEADS_SETTINGS: LeadsSettingsResponse = {
+  enabled: true,
+};
 
 function ago(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();

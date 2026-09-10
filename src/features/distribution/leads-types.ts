@@ -77,3 +77,8 @@ export interface LeadsHistoryFilters {
   to?: string;
   userId?: string;
 }
+
+/** Kill switch do modo leads (independente do smart). */
+export interface LeadsSettingsResponse {
+  enabled: boolean;
+}

@@ -13,7 +13,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  IconPlus,
   IconRefresh,
   IconTrophy,
   IconUsers,
@@ -28,12 +27,15 @@ import {
   PeriodCalendarButton,
   PeriodIsoRangePanel,
 } from "@/components/crm/period-calendar-button";
+import { SwitchGlass } from "@/components/crm/switch-glass";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import {
   useLeadsHistory,
   useLeadsParticipants,
+  useLeadsSettings,
   useLeadsStats,
   useUpdateLeadsParticipant,
+  useUpdateLeadsSettings,
 } from "@/features/distribution/leads-hooks";
 import type { LeadsParticipantDto } from "@/features/distribution/leads-types";
 import { useDistributionResponsibles } from "@/features/distribution/hooks";
@@ -157,6 +159,54 @@ function ParticipantRow({
   );
 }
 
+/** Kill switch do modo leads — independente do toggle da Distribuição
+ *  Inteligente (cada motor tem o seu). */
+function LeadsEnabledToggle({ canManage }: { canManage: boolean }) {
+  const settingsQuery = useLeadsSettings();
+  const updateSettings = useUpdateLeadsSettings();
+  const pendingEnabled = updateSettings.isPending
+    ? updateSettings.variables?.enabled
+    : undefined;
+  const enabled = pendingEnabled ?? settingsQuery.data?.enabled ?? true;
+
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-4 py-3">
+      <div className="min-w-0">
+        <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
+          Distribuição por Leads {enabled ? "ligada" : "desligada"}
+        </p>
+        <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
+          {enabled
+            ? "Ligada: o bloco “Executar distribuição” em modo Por Leads atribui pelo rodízio."
+            : "Desligada: o bloco Por Leads não atribui (a automação segue a saída “Sem agente”). A Distribuição Inteligente não é afetada."}
+        </p>
+      </div>
+      <SwitchGlass
+        checked={enabled}
+        disabled={!canManage || updateSettings.isPending || settingsQuery.isLoading}
+        onChange={(next) => {
+          updateSettings.mutate(
+            { enabled: next },
+            {
+              onSuccess: (data) =>
+                toast.success(
+                  data.enabled
+                    ? "Distribuição por Leads ligada."
+                    : "Distribuição por Leads desligada.",
+                ),
+              onError: (e) =>
+                toast.error(
+                  e instanceof Error ? e.message : "Erro ao salvar configuração.",
+                ),
+            },
+          );
+        }}
+        aria-label="Distribuição por Leads ligada"
+      />
+    </div>
+  );
+}
+
 export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
   const participantsQuery = useLeadsParticipants();
   const responsiblesQuery = useDistributionResponsibles();
@@ -176,7 +226,10 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
   const historyQuery = useLeadsHistory(filters);
   const updateMut = useUpdateLeadsParticipant();
 
-  const participants = participantsQuery.data?.participants ?? [];
+  const participants = useMemo(
+    () => participantsQuery.data?.participants ?? [],
+    [participantsQuery.data],
+  );
   const stats = statsQuery.data;
   const historyItems =
     historyQuery.data?.pages.flatMap((p) => p.items) ?? [];
@@ -225,6 +278,9 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 sm:gap-4">
+      {/* Kill switch do modo leads (independente do smart) */}
+      <LeadsEnabledToggle canManage={canManage} />
+
       {/* Indicadores */}
       <section
         className="grid w-full shrink-0 grid-cols-1 gap-3 sm:grid-cols-3"

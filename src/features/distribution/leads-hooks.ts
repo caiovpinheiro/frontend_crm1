@@ -10,13 +10,16 @@ import {
 import {
   fetchLeadsHistory,
   fetchLeadsParticipants,
+  fetchLeadsSettings,
   fetchLeadsStats,
   updateLeadsParticipant,
+  updateLeadsSettings,
 } from "./leads-api";
 import type {
   LeadsHistoryFilters,
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
+  LeadsSettingsResponse,
   LeadsStatsResponse,
   UpdateLeadsParticipantInput,
 } from "./leads-types";
@@ -24,6 +27,26 @@ import type {
 export const LEADS_PARTICIPANTS_KEY = ["distribution-leads-participants"] as const;
 export const LEADS_STATS_KEY = ["distribution-leads-stats"] as const;
 export const LEADS_HISTORY_KEY = ["distribution-leads-history"] as const;
+export const LEADS_SETTINGS_KEY = ["distribution-leads-settings"] as const;
+
+export function useLeadsSettings(enabled = true) {
+  return useQuery<LeadsSettingsResponse>({
+    queryKey: LEADS_SETTINGS_KEY,
+    queryFn: fetchLeadsSettings,
+    enabled,
+    staleTime: 10_000,
+  });
+}
+
+export function useUpdateLeadsSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { enabled: boolean }) => updateLeadsSettings(input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LEADS_SETTINGS_KEY });
+    },
+  });
+}
 
 export function useLeadsParticipants(enabled = true) {
   return useQuery<LeadsParticipantsResponse>({

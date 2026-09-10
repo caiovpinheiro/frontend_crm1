@@ -10,12 +10,14 @@ import { isPageMockMode } from "@/lib/page-mock-mode";
 import {
   MOCK_LEADS_HISTORY,
   MOCK_LEADS_PARTICIPANTS,
+  MOCK_LEADS_SETTINGS,
   MOCK_LEADS_STATS,
 } from "./leads-mock";
 import type {
   LeadsHistoryFilters,
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
+  LeadsSettingsResponse,
   LeadsStatsResponse,
   UpdateLeadsParticipantInput,
 } from "./leads-types";
@@ -71,6 +73,29 @@ async function sendJson<T>(
   } catch {
     return undefined as unknown as T;
   }
+}
+
+export function fetchLeadsSettings(): Promise<LeadsSettingsResponse> {
+  if (isPageMockMode()) return Promise.resolve({ ...MOCK_LEADS_SETTINGS });
+  return getJson<LeadsSettingsResponse>(
+    "/api/distribution/leads/settings",
+    "Erro ao carregar a configuração.",
+  );
+}
+
+export function updateLeadsSettings(input: {
+  enabled: boolean;
+}): Promise<LeadsSettingsResponse> {
+  if (isPageMockMode()) {
+    Object.assign(MOCK_LEADS_SETTINGS, input);
+    return Promise.resolve({ ...MOCK_LEADS_SETTINGS });
+  }
+  return sendJson<LeadsSettingsResponse>(
+    "/api/distribution/leads/settings",
+    "PUT",
+    input,
+    "Erro ao salvar a configuração.",
+  );
 }
 
 export function fetchLeadsParticipants(): Promise<LeadsParticipantsResponse> {
