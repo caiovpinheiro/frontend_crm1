@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { IconRobot } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -29,19 +29,33 @@ export default function AIAgentsV2ClientPage() {
   // 0 = "Agentes"; 1..4 = abas do cockpit acadêmico.
   const [activeTab, setActiveTab] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const ignoreCloseUntil = useRef(0);
   const queryClient = useQueryClient();
   const academicTab = activeTab > 0 ? ACADEMIC_TABS[activeTab - 1] : null;
 
   const tabs = [{ label: "Agentes" }, ...ACADEMIC_TABS.map((t) => ({ label: t.label }))];
 
-  if (editingId) {
-    return (
-      <AppV2PageShell title="Editar agente" icon={<IconRobot size={22} />}>
+  const openEditor = (id: string) => {
+    ignoreCloseUntil.current = Date.now() + 500;
+    window.setTimeout(() => setEditingId(id), 0);
+  };
+
+  const closeEditor = () => {
+    if (Date.now() < ignoreCloseUntil.current) return;
+    setEditingId(null);
+  };
+
+  return (
+    <AppV2PageShell
+      title={editingId ? "Editar agente" : "Agentes de IA"}
+      icon={<IconRobot size={22} />}
+    >
+      {editingId ? (
         <div className="min-w-0 pb-6">
           <AgentSettingsDialog
             id={editingId}
             onOpenChange={(open) => {
-              if (!open) setEditingId(null);
+              if (!open) closeEditor();
             }}
             onSaved={() => {
               setEditingId(null);
@@ -49,22 +63,17 @@ export default function AIAgentsV2ClientPage() {
             }}
           />
         </div>
-      </AppV2PageShell>
-    );
-  }
+      ) : (
+        <div className="flex min-w-0 flex-col gap-3.5">
+          <TabsGlass tabs={tabs} activeTab={activeTab} onChange={setActiveTab} scrollable />
 
-  return (
-    <AppV2PageShell title="Agentes de IA" icon={<IconRobot size={22} />}>
-      <div className="flex min-w-0 flex-col gap-3.5">
-        <TabsGlass tabs={tabs} activeTab={activeTab} onChange={setActiveTab} scrollable />
+          <div className={academicTab ? "hidden" : "min-w-0"}>
+            <AgentsPanel onEditAgent={openEditor} />
+          </div>
 
-        {/* A tela de agentes fica montada: voltar para ela não perde estado. */}
-        <div className={academicTab ? "hidden" : "min-w-0"}>
-          <AgentsPanel onEditAgent={setEditingId} />
+          {academicTab && <AcademicCockpitTab tab={academicTab.id} active />}
         </div>
-
-        {academicTab && <AcademicCockpitTab tab={academicTab.id} active />}
-      </div>
+      )}
     </AppV2PageShell>
   );
 }
