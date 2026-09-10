@@ -215,6 +215,11 @@ export interface DistributionSettings {
   autoOnInbound: boolean;
   /** Kill switch do motor. Default true quando a API ainda não manda o campo. */
   enabled: boolean;
+  /**
+   * Departamento que recebe os leads sem departamento (só vale com
+   * `respectDepartment` ligado). null = distribui para todos os elegíveis.
+   */
+  fallbackDepartmentId: string | null;
 }
 
 export function fetchDistributionSettings(): Promise<DistributionSettings> {
@@ -225,6 +230,7 @@ export function fetchDistributionSettings(): Promise<DistributionSettings> {
     respectDepartment: Boolean(s.respectDepartment),
     autoOnInbound: s.autoOnInbound !== false,
     enabled: s.enabled !== false,
+    fallbackDepartmentId: s.fallbackDepartmentId ?? null,
   }));
 }
 
@@ -249,6 +255,7 @@ export async function updateDistributionSettings(
     respectDepartment: Boolean(raw?.respectDepartment),
     autoOnInbound: raw?.autoOnInbound !== false,
     enabled: raw?.enabled !== false,
+    fallbackDepartmentId: raw?.fallbackDepartmentId ?? null,
   };
 }
 

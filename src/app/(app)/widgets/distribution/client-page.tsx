@@ -35,6 +35,7 @@ import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { AgentStatusDot } from "@/components/crm/agent-status-dot";
@@ -3686,6 +3687,18 @@ function DepartmentsDistributionPanel() {
   const depts = deptsQuery.data ?? [];
   const respectDepartment = settingsQuery.data?.respectDepartment ?? false;
 
+  // Destino dos leads sem departamento. Só oferece quem distribui
+  // automaticamente e tem membros — o resto seria beco sem saída.
+  const fallbackOptions = depts.filter(
+    (d) => d.distributionEnabled && (d._count?.members ?? 0) > 0,
+  );
+  const savedFallback = settingsQuery.data?.fallbackDepartmentId ?? null;
+  const fallbackDepartmentId = fallbackOptions.some((d) => d.id === savedFallback)
+    ? savedFallback!
+    : "";
+  const fallbackDepartmentName =
+    fallbackOptions.find((d) => d.id === fallbackDepartmentId)?.name ?? null;
+
   if (deptsQuery.isLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-10 text-[var(--text-muted)]">
@@ -3728,25 +3741,74 @@ function DepartmentsDistributionPanel() {
     );
   };
 
+  const setFallbackDepartment = (next: string) => {
+    if (next === fallbackDepartmentId) return;
+    updateSettings.mutate(
+      { fallbackDepartmentId: next || null },
+      {
+        onSuccess: () =>
+          toast.success(
+            next
+              ? `Leads sem departamento vão para ${depts.find((d) => d.id === next)?.name ?? "o departamento escolhido"}.`
+              : "Leads sem departamento voltam a ir para todos os elegíveis.",
+          ),
+        onError: (e) =>
+          toast.error(
+            e instanceof Error ? e.message : "Erro ao salvar configuração.",
+          ),
+      },
+    );
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <AutoOnInboundToggle />
-      <div className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
-        <div className="min-w-0">
-          <p className="font-display text-[13px] font-bold text-[var(--text-primary)]">
-            Respeitar departamento da conversa
-          </p>
-          <p className="font-body text-[11.5px] text-[var(--text-muted)]">
-            {respectDepartment
-              ? "Ligado: conversas com departamento vão só para os membros dele. Sem departamento → distribui para todos os elegíveis."
-              : "Desligado: distribuição clássica — todos os atendimentos vão para todos os elegíveis, ignorando departamento."}
-          </p>
+      <div className="flex flex-col gap-2.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-display text-[13px] font-bold text-[var(--text-primary)]">
+              Respeitar departamento da conversa
+            </p>
+            <p className="font-body text-[11.5px] text-[var(--text-muted)]">
+              {respectDepartment
+                ? "Ligado: conversas com departamento vão só para os membros dele."
+                : "Desligado: distribuição clássica — todos os atendimentos vão para todos os elegíveis, ignorando departamento."}
+            </p>
+          </div>
+          <GlassSwitch
+            checked={respectDepartment}
+            disabled={updateSettings.isPending || settingsQuery.isLoading}
+            onClick={toggleRespect}
+          />
         </div>
-        <GlassSwitch
-          checked={respectDepartment}
-          disabled={updateSettings.isPending || settingsQuery.isLoading}
-          onClick={toggleRespect}
-        />
+
+        {respectDepartment ? (
+          <div className="flex flex-col gap-1.5 border-t border-[var(--glass-border)] pt-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-display text-[12.5px] font-semibold text-[var(--text-secondary)]">
+                Sem departamento →
+              </span>
+              <DropdownGlass
+                options={[
+                  { value: "", label: "Todos os elegíveis (padrão)" },
+                  ...fallbackOptions.map((d) => ({
+                    value: d.id,
+                    label: `${d.name} · ${d._count?.members ?? 0} membro(s)`,
+                  })),
+                ]}
+                value={fallbackDepartmentId}
+                onValueChange={setFallbackDepartment}
+                disabled={updateSettings.isPending || settingsQuery.isLoading}
+                triggerClassName="w-auto min-w-[240px]"
+              />
+            </div>
+            <p className="font-body text-[11.5px] text-[var(--text-muted)]">
+              {fallbackDepartmentName
+                ? `Leads que chegam sem roteamento vão só para os membros de ${fallbackDepartmentName}. Se ninguém estiver disponível, esperam na fila desse departamento.`
+                : "Leads que chegam sem roteamento vão para todos os elegíveis, de qualquer departamento."}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <p className="font-body text-[12px] text-[var(--text-muted)]">
