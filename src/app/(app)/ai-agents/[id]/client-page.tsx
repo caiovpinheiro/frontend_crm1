@@ -9,7 +9,7 @@ import { AgentSettingsDialog } from "@/components/agent-settings/agent-settings-
 import { AppV2PageShell } from "../../_v2-page-shell";
 
 /**
- * Deep-link `/ai-agents/:id`. O lápis da lista edita na própria tela;
+ * Deep-link `/ai-agents/:id`. O lápis da lista abre o editor em modal;
  * esta rota fica para URL direta / refresh.
  */
 export default function EditAIAgentClientPage() {
@@ -40,6 +40,7 @@ export default function EditAIAgentClientPage() {
       <div className="min-w-0 pb-6">
         <AgentSettingsDialog
           id={agentId}
+          variant="page"
           onOpenChange={(open) => {
             if (!open && settled.current) goBack();
           }}

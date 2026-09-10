@@ -9,6 +9,11 @@ import { toast } from "sonner";
 import { type PilotingValue } from "@/components/ai-agents/piloting-panel";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+} from "@/components/ui/dialog";
+import {
   formDialogCancelClass,
   formDialogPrimaryClass,
 } from "@/components/ui/form-dialog";
@@ -171,23 +176,16 @@ export function AgentSettingsDialog({
   id,
   onOpenChange,
   onSaved,
+  variant = "modal",
 }: {
   id: string | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  /** `modal` (lápis na lista) não troca a página; `page` é o deep-link `/ai-agents/:id`. */
+  variant?: "modal" | "page";
 }) {
   const open = id !== null;
   const preview = isPreviewAgentId(id);
-  const openedAtRef = React.useRef(Date.now());
-  React.useEffect(() => {
-    openedAtRef.current = Date.now();
-  }, [id]);
-  const requestClose = () => {
-    // O clique do lápis ainda está no ar: o botão Voltar/Cancelar monta
-    // no mesmo gesto e fecha na hora.
-    if (Date.now() - openedAtRef.current < 500) return;
-    onOpenChange(false);
-  };
   const [advanced, setAdvanced] = React.useState(false);
   const [section, setSection] = React.useState<AgentSectionId>("identity");
   const [form, setForm] = React.useState<AgentSettingsValues>(EMPTY_AGENT_SETTINGS);
@@ -341,22 +339,26 @@ export function AgentSettingsDialog({
     }
   };
 
-  if (!open) return null;
-
-  return (
+  const panel = (
     <div
       data-agent-settings
-      className="flex min-h-[min(70vh,44rem)] flex-col overflow-hidden rounded-xl border border-border bg-card"
+      className={
+        variant === "page"
+          ? "flex min-h-[min(70vh,44rem)] flex-col overflow-hidden rounded-xl border border-border bg-card"
+          : "flex h-full min-h-0 flex-col overflow-hidden"
+      }
     >
-      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
-        <button
-          type="button"
-          onClick={requestClose}
-          className="inline-flex size-9 items-center justify-center rounded-[var(--radius-lg)] border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-          aria-label="Voltar à lista"
-        >
-          <ChevronLeft className="size-5" />
-        </button>
+      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 pe-12">
+        {variant === "page" ? (
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="inline-flex size-9 items-center justify-center rounded-[var(--radius-lg)] border border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            aria-label="Voltar à lista"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+        ) : null}
         <div className="min-w-0">
           <h2 className="truncate font-sans text-base font-semibold text-foreground">
             {form.name.trim() || "Editar agente"}
@@ -520,7 +522,7 @@ export function AgentSettingsDialog({
               type="button"
               variant="glass"
               className={formDialogCancelClass}
-              onClick={requestClose}
+              onClick={() => onOpenChange(false)}
             >
               Cancelar
             </ButtonGlass>
@@ -542,5 +544,23 @@ export function AgentSettingsDialog({
         </form>
       )}
     </div>
+  );
+
+  if (variant === "page") {
+    if (!open) return null;
+    return panel;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        size="2xl"
+        bodyClassName="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
+        panelClassName="h-[min(90dvh,52rem)]"
+      >
+        <DialogClose />
+        {open ? panel : null}
+      </DialogContent>
+    </Dialog>
   );
 }
