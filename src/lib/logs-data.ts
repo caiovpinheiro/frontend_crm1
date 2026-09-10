@@ -34,6 +34,8 @@ export interface LogEntry {
   timestamp: string // ISO
   contactId: string
   dealId: string
+  conversationId: string | null
+  conversationNumber: number | null
   contactLabel: string
   dealLabel: string
   contactPhone: string | null
@@ -87,6 +89,8 @@ export interface AutomationLogRow {
   message?: string | null
   contactId?: string | null
   dealId?: string | null
+  conversationId?: string | null
+  conversationNumber?: number | string | null
   stepId?: string | null
   stepType?: string | null
   executedAt: string
@@ -204,6 +208,61 @@ function snippetFromRow(row: AutomationLogRow): string | null {
   return payloadString(payload, ["mensagem", "content", "text", "body"])
 }
 
+function asPositiveInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value)
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const n = Number(value.trim())
+    return n > 0 ? n : null
+  }
+  return null
+}
+
+function payloadNumber(
+  payload: Record<string, unknown> | null,
+  keys: string[],
+): number | null {
+  if (!payload) return null
+  for (const key of keys) {
+    const n = asPositiveInt(payload[key])
+    if (n != null) return n
+  }
+  return null
+}
+
+/** Conversa do atendimento: campo da API ou o mesmo id no payload. */
+function conversationFromRow(row: AutomationLogRow): {
+  conversationId: string | null
+  conversationNumber: number | null
+} {
+  const payload = asRecord(row.payload)
+  const nested = asRecord(payload?.conversation)
+  const conversationId =
+    (typeof row.conversationId === "string" && row.conversationId.trim()) ||
+    payloadString(payload, ["conversationId", "conversation_id"]) ||
+    payloadString(nested, ["id", "conversationId"]) ||
+    null
+  const conversationNumber =
+    asPositiveInt(row.conversationNumber) ??
+    payloadNumber(payload, ["conversationNumber", "conversation_number"]) ??
+    payloadNumber(nested, ["number", "conversationNumber"])
+  return { conversationId, conversationNumber }
+}
+
+/** Deep-link do Inbox (`?c=` = número público, senão o id). */
+export function inboxHrefForLog(
+  entry: Pick<LogEntry, "conversationId" | "conversationNumber">,
+): string | null {
+  if (entry.conversationNumber != null) {
+    return `/inbox?c=${encodeURIComponent(String(entry.conversationNumber))}`
+  }
+  if (entry.conversationId) {
+    return `/inbox?c=${encodeURIComponent(entry.conversationId)}`
+  }
+  return null
+}
+
 /** Achata o `payload` (Json livre) para o formato chave→escalar da inspeção. */
 function flattenPayload(
   payload: Record<string, unknown> | null | undefined,
@@ -303,6 +362,7 @@ export function automationLogToEntry(row: AutomationLogRow): LogEntry {
   const humanized = rawMessage ? humanizeLogMessage(rawMessage) : ""
   const contactId = row.contactId ?? ""
   const dealId = row.dealId ?? ""
+  const { conversationId, conversationNumber } = conversationFromRow(row)
   const contactLabel =
     row.contactName?.trim() ||
     (contactId ? `Contato ${shortRef(contactId)}` : "Sem contato")
@@ -339,6 +399,8 @@ export function automationLogToEntry(row: AutomationLogRow): LogEntry {
   if (row.stepType) summary.stepType = row.stepType
   if (contactId) summary.contactId = contactId
   if (dealId) summary.dealId = dealId
+  if (conversationId) summary.conversationId = conversationId
+  if (conversationNumber != null) summary.conversationNumber = conversationNumber
   if (row.contactName) summary.contactName = row.contactName
   if (row.contactPhone) summary.contactPhone = row.contactPhone
   if (row.dealName) summary.dealName = row.dealName
@@ -362,6 +424,8 @@ export function automationLogToEntry(row: AutomationLogRow): LogEntry {
     timestamp: row.executedAt,
     contactId,
     dealId,
+    conversationId,
+    conversationNumber,
     contactLabel,
     dealLabel,
     contactPhone: row.contactPhone?.trim() || null,
@@ -396,6 +460,8 @@ export function matchesLogQuery(entry: LogEntry, rawQuery: string): boolean {
     entry.contactPhone,
     entry.contactId,
     entry.dealId,
+    entry.conversationId,
+    entry.conversationNumber != null ? String(entry.conversationNumber) : null,
     entry.stepType,
     formatDateTime(entry.timestamp),
     entry.payload ? JSON.stringify(entry.payload) : null,

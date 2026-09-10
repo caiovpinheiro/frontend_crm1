@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Microscope, Network, Code2, Copy, Check, X, CircleCheck, TriangleAlert, CircleX } from "lucide-react"
+import Link from "next/link"
+import { Microscope, Network, Code2, Copy, Check, X, CircleCheck, TriangleAlert, CircleX, ExternalLink } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import type { LogEntry, LogStatus } from "@/lib/logs-data"
-import { statusMeta } from "@/lib/logs-data"
+import { inboxHrefForLog, statusMeta } from "@/lib/logs-data"
 
 const STATUS_STYLE: Record<
   LogStatus,
@@ -73,6 +74,7 @@ export function SessionInspectionModal({
   const StatusIcon = status.icon
   const meta = statusMeta(entry.status)
   const data = section.data
+  const attendanceHref = inboxHrefForLog(entry)
 
   async function copyJson() {
     try {
@@ -111,6 +113,15 @@ export function SessionInspectionModal({
                 Sessão {entry.sessionId}
                 {entry.rawStatus ? ` · ${entry.rawStatus}` : ""}
               </span>
+              {attendanceHref && (
+                <Link
+                  href={attendanceHref}
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand-primary)] hover:underline"
+                >
+                  <ExternalLink className="size-4" aria-hidden />
+                  Ir ao atendimento
+                </Link>
+              )}
             </DialogDescription>
           </div>
           <div className="flex shrink-0 items-center gap-2">

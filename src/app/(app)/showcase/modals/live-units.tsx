@@ -188,6 +188,8 @@ const MOCK_LOG: LogEntry = {
   timestamp: new Date().toISOString(),
   contactId: "c1",
   dealId: "d1",
+  conversationId: "conv-1",
+  conversationNumber: 42,
   contactLabel: "Maria Silva",
   dealLabel: "Plano anual",
   contactPhone: "+5511999990000",
