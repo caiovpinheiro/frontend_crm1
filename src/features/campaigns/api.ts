@@ -12,13 +12,20 @@
  */
 
 import { apiUrl } from "@/lib/api";
+import { isPageMockMode } from "@/lib/page-mock-mode";
 
+import {
+  mockCampaignDetail,
+  mockCampaignRecipients,
+  mockCampaignStats,
+} from "./mock-campaigns";
 import type {
   AutomationRow,
   CampaignAction,
   CampaignDetail,
   CampaignFilters,
   CampaignListItem,
+  CampaignRecipient,
   CampaignStats,
   CampaignsListResponse,
   ChannelRow,
@@ -127,6 +134,11 @@ export async function fetchAllCampaigns(
 }
 
 export function fetchCampaign(id: string): Promise<CampaignDetail> {
+  if (isPageMockMode()) {
+    const campaign = mockCampaignDetail(id);
+    if (!campaign) return Promise.reject(new Error("Campanha não encontrada."));
+    return Promise.resolve(campaign);
+  }
   return getJson<{ campaign: CampaignDetail }>(
     `/api/campaigns/${id}`,
     "Campanha não encontrada.",
@@ -134,6 +146,11 @@ export function fetchCampaign(id: string): Promise<CampaignDetail> {
 }
 
 export function fetchCampaignStats(id: string): Promise<CampaignStats> {
+  if (isPageMockMode()) {
+    const stats = mockCampaignStats(id);
+    if (!stats) return Promise.reject(new Error("Erro ao carregar estatísticas."));
+    return Promise.resolve(stats);
+  }
   return getJson<CampaignStats>(
     `/api/campaigns/${id}/stats`,
     "Erro ao carregar estatísticas.",
@@ -150,6 +167,17 @@ export function fetchRecipients(
   id: string,
   params: FetchRecipientsParams = {},
 ): Promise<RecipientsResponse> {
+  if (isPageMockMode()) {
+    return Promise.resolve(
+      mockCampaignRecipients(id, params) ?? {
+        items: [],
+        total: 0,
+        page: params.page ?? 1,
+        perPage: params.perPage ?? 20,
+        totalPages: 0,
+      },
+    );
+  }
   const sp = new URLSearchParams();
   if (params.status) sp.set("status", params.status);
   if (params.page) sp.set("page", String(params.page));
@@ -158,6 +186,29 @@ export function fetchRecipients(
     `/api/campaigns/${id}/recipients?${sp.toString()}`,
     "Erro ao carregar destinatários.",
   );
+}
+
+/** Páginas do GET /recipients — exportação do relatório filtrado. */
+export async function fetchAllRecipients(
+  id: string,
+  params: Omit<FetchRecipientsParams, "page" | "perPage"> = {},
+): Promise<{ items: CampaignRecipient[]; truncated: boolean }> {
+  const first = await fetchRecipients(id, { ...params, page: 1, perPage: 100 });
+  const totalPages = Math.max(
+    1,
+    first.totalPages || Math.ceil(first.total / first.perPage) || 1,
+  );
+  if (totalPages <= 1) return { items: first.items, truncated: false };
+  const extra = Math.min(totalPages - 1, 50);
+  const rest = await Promise.all(
+    Array.from({ length: extra }, (_, i) =>
+      fetchRecipients(id, { ...params, page: i + 2, perPage: 100 }),
+    ),
+  );
+  return {
+    items: first.items.concat(...rest.map((p) => p.items)),
+    truncated: totalPages - 1 > extra,
+  };
 }
 
 export function createCampaign(
