@@ -312,6 +312,9 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
   const [distributionEnabled, setDistributionEnabled] = React.useState(
     dept?.distributionEnabled ?? false,
   );
+  const [distributionMode, setDistributionMode] = React.useState<"smart" | "leads">(
+    dept?.distributionMode === "leads" ? "leads" : "smart",
+  );
   const updateMutation = useUpdateDepartment();
   const setMembersMutation = useSetDepartmentMembers();
 
@@ -322,7 +325,7 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
   const [memberSearch, setMemberSearch] = React.useState("");
 
   React.useEffect(() => {
-    if (dept) { setName(dept.name); setIcon(dept.icon); setColor(dept.color); setIsSupport(dept.isSupport ?? false); setDistributionEnabled(dept.distributionEnabled ?? false); setMemberSearch(""); }
+    if (dept) { setName(dept.name); setIcon(dept.icon); setColor(dept.color); setIsSupport(dept.isSupport ?? false); setDistributionEnabled(dept.distributionEnabled ?? false); setDistributionMode(dept.distributionMode === "leads" ? "leads" : "smart"); setMemberSearch(""); }
   }, [dept?.id]);
 
   // Stable key prevents infinite re-render loop when currentMembers reference changes.
@@ -355,7 +358,7 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
     if (!dept) return;
     const deptId = dept.id;
     updateMutation.mutate(
-      { id: deptId, name: name.trim(), icon, color, isSupport, distributionEnabled },
+      { id: deptId, name: name.trim(), icon, color, isSupport, distributionEnabled, distributionMode },
       {
         onSuccess: () => {
           setMembersMutation.mutate(
@@ -480,6 +483,33 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
             onChange={setDistributionEnabled}
             aria-label="Distribuição por departamento"
           />
+        </div>
+
+        {/* Modo de ENTRADA da distribuição para este departamento. "Leads"
+            tira o departamento da distribuição/fila smart — a distribuição
+            acontece no bloco "Executar distribuição" com modo Por Leads. */}
+        <div className="flex items-start justify-between gap-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-3">
+          <div className="min-w-0">
+            <span className="font-display text-[12px] font-semibold text-[var(--text-default)]">
+              Entrada de distribuição
+            </span>
+            <p className="mt-0.5 text-[11.5px] leading-snug text-[var(--text-muted)]">
+              {distributionMode === "leads"
+                ? "Por Leads: atendimentos deste departamento ficam fora da Distribuição Inteligente e da fila de espera — a distribuição ocorre no bloco da automação em modo Por Leads (rodízio por peso)."
+                : "Inteligente (padrão): a Distribuição Inteligente atual cuida dos atendimentos deste departamento."}
+            </p>
+          </div>
+          <select
+            value={distributionMode}
+            onChange={(e) =>
+              setDistributionMode(e.target.value === "leads" ? "leads" : "smart")
+            }
+            className="h-8 shrink-0 rounded-md border border-border bg-card px-2 text-[12px] text-foreground"
+            aria-label="Entrada de distribuição"
+          >
+            <option value="smart">Inteligente</option>
+            <option value="leads">Por Leads</option>
+          </select>
         </div>
 
         <div>

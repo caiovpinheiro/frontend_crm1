@@ -642,6 +642,9 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
           )
         : [];
       config = {
+        // Modo explícito: "smart" (padrão — blocos antigos sem mode) ou
+        // "leads" (Distribuição por Leads). Nunca convertemos blocos antigos.
+        mode: config.mode === "leads" ? "leads" : "smart",
         distributionType: config.distributionType ?? "",
         departmentIds: ids,
         departmentNames: names,
@@ -1761,11 +1764,47 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
 
           {step.type === "execute_distribution" && (
             <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Modo de distribuição</Label>
+                <div className="flex gap-1 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1">
+                  {(
+                    [
+                      { key: "smart", label: "Inteligente" },
+                      { key: "leads", label: "Por Leads" },
+                    ] as const
+                  ).map((m) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => setDraft((d) => ({ ...d, mode: m.key }))}
+                      className={`flex-1 rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                        (draft.mode ?? "smart") === m.key
+                          ? "bg-primary/15 text-primary"
+                          : "text-[var(--text-muted)] hover:text-[var(--text-default)]"
+                      }`}
+                      aria-pressed={(draft.mode ?? "smart") === m.key}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {(draft.mode ?? "smart") === "leads" ? (
+                <p className="rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
+                  Distribui pelo rodízio da <strong className="text-foreground">Distribuição por Leads</strong>:
+                  cada consultor ativo recebe conforme o peso (0–5 slots), em
+                  ordem de quem recebeu há mais tempo. Não olha presença,
+                  expediente ou fila atual, e não usa fila de espera — sem
+                  consultor ativo, o fluxo segue a saída “Sem agente”. Quem já
+                  tem responsável é preservado.
+                </p>
+              ) : (
               <p className="rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
                 Distribui o lead entre os responsáveis elegíveis usando a
                 Distribuição Inteligente — a mesma regra da tela e da simulação.
                 Não força atribuição.
               </p>
+              )}
               <div className="rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
                 <p className="mb-1.5 font-semibold text-[var(--text-default)]">
                   Funciona como um IF (Sim / Não):
@@ -1785,18 +1824,24 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
                   Conecte cada saída do bloco no canvas para definir os próximos passos.
                 </p>
               </div>
-              <ExecuteDistributionDeptsDraft draft={draft} setDraft={setDraft} />
-              <div className="space-y-2">
-                <Label htmlFor="sc-dist-type">Tipo / segmento (opcional)</Label>
-                <Input
-                  id="sc-dist-type"
-                  value={String(draft.distributionType ?? "")}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, distributionType: e.target.value }))
-                  }
-                  placeholder="ex.: inbound, vendas, suporte"
-                />
-              </div>
+              {/* Departamento/tipo só valem no modo smart — o rodízio leads é
+                  global entre os participantes configurados. */}
+              {(draft.mode ?? "smart") === "smart" && (
+                <>
+                  <ExecuteDistributionDeptsDraft draft={draft} setDraft={setDraft} />
+                  <div className="space-y-2">
+                    <Label htmlFor="sc-dist-type">Tipo / segmento (opcional)</Label>
+                    <Input
+                      id="sc-dist-type"
+                      value={String(draft.distributionType ?? "")}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, distributionType: e.target.value }))
+                      }
+                      placeholder="ex.: inbound, vendas, suporte"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
 

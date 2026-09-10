@@ -111,6 +111,7 @@ import {
   useDepartments,
   useUpdateDepartment,
 } from "@/features/conversations-settings/hooks/use-departments";
+import { LeadsDistributionView } from "./leads-view";
 import {
   MOCK_DISTRIBUTION_PENDING,
   MOCK_DISTRIBUTION_RESPONSIBLES,
@@ -212,6 +213,12 @@ export default function DistributionClientPage({
   const searchParams = useSearchParams();
   const viewFromUrl = parseViewParam(searchParams.get("tab"));
   const [view, setView] = useState<DistributionView>(viewFromUrl ?? "team");
+  // Seletor de página: "Distribuição Inteligente" (smart) × "Distribuição por
+  // Leads" (leads). APENAS alterna a visualização — não muda motor nem
+  // automações. Deep link: ?mode=leads.
+  const [pageMode, setPageMode] = useState<"smart" | "leads">(
+    searchParams.get("mode") === "leads" ? "leads" : "smart",
+  );
   useEffect(() => {
     registerDistributionTourBridge(setView);
     return () => registerDistributionTourBridge(null);
@@ -362,7 +369,10 @@ export default function DistributionClientPage({
         <SectionHeader
           icon={Shuffle}
           title="Distribuição"
-          search={(smartInstalled && view === "team") || view === "coverage"}
+          search={
+            pageMode === "smart" &&
+            ((smartInstalled && view === "team") || view === "coverage")
+          }
           searchSlot={
             smartInstalled && view === "team" ? (
               <DistributionSearchFilterBar
@@ -389,7 +399,7 @@ export default function DistributionClientPage({
             ) : undefined
           }
           period={
-            view === "logs" ? (
+            pageMode === "smart" && view === "logs" ? (
               <div data-tour="distribution-period" className="flex shrink-0">
               <PeriodCalendarButton active={Boolean(logDateFrom || logDateTo)}>
                 <PeriodIsoRangePanel
@@ -409,11 +419,43 @@ export default function DistributionClientPage({
           actions={
             smartInstalled || view === "coverage" ? (
               <div className="flex min-w-0 w-full flex-nowrap items-center gap-2">
-                {view !== "coverage" && smartInstalled ? (
+                {/* Seletor de página: só alterna a visualização (smart × leads).
+                    Não altera motor nem automações. */}
+                <div
+                  data-tour="distribution-mode"
+                  className="flex shrink-0 items-center rounded-full border border-border bg-card p-0.5"
+                  role="tablist"
+                  aria-label="Modo de distribuição"
+                >
+                  {(
+                    [
+                      { key: "smart", label: "Inteligente" },
+                      { key: "leads", label: "Por Leads" },
+                    ] as const
+                  ).map((m) => (
+                    <button
+                      key={m.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={pageMode === m.key}
+                      onClick={() => setPageMode(m.key)}
+                      className={cn(
+                        "h-7 cursor-pointer rounded-full px-3 text-[12px] font-semibold whitespace-nowrap transition-colors",
+                        pageMode === m.key
+                          ? "bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                {pageMode === "smart" && view !== "coverage" && smartInstalled ? (
                   <div data-tour="distribution-view" className="flex shrink-0">
                     <ViewToggle value={listView} onChange={setListView} />
                   </div>
                 ) : null}
+                {pageMode === "smart" && (
                 <div data-tour="distribution-tabs" className="min-w-0 w-0 flex-1">
                 <HeaderTabs
                   tabs={[
@@ -426,6 +468,7 @@ export default function DistributionClientPage({
                   onChange={(v) => setView(v)}
                 />
                 </div>
+                )}
                 {adminCount > 0 && (
                   <button
                     type="button"
@@ -452,8 +495,9 @@ export default function DistributionClientPage({
               </div>
             ) : undefined
           }
-          menu={smartInstalled || view === "coverage"}
+          menu={pageMode === "smart" && (smartInstalled || view === "coverage")}
           menuSlot={
+            pageMode === "smart" ? (
             <div className="flex items-center gap-2">
               <PageTourButton
                 tourId={
@@ -483,16 +527,28 @@ export default function DistributionClientPage({
             />
               </div>
             </div>
+            ) : undefined
           }
         />
         }
         bodyClassName="gap-3 sm:gap-4"
       >
 
-        {/* Cobertura não depende do widget `smart_distribution`: a grade
+        {/* Modo "leads": página própria (config de consultores, indicadores,
+            ranking e histórico). Sem fila de espera. O seletor do topo apenas
+            alterna a visualização — motor e automações não mudam. */}
+        {pageMode === "leads" ? (
+          widgetsQuery.isLoading ? (
+            <SkeletonState />
+          ) : !smartInstalled ? (
+            <NotEnabledState />
+          ) : (
+            <LeadsDistributionView canManage={canManage} />
+          )
+        ) : /* Cobertura não depende do widget `smart_distribution`: a grade
             de expedientes valia para qualquer org quando morava em
-            /settings/coverage. Fica fora do gating pra não perder acesso. */}
-        {view === "coverage" ? (
+            /settings/coverage. Fica fora do gating pra não perder acesso. */
+        view === "coverage" ? (
           <CoverageBoard
             search={coverageSearch}
             deptIds={coverageDeptIds}

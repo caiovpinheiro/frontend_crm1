@@ -18,6 +18,8 @@ export interface Department {
   requireTabulationOnClose?: boolean;
   isSupport?: boolean;
   distributionEnabled?: boolean;
+  /** Modo de entrada da distribuição: "smart" (atual) | "leads". */
+  distributionMode?: "smart" | "leads";
   /** Null = Seg–Sex 09:00–18:00. */
   operatingHours?: DepartmentOperatingHours | null;
   _count?: { conversations?: number; members?: number };
@@ -80,7 +82,7 @@ export function useCreateDepartment() {
 export function useUpdateDepartment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name?: string; color?: string; icon?: string; requireTabulationOnClose?: boolean; isSupport?: boolean; distributionEnabled?: boolean; operatingHours?: DepartmentOperatingHours | null }) => {
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; color?: string; icon?: string; requireTabulationOnClose?: boolean; isSupport?: boolean; distributionEnabled?: boolean; distributionMode?: "smart" | "leads"; operatingHours?: DepartmentOperatingHours | null }) => {
       const res = await fetch(`/api/settings/departments/${id}`, {
         method: "PUT",
         credentials: "include",
