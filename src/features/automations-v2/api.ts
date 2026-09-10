@@ -171,6 +171,8 @@ export interface AutomationLogRowDto {
   message: string | null;
   contactId: string | null;
   dealId: string | null;
+  conversationId?: string | null;
+  conversationNumber?: number | string | null;
   stepId: string | null;
   stepType: string | null;
   executedAt: string;
