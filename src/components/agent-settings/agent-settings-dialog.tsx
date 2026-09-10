@@ -182,6 +182,15 @@ export function AgentSettingsDialog({
 }) {
   const open = id !== null;
   const preview = isPreviewAgentId(id);
+  const openedAtRef = React.useRef(0);
+  React.useLayoutEffect(() => {
+    if (open) openedAtRef.current = performance.now();
+  }, [open, id]);
+  const closeFromUser = (e?: { timeStamp?: number }) => {
+    // Clique do lápis (e o retarget dele) tem timeStamp anterior ao mount.
+    if (e?.timeStamp != null && e.timeStamp < openedAtRef.current) return;
+    onOpenChange(false);
+  };
   const [advanced, setAdvanced] = React.useState(false);
   const [section, setSection] = React.useState<AgentSectionId>("identity");
   const [form, setForm] = React.useState<AgentSettingsValues>(EMPTY_AGENT_SETTINGS);
@@ -518,7 +527,7 @@ export function AgentSettingsDialog({
               type="button"
               variant="glass"
               className={formDialogCancelClass}
-              onClick={() => onOpenChange(false)}
+              onClick={closeFromUser}
             >
               Cancelar
             </ButtonGlass>
@@ -550,44 +559,39 @@ export function AgentSettingsDialog({
   if (!open) return null;
 
   return (
-    <AgentSettingsOverlay onClose={() => onOpenChange(false)}>
+    <AgentSettingsOverlay onClose={closeFromUser}>
       {panel}
     </AgentSettingsOverlay>
   );
 }
 
 /**
- * Overlay próprio — sem `<dialog>.showModal()`.
- * O top-layer nativo retargeta o clique do lápis pro backdrop e fecha
- * na hora. Aqui o dismiss só vale depois de um pointerdown novo.
+ * Overlay próprio — sem `<dialog>.showModal()` e sem fechar no backdrop.
+ * O HAR de produção mostrou GET /ai-agents/:id + /knowledge e a tela
+ * sumia: o mesmo pointerdown do lápis destrava o dismiss e cai no
+ * backdrop/Cancelar. Aqui só X, Cancelar e Esc fecham, e só se o
+ * evento nasceu depois do mount.
  */
 function AgentSettingsOverlay({
   children,
   onClose,
 }: {
   children: React.ReactNode;
-  onClose: () => void;
+  onClose: (e?: { timeStamp?: number }) => void;
 }) {
   const [mounted, setMounted] = React.useState(false);
-  const allowClose = React.useRef(false);
   const onCloseRef = React.useRef(onClose);
   onCloseRef.current = onClose;
 
   React.useEffect(() => {
     setMounted(true);
-    allowClose.current = false;
-    const unlock = () => {
-      allowClose.current = true;
-    };
-    window.addEventListener("pointerdown", unlock, { capture: true, once: true });
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && allowClose.current) onCloseRef.current();
+      if (e.key === "Escape") onCloseRef.current(e);
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("pointerdown", unlock, true);
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
@@ -596,25 +600,17 @@ function AgentSettingsOverlay({
   if (!mounted) return null;
 
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget && allowClose.current) onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-md">
       <div
         role="dialog"
         aria-modal="true"
         className="relative flex h-[min(90dvh,52rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[var(--radius-2xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] text-[var(--text-primary)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
-        onPointerDown={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           aria-label="Fechar"
           className="absolute end-4 top-4 z-10 rounded-sm text-muted-foreground opacity-70 hover:opacity-100"
-          onClick={() => {
-            if (allowClose.current) onClose();
-          }}
+          onClick={onClose}
         >
           <X className="size-4" />
         </button>

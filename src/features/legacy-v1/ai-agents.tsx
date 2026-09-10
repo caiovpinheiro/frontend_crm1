@@ -90,11 +90,12 @@ export default function AIAgentsPage({
       return;
     }
     allowEditorClose.current = false;
-    const unlock = () => {
-      allowEditorClose.current = true;
+    const openedAt = performance.now();
+    const unlock = (e: PointerEvent) => {
+      if (e.timeStamp >= openedAt) allowEditorClose.current = true;
     };
-    window.addEventListener("pointerdown", unlock, { capture: true, once: true });
-    return () => window.removeEventListener("pointerdown", unlock, true);
+    window.addEventListener("pointerup", unlock, true);
+    return () => window.removeEventListener("pointerup", unlock, true);
   }, [editingId]);
 
   const { data: agents = [], isLoading } = useQuery({
