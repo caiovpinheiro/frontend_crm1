@@ -79,3 +79,13 @@ export const CAMPAIGN_STATUS_FILTERS: { value: string; label: string }[] = [
   { value: "COMPLETED", label: "Concluída" },
   { value: "FAILED", label: "Falhou" },
 ];
+
+/** Filtros do relatório de destinatários — 1:1 com `GET .../recipients?status`. */
+export const RECIPIENT_REPORT_FILTERS: { value: string; label: string }[] = [
+  { value: "", label: "Todos" },
+  { value: "DELIVERED", label: "Sucesso" },
+  { value: "PENDING", label: "Pendente" },
+  { value: "FAILED", label: "Erros" },
+  { value: "SENT", label: "Enviado" },
+  { value: "READ", label: "Lido" },
+];
