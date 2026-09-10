@@ -9,19 +9,13 @@ import { AgentSettingsDialog } from "@/components/agent-settings/agent-settings-
 import { AppV2PageShell } from "../../_v2-page-shell";
 
 /**
- * Deep-link `/ai-agents/:id`. O lápis da lista abre o editor em modal;
- * esta rota fica para URL direta / refresh.
+ * Editor do agente. O lápis da lista navega para cá — sem modal.
  */
 export default function EditAIAgentClientPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const agentId = typeof id === "string" ? id : Array.isArray(id) ? id[0] : null;
-
-  const settled = React.useRef(false);
-  React.useEffect(() => {
-    settled.current = true;
-  }, []);
 
   const goBack = () => {
     queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
@@ -42,7 +36,7 @@ export default function EditAIAgentClientPage() {
           id={agentId}
           variant="page"
           onOpenChange={(open) => {
-            if (!open && settled.current) goBack();
+            if (!open) goBack();
           }}
           onSaved={goBack}
         />
