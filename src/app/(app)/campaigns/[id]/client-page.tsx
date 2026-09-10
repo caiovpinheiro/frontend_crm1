@@ -75,7 +75,7 @@ export default function CampaignDetailClientPage() {
   const [page, setPage] = useState(1);
 
   const applyRecipientFilter = (value: string) => {
-    setRecipientFilter((prev) => (value !== "" && prev === value ? "" : value));
+    setRecipientFilter(value);
     setPage(1);
   };
 
