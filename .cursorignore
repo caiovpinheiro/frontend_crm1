@@ -1,0 +1,19 @@
+# Histórico técnico — consulta manual
+docs/history/
+
+# Catálogo gerado automaticamente
+src/lib/automation-templates-imported.ts
+
+# Screenshots e auditorias visuais já geradas
+screenshots/
+
+# Binários APK — não úteis para descoberta de código
+public/releases/*.apk
+deploy/mobile-releases/public/releases/*.apk
+
+# Artefatos
+.next/
+dist/
+coverage/
+*.log
+.playwright-mcp/
