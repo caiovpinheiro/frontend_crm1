@@ -5,6 +5,7 @@ import * as React from "react";
 import { defaultAcademicSteeringRules } from "@/lib/ai-agents/academic-atendimento-prompt";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
 
 import { FieldHelp, SectionHeader } from "../section-header";
@@ -31,12 +32,35 @@ export function RulesSection({
   useOnlyOwnRules: boolean;
   onUseOnlyOwnRulesChange: (v: boolean) => void;
 }) {
+  const { confirm, dialog } = useConfirm();
   const composed = [template.trim(), steeringRules.trim(), override.trim()]
     .filter(Boolean)
     .join("\n\n");
 
+  async function loadDefaultRules() {
+    const fallback =
+      archetype === "ATENDIMENTO" ? defaultAcademicSteeringRules() : "";
+    // Substituir sem avisar ja apagou horas de regra escrita a mao: o
+    // botao troca o texto inteiro, nao acrescenta.
+    if (
+      steeringRules.trim() &&
+      !(await confirm({
+        title: "Substituir as regras deste agente?",
+        description:
+          "O texto de fábrica entra no lugar do que está escrito aqui — " +
+          "não é somado. O que você escreveu se perde ao salvar.",
+        confirmLabel: "Substituir",
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    onSteeringRulesChange(fallback);
+  }
+
   return (
     <div className="space-y-5">
+      {dialog}
       <SectionHeader
         title="Regras"
         description="Estas regras entram no prompt a cada mensagem. O que você salvar aqui vale na hora — sem deploy."
@@ -77,13 +101,7 @@ export function RulesSection({
             variant="outline"
             size="sm"
             className="rounded-full"
-            onClick={() =>
-              onSteeringRulesChange(
-                archetype === "ATENDIMENTO"
-                  ? defaultAcademicSteeringRules()
-                  : "",
-              )
-            }
+            onClick={() => void loadDefaultRules()}
           >
             Carregar padrão
           </Button>
