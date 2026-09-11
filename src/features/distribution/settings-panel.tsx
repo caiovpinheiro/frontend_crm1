@@ -92,6 +92,7 @@ export function DistributionEnabledToggle() {
   );
 }
 
+/** `showTour` ancora o product tour na Central de distribuição. */
 export function AutoOnInboundToggle({
   showTour = false,
 }: {
@@ -217,7 +218,7 @@ export function DepartmentsDistributionPanel() {
   return (
     <div className="flex flex-col gap-3">
       <AutoOnInboundToggle />
-      <div className="flex flex-col gap-2.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
+      <div className="flex flex-col gap-2.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="font-display text-[13px] font-bold text-[var(--text-primary)]">
