@@ -175,7 +175,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
   const title = step === 1 ? "Conecte seu endereço de e-mail" : form.email;
   const subtitle =
     step === 1
-      ? "Escolha o provedor e informe o e-mail. Os servidores IMAP/SMTP são preenchidos automaticamente."
+      ? "Escolha o provedor e o e-mail. IMAP e SMTP são preenchidos automaticamente — sem relay para configurar."
       : "Mensagens enviadas desse endereço serão vinculadas automaticamente ao contato correspondente no CRM.";
 
   return (
@@ -288,6 +288,16 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                     Use o e-mail completo e a senha da caixa (não senha de app).
                     No UOL Host, ative o IMAP em Webmail → Configurar IMAP/POP antes de conectar.
+                  </p>
+                )}
+                {(providerId === "yahoo" || providerId === "icloud") && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    {providerId === "yahoo" ? "Yahoo" : "iCloud"} exige senha de app, não a senha da conta.
+                  </p>
+                )}
+                {providerId === "locaweb" && (
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Use o e-mail completo e a senha da caixa no painel Locaweb. IMAP precisa estar ativo.
                   </p>
                 )}
               </div>
