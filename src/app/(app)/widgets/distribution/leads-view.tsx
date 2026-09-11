@@ -184,12 +184,22 @@ function participantNote(p: LeadsParticipantDto): string {
   return (p.note ?? "").trim();
 }
 
+function departmentLabel(
+  departments?: { id: string; name: string }[] | null,
+): string {
+  if (departments && departments.length > 0) {
+    return departments.map((d) => d.name).join(", ");
+  }
+  return "Sem departamento";
+}
+
 function ConsultantIdentity({
   participant,
 }: {
   participant: LeadsParticipantDto;
 }) {
   const note = participantNote(participant);
+  const dept = departmentLabel(participant.departments);
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <UserAvatar
@@ -201,9 +211,15 @@ function ConsultantIdentity({
         <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
           {participant.name ?? "Sem nome"}
         </p>
-        <p className="mt-0.5 truncate font-body text-[12px] leading-tight text-muted-foreground">
-          {participant.email ?? "—"}
-        </p>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 whitespace-nowrap font-body text-[12px] leading-tight text-muted-foreground">
+          <span className="min-w-0 truncate">{participant.email ?? "—"}</span>
+          <span
+            className="min-w-0 truncate border-l border-border pl-1.5 font-semibold"
+            title={dept}
+          >
+            {dept}
+          </span>
+        </div>
         {note ? (
           <p
             className="mt-0.5 truncate font-body text-[12px] italic text-[var(--text-secondary)]"
@@ -237,10 +253,12 @@ function useParticipantSave() {
 
 function ConsultantDesktopRow({
   participant,
+  receivedCount,
   canManage,
   onEditNote,
 }: {
   participant: LeadsParticipantDto;
+  receivedCount: number;
   canManage: boolean;
   onEditNote: (p: LeadsParticipantDto) => void;
 }) {
@@ -253,7 +271,7 @@ function ConsultantDesktopRow({
     <DataRow>
       <ConsultantIdentity participant={participant} />
       <div className="w-full font-display text-[15px] font-bold tabular-nums text-foreground">
-        {participant.totalReceived}
+        {receivedCount}
       </div>
       <SlotDots participant={participant} />
       <WeightPicker
@@ -290,10 +308,12 @@ function ConsultantDesktopRow({
 
 function ConsultantMobileCard({
   participant,
+  receivedCount,
   canManage,
   onEditNote,
 }: {
   participant: LeadsParticipantDto;
+  receivedCount: number;
   canManage: boolean;
   onEditNote: (p: LeadsParticipantDto) => void;
 }) {
@@ -301,6 +321,7 @@ function ConsultantMobileCard({
   const active = participant.status === "ACTIVE";
   const busy = !canManage || updateMut.isPending;
   const note = participantNote(participant);
+  const dept = departmentLabel(participant.departments);
 
   return (
     <li className={LIST_CARD_ROW_CLASS}>
@@ -316,6 +337,9 @@ function ConsultantMobileCard({
           </p>
           <p className="mt-0.5 truncate font-body text-[12px] text-muted-foreground">
             {participant.email ?? "—"}
+          </p>
+          <p className="mt-0.5 truncate font-body text-[12px] font-semibold text-muted-foreground" title={dept}>
+            {dept}
           </p>
           {note ? (
             <p className="mt-0.5 truncate font-body text-[12px] italic text-[var(--text-secondary)]" title={note}>
@@ -351,7 +375,7 @@ function ConsultantMobileCard({
         <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
           <p className="text-xs font-semibold text-muted-foreground">Recebidos</p>
           <p className="font-display text-[14px] font-bold leading-none text-[var(--text-primary)]">
-            {participant.totalReceived}
+            {receivedCount}
           </p>
         </div>
         <div className="flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-center">
@@ -541,6 +565,16 @@ export function LeadsDistributionView({
     [participantsQuery.data],
   );
   const stats = statsQuery.data;
+  const receivedByUser = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const row of stats?.byUser ?? []) m.set(row.userId, row.count);
+    return m;
+  }, [stats?.byUser]);
+  const departmentsByUser = useMemo(() => {
+    const m = new Map<string, { id: string; name: string }[]>();
+    for (const p of participants) m.set(p.userId, p.departments ?? []);
+    return m;
+  }, [participants]);
   const historyItems =
     historyQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const historyTotal = historyQuery.data?.pages[0]?.total ?? 0;
@@ -548,10 +582,15 @@ export function LeadsDistributionView({
   const ranking = useMemo(() => {
     const list = stats?.ranking ?? [];
     if (!searchNeedle) return list;
-    return list.filter((r) =>
-      (r.name ?? r.userId).toLocaleLowerCase("pt-BR").includes(searchNeedle),
-    );
-  }, [stats?.ranking, searchNeedle]);
+    return list.filter((r) => {
+      const dept = departmentLabel(departmentsByUser.get(r.userId));
+      return [r.name, r.userId, dept]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("pt-BR")
+        .includes(searchNeedle);
+    });
+  }, [stats?.ranking, searchNeedle, departmentsByUser]);
   const visibleHistory = useMemo(() => {
     if (!searchNeedle) return historyItems;
     return historyItems.filter((item) => {
@@ -559,13 +598,14 @@ export function LeadsDistributionView({
         item.leadLabel,
         item.userName,
         item.userId,
+        departmentLabel(departmentsByUser.get(item.userId)),
       ]
         .filter(Boolean)
         .join(" ")
         .toLocaleLowerCase("pt-BR");
       return hay.includes(searchNeedle);
     });
-  }, [historyItems, searchNeedle]);
+  }, [historyItems, searchNeedle, departmentsByUser]);
 
   const availableToAdd = useMemo(() => {
     const configured = new Set(participants.map((p) => p.userId));
@@ -604,7 +644,7 @@ export function LeadsDistributionView({
       label: "Leads distribuídos",
       shortLabel: "Distribuídos",
       value: stats?.total ?? 0,
-      hint: from || to ? "no período" : undefined,
+      hint: from || to ? "no período" : "todo o período",
       tone: "brand" as const,
       icon: <IconTrophy size={20} stroke={2.2} />,
     },
@@ -740,6 +780,7 @@ export function LeadsDistributionView({
                   <ConsultantMobileCard
                     key={p.userId}
                     participant={p}
+                    receivedCount={receivedByUser.get(p.userId) ?? 0}
                     canManage={canManage}
                     onEditNote={setNoteTarget}
                   />
@@ -765,6 +806,7 @@ export function LeadsDistributionView({
                       <ConsultantDesktopRow
                         key={p.userId}
                         participant={p}
+                        receivedCount={receivedByUser.get(p.userId) ?? 0}
                         canManage={canManage}
                         onEditNote={setNoteTarget}
                       />
@@ -812,7 +854,9 @@ export function LeadsDistributionView({
           ) : (
             <>
               <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
-                {ranking.map((r, idx) => (
+                {ranking.map((r, idx) => {
+                  const dept = departmentLabel(departmentsByUser.get(r.userId));
+                  return (
                   <li key={r.userId} className={LIST_CARD_ROW_CLASS}>
                     <div className="flex items-center gap-3">
                       <span
@@ -825,15 +869,21 @@ export function LeadsDistributionView({
                       >
                         {idx + 1}
                       </span>
-                      <span className="min-w-0 flex-1 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
-                        {r.name ?? r.userId}
-                      </span>
+                      <div className="min-w-0 flex-1 leading-tight">
+                        <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+                          {r.name ?? r.userId}
+                        </p>
+                        <p className="mt-0.5 truncate font-body text-[12px] font-semibold text-muted-foreground" title={dept}>
+                          {dept}
+                        </p>
+                      </div>
                       <span className="font-display text-[15px] font-bold tabular-nums text-foreground">
                         {r.count}
                       </span>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
               <div className="hidden w-full md:block">
                 <ListHScroll>
@@ -849,7 +899,9 @@ export function LeadsDistributionView({
                       </>
                     }
                   >
-                    {ranking.map((r, idx) => (
+                    {ranking.map((r, idx) => {
+                      const dept = departmentLabel(departmentsByUser.get(r.userId));
+                      return (
                       <DataRow key={r.userId}>
                         <span
                           className={cn(
@@ -861,14 +913,20 @@ export function LeadsDistributionView({
                         >
                           {idx + 1}
                         </span>
-                        <span className="min-w-0 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
-                          {r.name ?? r.userId}
-                        </span>
+                        <div className="min-w-0 leading-tight">
+                          <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+                            {r.name ?? r.userId}
+                          </p>
+                          <p className="mt-0.5 truncate font-body text-[12px] font-semibold text-muted-foreground" title={dept}>
+                            {dept}
+                          </p>
+                        </div>
                         <span className="font-display text-[15px] font-bold tabular-nums text-foreground">
                           {r.count}
                         </span>
                       </DataRow>
-                    ))}
+                      );
+                    })}
                   </DataView>
                 </ListHScroll>
               </div>
@@ -930,18 +988,23 @@ export function LeadsDistributionView({
           ) : (
             <>
               <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
-                {visibleHistory.map((item) => (
+                {visibleHistory.map((item) => {
+                  const dept = departmentLabel(departmentsByUser.get(item.userId));
+                  return (
                   <li key={item.id} className={LIST_CARD_ROW_CLASS}>
                     <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
                       {item.leadLabel ?? "Lead"}
                     </p>
                     <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
                       {formatDateTime(item.createdAt)} · {item.userName ?? item.userId}
+                      {" · "}
+                      {dept}
                       {" · posição "}
                       {item.slotIndex + 1}
                     </p>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
               <div className="hidden w-full md:block">
                 <ListHScroll>
@@ -958,7 +1021,9 @@ export function LeadsDistributionView({
                       </>
                     }
                   >
-                    {visibleHistory.map((item) => (
+                    {visibleHistory.map((item) => {
+                      const dept = departmentLabel(departmentsByUser.get(item.userId));
+                      return (
                       <DataRow key={item.id}>
                         <span className="font-display text-[13px] tabular-nums text-[var(--text-secondary)]">
                           {formatDateTime(item.createdAt)}
@@ -966,14 +1031,20 @@ export function LeadsDistributionView({
                         <span className="min-w-0 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
                           {item.leadLabel ?? "Lead"}
                         </span>
-                        <span className="min-w-0 truncate font-body text-[13px] text-[var(--text-secondary)]">
-                          {item.userName ?? item.userId}
-                        </span>
+                        <div className="min-w-0 leading-tight">
+                          <p className="truncate font-body text-[13px] text-[var(--text-secondary)]">
+                            {item.userName ?? item.userId}
+                          </p>
+                          <p className="mt-0.5 truncate font-body text-[12px] font-semibold text-muted-foreground" title={dept}>
+                            {dept}
+                          </p>
+                        </div>
                         <span className="font-display text-[13px] tabular-nums text-[var(--text-secondary)]">
                           {item.slotIndex + 1}
                         </span>
                       </DataRow>
-                    ))}
+                      );
+                    })}
                   </DataView>
                 </ListHScroll>
               </div>

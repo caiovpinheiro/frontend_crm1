@@ -30,6 +30,8 @@ export interface LeadsParticipantDto {
   note: string;
   slots: LeadsSlotDto[];
   totalReceived: number;
+  /** Departamentos dos quais é membro. */
+  departments: { id: string; name: string }[];
   createdAt: string;
   updatedAt: string;
 }

@@ -614,8 +614,7 @@ export default function DistributionClientPage({
             ) : undefined
           }
           period={
-            pageMode === "leads" &&
-            (leadsPane === "ranking" || leadsPane === "history") ? (
+            pageMode === "leads" ? (
               <div className="flex shrink-0">
                 <PeriodCalendarButton active={Boolean(leadsDateFrom || leadsDateTo)}>
                   <PeriodIsoRangePanel
@@ -766,8 +765,8 @@ export default function DistributionClientPage({
               canManage={canManage}
               view={listView}
               pane={leadsPane}
-              from={leadsPane === "consultants" ? "" : leadsDateFrom}
-              to={leadsPane === "consultants" ? "" : leadsDateTo}
+              from={leadsDateFrom}
+              to={leadsDateTo}
               search={leadsSearch}
             />
           )
