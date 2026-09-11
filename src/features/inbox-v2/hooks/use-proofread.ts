@@ -63,8 +63,13 @@ export function useProofreadSendGate() {
           return "block";
         }
         return "ok";
-      } catch {
-        toast.error("Corretor indisponível");
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : "";
+        toast.error(
+          detail && detail !== "Corretor indisponível"
+            ? `Corretor indisponível: ${detail}`
+            : "Corretor indisponível",
+        );
         return "unavailable";
       } finally {
         setChecking(false);
