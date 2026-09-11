@@ -8,18 +8,20 @@
  * na org. Quem desinstala em /widgets desliga TUDO de uma vez — espelha
  * o modelo da Distribuição Inteligente.
  *
- * Migration: por seed em todas as orgs existentes (não-breaking — quem
- * já usava telefonia continua usando sem ação manual).
- *
- * Estado intermediário: enquanto a query `useWidgets` carrega, devolvemos
- * `enabled=null` (loading) — consumidores devem renderizar nada em vez
- * de assumir false (evita flash visual de "Telefonia desabilitada" em
- * orgs que TÊM o widget instalado).
+ * Cache em localStorage: org sem telefonia não refaz GET /widgets em
+ * toda rota depois da primeira resposta.
  */
 
-import { useWidgets } from "@/features/widgets/hooks";
+import { useEffect, useLayoutEffect, useState } from "react";
 
-export const CALLS_WIDGET_SLUG = "calls_history";
+import { useWidgets } from "@/features/widgets/hooks";
+import {
+  CALLS_WIDGET_SLUG,
+  readCachedCallsInstalled,
+  writeCachedCallsInstalled,
+} from "@/features/widgets/calls-installed-cache";
+
+export { CALLS_WIDGET_SLUG };
 
 export interface CallsWidgetState {
   /** True quando o widget está ATIVO; false quando não instalado; null
@@ -29,9 +31,30 @@ export interface CallsWidgetState {
 }
 
 export function useCallsWidget(authEnabled = true): CallsWidgetState {
-  const { data, isLoading } = useWidgets(authEnabled);
+  const [cached, setCached] = useState<boolean | null>(readCachedCallsInstalled);
+
+  useLayoutEffect(() => {
+    const next = readCachedCallsInstalled();
+    setCached((cur) => (cur === next ? cur : next));
+  }, []);
+
+  const fetchWidgets = authEnabled && cached !== false;
+  const { data, isLoading } = useWidgets(fetchWidgets);
+
+  useEffect(() => {
+    if (!data) return;
+    const installed =
+      data.items.find((w) => w.slug === CALLS_WIDGET_SLUG)?.installed ?? false;
+    writeCachedCallsInstalled(installed);
+    setCached(installed);
+  }, [data]);
+
+  if (cached === false && !data) {
+    return { enabled: false, isLoading: false };
+  }
 
   if (isLoading || !data) {
+    if (cached === true) return { enabled: true, isLoading: false };
     return { enabled: null, isLoading: true };
   }
 

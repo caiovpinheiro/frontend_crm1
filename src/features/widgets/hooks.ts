@@ -13,6 +13,10 @@ import type { WidgetsResponse } from "./types";
 
 import { isPreviewMode } from "@/lib/preview-mode";
 import { isPageMockMode } from "@/lib/page-mock-mode";
+import {
+  CALLS_WIDGET_SLUG,
+  writeCachedCallsInstalled,
+} from "@/features/widgets/calls-installed-cache";
 
 const WIDGETS_KEY = ["widgets"] as const;
 
@@ -34,7 +38,10 @@ export function useInstallWidget() {
   const qc = useQueryClient();
   return useMutation<{ slug: string; installed: boolean }, Error, string>({
     mutationFn: installWidget,
-    onSuccess: () => qc.invalidateQueries({ queryKey: WIDGETS_KEY }),
+    onSuccess: (_data, slug) => {
+      if (slug === CALLS_WIDGET_SLUG) writeCachedCallsInstalled(true);
+      qc.invalidateQueries({ queryKey: WIDGETS_KEY });
+    },
   });
 }
 
@@ -42,7 +49,10 @@ export function useUninstallWidget() {
   const qc = useQueryClient();
   return useMutation<{ slug: string; installed: boolean }, Error, string>({
     mutationFn: uninstallWidget,
-    onSuccess: () => qc.invalidateQueries({ queryKey: WIDGETS_KEY }),
+    onSuccess: (_data, slug) => {
+      if (slug === CALLS_WIDGET_SLUG) writeCachedCallsInstalled(false);
+      qc.invalidateQueries({ queryKey: WIDGETS_KEY });
+    },
   });
 }
 
