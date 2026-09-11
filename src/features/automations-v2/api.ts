@@ -14,7 +14,15 @@
 import { apiUrl } from "@/lib/api";
 import type { AutomationStats } from "@/lib/automation-stats-types";
 import { isPageMockMode } from "@/lib/page-mock-mode";
-import { mockAutomationSummary, mockAutomationsPage } from "./mock-automations";
+import {
+  mockAutomationDetail,
+  mockAutomationLogs,
+  mockAutomationStats,
+  mockAutomationSummary,
+  mockAutomationsPage,
+  mockCreateAutomation,
+  mockReplaceAutomation,
+} from "./mock-automations";
 
 async function getJson<T>(
   path: string,
@@ -131,13 +139,20 @@ export function fetchAutomationSummary(): Promise<AutomationListSummary> {
 }
 
 export function fetchAutomation(id: string): Promise<AutomationDetailDto> {
+  if (isPageMockMode()) {
+    const detail = mockAutomationDetail(id);
+    if (!detail) {
+      return Promise.reject(new Error("Automação não encontrada."));
+    }
+    return Promise.resolve(detail);
+  }
   return getJson<AutomationDetailDto>(
     `/api/automations/${id}`,
     "Erro ao carregar automação.",
   );
 }
 
-// ── Telemetria: contadores e logs de execução ────────────────────
+// ── Telemetria: contadores e logs de execução ────────────────
 
 /**
  * `GET /api/automations/:id/stats` — mesmos contadores que o editor
@@ -146,6 +161,9 @@ export function fetchAutomation(id: string): Promise<AutomationDetailDto> {
  * agregado por passo.
  */
 export function fetchAutomationStats(id: string): Promise<AutomationStats> {
+  if (isPageMockMode()) {
+    return Promise.resolve(mockAutomationStats());
+  }
   return getJson<AutomationStats>(
     `/api/automations/${id}/stats`,
     "Erro ao carregar estatísticas da automação.",
@@ -217,6 +235,9 @@ export function fetchAutomationLogs(
     sp.set("status", params.status.join(","));
     for (const s of params.status) sp.append("logStatus", s);
   }
+  if (isPageMockMode()) {
+    return Promise.resolve(mockAutomationLogs());
+  }
   return getJson<AutomationLogsPage>(
     `/api/automations/${id}/logs?${sp.toString()}`,
     "Erro ao carregar logs da automação.",
@@ -224,7 +245,7 @@ export function fetchAutomationLogs(
   );
 }
 
-// ── Picker do agente (composer) ──────────────────────────────────
+// ── Picker do agente (composer) ─────────────────────────
 export interface AgentAutomationItem {
   id: string;
   name: string;
@@ -284,9 +305,9 @@ export function toggleAutomationActive(id: string): Promise<AutomationListItemDt
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
 // CRUD + persistência de steps
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────
 
 /**
  * Step embutido no PUT /api/automations/:id (formato legacy preservado pelo
@@ -322,6 +343,9 @@ export interface AutomationStepInput {
 }
 
 export function createAutomation(body: AutomationWriteBody): Promise<AutomationDetailDto> {
+  if (isPageMockMode()) {
+    return Promise.resolve(mockCreateAutomation(body));
+  }
   return sendJson<AutomationDetailDto>(
     "/api/automations",
     "POST",
@@ -356,6 +380,13 @@ export function replaceAutomation(
   id: string,
   body: AutomationWriteBody,
 ): Promise<AutomationDetailDto> {
+  if (isPageMockMode()) {
+    const detail = mockReplaceAutomation(id, body);
+    if (!detail) {
+      return Promise.reject(new Error("Automação não encontrada."));
+    }
+    return Promise.resolve(detail);
+  }
   return sendJson<AutomationDetailDto>(
     `/api/automations/${id}`,
     "PUT",

@@ -1,7 +1,12 @@
+import type { AutomationStats } from "@/lib/automation-stats-types";
+
 import type {
+  AutomationDetailDto,
   AutomationListItemDto,
   AutomationListPage,
   AutomationListSummary,
+  AutomationLogsPage,
+  AutomationWriteBody,
   FetchAutomationsParams,
 } from "./api";
 
@@ -16,6 +21,7 @@ function daysAgo(days: number): string {
 const MOCK_ITEMS: AutomationListItemDto[] = [
   {
     id: "auto-1",
+    number: 1,
     name: "Aguardando Resposta",
     description: "Espera resposta do lead e encerra se não houver retorno.",
     triggerType: "message_sent",
@@ -32,6 +38,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-2",
+    number: 2,
     name: "BV – Calouros",
     description: "Onboarding de calouros com documentos e agente de IA.",
     triggerType: "deal_created",
@@ -48,6 +55,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-3",
+    number: 3,
     name: "acad_banido",
     description: "Trata mensagem recebida de aluno banido.",
     triggerType: "message_received",
@@ -64,6 +72,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-4",
+    number: 4,
     name: "Encerramento",
     description: "Encerra conversa tabulada com ramificações.",
     triggerType: "conversation_created",
@@ -80,6 +89,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-5",
+    number: 5,
     name: "Bem vindo – Lead de Entrada",
     description: "Webhook + atraso + ramificação para lead novo.",
     triggerType: "deal_created",
@@ -88,7 +98,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
     createdAt: daysAgo(20),
     updatedAt: daysAgo(0),
     stepCount: 27,
-    stepTypes: ["webhook", "delay", "condition"],
+    stepTypes: ["execute_distribution", "delay", "condition"],
     runs: 65,
     runsToday: 8,
     successRate: 100,
@@ -96,6 +106,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-6",
+    number: 6,
     name: "teste robin",
     description: "Fluxo de teste round-robin.",
     triggerType: "manual",
@@ -112,6 +123,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-7",
+    number: 7,
     name: "Ativação Campanha",
     description: "Ativa campanha quando o estágio muda.",
     triggerType: "stage_changed",
@@ -128,6 +140,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-8",
+    number: 8,
     name: "Saudação Agente-IA",
     description: "Saudação ao lead distribuído.",
     triggerType: "agent_changed",
@@ -144,6 +157,7 @@ const MOCK_ITEMS: AutomationListItemDto[] = [
   },
   {
     id: "auto-9",
+    number: 9,
     name: "AR Pós-Graduação – MSG",
     description: "Sequência de mídia e mensagem.",
     triggerType: "manual",
@@ -210,3 +224,105 @@ export function mockAutomationSummary(): AutomationListSummary {
 }
 
 export const MOCK_AUTOMATIONS_PAGE = mockAutomationsPage({ perPage: 200 });
+
+function isUsableAutomationId(id: string): boolean {
+  const s = id.trim();
+  return s.length > 0 && s !== "undefined" && s !== "null";
+}
+
+function defaultConfigForStep(type: string): Record<string, unknown> {
+  if (type === "execute_distribution") return { mode: "leads" };
+  if (type === "delay") return { ms: 60_000 };
+  return {};
+}
+
+function stepsFor(item: AutomationListItemDto): AutomationDetailDto["steps"] {
+  const types = item.stepTypes?.length ? item.stepTypes : ["finish"];
+  return types.map((type, i) => ({
+    id: `${item.id}-s${i + 1}`,
+    automationId: item.id,
+    type,
+    config: defaultConfigForStep(type),
+    position: i,
+  }));
+}
+
+function findMockItem(id: string): AutomationListItemDto | undefined {
+  if (!isUsableAutomationId(id)) return undefined;
+  return MOCK_ITEMS.find(
+    (a) => a.id === id || (a.number != null && String(a.number) === id),
+  );
+}
+
+export function mockAutomationDetail(id: string): AutomationDetailDto | null {
+  const item = findMockItem(id);
+  if (!item) return null;
+  return { ...item, steps: stepsFor(item) };
+}
+
+export function mockAutomationStats(): AutomationStats {
+  return { trigger: {}, steps: {} };
+}
+
+export function mockAutomationLogs(): AutomationLogsPage {
+  return { items: [], logs: [], total: 0, page: 1, perPage: 50 };
+}
+
+export function mockCreateAutomation(
+  body: AutomationWriteBody,
+): AutomationDetailDto {
+  const number =
+    MOCK_ITEMS.reduce((max, a) => Math.max(max, a.number ?? 0), 0) + 1;
+  const id = `auto-${number}`;
+  const item: AutomationListItemDto = {
+    id,
+    number,
+    name: body.name?.trim() || "Nova automação",
+    description: body.description ?? null,
+    triggerType: body.triggerType ?? "manual",
+    triggerConfig: body.triggerConfig ?? null,
+    active: body.active ?? false,
+    allowManualRun: body.allowManualRun,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    stepCount: 0,
+    stepTypes: [],
+    runs: 0,
+    runsToday: 0,
+    successRate: 0,
+    lastRunAt: null,
+  };
+  MOCK_ITEMS.unshift(item);
+  return { ...item, steps: [] };
+}
+
+export function mockReplaceAutomation(
+  id: string,
+  body: AutomationWriteBody,
+): AutomationDetailDto | null {
+  const item = findMockItem(id);
+  if (!item) return null;
+  if (typeof body.name === "string" && body.name.trim()) item.name = body.name.trim();
+  if (body.description !== undefined) item.description = body.description;
+  if (typeof body.triggerType === "string") item.triggerType = body.triggerType;
+  if (body.triggerConfig !== undefined) item.triggerConfig = body.triggerConfig;
+  if (typeof body.active === "boolean") item.active = body.active;
+  if (typeof body.allowManualRun === "boolean") item.allowManualRun = body.allowManualRun;
+  if (body.steps) {
+    item.stepCount = body.steps.length;
+    item.stepTypes = body.steps.map((s) => s.type);
+    item.updatedAt = new Date().toISOString();
+    return {
+      ...item,
+      steps: body.steps.map((s, i) => ({
+        id: s.id ?? `${item.id}-s${i + 1}`,
+        automationId: item.id,
+        type: s.type,
+        config: (s.config as Record<string, unknown> | null) ?? {},
+        position: i,
+      })),
+    };
+  }
+  item.updatedAt = new Date().toISOString();
+  return { ...item, steps: stepsFor(item) };
+}
