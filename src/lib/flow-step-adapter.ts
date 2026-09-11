@@ -297,6 +297,16 @@ const LOOKUP_PREVIEW_TYPES = new Set([
   "update_field",
 ])
 
+/* Texto que o card edita inline. O resumo de `summarizeStepConfig` corta em
+   30/40 caracteres, e como o mesmo valor volta no commit do InlineText, editar
+   o card gravaria a versão cortada por cima da mensagem real. */
+const CARD_TEXT_KEYS: Record<string, string[]> = {
+  send_whatsapp_message: ["content"],
+  question: ["message", "question"],
+  send_whatsapp_interactive: ["body"],
+  send_whatsapp_list: ["body"],
+}
+
 export function cardPreview(data: FlowNodeData, lookup?: Record<string, string>): string {
   const type = resolveStepType(data)
   if (type === "trigger" || data.kind === "trigger") return data.preview
@@ -304,6 +314,11 @@ export function cardPreview(data: FlowNodeData, lookup?: Record<string, string>)
     return summarizeStepConfig(type, data.config ?? {}, lookup)
   }
   if (data.preview.trim()) return data.preview
+  const cfg = (data.config ?? {}) as Record<string, unknown>
+  for (const key of CARD_TEXT_KEYS[type] ?? []) {
+    const raw = cfg[key]
+    if (typeof raw === "string" && raw.trim()) return raw
+  }
   return summarizeStepConfig(type, data.config ?? {}, lookup)
 }
 
