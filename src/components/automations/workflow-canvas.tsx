@@ -101,4 +101,35 @@ type RfPos = { x: number; y: number };
 
 const START_X = 200;
 const NODE_Y = 300;
+// Espelha `GAP_X` de `@/lib/automation-layout` — nós expandidos (~400px)
+// precisam de folga maior que 300 pra não cobrir o próximo step.
 const GAP_X = 480;
+
+function asFiniteNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function readRfPos(config: unknown): RfPos | null {
+  if (typeof config !== "object" || config === null) return null;
+  const c = config as Record<string, unknown>;
+  if (typeof c.__rfPos !== "object" || c.__rfPos === null) return null;
+  const p = c.__rfPos as Record<string, unknown>;
+  const x = asFiniteNumber(p.x);
+  const y = asFiniteNumber(p.y);
+  if (x == null || y == null) return null;
+  return { x, y };
+}
+
+/** Dimensões iniciais p/ fitView não pular nós ainda não medidos. */
+function withFitSize(node: Node, width: number, height: number): Node {
+  return {
+    ...node,
+    initialWidth: width,
+    initialHeight: height,
+  };
+}
