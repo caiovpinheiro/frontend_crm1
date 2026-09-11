@@ -8,7 +8,7 @@ import { IconArrowLeft as ArrowLeft, IconCalendar as Calendar, IconCircleCheck a
 import * as React from "react";
 
 import { ChannelBadge } from "@/components/inbox/channel-badge";
-import { ChatWindow } from "@/components/inbox/chat-window";
+import { ChatWindow } from "@/components/inbox/chat-window-lazy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
