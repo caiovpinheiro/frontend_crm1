@@ -1202,20 +1202,17 @@ function BusinessHoursSection({
   const bh = value.businessHours;
 
   const toggleEnabled = (enabled: boolean) => {
-    // Sem slots: fallback SAC (seg–sex 8–19, sáb 9–16).
+    // Sem slots: expediente genérico seg–sex 9–18.
     if (enabled && bh.weekdays.length === 0) {
       patch({
         businessHours: {
           ...bh,
           enabled: true,
-          weekdays: [
-            ...[1, 2, 3, 4, 5].map((day) => ({
-              day,
-              start: "08:00",
-              end: "19:00",
-            })),
-            { day: 6, start: "09:00", end: "16:00" },
-          ],
+          weekdays: [1, 2, 3, 4, 5].map((day) => ({
+            day,
+            start: "09:00",
+            end: "18:00",
+          })),
         },
       });
       return;
@@ -1395,9 +1392,8 @@ function BusinessHoursSection({
           className="resize-y text-sm"
         />
         <p className="text-[11px] text-muted-foreground">
-          Este é o texto das 8h. Sem horário ligado, o sistema ainda usa o
-          expediente SAC (seg–sex 8h–19h, sáb 9h–16h) só para saber se está
-          fechado.
+          Texto quando o time humano está fora. Sem horário ligado, o
+          sistema usa o expediente configurado no agente.
         </p>
       </div>
       <div className="grid gap-2">

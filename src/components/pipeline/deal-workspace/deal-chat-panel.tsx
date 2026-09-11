@@ -1,7 +1,7 @@
 "use client";
 
 import type { MutableRefObject } from "react";
-import { ChatWindow } from "@/components/inbox/chat-window";
+import { ChatWindow } from "@/components/inbox/chat-window-lazy";
 
 type DealChatPanelProps = {
   conversationId: string;

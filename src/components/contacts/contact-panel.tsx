@@ -9,7 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { IconArrowLeft as ArrowLeft, IconBuilding as Building2, IconCalendar as Calendar, IconCheck as Check, IconCircleCheck as CheckCircle2, IconExternalLink as ExternalLink, IconFileText as FileText, IconHeartHandshake as Handshake, IconLoader2 as Loader2, IconMail as Mail, IconMessage as MessageSquare, IconPencil as Pencil, IconPhone as Phone, IconPlus as Plus, IconStar as Star, IconTag as Tag, IconUser as User, IconCircle as Circle, IconTrash as Trash2, IconX as X } from "@tabler/icons-react";
 
 import { ChannelBadge } from "@/components/inbox/channel-badge";
-import { ChatWindow } from "@/components/inbox/chat-window";
+import { ChatWindow } from "@/components/inbox/chat-window-lazy";
 import { NewConversationButton } from "@/components/inbox/new-conversation";
 import { CustomFieldsSection } from "@/components/contacts/custom-fields-section";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";

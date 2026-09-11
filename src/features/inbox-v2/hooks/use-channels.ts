@@ -92,10 +92,9 @@ export function useChannelSession(
     queryFn: () =>
       getChannelSession(conversationId as string, channelId as string),
     enabled: enabled && !!conversationId && !!channelId,
-    // Inbound do cliente precisa reabrir a janela na hora; 30s + sem
-    // focus refetch deixava o composer "encerrada" com a bolha já no chat.
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    // SSE invalida no inbound. Cache curto evita refetch em todo foco.
+    staleTime: 20_000,
+    refetchOnWindowFocus: false,
   });
 }
 

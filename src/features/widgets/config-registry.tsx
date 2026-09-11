@@ -36,7 +36,7 @@ export interface WidgetConfigEntry {
 // Componentes carregados sob demanda — configs pesadas (Distribuição em
 // especial) não devem entrar no bundle inicial da Central.
 const DistributionConfig = dynamic(
-  () => import("@/features/legacy-v1/settings/distribution"),
+  () => import("@/features/distribution/settings-panel"),
   { ssr: false },
 );
 
@@ -51,7 +51,7 @@ const TelephonyModal = dynamic(
 export const WIDGET_CONFIG_REGISTRY: Record<string, WidgetConfigEntry> = {
   smart_distribution: {
     title: "Distribuição",
-    description: "Round-robin, priorização e regras de atribuição",
+    description: "Motor, departamentos e atribuição automática",
     icon: <DistributionIcon size={20} />,
     size: "xl",
     requiredPermission: "distribution:manage",

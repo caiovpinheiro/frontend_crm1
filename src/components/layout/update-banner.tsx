@@ -28,6 +28,7 @@ import * as React from "react";
 
 import { clearWebCachesAndReload, fetchAppRevision } from "@/lib/hard-reload";
 import { cn } from "@/lib/utils";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 const STORAGE_KEY = "crm_last_seen_version";
 const APP_VERSION = (process.env.NEXT_PUBLIC_APP_VERSION ?? "").trim();
@@ -135,6 +136,7 @@ function ReleaseCard({ release }: { release: Release }) {
 
 export function UpdateAvailableBanner() {
   const { status: sessionStatus } = useSession();
+  const visible = useDocumentVisible();
   const pollingEnabled = sessionStatus === "authenticated";
 
   const { data } = useQuery({
@@ -144,7 +146,8 @@ export function UpdateAvailableBanner() {
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
-    refetchInterval: POLL_INTERVAL_MS,
+    refetchInterval: visible ? POLL_INTERVAL_MS : false,
+    refetchIntervalInBackground: false,
   });
 
   const { data: remoteRevision } = useQuery({
@@ -154,7 +157,8 @@ export function UpdateAvailableBanner() {
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     refetchOnMount: true,
-    refetchInterval: POLL_INTERVAL_MS,
+    refetchInterval: visible ? POLL_INTERVAL_MS : false,
+    refetchIntervalInBackground: false,
   });
 
   const [lastSeen, setLastSeen] = React.useState<string | null>(null);

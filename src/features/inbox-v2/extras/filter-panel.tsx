@@ -47,14 +47,13 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { useTeamUsers } from "@/features/inbox-v2/hooks";
 import {
   findCurrentInboxConversationForContact,
-  getPipelineBoard,
   listInboxFilterChannels,
-  listPipelines,
   listTags,
   type ConversationListRow,
   type InboxFilterChannel,
   type InboxFilters,
 } from "@/features/inbox-v2/api";
+import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { normalizeInboxFilters } from "@/features/inbox-v2/api/types";
 import type { ContactListItemDto } from "@/features/directory-v2/api";
 import type { DealListItemDto } from "@/features/pipeline-v2/api/list";
@@ -740,20 +739,19 @@ export function InboxFilterButton({
     enabled: open,
     staleTime: 60_000,
   });
-  const { data: pipelines = [] } = useQuery({
-    queryKey: ["pipelines", "filter-panel"],
-    queryFn: listPipelines,
-    enabled: open,
-    staleTime: 5 * 60_000,
-  });
-  const defaultPipelineId =
-    pipelines.find((p) => p.isDefault)?.id ?? pipelines[0]?.id ?? null;
-  const { data: stages = [] } = useQuery({
-    queryKey: ["pipeline-board", "filter-panel", defaultPipelineId],
-    queryFn: () => getPipelineBoard(defaultPipelineId as string),
-    enabled: open && Boolean(defaultPipelineId),
-    staleTime: 5 * 60_000,
-  });
+  const { data: pipelines = [] } = usePipelinesQuery(open);
+  const stages = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: { id: string; name: string; color?: string | null }[] = [];
+    for (const pipeline of pipelines) {
+      for (const stage of pipeline.stages ?? []) {
+        if (seen.has(stage.id)) continue;
+        seen.add(stage.id);
+        out.push(stage);
+      }
+    }
+    return out;
+  }, [pipelines]);
   const { data: contactSources = [] } = useContactSources(open);
   const { data: myPerms } = useMyPermissions();
 

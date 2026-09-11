@@ -32,6 +32,7 @@ export function useMyAgentStatus(userId: string | null | undefined) {
     queryFn: () => getAgentStatus(userId as string),
     enabled: !!userId,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -42,6 +43,7 @@ export function useAgentCapacity(enabled = true) {
     queryFn: getAgentCapacity,
     enabled,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
     staleTime: 30_000,
   });
 }
