@@ -10,3 +10,4 @@ export * from "./components/html-email-frame";
 export * from "./components/compose-modal";
 export * from "./components/email-rich-editor";
 export * from "./components/email-rules-modal";
+export * from "./components/email-folders-modal";
