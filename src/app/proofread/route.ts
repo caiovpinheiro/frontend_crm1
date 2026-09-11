@@ -12,6 +12,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   applyLanguageToolReplacements,
+  describeLanguageToolHttpError,
   type ProofreadMatch,
   type ProofreadResult,
 } from "@/lib/language-tool";
@@ -156,7 +157,9 @@ export async function POST(request: NextRequest) {
     const errBody = await ltRes.text().catch(() => "");
     console.error(`[proofread] LanguageTool ${ltRes.status}:`, errBody.slice(0, 300));
     return NextResponse.json(
-      { error: `LanguageTool (${checkHost}) retornou HTTP ${ltRes.status}.` },
+      {
+        error: describeLanguageToolHttpError(ltRes.status, checkHost, errBody),
+      },
       { status: 502 },
     );
   }
