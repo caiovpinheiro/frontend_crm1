@@ -46,7 +46,9 @@ export function InboxConversationsPrefetch() {
 
     const schedule = () => {
       if (started.current || cancelled) return;
-      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      if (typeof window === "undefined") return;
+      // `in` no Window estreita o else para `never` (lib DOM já declara o método).
+      if (typeof window.requestIdleCallback === "function") {
         idleId = window.requestIdleCallback(run, { timeout: 2_500 });
       } else {
         timeoutId = window.setTimeout(run, 1_500);
@@ -64,7 +66,7 @@ export function InboxConversationsPrefetch() {
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
-      if (idleId && "cancelIdleCallback" in window) {
+      if (idleId && typeof window.cancelIdleCallback === "function") {
         window.cancelIdleCallback(idleId);
       }
       if (timeoutId) window.clearTimeout(timeoutId);
