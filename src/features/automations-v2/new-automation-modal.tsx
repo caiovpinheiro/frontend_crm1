@@ -30,6 +30,7 @@ import {
 } from "@/features/product-tour";
 
 import { useCreateAutomation } from "./hooks";
+import { automationEditorPath } from "./automation-adapter";
 
 const STEPS = [
   { id: 1, label: "Identificação" },
@@ -119,7 +120,7 @@ export function NewAutomationModal({
       });
       toast.success("Automação criada");
       onOpenChange(false);
-      router.push(`/automations/${created.number ?? created.id}`);
+      router.push(automationEditorPath(created.number ?? created.id));
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Erro ao criar automação",
