@@ -738,19 +738,18 @@ export function Composer({
     if (!(await confirmChannelSwitchIfNeeded())) return;
     // Aguarda o texto sair antes dos anexos — evita race (arquivo aparecer
     // antes da 1ª mensagem) e garante ordem: texto → arq1 → msg2 → arq2…
-    const outbound = trimmed ? applySignature(trimmed) : null;
-    if (outbound) {
-      const status = await proofread.gate(outbound);
+    if (trimmed) {
+      const status = await proofread.gate(trimmed);
       if (status === "block") return;
     }
-    await flushOutbound(outbound);
+    await flushOutbound(trimmed ? applySignature(trimmed) : null);
   }
 
   async function handleSendCorrection(text: string) {
     const next = text.trim();
     if (!next) return;
     proofread.close();
-    await flushOutbound(next);
+    await flushOutbound(applySignature(next));
   }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {

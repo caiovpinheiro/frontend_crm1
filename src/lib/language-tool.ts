@@ -13,6 +13,7 @@ export type ProofreadMatch = {
 
 export type ProofreadResult = {
   ok: boolean;
+  original: string;
   suggested: string;
   matches: ProofreadMatch[];
 };
