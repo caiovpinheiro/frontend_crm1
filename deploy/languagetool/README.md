@@ -53,9 +53,14 @@ Sem essa variável o frontend cai na API pública (`api.languagetool.org`), que 
 
 Isso é o proxy do EasyPanel, não o composer.
 
-1. Serviço = **App** (Docker Image / Compose), não tipo Worker
-2. Porta do serviço = **8010** (a imagem escuta só nessa)
-3. Logs do container: Java “Server started” / sem OOM
+Causa vista no DEV (`crm_dev_worker_languagetool`): o container Java
+estava **healthy na 8010**, mas o EasyPanel gravou `PORT=80` e o Traefik
+apontou `http://crm_dev_worker_languagetool:80/`. Nada escuta 80 → HTML
+`Service is not reachable`.
+
+1. No serviço, campo **Port** = **8010** (não deixe o default 80)
+2. Preferir `LANGUAGETOOL_API_URL` interno (não o HTTPS público)
+3. Logs do container: Java no ar, sem OOM
 4. Espere 1–2 min no primeiro boot
 5. Teste o domínio do **worker** (não o do CRM):
 
@@ -73,7 +78,7 @@ não adiante mudar o frontend.
 Preferível no Next (mesma rede Docker), sem passar pelo Traefik público:
 
 ```
-LANGUAGETOOL_API_URL=http://<nome-do-servico>:8010/v2/check
+LANGUAGETOOL_API_URL=http://crm-dev-worker-languagetool:8010/v2/check
 ```
 
 Depois **Restart** no `crm-dev-frontend` (sem rebuild).
