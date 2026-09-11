@@ -18,6 +18,7 @@ import { hasServerSideFilters } from "@/components/pipeline/kanban-filters/types
 import { isPreviewMode } from "@/lib/preview-mode";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { normalizeSearchQuery } from "@/lib/search-query";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 /** Página de cards por coluna no Kanban (scroll soma +10). */
 export const BOARD_PAGE_SIZE = 10;
@@ -75,6 +76,7 @@ export function useBoard(params: {
   const perStageRef = useRef(perStage);
   perStageRef.current = perStage;
   const preview = isPreviewMode();
+  const visible = useDocumentVisible();
   return useQuery<BoardStageDto[]>({
     queryKey: boardKey(params.pipelineId ?? "pl-1", status, sort),
     queryFn: () => {
@@ -95,7 +97,8 @@ export function useBoard(params: {
     // SSE (`usePipelineRealtime`) patcha lastMessage em new_message;
     // polling fica só como safety-net — evita refetch storm no remount.
     staleTime: 45_000,
-    refetchInterval: 120_000,
+    refetchInterval: visible ? 120_000 : false,
+    refetchIntervalInBackground: false,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     // [jul/26] Mantém o quadro anterior VISÍVEL enquanto refaz o fetch

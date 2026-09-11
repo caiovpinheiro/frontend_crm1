@@ -52,7 +52,8 @@ export const DISTRIBUTION_DEPT_STATS_KEY = [
 const QUEUE_POLL_MS = 20_000;
 /** Carga por consultor (`getQueueCounts`) — um pouco mais lenta que a fila. */
 const COUNTS_POLL_MS = 30_000;
-const QUEUE_SSE_DEBOUNCE_MS = 400;
+/** Trailing curto demais + inbox quente = GET de equipe/fila em rajada. */
+const QUEUE_SSE_DEBOUNCE_MS = 2_000;
 
 export function useDistributionLogs(enabled = true) {
   return useInfiniteQuery<DistributionLogsPage>({
@@ -113,9 +114,13 @@ export function useDistributionResponsibles(
 }
 
 /** Invalida Fila geral + por consultor quando o inbox muda (msg / atribuição). */
-export function useDistributionQueueRealtime(enabled = true) {
+export function useDistributionQueueRealtime(
+  enabled = true,
+  opts?: { pending?: boolean },
+) {
   const qc = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = opts?.pending === true;
 
   useEffect(() => {
     if (!enabled) return;
@@ -130,7 +135,7 @@ export function useDistributionQueueRealtime(enabled = true) {
         });
         void qc.invalidateQueries({
           queryKey: DISTRIBUTION_PENDING_KEY,
-          refetchType: "active",
+          refetchType: pending ? "active" : "none",
         });
       }, QUEUE_SSE_DEBOUNCE_MS);
     };
@@ -147,7 +152,7 @@ export function useDistributionQueueRealtime(enabled = true) {
         timerRef.current = null;
       }
     };
-  }, [enabled, qc]);
+  }, [enabled, pending, qc]);
 }
 
 export function useUpdateResponsible() {

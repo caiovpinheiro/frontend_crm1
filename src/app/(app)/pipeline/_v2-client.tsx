@@ -163,7 +163,7 @@ export default function KanbanV2ClientPage({
 }: KanbanV2ClientPageProps = {}) {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
 
   useEffect(() => {
     writePipelineViewPreference("kanban");
@@ -232,7 +232,7 @@ export default function KanbanV2ClientPage({
   const bump = useImportExportBump();
 
   const status = BOARD_STATUS;
-  const pipelinesQuery = usePipelines(isAuthenticated);
+  const pipelinesQuery = usePipelines(canFetch);
   const pipelines = pipelinesQuery.data;
   // URL `?pipeline=<number>` + LS interno; nunca CUID/slug na query.
   const { pipelineId, setPipelineId } = usePipelineUrlSync(pipelines);
@@ -291,7 +291,7 @@ export default function KanbanV2ClientPage({
     pipelineId: boardLookupId,
     status,
     sort: boardSort,
-    enabled: isAuthenticated && !hasServerBoard,
+    enabled: canFetch && !hasServerBoard,
     perStage: BOARD_PAGE_SIZE,
     offsetByStage: boardExtraByStage,
   });
@@ -300,11 +300,11 @@ export default function KanbanV2ClientPage({
     status,
     filters: mergedFilters,
     sort: boardSort,
-    enabled: isAuthenticated && hasServerBoard,
+    enabled: canFetch && hasServerBoard,
   });
   const board = hasServerBoard ? boardFiltered.data ?? [] : boardNormal.data ?? [];
 
-  usePipelineRealtime(isAuthenticated);
+  usePipelineRealtime(canFetch);
 
   const moveDeal = useMoveDeal(pipelineId, status);
 
@@ -363,7 +363,7 @@ export default function KanbanV2ClientPage({
   // Só busca /api/users quando a barra de massa precisa (modo seleção).
   // AssigneePopover/filters carregam sob demanda com a mesma query key.
   const { data: teamUsers = [] } = useTeamUsers(
-    isAuthenticated && (selectionMode || selectedIds.size > 0),
+    canFetch && (selectionMode || selectedIds.size > 0),
   );
 
   const toggleSelect = useCallback((id: string) => {
@@ -452,7 +452,7 @@ export default function KanbanV2ClientPage({
   const filterOptionsQuery = useQuery({
     queryKey: ["kanban-filter-options"],
     queryFn: fetchFilterOptions,
-    enabled: isAuthenticated && (filterPanelOpen || !isEmptyFilters(filters)),
+    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -923,7 +923,7 @@ export default function KanbanV2ClientPage({
   // spinner (query idle/`refetchOnMount: false` não tem isError).
   const pipelinesPending =
     sessionStatus === "loading" ||
-    (isAuthenticated && !boardLookupId && !pipelinesEmpty && !pipelinesQuery.isError);
+    (canFetch && !boardLookupId && !pipelinesEmpty && !pipelinesQuery.isError);
   const pipelinesStuck = useStuckTimeout(pipelinesPending);
   const waitingForPipeline = pipelinesPending && !pipelinesStuck;
 
@@ -939,10 +939,10 @@ export default function KanbanV2ClientPage({
     !boardQuery.isError;
 
   useLayoutEffect(() => {
-    if (!boardLookupId || !isAuthenticated) return;
+    if (!boardLookupId || !canFetch) return;
     if (boardIdleUnfetched) void boardQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardLookupId, isAuthenticated, boardIdleUnfetched]);
+  }, [boardLookupId, canFetch, boardIdleUnfetched]);
 
   function handleDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
@@ -1114,7 +1114,7 @@ export default function KanbanV2ClientPage({
               );
             })}
             {columns.length === 0 ? (
-              <EmptyBoard isAuthenticated={isAuthenticated} />
+              <EmptyBoard canFetch={canFetch} />
             ) : null}
           </div>
           {/* ScrollMap horizontal: só desktop — no mobile a barra inferior atrapalha. */}
@@ -2065,12 +2065,12 @@ function DroppableColumn({
   );
 }
 
-function EmptyBoard({ isAuthenticated }: { isAuthenticated: boolean }) {
+function EmptyBoard({ canFetch }: { canFetch: boolean }) {
   return (
     <div className="grid w-full place-items-center rounded-[var(--radius-xl)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg)] p-12 text-center backdrop-blur-md">
       <div>
         <h2 className="font-display text-base font-bold text-[var(--text-primary)]">
-          {isAuthenticated ? "Selecione um pipeline" : "Carregando..."}
+          {canFetch ? "Selecione um pipeline" : "Carregando..."}
         </h2>
         <p className="mt-1 max-w-sm text-[12.5px] text-[var(--text-muted)]">
           Pipeline ativo nao retornou estagios. Verifique a configuracao no painel

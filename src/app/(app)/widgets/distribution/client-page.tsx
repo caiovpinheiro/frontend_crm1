@@ -216,7 +216,7 @@ export default function DistributionClientPage({
   const pendingQuery = usePendingDistributions(queueLive, null, {
     poll: view === "queue",
   });
-  useDistributionQueueRealtime(queueLive);
+  useDistributionQueueRealtime(queueLive, { pending: view === "queue" });
   const simulateMut = useSimulateDistribution();
   const retryMut = useRetryPending();
 

@@ -132,7 +132,7 @@ function readStoredColumns(): DealListColumnKey[] {
 export default function V2PipelineListClientPage() {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
   const bump = useImportExportBump();
   const queryClient = useQueryClient();
 
@@ -180,7 +180,7 @@ export default function V2PipelineListClientPage() {
   const filterOptionsQuery = useQuery({
     queryKey: ["kanban-filter-options"],
     queryFn: fetchFilterOptions,
-    enabled: isAuthenticated && (filterPanelOpen || !isEmptyFilters(filters)),
+    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -188,7 +188,7 @@ export default function V2PipelineListClientPage() {
   const filterOptions = filterOptionsQuery.data ?? null;
   const filterOptionsLoading = filterOptionsQuery.isLoading;
 
-  const pipelinesQuery = usePipelines(isAuthenticated);
+  const pipelinesQuery = usePipelines(canFetch);
   const pipelines = pipelinesQuery.data ?? [];
   const { pipelineId, setPipelineId } = usePipelineUrlSync(
     pipelinesQuery.data,
@@ -208,13 +208,13 @@ export default function V2PipelineListClientPage() {
     page,
     perPage,
     filters: isEmptyFilters(advancedForList) ? undefined : advancedForList,
-    enabled: isAuthenticated && !!pipelineId,
+    enabled: canFetch && !!pipelineId,
   });
 
   const boardQuery = useBoard({
     pipelineId,
     status: "OPEN",
-    enabled: isAuthenticated && !!pipelineId,
+    enabled: canFetch && !!pipelineId,
   });
   const stages = (boardQuery.data ?? []).map((s) => ({
     id: s.id,
@@ -222,7 +222,7 @@ export default function V2PipelineListClientPage() {
     color: s.color ?? undefined,
     isLost: Boolean(s.isLost),
   }));
-  const { data: teamUsers = [] } = useTeamUsers(isAuthenticated && selectedIds.size > 0);
+  const { data: teamUsers = [] } = useTeamUsers(canFetch && selectedIds.size > 0);
 
   const total = dealsQuery.data?.total ?? 0;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
@@ -276,7 +276,7 @@ export default function V2PipelineListClientPage() {
     pipelinesQuery.isFetched && pipelines.length === 0;
   const pipelinesPending =
     sessionStatus === "loading" ||
-    (isAuthenticated && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
+    (canFetch && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
   const pipelinesStuck = useStuckTimeout(pipelinesPending);
   const waitingForPipeline = pipelinesPending && !pipelinesStuck;
   const dealsPending =
@@ -515,7 +515,7 @@ export default function V2PipelineListClientPage() {
         onOpenChange={setDupesOpen}
         pipelineId={pipelineId}
         status={statusFromTab(statusTab)}
-        enabled={isAuthenticated && !!pipelineId}
+        enabled={canFetch && !!pipelineId}
         onOpenDeal={openDeal}
       />
     </div>

@@ -270,12 +270,12 @@ function tagChipStyle(color: string | null | undefined, selected: boolean): CSSP
 
 export default function V2ContactsClientPage() {
   const { status } = useSession();
-  const isAuthenticated = status === "authenticated";
+  const canFetch = status !== "unauthenticated";
   const router = useRouter();
 
   // "Abrir lead": leva ao negócio do contato; se não existir, cria um
   // no funil padrão (primeiro estágio) vinculado ao contato e abre.
-  const { data: pipelines = [] } = usePipelines(isAuthenticated);
+  const { data: pipelines = [] } = usePipelines(canFetch);
   const leadPipeline = pipelines.find((p) => p.isDefault) ?? pipelines[0] ?? null;
   const leadStages = leadPipeline?.stages ?? [];
   const createLead = useCreateDeal(leadPipeline?.id ?? null);
@@ -400,9 +400,9 @@ export default function V2ContactsClientPage() {
   const stageFilter = segment === "clientes" ? "CUSTOMER" : segment === "leads" ? "LEAD" : undefined;
   const unassignedFilter = segment === "sem-resp";
 
-  const statsQuery = useContactStats(isAuthenticated);
-  const tagsQuery = useContactTags(isAuthenticated);
-  const fieldDefsQuery = useContactFieldDefs(isAuthenticated);
+  const statsQuery = useContactStats(canFetch);
+  const tagsQuery = useContactTags(canFetch);
+  const fieldDefsQuery = useContactFieldDefs(canFetch);
 
   const customColumns = useMemo(
     () => buildCustomColumns(fieldDefsQuery.data ?? []),
@@ -443,7 +443,7 @@ export default function V2ContactsClientPage() {
     updatedTo: updatedTo || undefined,
     sortBy,
     sortOrder,
-    enabled: isAuthenticated,
+    enabled: canFetch,
   });
 
   // Contador de filtros ativos do painel (tags). Período vive no calendário.
