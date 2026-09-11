@@ -1,18 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
   proofreadText,
   type ProofreadResult,
 } from "@/features/inbox-v2/api/proofread";
+import { useInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings";
 import {
   applyPilotReplacements,
   isIgnoredExcerpt,
   loadProofreadPilot,
   saveProofreadPilot,
-  type ProofreadPilotConfig,
 } from "@/features/inbox-v2/lib/proofread-pilot";
 
 export const PROOFREAD_ENABLED_KEY = "eduit:proofread:enabled";
@@ -52,60 +52,34 @@ function applyPilotToResult(
   };
 }
 
-/** Preferência do agente: corretor automático (default desligado). */
-export function useProofreadPreference() {
-  const [enabled, setEnabled] = useState(false);
-
-  useEffect(() => {
-    try {
-      setEnabled(window.localStorage.getItem(PROOFREAD_ENABLED_KEY) === "1");
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const persistEnabled = useCallback((v: boolean) => {
-    setEnabled(v);
-    try {
-      window.localStorage.setItem(PROOFREAD_ENABLED_KEY, v ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  return { enabled, persistEnabled };
-}
-
-export function useProofreadPilot() {
-  const [pilot, setPilot] = useState<ProofreadPilotConfig>({
-    replacements: [],
-    ignore: [],
-  });
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
-  useEffect(() => {
-    setPilot(loadProofreadPilot());
-  }, []);
-
-  const persistPilot = useCallback((next: ProofreadPilotConfig) => {
-    setPilot(next);
-    saveProofreadPilot(next);
-  }, []);
-
-  // cache do gate vive no hook pai — limpo ao salvar regras
-
-  return { pilot, persistPilot, settingsOpen, setSettingsOpen };
+function mergeIgnore(org: string[], local: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of [...org, ...local]) {
+    const n = token.trim().toLowerCase();
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    out.push(n);
+  }
+  return out;
 }
 
 /**
- * Gate de envio: se o toggle estiver ligado, chama o LanguageTool.
- * Fail-open quando o serviço falha (toast + deixa enviar).
- * Prefetch no debounce do composer evita esperar o Java no clique de enviar.
+ * Gate de envio: toggle e regras vêm de /settings/conversations (org).
+ * Ignore extra no chip do modal fica só neste navegador.
  */
 export function useProofreadSendGate() {
-  const { enabled, persistEnabled } = useProofreadPreference();
-  const { pilot, persistPilot, settingsOpen, setSettingsOpen } =
-    useProofreadPilot();
+  const { settings } = useInboxSettings();
+  const enabled = settings.proofreadEnabled;
+  const localPilot = loadProofreadPilot();
+  const replacements = settings.proofreadReplacementsSaved
+    ? settings.proofreadReplacements
+    : localPilot.replacements;
+  const ignore = mergeIgnore(
+    settings.proofreadIgnoreSaved ? settings.proofreadIgnore : [],
+    localPilot.ignore,
+  );
+
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ProofreadResult | null>(null);
   const [checking, setChecking] = useState(false);
@@ -113,20 +87,18 @@ export function useProofreadSendGate() {
     new Map<string, { result: ProofreadResult; at: number }>(),
   );
   const inflightRef = useRef(new Map<string, Promise<ProofreadResult>>());
-  const rawByPreparedRef = useRef(new Map<string, string>());
 
   const load = useCallback(
     async (raw: string): Promise<ProofreadResult> => {
-      const prepared = applyPilotReplacements(raw, pilot.replacements);
-      rawByPreparedRef.current.set(prepared, raw);
+      const prepared = applyPilotReplacements(raw, replacements);
       const hit = cacheRef.current.get(prepared);
       if (hit && Date.now() - hit.at < CLIENT_CACHE_TTL_MS) {
-        return applyPilotToResult(raw, prepared, hit.result, pilot.ignore);
+        return applyPilotToResult(raw, prepared, hit.result, ignore);
       }
       const pending = inflightRef.current.get(prepared);
       if (pending) {
         const next = await pending;
-        return applyPilotToResult(raw, prepared, next, pilot.ignore);
+        return applyPilotToResult(raw, prepared, next, ignore);
       }
       const promise = proofreadText(prepared)
         .then((next) => {
@@ -143,9 +115,9 @@ export function useProofreadSendGate() {
         });
       inflightRef.current.set(prepared, promise);
       const next = await promise;
-      return applyPilotToResult(raw, prepared, next, pilot.ignore);
+      return applyPilotToResult(raw, prepared, next, ignore);
     },
-    [pilot.ignore, pilot.replacements],
+    [ignore, replacements],
   );
 
   const prefetch = useCallback(
@@ -162,22 +134,15 @@ export function useProofreadSendGate() {
     setResult(null);
   }, []);
 
-  const persistPilotAndClear = useCallback(
-    (next: ProofreadPilotConfig) => {
-      persistPilot(next);
-      cacheRef.current.clear();
-    },
-    [persistPilot],
-  );
-
   const ignoreExcerpt = useCallback(
     (excerpt: string) => {
       const token = excerpt.trim().toLowerCase();
       if (!token) return;
-      const nextIgnore = pilot.ignore.includes(token)
-        ? pilot.ignore
-        : [...pilot.ignore, token];
-      persistPilotAndClear({ ...pilot, ignore: nextIgnore });
+      const current = loadProofreadPilot();
+      const nextIgnore = current.ignore.includes(token)
+        ? current.ignore
+        : [...current.ignore, token];
+      saveProofreadPilot({ ...current, ignore: nextIgnore });
       cacheRef.current.clear();
       setResult((prev) => {
         if (!prev) return prev;
@@ -189,17 +154,17 @@ export function useProofreadSendGate() {
         return { ...prev, matches, ok: matches.length === 0 };
       });
     },
-    [persistPilotAndClear, pilot],
+    [],
   );
 
   const gate = useCallback(
     async (text: string): Promise<ProofreadGateResult> => {
       if (!enabled || !text.trim()) return { status: "ok", text };
-      const prepared = applyPilotReplacements(text, pilot.replacements);
+      const prepared = applyPilotReplacements(text, replacements);
       const cached = cacheRef.current.get(prepared);
       const fresh =
         cached && Date.now() - cached.at < CLIENT_CACHE_TTL_MS
-          ? applyPilotToResult(text, prepared, cached.result, pilot.ignore)
+          ? applyPilotToResult(text, prepared, cached.result, ignore)
           : null;
       if (!fresh) setChecking(true);
       try {
@@ -222,13 +187,12 @@ export function useProofreadSendGate() {
         setChecking(false);
       }
     },
-    [enabled, load, pilot.ignore, pilot.replacements],
+    [enabled, ignore, load, replacements],
   );
 
   return useMemo(
     () => ({
       enabled,
-      persistEnabled,
       open,
       setOpen,
       result,
@@ -237,24 +201,7 @@ export function useProofreadSendGate() {
       prefetch,
       close,
       ignoreExcerpt,
-      pilot,
-      persistPilot: persistPilotAndClear,
-      settingsOpen,
-      setSettingsOpen,
     }),
-    [
-      enabled,
-      persistEnabled,
-      open,
-      result,
-      checking,
-      gate,
-      prefetch,
-      close,
-      ignoreExcerpt,
-      pilot,
-      persistPilotAndClear,
-      settingsOpen,
-    ],
+    [enabled, open, result, checking, gate, prefetch, close, ignoreExcerpt],
   );
 }

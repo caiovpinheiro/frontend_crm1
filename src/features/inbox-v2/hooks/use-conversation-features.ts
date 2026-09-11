@@ -17,10 +17,12 @@ import {
  * Valores default (quando a chave não existe no banco):
  *  - agentSignatureEnabled: true  — agentes podem usar assinatura
  *  - agentSignatureEditable: true — agentes podem editar o texto da assinatura
+ *  - proofreadEnabled: false — corretor no envio (admin em /settings/conversations)
  */
 export interface ConversationFeatures {
   agentSignatureEnabled: boolean;
   agentSignatureEditable: boolean;
+  proofreadEnabled: boolean;
 }
 
 // P1-2: mesma query key do `useInboxSettings` (mesmo endpoint) — este
@@ -31,6 +33,7 @@ function selectConversationFeatures(s: InboxSettings): ConversationFeatures {
   return {
     agentSignatureEnabled: s.agentSignatureEnabled,
     agentSignatureEditable: s.agentSignatureEditable,
+    proofreadEnabled: s.proofreadEnabled,
   };
 }
 
@@ -44,7 +47,11 @@ export function useConversationFeatures() {
   });
 
   return {
-    features: data ?? { agentSignatureEnabled: true, agentSignatureEditable: true },
+    features: data ?? {
+      agentSignatureEnabled: true,
+      agentSignatureEditable: true,
+      proofreadEnabled: false,
+    },
     ...rest,
   };
 }
