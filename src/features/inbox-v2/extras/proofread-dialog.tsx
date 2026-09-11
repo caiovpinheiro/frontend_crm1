@@ -13,7 +13,18 @@ import {
   formLabelClass,
 } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
-import type { ProofreadResult } from "@/features/inbox-v2/api/proofread";
+import type { ProofreadMatch, ProofreadResult } from "@/features/inbox-v2/api/proofread";
+
+function matchExcerpt(original: string, match: ProofreadMatch): string {
+  if (
+    match.offset < 0 ||
+    match.length <= 0 ||
+    match.offset + match.length > original.length
+  ) {
+    return "";
+  }
+  return original.slice(match.offset, match.offset + match.length);
+}
 
 export function ProofreadDialog({
   open,
@@ -35,6 +46,7 @@ export function ProofreadDialog({
   }, [open, result]);
 
   const matches = result?.matches ?? [];
+  const original = result?.original ?? "";
 
   return (
     <FormDialog
@@ -75,23 +87,46 @@ export function ProofreadDialog({
         <div>
           <span className={formLabelClass}>Erros encontrados</span>
           <ul className="flex flex-col gap-1.5">
-            {matches.slice(0, 8).map((m, i) => (
-              <li
-                key={`${m.offset}-${m.length}-${i}`}
-                className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
-              >
-                <p>{m.shortMessage || m.message}</p>
-                {m.shortMessage && m.message !== m.shortMessage ? (
-                  <p className="mt-0.5 text-xs text-muted-foreground">{m.message}</p>
-                ) : null}
-              </li>
-            ))}
+            {matches.slice(0, 8).map((m, i) => {
+              const excerpt = matchExcerpt(original, m);
+              const fix = m.replacements[0];
+              return (
+                <li
+                  key={`${m.offset}-${m.length}-${i}`}
+                  className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
+                >
+                  <p className="font-medium">{m.shortMessage || m.message}</p>
+                  {excerpt ? (
+                    <p className="mt-0.5 text-sm">
+                      <span className="text-muted-foreground line-through">{excerpt}</span>
+                      {fix ? (
+                        <>
+                          <span className="text-muted-foreground"> → </span>
+                          <span className="font-medium text-foreground">{fix}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground"> · sem sugestão</span>
+                      )}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
             {matches.length > 8 ? (
               <li className="text-xs text-muted-foreground">
                 +{matches.length - 8} outros
               </li>
             ) : null}
           </ul>
+        </div>
+      ) : null}
+
+      {original && original !== (result?.suggested ?? "") ? (
+        <div>
+          <span className={formLabelClass}>Texto original</span>
+          <p className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-muted-foreground">
+            {original}
+          </p>
         </div>
       ) : null}
 

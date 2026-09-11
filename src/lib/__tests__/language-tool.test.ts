@@ -28,4 +28,14 @@ describe("applyLanguageToolReplacements", () => {
       ]),
     ).toBe("ola");
   });
+
+  it("aplica maiúscula e ortografia no mesmo texto", () => {
+    const text = "esta e uma menssagem sem nenhum assento";
+    expect(
+      applyLanguageToolReplacements(text, [
+        { offset: 0, length: 4, replacements: ["Esta"] },
+        { offset: 11, length: 9, replacements: ["mensagem"] },
+      ]),
+    ).toBe("Esta e uma mensagem sem nenhum assento");
+  });
 });

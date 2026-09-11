@@ -85,13 +85,19 @@ export async function POST(request: NextRequest) {
   const language = LANGUAGE_RE.test(languageRaw) ? languageRaw : "pt-BR";
 
   if (text.length > MAX_TEXT_LENGTH) {
-    const passthrough: ProofreadResult = { ok: true, suggested: text, matches: [] };
+    const passthrough: ProofreadResult = {
+      ok: true,
+      original: text,
+      suggested: text,
+      matches: [],
+    };
     return NextResponse.json(passthrough);
   }
 
   const params = new URLSearchParams();
   params.set("text", text);
   params.set("language", language);
+  params.set("level", "picky");
   const apiKey = (process.env.LANGUAGETOOL_API_KEY ?? "").trim();
   const username = (process.env.LANGUAGETOOL_USERNAME ?? "").trim();
   if (apiKey) params.set("apiKey", apiKey);
@@ -131,6 +137,7 @@ export async function POST(request: NextRequest) {
   const suggested = applyLanguageToolReplacements(text, matches);
   const result: ProofreadResult = {
     ok: matches.length === 0,
+    original: text,
     suggested,
     matches,
   };
