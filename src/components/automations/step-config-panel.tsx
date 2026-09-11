@@ -3460,9 +3460,10 @@ function TransferToAIAgentStepConfig({
           {selected?.archetype === "TABULACAO" ? (
             <>
               Este agente é um <b>classificador</b>: lê as mensagens,
-              entende a dúvida ou o problema e aplica a folha mais
-              próxima em toda a árvore da organização (qualquer
-              departamento). <b>Não envia WhatsApp</b> e não encerra.
+              entende a dúvida e aplica <b>uma</b> folha. Prefere o
+              departamento da conversa; só usa outra árvore se a
+              demanda das mensagens for claramente de outro assunto.{" "}
+              <b>Não envia WhatsApp</b> e não encerra.
             </>
           ) : selected?.archetype === "ENCERRAMENTO" ? (
             <>

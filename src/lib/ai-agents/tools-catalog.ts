@@ -112,7 +112,7 @@ export const TOOLS_CATALOG: ToolDescriptor[] = [
     id: "list_tabulations",
     label: "Listar tabulações",
     description:
-      "Lista todas as folhas ativas da organização (todos os departamentos). O classificador escolhe a mais próxima da dúvida do contato.",
+      "Lista as folhas ativas da organização. O classificador escolhe UMA — de preferência do departamento da conversa.",
     category: "crm",
     defaultForArchetypes: ["TABULACAO"],
   },
@@ -120,7 +120,7 @@ export const TOOLS_CATALOG: ToolDescriptor[] = [
     id: "tabulate_conversation",
     label: "Tabular conversa",
     description:
-      "Aplica uma folha da árvore de tabulação à conversa (motivo da demanda). Não encerra e não envia mensagem ao cliente.",
+      "Aplica UMA folha (motivo da demanda). Chame uma única vez. Não empilha motivos. Não encerra e não envia mensagem ao cliente.",
     category: "handoff",
     defaultForArchetypes: ["TABULACAO"],
   },
