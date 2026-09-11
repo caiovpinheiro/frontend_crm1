@@ -1,0 +1,36 @@
+name: restore-truncated-dev-files
+
+on:
+  push:
+    branches: [DEV_BRANCH]
+    paths:
+      - ".github/workflows/restore-truncated-dev-files.yml"
+      - "scripts/restore-truncated-dev-files.py"
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: DEV_BRANCH
+          fetch-depth: 0
+
+      - name: Restore canvas and preview mocks
+        run: |
+          set -euo pipefail
+          git checkout 07805e768654495aaaf7571057913844b264b693 -- src/components/automations/workflow-canvas.tsx
+          python3 scripts/restore-truncated-dev-files.py
+          echo "canvas $(git hash-object src/components/automations/workflow-canvas.tsx)"
+          echo "preview $(git hash-object src/lib/preview-mocks.ts)"
+          test "$(git hash-object src/components/automations/workflow-canvas.tsx)" = "29adb55859e7fa1992a024f57215cfb0c95efcd1"
+          test "$(git hash-object src/lib/preview-mocks.ts)" = "8a814f5149fb68f75dcf6aca5546c749ce22850b"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/automations/workflow-canvas.tsx src/lib/preview-mocks.ts
+          git rm -f .github/workflows/restore-truncated-dev-files.yml scripts/restore-truncated-dev-files.py
+          git commit -m "fix(automacoes): restore canvas e preview mocks na DEV"
+          git push origin HEAD:DEV_BRANCH
