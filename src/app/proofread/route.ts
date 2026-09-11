@@ -94,31 +94,60 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(passthrough);
   }
 
+  const checkUrl = languageToolCheckUrl();
+  let checkHost = "languagetool";
+  try {
+    checkHost = new URL(checkUrl).hostname;
+  } catch {
+    /* URL inválida — cai no fetch e vira 504 */
+  }
+  if (checkHost === "localhost" || checkHost === "127.0.0.1") {
+    return NextResponse.json(
+      {
+        error:
+          "LANGUAGETOOL_API_URL aponta para localhost (o Next, não o worker). Use http://languagetool:8010/v2/check ou o domínio HTTPS do serviço.",
+      },
+      { status: 503 },
+    );
+  }
+
   const params = new URLSearchParams();
   params.set("text", text);
   params.set("language", language);
-  params.set("level", "picky");
   const apiKey = (process.env.LANGUAGETOOL_API_KEY ?? "").trim();
   const username = (process.env.LANGUAGETOOL_USERNAME ?? "").trim();
   if (apiKey) params.set("apiKey", apiKey);
   if (username) params.set("username", username);
 
-  let ltRes: Response;
-  try {
-    ltRes = await fetch(languageToolCheckUrl(), {
+  async function callLanguageTool(extra?: Record<string, string>) {
+    const body = new URLSearchParams(params);
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) body.set(k, v);
+    }
+    return fetch(checkUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
         "User-Agent": "Bwipo-CRM-Proofread/1.0",
       },
-      body: params.toString(),
-      signal: AbortSignal.timeout(15_000),
+      body: body.toString(),
+      signal: AbortSignal.timeout(45_000),
     });
+  }
+
+  let ltRes: Response;
+  try {
+    ltRes = await callLanguageTool({ level: "picky" });
+    if (ltRes.status === 400 || ltRes.status === 422) {
+      ltRes = await callLanguageTool();
+    }
   } catch (err) {
-    console.error("[proofread] LanguageTool fetch error:", err);
+    console.error("[proofread] LanguageTool fetch error:", checkHost, err);
     return NextResponse.json(
-      { error: "Timeout ou falha de rede ao conectar com o LanguageTool." },
+      {
+        error: `Não alcançou o worker LanguageTool (${checkHost}). Confira se o serviço está no ar e na mesma rede do frontend.`,
+      },
       { status: 504 },
     );
   }
@@ -127,7 +156,7 @@ export async function POST(request: NextRequest) {
     const errBody = await ltRes.text().catch(() => "");
     console.error(`[proofread] LanguageTool ${ltRes.status}:`, errBody.slice(0, 300));
     return NextResponse.json(
-      { error: `LanguageTool retornou erro ${ltRes.status}.` },
+      { error: `LanguageTool (${checkHost}) retornou HTTP ${ltRes.status}.` },
       { status: 502 },
     );
   }
