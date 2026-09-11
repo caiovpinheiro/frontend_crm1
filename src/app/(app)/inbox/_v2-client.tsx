@@ -38,7 +38,6 @@ import { TagChip } from "@/components/crm/tag-chip";
 import dynamic from "next/dynamic";
 import { NavRail } from "@/components/crm/nav-rail";
 import { ConversationColumn } from "@/components/crm/conversation-column";
-import { ChatArea } from "@/components/crm/chat-area";
 import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
 import { UserAvatar } from "@/components/crm/user-avatar";
@@ -63,6 +62,18 @@ const FieldConfigPanel = dynamic(
       default: m.FieldConfigPanel,
     })),
   { ssr: false },
+);
+const ChatArea = dynamic(
+  () =>
+    import("@/components/crm/chat-area").then((m) => ({
+      default: m.ChatArea,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full min-h-0 flex-1 bg-[var(--glass-bg-base)]" />
+    ),
+  },
 );
 import { PageHeader } from "@/components/crm/page-header";
 import { InboxPeriodCalendar } from "@/features/inbox-v2/extras/inbox-period-calendar";
@@ -284,6 +295,8 @@ export default function InboxV2ClientPage({
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const isAuthenticated = sessionStatus === "authenticated";
+  // Cookie do tenant já autentica o GET. Não espera o NextAuth hidratar.
+  const canFetchInbox = sessionStatus !== "unauthenticated";
   const isDesktop = useIsDesktop();
   const { data: myPermissions } = useMyPermissions();
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
@@ -498,11 +511,10 @@ export default function InboxV2ClientPage({
     tab,
     filters: serverFilters,
     search: "",
-    // Só busca depois da sessão + prefs (tab/filtros do localStorage).
-    // Sem isso: (1) query disabled → isLoading=false → empty flash;
-    // (2) fetch com tab default "esperando" antes de hidratar a aba salva.
+    // Prefs (URL/localStorage) travam o fetch da aba errada. Sessão
+    // NextAuth "loading" não — o cookie já vale no GET.
     // Sem filas selecionadas → empty state (não busca).
-    enabled: isAuthenticated && tabHydrated && filtersHydrated && tab.length > 0,
+    enabled: canFetchInbox && tabHydrated && filtersHydrated && tab.length > 0,
   });
   const handleLoadMore = useCallback(() => {
     if (!hasNextPage || isFetchingNextPage || isPlaceholderData) return;
@@ -514,10 +526,10 @@ export default function InboxV2ClientPage({
   // NÃO usar só isLoading: no RQ v5 há frame com enabled=true,
   // isPending + fetchStatus=idle → isLoading=false + data=undefined → empty flash.
   const listBootstrapping =
-    sessionStatus === "loading" ||
+    sessionStatus === "unauthenticated" ||
     !tabHydrated ||
     !filtersHydrated ||
-    (isAuthenticated &&
+    (canFetchInbox &&
       tab.length > 0 &&
       !listData &&
       !isListError);
@@ -566,7 +578,7 @@ export default function InboxV2ClientPage({
   }, [rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
 
   const { data: tabCounts } = useTabCounts(
-    isAuthenticated && tabHydrated && filtersHydrated,
+    canFetchInbox && tabHydrated && filtersHydrated,
     serverFilters,
   );
 
@@ -718,7 +730,7 @@ export default function InboxV2ClientPage({
   useInboxRealtime({
     activeConversationId: conversationApiId,
     currentUserId: session?.user?.id ?? null,
-    enabled: isAuthenticated && tabHydrated && filtersHydrated,
+    enabled: canFetchInbox && tabHydrated && filtersHydrated,
   });
 
   /**
@@ -1035,7 +1047,7 @@ export default function InboxV2ClientPage({
   const [inboxRefreshing, setInboxRefreshing] = useState(false);
   const prevTabKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isAuthenticated || !tabHydrated || !filtersHydrated) return;
+    if (!canFetchInbox || !tabHydrated || !filtersHydrated) return;
     const key = tab.join(",");
     if (prevTabKeyRef.current === null) {
       prevTabKeyRef.current = key;
@@ -1044,7 +1056,7 @@ export default function InboxV2ClientPage({
     if (prevTabKeyRef.current === key) return;
     prevTabKeyRef.current = key;
     void qc.refetchQueries({ queryKey: ["conversations", "tab-counts"] });
-  }, [tab, isAuthenticated, tabHydrated, filtersHydrated, qc]);
+  }, [tab, canFetchInbox, tabHydrated, filtersHydrated, qc]);
   const refreshInboxQueue = async () => {
     if (inboxRefreshing) return;
     setInboxRefreshing(true);
@@ -1121,7 +1133,7 @@ export default function InboxV2ClientPage({
   // Seletor de canal: lista de WhatsApps CONNECTED da org + estado
   // persistido por conversa. Quando a org tem 1 só canal, o widget não
   // aparece e o backend usa o canal "atual" da conversa (legacy).
-  const { data: whatsappChannels } = useWhatsappChannels(isAuthenticated);
+  const { data: whatsappChannels } = useWhatsappChannels(canFetchInbox);
   const conversationChannelId = messagesData?.channel?.id ?? null;
   const lastMessageChannelId = useMemo(
     () => findLastPublicMessageChannelId(messagesData?.messages),

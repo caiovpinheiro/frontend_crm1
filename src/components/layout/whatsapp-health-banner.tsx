@@ -21,6 +21,7 @@ import { useSession } from "next-auth/react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import type { WhatsAppHealthStatus } from "@/services/whatsapp-health";
 
@@ -76,6 +77,7 @@ function setDismissed(raw: WhatsAppHealthStatus | null | undefined): void {
 export function WhatsAppHealthBanner() {
   const { data: session, status: sessionStatus } = useSession();
   const qc = useQueryClient();
+  const visible = useDocumentVisible();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const canForce = role === "ADMIN" || role === "MANAGER";
 
@@ -83,7 +85,8 @@ export function WhatsAppHealthBanner() {
     queryKey: ["whatsapp-health"],
     queryFn: () => fetchHealth(false),
     enabled: sessionStatus === "authenticated",
-    refetchInterval: 2 * 60 * 1_000,
+    refetchInterval: visible ? 2 * 60 * 1_000 : false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     staleTime: 30_000,
   });
