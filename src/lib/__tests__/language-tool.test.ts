@@ -38,4 +38,36 @@ describe("applyLanguageToolReplacements", () => {
       ]),
     ).toBe("Esta e uma mensagem sem nenhum assento");
   });
+
+  it("aplica pontuação (interjeição e ponto final)", () => {
+    const text =
+      "Oi Marcelo, tudo bem Entao vou tentar de ajudar por aqui, tem um geito melhor de fazer isso";
+    expect(
+      applyLanguageToolReplacements(text, [
+        { offset: 0, length: 2, replacements: ["Oi,", "Oi!"] },
+        { offset: 65, length: 5, replacements: ["jeito"] },
+        { offset: 87, length: 4, replacements: ["isso.", "isso?"] },
+      ]),
+    ).toBe(
+      "Oi, Marcelo, tudo bem Entao vou tentar de ajudar por aqui, tem um jeito melhor de fazer isso.",
+    );
+  });
+
+  it("não deixa um no-op no mesmo span tapar o ponto final", () => {
+    const text = "fazer isso";
+    expect(
+      applyLanguageToolReplacements(text, [
+        { offset: 6, length: 4, replacements: ["isso"] },
+        { offset: 6, length: 4, replacements: ["isso.", "isso?"] },
+      ]),
+    ).toBe("fazer isso.");
+  });
+
+  it("aplica inserção com length 0", () => {
+    expect(
+      applyLanguageToolReplacements("ola", [
+        { offset: 3, length: 0, replacements: ["."] },
+      ]),
+    ).toBe("ola.");
+  });
 });
