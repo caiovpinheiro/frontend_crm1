@@ -6,6 +6,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSSE } from "@/hooks/use-sse";
 import { useIsMobile } from "@/hooks/use-media-query";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useUserRole } from "@/hooks/use-user-role";
 import { IconAlertCircle as AlertCircle, IconAlertTriangle as AlertTriangle, IconArrowRight as ArrowRight, IconRobot as Bot, IconChecks as CheckCheck, IconCircleCheck as CheckCircle2, IconSquareCheck as CheckSquare, IconChevronDown as ChevronDown, IconChevronUp as ChevronUp, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconLock as Lock, IconSpeakerphone as Megaphone, IconDots as MoreHorizontal, IconPaperclip as Paperclip, IconPlayerPause as Pause, IconPencil as Pencil, IconPhone as Phone, IconPhoneIncoming as PhoneIncoming, IconPhoneOff as PhoneOff, IconPhoneOutgoing as PhoneOutgoing, IconPin as Pin, IconPlayerPlay as Play, IconPlus as Plus, IconArrowBackUp as Reply, IconRotate2 as RotateCcw, IconDeviceFloppy as Save, IconSearch as Search, IconSend as Send, IconShare2 as Share2, IconShieldCheck as ShieldCheck, IconMoodSmile as Smile, IconDeviceMobile as Smartphone, IconUpload as Upload, IconVolume as Volume2, IconTool as Wrench, IconX as X } from "@tabler/icons-react";
 import { AIDraftCard } from "@/components/inbox/ai-draft-card";
@@ -644,6 +645,7 @@ export function ChatWindow({
   // refetch ao alternar entre inbox e painel do negócio, e faz as
   // invalidações de um lado valerem no outro.
   const messagesKey = inboxMessagesKey(conversationId);
+  const visible = useDocumentVisible();
 
   const rowMax = compactChrome
     ? "mx-auto w-full max-w-full"
@@ -661,7 +663,8 @@ export function ChatWindow({
     enabled: !!conversationId,
     staleTime: 20_000,
     gcTime: 5 * 60_000,
-    refetchInterval: conversationId ? 45_000 : false,
+    refetchInterval: conversationId && visible ? 45_000 : false,
+    refetchIntervalInBackground: false,
   });
   const messages = messagesData?.messages ?? [];
   const stickyDayLabel = useStickyDayLabel(
@@ -817,7 +820,8 @@ export function ChatWindow({
     },
     enabled: !!conversationId,
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
+    refetchIntervalInBackground: false,
   });
   const pendingScheduled = pendingScheduledData?.items ?? [];
 
