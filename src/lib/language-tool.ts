@@ -9,7 +9,57 @@ export type ProofreadMatch = {
   offset: number;
   length: number;
   replacements: string[];
+  ruleId?: string;
+  categoryId?: string;
+  issueType?: string;
 };
+
+/** Estilo formal do LT (pra→para) não serve no WhatsApp. */
+const DROP_CATEGORIES = new Set([
+  "FORMAL",
+  "STYLE",
+  "TYPOGRAPHY",
+  "REDUNDANCY",
+]);
+const DROP_ISSUE_TYPES = new Set(["style"]);
+/** Abreviações comuns de chat: o primeiro replacement do LT piora (vc→Vc.). */
+const INFORMAL_KEEP = new Set([
+  "vc",
+  "vcs",
+  "pq",
+  "tb",
+  "tbm",
+  "blz",
+  "msg",
+  "td",
+  "nd",
+  "hj",
+]);
+
+/** Mantém ortografia/gramática; descarta formalidade e gíria de chat. */
+export function isWhatsappUsefulMatch(
+  match: Pick<
+    ProofreadMatch,
+    "ruleId" | "categoryId" | "issueType" | "offset" | "length"
+  >,
+  original: string,
+): boolean {
+  if (match.issueType && DROP_ISSUE_TYPES.has(match.issueType.toLowerCase())) {
+    return false;
+  }
+  if (match.categoryId && DROP_CATEGORIES.has(match.categoryId.toUpperCase())) {
+    return false;
+  }
+  if (match.ruleId?.toUpperCase().startsWith("FORMAL_")) return false;
+  if (match.length > 0 && match.offset >= 0) {
+    const excerpt = original
+      .slice(match.offset, match.offset + match.length)
+      .trim()
+      .toLowerCase();
+    if (INFORMAL_KEEP.has(excerpt)) return false;
+  }
+  return true;
+}
 
 export type ProofreadResult = {
   ok: boolean;
