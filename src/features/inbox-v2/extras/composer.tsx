@@ -282,6 +282,14 @@ export function Composer({
     draftRef.current = value;
   }, [value]);
 
+  useEffect(() => {
+    if (!proofread.enabled || noteMode) return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const timer = window.setTimeout(() => proofread.prefetch(trimmed), 400);
+    return () => window.clearTimeout(timer);
+  }, [value, noteMode, proofread.enabled, proofread.prefetch]);
+
   // 29/jul/26 — trava local da sequência multi-anexo: `sending` do pai só
   // cobre a mutation, não o upload longo — sem isso o Enter reenvia o texto.
   const [sequenceSending, setSequenceSending] = useState(false);

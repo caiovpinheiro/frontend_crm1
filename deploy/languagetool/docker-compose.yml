@@ -18,7 +18,9 @@ services:
       - "8010:8010"
     environment:
       Java_Xms: 512m
-      Java_Xmx: 1g
+      Java_Xmx: 2g
+      langtool_pipelinePrewarming: "true"
+      langtool_cacheSize: "1000"
     healthcheck:
       test:
         [
