@@ -127,7 +127,7 @@ export const PAGE_HEADER_SEARCH_SLOT_CLASS =
 
 interface PageHeaderProps {
   icon: React.ReactNode
-  title: string
+  title: React.ReactNode
   /** @deprecated Ignorado — NavRail não exibe mais descrição sob o título. */
   description?: string
   /** Voltar à lista pai — botão quadrado ghost à esquerda do ícone. */
@@ -153,7 +153,7 @@ function Identity({
   titleAccessory,
 }: {
   icon: React.ReactNode
-  title: string
+  title: React.ReactNode
   back?: PageHeaderBack
   titleAccessory?: React.ReactNode
 }) {
@@ -175,9 +175,13 @@ function Identity({
       </span>
 
       <div className="flex min-w-0 items-center gap-2">
-        <h1 className="truncate font-display text-[22px] font-bold leading-tight tracking-tight text-[var(--text-primary)]">
+        <div
+          role="heading"
+          aria-level={1}
+          className="truncate font-display text-[22px] font-bold leading-tight tracking-tight text-[var(--text-primary)]"
+        >
           {title}
-        </h1>
+        </div>
         {titleAccessory ? <div className="flex shrink-0 items-center">{titleAccessory}</div> : null}
       </div>
     </div>

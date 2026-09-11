@@ -12,6 +12,7 @@ import {
   IconDeviceMobile,
   IconPlayerPlay,
   IconPlayerPause,
+  IconPencil,
   IconSitemap,
 } from "@tabler/icons-react"
 import { AppLoading } from "@/components/crm/app-loading"
@@ -62,6 +63,7 @@ import {
   useAutomationStats,
   useReplaceAutomation,
   useToggleAutomation,
+  useUpdateAutomation,
 } from "@/features/automations-v2/hooks"
 import type { ActionStepType } from "@/lib/automation-workflow"
 import { layoutFlow, type LayoutDirection } from "@/lib/layout"
@@ -126,6 +128,10 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const [simOpen, setSimOpen] = useState(false)
   const [connectStroke, setConnectStroke] = useState("var(--route-navigation)")
   const [dirty, setDirty] = useState(false)
+  const [name, setName] = useState("")
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState("")
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const readyRef = useRef(false)
   /**
    * Última versão conhecida do registro persistido. É a base do save: tudo o
@@ -149,6 +155,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const stats = useAutomationStats(automationId)
   const replaceAutomation = useReplaceAutomation()
   const toggleAutomation = useToggleAutomation()
+  const updateAutomation = useUpdateAutomation()
   const detail = automation.data
   const active = detail?.active ?? false
 
@@ -184,6 +191,8 @@ function InnerEditor({ automationId }: { automationId: string }) {
       steps: detail.steps.map((s) => ({ id: s.id, type: s.type, config: s.config })),
     }
     sourceRef.current = source
+    setName(detail.name)
+    setEditingName(false)
 
     const dir = getInitialDirection()
     setDirection(dir)
@@ -595,7 +604,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
     const { steps, triggerConfig, triggerType } = flowGraphToAutomation(nodes, edges, source)
     const payload = {
       id: detail.id,
-      name: detail.name,
+      name,
       description: detail.description,
       triggerType,
       triggerConfig,
@@ -607,10 +616,42 @@ function InnerEditor({ automationId }: { automationId: string }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${(detail.name || "automacao").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-fluxo.json`
+    a.download = `${(name || detail.name || "automacao").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-fluxo.json`
     a.click()
     URL.revokeObjectURL(url)
-  }, [nodes, edges, detail])
+  }, [nodes, edges, detail, name])
+
+
+  useEffect(() => {
+    if (!editingName) return
+    const el = nameInputRef.current
+    if (!el) return
+    el.focus()
+    el.select()
+  }, [editingName])
+
+  const beginRename = useCallback(() => {
+    setNameDraft(name)
+    setEditingName(true)
+  }, [name])
+
+  const commitName = useCallback(async () => {
+    const next = nameDraft.trim()
+    setEditingName(false)
+    if (!detail) return
+    if (!next || next === name) return
+    const prev = name
+    setName(next)
+    if (sourceRef.current) sourceRef.current = { ...sourceRef.current, name: next }
+    try {
+      await updateAutomation.mutateAsync({ id: detail.id, body: { name: next } })
+      toast.success("Nome atualizado")
+    } catch (e) {
+      setName(prev)
+      if (sourceRef.current) sourceRef.current = { ...sourceRef.current, name: prev }
+      toast.error(e instanceof Error ? e.message : "Não foi possível renomear")
+    }
+  }, [detail, name, nameDraft, updateAutomation])
 
   const saveFlow = useCallback(async () => {
     const source = sourceRef.current
@@ -620,7 +661,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
       await replaceAutomation.mutateAsync({
         id: source.id,
         body: {
-          name: detail.name,
+          name,
           description: detail.description,
           triggerType,
           triggerConfig,
@@ -634,7 +675,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Não foi possível salvar o fluxo")
     }
-  }, [nodes, edges, detail, replaceAutomation])
+  }, [nodes, edges, detail, name, replaceAutomation])
 
   const toggleActive = useCallback(async () => {
     if (!detail || toggleAutomation.isPending) return
@@ -672,7 +713,37 @@ function InnerEditor({ automationId }: { automationId: string }) {
       <PageHeader
         back={{ href: "/automations", label: "Automações" }}
         icon={<IconBolt size={22} stroke={2.2} />}
-        title={detail.name}
+        title={
+          editingName ? (
+            <input
+              ref={nameInputRef}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={() => void commitName()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  void commitName()
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault()
+                  setEditingName(false)
+                }
+              }}
+              aria-label="Nome da automação"
+              className="min-w-[10rem] max-w-[min(42vw,28rem)] rounded-md bg-transparent px-1 font-display text-[22px] font-bold leading-tight tracking-tight text-[var(--text-primary)] outline-none ring-2 ring-primary/35"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={beginRename}
+              title="Clique para renomear"
+              className="max-w-[min(42vw,28rem)] truncate text-left transition-opacity hover:opacity-80"
+            >
+              {name || detail.name}
+            </button>
+          )
+        }
         titleAccessory={
           <div className="flex items-center gap-2">
             <span
@@ -708,6 +779,11 @@ function InnerEditor({ automationId }: { automationId: string }) {
                 label: active ? "Pausar automação" : "Ativar automação",
                 onClick: () => void toggleActive(),
                 active,
+              },
+              {
+                icon: <IconPencil size={16} stroke={2.2} />,
+                label: "Renomear",
+                onClick: beginRename,
               },
               {
                 icon: <IconSitemap size={16} stroke={2.2} />,
