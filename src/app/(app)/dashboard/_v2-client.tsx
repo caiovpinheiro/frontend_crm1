@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { Check, LayoutDashboard, Move, Plus } from "lucide-react";
 
@@ -29,7 +28,7 @@ import {
 } from "@/app/(app)/settings/tabulations/tabulations-dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
-import { listTeamUsers } from "@/features/pipeline-v2/api/users";
+import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 
 import { AddDashboardCardDialog } from "@/features/dashboard-v2/components/add-dashboard-card-dialog";
 import { DashboardSearchFilterBar } from "@/features/dashboard-v2/components/dashboard-filters";
@@ -308,12 +307,7 @@ function ManagerHome({
   const usageQuery = useSystemUsageToday(tabReady && isDeals);
 
   const departmentsQuery = useDepartments();
-  const usersQuery = useQuery({
-    queryKey: ["team-users-tabulations"],
-    queryFn: () => listTeamUsers(),
-    staleTime: 60_000,
-    enabled: tabReady && isService,
-  });
+  const usersQuery = useTeamUsersQuery(tabReady && isService);
 
   const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {
     allowHide: true,

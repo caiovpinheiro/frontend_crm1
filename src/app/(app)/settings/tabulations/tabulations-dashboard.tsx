@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -23,7 +22,7 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
-import { listTeamUsers } from "@/features/pipeline-v2/api/users";
+import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { cn } from "@/lib/utils";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
@@ -330,11 +329,7 @@ export function TabulationsDashboard({
   const setDepartmentId = onDepartmentIdChange ?? setDepartmentIdLocal;
 
   const departmentsQuery = useDepartments();
-  const usersQuery = useQuery({
-    queryKey: ["team-users-tabulations"],
-    queryFn: () => listTeamUsers(),
-    staleTime: 60_000,
-  });
+  const usersQuery = useTeamUsersQuery();
 
   const fromIso = period?.from
     ? period.from
