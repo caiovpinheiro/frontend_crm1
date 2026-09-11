@@ -1,1 +1,76 @@
-FULL FILE FROM DISK - see next approach
+"use client";
+
+import { apiUrl } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ReactFlow,
+  Background,
+  BackgroundVariant,
+  Controls,
+  MiniMap,
+  ReactFlowProvider,
+  useNodesState,
+  useReactFlow,
+  type Connection,
+  type Edge,
+  type Node,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import "./flow-editor.css";
+
+import { AnimatedEdge, AnimatedEdgeDefs, type AnimatedEdgeData } from "./animated-edge";
+import { FlowCanvasToolbar } from "./flow-canvas-toolbar";
+import { useFlowClipboard } from "./use-flow-clipboard";
+
+import {
+  type AutomationStep,
+  defaultStepConfig,
+  findFirstMessageStepIndex,
+  inheritedChannelFromTrigger,
+  isStepIncomplete,
+  newStepId,
+  stepTypeLabel,
+  summarizeStepConfig,
+  summarizeTriggerConfig,
+  triggerBindsInboundChannel,
+  triggerTypeLabel,
+} from "@/lib/automation-workflow";
+import { ALIGN_TRIGGER_POS, estimateStepNodeSize } from "@/lib/automation-layout";
+import { useConnectedStepChannels } from "./step-channel-picker";
+import {
+  normalizeConditionConfig,
+  type ConditionConfig,
+} from "@/lib/automation-condition";
+import {
+  normalizeRoundRobinConfig,
+  type RoundRobinConfig,
+} from "@/lib/automation-round-robin";
+import { cn } from "@/lib/utils";
+import { useThemeV2 } from "@/hooks/use-theme-v2";
+import { IconCopy as Copy, IconPlus as Plus, IconTrash as Trash2 } from "@tabler/icons-react";
+
+import type { ActionStepType } from "@/lib/automation-workflow";
+
+import { ActionNode } from "./action-node";
+import { AddStepNode } from "./add-step-node";
+import { BusinessHoursNode } from "./business-hours-node";
+import { CheckAgentStatusNode } from "./check-agent-status-node";
+import { DistributionNode } from "./distribution-node";
+import { StepPickerModal } from "./step-picker-modal";
+import { ConditionNode } from "./condition-node";
+import { RoundRobinNode } from "./round-robin-node";
+import { DelayNode } from "./delay-node";
+import { FinishNode } from "./finish-node";
+import { GotoNode } from "./goto-node";
+import { InteractiveNode } from "./interactive-node";
+import { NodePaletteDrawer } from "./node-palette-drawer";
+import { readPaletteDragType } from "./node-palette";
+import { QuestionNode } from "./question-node";
+import { WaitNode } from "./wait-node";
+import { TriggerNode } from "./trigger-node";
+import { VariableNode } from "./variable-node";
+
+const TRIGGER_ID = "trigger";
+/** Zoom ao abrir: gatilho no centro, com folga (fitView sem teto chegava perto demais). */
+const OPEN_VIEW_ZOOM = 0.65;
