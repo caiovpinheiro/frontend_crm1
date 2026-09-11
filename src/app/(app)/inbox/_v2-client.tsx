@@ -35,15 +35,35 @@ import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TagChip } from "@/components/crm/tag-chip";
 
+import dynamic from "next/dynamic";
 import { NavRail } from "@/components/crm/nav-rail";
 import { ConversationColumn } from "@/components/crm/conversation-column";
 import { ChatArea } from "@/components/crm/chat-area";
 import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
-import { FavoritesPanel } from "@/components/crm/favorites-panel";
-import { ContactAside } from "@/components/crm/contact-aside";
 import { UserAvatar } from "@/components/crm/user-avatar";
-import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
+
+const FavoritesPanel = dynamic(
+  () =>
+    import("@/components/crm/favorites-panel").then((m) => ({
+      default: m.FavoritesPanel,
+    })),
+  { ssr: false },
+);
+const ContactAside = dynamic(
+  () =>
+    import("@/components/crm/contact-aside").then((m) => ({
+      default: m.ContactAside,
+    })),
+  { ssr: false },
+);
+const FieldConfigPanel = dynamic(
+  () =>
+    import("@/components/crm/fields/field-config-panel").then((m) => ({
+      default: m.FieldConfigPanel,
+    })),
+  { ssr: false },
+);
 import { PageHeader } from "@/components/crm/page-header";
 import { InboxPeriodCalendar } from "@/features/inbox-v2/extras/inbox-period-calendar";
 import {
@@ -252,11 +272,14 @@ interface InboxV2ClientPageProps {
     icon: React.ReactNode;
     title: string;
   };
+  /** Query do request (SSR) — hidrata aba/filtros no 1º render. */
+  urlQuery?: string;
 }
 
 export default function InboxV2ClientPage({
   navRail,
   pageHeader,
+  urlQuery,
 }: InboxV2ClientPageProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
@@ -315,7 +338,7 @@ export default function InboxV2ClientPage({
     filtersHydrated,
     search: searchInput,
     setSearch: setSearchInput,
-  } = useInboxFilterUrlState();
+  } = useInboxFilterUrlState(urlQuery);
   // Se a aba da URL/localStorage não for permitida para o papel, cai na
   // primeira visível.
   useEffect(() => {

@@ -36,9 +36,9 @@ import { AgentStatusDot } from "@/components/crm/agent-status-dot";
 import {
   AGENT_STATUS_META,
   AgentStatusPopup,
-  useAgentStatus,
   useAgentStatusAutoPrompt,
 } from "@/components/crm/agent-status";
+import { useSharedAgentStatus } from "@/components/crm/agent-status-context";
 import { useThemeV2 } from "@/hooks/use-theme-v2";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSettingsDrawer } from "@/features/settings/settings-drawer-context";
@@ -200,7 +200,7 @@ export function NavRailV2({ className }: { className?: string }) {
     });
   }
 
-  const agentStatus = useAgentStatus();
+  const agentStatus = useSharedAgentStatus();
   const [statusPopupOpen, setStatusPopupOpen] = useState(false);
   useAgentStatusAutoPrompt(agentStatus, () => setStatusPopupOpen(true));
   const statusMeta = AGENT_STATUS_META[agentStatus.status];

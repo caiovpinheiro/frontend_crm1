@@ -24,9 +24,11 @@ import { MobileBottomNav } from "@/components/crm/mobile-bottom-nav";
 import { NavRailV2 } from "@/components/crm/nav-rail-v2";
 import { MobileStartRoute } from "@/components/layout/mobile-start-route";
 import { SystemPresenceHeartbeat } from "@/components/layout/system-presence-heartbeat";
+import { InboxConversationsPrefetch } from "@/components/layout/inbox-conversations-prefetch";
 import { NativeFcmBootstrap } from "@/components/layout/native-fcm-bootstrap";
 import { TaskAlertCenter } from "@/components/layout/task-alert-center";
 import { SettingsDrawerProvider } from "@/features/settings/settings-drawer-context";
+import { AgentStatusProvider } from "@/components/crm/agent-status-context";
 
 // O TooltipProvider (Radix) é provido uma única vez na raiz (app/providers.tsx),
 // cobrindo tanto os TooltipGlass quanto os TooltipContent/TooltipHost. Não é
@@ -38,8 +40,10 @@ export default function AppLayout({
 }) {
   return (
     <SettingsDrawerProvider>
+      <AgentStatusProvider>
       <ChatThemeApplier />
       <SystemPresenceHeartbeat />
+      <InboxConversationsPrefetch />
       <div className="v2-root v2-min-screen">
         {/* Trilho de navegação ÚNICO e PERSISTENTE. Vive no layout para
             NÃO remontar ao navegar. Posição fixa sobre a 1ª coluna do grid
@@ -62,6 +66,7 @@ export default function AppLayout({
         <MobileBottomNav />
       </div>
       <BiometricLockGate />
+      </AgentStatusProvider>
     </SettingsDrawerProvider>
   );
 }

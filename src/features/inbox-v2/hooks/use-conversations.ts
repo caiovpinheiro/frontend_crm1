@@ -7,6 +7,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
 } from "@tanstack/react-query";
 
 import {
@@ -40,6 +41,35 @@ import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
  * sempre visível e disparava página atrás de página.
  */
 const PAGE_SIZE = 50;
+
+export const INBOX_CONVERSATIONS_QUERY_PREFIX = "inbox-conversations";
+
+/** Campos da URL que o Inbox filtra no client — fora da queryKey da lista. */
+export function inboxListServerFilters(filters: InboxFilters): InboxFilters {
+  const {
+    lastMessageDirection: _direction,
+    lastMessageFrom: _from,
+    lastMessageTo: _to,
+    createdFrom: _createdFrom,
+    createdTo: _createdTo,
+    ...serverFilters
+  } = filters;
+  return serverFilters;
+}
+
+function tabCountsFilterKey(filters: InboxFilters) {
+  return {
+    ownerIds: filters.ownerIds ?? (filters.ownerId ? [filters.ownerId] : []),
+    withoutOwner: filters.withoutOwner ?? false,
+    channel: filters.channel ?? null,
+    channelIds: filters.channelIds ?? [],
+    stageIds: filters.stageIds ?? (filters.stageId ? [filters.stageId] : []),
+    tagIds: filters.tagIds ?? [],
+    sources: filters.sources ?? [],
+    sessionExpiresWithinHours: filters.sessionExpiresWithinHours ?? null,
+    windowState: filters.windowState ?? null,
+  };
+}
 
 /**
  * Filas específicas para fetch paralelo. `todos`/`abertas` e aba única
@@ -128,6 +158,67 @@ async function listConversationsTaggedByTab(args: {
   };
 }
 
+function fetchInboxConversationsPage(args: {
+  tab: InboxTab | readonly InboxTab[];
+  filters: InboxFilters;
+  search: string;
+  pageParam: unknown;
+}): Promise<ConversationListResponse> {
+  const parallelTabs = tabsForParallelFetch(args.tab);
+  if (parallelTabs) {
+    const page =
+      typeof args.pageParam === "number"
+        ? args.pageParam
+        : typeof args.pageParam === "string" && /^\d+$/.test(args.pageParam)
+          ? Number(args.pageParam)
+          : 1;
+    return listConversationsTaggedByTab({
+      tabs: parallelTabs,
+      filters: args.filters,
+      search: args.search,
+      page,
+    });
+  }
+  const base = {
+    tab: args.tab,
+    ...args.filters,
+    search: args.search,
+    perPage: PAGE_SIZE,
+  };
+  if (typeof args.pageParam === "string" && args.pageParam.length > 0) {
+    return listConversations({ ...base, cursor: args.pageParam });
+  }
+  return listConversations({
+    ...base,
+    page: typeof args.pageParam === "number" ? args.pageParam : 1,
+  });
+}
+
+/** Aquece a lista + badges da visão atual (shell autenticado → /inbox). */
+export function prefetchInboxWarmCache(
+  queryClient: QueryClient,
+  tab: InboxTab | readonly InboxTab[],
+  filters: InboxFilters,
+  search = "",
+) {
+  const tabKey = typeof tab === "string" ? tab : tab.join(",");
+  if (!tabKey) return Promise.resolve();
+  return Promise.all([
+    queryClient.prefetchInfiniteQuery({
+      queryKey: [INBOX_CONVERSATIONS_QUERY_PREFIX, tabKey, filters, search],
+      queryFn: ({ pageParam }) =>
+        fetchInboxConversationsPage({ tab, filters, search, pageParam }),
+      initialPageParam: 1 as string | number,
+      staleTime: 60_000,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: ["conversations", "tab-counts", tabCountsFilterKey(filters), null],
+      queryFn: () => fetchTabCounts(filters, null),
+      staleTime: 60_000,
+    }),
+  ]);
+}
+
 /**
  * Lista paginada (infinite) de conversas da aba ativa.
  * QueryKey mantém o prefixo `inbox-conversations` da Fase 1 para
@@ -147,36 +238,14 @@ export function useConversations(params: {
   const tabKey = typeof params.tab === "string" ? params.tab : params.tab.join(",");
   const parallelTabs = tabsForParallelFetch(params.tab);
   const query = useInfiniteQuery<ConversationListResponse>({
-    queryKey: ["inbox-conversations", tabKey, params.filters, params.search],
-    queryFn: ({ pageParam }) => {
-      if (parallelTabs) {
-        const page =
-          typeof pageParam === "number"
-            ? pageParam
-            : typeof pageParam === "string" && /^\d+$/.test(pageParam)
-              ? Number(pageParam)
-              : 1;
-        return listConversationsTaggedByTab({
-          tabs: parallelTabs,
-          filters: params.filters,
-          search: params.search,
-          page,
-        });
-      }
-      const base = {
+    queryKey: [INBOX_CONVERSATIONS_QUERY_PREFIX, tabKey, params.filters, params.search],
+    queryFn: ({ pageParam }) =>
+      fetchInboxConversationsPage({
         tab: params.tab,
-        ...params.filters,
+        filters: params.filters,
         search: params.search,
-        perPage: PAGE_SIZE,
-      };
-      if (typeof pageParam === "string" && pageParam.length > 0) {
-        return listConversations({ ...base, cursor: pageParam });
-      }
-      return listConversations({
-        ...base,
-        page: typeof pageParam === "number" ? pageParam : 1,
-      });
-    },
+        pageParam,
+      }),
     initialPageParam: 1 as string | number,
     getNextPageParam: (last) => {
       const perPage = last.perPage ?? PAGE_SIZE;
@@ -379,19 +448,7 @@ export function useTabCounts(
   search?: string | null,
 ) {
   const searchKey = search?.trim() || null;
-  const filterKey = filters
-    ? {
-        ownerIds: filters.ownerIds ?? (filters.ownerId ? [filters.ownerId] : []),
-        withoutOwner: filters.withoutOwner ?? false,
-        channel: filters.channel ?? null,
-        channelIds: filters.channelIds ?? [],
-        stageIds: filters.stageIds ?? (filters.stageId ? [filters.stageId] : []),
-        tagIds: filters.tagIds ?? [],
-        sources: filters.sources ?? [],
-        sessionExpiresWithinHours: filters.sessionExpiresWithinHours ?? null,
-        windowState: filters.windowState ?? null,
-      }
-    : null;
+  const filterKey = filters ? tabCountsFilterKey(filters) : null;
   return useQuery<TabCounts>({
     queryKey: ["conversations", "tab-counts", filterKey, searchKey],
     queryFn: () => fetchTabCounts(filters, searchKey),
