@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import Link from "next/link"
 import {
   CircleCheck,
   TriangleAlert,
@@ -15,8 +14,8 @@ import {
   Loader2,
   MessageSquare,
   Radio,
-  ExternalLink,
 } from "lucide-react"
+import { AttendanceLink } from "./attendance-link"
 import {
   Dialog,
   DialogContent,
@@ -30,7 +29,6 @@ import { blockKeyForStepType, getBlockMeta } from "@/components/crm/flow-block-i
 import {
   automationLogToEntry,
   formatDateTime,
-  inboxHrefForLog,
   isTriggerEcho,
   matchesLogQuery,
   type LogEntry,
@@ -315,7 +313,6 @@ function LogRow({
           : null
   const quotedSnippet =
     entry.snippet && entry.snippet !== detail ? `“${entry.snippet}”` : null
-  const attendanceHref = inboxHrefForLog(entry)
   return (
     <li className="flex items-center gap-4 rounded-xl border border-border bg-[var(--glass-bg-base)] p-4 transition-colors hover:border-[var(--brand-primary)]/30 hover:bg-[var(--color-primary-soft)]/40">
       <span
@@ -381,19 +378,7 @@ function LogRow({
       </div>
 
       <div className="flex shrink-0 flex-col items-stretch gap-1">
-        {attendanceHref && (
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-          >
-            <Link href={attendanceHref}>
-              <ExternalLink className="size-4" aria-hidden />
-              Ir ao atendimento
-            </Link>
-          </Button>
-        )}
+        <AttendanceLink entry={entry} />
         <Button
           variant="ghost"
           size="sm"

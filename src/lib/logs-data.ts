@@ -231,22 +231,53 @@ function payloadNumber(
   return null
 }
 
+const CONV_ID_KEYS = new Set(["conversationid", "conversation_id"])
+const CONV_NUM_KEYS = new Set(["conversationnumber", "conversation_number"])
+
+/** Percorre o payload livre atrás de conversationId / conversationNumber. */
+function collectConversation(
+  value: unknown,
+  acc: { id: string | null; number: number | null },
+  depth = 0,
+  parentKey = "",
+) {
+  if ((acc.id && acc.number != null) || value == null || depth > 4) return
+  if (Array.isArray(value)) {
+    for (const item of value) collectConversation(item, acc, depth + 1, parentKey)
+    return
+  }
+  const rec = asRecord(value)
+  if (!rec) return
+  if (parentKey.toLowerCase() === "conversation" && !acc.id) {
+    acc.id = payloadString(rec, ["id", "conversationId", "conversation_id"])
+    if (acc.number == null) {
+      acc.number = payloadNumber(rec, ["number", "conversationNumber"])
+    }
+  }
+  for (const [key, child] of Object.entries(rec)) {
+    const lk = key.toLowerCase()
+    if (!acc.id && CONV_ID_KEYS.has(lk) && typeof child === "string" && child.trim()) {
+      acc.id = child.trim()
+    }
+    if (acc.number == null && CONV_NUM_KEYS.has(lk)) {
+      acc.number = asPositiveInt(child)
+    }
+    collectConversation(child, acc, depth + 1, key)
+  }
+}
+
 /** Conversa do atendimento: campo da API ou o mesmo id no payload. */
 function conversationFromRow(row: AutomationLogRow): {
   conversationId: string | null
   conversationNumber: number | null
 } {
-  const payload = asRecord(row.payload)
-  const nested = asRecord(payload?.conversation)
+  const fromPayload = { id: null as string | null, number: null as number | null }
+  collectConversation(row.payload, fromPayload)
   const conversationId =
     (typeof row.conversationId === "string" && row.conversationId.trim()) ||
-    payloadString(payload, ["conversationId", "conversation_id"]) ||
-    payloadString(nested, ["id", "conversationId"]) ||
-    null
+    fromPayload.id
   const conversationNumber =
-    asPositiveInt(row.conversationNumber) ??
-    payloadNumber(payload, ["conversationNumber", "conversation_number"]) ??
-    payloadNumber(nested, ["number", "conversationNumber"])
+    asPositiveInt(row.conversationNumber) ?? fromPayload.number
   return { conversationId, conversationNumber }
 }
 
@@ -261,6 +292,13 @@ export function inboxHrefForLog(
     return `/inbox?c=${encodeURIComponent(entry.conversationId)}`
   }
   return null
+}
+
+/** Dá para abrir o atendimento: conversa no log ou contato para resolver. */
+export function canOpenAttendance(
+  entry: Pick<LogEntry, "contactId" | "conversationId" | "conversationNumber">,
+): boolean {
+  return Boolean(inboxHrefForLog(entry) || entry.contactId)
 }
 
 /** Achata o `payload` (Json livre) para o formato chave→escalar da inspeção. */
