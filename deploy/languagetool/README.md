@@ -3,6 +3,10 @@
 Worker HTTP separado do frontend e do `leads-worker`. Expõe `/v2/check`.
 O composer só chama `POST /api/proofread` no Next; o Next encaminha para este worker.
 
+Heap padrão da imagem é 512m e o pt-BR fica lento (~1s+). Use `Java_Xmx=2g` e
+`langtool_pipelinePrewarming=true`. O composer faz prefetch ao digitar para o
+enviar não esperar o Java.
+
 Não use o tipo **Worker** do EasyPanel (sem porta HTTP). Este processo precisa
 ser **App** e escutar **8010**. Se o domínio público devolver HTML
 `Service is not reachable` (EasyPanel 502), o Traefik não alcança o Java —

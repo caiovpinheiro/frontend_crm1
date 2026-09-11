@@ -20,6 +20,34 @@ import {
 const DEFAULT_CHECK_URL = "https://api.languagetool.org/v2/check";
 const MAX_TEXT_LENGTH = 20_000;
 const LANGUAGE_RE = /^[a-z]{2}(?:-[A-Z]{2})?$/;
+const CHECK_TIMEOUT_MS = 12_000;
+const SERVER_CACHE_TTL_MS = 60_000;
+const SERVER_CACHE_MAX = 200;
+
+const resultCache = new Map<string, { at: number; body: ProofreadResult }>();
+
+function cacheKey(text: string, language: string): string {
+  return `${language}\n${text}`;
+}
+
+function cacheGet(text: string, language: string): ProofreadResult | null {
+  const key = cacheKey(text, language);
+  const hit = resultCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > SERVER_CACHE_TTL_MS) {
+    resultCache.delete(key);
+    return null;
+  }
+  return hit.body;
+}
+
+function cacheSet(text: string, language: string, body: ProofreadResult) {
+  if (resultCache.size >= SERVER_CACHE_MAX) {
+    const oldest = resultCache.keys().next().value;
+    if (oldest !== undefined) resultCache.delete(oldest);
+  }
+  resultCache.set(cacheKey(text, language), { at: Date.now(), body });
+}
 
 function languageToolCheckUrl(): string {
   const raw = (process.env.LANGUAGETOOL_API_URL ?? DEFAULT_CHECK_URL).trim();
@@ -112,6 +140,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const cached = cacheGet(text, language);
+  if (cached) {
+    return NextResponse.json(cached);
+  }
+
   const params = new URLSearchParams();
   params.set("text", text);
   params.set("language", language);
@@ -120,11 +153,7 @@ export async function POST(request: NextRequest) {
   if (apiKey) params.set("apiKey", apiKey);
   if (username) params.set("username", username);
 
-  async function callLanguageTool(extra?: Record<string, string>) {
-    const body = new URLSearchParams(params);
-    if (extra) {
-      for (const [k, v] of Object.entries(extra)) body.set(k, v);
-    }
+  async function callLanguageTool() {
     return fetch(checkUrl, {
       method: "POST",
       headers: {
@@ -132,17 +161,14 @@ export async function POST(request: NextRequest) {
         Accept: "application/json",
         "User-Agent": "Bwipo-CRM-Proofread/1.0",
       },
-      body: body.toString(),
-      signal: AbortSignal.timeout(45_000),
+      body: params.toString(),
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     });
   }
 
   let ltRes: Response;
   try {
-    ltRes = await callLanguageTool({ level: "picky" });
-    if (ltRes.status === 400 || ltRes.status === 422) {
-      ltRes = await callLanguageTool();
-    }
+    ltRes = await callLanguageTool();
   } catch (err) {
     console.error("[proofread] LanguageTool fetch error:", checkHost, err);
     return NextResponse.json(
@@ -173,5 +199,6 @@ export async function POST(request: NextRequest) {
     suggested,
     matches,
   };
+  cacheSet(text, language, result);
   return NextResponse.json(result);
 }

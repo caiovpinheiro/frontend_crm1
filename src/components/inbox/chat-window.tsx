@@ -650,6 +650,13 @@ export function ChatWindow({
   }, []);
   const effectiveSignature = (signature.trim() || agentName).trim();
   const proofread = useProofreadSendGate();
+  React.useEffect(() => {
+    if (!proofread.enabled || noteMode) return;
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    const timer = window.setTimeout(() => proofread.prefetch(trimmed), 400);
+    return () => window.clearTimeout(timer);
+  }, [draft, noteMode, proofread.enabled, proofread.prefetch]);
 
   const typingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
