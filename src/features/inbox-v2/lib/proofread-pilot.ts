@@ -21,7 +21,9 @@ export function normalizeIgnoreToken(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function parseReplacements(raw: string | null): ProofreadReplacement[] {
+export function parseProofreadReplacements(
+  raw: string | null,
+): ProofreadReplacement[] {
   if (!raw) return [];
   try {
     const data = JSON.parse(raw) as unknown;
@@ -39,7 +41,7 @@ function parseReplacements(raw: string | null): ProofreadReplacement[] {
   }
 }
 
-function parseIgnore(raw: string | null): string[] {
+export function parseProofreadIgnore(raw: string | null): string[] {
   if (!raw) return [];
   try {
     const data = JSON.parse(raw) as unknown;
@@ -65,10 +67,10 @@ export function loadProofreadPilot(): ProofreadPilotConfig {
   }
   try {
     return {
-      replacements: parseReplacements(
+      replacements: parseProofreadReplacements(
         window.localStorage.getItem(PROOFREAD_REPLACEMENTS_KEY),
       ),
-      ignore: parseIgnore(window.localStorage.getItem(PROOFREAD_IGNORE_KEY)),
+      ignore: parseProofreadIgnore(window.localStorage.getItem(PROOFREAD_IGNORE_KEY)),
     };
   } catch {
     return { replacements: [], ignore: [] };

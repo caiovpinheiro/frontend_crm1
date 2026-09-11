@@ -24,8 +24,6 @@ import {
   IconX,
   IconCornerUpLeft,
   IconPaperclip,
-  IconTextSpellcheck,
-  IconAdjustments,
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -62,7 +60,6 @@ import {
 import { ComposerMenu } from "./composer-menu";
 import { ConversationResolveButton } from "./conversation-resolve-button";
 import { ProofreadDialog } from "./proofread-dialog";
-import { ProofreadPilotDialog } from "./proofread-pilot-dialog";
 import {
   TemplateComposePanel,
   whatsappTemplateToPending,
@@ -859,14 +856,6 @@ export function Composer({
         sending={!!sending}
         onSendCorrection={handleSendCorrection}
         onIgnoreExcerpt={proofread.ignoreExcerpt}
-        onOpenSettings={() => proofread.setSettingsOpen(true)}
-      />
-      <ProofreadPilotDialog
-        open={proofread.settingsOpen}
-        onOpenChange={proofread.setSettingsOpen}
-        replacements={proofread.pilot.replacements}
-        ignore={proofread.pilot.ignore}
-        onSave={proofread.persistPilot}
       />
       {/* Painel de validação do template do WhatsApp — flutua acima do composer */}
       {pendingTemplate && conversationId ? (
@@ -1148,62 +1137,6 @@ export function Composer({
               )}
             </div>
           ) : null}
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={proofread.enabled}
-                aria-label={
-                  proofread.enabled
-                    ? "Desligar corretor automático"
-                    : "Ligar corretor automático"
-                }
-                onClick={() => proofread.persistEnabled(!proofread.enabled)}
-                className={cn(
-                  "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
-                  proofread.enabled
-                    ? "bg-[var(--brand-primary)]"
-                    : "bg-[var(--text-muted)]/40",
-                )}
-              >
-                <span
-                  className={cn(
-                    "inline-block size-3 rounded-full bg-white shadow transition-transform",
-                    proofread.enabled ? "translate-x-[14px]" : "translate-x-[2px]",
-                  )}
-                />
-              </button>
-              <IconTextSpellcheck size={13} className="shrink-0 text-[var(--text-muted)]" />
-              <TooltipGlass
-                label={
-                  proofread.enabled
-                    ? "Corretor automático ligado — erros impedem o envio"
-                    : "Corretor automático desligado"
-                }
-                side="top"
-              >
-                <span
-                  className={cn(
-                    "max-w-[140px] truncate font-body text-[11.5px] font-semibold transition-colors",
-                    proofread.enabled
-                      ? "text-[var(--text-primary)]"
-                      : "text-[var(--text-muted)]",
-                  )}
-                >
-                  Corretor automático
-                </span>
-              </TooltipGlass>
-              <TooltipGlass label="Regras do corretor" side="top">
-                <button
-                  type="button"
-                  aria-label="Regras do corretor"
-                  onClick={() => proofread.setSettingsOpen(true)}
-                  className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
-                >
-                  <IconAdjustments size={13} />
-                </button>
-              </TooltipGlass>
-            </div>
             </>
           )}
 
