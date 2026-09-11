@@ -13,6 +13,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   applyLanguageToolReplacements,
   describeLanguageToolHttpError,
+  isWhatsappUsefulMatch,
   type ProofreadMatch,
   type ProofreadResult,
 } from "@/lib/language-tool";
@@ -27,7 +28,7 @@ const SERVER_CACHE_MAX = 200;
 const resultCache = new Map<string, { at: number; body: ProofreadResult }>();
 
 function cacheKey(text: string, language: string): string {
-  return `${language}\n${text}`;
+  return `v2\n${language}\n${text}`;
 }
 
 function cacheGet(text: string, language: string): ProofreadResult | null {
@@ -63,6 +64,11 @@ type LtMatch = {
   offset?: unknown;
   length?: unknown;
   replacements?: LtReplacement[];
+  rule?: {
+    id?: unknown;
+    issueType?: unknown;
+    category?: { id?: unknown };
+  };
 };
 
 function normalizeMatches(raw: unknown): ProofreadMatch[] {
@@ -88,6 +94,13 @@ function normalizeMatches(raw: unknown): ProofreadMatch[] {
       offset,
       length,
       replacements,
+      ruleId: typeof item.rule?.id === "string" ? item.rule.id : undefined,
+      categoryId:
+        typeof item.rule?.category?.id === "string"
+          ? item.rule.category.id
+          : undefined,
+      issueType:
+        typeof item.rule?.issueType === "string" ? item.rule.issueType : undefined,
     });
   }
   return out;
@@ -148,6 +161,7 @@ export async function POST(request: NextRequest) {
   const params = new URLSearchParams();
   params.set("text", text);
   params.set("language", language);
+  params.set("disabledCategories", "FORMAL,STYLE,TYPOGRAPHY,REDUNDANCY");
   const apiKey = (process.env.LANGUAGETOOL_API_KEY ?? "").trim();
   const username = (process.env.LANGUAGETOOL_USERNAME ?? "").trim();
   if (apiKey) params.set("apiKey", apiKey);
@@ -191,7 +205,9 @@ export async function POST(request: NextRequest) {
   }
 
   const data = (await ltRes.json().catch(() => ({}))) as { matches?: unknown };
-  const matches = normalizeMatches(data.matches);
+  const matches = normalizeMatches(data.matches).filter((m) =>
+    isWhatsappUsefulMatch(m, text),
+  );
   const suggested = applyLanguageToolReplacements(text, matches);
   const result: ProofreadResult = {
     ok: matches.length === 0,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyLanguageToolReplacements,
   describeLanguageToolHttpError,
+  isWhatsappUsefulMatch,
 } from "@/lib/language-tool";
 
 describe("applyLanguageToolReplacements", () => {
@@ -72,6 +73,78 @@ describe("applyLanguageToolReplacements", () => {
         { offset: 3, length: 0, replacements: ["."] },
       ]),
     ).toBe("ola.");
+  });
+});
+
+describe("isWhatsappUsefulMatch", () => {
+  it("descarta pra→para formal", () => {
+    expect(
+      isWhatsappUsefulMatch(
+        {
+          offset: 3,
+          length: 3,
+          categoryId: "FORMAL",
+          issueType: "style",
+          ruleId: "FORMAL_PRA_PARA",
+        },
+        "Da pra mim poder te ajudar por aki",
+      ),
+    ).toBe(false);
+  });
+
+  it("mantém ortografia aki→aqui", () => {
+    expect(
+      isWhatsappUsefulMatch(
+        {
+          offset: 31,
+          length: 3,
+          categoryId: "TYPOS",
+          issueType: "misspelling",
+          ruleId: "MORFOLOGIK_RULE_PT_BR",
+        },
+        "Da pra mim poder te ajudar por aki",
+      ),
+    ).toBe(true);
+  });
+
+  it("no exemplo do inbox só aplica aki→aqui", () => {
+    const text = "Da pra mim poder te ajudar por aki";
+    const matches = [
+      {
+        offset: 3,
+        length: 3,
+        replacements: ["para"],
+        categoryId: "FORMAL",
+        issueType: "style",
+        ruleId: "FORMAL_PRA_PARA",
+      },
+      {
+        offset: 31,
+        length: 3,
+        replacements: ["aqui"],
+        categoryId: "TYPOS",
+        issueType: "misspelling",
+        ruleId: "MORFOLOGIK_RULE_PT_BR",
+      },
+    ].filter((m) => isWhatsappUsefulMatch(m, text));
+    expect(applyLanguageToolReplacements(text, matches)).toBe(
+      "Da pra mim poder te ajudar por aqui",
+    );
+  });
+
+  it("não “corrige” vc no chat", () => {
+    expect(
+      isWhatsappUsefulMatch(
+        {
+          offset: 0,
+          length: 2,
+          categoryId: "TYPOS",
+          issueType: "misspelling",
+          ruleId: "MORFOLOGIK_RULE_PT_BR",
+        },
+        "vc pode confirmar",
+      ),
+    ).toBe(false);
   });
 });
 
