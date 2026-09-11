@@ -194,8 +194,8 @@ const STAGES = [
 ];
 
 const PIPELINES = [
-  { id: "pl-1", name: "Pipeline Padrão", isDefault: true },
-  { id: "pl-2", name: "Renovações",      isDefault: false },
+  { id: "pl-1", name: "Pipeline Padrão", isDefault: true, stages: STAGES },
+  { id: "pl-2", name: "Renovações", isDefault: false, stages: STAGES },
 ];
 
 /* ── Deals ── */
@@ -1528,6 +1528,26 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
 
   /* ── Automations ── */
   {
+    test: (u, method) => u.pathname === "/api/automations" && method === "POST",
+    handler: (_u, init) => {
+      const body = parseMockBody(init);
+      const id = `au-${Date.now()}`;
+      return {
+        id,
+        number: AUTOMATIONS.length + 1,
+        name: typeof body.name === "string" && body.name.trim() ? body.name.trim() : "Nova automação",
+        description: typeof body.description === "string" ? body.description : null,
+        triggerType: typeof body.triggerType === "string" ? body.triggerType : "manual",
+        triggerConfig: body.triggerConfig ?? {},
+        active: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        stepCount: 0,
+        steps: [],
+      };
+    },
+  },
+  {
     test: (u) => u.pathname === "/api/automations",
     handler: () => ({
       items: AUTOMATIONS.map(({ steps: _s, ...a }) => a),
@@ -1536,8 +1556,37 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
     }),
   },
   {
+    test: (u) => /^\/api\/automations\/[^/]+\/stats$/.test(u.pathname),
+    handler: () => ({ trigger: {}, steps: {} }),
+  },
+  {
+    test: (u) => /^\/api\/automations\/[^/]+\/logs$/.test(u.pathname),
+    handler: () => ({ items: [], logs: [], total: 0, page: 1, perPage: 50 }),
+  },
+  {
+    test: (u) => /^\/api\/automations\/[^/]+\/toggle$/.test(u.pathname),
+    handler: (u) => {
+      const id = u.pathname.split("/")[3];
+      const found = AUTOMATIONS.find((a) => a.id === id) ?? AUTOMATIONS[0];
+      return { ...found, active: !found.active };
+    },
+  },
+  {
     test: (u) => /^\/api\/automations\/[^/]+$/.test(u.pathname),
-    handler: (u) => AUTOMATIONS.find((a) => a.id === u.pathname.split("/")[3]) ?? AUTOMATIONS[0],
+    handler: (u) => {
+      const id = u.pathname.split("/")[3];
+      if (!id || id === "undefined" || id === "null") {
+        return { message: "Automação não encontrada." };
+      }
+      const found = AUTOMATIONS.find((a) => a.id === id);
+      if (found) return found;
+      return {
+        ...AUTOMATIONS[0],
+        id,
+        name: AUTOMATIONS[0].name,
+        steps: AUTOMATIONS[0].steps.map((s) => ({ ...s, automationId: id })),
+      };
+    },
   },
 
   /* ── Pipelines / Deals ── */
