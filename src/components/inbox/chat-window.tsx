@@ -1456,7 +1456,7 @@ export function ChatWindow({
         ? `*${effectiveSignature}:* ${text}`
         : text;
     if (text && !noteMode) {
-      const status = await proofread.gate(payloadText);
+      const status = await proofread.gate(text);
       if (status === "block") return;
     }
     commitOutbound(text ? payloadText : "", hasParkedMedia);
@@ -1475,10 +1475,22 @@ export function ChatWindow({
     (text: string) => {
       const next = text.trim();
       if (!next) return;
+      const shouldSign = signatureEnabled && !noteMode && !!effectiveSignature;
+      const sigLower = effectiveSignature.toLowerCase();
+      const lower = next.toLowerCase();
+      const alreadyPrefixed =
+        shouldSign &&
+        (lower.startsWith(`*${sigLower}:*`) ||
+          lower.startsWith(`*${sigLower}*`) ||
+          lower.startsWith(`${sigLower}:`));
+      const payloadText =
+        shouldSign && !alreadyPrefixed
+          ? `*${effectiveSignature}:* ${next}`
+          : next;
       proofread.close();
-      commitOutbound(next, pendingTemplateMediaRef.current.length > 0);
+      commitOutbound(payloadText, pendingTemplateMediaRef.current.length > 0);
     },
-    [commitOutbound, proofread],
+    [commitOutbound, effectiveSignature, noteMode, proofread, signatureEnabled],
   );
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // CRÍTICO: dar prioridade ao slash menu — quando ele está aberto,

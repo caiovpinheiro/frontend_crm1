@@ -30,6 +30,7 @@ export async function proofreadText(
   }
   return {
     ok: data.ok === true || (data.matches?.length ?? 0) === 0,
+    original: typeof data.original === "string" ? data.original : text,
     suggested: typeof data.suggested === "string" ? data.suggested : text,
     matches: Array.isArray(data.matches) ? data.matches : [],
   };
