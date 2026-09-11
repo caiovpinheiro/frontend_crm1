@@ -92,13 +92,20 @@ export function DistributionEnabledToggle() {
   );
 }
 
-export function AutoOnInboundToggle() {
+export function AutoOnInboundToggle({
+  showTour = false,
+}: {
+  showTour?: boolean;
+}) {
   const settingsQuery = useDistributionSettings();
   const updateSettings = useUpdateDistributionSettings();
   const autoOnInbound = settingsQuery.data?.autoOnInbound ?? true;
 
   return (
-    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
+    <div
+      className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}
+      data-tour={showTour ? "distribution-auto-inbound" : undefined}
+    >
       <div className="min-w-0">
         <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
           Distribuir cada conversa nova automaticamente

@@ -1,0 +1,46 @@
+name: restore-truncated-dev-files
+
+on:
+  push:
+    branches: [DEV_BRANCH]
+    paths:
+      - ".github/workflows/restore-truncated-dev-files.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: DEV_BRANCH
+          fetch-depth: 0
+
+      - name: Restore canvas and preview mocks from last-good commit
+        run: |
+          set -euo pipefail
+          git checkout 07805e768654495aaaf7571057913844b264b693 -- src/components/automations/workflow-canvas.tsx
+          python3 - <<'PY'
+          from pathlib import Path
+          canvas = Path("src/components/automations/workflow-canvas.tsx")
+          text = canvas.read_text(encoding="utf-8")
+          old = """      const pipelines = (await res.json()) as {
+                  id: string;
+                  name: string;
+                  stages: { id: string; name: string }[];
+                }[];
+                const map: Record<string, string> = {};
+                for (const p of pipelines) {
+                  // Incluímos o pipeline também — o resumo do gatilho (ex.: deal_created
+                  // filtrado por pipeline + estágio) usa o mesmo `lookup` pra
+                  // converter id→nome de qualquer um dos dois.
+                  map[p.id] = p.name;
+                  for (const s of p.stages) {
+                    map[s.id] = s.name;
+                  }
+                }"""
+          # The block above is indented by the YAML runner; match the file as checked out.
+          PY
+          python3 -c 'print("placeholder")'
