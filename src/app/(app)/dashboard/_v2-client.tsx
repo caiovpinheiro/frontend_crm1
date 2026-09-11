@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { Check, LayoutDashboard, Move, Plus } from "lucide-react";
 
@@ -151,46 +151,84 @@ function useLatchedReady(ready: boolean, timeoutMs = STUCK_TIMEOUT_MS) {
   return released;
 }
 
+const DASH_ROLE_CACHE_KEY = "crm:dash-manager-up";
+
+function readCachedManagerUp(): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(DASH_ROLE_CACHE_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+  } catch {
+    /* sessionStorage indisponível */
+  }
+  return null;
+}
+
+function DashboardWarmup({ canFetch }: { canFetch: boolean }) {
+  useDashboardMe(canFetch);
+  useDashboardFilterOptions(canFetch);
+  return null;
+}
+
 export default function DashboardV2ClientPage({
   navRail,
 }: DashboardV2ClientPageProps = {}) {
   const { status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
   const { isManagerUp, ready } = useUserRole();
+  const [cachedManager, setCachedManager] = useState<boolean | null>(null);
 
-  if (!ready) {
-    return (
-      <Shell navRail={navRail} title="Dashboard">
-        <AppLoading variant="inline" className="min-h-0 flex-1" />
-      </Shell>
-    );
-  }
+  useLayoutEffect(() => {
+    setCachedManager(readCachedManagerUp());
+  }, []);
 
-  return isManagerUp ? (
-    <ManagerHome navRail={navRail} isAuthenticated={isAuthenticated} />
-  ) : (
-    <OperatorHome navRail={navRail} isAuthenticated={isAuthenticated} />
+  useEffect(() => {
+    if (!ready) return;
+    try {
+      window.sessionStorage.setItem(DASH_ROLE_CACHE_KEY, isManagerUp ? "1" : "0");
+    } catch {
+      /* sessionStorage indisponível */
+    }
+    setCachedManager(isManagerUp);
+  }, [ready, isManagerUp]);
+
+  const manager = ready ? isManagerUp : cachedManager;
+
+  return (
+    <>
+      <DashboardWarmup canFetch={canFetch} />
+      {manager == null ? (
+        <Shell navRail={navRail} title="Dashboard">
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
+        </Shell>
+      ) : manager ? (
+        <ManagerHome navRail={navRail} canFetch={canFetch} />
+      ) : (
+        <OperatorHome navRail={navRail} canFetch={canFetch} />
+      )}
+    </>
   );
 }
 
 function OperatorHome({
   navRail,
-  isAuthenticated,
+  canFetch,
 }: {
   navRail?: React.ReactNode;
-  isAuthenticated: boolean;
+  canFetch: boolean;
 }) {
-  const query = useDashboardMe(isAuthenticated);
+  const query = useDashboardMe(canFetch);
   const [search, setSearch] = useState("");
   const [organizing, setOrganizing] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
-  const { order, reorder, hide, restore, hydrated: orderHydrated } = useDashboardWidgetOrder(
+  const { order, reorder, hide, restore } = useDashboardWidgetOrder(
     "operator",
     OPERATOR_WIDGET_IDS,
     { allowHide: true },
   );
   const painted = useLatchedReady(
-    !isAuthenticated || ((querySettled(query) || Boolean(query.error)) && orderHydrated),
+    !canFetch || querySettled(query) || Boolean(query.error),
   );
 
   if (!painted) {
@@ -270,10 +308,10 @@ function OperatorHome({
 
 function ManagerHome({
   navRail,
-  isAuthenticated,
+  canFetch,
 }: {
   navRail?: React.ReactNode;
-  isAuthenticated: boolean;
+  canFetch: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<DashboardTabKey>("deals");
   const [search, setSearch] = useState("");
@@ -285,10 +323,10 @@ function ManagerHome({
   const isDeals = activeTab === "deals";
   const isService = activeTab === "service";
 
-  const optionsQuery = useDashboardFilterOptions(isAuthenticated);
+  const optionsQuery = useDashboardFilterOptions(canFetch);
   const options = optionsQuery.data;
   const { filters, patch } = useDashboardFilters(options?.pipelines);
-  const tabReady = isAuthenticated && uiHydrated;
+  const tabReady = canFetch;
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
   const agoraQuery = usePainelAgora(clock, tabReady && isService);
   const serviceQuery = usePainelService(filters, clock, tabReady && isService);
@@ -360,7 +398,7 @@ function ManagerHome({
 
   // Chrome + widgets as soon as the saved tab hydrates. Painel/service
   // can take minutes — widgets already skeleton; do not hold the page.
-  const pagePainted = useLatchedReady(uiHydrated || !isAuthenticated, 1_500);
+  const pagePainted = useLatchedReady(uiHydrated || canFetch, 1_500);
 
   const liveUserOptions = useMemo(() => {
     const map = new Map<string, string>();
