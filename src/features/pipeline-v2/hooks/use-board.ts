@@ -95,7 +95,7 @@ export function useBoard(params: {
     // SSE (`usePipelineRealtime`) patcha lastMessage em new_message;
     // polling fica só como safety-net — evita refetch storm no remount.
     staleTime: 45_000,
-    refetchInterval: 60_000,
+    refetchInterval: 120_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     // [jul/26] Mantém o quadro anterior VISÍVEL enquanto refaz o fetch

@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { apiUrl } from "@/lib/api";
 import { useSSE } from "@/hooks/use-sse";
+import { TEAM_USERS_QUERY_PREFIX } from "@/features/shared/queries/team-users";
 
 interface SystemPresenceEvent {
   userId: string;
@@ -67,15 +68,8 @@ export function useSystemPresenceSync(enabled = true) {
             return { ...(prev as object), status: evt.status };
           },
         );
-        // Elegibilidade depende do status — refetch em background.
-        void qc.invalidateQueries({
-          queryKey: ["distribution-responsibles"],
-          refetchType: "active",
-        });
-        void qc.invalidateQueries({
-          queryKey: ["distribution-pending"],
-          refetchType: "active",
-        });
+        invalidateIfObserved(qc, ["distribution-responsibles"]);
+        invalidateIfObserved(qc, ["distribution-pending"]);
       }
     },
     enabled,
@@ -84,17 +78,22 @@ export function useSystemPresenceSync(enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     const t = setInterval(() => {
-      qc.invalidateQueries({ queryKey: ["users", "assign-picker"], refetchType: "active" });
-      qc.invalidateQueries({ queryKey: ["team-users"], refetchType: "active" });
-      qc.invalidateQueries({
-        queryKey: ["distribution-responsibles"],
-        refetchType: "active",
-      });
+      invalidateIfObserved(qc, TEAM_USERS_QUERY_PREFIX);
+      invalidateIfObserved(qc, ["distribution-responsibles"]);
       // O SSE acima já patcheia essas caches in-place; este interval é só
       // safety-net para queda silenciosa da stream.
     }, 300_000);
     return () => clearInterval(t);
   }, [enabled, qc]);
+}
+
+function invalidateIfObserved(
+  qc: ReturnType<typeof useQueryClient>,
+  queryKey: readonly unknown[],
+) {
+  const observed = qc.getQueryCache().findAll({ queryKey, type: "active" });
+  if (observed.length === 0) return;
+  void qc.invalidateQueries({ queryKey, refetchType: "active" });
 }
 
 type PatchEvent =
@@ -116,8 +115,7 @@ function patchUsersCaches(
 ) {
   const keys: readonly (readonly unknown[])[] = [
     ["users", "assign-picker"],
-    ["team-users"],
-    ["users"],
+    TEAM_USERS_QUERY_PREFIX,
     ["distribution-responsibles"],
   ];
   for (const key of keys) {

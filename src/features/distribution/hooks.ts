@@ -96,15 +96,19 @@ export function useUpdateDistributionSettings() {
   });
 }
 
-export function useDistributionResponsibles(enabled = true) {
+export function useDistributionResponsibles(
+  enabled = true,
+  opts?: { poll?: boolean },
+) {
+  const poll = opts?.poll !== false;
   return useQuery<ResponsiblesResponse>({
     queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
     queryFn: fetchResponsibles,
     enabled,
-    staleTime: 1_000,
-    refetchInterval: enabled ? COUNTS_POLL_MS : false,
+    staleTime: 30_000,
+    refetchInterval: enabled && poll ? COUNTS_POLL_MS : false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -175,8 +179,16 @@ export function useUpdateResponsible() {
                 ? { queueLimit: input.queueLimit }
                 : {}),
               ...(input.type !== undefined ? { type: input.type } : {}),
+              ...(input.volume !== undefined ? { volume: input.volume } : {}),
               ...(input.preLunchStopMinutes !== undefined
                 ? { preLunchStopMinutes: input.preLunchStopMinutes }
+                : {}),
+              ...(input.departmentIds
+                ? {
+                    departments: r.departments?.filter((d) =>
+                      input.departmentIds!.includes(d.id),
+                    ),
+                  }
                 : {}),
               ...(input.schedule
                 ? {
@@ -204,6 +216,15 @@ export function useUpdateResponsible() {
                       weekdays:
                         input.schedule.weekdays ??
                         r.schedule?.weekdays ?? [1, 2, 3, 4, 5],
+                      saturdayEnabled:
+                        input.schedule.saturdayEnabled ??
+                        r.schedule?.saturdayEnabled,
+                      saturdayStart:
+                        input.schedule.saturdayStart ??
+                        r.schedule?.saturdayStart,
+                      saturdayEnd:
+                        input.schedule.saturdayEnd ??
+                        r.schedule?.saturdayEnd,
                     },
                     hasSchedule: true,
                   }
@@ -304,17 +325,19 @@ export { PENDING_PAGE_SIZE };
 export function usePendingDistributions(
   enabled = true,
   cursor: string | null = null,
+  opts?: { poll?: boolean },
 ) {
+  const poll = opts?.poll === true;
   return useQuery<PendingResponse>({
     queryKey: cursor
       ? ([...DISTRIBUTION_PENDING_KEY, cursor] as const)
       : DISTRIBUTION_PENDING_KEY,
     queryFn: () => fetchPending({ cursor, limit: PENDING_PAGE_SIZE }),
     enabled,
-    staleTime: 1_000,
-    refetchInterval: enabled && !cursor ? QUEUE_POLL_MS : false,
+    staleTime: 30_000,
+    refetchInterval: enabled && !cursor && poll ? QUEUE_POLL_MS : false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: !cursor,
+    refetchOnWindowFocus: false,
   });
 }
 

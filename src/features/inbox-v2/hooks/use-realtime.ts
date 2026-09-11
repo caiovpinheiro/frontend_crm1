@@ -920,6 +920,10 @@ export function useInboxRealtime(options: {
     // atualização perceptível vem daqui (debounce 5s, independente dos counts).
     function scheduleDailyStatsRefresh() {
       if (dailyStatsTimerRef.current) return;
+      const observed = qc
+        .getQueryCache()
+        .findAll({ queryKey: ["inbox", "daily-stats"], type: "active" });
+      if (observed.length === 0) return;
       dailyStatsTimerRef.current = setTimeout(() => {
         dailyStatsTimerRef.current = null;
         qc.invalidateQueries({ queryKey: ["inbox", "daily-stats"] });

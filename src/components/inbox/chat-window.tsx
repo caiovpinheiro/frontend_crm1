@@ -962,11 +962,9 @@ export function ChatWindow({
 
   React.useEffect(() => {
     if (conversationId)
-      fetch(apiUrl(`/api/conversations/${conversationId}/read`), { method: "POST" })
-        .then(() =>
-          queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] }),
-        )
-        .catch(() => {});
+      fetch(apiUrl(`/api/conversations/${conversationId}/read`), { method: "POST" }).catch(
+        () => {},
+      );
   }, [conversationId, queryClient]);
 
   // Ao trocar de conversa: pular instantaneamente para a última mensagem (sem
