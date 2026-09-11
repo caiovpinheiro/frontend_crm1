@@ -188,7 +188,7 @@ export function SimpleEditor({
           value={form.systemPromptOverride}
           onChange={(e) => setOverride(e.target.value)}
           rows={12}
-          placeholder="Ex.: Você atende alunos da Cruzeiro do Sul no WhatsApp. Não invente URL. Senha é por SMS…"
+          placeholder="Ex.: Você atende pelo WhatsApp. Não invente URL, prazo ou valor. Se não souber, transfira."
           className="min-h-[200px] resize-y rounded-xl font-mono text-[12px] leading-relaxed"
         />
 
@@ -198,10 +198,9 @@ export function SimpleEditor({
               Se falar em cancelar, perguntar o motivo
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Uma pergunta antes de Retenção. Tira “cancelar” das palavras
-              que transferem sozinhas. Fora do expediente (seg–sex 8h–19h,
-              sáb 9h–16h) o agente deve dizer quando o time volta — nunca
-              “já já”.
+              Uma pergunta antes de transferir para retenção. Tira “cancelar”
+              das palavras que transferam sozinhas. Fora do expediente o
+              agente deve dizer quando o time volta — nunca “já já”.
             </p>
             {leftoverKeywords.length > 0 && !askReason && (
               <p className="mt-1 text-xs text-destructive">
