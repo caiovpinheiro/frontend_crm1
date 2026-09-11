@@ -1,0 +1,29 @@
+# LanguageTool self-hosted — serviço separado do frontend Next.
+# EasyPanel: New Service → Compose, ou Docker Image `erikvl87/languagetool` porta 8010.
+#
+# No frontend (crm-dev-frontend / prod), variável de RUNTIME (sem rebuild):
+#   LANGUAGETOOL_API_URL=http://languagetool:8010/v2/check
+# Se o serviço não estiver na mesma rede Docker, use o domínio HTTPS do EasyPanel.
+
+services:
+  languagetool:
+    image: erikvl87/languagetool:latest
+    container_name: languagetool
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    environment:
+      Java_Xms: 512m
+      Java_Xmx: 1g
+    # N-grams (pt-BR melhor: Então, é, acento). Volume grande (vários GB).
+    # 1) Baixe o modelo: https://languagetool.org/download/ngram-data/
+    # 2) Descomente:
+    # environment:
+    #   Java_Xms: 1g
+    #   Java_Xmx: 4g
+    #   langtool_languageModel: /ngrams
+    # volumes:
+    #   - languagetool-ngrams:/ngrams
+
+# volumes:
+#   languagetool-ngrams:
