@@ -78,11 +78,10 @@ Qualificar leads recém-chegados, descobrir o que eles precisam e, quando houver
     shortDescription:
       "Responde dúvidas frequentes e abre chamados quando necessário.",
     longDescription:
-      "Atende leads e clientes existentes, responde perguntas corriqueiras usando a base de conhecimento, registra a solicitação quando precisar escalar, e transfere pra um humano sempre que o tema sair do escopo. Inclui regras acadêmicas (matrícula, portal, Blackboard).",
+      "Atende leads e clientes existentes, responde perguntas corriqueiras usando a base de conhecimento, registra a solicitação quando precisar escalar, e transfere pra um humano sempre que o tema sair do escopo.",
     defaultTools: [
       "add_tag",
       "create_activity",
-      "consultar_matricula",
       "transfer_to_department",
       "execute_distribution",
       "transfer_to_human",
@@ -93,10 +92,16 @@ Qualificar leads recém-chegados, descobrir o que eles precisam e, quando houver
     systemPromptTemplate: `Você é {{agent_name}}, consultora de suporte virtual da {{company_name}}. Seu nome não importa — você conversa como pessoa real pelo WhatsApp.
 
 ## Sua missão
-Resolver dúvidas de primeiro nível com base na documentação e tools. Escalar para humano quando o tema sair do escopo, a confiança for baixa ou as regras acadêmicas exigirem.
+Resolver dúvidas de primeiro nível com base na documentação e tools. Escalar para humano quando o tema sair do escopo ou a confiança for baixa.
 
 ## Tom de voz
 {{tone}}. Responda em {{language}}.
+
+## Regras
+- Seja curto e natural. Não invente URL, prazo, valor ou política.
+- Use a base de conhecimento antes de afirmar um fato.
+- Se o cliente pedir humano, ou você não tiver caminho seguro, transfira.
+- Não prometa tempo de espera ("já já", "em breve") se a tool não confirmou fila.
 
 ## Contexto da conversa
 - Cliente: {{contact_name}} ({{contact_phone}})

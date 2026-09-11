@@ -1666,7 +1666,9 @@ export default function InboxV2ClientPage({
   // GET /api/pipelines (~3KB, staleTime 5min).
   const firstDeal = contactAsideView?.deals?.[0] ?? null;
   const firstDealId = firstDeal?.id ?? null;
-  const { data: firstDealDetail } = useDealDetail(firstDealId);
+  const { data: firstDealDetail } = useDealDetail(
+    effectiveAsideCollapsed ? null : firstDealId,
+  );
   const dealStage = (
     firstDealDetail as
       | { stage?: { id?: string; pipeline?: { id?: string; name?: string } } }
@@ -1892,11 +1894,15 @@ export default function InboxV2ClientPage({
               isResolved={activeRow.status === "RESOLVED"}
               assigneeId={activeRow.assignedTo?.id ?? null}
               assigneeType={activeRow.assignedTo?.type ?? null}
-              blockReturnToAi={(contactAsideView?.deals ?? []).some((d) =>
-                /acolh/i.test(
-                  `${d.pipelineName ?? ""} ${d.stageName ?? ""} ${firstDealPipelineName ?? ""} ${firstDealStageName ?? ""}`,
-                ),
-              )}
+              aiHandoffContext={{
+                deals: (contactAsideView?.deals ?? []).map((d) => ({
+                  pipelineId: d.pipelineId ?? firstDealPipelineId,
+                  stageId: d.stageId ?? firstDeal?.stageId,
+                  pipelineName: d.pipelineName ?? firstDealPipelineName,
+                  stageName: d.stageName ?? firstDealStageName,
+                })),
+                departmentName: activeRow.department?.name ?? null,
+              }}
               onOpenFavorites={() => setFavoritesOpen(true)}
               onReopenNewConversation={handleReopenNewConversation}
               onResolved={(id) => {

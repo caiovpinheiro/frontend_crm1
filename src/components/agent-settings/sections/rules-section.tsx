@@ -45,11 +45,7 @@ export function RulesSection({
           value={steeringRules}
           onChange={(e) => onSteeringRulesChange(e.target.value)}
           rows={7}
-          placeholder={
-            archetype === "ATENDIMENTO"
-              ? "Vazio = regras acadêmicas padrão (portal, departamentos, o que dizer / não dizer)."
-              : "Regras específicas deste agente. Somadas ao modelo base."
-          }
+          placeholder="Regras específicas deste agente. Somadas ao modelo base. Vazio = só o template do arquétipo."
           className="min-h-[140px] resize-y rounded-xl font-mono text-[12px] leading-relaxed"
         />
         <FieldHelp>
