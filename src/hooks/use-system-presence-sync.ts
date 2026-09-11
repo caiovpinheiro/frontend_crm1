@@ -78,6 +78,7 @@ export function useSystemPresenceSync(enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     const t = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
       invalidateIfObserved(qc, TEAM_USERS_QUERY_PREFIX);
       invalidateIfObserved(qc, ["distribution-responsibles"]);
       // O SSE acima já patcheia essas caches in-place; este interval é só

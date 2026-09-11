@@ -14,7 +14,23 @@ import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 
 export const dynamic = "force-dynamic";
 
-export default function V2InboxPage() {
+function searchParamsToQuery(
+  raw: Record<string, string | string[] | undefined>,
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(raw)) {
+    if (value == null) continue;
+    params.set(key, Array.isArray(value) ? (value[0] ?? "") : value);
+  }
+  return params.toString();
+}
+
+export default async function V2InboxPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const urlQuery = searchParamsToQuery((await searchParams) ?? {});
   return (
     <InboxV2ClientPage
       navRail={<NavRailSpacer />}
@@ -22,6 +38,7 @@ export default function V2InboxPage() {
         icon: <IconMessage size={22} />,
         title: "Caixa de entrada",
       }}
+      urlQuery={urlQuery || undefined}
     />
   );
 }

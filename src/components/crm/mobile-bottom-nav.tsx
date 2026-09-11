@@ -18,9 +18,9 @@ import { useSession } from "next-auth/react";
 
 import {
   AgentStatusPopup,
-  useAgentStatus,
   useAgentStatusAutoPrompt,
 } from "@/components/crm/agent-status";
+import { useSharedAgentStatus } from "@/components/crm/agent-status-context";
 import { MobileMoreSheet } from "@/components/crm/mobile-more-sheet";
 import { MobileModuleIcon } from "@/components/layout/mobile-module-icon";
 import { useMobileLayout } from "@/hooks/use-mobile-layout";
@@ -85,7 +85,7 @@ function MobileBottomNavClassic() {
   const [displayName, setDisplayName] = useState("Usuário");
   const [email, setEmail] = useState<string | null>(null);
 
-  const agentStatus = useAgentStatus();
+  const agentStatus = useSharedAgentStatus();
   const [statusPopupOpen, setStatusPopupOpen] = useState(false);
   useAgentStatusAutoPrompt(agentStatus, () => setStatusPopupOpen(true));
 

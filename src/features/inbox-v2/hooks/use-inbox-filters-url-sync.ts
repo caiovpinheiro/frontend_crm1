@@ -290,6 +290,39 @@ export function hasInboxUrlState(params: URLSearchParams): boolean {
   return FILTER_PARAMS.some((key) => (params.get(key) ?? "").trim() !== "");
 }
 
+export type InboxUrlView = {
+  tab: InboxTab[];
+  filters: InboxFilters;
+  search: string;
+};
+
+/** Lê aba/filtros/busca da query. `null` se a URL não descreve a visão. */
+export function readInboxViewFromSearchParams(
+  params: URLSearchParams,
+): InboxUrlView | null {
+  if (!hasInboxUrlState(params)) return null;
+  const urlTabs = parseInboxTabs(params.get(TAB_PARAM));
+  return {
+    tab: urlTabs.length > 0 ? urlTabs : [DEFAULT_INBOX_TAB],
+    filters: inboxFiltersFromUrlParams(params),
+    search: params.get(SEARCH_PARAM) ?? "",
+  };
+}
+
+/** Visão para prefetch no shell: URL ao vivo, senão localStorage, senão default. */
+export function readInboxViewForPrefetch(): InboxUrlView {
+  if (typeof window === "undefined") {
+    return { tab: [DEFAULT_INBOX_TAB], filters: {}, search: "" };
+  }
+  return (
+    readInboxViewFromSearchParams(readLiveParams()) ?? {
+      tab: readStoredTabs(),
+      filters: readStoredFilters(),
+      search: "",
+    }
+  );
+}
+
 /** Link compartilhável da visão atual do Inbox. */
 export function inboxViewHref(
   tab: InboxTab | readonly InboxTab[],
@@ -322,30 +355,40 @@ export type UseInboxFilterUrlStateResult = {
   setSearch: (next: string) => void;
 };
 
-export function useInboxFilterUrlState(): UseInboxFilterUrlStateResult {
-  const [tab, setTabState] = useState<InboxTab[]>([DEFAULT_INBOX_TAB]);
-  const [filters, setFiltersState] = useState<InboxFilters>({});
-  const [search, setSearchState] = useState("");
-  const [hydrated, setHydrated] = useState(false);
+export function useInboxFilterUrlState(
+  urlQuery?: string,
+): UseInboxFilterUrlStateResult {
+  const fromUrl = urlQuery
+    ? readInboxViewFromSearchParams(new URLSearchParams(urlQuery))
+    : null;
+  const [tab, setTabState] = useState<InboxTab[]>(
+    () => fromUrl?.tab ?? [DEFAULT_INBOX_TAB],
+  );
+  const [filters, setFiltersState] = useState<InboxFilters>(
+    () => fromUrl?.filters ?? {},
+  );
+  const [search, setSearchState] = useState(() => fromUrl?.search ?? "");
+  const [hydrated, setHydrated] = useState(() => fromUrl != null);
   // Só clique do usuário empilha histórico (o Voltar desfaz o filtro);
   // hidratação e popstate reescrevem no lugar.
   const userEdit = useRef(false);
 
-  // useLayoutEffect: restaura ANTES do paint (com useEffect a lista piscava
-  // um frame com a aba default vazia no F5).
+  // URL do request (SSR) já hidrata no 1º render. Sem query, localStorage
+  // no layout effect — antes do paint, para não buscar a aba default errada.
+  const hasUrlView = fromUrl != null;
   useLayoutEffect(() => {
-    const params = readLiveParams();
-    if (hasInboxUrlState(params)) {
-      const urlTabs = parseInboxTabs(params.get(TAB_PARAM));
-      setTabState(urlTabs.length > 0 ? urlTabs : [DEFAULT_INBOX_TAB]);
-      setFiltersState(inboxFiltersFromUrlParams(params));
-      setSearchState(params.get(SEARCH_PARAM) ?? "");
+    if (hasUrlView) return;
+    const live = readInboxViewFromSearchParams(readLiveParams());
+    if (live) {
+      setTabState(live.tab);
+      setFiltersState(live.filters);
+      setSearchState(live.search);
     } else {
       setTabState(readStoredTabs());
       setFiltersState(readStoredFilters());
     }
     setHydrated(true);
-  }, []);
+  }, [hasUrlView]);
 
   useEffect(() => {
     if (!hydrated) return;

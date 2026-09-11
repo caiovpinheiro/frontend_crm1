@@ -20,7 +20,12 @@ import {
   type ReactionDto,
 } from "../api";
 
+<<<<<<< HEAD
 import { invalidatePipelineBoards } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+=======
+import { schedulePipelineBoardInvalidation } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+>>>>>>> 0528ed71 (fix(perf): hidrata inbox na hora, prefetch da lista e pausa polls ocultos)
 import { applyOutboundPreviewToInboxCaches } from "./apply-outbound-inbox-card";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
@@ -128,6 +133,7 @@ export function useMessages(conversationId: string | null) {
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
   const [isFetchingOlder, setIsFetchingOlder] = useState(false);
+  const visible = useDocumentVisible();
 
   const query = useQuery<MessagesResponse>({
     queryKey: messagesKey(conversationId),
@@ -140,7 +146,8 @@ export function useMessages(conversationId: string | null) {
     staleTime: 20_000,
     // SSE invalida na hora em new_message da conversa ativa. Poll só
     // das mensagens do ticket aberto — não toca lista/counts.
-    refetchInterval: 90_000,
+    refetchInterval: visible ? 90_000 : false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 

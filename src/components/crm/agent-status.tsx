@@ -14,6 +14,7 @@ import {
 
 import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 export type AgentOnlineStatus = "ONLINE" | "OFFLINE" | "AWAY";
 
@@ -108,9 +109,10 @@ export interface AgentStatusController {
  * (`GET/PUT /api/agents/:id/status` + `POST /api/agents/me/ping`).
  */
 export function useAgentStatus(): AgentStatusController {
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session } = useSession();
   const myUserId = (session?.user as { id?: string } | undefined)?.id;
   const queryClient = useQueryClient();
+  const visible = useDocumentVisible();
 
   const { data, isSuccess } = useQuery<{ status: AgentOnlineStatus }>({
     queryKey: ["my-agent-status", myUserId],
@@ -120,7 +122,8 @@ export function useAgentStatus(): AgentStatusController {
       return r.json();
     },
     enabled: !!myUserId,
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
+    refetchIntervalInBackground: false,
   });
 
   const mutation = useMutation({
