@@ -31,6 +31,7 @@ import {
   getEmailProviderPreset,
   type EmailProviderChoice,
 } from "../providers";
+import { smtpEgressForProvider } from "../smtp-egress";
 
 interface Props {
   open: boolean;
@@ -149,7 +150,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
       });
       return null;
     }
-    return payload;
+    return { ...payload, ...smtpEgressForProvider(providerId) };
   }
 
   async function handleConnect() {
