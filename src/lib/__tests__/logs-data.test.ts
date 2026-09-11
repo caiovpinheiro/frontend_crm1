@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   automationLogToEntry,
+  canOpenAttendance,
   inboxHrefForLog,
   type AutomationLogRow,
 } from "@/lib/logs-data"
@@ -54,5 +55,22 @@ describe("automationLogToEntry conversa", () => {
     expect(entry.conversationId).toBe("conv_payload")
     expect(entry.conversationNumber).toBe(15)
     expect(inboxHrefForLog(entry)).toBe("/inbox?c=15")
+  })
+
+  it("lê a conversa aninhada no payload", () => {
+    const entry = automationLogToEntry(
+      row({
+        payload: { ctx: { conversation: { id: "conv_nested", number: 9 } } },
+      }),
+    )
+    expect(entry.conversationId).toBe("conv_nested")
+    expect(entry.conversationNumber).toBe(9)
+    expect(inboxHrefForLog(entry)).toBe("/inbox?c=9")
+  })
+
+  it("abre atendimento pelo contato quando o log não traz conversa", () => {
+    const entry = automationLogToEntry(row({ contactId: "ct_1" }))
+    expect(inboxHrefForLog(entry)).toBeNull()
+    expect(canOpenAttendance(entry)).toBe(true)
   })
 })
