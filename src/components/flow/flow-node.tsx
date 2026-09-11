@@ -194,7 +194,10 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
   const updateInternals = useUpdateNodeInternals()
   const logs = useLogs()
   const cardRef = useRef<HTMLDivElement>(null)
+  const msgRef = useRef<HTMLDivElement>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [msgExpanded, setMsgExpanded] = useState(false)
+  const [msgClipped, setMsgClipped] = useState(false)
 
   const stepType = resolveStepType(d)
   const canAddChoice =
@@ -270,6 +273,15 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
     ro.observe(el)
     return () => ro.disconnect()
   }, [id, updateInternals])
+
+  /* Colapsado o card mostra só a primeira linha. Em edição o `InlineText` troca
+     o span por um textarea — aí a medida não vale, e mantemos a última. */
+  useLayoutEffect(() => {
+    if (msgExpanded) return
+    const el = msgRef.current?.firstElementChild
+    if (!(el instanceof HTMLElement) || el.tagName !== "SPAN") return
+    setMsgClipped(el.scrollHeight > el.clientHeight + 1)
+  }, [preview, msgExpanded])
 
   const duplicate = useCallback(() => {
     const node = getNode(id)
@@ -484,33 +496,53 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
             )}
           </span>
         ) : (
-          <InlineText
-            value={preview}
-            onCommit={(v) => {
-              const key =
-                stepType === "question"
-                  ? "message"
-                  : stepType === "send_whatsapp_interactive" || stepType === "send_whatsapp_list"
-                    ? "body"
-                    : "content"
-              updateNodeData(id, { preview: v, config: { ...d.config, [key]: v } })
-            }}
-            multiline
-            className="block leading-relaxed"
-            placeholder={previewPlaceholder(stepType)}
-          />
+          <div ref={msgRef}>
+            <InlineText
+              value={preview}
+              onCommit={(v) => {
+                const key =
+                  stepType === "question"
+                    ? "message"
+                    : stepType === "send_whatsapp_interactive" || stepType === "send_whatsapp_list"
+                      ? "body"
+                      : "content"
+                updateNodeData(id, { preview: v, config: { ...d.config, [key]: v } })
+              }}
+              multiline
+              className={`block leading-relaxed ${msgExpanded ? "" : "flow-msg-clamp"}`}
+              placeholder={previewPlaceholder(stepType)}
+            />
+          </div>
         )}
-        {isWhatsAppPreviewable(stepType) && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setPreviewOpen(true)
-            }}
-            className="nodrag mt-1.5 text-[11px] font-semibold text-[#008069] hover:underline"
-          >
-            Ver como o cliente recebe
-          </button>
+        {(msgClipped || isWhatsAppPreviewable(stepType)) && (
+          <div className="mt-1.5 flex items-center gap-3">
+            {msgClipped && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setMsgExpanded((v) => !v)
+                }}
+                className={`nodrag text-[11px] font-semibold hover:underline ${
+                  isMilestone ? "text-white" : "text-primary"
+                }`}
+              >
+                {msgExpanded ? "Ver menos" : "Ver mais"}
+              </button>
+            )}
+            {isWhatsAppPreviewable(stepType) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setPreviewOpen(true)
+                }}
+                className="nodrag text-[11px] font-semibold text-[#008069] hover:underline"
+              >
+                Ver como o cliente recebe
+              </button>
+            )}
+          </div>
         )}
       </div>
 
