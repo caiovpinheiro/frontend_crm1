@@ -9,11 +9,12 @@ import {
 } from "@/features/inbox-v2/api/proofread";
 import { useInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings";
 import {
-  applyPilotReplacements,
   isIgnoredExcerpt,
   loadProofreadPilot,
+  prepareProofreadText,
   saveProofreadPilot,
 } from "@/features/inbox-v2/lib/proofread-pilot";
+import type { ProofreadMatch } from "@/lib/language-tool";
 
 export const PROOFREAD_ENABLED_KEY = "eduit:proofread:enabled";
 
@@ -37,18 +38,25 @@ function applyPilotToResult(
   prepared: string,
   result: ProofreadResult,
   ignore: string[],
+  localMatches: ProofreadMatch[],
 ): ProofreadResult {
   const source = result.original || prepared;
-  const matches = result.matches.filter((m) => {
-    const excerpt = matchExcerpt(source, m.offset, m.length);
-    return !isIgnoredExcerpt(excerpt, ignore);
-  });
+  const ltMatches = result.matches
+    .map((m) => ({
+      ...m,
+      excerpt: m.excerpt || matchExcerpt(source, m.offset, m.length),
+    }))
+    .filter((m) => !isIgnoredExcerpt(m.excerpt ?? "", ignore));
+  const matches = [
+    ...localMatches.filter((m) => !isIgnoredExcerpt(m.excerpt ?? "", ignore)),
+    ...ltMatches,
+  ];
   return {
     ok: matches.length === 0,
     original: raw,
     suggested: result.suggested,
     matches,
-    matchSource: source,
+    matchSource: raw,
   };
 }
 
@@ -90,15 +98,19 @@ export function useProofreadSendGate() {
 
   const load = useCallback(
     async (raw: string): Promise<ProofreadResult> => {
-      const prepared = applyPilotReplacements(raw, replacements);
+      const { prepared, localMatches } = prepareProofreadText(
+        raw,
+        replacements,
+        ignore,
+      );
       const hit = cacheRef.current.get(prepared);
       if (hit && Date.now() - hit.at < CLIENT_CACHE_TTL_MS) {
-        return applyPilotToResult(raw, prepared, hit.result, ignore);
+        return applyPilotToResult(raw, prepared, hit.result, ignore, localMatches);
       }
       const pending = inflightRef.current.get(prepared);
       if (pending) {
         const next = await pending;
-        return applyPilotToResult(raw, prepared, next, ignore);
+        return applyPilotToResult(raw, prepared, next, ignore, localMatches);
       }
       const promise = proofreadText(prepared)
         .then((next) => {
@@ -115,7 +127,7 @@ export function useProofreadSendGate() {
         });
       inflightRef.current.set(prepared, promise);
       const next = await promise;
-      return applyPilotToResult(raw, prepared, next, ignore);
+      return applyPilotToResult(raw, prepared, next, ignore, localMatches);
     },
     [ignore, replacements],
   );
@@ -148,7 +160,7 @@ export function useProofreadSendGate() {
         if (!prev) return prev;
         const source = prev.matchSource ?? prev.original;
         const matches = prev.matches.filter((m) => {
-          const piece = matchExcerpt(source, m.offset, m.length);
+          const piece = m.excerpt || matchExcerpt(source, m.offset, m.length);
           return piece.trim().toLowerCase() !== token;
         });
         return { ...prev, matches, ok: matches.length === 0 };
@@ -160,11 +172,15 @@ export function useProofreadSendGate() {
   const gate = useCallback(
     async (text: string): Promise<ProofreadGateResult> => {
       if (!enabled || !text.trim()) return { status: "ok", text };
-      const prepared = applyPilotReplacements(text, replacements);
+      const { prepared, localMatches } = prepareProofreadText(
+        text,
+        replacements,
+        ignore,
+      );
       const cached = cacheRef.current.get(prepared);
       const fresh =
         cached && Date.now() - cached.at < CLIENT_CACHE_TTL_MS
-          ? applyPilotToResult(text, prepared, cached.result, ignore)
+          ? applyPilotToResult(text, prepared, cached.result, ignore, localMatches)
           : null;
       if (!fresh) setChecking(true);
       try {

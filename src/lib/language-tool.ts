@@ -12,6 +12,8 @@ export type ProofreadMatch = {
   ruleId?: string;
   categoryId?: string;
   issueType?: string;
+  /** Trecho original; o dialog usa isto quando o offset não é do texto cru. */
+  excerpt?: string;
 };
 
 /** Estilo formal do LT (pra→para) não serve no WhatsApp. */
@@ -34,6 +36,16 @@ const INFORMAL_KEEP = new Set([
   "td",
   "nd",
   "hj",
+  "fudido",
+  "fudida",
+  "fudidos",
+  "fudidas",
+  "porra",
+  "caralho",
+  "merda",
+  "bosta",
+  "cacete",
+  "pqp",
 ]);
 
 /** Mantém ortografia/gramática; descarta formalidade e gíria de chat. */
