@@ -18,12 +18,22 @@ import type { ProofreadMatch, ProofreadResult } from "@/features/inbox-v2/api/pr
 function matchExcerpt(original: string, match: ProofreadMatch): string {
   if (
     match.offset < 0 ||
-    match.length <= 0 ||
+    match.length < 0 ||
+    match.offset > original.length ||
     match.offset + match.length > original.length
   ) {
     return "";
   }
+  if (match.length === 0) return "";
   return original.slice(match.offset, match.offset + match.length);
+}
+
+function matchTitle(match: ProofreadMatch): string {
+  const short = match.shortMessage?.trim();
+  if (short) return short;
+  const msg = (match.message ?? "").trim();
+  if (msg.length > 0 && msg.length <= 72) return msg;
+  return "Pontuação / estilo";
 }
 
 export function ProofreadDialog({
@@ -95,10 +105,14 @@ export function ProofreadDialog({
                   key={`${m.offset}-${m.length}-${i}`}
                   className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
                 >
-                  <p className="font-medium">{m.shortMessage || m.message}</p>
-                  {excerpt ? (
+                  <p className="font-medium">{matchTitle(m)}</p>
+                  {excerpt || fix ? (
                     <p className="mt-0.5 text-sm">
-                      <span className="text-muted-foreground line-through">{excerpt}</span>
+                      {excerpt ? (
+                        <span className="text-muted-foreground line-through">{excerpt}</span>
+                      ) : (
+                        <span className="text-muted-foreground">inserir</span>
+                      )}
                       {fix ? (
                         <>
                           <span className="text-muted-foreground"> → </span>
