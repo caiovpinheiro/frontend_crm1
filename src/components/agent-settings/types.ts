@@ -256,6 +256,8 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
       mode: "explicit",
       keywords: ["pode encerrar", "resolvido", "obrigado, era isso"],
       message: "Tudo certo. Qualquer coisa é só chamar de novo.",
+      idleMessage:
+        "Como não tive retorno, vou encerrar por aqui. Qualquer coisa é só chamar de novo.",
     },
   },
   archetype: "ATENDIMENTO",

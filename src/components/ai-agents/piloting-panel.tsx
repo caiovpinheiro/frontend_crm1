@@ -1047,8 +1047,29 @@ function AutoCloseSection({
               className="resize-none text-sm"
             />
             <p className="text-[11px] text-muted-foreground">
-              Enviada antes de fechar. Aceita as mesmas variáveis da
-              saudação. Vazio = frase padrão do sistema.
+              Enviada antes de fechar quando o cliente fecha o assunto.
+              Aceita as mesmas variáveis da saudação. Vazio = frase padrão
+              do sistema.
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="pilot-autoclose-idle-msg" className={formLabelClass}>
+              Mensagem ao encerrar por falta de resposta (opcional)
+            </Label>
+            <Textarea
+              id="pilot-autoclose-idle-msg"
+              rows={2}
+              value={policy.idleMessage ?? ""}
+              onChange={(e) =>
+                setPolicy({ idleMessage: e.target.value || null })
+              }
+              placeholder="Ex.: Como não tive retorno, vou encerrar por aqui. Qualquer coisa é só chamar de novo."
+              className="resize-none text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Outro contexto: o cliente sumiu e não respondeu ao check-in.
+              Enviada antes de fechar. Vazio = encerra sem avisar.
             </p>
           </div>
         </>

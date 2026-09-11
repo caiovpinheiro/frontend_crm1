@@ -311,6 +311,8 @@ export function AgentSettingsDialog({
             mode: form.piloting.autoClosePolicy.mode,
             keywords: form.piloting.autoClosePolicy.keywords,
             message: form.piloting.autoClosePolicy.message?.trim() || null,
+            idleMessage:
+              form.piloting.autoClosePolicy.idleMessage?.trim() || null,
           },
         }),
       });
