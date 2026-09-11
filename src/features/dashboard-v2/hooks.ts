@@ -30,6 +30,7 @@ import type { SystemUsageSummaryResponse } from "@/features/system-usage/types";
 import { useActivityStats } from "@/features/activity-feed/use-activity-stats";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import {
   mockEventCard,
@@ -164,12 +165,14 @@ export function usePainelAgora(
   clock: "business" | "elapsed",
   enabled = true,
 ) {
+  const visible = useDocumentVisible();
   return useQuery<PainelAgora>({
     queryKey: ["painel", "agora", clock],
     queryFn: ({ signal }) => fetchPainelAgora(clock, signal),
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
     staleTime: 30_000,
-    refetchInterval: 120_000,
+    refetchInterval: visible ? 120_000 : false,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -371,12 +374,14 @@ function pickDefined<T extends Record<string, { ok: boolean; error?: string }>>(
 }
 
 export function useDashboardMe(enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery<DashboardMeData>({
     queryKey: ["dashboard-v2", "me"],
     queryFn: fetchDashboardMe,
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
+    refetchIntervalInBackground: false,
   });
 }
 

@@ -208,7 +208,7 @@ function fmtDateBR(iso: string | null | undefined): string {
 
 export default function V2CompaniesClientPage() {
   const { status } = useSession();
-  const isAuthenticated = status === "authenticated";
+  const canFetch = status !== "unauthenticated";
 
   const [view, setView] = useCardsTableView();
   const [search, setSearch] = useState("");
@@ -291,8 +291,8 @@ export default function V2CompaniesClientPage() {
     );
   }
 
-  const statsQuery = useCompanyStats(isAuthenticated);
-  const facetsQuery = useCompanyFacets(isAuthenticated);
+  const statsQuery = useCompanyStats(canFetch);
+  const facetsQuery = useCompanyFacets(canFetch);
   const query = useCompanies({
     search: debounced || undefined,
     page,
@@ -305,7 +305,7 @@ export default function V2CompaniesClientPage() {
     state: filterState || undefined,
     city: filterCity || undefined,
     industry: filterIndustry || undefined,
-    enabled: isAuthenticated,
+    enabled: canFetch,
   });
   const items = query.data?.items ?? [];
   const displayItems = useMemo(() => {
