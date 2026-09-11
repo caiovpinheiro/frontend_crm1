@@ -74,3 +74,31 @@ import { VariableNode } from "./variable-node";
 const TRIGGER_ID = "trigger";
 /** Zoom ao abrir: gatilho no centro, com folga (fitView sem teto chegava perto demais). */
 const OPEN_VIEW_ZOOM = 0.65;
+
+const nodeTypes = {
+  trigger: TriggerNode,
+  action: ActionNode,
+  condition: ConditionNode,
+  roundRobin: RoundRobinNode,
+  businessHours: BusinessHoursNode,
+  checkAgentStatus: CheckAgentStatusNode,
+  distribution: DistributionNode,
+  delay: DelayNode,
+  question: QuestionNode,
+  interactive: InteractiveNode,
+  wait: WaitNode,
+  variable: VariableNode,
+  goto: GotoNode,
+  finish: FinishNode,
+  addStep: AddStepNode,
+};
+
+const edgeTypes = {
+  flow: AnimatedEdge,
+};
+
+type RfPos = { x: number; y: number };
+
+const START_X = 200;
+const NODE_Y = 300;
+const GAP_X = 480;
