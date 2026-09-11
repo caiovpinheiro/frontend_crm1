@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -122,6 +122,48 @@ const DistributionLogsList = dynamic(
 );
 
 const SMART_DISTRIBUTION_SLUG = "smart_distribution";
+const DIST_SMART_INSTALLED_KEY = "crm:dist-smart-installed";
+const DIST_PENDING_TOTAL_KEY = "crm:dist-pending-total";
+
+function readSessionFlag(key: string): boolean | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+  } catch {
+    /* sessionStorage indisponível */
+  }
+  return null;
+}
+
+function writeSessionFlag(key: string, value: boolean) {
+  try {
+    window.sessionStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    /* sessionStorage indisponível */
+  }
+}
+
+function readSessionInt(key: string): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (raw == null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionInt(key: string, value: number) {
+  try {
+    window.sessionStorage.setItem(key, String(value));
+  } catch {
+    /* sessionStorage indisponível */
+  }
+}
 
 function inboxConversationHref(
   number: number | null | undefined,
@@ -186,13 +228,31 @@ export default function DistributionClientPage({
   const canManage = role === "ADMIN" || role === "MANAGER";
 
   const widgetsQuery = useWidgets(canFetch);
+  const [cachedInstalled, setCachedInstalled] = useState<boolean | null>(null);
+  const [cachedPendingTotal, setCachedPendingTotal] = useState<number | null>(null);
 
-  const widgetInstalled =
-    widgetsQuery.data?.items.find((w) => w.slug === SMART_DISTRIBUTION_SLUG)?.installed ??
-    false;
+  useLayoutEffect(() => {
+    setCachedInstalled(readSessionFlag(DIST_SMART_INSTALLED_KEY));
+    setCachedPendingTotal(readSessionInt(DIST_PENDING_TOTAL_KEY));
+  }, []);
 
+  const widgetFromApi = widgetsQuery.data?.items.find(
+    (w) => w.slug === SMART_DISTRIBUTION_SLUG,
+  )?.installed;
+
+  useEffect(() => {
+    if (widgetFromApi === undefined) return;
+    writeSessionFlag(DIST_SMART_INSTALLED_KEY, widgetFromApi);
+    setCachedInstalled(widgetFromApi);
+  }, [widgetFromApi]);
+
+  // Sem cache: dispara equipe em paralelo com /widgets. Com cache "off":
+  // não busca. A fila pending só na aba Fila.
   const queueLive =
-    canFetch && (isPageMockMode() || widgetInstalled);
+    canFetch &&
+    (isPageMockMode() ||
+      widgetFromApi === true ||
+      (widgetFromApi === undefined && cachedInstalled !== false));
 
   const searchParams = useSearchParams();
   const viewFromUrl = parseViewParam(searchParams.get("tab"));
@@ -201,8 +261,9 @@ export default function DistributionClientPage({
   const respQuery = useDistributionResponsibles(queueLive, {
     poll: view === "team",
   });
-  const pendingQuery = usePendingDistributions(queueLive, null, {
-    poll: view === "queue",
+  const pendingLive = queueLive && view === "queue";
+  const pendingQuery = usePendingDistributions(pendingLive, null, {
+    poll: true,
   });
   useDistributionQueueRealtime(queueLive, { pending: view === "queue" });
   const simulateMut = useSimulateDistribution();
@@ -230,7 +291,17 @@ export default function DistributionClientPage({
 
   const realResponsibles = respQuery.data?.responsibles ?? [];
   const realPending = pendingQuery.data?.pending ?? [];
-  const realPendingTotal = pendingQuery.data?.total ?? realPending.length;
+  const livePendingTotal =
+    pendingQuery.data != null
+      ? (pendingQuery.data.total ?? realPending.length)
+      : cachedPendingTotal;
+
+  useEffect(() => {
+    if (pendingQuery.data == null) return;
+    const total = pendingQuery.data.total ?? pendingQuery.data.pending.length;
+    writeSessionInt(DIST_PENDING_TOTAL_KEY, total);
+    setCachedPendingTotal(total);
+  }, [pendingQuery.data]);
   // Dados de exemplo (EduIT ilustrativo) SÓ em DEV/mock. Em PRODUÇÃO nunca
   // exibimos dados fictícios: mostramos os dados reais (ou o erro/estado real).
   // `isDevDemoEnv` casa localhost / host de DEV (crm-dev-*) / mock explícito
@@ -242,13 +313,17 @@ export default function DistributionClientPage({
         realCount: realResponsibles.length,
         hasFilters: false,
         isLoading:
-          widgetsQuery.isLoading ||
-          ((isPageMockMode() || widgetInstalled) && respQuery.isLoading),
+          (widgetsQuery.isLoading && cachedInstalled !== true && !respQuery.data) ||
+          ((isPageMockMode() || queueLive) && respQuery.isLoading),
         isError: !!respQuery.error,
       }) ||
-      (!widgetsQuery.isLoading && !widgetInstalled));
+      (widgetsQuery.isFetched && widgetFromApi === false));
 
-  const smartInstalled = useDemo || widgetInstalled;
+  const smartInstalled =
+    useDemo ||
+    widgetFromApi === true ||
+    (widgetFromApi !== false &&
+      (cachedInstalled === true || Boolean(respQuery.data)));
 
   const responsibles = useDemo
     ? MOCK_DISTRIBUTION_RESPONSIBLES.responsibles
@@ -256,7 +331,10 @@ export default function DistributionClientPage({
   const pending = useDemo ? MOCK_DISTRIBUTION_PENDING.pending : realPending;
   const pendingTotal = useDemo
     ? (MOCK_DISTRIBUTION_PENDING.total ?? pending.length)
-    : realPendingTotal;
+    : (livePendingTotal ?? 0);
+  const pendingBadge = useDemo
+    ? queueItems.length
+    : (livePendingTotal ?? undefined);
 
   const typeOptions = useMemo(
     () =>
@@ -311,6 +389,8 @@ export default function DistributionClientPage({
   const handleRetry = () => {
     retryMut.mutate(undefined, {
       onSuccess: (res) => {
+        writeSessionInt(DIST_PENDING_TOTAL_KEY, res.pending);
+        setCachedPendingTotal(res.pending);
         if (res.resolved > 0) {
           toast.success(`${res.resolved} lead(s) distribuído(s).`);
         } else if (res.pending > 0) {
@@ -346,8 +426,10 @@ export default function DistributionClientPage({
 
   if (roleReady && !isManagerUp) return <RestrictedScreen />;
 
+  const widgetsBlocking =
+    widgetsQuery.isLoading && cachedInstalled !== true && !respQuery.data;
   const showContent =
-    !widgetsQuery.isLoading &&
+    !widgetsBlocking &&
     smartInstalled &&
     !(!useDemo && respQuery.isLoading) &&
     !(!useDemo && respQuery.error);
@@ -413,7 +495,7 @@ export default function DistributionClientPage({
                   tabs={[
                     { key: "team", label: "Equipe", badge: teamListCount },
                     { key: "coverage", label: "Cobertura" },
-                    { key: "queue", label: "Fila de espera", badge: useDemo ? queueItems.length : pendingTotal },
+                    { key: "queue", label: "Fila de espera", badge: pendingBadge },
                     { key: "logs", label: "Logs" },
                   ]}
                   value={view}
@@ -477,7 +559,7 @@ export default function DistributionClientPage({
             showHidden={coverageShowHidden}
             onShowHiddenChange={setCoverageShowHidden}
           />
-        ) : widgetsQuery.isLoading ? (
+        ) : widgetsBlocking ? (
           <SkeletonState />
         ) : !smartInstalled ? (
           <NotEnabledState />
@@ -498,7 +580,7 @@ export default function DistributionClientPage({
                 <DistributionMiniDash
                   responsibles={responsibles}
                   pending={pending}
-                  waitingCount={useDemo ? queueItems.length : pendingTotal}
+                  waitingCount={useDemo ? queueItems.length : (livePendingTotal ?? undefined)}
                 />
               </section>
 
@@ -598,15 +680,17 @@ function DistributionMiniDash({
     const eligible = responsibles.filter((r) => r.eligible).length;
     const blocked = participating.length - eligible;
     const inService = responsibles.reduce((acc, r) => acc + (r.queueCount ?? 0), 0);
+    const waitingKnown = waitingCount !== undefined || pending.length > 0;
     const waiting = waitingCount ?? pending.length;
     // Taxa de cobertura: elegíveis / participantes (capacidade de receber agora).
     const coverage =
       participating.length > 0
         ? Math.round((eligible / participating.length) * 100)
         : 0;
-    // Taxa de sucesso da distribuição: distribuídos / (distribuídos + aguardando).
-    const successRate =
-      inService + waiting > 0
+    // Sem total da fila (aba Equipe, 1ª visita) não inventa 100%.
+    const successRate = !waitingKnown
+      ? undefined
+      : inService + waiting > 0
         ? Math.round((inService / (inService + waiting)) * 100)
         : 100;
     return { eligible, blocked, inService, waiting, coverage, successRate };
