@@ -653,7 +653,7 @@ export function LeadsDistributionView({
       label: "Consultores no rodízio",
       shortLabel: "No rodízio",
       value: activeCount,
-      hint: `${participants.length} configurado(s)`,
+      hint: `de ${participants.length} na equipe`,
       tone: "neutral" as const,
       icon: <IconUsers size={20} stroke={2.2} />,
     },
