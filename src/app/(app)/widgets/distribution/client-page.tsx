@@ -108,7 +108,7 @@ import {
   type RedistributeQueueScope,
 } from "@/features/distribution/types";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
-import { LeadsDistributionView } from "./leads-view";
+import { LeadsDistributionView, type LeadsPane } from "./leads-view";
 import {
   MOCK_DISTRIBUTION_PENDING,
   MOCK_DISTRIBUTION_RESPONSIBLES,
@@ -266,6 +266,9 @@ export default function DistributionClientPage({
   const [coverageShowHidden, setCoverageShowHidden] = useState(false);
   const [logDateFrom, setLogDateFrom] = useState("");
   const [logDateTo, setLogDateTo] = useState("");
+  const [leadsPane, setLeadsPane] = useState<LeadsPane>("consultants");
+  const [leadsDateFrom, setLeadsDateFrom] = useState("");
+  const [leadsDateTo, setLeadsDateTo] = useState("");
 
   const realResponsibles = respQuery.data?.responsibles ?? [];
   const realPending = pendingQuery.data?.pending ?? [];
@@ -466,7 +469,22 @@ export default function DistributionClientPage({
             ) : undefined
           }
           period={
-            pageMode === "smart" && view === "logs" ? (
+            pageMode === "leads" ? (
+              <div className="flex shrink-0">
+                <PeriodCalendarButton active={Boolean(leadsDateFrom || leadsDateTo)}>
+                  <PeriodIsoRangePanel
+                    from={leadsDateFrom}
+                    to={leadsDateTo}
+                    onChange={({ from, to }) => {
+                      setLeadsDateFrom(from);
+                      setLeadsDateTo(to);
+                    }}
+                    allPeriodLabel="Todo o período"
+                    showToday
+                  />
+                </PeriodCalendarButton>
+              </div>
+            ) : pageMode === "smart" && view === "logs" ? (
               <div data-tour="distribution-period" className="flex shrink-0">
               <PeriodCalendarButton active={Boolean(logDateFrom || logDateTo)}>
                 <PeriodIsoRangePanel
@@ -486,12 +504,13 @@ export default function DistributionClientPage({
           actions={
             smartInstalled || view === "coverage" ? (
               <div className="flex min-w-0 w-full flex-nowrap items-center gap-2">
-                {pageMode === "smart" && view !== "coverage" && smartInstalled ? (
+                {((pageMode === "smart" && view !== "coverage") || pageMode === "leads") &&
+                smartInstalled ? (
                   <div data-tour="distribution-view" className="flex shrink-0">
                     <ViewToggle value={listView} onChange={setListView} />
                   </div>
                 ) : null}
-                {adminCount > 0 && (
+                {adminCount > 0 && pageMode === "smart" && (
                   <button
                     type="button"
                     onClick={() => setShowAdmins((v) => !v)}
@@ -552,10 +571,22 @@ export default function DistributionClientPage({
             ) : undefined
           }
         >
-          {/* Abas do modo smart em linha própria abaixo do header — nunca
-              colapsam por falta de espaço na linha de ações. No modo leads a
-              página não tem abas (sem fila de espera). */}
-          {pageMode === "smart" && (smartInstalled || view === "coverage") && (
+          {/* Abas em linha própria abaixo do header — nunca colapsam por
+              falta de espaço na linha de ações. Leads não tem fila; as abas
+              cobrem consultores, ranking e histórico. */}
+          {pageMode === "leads" && smartInstalled ? (
+            <div className="w-full min-w-0">
+              <HeaderTabs
+                tabs={[
+                  { key: "consultants", label: "Consultores" },
+                  { key: "ranking", label: "Ranking" },
+                  { key: "history", label: "Histórico" },
+                ]}
+                value={leadsPane}
+                onChange={setLeadsPane}
+              />
+            </div>
+          ) : pageMode === "smart" && (smartInstalled || view === "coverage") ? (
             <div data-tour="distribution-tabs" className="w-full min-w-0">
               <HeaderTabs
                 tabs={[
@@ -568,7 +599,7 @@ export default function DistributionClientPage({
                 onChange={(v) => setView(v)}
               />
             </div>
-          )}
+          ) : null}
         </SectionHeader>
         }
         bodyClassName="gap-3 sm:gap-4"
@@ -583,7 +614,13 @@ export default function DistributionClientPage({
           ) : !smartInstalled ? (
             <NotEnabledState />
           ) : (
-            <LeadsDistributionView canManage={canManage} />
+            <LeadsDistributionView
+              canManage={canManage}
+              view={listView}
+              pane={leadsPane}
+              from={leadsDateFrom}
+              to={leadsDateTo}
+            />
           )
         ) : /* Cobertura não depende do widget `smart_distribution`: a grade
             de expedientes valia para qualquer org quando morava em

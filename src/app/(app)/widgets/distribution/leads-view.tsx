@@ -1,34 +1,43 @@
 "use client";
 
 /**
- * Visualização "Distribuição por Leads" (modo leads) da página de
- * Distribuição. O seletor do topo apenas alterna a visualização — nenhuma
- * automação ou motor muda por causa disso.
- *
- * Conteúdo: configuração dos consultores (status administrativo próprio +
- * peso 0–5 + slots do rodízio), indicadores (total, por consultor), ranking
- * e histórico com filtros de período e consultor. SEM fila de espera — o
- * modo leads não tem pending.
+ * Visualização "Distribuição por Leads" — mesmo DNA visual da Distribuição
+ * Inteligente: KPIs canônicos, toggle em LIST_CARD_ROW, lista DataView /
+ * cards por linha. Sem fila de espera.
  */
 
 import { useMemo, useState } from "react";
 import {
-  IconRefresh,
+  IconCircleCheck,
+  IconLoader2,
   IconTrophy,
+  IconUserCheck,
   IconUsers,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 
+import { DataView, DataRow } from "@/components/automations/data-view";
+import type { CardsTableView } from "@/components/automations/view-toggle";
 import { ButtonGlass } from "@/components/crm/button-glass";
-import { Chip } from "@/components/crm/chip";
+import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { EmptyState } from "@/components/crm/empty-state";
-import { KpiCard } from "@/components/crm/kpi-card";
+import { KpiCard, KpiSquareScroll } from "@/components/crm/kpi-card";
+import { ListHScroll } from "@/components/crm/list-hscroll";
 import {
-  PeriodCalendarButton,
-  PeriodIsoRangePanel,
-} from "@/components/crm/period-calendar-button";
+  LIST_PAGE_PANE_CLASS,
+  LIST_PAGE_STACK_CLASS,
+  PaginationGlass,
+} from "@/components/crm/pagination-glass";
+import {
+  CARD_SURFACE_CLASS,
+  LIST_ACTIONS_CELL_CLASS,
+  LIST_CARD_ROW_CLASS,
+  LIST_CARD_STACK_CLASS,
+  ListColumnLabel,
+} from "@/components/crm/sortable-header";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { UserAvatar } from "@/components/crm/user-avatar";
+import { DistributionIcon } from "@/components/icons/distribution-icon";
 import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import {
   useBulkAddLeadsParticipants,
@@ -44,6 +53,15 @@ import { useDistributionResponsibles } from "@/features/distribution/hooks";
 import { cn } from "@/lib/utils";
 
 const WEIGHT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
+
+export type LeadsPane = "consultants" | "ranking" | "history";
+
+const CONSULTANTS_GRID =
+  "grid-cols-[minmax(220px,2.2fr)_minmax(88px,0.7fr)_minmax(120px,0.9fr)_minmax(176px,1.15fr)_13rem]";
+const RANKING_GRID =
+  "grid-cols-[3.5rem_minmax(220px,1fr)_minmax(96px,0.6fr)]";
+const HISTORY_GRID =
+  "grid-cols-[minmax(128px,0.8fr)_minmax(180px,1.4fr)_minmax(160px,1fr)_minmax(72px,0.5fr)]";
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -83,86 +101,200 @@ function SlotDots({ participant }: { participant: LeadsParticipantDto }) {
   );
 }
 
-function ParticipantRow({
-  participant,
-  canManage,
+function WeightPicker({
+  value,
+  disabled,
+  onChange,
 }: {
-  participant: LeadsParticipantDto;
-  canManage: boolean;
+  value: number;
+  disabled: boolean;
+  onChange: (weight: number) => void;
 }) {
-  const updateMut = useUpdateLeadsParticipant();
-  const active = participant.status === "ACTIVE";
+  return (
+    <div
+      className="inline-flex items-center rounded-full border border-border bg-card p-0.5"
+      title="Peso: quantos dos 5 slots entram no rodízio"
+    >
+      {WEIGHT_OPTIONS.map((w) => (
+        <button
+          key={w}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(w)}
+          className={cn(
+            "inline-flex size-7 items-center justify-center rounded-full font-display text-[12px] font-bold transition-colors",
+            value === w
+              ? "bg-primary/15 text-primary"
+              : "text-muted-foreground hover:text-foreground",
+            disabled && "cursor-not-allowed opacity-60",
+          )}
+          aria-pressed={value === w}
+        >
+          {w}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-  const save = (input: { status?: "ACTIVE" | "INACTIVE"; weight?: number }) => {
+function StatusControl({
+  active,
+  disabled,
+  onToggle,
+}: {
+  active: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1">
+      {active ? (
+        <span className="inline-flex w-fit items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 font-display text-[12px] font-bold text-success">
+          <IconCircleCheck size={13} /> Ativo
+        </span>
+      ) : (
+        <span className="inline-flex w-fit items-center gap-1 rounded-full bg-secondary px-2 py-0.5 font-display text-[12px] font-bold text-muted-foreground">
+          Inativo
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onToggle}
+        className="cursor-pointer font-display text-[12px] font-semibold text-primary transition-colors hover:underline disabled:opacity-50"
+      >
+        {active ? "Inativar" : "Ativar"}
+      </button>
+    </div>
+  );
+}
+
+function useParticipantSave() {
+  const updateMut = useUpdateLeadsParticipant();
+  const save = (
+    userId: string,
+    input: { status?: "ACTIVE" | "INACTIVE"; weight?: number },
+  ) => {
     updateMut.mutate(
-      { userId: participant.userId, input },
+      { userId, input },
       {
         onSuccess: () => toast.success("Participante atualizado."),
         onError: (e) => toast.error(e.message || "Erro ao salvar."),
       },
     );
   };
+  return { updateMut, save };
+}
+
+function ConsultantDesktopRow({
+  participant,
+  canManage,
+}: {
+  participant: LeadsParticipantDto;
+  canManage: boolean;
+}) {
+  const { updateMut, save } = useParticipantSave();
+  const active = participant.status === "ACTIVE";
+  const busy = !canManage || updateMut.isPending;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-4 py-3">
-      <UserAvatar
-        name={participant.name ?? participant.email ?? "?"}
-        imageUrl={participant.avatarUrl}
-        size={34}
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-semibold text-[var(--text-default)]">
-          {participant.name ?? participant.email ?? participant.userId}
-        </p>
-        <p className="text-[11px] text-[var(--text-muted)]">
-          {participant.totalReceived} lead(s) recebido(s)
-        </p>
+    <DataRow>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <UserAvatar
+          name={participant.name ?? participant.email ?? "?"}
+          imageUrl={participant.avatarUrl}
+          size={36}
+        />
+        <div className="min-w-0 leading-tight">
+          <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+            {participant.name ?? "Sem nome"}
+          </p>
+          <p className="mt-0.5 truncate font-body text-[12px] leading-tight text-muted-foreground">
+            {participant.email ?? "—"}
+          </p>
+        </div>
       </div>
-
+      <div className="w-full font-display text-[15px] font-bold tabular-nums text-foreground">
+        {participant.totalReceived}
+      </div>
       <SlotDots participant={participant} />
-
-      <div className="flex items-center gap-1" title="Peso: quantos dos 5 slots entram no rodízio">
-        {WEIGHT_OPTIONS.map((w) => (
-          <button
-            key={w}
-            type="button"
-            disabled={!canManage || updateMut.isPending}
-            onClick={() => save({ weight: w })}
-            className={cn(
-              "inline-flex size-7 items-center justify-center rounded-md border text-[12px] font-semibold transition-colors",
-              participant.weight === w
-                ? "border-primary bg-primary/15 text-primary"
-                : "border-border bg-card text-muted-foreground hover:text-foreground",
-              (!canManage || updateMut.isPending) && "cursor-not-allowed opacity-60",
-            )}
-            aria-pressed={participant.weight === w}
-          >
-            {w}
-          </button>
-        ))}
+      <WeightPicker
+        value={participant.weight}
+        disabled={busy}
+        onChange={(weight) => save(participant.userId, { weight })}
+      />
+      <div className={LIST_ACTIONS_CELL_CLASS}>
+        <StatusControl
+          active={active}
+          disabled={busy}
+          onToggle={() =>
+            save(participant.userId, { status: active ? "INACTIVE" : "ACTIVE" })
+          }
+        />
       </div>
-
-      <button
-        type="button"
-        disabled={!canManage || updateMut.isPending}
-        onClick={() => save({ status: active ? "INACTIVE" : "ACTIVE" })}
-        className={cn(
-          "inline-flex h-7 items-center rounded-full border px-3 text-[11px] font-semibold transition-colors",
-          active
-            ? "border-[var(--color-success-border)] bg-[var(--color-success-bg)] text-[var(--color-success-text)]"
-            : "border-border bg-muted/40 text-muted-foreground",
-          (!canManage || updateMut.isPending) && "cursor-not-allowed opacity-60",
-        )}
-        title={active ? "Ativo no rodízio — clique para inativar" : "Inativo — clique para ativar"}
-      >
-        {active ? "Ativo" : "Inativo"}
-      </button>
-    </div>
+    </DataRow>
   );
 }
 
-/** Kill switch do modo leads — independente do toggle da Distribuição
- *  Inteligente (cada motor tem o seu). */
+function ConsultantMobileCard({
+  participant,
+  canManage,
+}: {
+  participant: LeadsParticipantDto;
+  canManage: boolean;
+}) {
+  const { updateMut, save } = useParticipantSave();
+  const active = participant.status === "ACTIVE";
+  const busy = !canManage || updateMut.isPending;
+
+  return (
+    <li className={LIST_CARD_ROW_CLASS}>
+      <div className="flex min-w-0 items-start gap-2.5">
+        <UserAvatar
+          name={participant.name ?? participant.email ?? "?"}
+          imageUrl={participant.avatarUrl}
+          size={36}
+        />
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+            {participant.name ?? "Sem nome"}
+          </p>
+          <p className="mt-0.5 truncate font-body text-[12px] text-muted-foreground">
+            {participant.email ?? "—"}
+          </p>
+        </div>
+        <StatusControl
+          active={active}
+          disabled={busy}
+          onToggle={() =>
+            save(participant.userId, { status: active ? "INACTIVE" : "ACTIVE" })
+          }
+        />
+      </div>
+      <div className="mt-2 grid w-full grid-cols-2 divide-x divide-border rounded-xl border border-border bg-secondary/40 py-2">
+        <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
+          <p className="text-xs font-semibold text-muted-foreground">Recebidos</p>
+          <p className="font-display text-[14px] font-bold leading-none text-[var(--text-primary)]">
+            {participant.totalReceived}
+          </p>
+        </div>
+        <div className="flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-center">
+          <p className="text-xs font-semibold text-muted-foreground">Slots</p>
+          <SlotDots participant={participant} />
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-muted-foreground">Peso</p>
+        <WeightPicker
+          value={participant.weight}
+          disabled={busy}
+          onChange={(weight) => save(participant.userId, { weight })}
+        />
+      </div>
+    </li>
+  );
+}
+
 function LeadsEnabledToggle({ canManage }: { canManage: boolean }) {
   const settingsQuery = useLeadsSettings();
   const updateSettings = useUpdateLeadsSettings();
@@ -172,7 +304,7 @@ function LeadsEnabledToggle({ canManage }: { canManage: boolean }) {
   const enabled = pendingEnabled ?? settingsQuery.data?.enabled ?? true;
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-4 py-3">
+    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
       <div className="min-w-0">
         <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
           Distribuição por Leads {enabled ? "ligada" : "desligada"}
@@ -209,12 +341,22 @@ function LeadsEnabledToggle({ canManage }: { canManage: boolean }) {
   );
 }
 
-export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
+export function LeadsDistributionView({
+  canManage,
+  view = "cards",
+  pane,
+  from = "",
+  to = "",
+}: {
+  canManage: boolean;
+  view?: CardsTableView;
+  pane: LeadsPane;
+  from?: string;
+  to?: string;
+}) {
   const participantsQuery = useLeadsParticipants();
   const responsiblesQuery = useDistributionResponsibles();
 
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [filterUserId, setFilterUserId] = useState("");
   const filters = useMemo(
     () => ({
@@ -238,7 +380,6 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
     historyQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const historyTotal = historyQuery.data?.pages[0]?.total ?? 0;
 
-  // Operadores ainda não configurados. Admin/gestor ficam de fora (role MEMBER).
   const availableToAdd = useMemo(() => {
     const configured = new Set(participants.map((p) => p.userId));
     return (responsiblesQuery.data?.responsibles ?? []).filter(
@@ -270,233 +411,390 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
     );
   };
 
+  const kpiItems = [
+    {
+      key: "total",
+      label: "Leads distribuídos",
+      shortLabel: "Distribuídos",
+      value: stats?.total ?? 0,
+      hint: from || to ? "no período" : undefined,
+      tone: "brand" as const,
+      icon: <IconTrophy size={20} stroke={2.2} />,
+    },
+    {
+      key: "consultants",
+      label: "Consultores no rodízio",
+      shortLabel: "No rodízio",
+      value: activeCount,
+      hint: `${participants.length} configurado(s)`,
+      tone: "neutral" as const,
+      icon: <IconUsers size={20} stroke={2.2} />,
+    },
+    {
+      key: "top",
+      label: "Quem mais recebeu",
+      shortLabel: "Mais recebeu",
+      value: top?.count ?? 0,
+      hint: top?.name ?? undefined,
+      tone: "success" as const,
+      icon: <IconUserCheck size={20} stroke={2.2} />,
+    },
+  ];
+
   if (participantsQuery.isLoading) {
     return (
       <div className="flex items-center justify-center py-16 text-[var(--text-muted)]">
-        <IconRefresh className="mr-2 size-4 animate-spin" /> Carregando…
+        <IconLoader2 className="mr-2 size-4 animate-spin" />
+        <span className="font-body text-[13px]">Carregando…</span>
       </div>
     );
   }
   if (participantsQuery.error) {
     return (
-      <EmptyState
-        icon={<IconUsers className="size-6" />}
-        title="Erro ao carregar a Distribuição por Leads"
-        description={participantsQuery.error.message}
-      />
+      <div className={CARD_SURFACE_CLASS}>
+        <EmptyState
+          icon={<IconUsers className="size-6" />}
+          title="Erro ao carregar a Distribuição por Leads"
+          description={participantsQuery.error.message}
+        />
+      </div>
     );
   }
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3 sm:gap-4">
-      {/* Kill switch do modo leads (independente do smart) */}
-      <LeadsEnabledToggle canManage={canManage} />
-
-      {/* Indicadores */}
-      <section
-        className="grid w-full shrink-0 grid-cols-1 gap-3 sm:grid-cols-3"
-        aria-label="Indicadores da Distribuição por Leads"
-      >
-        <KpiCard
-          label="Leads distribuídos"
-          value={String(stats?.total ?? 0)}
-          hint={filters.from || filters.to ? "no período filtrado" : "total histórico"}
-          icon={<IconTrophy className="size-4" />}
+      <section className="w-full shrink-0" aria-label="Indicadores da Distribuição por Leads">
+        <KpiSquareScroll
+          items={kpiItems.map((c) => ({
+            key: c.key,
+            label: c.shortLabel,
+            value: c.value.toLocaleString("pt-BR"),
+            icon: c.icon,
+            tone: c.tone,
+          }))}
         />
-        <KpiCard
-          label="Consultores no rodízio"
-          value={String(activeCount)}
-          hint={`${participants.length} configurado(s)`}
-          icon={<IconUsers className="size-4" />}
-          tone="neutral"
-        />
-        <KpiCard
-          label="Quem mais recebeu"
-          value={top ? String(top.count) : "0"}
-          hint={top?.name ?? "—"}
-          icon={<IconTrophy className="size-4" />}
-          tone="success"
-        />
-      </section>
-
-      {/* Configuração dos consultores */}
-      <section
-        className="w-full rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-4"
-        aria-label="Consultores do rodízio"
-      >
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[13px] font-bold text-[var(--text-default)]">
-              Consultores
-            </h2>
-            <p className="text-[11px] text-[var(--text-muted)]">
-              Status e peso valem só para novos recebimentos. Peso 0–5 = quantos
-              dos 5 slots do consultor entram no rodízio. Sem fila de espera:
-              sem elegível, a automação segue a saída “Sem agente”.
-            </p>
-          </div>
-          {canManage && availableToAdd.length > 0 && (
-            <div className="flex items-center gap-2">
-              <MultiSelectPopover
-                label="Consultores"
-                icon={<IconUsers size={14} />}
-                options={availableToAdd.map((r) => ({
-                  value: r.userId,
-                  label: r.name ?? r.email ?? r.userId,
-                  sub: r.email ?? undefined,
-                }))}
-                selected={pendingUserIds}
-                onChange={setPendingUserIds}
-                emptyLabel="Nenhum operador disponível"
-                disabled={bulkAddMut.isPending}
-                width={280}
-              />
-              <ButtonGlass
-                type="button"
-                variant="primary"
-                disabled={pendingUserIds.length === 0 || bulkAddMut.isPending}
-                onClick={addSelected}
-              >
-                {bulkAddMut.isPending
-                  ? "Adicionando…"
-                  : pendingUserIds.length > 0
-                    ? `Adicionar (${pendingUserIds.length})`
-                    : "Adicionar"}
-              </ButtonGlass>
-            </div>
-          )}
-        </div>
-
-        {participants.length === 0 ? (
-          <EmptyState
-            icon={<IconUsers className="size-6" />}
-            title="Nenhum consultor configurado"
-            description="Adicione consultores e defina o peso (0–5) de cada um para montar o rodízio."
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {participants.map((p) => (
-              <ParticipantRow key={p.userId} participant={p} canManage={canManage} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Ranking */}
-      <section
-        className="w-full rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-4"
-        aria-label="Ranking de recebimentos"
-      >
-        <h2 className="mb-3 text-[13px] font-bold text-[var(--text-default)]">
-          Ranking
-        </h2>
-        {!stats || stats.ranking.length === 0 ? (
-          <p className="py-4 text-center text-[12px] text-[var(--text-muted)]">
-            Nenhuma distribuição no período.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            {stats.ranking.map((r, idx) => (
-              <div
-                key={r.userId}
-                className="flex items-center gap-3 rounded-lg px-2 py-1.5"
-              >
-                <span
-                  className={cn(
-                    "inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
-                    idx === 0
-                      ? "bg-primary/15 text-primary"
-                      : "bg-muted/60 text-muted-foreground",
-                  )}
-                >
-                  {idx + 1}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-default)]">
-                  {r.name ?? r.userId}
-                </span>
-                <Chip variant="ghost">{r.count} lead(s)</Chip>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Histórico */}
-      <section
-        className="w-full rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-4"
-        aria-label="Histórico de distribuições"
-      >
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h2 className="min-w-0 flex-1 text-[13px] font-bold text-[var(--text-default)]">
-            Histórico ({historyTotal})
-          </h2>
-          <PeriodCalendarButton active={Boolean(from || to)}>
-            <PeriodIsoRangePanel
-              from={from}
-              to={to}
-              onChange={({ from: f, to: t }) => {
-                setFrom(f);
-                setTo(t);
-              }}
-              allPeriodLabel="Todo o período"
-              showToday
+        <div className="hidden w-full gap-2.5 sm:gap-3.5 lg:grid lg:grid-cols-3">
+          {kpiItems.map((c) => (
+            <KpiCard
+              key={c.key}
+              label={c.label}
+              value={c.value.toLocaleString("pt-BR")}
+              hint={c.hint}
+              icon={c.icon}
+              tone={c.tone}
             />
-          </PeriodCalendarButton>
-          <select
-            className="h-8 rounded-md border border-border bg-card px-2 text-[12px] text-foreground"
-            value={filterUserId}
-            onChange={(e) => setFilterUserId(e.target.value)}
-            aria-label="Filtrar por consultor"
-          >
-            <option value="">Todos os consultores</option>
-            {participants.map((p) => (
-              <option key={p.userId} value={p.userId}>
-                {p.name ?? p.email ?? p.userId}
-              </option>
-            ))}
-          </select>
+          ))}
         </div>
+      </section>
 
-        {historyQuery.isLoading ? (
-          <div className="flex items-center justify-center py-8 text-[var(--text-muted)]">
-            <IconRefresh className="mr-2 size-4 animate-spin" /> Carregando…
-          </div>
-        ) : historyItems.length === 0 ? (
-          <p className="py-4 text-center text-[12px] text-[var(--text-muted)]">
-            Nenhuma distribuição encontrada para os filtros.
-          </p>
-        ) : (
-          <>
-            <div className="flex flex-col divide-y divide-[var(--glass-border)]">
-              {historyItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 py-2">
-                  <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
-                    {formatDateTime(item.createdAt)}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-default)]">
-                    {item.leadLabel ?? "Lead"}
-                  </span>
-                  <span className="shrink-0 text-[12px] text-[var(--text-muted)]">
-                    → {item.userName ?? item.userId}
-                  </span>
-                </div>
-              ))}
+      {canManage && <LeadsEnabledToggle canManage={canManage} />}
+
+      {pane === "consultants" ? (
+        <div className={LIST_PAGE_PANE_CLASS}>
+          <div className="mb-2.5 flex shrink-0 flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <IconUsers size={20} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-foreground">Consultores</h2>
+                <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
+                  Status e peso valem só para novos recebimentos. Peso 0–5 = quantos
+                  dos 5 slots entram no rodízio. Sem fila de espera: sem elegível, a
+                  automação segue a saída “Sem agente”.
+                </p>
+              </div>
             </div>
-            {historyQuery.hasNextPage && (
-              <div className="mt-3 flex justify-center">
+            {canManage && availableToAdd.length > 0 && (
+              <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
+                <MultiSelectPopover
+                  label="Consultores"
+                  icon={<IconUsers size={14} />}
+                  options={availableToAdd.map((r) => ({
+                    value: r.userId,
+                    label: r.name ?? r.email ?? r.userId,
+                    sub: r.email ?? undefined,
+                  }))}
+                  selected={pendingUserIds}
+                  onChange={setPendingUserIds}
+                  emptyLabel="Nenhum operador disponível"
+                  disabled={bulkAddMut.isPending}
+                  width={280}
+                />
                 <ButtonGlass
-                  onClick={() => historyQuery.fetchNextPage()}
-                  disabled={historyQuery.isFetchingNextPage}
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled={pendingUserIds.length === 0 || bulkAddMut.isPending}
+                  onClick={addSelected}
                 >
-                  {historyQuery.isFetchingNextPage
-                    ? "Carregando…"
-                    : "Carregar mais"}
+                  {bulkAddMut.isPending
+                    ? "Adicionando…"
+                    : pendingUserIds.length > 0
+                      ? `Adicionar (${pendingUserIds.length})`
+                      : "Adicionar"}
                 </ButtonGlass>
               </div>
             )}
-          </>
-        )}
-      </section>
+          </div>
+
+          {participants.length === 0 ? (
+            <div className={CARD_SURFACE_CLASS}>
+              <EmptyState
+                icon={<DistributionIcon size={28} />}
+                title="Nenhum consultor configurado"
+                description="Adicione consultores e defina o peso (0–5) de cada um para montar o rodízio."
+              />
+            </div>
+          ) : (
+            <>
+              <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
+                {participants.map((p) => (
+                  <ConsultantMobileCard
+                    key={p.userId}
+                    participant={p}
+                    canManage={canManage}
+                  />
+                ))}
+              </ul>
+              <div className="hidden w-full md:block">
+                <ListHScroll>
+                  <DataView
+                    view={view}
+                    columnClass={cn("grid w-full items-center gap-4", CONSULTANTS_GRID)}
+                    className={LIST_PAGE_STACK_CLASS}
+                    header={
+                      <>
+                        <ListColumnLabel>Consultor</ListColumnLabel>
+                        <ListColumnLabel>Recebidos</ListColumnLabel>
+                        <ListColumnLabel>Slots</ListColumnLabel>
+                        <ListColumnLabel>Peso</ListColumnLabel>
+                        <ListColumnLabel align="right">Status</ListColumnLabel>
+                      </>
+                    }
+                  >
+                    {participants.map((p) => (
+                      <ConsultantDesktopRow
+                        key={p.userId}
+                        participant={p}
+                        canManage={canManage}
+                      />
+                    ))}
+                  </DataView>
+                </ListHScroll>
+              </div>
+              <PaginationGlass
+                total={participants.length}
+                entityLabel="consultores"
+                showNav={false}
+              />
+            </>
+          )}
+        </div>
+      ) : pane === "ranking" ? (
+        <div className={LIST_PAGE_PANE_CLASS}>
+          <div className="mb-2.5 flex min-w-0 items-start gap-3 px-1">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-success-soft text-success">
+              <IconTrophy size={20} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-foreground">Ranking</h2>
+              <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
+                Quem mais recebeu leads no período selecionado.
+              </p>
+            </div>
+          </div>
+          {!stats || stats.ranking.length === 0 ? (
+            <div className={CARD_SURFACE_CLASS}>
+              <EmptyState
+                icon={<IconTrophy className="size-6" />}
+                title="Nenhuma distribuição no período"
+                description="Quando o rodízio atribuir leads, o ranking aparece aqui."
+              />
+            </div>
+          ) : (
+            <>
+              <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
+                {stats.ranking.map((r, idx) => (
+                  <li key={r.userId} className={LIST_CARD_ROW_CLASS}>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={cn(
+                          "inline-flex size-7 shrink-0 items-center justify-center rounded-full font-display text-[12px] font-bold",
+                          idx === 0
+                            ? "bg-primary/15 text-primary"
+                            : "bg-secondary text-muted-foreground",
+                        )}
+                      >
+                        {idx + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+                        {r.name ?? r.userId}
+                      </span>
+                      <span className="font-display text-[15px] font-bold tabular-nums text-foreground">
+                        {r.count}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden w-full md:block">
+                <ListHScroll>
+                  <DataView
+                    view={view}
+                    columnClass={cn("grid w-full items-center gap-4", RANKING_GRID)}
+                    className={LIST_PAGE_STACK_CLASS}
+                    header={
+                      <>
+                        <ListColumnLabel>#</ListColumnLabel>
+                        <ListColumnLabel>Consultor</ListColumnLabel>
+                        <ListColumnLabel>Leads</ListColumnLabel>
+                      </>
+                    }
+                  >
+                    {stats.ranking.map((r, idx) => (
+                      <DataRow key={r.userId}>
+                        <span
+                          className={cn(
+                            "inline-flex size-7 items-center justify-center rounded-full font-display text-[12px] font-bold",
+                            idx === 0
+                              ? "bg-primary/15 text-primary"
+                              : "bg-secondary text-muted-foreground",
+                          )}
+                        >
+                          {idx + 1}
+                        </span>
+                        <span className="min-w-0 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+                          {r.name ?? r.userId}
+                        </span>
+                        <span className="font-display text-[15px] font-bold tabular-nums text-foreground">
+                          {r.count}
+                        </span>
+                      </DataRow>
+                    ))}
+                  </DataView>
+                </ListHScroll>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className={LIST_PAGE_PANE_CLASS}>
+          <div className="mb-2.5 flex shrink-0 flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-chip-blue-soft text-chip-blue">
+                <IconUserCheck size={20} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-foreground">
+                  Histórico
+                </h2>
+                <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
+                  Atribuições do rodízio no período do calendário.
+                </p>
+              </div>
+            </div>
+            <DropdownGlass
+              options={[
+                { value: "", label: "Todos os consultores" },
+                ...participants.map((p) => ({
+                  value: p.userId,
+                  label: p.name ?? p.email ?? p.userId,
+                })),
+              ]}
+              value={filterUserId}
+              onValueChange={setFilterUserId}
+              placeholder="Todos os consultores"
+              triggerClassName="w-auto min-w-[220px]"
+            />
+          </div>
+
+          {historyQuery.isLoading ? (
+            <div className="flex items-center justify-center py-16 text-[var(--text-muted)]">
+              <IconLoader2 className="mr-2 size-4 animate-spin" />
+              <span className="font-body text-[13px]">Carregando…</span>
+            </div>
+          ) : historyItems.length === 0 ? (
+            <div className={CARD_SURFACE_CLASS}>
+              <EmptyState
+                icon={<DistributionIcon size={28} />}
+                title="Nenhuma distribuição encontrada"
+                description="Ajuste o período ou o consultor para ver outros registros."
+              />
+            </div>
+          ) : (
+            <>
+              <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
+                {historyItems.map((item) => (
+                  <li key={item.id} className={LIST_CARD_ROW_CLASS}>
+                    <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+                      {item.leadLabel ?? "Lead"}
+                    </p>
+                    <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
+                      {formatDateTime(item.createdAt)} · {item.userName ?? item.userId}
+                      {" · slot "}
+                      {item.slotIndex + 1}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden w-full md:block">
+                <ListHScroll>
+                  <DataView
+                    view={view}
+                    columnClass={cn("grid w-full items-center gap-4", HISTORY_GRID)}
+                    className={LIST_PAGE_STACK_CLASS}
+                    header={
+                      <>
+                        <ListColumnLabel>Quando</ListColumnLabel>
+                        <ListColumnLabel>Lead</ListColumnLabel>
+                        <ListColumnLabel>Consultor</ListColumnLabel>
+                        <ListColumnLabel>Slot</ListColumnLabel>
+                      </>
+                    }
+                  >
+                    {historyItems.map((item) => (
+                      <DataRow key={item.id}>
+                        <span className="font-display text-[13px] tabular-nums text-[var(--text-secondary)]">
+                          {formatDateTime(item.createdAt)}
+                        </span>
+                        <span className="min-w-0 truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+                          {item.leadLabel ?? "Lead"}
+                        </span>
+                        <span className="min-w-0 truncate font-body text-[13px] text-[var(--text-secondary)]">
+                          {item.userName ?? item.userId}
+                        </span>
+                        <span className="font-display text-[13px] tabular-nums text-[var(--text-secondary)]">
+                          {item.slotIndex + 1}
+                        </span>
+                      </DataRow>
+                    ))}
+                  </DataView>
+                </ListHScroll>
+              </div>
+              <PaginationGlass
+                total={historyTotal}
+                entityLabel="distribuições"
+                showNav={false}
+              />
+              {historyQuery.hasNextPage && (
+                <div className="-mt-3 flex justify-center pb-6">
+                  <ButtonGlass
+                    variant="glass"
+                    size="sm"
+                    onClick={() => historyQuery.fetchNextPage()}
+                    disabled={historyQuery.isFetchingNextPage}
+                  >
+                    {historyQuery.isFetchingNextPage
+                      ? "Carregando…"
+                      : "Carregar mais"}
+                  </ButtonGlass>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
