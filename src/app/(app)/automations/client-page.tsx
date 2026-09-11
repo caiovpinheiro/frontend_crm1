@@ -564,7 +564,7 @@ function AutomationsKpis({
   )
 }
 
-// ── Busca + popover de filtros (status) ──────────────────────────────
+// ── Busca + popover de filtros (status) ──────────────────────────────────
 
 function AutomationsSearchFilterBar({
   search,
@@ -632,7 +632,7 @@ function AutomationsSearchFilterBar({
   )
 }
 
-// ── Menu hamburger (CTAs da página) ──────────────────────────────
+// ── Menu hamburger (CTAs da página) ──────────────────────────────────────
 
 function AutomationsActionsMenu({
   onNew,
