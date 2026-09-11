@@ -370,7 +370,7 @@ function ManagerHome({
   const eventCards = usePainelEventCards(filters, grid.cards, tabReady && isDeals);
   const usageQuery = useSystemUsageToday(tabReady && isDeals);
 
-  const departmentsQuery = useDepartments();
+  const departmentsQuery = useDepartments(tabReady && isService);
   const usersQuery = useTeamUsersQuery(tabReady && isService);
 
   const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {

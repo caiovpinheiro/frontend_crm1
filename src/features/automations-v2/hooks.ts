@@ -7,6 +7,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import {
   createAutomation,
   deleteAutomation,
@@ -102,11 +104,13 @@ export function useAutomation(id: string | null) {
  * muito tempo e os números precisam acompanhar as execuções.
  */
 export function useAutomationStats(id: string | null, enabled?: boolean) {
+  const visible = useDocumentVisible();
   return useQuery<AutomationStats>({
     queryKey: ["v2-automation-stats", id ?? "__none__"],
     queryFn: () => fetchAutomationStats(id as string),
     enabled: !!id && (enabled ?? true),
-    refetchInterval: 30_000,
+    refetchInterval: visible ? 30_000 : false,
+    refetchIntervalInBackground: false,
     staleTime: 10_000,
   });
 }
