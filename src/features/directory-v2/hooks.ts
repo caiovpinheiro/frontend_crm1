@@ -579,7 +579,7 @@ export function useActivityAlert(enabled = true) {
     refetchInterval: 120_000,
     refetchIntervalInBackground: false,
     retry: false,
-    staleTime: 0,
+    staleTime: 60_000,
   });
 }
 
