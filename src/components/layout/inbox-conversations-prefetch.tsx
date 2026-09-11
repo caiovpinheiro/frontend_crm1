@@ -20,7 +20,7 @@ export function InboxConversationsPrefetch() {
   const started = useRef(false);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status === "unauthenticated") return;
 
     const run = () => {
       if (started.current) return;
