@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { applyLanguageToolReplacements } from "@/lib/language-tool";
+import {
+  applyLanguageToolReplacements,
+  describeLanguageToolHttpError,
+} from "@/lib/language-tool";
 
 describe("applyLanguageToolReplacements", () => {
   it("aplica o primeiro replacement da direita para a esquerda", () => {
@@ -69,5 +72,23 @@ describe("applyLanguageToolReplacements", () => {
         { offset: 3, length: 0, replacements: ["."] },
       ]),
     ).toBe("ola.");
+  });
+});
+
+describe("describeLanguageToolHttpError", () => {
+  it("detecta 502 do EasyPanel", () => {
+    expect(
+      describeLanguageToolHttpError(
+        502,
+        "crm-languagetool-worker.ca31ey.easypanel.host",
+        "<html><title>Not Found</title>Service is not reachable</html>",
+      ),
+    ).toMatch(/EasyPanel não alcança/);
+  });
+
+  it("detecta HTML genérico", () => {
+    expect(
+      describeLanguageToolHttpError(404, "example.com", "<!DOCTYPE html><html>"),
+    ).toMatch(/HTML em vez de JSON/);
   });
 });

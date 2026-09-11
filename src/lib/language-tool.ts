@@ -67,3 +67,22 @@ export function applyLanguageToolReplacements(
   }
   return result;
 }
+
+/** Mensagem de toast quando o worker devolve HTML/502 do proxy (EasyPanel). */
+export function describeLanguageToolHttpError(
+  status: number,
+  host: string,
+  body: string,
+): string {
+  const snippet = body.slice(0, 800);
+  if (
+    snippet.includes("Service is not reachable") ||
+    /easypanel/i.test(snippet)
+  ) {
+    return `EasyPanel não alcança o LanguageTool em ${host} (HTTP ${status}). O serviço precisa ser App (não Worker), porta 8010, container Java no ar.`;
+  }
+  if (/<!DOCTYPE|<html/i.test(snippet)) {
+    return `LanguageTool (${host}) devolveu HTML em vez de JSON (HTTP ${status}). Confira LANGUAGETOOL_API_URL (.../v2/check) e se o Java está escutando.`;
+  }
+  return `LanguageTool (${host}) retornou HTTP ${status}.`;
+}

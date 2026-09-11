@@ -1,9 +1,13 @@
-# Worker LanguageTool (HTTP :8010). EasyPanel: App + imagem, não tipo Worker.
-# EasyPanel: New Service → Compose, ou Docker Image `erikvl87/languagetool` porta 8010.
+# Worker LanguageTool (HTTP :8010). EasyPanel: App + imagem, NÃO tipo Worker.
+# Tipo Worker do EasyPanel não tem porta — Traefik devolve
+# "Service is not reachable" (HTML 502).
+#
+# Java demora 1–2 min para subir. Até /v2/languages responder, o domínio
+# público também cai no 502 do EasyPanel.
 #
 # No frontend (crm-dev-frontend / prod), variável de RUNTIME (sem rebuild):
 #   LANGUAGETOOL_API_URL=http://languagetool:8010/v2/check
-# Se o serviço não estiver na mesma rede Docker, use o domínio HTTPS do EasyPanel.
+# Preferir DNS interno (mesma rede). Domínio HTTPS só se o Next não alcançar.
 
 services:
   languagetool:
@@ -15,6 +19,16 @@ services:
     environment:
       Java_Xms: 512m
       Java_Xmx: 1g
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8010/v2/languages >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
     # N-grams (pt-BR melhor: Então, é, acento). Volume grande (vários GB).
     # 1) Baixe o modelo: https://languagetool.org/download/ngram-data/
     # 2) Descomente:

@@ -3,7 +3,15 @@
 Worker HTTP separado do frontend e do `leads-worker`. Expõe `/v2/check`.
 O composer só chama `POST /api/proofread` no Next; o Next encaminha para este worker.
 
-Não use o tipo **Worker** do EasyPanel (sem porta). Este processo precisa escutar **8010**.
+Não use o tipo **Worker** do EasyPanel (sem porta HTTP). Este processo precisa
+ser **App** e escutar **8010**. Se o domínio público devolver HTML
+`Service is not reachable` (EasyPanel 502), o Traefik não alcança o Java —
+o CRM ainda não falhou no corretor; o container está down, crashando, ou
+a porta do serviço não é 8010.
+
+O body `{ text, language }` é o JSON do `POST /api/proofread` no Next.
+O worker LanguageTool **não** aceita JSON: ele espera
+`application/x-www-form-urlencoded` em `/v2/check`.
 
 ## Subir o worker (DEV)
 
@@ -40,6 +48,35 @@ LANGUAGETOOL_API_URL=https://languagetool.SEU-PROJETO.easypanel.host/v2/check
 ```
 
 Sem essa variável o frontend cai na API pública (`api.languagetool.org`), que não cobre bem acentos/pt-BR.
+
+## 502 `Service is not reachable`
+
+Isso é o proxy do EasyPanel, não o composer.
+
+1. Serviço = **App** (Docker Image / Compose), não tipo Worker
+2. Porta do serviço = **8010** (a imagem escuta só nessa)
+3. Logs do container: Java “Server started” / sem OOM
+4. Espere 1–2 min no primeiro boot
+5. Teste o domínio do **worker** (não o do CRM):
+
+```bash
+curl -sS -o /tmp/lt.json -w '%{http_code}\n' -X POST \
+  'https://crm-languagetool-worker.SEU-PROJETO.easypanel.host/v2/check' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode 'text=Da pra mim fazer?' \
+  --data-urlencode 'language=pt-BR'
+```
+
+Tem que voltar **200** e JSON (`matches`). Se ainda for HTML do EasyPanel,
+não adiante mudar o frontend.
+
+Preferível no Next (mesma rede Docker), sem passar pelo Traefik público:
+
+```
+LANGUAGETOOL_API_URL=http://<nome-do-servico>:8010/v2/check
+```
+
+Depois **Restart** no `crm-dev-frontend` (sem rebuild).
 
 ## N-grams (melhor pt-BR)
 
