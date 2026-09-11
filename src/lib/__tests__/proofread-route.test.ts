@@ -45,6 +45,22 @@ describe("POST /proofread", () => {
     expect(json.matches.some((m) => m.replacements[0] === "mensagem")).toBe(true);
   }, 20_000);
 
+  it("aplica pontuação no texto proposto", async () => {
+    const text =
+      "Oi Marcelo, tudo bem Entao vou tentar de ajudar por aqui, tem um geito melhor de fazer isso";
+    const req = new Request("http://localhost/proofread", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language: "pt-BR" }),
+    });
+    const res = await POST(req as never);
+    const json = (await res.json()) as { suggested: string };
+    expect(res.status).toBe(200);
+    expect(json.suggested.startsWith("Oi,")).toBe(true);
+    expect(json.suggested).toMatch(/jeito/);
+    expect(json.suggested.trim().endsWith(".")).toBe(true);
+  }, 20_000);
+
   it("rejeita body sem texto", async () => {
     const req = new Request("http://localhost/proofread", {
       method: "POST",
