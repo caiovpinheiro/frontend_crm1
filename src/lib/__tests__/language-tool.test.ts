@@ -132,6 +132,21 @@ describe("isWhatsappUsefulMatch", () => {
     );
   });
 
+  it("não “corrige” fudido para fluido", () => {
+    expect(
+      isWhatsappUsefulMatch(
+        {
+          offset: 6,
+          length: 6,
+          categoryId: "TYPOS",
+          issueType: "misspelling",
+          ruleId: "MORFOLOGIK_RULE_PT_BR",
+        },
+        "mouse fudido",
+      ),
+    ).toBe(false);
+  });
+
   it("não “corrige” vc no chat", () => {
     expect(
       isWhatsappUsefulMatch(

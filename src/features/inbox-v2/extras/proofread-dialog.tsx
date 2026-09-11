@@ -99,7 +99,7 @@ export function ProofreadDialog({
           <span className={formLabelClass}>Alterações</span>
           <ul className="flex flex-wrap gap-1.5">
             {visible.map((m, i) => {
-              const excerpt = matchExcerpt(matchSource, m);
+              const excerpt = m.excerpt || matchExcerpt(matchSource, m);
               const fix = m.replacements[0];
               return (
                 <li
