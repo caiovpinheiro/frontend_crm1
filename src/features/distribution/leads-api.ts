@@ -121,6 +121,7 @@ export function updateLeadsParticipant(
     if (p) {
       if (input.status !== undefined) p.status = input.status;
       if (input.weight !== undefined) p.weight = input.weight;
+      if (input.note !== undefined) p.note = (input.note ?? "").trim();
       p.slots = p.slots.map((s) => ({
         ...s,
         active: p.status === "ACTIVE" && s.slotIndex < p.weight,

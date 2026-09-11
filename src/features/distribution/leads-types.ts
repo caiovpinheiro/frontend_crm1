@@ -26,6 +26,8 @@ export interface LeadsParticipantDto {
   status: "ACTIVE" | "INACTIVE";
   /** Peso 0–5: quantos dos 5 slots entram no rodízio. 0 = não recebe. */
   weight: number;
+  /** Observação administrativa do consultor (modo leads). */
+  note: string;
   slots: LeadsSlotDto[];
   totalReceived: number;
   createdAt: string;
@@ -39,6 +41,7 @@ export interface LeadsParticipantsResponse {
 export interface UpdateLeadsParticipantInput {
   status?: "ACTIVE" | "INACTIVE";
   weight?: number;
+  note?: string | null;
 }
 
 export interface BulkAddLeadsParticipantsInput {

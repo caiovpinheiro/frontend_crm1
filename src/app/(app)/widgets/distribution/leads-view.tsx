@@ -6,10 +6,11 @@
  * cards por linha. Sem fila de espera.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   IconCircleCheck,
   IconLoader2,
+  IconNotes,
   IconTrophy,
   IconUserCheck,
   IconUsers,
@@ -38,6 +39,15 @@ import {
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { DistributionIcon } from "@/components/icons/distribution-icon";
+import {
+  FormDialog,
+  FormDialogIcon,
+  formControlClass,
+  formDialogCancelClass,
+  formDialogPrimaryClass,
+  formLabelClass,
+} from "@/components/ui/form-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import {
   useBulkAddLeadsParticipants,
@@ -53,11 +63,12 @@ import { useDistributionResponsibles } from "@/features/distribution/hooks";
 import { cn } from "@/lib/utils";
 
 const WEIGHT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
+const NOTE_MAX = 500;
 
 export type LeadsPane = "consultants" | "ranking" | "history";
 
 const CONSULTANTS_GRID =
-  "grid-cols-[minmax(220px,2.2fr)_minmax(88px,0.7fr)_minmax(120px,0.9fr)_minmax(176px,1.15fr)_13rem]";
+  "grid-cols-[minmax(220px,2.2fr)_minmax(88px,0.7fr)_minmax(108px,0.8fr)_minmax(148px,0.95fr)_13rem]";
 const RANKING_GRID =
   "grid-cols-[3.5rem_minmax(220px,1fr)_minmax(96px,0.6fr)]";
 const HISTORY_GRID =
@@ -76,7 +87,7 @@ function formatDateTime(iso: string): string {
 
 function SlotDots({ participant }: { participant: LeadsParticipantDto }) {
   return (
-    <div className="flex items-center gap-1" title="Slots do rodízio (ativos pelo peso)">
+    <div className="flex items-center gap-1" title="Posições do rodízio (ativas pelo peso)">
       {participant.slots.map((s) => (
         <span
           key={s.slotIndex}
@@ -88,12 +99,12 @@ function SlotDots({ participant }: { participant: LeadsParticipantDto }) {
           )}
           title={
             s.active
-              ? `Slot ${s.slotIndex + 1} ativo${
+              ? `Posição ${s.slotIndex + 1} ativa${
                   s.lastAssignedAt
                     ? ` — último lead em ${formatDateTime(s.lastAssignedAt)}`
-                    : " — nunca usado"
+                    : " — nunca usada"
                 }`
-              : `Slot ${s.slotIndex + 1} inativo (peso ${participant.weight})`
+              : `Posição ${s.slotIndex + 1} inativa (peso ${participant.weight})`
           }
         />
       ))}
@@ -112,8 +123,8 @@ function WeightPicker({
 }) {
   return (
     <div
-      className="inline-flex items-center rounded-full border border-border bg-card p-0.5"
-      title="Peso: quantos dos 5 slots entram no rodízio"
+      className="inline-flex h-7 items-center rounded-full border border-border bg-card p-px"
+      title="Peso: quantas das 5 posições entram no rodízio"
     >
       {WEIGHT_OPTIONS.map((w) => (
         <button
@@ -122,7 +133,7 @@ function WeightPicker({
           disabled={disabled}
           onClick={() => onChange(w)}
           className={cn(
-            "inline-flex size-7 items-center justify-center rounded-full font-display text-[12px] font-bold transition-colors",
+            "inline-flex h-6 w-6 items-center justify-center rounded-full font-display text-[11px] font-bold leading-none transition-colors",
             value === w
               ? "bg-primary/15 text-primary"
               : "text-muted-foreground hover:text-foreground",
@@ -169,16 +180,54 @@ function StatusControl({
   );
 }
 
+function participantNote(p: LeadsParticipantDto): string {
+  return (p.note ?? "").trim();
+}
+
+function ConsultantIdentity({
+  participant,
+}: {
+  participant: LeadsParticipantDto;
+}) {
+  const note = participantNote(participant);
+  return (
+    <div className="flex min-w-0 items-center gap-2.5">
+      <UserAvatar
+        name={participant.name ?? participant.email ?? "?"}
+        imageUrl={participant.avatarUrl}
+        size={36}
+      />
+      <div className="min-w-0 leading-tight">
+        <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+          {participant.name ?? "Sem nome"}
+        </p>
+        <p className="mt-0.5 truncate font-body text-[12px] leading-tight text-muted-foreground">
+          {participant.email ?? "—"}
+        </p>
+        {note ? (
+          <p
+            className="mt-0.5 truncate font-body text-[12px] italic text-[var(--text-secondary)]"
+            title={note}
+          >
+            {note}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function useParticipantSave() {
   const updateMut = useUpdateLeadsParticipant();
   const save = (
     userId: string,
-    input: { status?: "ACTIVE" | "INACTIVE"; weight?: number },
+    input: { status?: "ACTIVE" | "INACTIVE"; weight?: number; note?: string | null },
+    okMessage = "Participante atualizado.",
   ) => {
     updateMut.mutate(
       { userId, input },
       {
-        onSuccess: () => toast.success("Participante atualizado."),
+        onSuccess: () => toast.success(okMessage),
         onError: (e) => toast.error(e.message || "Erro ao salvar."),
       },
     );
@@ -189,31 +238,20 @@ function useParticipantSave() {
 function ConsultantDesktopRow({
   participant,
   canManage,
+  onEditNote,
 }: {
   participant: LeadsParticipantDto;
   canManage: boolean;
+  onEditNote: (p: LeadsParticipantDto) => void;
 }) {
   const { updateMut, save } = useParticipantSave();
   const active = participant.status === "ACTIVE";
   const busy = !canManage || updateMut.isPending;
+  const hasNote = Boolean(participantNote(participant));
 
   return (
     <DataRow>
-      <div className="flex min-w-0 items-center gap-2.5">
-        <UserAvatar
-          name={participant.name ?? participant.email ?? "?"}
-          imageUrl={participant.avatarUrl}
-          size={36}
-        />
-        <div className="min-w-0 leading-tight">
-          <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
-            {participant.name ?? "Sem nome"}
-          </p>
-          <p className="mt-0.5 truncate font-body text-[12px] leading-tight text-muted-foreground">
-            {participant.email ?? "—"}
-          </p>
-        </div>
-      </div>
+      <ConsultantIdentity participant={participant} />
       <div className="w-full font-display text-[15px] font-bold tabular-nums text-foreground">
         {participant.totalReceived}
       </div>
@@ -224,6 +262,20 @@ function ConsultantDesktopRow({
         onChange={(weight) => save(participant.userId, { weight })}
       />
       <div className={LIST_ACTIONS_CELL_CLASS}>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onEditNote(participant)}
+            className={cn(
+              "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-border bg-card transition-colors hover:bg-secondary hover:text-primary",
+              hasNote ? "text-primary" : "text-muted-foreground",
+            )}
+            title={hasNote ? "Editar observação" : "Adicionar observação"}
+            aria-label={hasNote ? "Editar observação" : "Adicionar observação"}
+          >
+            <IconNotes size={14} />
+          </button>
+        )}
         <StatusControl
           active={active}
           disabled={busy}
@@ -239,13 +291,16 @@ function ConsultantDesktopRow({
 function ConsultantMobileCard({
   participant,
   canManage,
+  onEditNote,
 }: {
   participant: LeadsParticipantDto;
   canManage: boolean;
+  onEditNote: (p: LeadsParticipantDto) => void;
 }) {
   const { updateMut, save } = useParticipantSave();
   const active = participant.status === "ACTIVE";
   const busy = !canManage || updateMut.isPending;
+  const note = participantNote(participant);
 
   return (
     <li className={LIST_CARD_ROW_CLASS}>
@@ -262,14 +317,35 @@ function ConsultantMobileCard({
           <p className="mt-0.5 truncate font-body text-[12px] text-muted-foreground">
             {participant.email ?? "—"}
           </p>
+          {note ? (
+            <p className="mt-0.5 truncate font-body text-[12px] italic text-[var(--text-secondary)]" title={note}>
+              {note}
+            </p>
+          ) : null}
         </div>
-        <StatusControl
-          active={active}
-          disabled={busy}
-          onToggle={() =>
-            save(participant.userId, { status: active ? "INACTIVE" : "ACTIVE" })
-          }
-        />
+        <div className="flex shrink-0 items-start gap-1">
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => onEditNote(participant)}
+              className={cn(
+                "inline-flex size-8 cursor-pointer items-center justify-center rounded-[var(--radius-md)] border border-border bg-card transition-colors hover:bg-secondary hover:text-primary",
+                note ? "text-primary" : "text-muted-foreground",
+              )}
+              title={note ? "Editar observação" : "Adicionar observação"}
+              aria-label={note ? "Editar observação" : "Adicionar observação"}
+            >
+              <IconNotes size={14} />
+            </button>
+          )}
+          <StatusControl
+            active={active}
+            disabled={busy}
+            onToggle={() =>
+              save(participant.userId, { status: active ? "INACTIVE" : "ACTIVE" })
+            }
+          />
+        </div>
       </div>
       <div className="mt-2 grid w-full grid-cols-2 divide-x divide-border rounded-xl border border-border bg-secondary/40 py-2">
         <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-center">
@@ -279,7 +355,7 @@ function ConsultantMobileCard({
           </p>
         </div>
         <div className="flex min-w-0 flex-col items-center justify-center gap-1 px-1 text-center">
-          <p className="text-xs font-semibold text-muted-foreground">Slots</p>
+          <p className="text-xs font-semibold text-muted-foreground">Rodízio</p>
           <SlotDots participant={participant} />
         </div>
       </div>
@@ -292,6 +368,94 @@ function ConsultantMobileCard({
         />
       </div>
     </li>
+  );
+}
+
+}
+
+function ObservationNoteDialog({
+  participant,
+  onClose,
+}: {
+  participant: LeadsParticipantDto | null;
+  onClose: () => void;
+}) {
+  const updateMut = useUpdateLeadsParticipant();
+  const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    setDraft(participant ? participantNote(participant) : "");
+  }, [participant]);
+
+  const persist = () => {
+    if (!participant) return;
+    updateMut.mutate(
+      { userId: participant.userId, input: { note: draft } },
+      {
+        onSuccess: () => {
+          toast.success("Observação salva.");
+          onClose();
+        },
+        onError: (e) => toast.error(e.message || "Erro ao salvar."),
+      },
+    );
+  };
+
+  return (
+    <FormDialog
+      open={Boolean(participant)}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Observação"
+      description={
+        participant
+          ? `Nota interna sobre ${participant.name ?? participant.email ?? "o consultor"}. Não altera o rodízio.`
+          : undefined
+      }
+      icon={
+        <FormDialogIcon>
+          <IconNotes className="size-4" />
+        </FormDialogIcon>
+      }
+      size="md"
+      busy={updateMut.isPending}
+      footer={
+        <>
+          <ButtonGlass
+            type="button"
+            variant="glass"
+            className={formDialogCancelClass}
+            onClick={onClose}
+            disabled={updateMut.isPending}
+          >
+            Cancelar
+          </ButtonGlass>
+          <ButtonGlass
+            type="button"
+            variant="primary"
+            className={formDialogPrimaryClass}
+            onClick={persist}
+            disabled={updateMut.isPending}
+          >
+            {updateMut.isPending ? "Salvando…" : "Salvar"}
+          </ButtonGlass>
+        </>
+      }
+    >
+      <span className={formLabelClass}>Observação</span>
+      <Textarea
+        className={cn(formControlClass, "h-auto min-h-28 py-3")}
+        value={draft}
+        maxLength={NOTE_MAX}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Ex.: atende melhor de manhã, férias até dia 20…"
+        disabled={updateMut.isPending}
+      />
+      <p className="mt-1.5 text-right font-body text-[11px] text-muted-foreground">
+        {draft.length}/{NOTE_MAX}
+      </p>
+    </FormDialog>
   );
 }
 
@@ -370,6 +534,7 @@ export function LeadsDistributionView({
   const historyQuery = useLeadsHistory(filters);
   const bulkAddMut = useBulkAddLeadsParticipants();
   const [pendingUserIds, setPendingUserIds] = useState<string[]>([]);
+  const [noteTarget, setNoteTarget] = useState<LeadsParticipantDto | null>(null);
 
   const participants = useMemo(
     () => participantsQuery.data?.participants ?? [],
@@ -499,8 +664,8 @@ export function LeadsDistributionView({
               <div className="min-w-0">
                 <h2 className="text-sm font-bold text-foreground">Consultores</h2>
                 <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
-                  Status e peso valem só para novos recebimentos. Peso 0–5 = quantos
-                  dos 5 slots entram no rodízio. Sem fila de espera: sem elegível, a
+                  Status e peso valem só para novos recebimentos. Peso 0–5 = quantas
+                  das 5 posições entram no rodízio. Sem fila de espera: sem elegível, a
                   automação segue a saída “Sem agente”.
                 </p>
               </div>
@@ -554,6 +719,7 @@ export function LeadsDistributionView({
                     key={p.userId}
                     participant={p}
                     canManage={canManage}
+                    onEditNote={setNoteTarget}
                   />
                 ))}
               </ul>
@@ -567,7 +733,7 @@ export function LeadsDistributionView({
                       <>
                         <ListColumnLabel>Consultor</ListColumnLabel>
                         <ListColumnLabel>Recebidos</ListColumnLabel>
-                        <ListColumnLabel>Slots</ListColumnLabel>
+                        <ListColumnLabel>Rodízio</ListColumnLabel>
                         <ListColumnLabel>Peso</ListColumnLabel>
                         <ListColumnLabel align="right">Status</ListColumnLabel>
                       </>
@@ -578,6 +744,7 @@ export function LeadsDistributionView({
                         key={p.userId}
                         participant={p}
                         canManage={canManage}
+                        onEditNote={setNoteTarget}
                       />
                     ))}
                   </DataView>
@@ -732,7 +899,7 @@ export function LeadsDistributionView({
                     </p>
                     <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
                       {formatDateTime(item.createdAt)} · {item.userName ?? item.userId}
-                      {" · slot "}
+                      {" · posição "}
                       {item.slotIndex + 1}
                     </p>
                   </li>
@@ -749,7 +916,7 @@ export function LeadsDistributionView({
                         <ListColumnLabel>Quando</ListColumnLabel>
                         <ListColumnLabel>Lead</ListColumnLabel>
                         <ListColumnLabel>Consultor</ListColumnLabel>
-                        <ListColumnLabel>Slot</ListColumnLabel>
+                        <ListColumnLabel>Posição</ListColumnLabel>
                       </>
                     }
                   >
@@ -795,6 +962,10 @@ export function LeadsDistributionView({
           )}
         </div>
       )}
+      <ObservationNoteDialog
+        participant={noteTarget}
+        onClose={() => setNoteTarget(null)}
+      />
     </div>
   );
 }
