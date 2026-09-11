@@ -165,8 +165,15 @@ function readCachedManagerUp(): boolean | null {
   return null;
 }
 
-function DashboardWarmup({ canFetch }: { canFetch: boolean }) {
-  useDashboardMe(canFetch);
+function DashboardWarmup({
+  canFetch,
+  manager,
+}: {
+  canFetch: boolean;
+  manager: boolean | null;
+}) {
+  // Gestor não usa /me — só aquece enquanto o papel ainda é desconhecido.
+  useDashboardMe(canFetch && manager !== true);
   useDashboardFilterOptions(canFetch);
   return null;
 }
@@ -197,7 +204,7 @@ export default function DashboardV2ClientPage({
 
   return (
     <>
-      <DashboardWarmup canFetch={canFetch} />
+      <DashboardWarmup canFetch={canFetch} manager={manager} />
       {manager == null ? (
         <Shell navRail={navRail} title="Dashboard">
           <AppLoading variant="inline" className="min-h-0 flex-1" />
@@ -326,7 +333,9 @@ function ManagerHome({
   const optionsQuery = useDashboardFilterOptions(canFetch);
   const options = optionsQuery.data;
   const { filters, patch } = useDashboardFilters(options?.pipelines);
-  const tabReady = canFetch;
+  // Sem funis resolvidos o `pipeline=8` da URL ainda não virou CUID —
+  // disparar o painel aqui aborta 6 GETs e refaz tudo no tick seguinte.
+  const tabReady = canFetch && optionsQuery.isFetched;
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
   const agoraQuery = usePainelAgora(clock, tabReady && isService);
   const serviceQuery = usePainelService(filters, clock, tabReady && isService);
