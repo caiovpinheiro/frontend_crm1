@@ -66,6 +66,8 @@ export type ProofreadResult = {
   original: string;
   suggested: string;
   matches: ProofreadMatch[];
+  /** Texto em que os offsets dos matches valem (após regras do agente). */
+  matchSource?: string;
 };
 
 /**

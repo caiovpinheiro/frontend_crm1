@@ -7,6 +7,7 @@ export {
 export { ComposerMenu } from "./composer-menu";
 export { Composer } from "./composer";
 export { ProofreadDialog } from "./proofread-dialog";
+export { ProofreadPilotDialog } from "./proofread-pilot-dialog";
 export { ChannelSelector } from "./channel-selector";
 export {
   TemplateComposePanel,

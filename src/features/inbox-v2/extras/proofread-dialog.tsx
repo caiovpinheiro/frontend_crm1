@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconTextSpellcheck } from "@tabler/icons-react";
+import { IconAdjustments, IconTextSpellcheck, IconX } from "@tabler/icons-react";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
 import {
@@ -15,25 +15,17 @@ import {
 import { cn } from "@/lib/utils";
 import type { ProofreadMatch, ProofreadResult } from "@/features/inbox-v2/api/proofread";
 
-function matchExcerpt(original: string, match: ProofreadMatch): string {
+function matchExcerpt(source: string, match: ProofreadMatch): string {
   if (
     match.offset < 0 ||
     match.length < 0 ||
-    match.offset > original.length ||
-    match.offset + match.length > original.length
+    match.offset > source.length ||
+    match.offset + match.length > source.length
   ) {
     return "";
   }
   if (match.length === 0) return "";
-  return original.slice(match.offset, match.offset + match.length);
-}
-
-function matchTitle(match: ProofreadMatch): string {
-  const short = match.shortMessage?.trim();
-  if (short) return short;
-  const msg = (match.message ?? "").trim();
-  if (msg.length > 0 && msg.length <= 72) return msg;
-  return "Pontuação / estilo";
+  return source.slice(match.offset, match.offset + match.length);
 }
 
 export function ProofreadDialog({
@@ -42,12 +34,16 @@ export function ProofreadDialog({
   result,
   sending,
   onSendCorrection,
+  onIgnoreExcerpt,
+  onOpenSettings,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   result: ProofreadResult | null;
   sending?: boolean;
   onSendCorrection: (text: string) => void | Promise<void>;
+  onIgnoreExcerpt?: (excerpt: string) => void;
+  onOpenSettings?: () => void;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -57,13 +53,20 @@ export function ProofreadDialog({
 
   const matches = result?.matches ?? [];
   const original = result?.original ?? "";
+  const matchSource = result?.matchSource ?? original;
+  const extra = Math.max(0, matches.length - 4);
+  const visible = matches.slice(0, 4);
 
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Correção sugerida"
-      description="O corretor encontrou erros. Revise o texto antes de enviar."
+      description={
+        matches.length > 1
+          ? `${matches.length} correções. Edite o texto e envie.`
+          : "O corretor encontrou um erro. Revise o texto antes de enviar."
+      }
       icon={
         <FormDialogIcon>
           <IconTextSpellcheck className="size-4" />
@@ -72,6 +75,18 @@ export function ProofreadDialog({
       busy={sending}
       footer={
         <>
+          {onOpenSettings ? (
+            <ButtonGlass
+              type="button"
+              variant="glass"
+              className={cn(formDialogCancelClass, "mr-auto")}
+              disabled={sending}
+              onClick={onOpenSettings}
+            >
+              <IconAdjustments className="size-4" />
+              Regras
+            </ButtonGlass>
+          ) : null}
           <ButtonGlass
             type="button"
             variant="glass"
@@ -93,42 +108,47 @@ export function ProofreadDialog({
         </>
       }
     >
-      {matches.length > 0 ? (
+      {visible.length > 0 ? (
         <div>
-          <span className={formLabelClass}>Erros encontrados</span>
-          <ul className="flex flex-col gap-1.5">
-            {matches.slice(0, 8).map((m, i) => {
-              const excerpt = matchExcerpt(original, m);
+          <span className={formLabelClass}>Alterações</span>
+          <ul className="flex flex-wrap gap-1.5">
+            {visible.map((m, i) => {
+              const excerpt = matchExcerpt(matchSource, m);
               const fix = m.replacements[0];
               return (
                 <li
                   key={`${m.offset}-${m.length}-${i}`}
-                  className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground"
+                  className="flex items-center gap-1 rounded-xl border border-border bg-card px-2.5 py-1 text-sm text-foreground"
                 >
-                  <p className="font-medium">{matchTitle(m)}</p>
-                  {excerpt || fix ? (
-                    <p className="mt-0.5 text-sm">
-                      {excerpt ? (
-                        <span className="text-muted-foreground line-through">{excerpt}</span>
-                      ) : (
-                        <span className="text-muted-foreground">inserir</span>
-                      )}
-                      {fix ? (
-                        <>
-                          <span className="text-muted-foreground"> → </span>
-                          <span className="font-medium text-foreground">{fix}</span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground"> · sem sugestão</span>
-                      )}
-                    </p>
+                  {excerpt ? (
+                    <span className="text-muted-foreground line-through">
+                      {excerpt}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">inserir</span>
+                  )}
+                  {fix ? (
+                    <>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="font-medium">{fix}</span>
+                    </>
+                  ) : null}
+                  {excerpt && onIgnoreExcerpt ? (
+                    <button
+                      type="button"
+                      aria-label={`Ignorar ${excerpt}`}
+                      className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                      onClick={() => onIgnoreExcerpt(excerpt)}
+                    >
+                      <IconX className="size-3.5" />
+                    </button>
                   ) : null}
                 </li>
               );
             })}
-            {matches.length > 8 ? (
-              <li className="text-xs text-muted-foreground">
-                +{matches.length - 8} outros
+            {extra > 0 ? (
+              <li className="rounded-xl border border-border bg-card px-2.5 py-1 text-sm text-muted-foreground">
+                +{extra}
               </li>
             ) : null}
           </ul>
@@ -138,7 +158,7 @@ export function ProofreadDialog({
       {original && original !== (result?.suggested ?? "") ? (
         <div>
           <span className={formLabelClass}>Texto original</span>
-          <p className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-muted-foreground">
+          <p className="line-clamp-3 rounded-xl border border-border bg-card px-3.5 py-2.5 text-sm text-muted-foreground">
             {original}
           </p>
         </div>
@@ -149,11 +169,11 @@ export function ProofreadDialog({
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          rows={5}
+          rows={4}
           disabled={sending}
           className={cn(
             formControlClass,
-            "h-auto min-h-[120px] resize-y py-2.5 font-body text-sm leading-snug text-foreground",
+            "h-auto min-h-[96px] resize-y py-2.5 font-body text-sm leading-snug text-foreground",
           )}
         />
       </div>

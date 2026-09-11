@@ -25,6 +25,7 @@ import {
   IconCornerUpLeft,
   IconPaperclip,
   IconTextSpellcheck,
+  IconAdjustments,
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -61,6 +62,7 @@ import {
 import { ComposerMenu } from "./composer-menu";
 import { ConversationResolveButton } from "./conversation-resolve-button";
 import { ProofreadDialog } from "./proofread-dialog";
+import { ProofreadPilotDialog } from "./proofread-pilot-dialog";
 import {
   TemplateComposePanel,
   whatsappTemplateToPending,
@@ -747,10 +749,12 @@ export function Composer({
     // Aguarda o texto sair antes dos anexos — evita race (arquivo aparecer
     // antes da 1ª mensagem) e garante ordem: texto → arq1 → msg2 → arq2…
     if (trimmed) {
-      const status = await proofread.gate(trimmed);
-      if (status === "block") return;
+      const gated = await proofread.gate(trimmed);
+      if (gated.status === "block") return;
+      await flushOutbound(applySignature(gated.text));
+      return;
     }
-    await flushOutbound(trimmed ? applySignature(trimmed) : null);
+    await flushOutbound(null);
   }
 
   async function handleSendCorrection(text: string) {
@@ -854,6 +858,15 @@ export function Composer({
         result={proofread.result}
         sending={!!sending}
         onSendCorrection={handleSendCorrection}
+        onIgnoreExcerpt={proofread.ignoreExcerpt}
+        onOpenSettings={() => proofread.setSettingsOpen(true)}
+      />
+      <ProofreadPilotDialog
+        open={proofread.settingsOpen}
+        onOpenChange={proofread.setSettingsOpen}
+        replacements={proofread.pilot.replacements}
+        ignore={proofread.pilot.ignore}
+        onSave={proofread.persistPilot}
       />
       {/* Painel de validação do template do WhatsApp — flutua acima do composer */}
       {pendingTemplate && conversationId ? (
@@ -1179,6 +1192,16 @@ export function Composer({
                 >
                   Corretor automático
                 </span>
+              </TooltipGlass>
+              <TooltipGlass label="Regras do corretor" side="top">
+                <button
+                  type="button"
+                  aria-label="Regras do corretor"
+                  onClick={() => proofread.setSettingsOpen(true)}
+                  className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
+                >
+                  <IconAdjustments size={13} />
+                </button>
               </TooltipGlass>
             </div>
             </>

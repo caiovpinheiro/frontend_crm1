@@ -39,6 +39,7 @@ import {
 } from "@/components/crm/lazy-chat-media";
 import { ResolveConfirmDialog } from "@/features/inbox-v2/extras/skip-automations-option";
 import { ProofreadDialog } from "@/features/inbox-v2/extras/proofread-dialog";
+import { ProofreadPilotDialog } from "@/features/inbox-v2/extras/proofread-pilot-dialog";
 import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import { Button } from "@/components/ui/button";
@@ -1458,15 +1459,17 @@ export function ChatWindow({
       (lower.startsWith(`*${sigLower}:*`) ||
         lower.startsWith(`*${sigLower}*`) ||
         lower.startsWith(`${sigLower}:`));
+    let outbound = text;
+    if (text && !noteMode) {
+      const gated = await proofread.gate(text);
+      if (gated.status === "block") return;
+      outbound = gated.text;
+    }
     const payloadText =
       shouldSign && !alreadyPrefixed
-        ? `*${effectiveSignature}:* ${text}`
-        : text;
-    if (text && !noteMode) {
-      const status = await proofread.gate(text);
-      if (status === "block") return;
-    }
-    commitOutbound(text ? payloadText : "", hasParkedMedia);
+        ? `*${effectiveSignature}:* ${outbound}`
+        : outbound;
+    commitOutbound(outbound ? payloadText : "", hasParkedMedia);
   }, [
     conversationId,
     draft,
@@ -4211,6 +4214,16 @@ export function ChatWindow({
                   >
                     Corretor automático
                   </span>
+                  <TooltipHost label="Regras do corretor" side="top">
+                    <button
+                      type="button"
+                      aria-label="Regras do corretor"
+                      onClick={() => proofread.setSettingsOpen(true)}
+                      className="rounded-md p-1 text-[var(--color-ink-muted)] transition-colors hover:bg-muted hover:text-[var(--color-ink-soft)]"
+                    >
+                      <Wrench className="size-3.5" />
+                    </button>
+                  </TooltipHost>
                 </div>
               </div>
 
@@ -4426,6 +4439,15 @@ export function ChatWindow({
         result={proofread.result}
         sending={sendMutation.isPending}
         onSendCorrection={handleSendCorrection}
+        onIgnoreExcerpt={proofread.ignoreExcerpt}
+        onOpenSettings={() => proofread.setSettingsOpen(true)}
+      />
+      <ProofreadPilotDialog
+        open={proofread.settingsOpen}
+        onOpenChange={proofread.setSettingsOpen}
+        replacements={proofread.pilot.replacements}
+        ignore={proofread.pilot.ignore}
+        onSave={proofread.persistPilot}
       />
       <Dialog open={signatureModalOpen} onOpenChange={setSignatureModalOpen}>
         <DialogContent className="sm:max-w-[460px]">
