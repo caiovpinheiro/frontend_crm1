@@ -11,6 +11,7 @@ import { MiniFlow, type MiniFlowStep } from "./mini-flow"
 import { blockKeyForStepType } from "./flow-block-icon"
 import type { Automation } from "@/lib/automations-data"
 import { DataRow } from "@/components/automations/data-view"
+import { automationEditorPath } from "@/features/automations-v2/automation-adapter"
 
 interface AutomationCardProps {
   automation: Automation
@@ -61,7 +62,7 @@ export function AutomationCard({
   return (
     <DataRow className="group relative cursor-pointer">
       <Link
-        href={`/automations/${automation.id}`}
+        href={automationEditorPath(automation.id)}
         className="absolute inset-0 z-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={`Abrir editor de ${automation.name}`}
       >
