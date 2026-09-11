@@ -2,6 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
+import {
+  parseProofreadIgnore,
+  parseProofreadReplacements,
+  type ProofreadReplacement,
+} from "@/features/inbox-v2/lib/proofread-pilot";
 
 export interface InboxSettings {
   agentSignatureEnabled: boolean;
@@ -21,6 +26,12 @@ export interface InboxSettings {
    * (inbox + direção no funil). Default desligado.
    */
   countAgentReplyAsAnswered: boolean;
+  /** Corretor automático no envio do inbox (org). Default desligado. */
+  proofreadEnabled: boolean;
+  proofreadReplacements: ProofreadReplacement[];
+  proofreadIgnore: string[];
+  proofreadReplacementsSaved: boolean;
+  proofreadIgnoreSaved: boolean;
 }
 
 const DEFAULTS: InboxSettings = {
@@ -33,6 +44,11 @@ const DEFAULTS: InboxSettings = {
   transcriptionLanguage: "pt-BR",
   showInboundSignal: true,
   countAgentReplyAsAnswered: false,
+  proofreadEnabled: false,
+  proofreadReplacements: [],
+  proofreadIgnore: [],
+  proofreadReplacementsSaved: false,
+  proofreadIgnoreSaved: false,
 };
 
 /**
@@ -63,6 +79,16 @@ export async function fetchInboxSettings(): Promise<InboxSettings> {
     showInboundSignal: data["conversation.showInboundSignal"] !== "false",
     countAgentReplyAsAnswered:
       data["conversation.countAgentReplyAsAnswered"] === "true",
+    proofreadEnabled: data["conversation.proofreadEnabled"] === "true",
+    proofreadReplacements: parseProofreadReplacements(
+      data["conversation.proofreadReplacements"] ?? null,
+    ),
+    proofreadIgnore: parseProofreadIgnore(
+      data["conversation.proofreadIgnore"] ?? null,
+    ),
+    proofreadReplacementsSaved:
+      data["conversation.proofreadReplacements"] != null,
+    proofreadIgnoreSaved: data["conversation.proofreadIgnore"] != null,
   };
 }
 
@@ -82,13 +108,23 @@ export function useInboxSettings() {
 export function useSaveInboxSetting() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ key, value }: { key: keyof InboxSettings; value: string | boolean }) => {
+    mutationFn: async ({
+      key,
+      value,
+    }: {
+      key: keyof InboxSettings;
+      value: InboxSettings[keyof InboxSettings];
+    }) => {
       const fullKey = `conversation.${key}`;
+      const serialized =
+        typeof value === "boolean" || typeof value === "string"
+          ? String(value)
+          : JSON.stringify(value);
       const res = await fetch(apiUrl("/api/settings/org"), {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: fullKey, value: String(value) }),
+        body: JSON.stringify({ key: fullKey, value: serialized }),
       });
       if (!res.ok) throw new Error("Falha ao salvar configuração");
       return res.json();

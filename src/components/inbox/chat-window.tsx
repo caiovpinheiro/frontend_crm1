@@ -39,7 +39,6 @@ import {
 } from "@/components/crm/lazy-chat-media";
 import { ResolveConfirmDialog } from "@/features/inbox-v2/extras/skip-automations-option";
 import { ProofreadDialog } from "@/features/inbox-v2/extras/proofread-dialog";
-import { ProofreadPilotDialog } from "@/features/inbox-v2/extras/proofread-pilot-dialog";
 import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import { Button } from "@/components/ui/button";
@@ -343,8 +342,6 @@ type AttachPopoverProps = {
   signatureEnabled: boolean;
   onToggleSignature: () => void;
   onEditSignature: () => void;
-  proofreadEnabled: boolean;
-  onToggleProofread: () => void;
   isResolved: boolean;
   statusPending: boolean;
   onToggleResolve: () => void;
@@ -361,8 +358,6 @@ function AttachPopover({
   signatureEnabled,
   onToggleSignature,
   onEditSignature,
-  proofreadEnabled,
-  onToggleProofread,
   isResolved,
   statusPending,
   onToggleResolve,
@@ -427,14 +422,6 @@ function AttachPopover({
         >
           <Pencil className="size-3.5 shrink-0" />
           Editar assinatura…
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="gap-2 px-2 py-1.5 text-[13px] hover:bg-muted focus:bg-muted"
-          onClick={onToggleProofread}
-        >
-          {proofreadEnabled
-            ? "Desligar corretor automático"
-            : "Ligar corretor automático"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -3988,10 +3975,6 @@ export function ChatWindow({
                   setSignatureDraft(signature);
                   setSignatureModalOpen(true);
                 }}
-                proofreadEnabled={proofread.enabled}
-                onToggleProofread={() =>
-                  proofread.persistEnabled(!proofread.enabled)
-                }
                 isResolved={isResolved}
                 statusPending={statusMutation.isPending}
                 onToggleResolve={handleToggleResolve}
@@ -4168,62 +4151,6 @@ export function ChatWindow({
                       <Pencil className="size-3.5" />
                     </button>
                   </TooltipHost>
-                  <span className="mx-1 h-4 w-px shrink-0 bg-[var(--glass-border)]" />
-                  <TooltipHost
-                    label={
-                      proofread.enabled
-                        ? "Desligar corretor automático"
-                        : "Ligar corretor automático"
-                    }
-                    side="top"
-                  >
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={proofread.enabled}
-                      aria-label={
-                        proofread.enabled
-                          ? "Desligar corretor automático"
-                          : "Ligar corretor automático"
-                      }
-                      onClick={() =>
-                        proofread.persistEnabled(!proofread.enabled)
-                      }
-                      className={cn(
-                        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
-                        proofread.enabled ? "bg-primary" : "bg-ink-subtle/40",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block size-4 transform rounded-full bg-white shadow transition-transform",
-                          proofread.enabled
-                            ? "translate-x-[18px]"
-                            : "translate-x-[2px]",
-                        )}
-                      />
-                    </button>
-                  </TooltipHost>
-                  <span
-                    className={cn(
-                      "min-w-0 max-w-[160px] truncate text-[14px] font-bold transition-colors sm:max-w-none",
-                      proofread.enabled
-                        ? "text-foreground"
-                        : "text-[var(--color-ink-muted)]",
-                    )}
-                  >
-                    Corretor automático
-                  </span>
-                  <TooltipHost label="Regras do corretor" side="top">
-                    <button
-                      type="button"
-                      aria-label="Regras do corretor"
-                      onClick={() => proofread.setSettingsOpen(true)}
-                      className="rounded-md p-1 text-[var(--color-ink-muted)] transition-colors hover:bg-muted hover:text-[var(--color-ink-soft)]"
-                    >
-                      <Wrench className="size-3.5" />
-                    </button>
-                  </TooltipHost>
                 </div>
               </div>
 
@@ -4249,10 +4176,6 @@ export function ChatWindow({
                     setSignatureDraft(signature);
                     setSignatureModalOpen(true);
                   }}
-                  proofreadEnabled={proofread.enabled}
-                  onToggleProofread={() =>
-                    proofread.persistEnabled(!proofread.enabled)
-                  }
                   isResolved={isResolved}
                   statusPending={statusMutation.isPending}
                   onToggleResolve={handleToggleResolve}
@@ -4440,14 +4363,6 @@ export function ChatWindow({
         sending={sendMutation.isPending}
         onSendCorrection={handleSendCorrection}
         onIgnoreExcerpt={proofread.ignoreExcerpt}
-        onOpenSettings={() => proofread.setSettingsOpen(true)}
-      />
-      <ProofreadPilotDialog
-        open={proofread.settingsOpen}
-        onOpenChange={proofread.setSettingsOpen}
-        replacements={proofread.pilot.replacements}
-        ignore={proofread.pilot.ignore}
-        onSave={proofread.persistPilot}
       />
       <Dialog open={signatureModalOpen} onOpenChange={setSignatureModalOpen}>
         <DialogContent className="sm:max-w-[460px]">

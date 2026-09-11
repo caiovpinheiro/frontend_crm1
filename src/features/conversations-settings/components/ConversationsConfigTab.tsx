@@ -10,6 +10,7 @@ import {
   IconRobot,
   IconShieldCheck,
   IconSignature,
+  IconTextSpellcheck,
   IconUser,
   IconUsers,
 } from "@tabler/icons-react";
@@ -19,6 +20,8 @@ import { GlassCard } from "@/components/crm/glass-card";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { useInboxSettings, useSaveInboxSetting, type InboxSettings } from "../hooks/use-inbox-settings";
+import { loadProofreadPilot } from "@/features/inbox-v2/lib/proofread-pilot";
+import { ProofreadRulesEditor } from "./ProofreadRulesEditor";
 
 // ─── Section label ─────────────────────────────────────────────────────────────
 
@@ -122,7 +125,7 @@ export function ConversationsConfigTab() {
   const { settings, isLoading } = useInboxSettings();
   const saveMutation = useSaveInboxSetting();
 
-  function save(key: keyof InboxSettings, value: string | boolean) {
+  function save(key: keyof InboxSettings, value: InboxSettings[keyof InboxSettings]) {
     saveMutation.mutate(
       { key, value },
       {
@@ -163,6 +166,38 @@ export function ConversationsConfigTab() {
             onChange={(v) => save("requireSignature", v)}
             disabled={!settings.agentSignatureEnabled || busy}
           />
+        </div>
+      </GlassCard>
+
+      {/* ── Corretor automático ───────────────────────────────────────────── */}
+      <GlassCard variant="panel" className="min-w-0 p-3 sm:p-4.5">
+        <SectionLabel>Corretor automático</SectionLabel>
+        <div className="flex flex-col gap-2.5">
+          <ToggleRow
+            icon={<IconTextSpellcheck size={20} />}
+            label="Ativar corretor no envio"
+            description="Antes de enviar, o inbox corrige ortografia e aplica as regras abaixo. Vale para todos os atendentes."
+            checked={settings.proofreadEnabled}
+            onChange={(v) => save("proofreadEnabled", v)}
+            disabled={busy}
+          />
+          {settings.proofreadEnabled ? (
+            <ProofreadRulesEditor
+              replacements={
+                settings.proofreadReplacementsSaved
+                  ? settings.proofreadReplacements
+                  : loadProofreadPilot().replacements
+              }
+              ignore={
+                settings.proofreadIgnoreSaved
+                  ? settings.proofreadIgnore
+                  : loadProofreadPilot().ignore
+              }
+              disabled={busy}
+              onChangeReplacements={(next) => save("proofreadReplacements", next)}
+              onChangeIgnore={(next) => save("proofreadIgnore", next)}
+            />
+          ) : null}
         </div>
       </GlassCard>
 

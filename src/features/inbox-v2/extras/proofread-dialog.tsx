@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconAdjustments, IconTextSpellcheck, IconX } from "@tabler/icons-react";
+import { IconTextSpellcheck, IconX } from "@tabler/icons-react";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
 import {
@@ -35,7 +35,6 @@ export function ProofreadDialog({
   sending,
   onSendCorrection,
   onIgnoreExcerpt,
-  onOpenSettings,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,7 +42,6 @@ export function ProofreadDialog({
   sending?: boolean;
   onSendCorrection: (text: string) => void | Promise<void>;
   onIgnoreExcerpt?: (excerpt: string) => void;
-  onOpenSettings?: () => void;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -75,18 +73,6 @@ export function ProofreadDialog({
       busy={sending}
       footer={
         <>
-          {onOpenSettings ? (
-            <ButtonGlass
-              type="button"
-              variant="glass"
-              className={cn(formDialogCancelClass, "mr-auto")}
-              disabled={sending}
-              onClick={onOpenSettings}
-            >
-              <IconAdjustments className="size-4" />
-              Regras
-            </ButtonGlass>
-          ) : null}
           <ButtonGlass
             type="button"
             variant="glass"
