@@ -4,7 +4,7 @@
 
 import * as React from "react";
 
-import { IconArrowLeft, IconFilter, IconMail } from "@tabler/icons-react";
+import { IconArrowLeft, IconFilter, IconFolder, IconMail } from "@tabler/icons-react";
 
 import { toast } from "sonner";
 
@@ -55,6 +55,8 @@ import {
   EmailSidebar,
 
   EmailRulesModal,
+
+  EmailFoldersModal,
 
 } from "@/features/email-v2";
 
@@ -183,6 +185,8 @@ export function EmailPage() {
 
   const [rulesOpen, setRulesOpen] = React.useState(false);
 
+  const [foldersOpen, setFoldersOpen] = React.useState(false);
+
   const [syncing, setSyncing] = React.useState(false);
 
   const [lastSyncMsg, setLastSyncMsg] = React.useState<string | null>(null);
@@ -208,6 +212,8 @@ export function EmailPage() {
     folders: customFolders,
 
     create: createCustomFolder,
+
+    rename: renameCustomFolder,
 
     remove: removeCustomFolder,
 
@@ -428,6 +434,26 @@ export function EmailPage() {
     } catch (err) {
 
       toast.error(err instanceof Error ? err.message : "Erro ao criar pasta.");
+
+      throw err;
+
+    }
+
+  }
+
+
+
+  async function handleRenameCustomFolder(folderId: string, name: string) {
+
+    try {
+
+      await renameCustomFolder(folderId, { name });
+
+    } catch (err) {
+
+      toast.error(err instanceof Error ? err.message : "Erro ao renomear pasta.");
+
+      throw err;
 
     }
 
@@ -708,6 +734,16 @@ export function EmailPage() {
               <>
                 <PageGhostButton
                   type="button"
+                  onClick={() => setFoldersOpen(true)}
+                  disabled={accounts.length === 0}
+                  aria-label="Organizar pastas"
+                  title="Pastas"
+                  className="h-10 w-10 justify-center px-0"
+                >
+                  <IconFolder size={16} stroke={2.2} />
+                </PageGhostButton>
+                <PageGhostButton
+                  type="button"
                   onClick={() => setRulesOpen(true)}
                   disabled={accounts.length === 0}
                   aria-label="Regras de e-mail"
@@ -810,7 +846,9 @@ export function EmailPage() {
                     onSelectCustomFolder={(id) => { handleSelectCustomFolder(id); setMobilePane("list"); }}
                     onSync={syncAndRefresh}
                     onCreateCustomFolder={handleCreateCustomFolder}
+                    onRenameCustomFolder={handleRenameCustomFolder}
                     onDeleteCustomFolder={handleDeleteCustomFolder}
+                    onManageFolders={() => setFoldersOpen(true)}
                     onDropToSystemFolder={handleDropToSystemFolder}
                     onDropToCustomFolder={handleMoveToCustomFolder}
                   />
@@ -838,6 +876,16 @@ export function EmailPage() {
           accounts={accounts}
           customFolders={customFolders}
           defaultAccountId={selectedAccountId}
+        />
+        <EmailFoldersModal
+          open={foldersOpen}
+          onOpenChange={setFoldersOpen}
+          accounts={accounts}
+          folders={customFolders}
+          defaultAccountId={selectedAccountId}
+          onCreate={handleCreateCustomFolder}
+          onRename={handleRenameCustomFolder}
+          onDelete={handleDeleteCustomFolder}
         />
         {confirmDialog}
       </div>
@@ -881,6 +929,26 @@ export function EmailPage() {
           actions={
 
             <>
+
+              <PageGhostButton
+
+                type="button"
+
+                onClick={() => setFoldersOpen(true)}
+
+                disabled={accounts.length === 0}
+
+                aria-label="Organizar pastas"
+
+                title="Pastas"
+
+                className="h-10 w-10 justify-center px-0"
+
+              >
+
+                <IconFolder size={16} stroke={2.2} />
+
+              </PageGhostButton>
 
               <PageGhostButton
 
@@ -932,19 +1000,19 @@ export function EmailPage() {
 
 
 
-        <PageFilterBar>
+        {searching ? (
 
-          <span className="font-body text-[13px] text-[var(--text-muted)]">
+          <PageFilterBar>
 
-            {searching
+            <span className="font-body text-[13px] text-[var(--text-muted)]">
 
-              ? "Busca em todas as pastas da conta selecionada"
+              Busca em todas as pastas da conta selecionada
 
-              : "Arraste as divisões entre colunas para ajustar o layout"}
+            </span>
 
-          </span>
+          </PageFilterBar>
 
-        </PageFilterBar>
+        ) : null}
 
 
 
@@ -984,7 +1052,11 @@ export function EmailPage() {
 
               onCreateCustomFolder={handleCreateCustomFolder}
 
+              onRenameCustomFolder={handleRenameCustomFolder}
+
               onDeleteCustomFolder={handleDeleteCustomFolder}
+
+              onManageFolders={() => setFoldersOpen(true)}
 
               onDropToSystemFolder={handleDropToSystemFolder}
 
@@ -1203,6 +1275,28 @@ export function EmailPage() {
         customFolders={customFolders}
 
         defaultAccountId={selectedAccountId}
+
+      />
+
+
+
+      <EmailFoldersModal
+
+        open={foldersOpen}
+
+        onOpenChange={setFoldersOpen}
+
+        accounts={accounts}
+
+        folders={customFolders}
+
+        defaultAccountId={selectedAccountId}
+
+        onCreate={handleCreateCustomFolder}
+
+        onRename={handleRenameCustomFolder}
+
+        onDelete={handleDeleteCustomFolder}
 
       />
 

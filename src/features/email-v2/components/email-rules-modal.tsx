@@ -184,7 +184,7 @@ export function EmailRulesModal({
             <FieldRow label="Pasta">
               {accountFolders.length === 0 ? (
                 <p className="font-body text-[13px] text-[var(--text-muted)]">
-                  Crie uma pasta customizada na barra lateral antes de usar esta ação.
+                  Crie uma pasta em Organizar pastas antes de usar esta ação.
                 </p>
               ) : (
                 <DropdownGlass
