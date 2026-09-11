@@ -31,6 +31,8 @@ No app **crm-dev-frontend** (variável de ambiente, depois **Restart** — não 
 LANGUAGETOOL_API_URL=http://languagetool:8010/v2/check
 ```
 
+Não use `localhost` nem `127.0.0.1` — no container do Next isso é o próprio frontend.
+
 Se o Next não alcançar o nome interno, use o domínio público do serviço LanguageTool, ex.:
 
 ```
