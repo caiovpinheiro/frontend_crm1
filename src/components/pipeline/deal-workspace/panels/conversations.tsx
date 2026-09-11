@@ -8,7 +8,7 @@ import { ptBR } from "date-fns/locale";
 import { IconArrowLeft as ArrowLeft, IconLoader2 as Loader2, IconMessage as MessageSquare, IconSend as Send } from "@tabler/icons-react";
 
 import { ChannelBadge } from "@/components/inbox/channel-badge";
-import { ChatWindow } from "@/components/inbox/chat-window";
+import { ChatWindow } from "@/components/inbox/chat-window-lazy";
 import { Button } from "@/components/ui/button";
 import { TooltipHost } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";

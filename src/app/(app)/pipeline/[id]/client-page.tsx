@@ -16,7 +16,7 @@ import {
   type FunnelSegment,
 } from "@/components/crm/deal-details-panel";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
-import { ChatWindow } from "@/components/inbox/chat-window";
+import { ChatWindow } from "@/components/inbox/chat-window-lazy";
 
 import { useDealDetail, useEntityViewers, usePipelines } from "@/features/pipeline-v2/hooks";
 import type {
