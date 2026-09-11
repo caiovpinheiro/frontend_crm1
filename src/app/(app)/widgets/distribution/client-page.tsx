@@ -191,20 +191,20 @@ export default function DistributionClientPage({
 }: DistributionClientPageProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
   const { ready: roleReady, isManagerUp } = useRequireManager();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
   const currentUserId = session?.user?.id ?? null;
   const currentUserImage = session?.user?.image ?? null;
   const role = session?.user?.role;
   const canManage = role === "ADMIN" || role === "MANAGER";
 
-  const widgetsQuery = useWidgets(isAuthenticated);
+  const widgetsQuery = useWidgets(canFetch);
 
   const widgetInstalled =
     widgetsQuery.data?.items.find((w) => w.slug === SMART_DISTRIBUTION_SLUG)?.installed ??
     false;
 
   const queueLive =
-    isAuthenticated && (isPageMockMode() || widgetInstalled);
+    canFetch && (isPageMockMode() || widgetInstalled);
 
   const searchParams = useSearchParams();
   const viewFromUrl = parseViewParam(searchParams.get("tab"));
@@ -667,7 +667,7 @@ export default function DistributionClientPage({
               ) : (
                 <DistributionLogsList
                   view={listView}
-                  enabled={isAuthenticated && (isPageMockMode() || smartInstalled)}
+                  enabled={canFetch && (isPageMockMode() || smartInstalled)}
                   dateFrom={logDateFrom}
                   dateTo={logDateTo}
                 />
