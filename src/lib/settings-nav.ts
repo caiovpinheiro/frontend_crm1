@@ -1,4 +1,4 @@
-import { IconBroadcast as Broadcast, IconCalendarTime as CalendarTime, IconDatabase as Database, IconForms as Forms, IconHeadphones as Headphones, IconLifebuoy as LifeBuoy, IconListTree as ListTree, IconLock as Lock, IconMail as Mail, IconMailForward as MailForward, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPackage as Package, IconAdjustments as Settings2, IconDeviceMobile as Smartphone, IconSparkles as Sparkles, IconTag as Tag, IconTemplate as Template, IconUsers as Users } from "@tabler/icons-react";
+import { IconBroadcast as Broadcast, IconCalendarTime as CalendarTime, IconDatabase as Database, IconForms as Forms, IconHeadphones as Headphones, IconLifebuoy as LifeBuoy, IconListTree as ListTree, IconLock as Lock, IconMail as Mail, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPackage as Package, IconAdjustments as Settings2, IconDeviceMobile as Smartphone, IconSparkles as Sparkles, IconTag as Tag, IconTemplate as Template, IconUsers as Users } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 import { UserRole } from "@/lib/prisma-enum-types";
 
@@ -109,20 +109,10 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
       {
         id: "email-accounts",
         label: "Contas de e-mail",
-        description: "IMAP/SMTP, pastas e regras",
+        description: "Presets IMAP/SMTP e caixas",
         icon: Mail,
         href: "/settings/email-accounts",
         requiredPermission: "email_account:connect",
-        eyebrow: "Novo",
-      },
-      {
-        id: "smtp-relay",
-        label: "Relay SMTP",
-        description: "Smarthost de saída por domínio",
-        icon: MailForward,
-        href: "/settings/smtp-relay",
-        allowedRoles: SO_ADMIN,
-        requiredPermission: "settings:email",
         eyebrow: "Novo",
       },
     ],

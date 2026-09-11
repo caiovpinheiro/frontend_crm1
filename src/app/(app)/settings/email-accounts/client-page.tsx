@@ -84,7 +84,7 @@ export default function EmailAccountsClientPage() {
     <SettingsV2Shell
       back={SETTINGS_HUB_BACK}
       title="Contas de e-mail"
-      description="Gerencie caixas IMAP/SMTP, pastas e regras de filtro"
+      description="Conecte Gmail, Outlook, UOL ou outro provedor. Servidores IMAP e SMTP vêm prontos."
       icon={<IconMail size={22} />}
     >
       <EmailAccountsBody />

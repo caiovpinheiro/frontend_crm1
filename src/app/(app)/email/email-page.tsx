@@ -34,6 +34,8 @@ import {
 
 } from "@/components/crm/column-resizer";
 
+import { useRouter } from "next/navigation";
+
 import { useIsDesktop } from "@/hooks/use-media-query";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -142,6 +144,8 @@ const IcoRefresh = () => (
 
 
 export function EmailPage() {
+
+  const router = useRouter();
 
   const { confirm, dialog: confirmDialog } = useConfirm();
 
@@ -714,12 +718,19 @@ export function EmailPage() {
                 </PageGhostButton>
                 <PagePrimaryButton
                   type="button"
-                  onClick={() => openCompose()}
-                  disabled={accounts.length === 0}
+                  onClick={() =>
+                    accounts.length === 0
+                      ? router.push("/settings/email-accounts")
+                      : openCompose()
+                  }
                 >
                   <IcoCompose />
-                  <span className="hidden sm:inline">Novo e-mail</span>
-                  <span className="sm:hidden">Nova</span>
+                  <span className="hidden sm:inline">
+                    {accounts.length === 0 ? "Conectar e-mail" : "Novo e-mail"}
+                  </span>
+                  <span className="sm:hidden">
+                    {accounts.length === 0 ? "Conectar" : "Nova"}
+                  </span>
                 </PagePrimaryButton>
               </>
             }
@@ -895,15 +906,21 @@ export function EmailPage() {
 
                 type="button"
 
-                onClick={() => openCompose()}
+                onClick={() =>
 
-                disabled={accounts.length === 0}
+                  accounts.length === 0
+
+                    ? router.push("/settings/email-accounts")
+
+                    : openCompose()
+
+                }
 
               >
 
                 <IcoCompose />
 
-                Novo e-mail
+                {accounts.length === 0 ? "Conectar e-mail" : "Novo e-mail"}
 
               </PagePrimaryButton>
 
