@@ -1,14 +1,18 @@
-# LanguageTool self-hosted (EasyPanel)
+# Worker LanguageTool (self-hosted)
 
-O corretor do inbox chama este serviço **pelo servidor Next** (`POST /api/proofread`). O browser não fala com o LanguageTool.
+Worker HTTP separado do frontend e do `leads-worker`. Expõe `/v2/check`.
+O composer só chama `POST /api/proofread` no Next; o Next encaminha para este worker.
 
-## Subir o serviço
+Não use o tipo **Worker** do EasyPanel (sem porta). Este processo precisa escutar **8010**.
 
-1. EasyPanel → **New Service** → Docker Image (ou Compose deste arquivo).
-2. Imagem: `erikvl87/languagetool:latest`
-3. Nome do serviço: `languagetool` (hostname interno `languagetool`)
-4. Porta: **8010**
-5. Mesmo projeto/rede do `crm-dev-frontend`
+## Subir o worker (DEV)
+
+1. Mesmo projeto do `crm-dev-frontend`
+2. **New Service** → **App** (Docker Image ou Compose deste arquivo)
+3. Nome: `languagetool` (DNS interno `languagetool`)
+4. Imagem: `erikvl87/languagetool:latest`
+5. Porta: **8010**
+6. Sem domínio público se o Next alcançar a rede interna
 
 Teste no host:
 

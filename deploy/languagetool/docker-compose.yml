@@ -1,4 +1,4 @@
-# LanguageTool self-hosted — serviço separado do frontend Next.
+# Worker LanguageTool (HTTP :8010). EasyPanel: App + imagem, não tipo Worker.
 # EasyPanel: New Service → Compose, ou Docker Image `erikvl87/languagetool` porta 8010.
 #
 # No frontend (crm-dev-frontend / prod), variável de RUNTIME (sem rebuild):
