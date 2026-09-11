@@ -331,7 +331,7 @@ export interface AutomationWriteBody {
   /**
    * Steps como sub-objeto do payload do PUT (rota legacy). Usado por
    * `replaceAutomation` / `useReplaceAutomation`. O `createAutomation`
-   * (POST) e o `updateAutomation` (PATCH) NÃO consomem este campo.
+   * (POST) e o `updateAutomation` (PUT parcial) NÃO consomem este campo.
    */
   steps?: AutomationWriteStepPayload[];
 }
@@ -358,9 +358,11 @@ export function updateAutomation(
   id: string,
   body: AutomationWriteBody,
 ): Promise<AutomationDetailDto> {
+  // Contrato do backend: PUT /api/automations/:id (update parcial).
+  // PATCH retorna 405 — a rota só exporta PUT/GET/DELETE.
   return sendJson<AutomationDetailDto>(
     `/api/automations/${id}`,
-    "PATCH",
+    "PUT",
     body,
     "Erro ao atualizar automação.",
   );
