@@ -48,10 +48,6 @@ export const DISTRIBUTION_DEPT_STATS_KEY = [
   "distribution-department-stats",
 ] as const;
 
-/** Poll de segurança da Fila (SSE cobre o instante; isto cobre gap/reconnect). */
-const QUEUE_POLL_MS = 20_000;
-/** Carga por consultor (`getQueueCounts`) — um pouco mais lenta que a fila. */
-const COUNTS_POLL_MS = 30_000;
 /** Trailing curto demais + inbox quente = GET de equipe/fila em rajada. */
 const QUEUE_SSE_DEBOUNCE_MS = 2_000;
 
@@ -97,19 +93,15 @@ export function useUpdateDistributionSettings() {
   });
 }
 
-export function useDistributionResponsibles(
-  enabled = true,
-  opts?: { poll?: boolean },
-) {
-  const poll = opts?.poll !== false;
+export function useDistributionResponsibles(enabled = true) {
   return useQuery<ResponsiblesResponse>({
     queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
     queryFn: fetchResponsibles,
     enabled,
     staleTime: 30_000,
-    refetchInterval: enabled && poll ? COUNTS_POLL_MS : false,
+    refetchInterval: false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -140,10 +132,15 @@ export function useDistributionQueueRealtime(
       }, QUEUE_SSE_DEBOUNCE_MS);
     };
 
-    const unsubscribe = subscribeSSEEvents("/api/sse/messages", {
-      new_message: bump,
-      conversation_updated: bump,
-    });
+    const unsubscribe = subscribeSSEEvents(
+      "/api/sse/messages",
+      {
+        new_message: bump,
+        conversation_updated: bump,
+        presence_update: bump,
+      },
+      bump,
+    );
 
     return () => {
       unsubscribe();
@@ -330,9 +327,7 @@ export { PENDING_PAGE_SIZE };
 export function usePendingDistributions(
   enabled = true,
   cursor: string | null = null,
-  opts?: { poll?: boolean },
 ) {
-  const poll = opts?.poll === true;
   return useQuery<PendingResponse>({
     queryKey: cursor
       ? ([...DISTRIBUTION_PENDING_KEY, cursor] as const)
@@ -340,9 +335,9 @@ export function usePendingDistributions(
     queryFn: () => fetchPending({ cursor, limit: PENDING_PAGE_SIZE }),
     enabled,
     staleTime: 30_000,
-    refetchInterval: enabled && !cursor && poll ? QUEUE_POLL_MS : false,
+    refetchInterval: false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
   });
 }
 

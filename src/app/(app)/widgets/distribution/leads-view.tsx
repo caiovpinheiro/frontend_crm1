@@ -68,7 +68,7 @@ const NOTE_MAX = 500;
 export type LeadsPane = "consultants" | "ranking" | "history";
 
 const CONSULTANTS_GRID =
-  "grid-cols-[minmax(220px,2.2fr)_minmax(88px,0.7fr)_minmax(108px,0.8fr)_minmax(148px,0.95fr)_13rem]";
+  "grid-cols-[minmax(220px,2.2fr)_minmax(88px,0.7fr)_minmax(108px,0.8fr)_13rem_13rem]";
 const RANKING_GRID =
   "grid-cols-[3.5rem_minmax(220px,1fr)_minmax(96px,0.6fr)]";
 const HISTORY_GRID =
@@ -123,7 +123,7 @@ function WeightPicker({
 }) {
   return (
     <div
-      className="inline-flex h-7 items-center rounded-full border border-border bg-card p-px"
+      className="inline-flex h-9 w-max shrink-0 items-center rounded-full border border-border bg-card p-0.5"
       title="Peso: quantas das 5 posições entram no rodízio"
     >
       {WEIGHT_OPTIONS.map((w) => (
@@ -133,7 +133,7 @@ function WeightPicker({
           disabled={disabled}
           onClick={() => onChange(w)}
           className={cn(
-            "inline-flex h-6 w-6 items-center justify-center rounded-full font-display text-[11px] font-bold leading-none transition-colors",
+            "inline-flex size-8 shrink-0 items-center justify-center rounded-full font-display text-[13px] font-bold leading-none transition-colors",
             value === w
               ? "bg-primary/15 text-primary"
               : "text-muted-foreground hover:text-foreground",
@@ -509,12 +509,14 @@ export function LeadsDistributionView({
   pane,
   from = "",
   to = "",
+  search = "",
 }: {
   canManage: boolean;
   view?: CardsTableView;
   pane: LeadsPane;
   from?: string;
   to?: string;
+  search?: string;
 }) {
   const participantsQuery = useLeadsParticipants();
   const responsiblesQuery = useDistributionResponsibles();
@@ -542,6 +544,28 @@ export function LeadsDistributionView({
   const historyItems =
     historyQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const historyTotal = historyQuery.data?.pages[0]?.total ?? 0;
+  const searchNeedle = search.trim().toLocaleLowerCase("pt-BR");
+  const ranking = useMemo(() => {
+    const list = stats?.ranking ?? [];
+    if (!searchNeedle) return list;
+    return list.filter((r) =>
+      (r.name ?? r.userId).toLocaleLowerCase("pt-BR").includes(searchNeedle),
+    );
+  }, [stats?.ranking, searchNeedle]);
+  const visibleHistory = useMemo(() => {
+    if (!searchNeedle) return historyItems;
+    return historyItems.filter((item) => {
+      const hay = [
+        item.leadLabel,
+        item.userName,
+        item.userId,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("pt-BR");
+      return hay.includes(searchNeedle);
+    });
+  }, [historyItems, searchNeedle]);
 
   const availableToAdd = useMemo(() => {
     const configured = new Set(participants.map((p) => p.userId));
@@ -777,10 +801,18 @@ export function LeadsDistributionView({
                 description="Quando o rodízio atribuir leads, o ranking aparece aqui."
               />
             </div>
+          ) : ranking.length === 0 ? (
+            <div className={CARD_SURFACE_CLASS}>
+              <EmptyState
+                icon={<IconTrophy className="size-6" />}
+                title="Nenhum consultor encontrado"
+                description="Ajuste a busca para ver outros nomes no ranking."
+              />
+            </div>
           ) : (
             <>
               <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
-                {stats.ranking.map((r, idx) => (
+                {ranking.map((r, idx) => (
                   <li key={r.userId} className={LIST_CARD_ROW_CLASS}>
                     <div className="flex items-center gap-3">
                       <span
@@ -817,7 +849,7 @@ export function LeadsDistributionView({
                       </>
                     }
                   >
-                    {stats.ranking.map((r, idx) => (
+                    {ranking.map((r, idx) => (
                       <DataRow key={r.userId}>
                         <span
                           className={cn(
@@ -887,10 +919,18 @@ export function LeadsDistributionView({
                 description="Ajuste o período ou o consultor para ver outros registros."
               />
             </div>
+          ) : visibleHistory.length === 0 ? (
+            <div className={CARD_SURFACE_CLASS}>
+              <EmptyState
+                icon={<DistributionIcon size={28} />}
+                title="Nenhum resultado na busca"
+                description="Ajuste a pesquisa para ver outras atribuições."
+              />
+            </div>
           ) : (
             <>
               <ul className={cn(LIST_CARD_STACK_CLASS, "md:hidden")}>
-                {historyItems.map((item) => (
+                {visibleHistory.map((item) => (
                   <li key={item.id} className={LIST_CARD_ROW_CLASS}>
                     <p className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
                       {item.leadLabel ?? "Lead"}
@@ -918,7 +958,7 @@ export function LeadsDistributionView({
                       </>
                     }
                   >
-                    {historyItems.map((item) => (
+                    {visibleHistory.map((item) => (
                       <DataRow key={item.id}>
                         <span className="font-display text-[13px] tabular-nums text-[var(--text-secondary)]">
                           {formatDateTime(item.createdAt)}

@@ -4,8 +4,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   IconAlertTriangle,
   IconArrowsShuffle,
@@ -84,6 +85,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useWidgets } from "@/features/widgets/hooks";
 import {
+  DISTRIBUTION_LOGS_KEY,
+  DISTRIBUTION_PENDING_KEY,
+  DISTRIBUTION_RESPONSIBLES_KEY,
   useDistributionQueueRealtime,
   useDistributionResponsibles,
   PENDING_PAGE_SIZE,
@@ -205,6 +209,27 @@ function isDevDemoEnv(): boolean {
 
 type DistributionView = "team" | "coverage" | "queue" | "logs";
 
+const DIST_BASE_PATH = "/widgets/distribution";
+
+function parseLeadsPane(pathname: string): LeadsPane {
+  if (pathname.endsWith("/ranking")) return "ranking";
+  if (pathname.endsWith("/history")) return "history";
+  return "consultants";
+}
+
+function leadsPaneHref(pane: LeadsPane, current: URLSearchParams): string {
+  const params = new URLSearchParams(current.toString());
+  params.delete("tab");
+  if (pane === "ranking" || pane === "history") {
+    params.delete("mode");
+    const qs = params.toString();
+    return `${DIST_BASE_PATH}/${pane}${qs ? `?${qs}` : ""}`;
+  }
+  params.set("mode", "leads");
+  const qs = params.toString();
+  return `${DIST_BASE_PATH}?${qs}`;
+}
+
 /**
  * Deep-link de aba (`?tab=coverage`). Usado pelo redirect da rota antiga
  * `/settings/coverage`, que virou a aba "Cobertura" aqui ao lado de "Equipe".
@@ -267,19 +292,35 @@ export default function DistributionClientPage({
       (widgetFromApi === undefined && cachedInstalled !== false));
 
   const searchParams = useSearchParams();
+  const pathname = usePathname() ?? "";
+  const router = useRouter();
   const viewFromUrl = parseViewParam(searchParams.get("tab"));
   const [view, setView] = useState<DistributionView>(viewFromUrl ?? "team");
 
-  const respQuery = useDistributionResponsibles(queueLive, {
-    poll: view === "team",
-  });
+  const respQuery = useDistributionResponsibles(queueLive);
   const pendingLive = queueLive && view === "queue";
-  const pendingQuery = usePendingDistributions(pendingLive, null, {
-    poll: true,
-  });
+  const pendingQuery = usePendingDistributions(pendingLive, null);
   useDistributionQueueRealtime(queueLive, { pending: view === "queue" });
   const simulateMut = useSimulateDistribution();
   const retryMut = useRetryPending();
+  const qc = useQueryClient();
+  const listsRefreshing =
+    respQuery.isFetching || pendingQuery.isFetching;
+
+  const handleRefreshLists = () => {
+    void qc.invalidateQueries({
+      queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
+      refetchType: "all",
+    });
+    void qc.invalidateQueries({
+      queryKey: DISTRIBUTION_PENDING_KEY,
+      refetchType: "all",
+    });
+    void qc.invalidateQueries({
+      queryKey: DISTRIBUTION_LOGS_KEY,
+      refetchType: "active",
+    });
+  };
 
   const [editing, setEditing] = useState<DistributionResponsibleDto | null>(null);
   const [redistributing, setRedistributing] =
@@ -291,24 +332,31 @@ export default function DistributionClientPage({
   // Leads" (leads). APENAS alterna a visualização — não muda motor nem
   // automações. Deep link: ?mode=leads. A query é lida só APÓS o mount:
   // ler searchParams no estado inicial diverge do SSR (hydration mismatch).
-  const [pageMode, setPageMode] = useState<"smart" | "leads">("smart");
+  const leadsPane = parseLeadsPane(pathname);
+  const [pageMode, setPageMode] = useState<"smart" | "leads">(
+    leadsPane !== "consultants" ? "leads" : "smart",
+  );
   useEffect(() => {
-    if (searchParams.get("mode") === "leads") setPageMode("leads");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  // A URL acompanha o modo (deep link ?mode=leads), preservando ?tab= e
-  // demais params. replaceState: sem navegação/re-render — o estado já mudou.
+    if (leadsPane !== "consultants" || searchParams.get("mode") === "leads") {
+      setPageMode("leads");
+    } else {
+      setPageMode("smart");
+    }
+  }, [leadsPane, searchParams]);
   const changePageMode = (m: "smart" | "leads") => {
     setPageMode(m);
-    const params = new URLSearchParams(window.location.search);
-    if (m === "leads") params.set("mode", "leads");
-    else params.delete("mode");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    if (m === "leads") {
+      router.push(leadsPaneHref("consultants", params));
+      return;
+    }
+    params.delete("mode");
     const qs = params.toString();
-    window.history.replaceState(
-      null,
-      "",
-      qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
-    );
+    router.push(qs ? `${DIST_BASE_PATH}?${qs}` : DIST_BASE_PATH);
+  };
+  const changeLeadsPane = (pane: LeadsPane) => {
+    router.push(leadsPaneHref(pane, searchParams));
   };
   useEffect(() => {
     registerDistributionTourBridge(setView);
@@ -327,9 +375,9 @@ export default function DistributionClientPage({
   const [coverageShowHidden, setCoverageShowHidden] = useState(false);
   const [logDateFrom, setLogDateFrom] = useState("");
   const [logDateTo, setLogDateTo] = useState("");
-  const [leadsPane, setLeadsPane] = useState<LeadsPane>("consultants");
   const [leadsDateFrom, setLeadsDateFrom] = useState("");
   const [leadsDateTo, setLeadsDateTo] = useState("");
+  const [leadsSearch, setLeadsSearch] = useState("");
 
   const realResponsibles = respQuery.data?.responsibles ?? [];
   const realPending = pendingQuery.data?.pending ?? [];
@@ -522,11 +570,26 @@ export default function DistributionClientPage({
             ) : undefined
           }
           search={
-            pageMode === "smart" &&
-            ((smartInstalled && view === "team") || view === "coverage")
+            (pageMode === "leads" &&
+              (leadsPane === "ranking" || leadsPane === "history")) ||
+            (pageMode === "smart" &&
+              ((smartInstalled && view === "team") || view === "coverage"))
           }
           searchSlot={
-            smartInstalled && view === "team" ? (
+            pageMode === "leads" &&
+            (leadsPane === "ranking" || leadsPane === "history") ? (
+              <SearchFilterBar
+                value={leadsSearch}
+                onChange={setLeadsSearch}
+                placeholder={
+                  leadsPane === "ranking"
+                    ? "Pesquisar consultor..."
+                    : "Pesquisar lead ou consultor..."
+                }
+                withFilter={false}
+                clearable
+              />
+            ) : smartInstalled && view === "team" ? (
               <DistributionSearchFilterBar
                 search={search}
                 onSearch={setSearch}
@@ -551,7 +614,8 @@ export default function DistributionClientPage({
             ) : undefined
           }
           period={
-            pageMode === "leads" ? (
+            pageMode === "leads" &&
+            (leadsPane === "ranking" || leadsPane === "history") ? (
               <div className="flex shrink-0">
                 <PeriodCalendarButton active={Boolean(leadsDateFrom || leadsDateTo)}>
                   <PeriodIsoRangePanel
@@ -637,6 +701,8 @@ export default function DistributionClientPage({
             <DistributionActionsMenu
               onTest={handleTest}
               testing={simulateMut.isPending}
+              onRefresh={handleRefreshLists}
+              refreshing={listsRefreshing}
               onRetry={handleRetry}
               retrying={retryMut.isPending}
               canRetry={pendingTotal > 0}
@@ -665,7 +731,7 @@ export default function DistributionClientPage({
                   { key: "history", label: "Histórico" },
                 ]}
                 value={leadsPane}
-                onChange={setLeadsPane}
+                onChange={changeLeadsPane}
               />
             </div>
           ) : pageMode === "smart" && (smartInstalled || view === "coverage") ? (
@@ -700,8 +766,9 @@ export default function DistributionClientPage({
               canManage={canManage}
               view={listView}
               pane={leadsPane}
-              from={leadsDateFrom}
-              to={leadsDateTo}
+              from={leadsPane === "consultants" ? "" : leadsDateFrom}
+              to={leadsPane === "consultants" ? "" : leadsDateTo}
+              search={leadsSearch}
             />
           )
         ) : /* Cobertura não depende do widget `smart_distribution`: a grade
@@ -780,6 +847,8 @@ export default function DistributionClientPage({
                   illustrative={useDemo}
                   onRetry={handleRetry}
                   retrying={retryMut.isPending}
+                  onRefresh={handleRefreshLists}
+                  refreshing={listsRefreshing}
                   loading={pendingQuery.isLoading}
                   live={!useDemo && queueLive}
                 />
@@ -1810,6 +1879,8 @@ function DistributionSearchFilterBar({
 function DistributionActionsMenu({
   onTest,
   testing,
+  onRefresh,
+  refreshing,
   onRetry,
   retrying,
   canRetry,
@@ -1819,6 +1890,8 @@ function DistributionActionsMenu({
 }: {
   onTest: () => void;
   testing: boolean;
+  onRefresh: () => void;
+  refreshing: boolean;
   onRetry: () => void;
   retrying: boolean;
   canRetry: boolean;
@@ -1840,6 +1913,17 @@ function DistributionActionsMenu({
               },
             ]
           : []),
+        {
+          icon: refreshing ? (
+            <IconLoader2 size={13} className="animate-spin" />
+          ) : (
+            <IconRotateClockwise size={13} />
+          ),
+          label: refreshing ? "Atualizando…" : "Atualizar",
+          onClick: onRefresh,
+          disabled: refreshing,
+          tourId: "distribution-refresh",
+        },
         {
           icon: retrying ? (
             <IconLoader2 size={13} className="animate-spin" />
@@ -1935,6 +2019,8 @@ function PendingQueueCards({
   illustrative = false,
   onRetry,
   retrying,
+  onRefresh,
+  refreshing = false,
   loading = false,
   live = false,
 }: {
@@ -1945,6 +2031,8 @@ function PendingQueueCards({
   illustrative?: boolean;
   onRetry: () => void;
   retrying: boolean;
+  onRefresh: () => void;
+  refreshing?: boolean;
   loading?: boolean;
   live?: boolean;
 }) {
@@ -2037,23 +2125,38 @@ function PendingQueueCards({
               </span>
             </h2>
             <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
-              Atendimentos sem responsável elegível. Redistribuídos automaticamente quando alguém fica elegível, libera capacidade ou pelo job de segurança.
+              Atendimentos sem responsável elegível. Redistribuídos quando alguém fica online, elegível, libera vaga ou o expediente abre.
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={retrying || (illustrative ? pending.length === 0 : pageTotal === 0)}
-          className="inline-flex w-full shrink-0 cursor-pointer items-center justify-center gap-1.5 self-start rounded-full border border-warning/50 bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning transition-colors hover:opacity-90 disabled:opacity-50 sm:w-auto sm:self-auto"
-        >
-          {retrying ? (
-            <IconLoader2 size={14} className="animate-spin" />
-          ) : (
-            <IconRefresh size={14} />
-          )}
-          Reprocessar agora
-        </button>
+        <div className="flex w-full shrink-0 flex-col gap-2 self-start sm:w-auto sm:flex-row sm:self-auto">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-1.5 text-xs font-bold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-50 sm:w-auto"
+          >
+            {refreshing ? (
+              <IconLoader2 size={14} className="animate-spin" />
+            ) : (
+              <IconRotateClockwise size={14} />
+            )}
+            Atualizar
+          </button>
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={retrying || (illustrative ? pending.length === 0 : pageTotal === 0)}
+            className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-full border border-warning/50 bg-warning-soft px-3 py-1.5 text-xs font-bold text-warning transition-colors hover:opacity-90 disabled:opacity-50 sm:w-auto"
+          >
+            {retrying ? (
+              <IconLoader2 size={14} className="animate-spin" />
+            ) : (
+              <IconRefresh size={14} />
+            )}
+            Reprocessar agora
+          </button>
+        </div>
       </div>
 
       {sorted.length === 0 ? (
