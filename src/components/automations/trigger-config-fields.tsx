@@ -47,6 +47,38 @@ type Pipeline = { id: string; name: string; stages: PipelineStage[] };
  * graças ao cache do react-query, abrir o config dialog não bate duas
  * vezes no backend.
  */
+function normalizePipelines(raw: unknown): Pipeline[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object"
+      ? ((raw as { pipelines?: unknown }).pipelines ??
+        (raw as { items?: unknown }).items ??
+        [])
+      : [];
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const p = item as { id?: unknown; name?: unknown; stages?: unknown };
+    const id = typeof p.id === "string" ? p.id : "";
+    if (!id) return [];
+    return [
+      {
+        id,
+        name: typeof p.name === "string" ? p.name : "",
+        stages: Array.isArray(p.stages)
+          ? p.stages.filter(
+              (s): s is PipelineStage =>
+                !!s &&
+                typeof s === "object" &&
+                typeof (s as PipelineStage).id === "string" &&
+                typeof (s as PipelineStage).name === "string",
+            )
+          : [],
+      },
+    ];
+  });
+}
+
 export function usePipelines() {
   return useQuery({
     queryKey: ["pipelines-for-trigger"],
@@ -54,7 +86,7 @@ export function usePipelines() {
     queryFn: async (): Promise<Pipeline[]> => {
       const res = await fetch(apiUrl("/api/pipelines"));
       if (!res.ok) return [];
-      return (await res.json()) as Pipeline[];
+      return normalizePipelines(await res.json());
     },
   });
 }
@@ -68,10 +100,10 @@ export function useTriggerNameLookup(): Record<string, string> {
     const map: Record<string, string> = {};
     for (const p of pipelines) {
       map[p.id] = p.name;
-      for (const s of p.stages) map[s.id] = s.name;
+      for (const s of p.stages ?? []) map[s.id] = s.name;
     }
-    for (const o of wa.options) map[o.id] = o.label;
-    for (const o of em.options) map[o.id] = o.label;
+    for (const o of wa.options ?? []) map[o.id] = o.label;
+    for (const o of em.options ?? []) map[o.id] = o.label;
     return map;
   }, [pipelines, wa.options, em.options]);
 }
@@ -125,7 +157,7 @@ function StageMultiSelect({
   const visiblePipelines = pipelinesFromValue
     ? pipelines.filter((p) => p.id === pipelinesFromValue)
     : pipelines;
-  const allStages = visiblePipelines.flatMap((p) => p.stages);
+  const allStages = visiblePipelines.flatMap((p) => p.stages ?? []);
 
   const namesOf = (ids: string[]) =>
     ids
@@ -134,7 +166,7 @@ function StageMultiSelect({
 
   const ownerOf = (ids: string[]): { id: string; name: string } | null => {
     if (ids.length !== 1) return null;
-    const p = pipelines.find((pipe) => pipe.stages.some((s) => s.id === ids[0]));
+    const p = pipelines.find((pipe) => (pipe.stages ?? []).some((s) => s.id === ids[0]));
     return p ? { id: p.id, name: p.name } : null;
   };
 
@@ -254,7 +286,7 @@ function StageMultiSelect({
               </DropdownPrimitive.Item>
             ) : null}
             {visiblePipelines.map((p) => {
-              const stages = p.stages.filter((s) => matchesQuery(s.name));
+              const stages = (p.stages ?? []).filter((s) => matchesQuery(s.name));
               if (stages.length === 0) return null;
               return (
                 <DropdownPrimitive.Group key={p.id}>
