@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  bulkAddLeadsParticipants,
   fetchLeadsHistory,
   fetchLeadsParticipants,
   fetchLeadsSettings,
@@ -16,6 +17,7 @@ import {
   updateLeadsSettings,
 } from "./leads-api";
 import type {
+  BulkAddLeadsParticipantsInput,
   LeadsHistoryFilters,
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
@@ -68,6 +70,18 @@ export function useUpdateLeadsParticipant() {
       userId: string;
       input: UpdateLeadsParticipantInput;
     }) => updateLeadsParticipant(userId, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: LEADS_PARTICIPANTS_KEY });
+      void qc.invalidateQueries({ queryKey: LEADS_STATS_KEY });
+    },
+  });
+}
+
+export function useBulkAddLeadsParticipants() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: BulkAddLeadsParticipantsInput) =>
+      bulkAddLeadsParticipants(input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: LEADS_PARTICIPANTS_KEY });
       void qc.invalidateQueries({ queryKey: LEADS_STATS_KEY });

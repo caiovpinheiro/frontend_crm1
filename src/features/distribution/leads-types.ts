@@ -3,8 +3,9 @@
  * independente da Distribuição Inteligente (smart).
  *
  * Endpoints backend (widget `smart_distribution`):
- *   GET /api/distribution/leads/participants           -> { participants }
- *   PUT /api/distribution/leads/participants/[userId]  -> { participant }
+ *   GET  /api/distribution/leads/participants          -> { participants }
+ *   POST /api/distribution/leads/participants          -> { added, skipped, participants }
+ *   PUT  /api/distribution/leads/participants/[userId] -> { participant }
  *   GET /api/distribution/leads/stats?from&to&userId   -> LeadsStatsResponse
  *   GET /api/distribution/leads/history?...            -> LeadsHistoryResponse
  */
@@ -38,6 +39,18 @@ export interface LeadsParticipantsResponse {
 export interface UpdateLeadsParticipantInput {
   status?: "ACTIVE" | "INACTIVE";
   weight?: number;
+}
+
+export interface BulkAddLeadsParticipantsInput {
+  userIds: string[];
+  status?: "ACTIVE" | "INACTIVE";
+  weight?: number;
+}
+
+export interface BulkAddLeadsParticipantsResponse {
+  added: number;
+  skipped: number;
+  participants: LeadsParticipantDto[];
 }
 
 export interface LeadsStatsEntry {

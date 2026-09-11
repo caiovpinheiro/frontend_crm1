@@ -29,7 +29,9 @@ import {
 } from "@/components/crm/period-calendar-button";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { UserAvatar } from "@/components/crm/user-avatar";
+import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import {
+  useBulkAddLeadsParticipants,
   useLeadsHistory,
   useLeadsParticipants,
   useLeadsSettings,
@@ -224,7 +226,8 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
   );
   const statsQuery = useLeadsStats(filters);
   const historyQuery = useLeadsHistory(filters);
-  const updateMut = useUpdateLeadsParticipant();
+  const bulkAddMut = useBulkAddLeadsParticipants();
+  const [pendingUserIds, setPendingUserIds] = useState<string[]>([]);
 
   const participants = useMemo(
     () => participantsQuery.data?.participants ?? [],
@@ -235,12 +238,11 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
     historyQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const historyTotal = historyQuery.data?.pages[0]?.total ?? 0;
 
-  // Usuários HUMAN da org ainda não configurados no modo leads (a lista de
-  // responsáveis do smart cobre todos os humanos — só reutilizamos os dados).
+  // Operadores ainda não configurados. Admin/gestor ficam de fora (role MEMBER).
   const availableToAdd = useMemo(() => {
     const configured = new Set(participants.map((p) => p.userId));
     return (responsiblesQuery.data?.responsibles ?? []).filter(
-      (r) => !configured.has(r.userId),
+      (r) => r.role === "MEMBER" && !configured.has(r.userId),
     );
   }, [participants, responsiblesQuery.data]);
 
@@ -249,11 +251,20 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
   ).length;
   const top = stats?.ranking[0] ?? null;
 
-  const addParticipant = (userId: string) => {
-    updateMut.mutate(
-      { userId, input: { status: "ACTIVE", weight: 1 } },
+  const addSelected = () => {
+    if (pendingUserIds.length === 0) return;
+    bulkAddMut.mutate(
+      { userIds: pendingUserIds, status: "ACTIVE", weight: 1 },
       {
-        onSuccess: () => toast.success("Consultor adicionado ao rodízio."),
+        onSuccess: (data) => {
+          setPendingUserIds([]);
+          const n = data.added;
+          toast.success(
+            n === 1
+              ? "Consultor adicionado ao rodízio."
+              : `${n} consultores adicionados ao rodízio.`,
+          );
+        },
         onError: (e) => toast.error(e.message || "Erro ao adicionar."),
       },
     );
@@ -326,22 +337,32 @@ export function LeadsDistributionView({ canManage }: { canManage: boolean }) {
           </div>
           {canManage && availableToAdd.length > 0 && (
             <div className="flex items-center gap-2">
-              <select
-                className="h-8 rounded-md border border-border bg-card px-2 text-[12px] text-foreground"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) addParticipant(e.target.value);
-                }}
-                disabled={updateMut.isPending}
-                aria-label="Adicionar consultor ao rodízio"
+              <MultiSelectPopover
+                label="Consultores"
+                icon={<IconUsers size={14} />}
+                options={availableToAdd.map((r) => ({
+                  value: r.userId,
+                  label: r.name ?? r.email ?? r.userId,
+                  sub: r.email ?? undefined,
+                }))}
+                selected={pendingUserIds}
+                onChange={setPendingUserIds}
+                emptyLabel="Nenhum operador disponível"
+                disabled={bulkAddMut.isPending}
+                width={280}
+              />
+              <ButtonGlass
+                type="button"
+                variant="primary"
+                disabled={pendingUserIds.length === 0 || bulkAddMut.isPending}
+                onClick={addSelected}
               >
-                <option value="">+ Adicionar consultor…</option>
-                {availableToAdd.map((r) => (
-                  <option key={r.userId} value={r.userId}>
-                    {r.name ?? r.email ?? r.userId}
-                  </option>
-                ))}
-              </select>
+                {bulkAddMut.isPending
+                  ? "Adicionando…"
+                  : pendingUserIds.length > 0
+                    ? `Adicionar (${pendingUserIds.length})`
+                    : "Adicionar"}
+              </ButtonGlass>
             </div>
           )}
         </div>

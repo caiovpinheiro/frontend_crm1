@@ -14,6 +14,8 @@ import {
   MOCK_LEADS_STATS,
 } from "./leads-mock";
 import type {
+  BulkAddLeadsParticipantsInput,
+  BulkAddLeadsParticipantsResponse,
   LeadsHistoryFilters,
   LeadsHistoryResponse,
   LeadsParticipantsResponse,
@@ -132,6 +134,24 @@ export function updateLeadsParticipant(
     "PUT",
     input,
     "Erro ao salvar participante.",
+  );
+}
+
+export function bulkAddLeadsParticipants(
+  input: BulkAddLeadsParticipantsInput,
+): Promise<BulkAddLeadsParticipantsResponse> {
+  if (isPageMockMode()) {
+    return Promise.resolve({
+      added: input.userIds.length,
+      skipped: 0,
+      participants: MOCK_LEADS_PARTICIPANTS.participants,
+    });
+  }
+  return sendJson<BulkAddLeadsParticipantsResponse>(
+    "/api/distribution/leads/participants",
+    "POST",
+    { status: "ACTIVE", weight: 1, ...input },
+    "Erro ao adicionar consultores.",
   );
 }
 
