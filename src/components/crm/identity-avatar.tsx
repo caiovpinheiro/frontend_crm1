@@ -40,10 +40,10 @@ export function IdentityAvatar({
   const tokenClass = typeof size === "string" ? sizeClass[size] : undefined;
 
   return (
-    <span className={cn("relative inline-flex shrink-0", className)}>
+    <span className={cn("identity-avatar relative inline-flex shrink-0", className)}>
       <span
         className={cn(
-          "flex items-center justify-center overflow-hidden rounded-full font-bold uppercase",
+          "identity-avatar flex items-center justify-center overflow-hidden rounded-full font-bold uppercase",
           px == null && tokenClass,
         )}
         style={{

@@ -960,7 +960,7 @@ export function DealDetailPanel({
                     </p>
                   </div>
                   {ownerSlot && (
-                    <div className="shrink-0 [&_button]:!rounded-md [&_button]:!border-transparent [&_button]:!bg-white [&_button]:!text-[#2e3b6e] [&_button]:shadow-sm [&_span]:!rounded-md [&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
+                    <div className="shrink-0 [&_button]:!rounded-md [&_button]:!border-transparent [&_button]:!bg-white [&_button]:!text-[#2e3b6e] [&_button]:shadow-sm [&_span:not(.identity-avatar)]:!rounded-md [&_span:not(.identity-avatar)]:!border-transparent [&_span:not(.identity-avatar)]:!bg-white [&_span:not(.identity-avatar)]:!text-[#2e3b6e] [&_span:not(.identity-avatar)]:shadow-sm">
                       {ownerSlot}
                     </div>
                   )}

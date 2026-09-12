@@ -53,7 +53,7 @@ export function UserAvatar({
 
   return (
     <span
-      className={cn("relative inline-flex shrink-0", className)}
+      className={cn("identity-avatar relative inline-flex shrink-0", className)}
       title={title ?? name ?? undefined}
     >
       <IdentityAvatar
