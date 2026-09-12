@@ -962,10 +962,12 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
       return {
         agentUserId: "",
         agentLabel: "",
+        agentArchetype: "",
         // "deal" propaga via assignDealOwner; "contact" via
         // propagateOwnerToContactAndChat. Ambos acabam setando
         // conversation.assignedToId, que é o que `maybeReplyAsAIAgent`
         // olha pra decidir se assume a conversa.
+        // Tabulador (TABULACAO) grava "contact" — não assume o negócio.
         target: "deal",
       };
     case "execute_distribution":

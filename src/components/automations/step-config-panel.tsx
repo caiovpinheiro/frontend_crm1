@@ -1,6 +1,10 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
+import {
+  aiTransferTargetForArchetype,
+  isTabulationArchetype,
+} from "@/lib/ai-agents/archetypes";
 import { useQuery } from "@tanstack/react-query";
 import type { Dispatch, SetStateAction } from "react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -677,10 +681,16 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
         toast.error("Selecione o agente IA que vai assumir a conversa.");
         return;
       }
+      const agentArchetype = String(config.agentArchetype ?? "");
       config = {
         agentUserId,
         agentLabel: String(config.agentLabel ?? ""),
-        target: String(config.target ?? "deal") === "contact" ? "contact" : "deal",
+        agentArchetype,
+        target:
+          String(config.target ?? "deal") === "contact" ||
+          isTabulationArchetype(agentArchetype)
+            ? "contact"
+            : "deal",
       };
     }
     if (step.type === "assign_owner") {
@@ -3310,6 +3320,12 @@ function AssignOwnerStepConfig({
 
   const isLoading = loadingHumans || loadingAgents;
   const activeAgents = agents.filter((a) => a.active);
+  const assignableAgents = activeAgents.filter(
+    (a) => !isTabulationArchetype(a.archetype) || a.userId === selectedId,
+  );
+  const selectedIsTabulator = assignableAgents.some(
+    (a) => a.userId === selectedId && isTabulationArchetype(a.archetype),
+  );
 
   const handleChange = (value: string) => {
     if (!value) {
@@ -3355,7 +3371,7 @@ function AssignOwnerStepConfig({
                 label: `${u.name} (${u.email})`,
                 description: "Humanos",
               })),
-              ...activeAgents.map((a) => ({
+              ...assignableAgents.map((a) => ({
                 value: a.userId,
                 label: `🤖 ${a.name} · ${ARCHETYPE_LABEL[a.archetype] ?? a.archetype} · ${a.autonomyMode === "AUTONOMOUS" ? "autônomo" : "rascunho"}`,
                 description: "Agentes IA (handoff automático)",
@@ -3385,7 +3401,14 @@ function AssignOwnerStepConfig({
         />
       </div>
 
-      {selectedType === "AI" && selectedId && (
+      {selectedIsTabulator && (
+        <p className="text-[11px] text-[var(--color-danger-text)]">
+          Classificador de tabulação não deve ser dono do negócio. Escolha
+          um humano ou um agente de atendimento.
+        </p>
+      )}
+
+      {selectedType === "AI" && selectedId && !selectedIsTabulator && (
         <div className="rounded-lg border border-[var(--color-lavender)]/30 bg-[var(--color-lavender-soft)] p-3 text-[12px] leading-relaxed text-[var(--color-text-primary)]">
           <p className="mb-1 font-semibold">
             🤖 Handoff pra agente IA
@@ -3451,18 +3474,38 @@ function TransferToAIAgentStepConfig({
   const target = String(draft.target ?? "deal");
   const activeAgents = agents.filter((a) => a.active);
   const selected = activeAgents.find((a) => a.userId === selectedId);
+  const tabulator = isTabulationArchetype(selected?.archetype);
+
+  useEffect(() => {
+    if (!selected) return;
+    setDraft((d) => {
+      const nextTarget = isTabulationArchetype(selected.archetype)
+        ? "contact"
+        : d.target;
+      if (
+        d.agentArchetype === selected.archetype &&
+        d.target === nextTarget
+      ) {
+        return d;
+      }
+      return {
+        ...d,
+        agentArchetype: selected.archetype,
+        target: nextTarget,
+      };
+    });
+  }, [selected, setDraft]);
 
   return (
     <>
       <div className="rounded-lg border border-[var(--color-lavender)]/30 bg-[var(--color-lavender-soft)] p-3 text-[11px] leading-relaxed text-[var(--color-text-primary)]">
         <p className="mb-1 font-semibold">Como funciona</p>
         <p>
-          {selected?.archetype === "TABULACAO" ? (
+          {tabulator ? (
             <>
               Este agente é um <b>classificador</b>: lê as mensagens,
-              entende a dúvida e aplica <b>uma</b> folha. Prefere o
-              departamento da conversa; só usa outra árvore se a
-              demanda das mensagens for claramente de outro assunto.{" "}
+              entende a dúvida e aplica <b>uma</b> folha. Assume só a
+              conversa para tabular — <b>não vira dono do negócio</b>.{" "}
               <b>Não envia WhatsApp</b> e não encerra.
             </>
           ) : selected?.archetype === "ENCERRAMENTO" ? (
@@ -3513,6 +3556,8 @@ function TransferToAIAgentStepConfig({
                 ...d,
                 agentUserId: v,
                 agentLabel: a?.name ?? "",
+                agentArchetype: a?.archetype ?? "",
+                target: aiTransferTargetForArchetype(a?.archetype),
               }));
             }}
           />
@@ -3532,18 +3577,25 @@ function TransferToAIAgentStepConfig({
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label>Aplicar em</Label>
-        <DropdownGlass
-          triggerClassName="w-full"
-          value={target}
-          options={[
-            { value: "deal", label: "Negócio (deal) — herda no contato e nas conversas" },
-            { value: "contact", label: "Contato — propaga pras conversas abertas" },
-          ]}
-          onValueChange={(v) => setDraft((d) => ({ ...d, target: v }))}
-        />
-      </div>
+      {tabulator ? (
+        <p className="text-[11px] text-muted-foreground">
+          O classificador assume só a conversa para tabular. O negócio
+          permanece com o responsável atual.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <Label>Aplicar em</Label>
+          <DropdownGlass
+            triggerClassName="w-full"
+            value={target}
+            options={[
+              { value: "deal", label: "Negócio (deal) — herda no contato e nas conversas" },
+              { value: "contact", label: "Contato — propaga pras conversas abertas" },
+            ]}
+            onValueChange={(v) => setDraft((d) => ({ ...d, target: v }))}
+          />
+        </div>
+      )}
     </>
   );
 }
