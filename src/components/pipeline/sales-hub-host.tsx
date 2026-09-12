@@ -126,7 +126,7 @@ export type SalesHubHostProps = {
 export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {}) {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
 
   useEffect(() => {
     writePipelineViewPreference("flow");
@@ -140,7 +140,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   const filterOptionsQuery = useQuery({
     queryKey: ["kanban-filter-options"],
     queryFn: fetchFilterOptions,
-    enabled: isAuthenticated && (filterPanelOpen || !isEmptyFilters(filters)),
+    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -151,7 +151,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   const { activeDealId, setActiveDeal, normalizeDealId, syncDealNumber } =
     useDealDeepLink();
 
-  const pipelinesQuery = usePipelines(isAuthenticated);
+  const pipelinesQuery = usePipelines(canFetch);
   const pipelines = pipelinesQuery.data;
   const { pipelineId, setPipelineId } = usePipelineUrlSync(pipelines);
 
@@ -232,7 +232,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     status,
     filters: queryFilters,
     sort: boardSort,
-    enabled: isAuthenticated && hasServerBoard,
+    enabled: canFetch && hasServerBoard,
   });
   const boardNormal = useBoard({
     pipelineId,
@@ -240,12 +240,12 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     sort: boardSort,
     // Mantém o GET até o POST filtrado resolver — senão LS de filtros
     // desliga o board normal no mount e a fila abre vazia ("Todos 0").
-    enabled: isAuthenticated && (!hasServerBoard || !boardFiltered.data),
+    enabled: canFetch && (!hasServerBoard || !boardFiltered.data),
     perStage: BOARD_PAGE_SIZE,
     offsetByStage: boardExtraByStage,
   });
 
-  usePipelineRealtime(isAuthenticated);
+  usePipelineRealtime(canFetch);
 
   const queryClient = useQueryClient();
 
@@ -335,14 +335,14 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     !boardFiltered.isError;
 
   useLayoutEffect(() => {
-    if (!pipelineId || !isAuthenticated) return;
+    if (!pipelineId || !canFetch) return;
     if (normalIdleUnfetched) void boardNormal.refetch();
     if (hasServerBoard && filteredIdleUnfetched) void boardFiltered.refetch();
     // refetch() é estável o bastante; objetos do useQuery mudam todo render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     pipelineId,
-    isAuthenticated,
+    canFetch,
     hasServerBoard,
     normalIdleUnfetched,
     filteredIdleUnfetched,
@@ -418,7 +418,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   // girava para sempre.
   const pipelinesEmpty = Array.isArray(pipelines) && pipelines.length === 0;
   const pipelinesStuck = useStuckTimeout(
-    isAuthenticated && !pipelineId && !pipelinesQuery.isError && !pipelinesEmpty,
+    canFetch && !pipelineId && !pipelinesQuery.isError && !pipelinesEmpty,
   );
   const pipelinesFailed =
     !pipelineId && (pipelinesQuery.isError || pipelinesEmpty || pipelinesStuck);
@@ -579,7 +579,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
 
   // Sem sessão o middleware redireciona; renderizar o shell aqui prendia a
   // tela para sempre, porque `usePipelines` fica desligada e `pipelineId`
-  // nunca sai de null (o `!isAuthenticated` abaixo era inalcançável).
+  // nunca sai de null.
   if (sessionStatus === "unauthenticated") {
     return null;
   }

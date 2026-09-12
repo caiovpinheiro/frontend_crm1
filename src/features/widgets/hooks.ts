@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import {
   fetchWidgetSso,
   fetchWidgets,
@@ -58,13 +60,15 @@ export function useUninstallWidget() {
 
 /** Busca um token SSO para abrir o iframe de um widget PARTNER. */
 export function useWidgetSso(slug: string | null | undefined, enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery<WidgetSsoResponse>({
     queryKey: ["widget-sso", slug],
     queryFn: () => fetchWidgetSso(slug!),
     enabled: Boolean(slug) && resolveEnabled(enabled),
     // Token vive 5min — re-fetch automatico antes de expirar (4min).
     staleTime: 4 * 60 * 1000,
-    refetchInterval: 4 * 60 * 1000,
+    refetchInterval: visible ? 4 * 60 * 1000 : false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 }

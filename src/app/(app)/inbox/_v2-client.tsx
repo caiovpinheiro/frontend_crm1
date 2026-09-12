@@ -294,7 +294,6 @@ export default function InboxV2ClientPage({
 }: InboxV2ClientPageProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
-  const isAuthenticated = sessionStatus === "authenticated";
   // Cookie do tenant já autentica o GET. Não espera o NextAuth hidratar.
   const canFetchInbox = sessionStatus !== "unauthenticated";
   const isDesktop = useIsDesktop();
@@ -1713,7 +1712,7 @@ export default function InboxV2ClientPage({
   const firstDealPipelineName =
     firstDeal?.pipelineName ?? dealStage?.pipeline?.name ?? null;
   const { data: pipelinesLite } = usePipelines(
-    isAuthenticated && !!firstDealPipelineId,
+    canFetchInbox && !!firstDealPipelineId,
   );
   const boardStages: PipelineListStageDto[] = useMemo(() => {
     if (!firstDealPipelineId || !pipelinesLite) return [];

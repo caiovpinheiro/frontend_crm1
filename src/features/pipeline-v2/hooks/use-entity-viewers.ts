@@ -66,7 +66,32 @@ export function useEntityViewers(
     }
 
     void beat(); // join
-    const interval = setInterval(beat, 25_000);
+    let interval: ReturnType<typeof setInterval> | null = null;
+    if (!document.hidden) {
+      interval = setInterval(beat, 25_000);
+    }
+
+    function startBeatTimer() {
+      if (interval != null) return;
+      interval = setInterval(beat, 25_000);
+    }
+
+    function clearBeatTimer() {
+      if (interval == null) return;
+      clearInterval(interval);
+      interval = null;
+    }
+
+    function onVisibilityChange() {
+      if (document.hidden) {
+        clearBeatTimer();
+        return;
+      }
+      void beat();
+      startBeatTimer();
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     const unsubscribeSSE = subscribeSSEEvents("/api/sse/messages", {
       entity_viewers: (raw: unknown) => {
@@ -95,7 +120,8 @@ export function useEntityViewers(
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      clearBeatTimer();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       unsubscribeSSE();
       window.removeEventListener("beforeunload", leaveBeacon);
       window.removeEventListener("pagehide", leaveBeacon);

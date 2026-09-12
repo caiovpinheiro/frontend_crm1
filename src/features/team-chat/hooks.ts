@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { ApiError } from "@/lib/api";
 import {
@@ -65,21 +67,25 @@ function retryUnlessTimeout(count: number, err: Error) {
 }
 
 export function useTeamChatRooms(enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: [ROOMS_KEY],
     queryFn: listTeamChatRooms,
     enabled,
-    refetchInterval: 120_000,
+    refetchInterval: visible ? 120_000 : false,
+    refetchIntervalInBackground: false,
     retry: retryUnlessTimeout,
   });
 }
 
 export function useTeamChatMessages(roomId: string | null) {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: [MESSAGES_KEY, roomId],
     queryFn: () => listTeamChatMessages(roomId as string),
     enabled: !!roomId,
-    refetchInterval: 120_000,
+    refetchInterval: visible ? 120_000 : false,
+    refetchIntervalInBackground: false,
     retry: retryUnlessTimeout,
   });
 }
