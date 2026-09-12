@@ -1,8 +1,29 @@
 "use client";
 
 import * as React from "react";
-import { IconExternalLink, IconUser } from "@tabler/icons-react";
+import { IconArrowLeft, IconExternalLink, IconShield, IconUser } from "@tabler/icons-react";
+import { toast } from "sonner";
+
+import { ButtonGlass } from "@/components/crm/button-glass";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+
 import type { EmailDetail } from "../api/types";
+import {
+  AVATAR_TONE_CLASS,
+  avatarToneFromAddress,
+  isSecurityAlertEmail,
+  parseSecurityAlert,
+  type SecurityActivity,
+} from "../lib/security-alert";
 import { formatFullDate } from "../utils";
 import { HtmlEmailFrame, decodeIfQuotedPrintable } from "./html-email-frame";
 
@@ -41,35 +62,39 @@ function getInitials(name: string | null, email: string): string {
 interface Props {
   email: EmailDetail | null;
   loading: boolean;
+  onBack?: () => void;
   onReply?: () => void;
   onForward?: () => void;
   onDelete?: () => void;
 }
 
-export function EmailReader({ email, loading, onReply, onForward, onDelete }: Props) {
-  // Estado vazio / loading
+export function EmailReader({ email, loading, onBack, onReply, onForward, onDelete }: Props) {
   if (loading || !email) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 h-full gap-3 text-[var(--text-muted)]">
-        {loading ? (
-          <span className="text-sm animate-pulse">Carregando…</span>
-        ) : (
-          <>
-            <IcoMail />
-            <p className="text-[13px]">Selecione uma mensagem para lê-la.</p>
-          </>
-        )}
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        {onBack ? <ReaderBackBar onBack={onBack} /> : null}
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+          {loading ? (
+            <span className="animate-pulse text-sm">Carregando…</span>
+          ) : (
+            <>
+              <IcoMail />
+              <p className="text-[13px]">Selecione uma mensagem para lê-la.</p>
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col h-full min-h-0">
+  const security = isSecurityAlertEmail(email);
 
-      {/* ── Cabeçalho ────────────────────────────────────── */}
-      <div className="px-5 pt-5 pb-4 border-b border-[var(--glass-border-subtle,var(--glass-border))] flex-shrink-0">
-        {/* Assunto */}
-        <h2 className="font-display font-extrabold text-[18px] leading-snug tracking-[-0.2px] text-[var(--text-primary)] mb-3">
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {onBack ? <ReaderBackBar onBack={onBack} /> : null}
+
+      <div className="flex-shrink-0 border-b border-[var(--glass-border-subtle,var(--glass-border))] px-5 pb-4 pt-5">
+        <h2 className="mb-3 font-display text-[18px] font-extrabold leading-snug tracking-[-0.2px] text-[var(--text-primary)]">
           {email.subject ?? "(sem assunto)"}
         </h2>
 
@@ -119,8 +144,8 @@ export function EmailReader({ email, loading, onReply, onForward, onDelete }: Pr
         )}
       </div>
 
-      {/* ── Corpo ────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-5 py-5 text-[14px] leading-[1.7] text-[var(--text-secondary)]">
+        {security ? <SecurityAlertCard email={email} /> : null}
         {email.bodyHtml ? (
           <HtmlEmailFrame html={email.bodyHtml} />
         ) : (
@@ -150,12 +175,140 @@ export function EmailReader({ email, loading, onReply, onForward, onDelete }: Pr
 }
 
 // ── Subcomponentes ──────────────────────────────────────────────────────────
+function ReaderBackBar({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="flex shrink-0 items-center border-b border-[var(--glass-border-subtle,var(--glass-border))] px-4 py-2.5 md:hidden">
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex items-center gap-1.5 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)]"
+      >
+        <IconArrowLeft size={16} stroke={2} />
+        Voltar
+      </button>
+    </div>
+  );
+}
+
 function AvatarInitials({ name, email }: { name: string | null; email: string }) {
   const initials = getInitials(name, email);
+  const tone = avatarToneFromAddress(email);
   return (
-    <span className="w-[42px] h-[42px] rounded-full flex items-center justify-center bg-[var(--brand-secondary,#a78bfa)] text-white font-display font-bold text-[14px] shrink-0 select-none">
+    <span
+      className={cn(
+        "flex h-[42px] w-[42px] shrink-0 select-none items-center justify-center rounded-full font-display text-[14px] font-bold text-white",
+        AVATAR_TONE_CLASS[tone],
+      )}
+    >
       {initials}
     </span>
+  );
+}
+
+function SecurityAlertCard({ email }: { email: EmailDetail }) {
+  const parsed = React.useMemo(() => parseSecurityAlert(email), [email]);
+  const [open, setOpen] = React.useState(false);
+  const [status, setStatus] = React.useState<Record<number, "open" | "ended" | "safe">>({});
+
+  function mark(index: number, next: "ended" | "safe") {
+    setStatus((prev) => ({ ...prev, [index]: next }));
+    toast.success(next === "ended" ? "Sessão encerrada." : "Atividade marcada como segura.");
+  }
+
+  return (
+    <>
+      <div className="mb-5 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] shadow-[var(--glass-shadow)]">
+        <div className="flex items-start gap-3 px-4 py-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-warning,#d97706)]/15 text-[var(--color-warning,#d97706)]">
+            <IconShield size={20} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-[15px] font-extrabold text-[var(--text-primary)]">
+              Alerta de segurança
+            </p>
+            <p className="mt-1 font-body text-[13px] leading-relaxed text-[var(--text-secondary)]">
+              Detectamos uma nova atividade em <strong>{parsed.appName}</strong> na conta{" "}
+              <strong>{parsed.accountEmail}</strong>.
+            </p>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="mt-3 font-display text-[13px] font-semibold text-[var(--brand-primary)] hover:underline"
+            >
+              Verificar atividade de segurança
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent size="md">
+          <DialogClose />
+          <DialogHeader>
+            <DialogTitle>Atividade de segurança</DialogTitle>
+            <DialogDescription>
+              Sessões recentes vinculadas a {parsed.accountEmail}. As ações ficam só nesta tela.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="flex flex-col gap-3">
+            {parsed.activities.map((activity, index) => (
+              <SecurityActivityRow
+                key={`${activity.device}-${index}`}
+                activity={activity}
+                state={status[index] ?? "open"}
+                onEnd={() => mark(index, "ended")}
+                onSafe={() => mark(index, "safe")}
+              />
+            ))}
+          </ul>
+          <DialogFooter>
+            <ButtonGlass type="button" variant="glass" size="sm" onClick={() => setOpen(false)}>
+              Fechar
+            </ButtonGlass>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function SecurityActivityRow({
+  activity,
+  state,
+  onEnd,
+  onSafe,
+}: {
+  activity: SecurityActivity;
+  state: "open" | "ended" | "safe";
+  onEnd: () => void;
+  onSafe: () => void;
+}) {
+  return (
+    <li className="rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3 py-3">
+      <p className="font-display text-[13px] font-bold text-[var(--text-primary)]">{activity.device}</p>
+      <p className="mt-0.5 font-body text-[12px] text-[var(--text-muted)]">
+        {activity.location}
+        {activity.time ? ` · ${formatFullDate(activity.time)}` : ""}
+      </p>
+      {state === "ended" ? (
+        <p className="mt-2 font-display text-[12px] font-semibold text-[var(--color-danger,#e11d48)]">
+          Sessão encerrada
+        </p>
+      ) : state === "safe" ? (
+        <p className="mt-2 font-display text-[12px] font-semibold text-[var(--color-success,#16a34a)]">
+          Marcada como segura
+        </p>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <ButtonGlass type="button" variant="danger" size="sm" onClick={onEnd}>
+            Encerrar sessão
+          </ButtonGlass>
+          <ButtonGlass type="button" variant="glass" size="sm" onClick={onSafe}>
+            Marcar como segura
+          </ButtonGlass>
+        </div>
+      )}
+    </li>
   );
 }
 
