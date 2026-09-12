@@ -456,11 +456,11 @@ function DealInline({
   }
 
   return (
-    <div className="px-2 pt-2 pb-0">
-      {/* ── Hero header (ref. Stitch): card escuro #2e3b6e como CARD interno,
-          dentro do padding do container (não mais edge-to-edge). Mesma forma
-          dos cards de contato/negócio: rounded-xl + borda sutil + shadow. ── */}
-      <header className="relative isolate mb-2 rounded-3xl border border-panel-border bg-panel px-3 pt-2.5 pb-2.5 text-panel-foreground shadow-[var(--glass-shadow-sm)]">
+    <div>
+      {/* Hero colado no topo/lados do aside. O shell já recorta com
+          overflow-hidden + radius-xl — raio próprio + inset deixava o
+          card flutuando e desalinhado da borda. */}
+      <header className="relative isolate bg-panel px-3 pt-2.5 pb-2.5 text-panel-foreground">
         {/* Linha topo: título (até 2 linhas, sem truncar o nome) + pill de etapa */}
         <div className="relative mb-2 flex items-start justify-between gap-2">
           <h1 className="min-w-0 text-lg font-bold leading-snug tracking-normal text-panel-foreground">
@@ -578,7 +578,7 @@ function DealInline({
       </header>
 
       {isLost && lostReason && (
-        <div className="mt-2 rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--color-danger,#dc2626)_24%,transparent)] bg-[color-mix(in_srgb,var(--color-danger,#dc2626)_6%,transparent)] px-3 py-2">
+        <div className="mx-2 mt-2 rounded-[var(--radius-lg)] border border-[color-mix(in_srgb,var(--color-danger,#dc2626)_24%,transparent)] bg-[color-mix(in_srgb,var(--color-danger,#dc2626)_6%,transparent)] px-3 py-2">
           <p className="mb-0.5 font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--color-danger,#dc2626)]">
             Motivo da perda
           </p>
@@ -597,7 +597,7 @@ function DealInline({
           /api/deals/:id/products. */}
 
       {fields.length > 0 && (
-        <div className="mt-2 mb-2">
+        <div className="mx-2 mt-2 mb-2">
           <div className="mb-1 flex items-center gap-1.5 font-display text-[12px] font-bold text-[var(--text-primary)]">
             <IconBriefcase size={12} className="text-[var(--brand-primary)]" />
             <span className="flex items-baseline gap-1.5">
