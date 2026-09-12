@@ -539,7 +539,7 @@ function DealInline({
           {(deal.assigneeSlot || deal.departmentName) && (
             <div className="flex w-max max-w-[46%] shrink-0 flex-col items-end gap-1">
               {deal.assigneeSlot ? (
-                <div className="max-w-full min-w-0 [&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
+                <div className="max-w-full min-w-0 [&_button>span]:rounded-full [&_button>span]:border-transparent [&_button>span]:bg-white [&_button>span]:text-[#2e3b6e] [&_button>span]:shadow-sm">
                   {deal.assigneeSlot}
                 </div>
               ) : null}
