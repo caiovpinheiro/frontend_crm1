@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useLayoutEffect, type ReactNode } from "react"
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, type ReactNode, type TouchEvent } from "react"
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -371,6 +371,8 @@ export interface MessageBubbleProps {
 
 /** Emojis exibidos na barra rápida de reações — padrão WhatsApp. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const
+/** Toque longo na bolha recebida abre o menu (padrão WhatsApp mobile). */
+const RECEIVED_MENU_LONG_PRESS_MS = 450
 
 /**
  * Paleta da bolha de AUTOMAÇÃO: cinza escuro com texto claro. Hardcoded —
@@ -1074,12 +1076,15 @@ function CaptionText({
  *
  * Layout: barra horizontal de reações rápidas (6 emojis) + lista vertical
  * de ações (Responder / Reagir / Encaminhar / Fixar / Favoritar / Copiar).
- * Aparece via chevron no canto sup. direito da bolha (hover).
+ * O gatilho fica ao lado da bolha (sempre visível) — o chevron antigo
+ * (`opacity-0` + `group-hover` + `absolute -top-2`) sumia no scroll do
+ * chat e no toque (APK / sem hover). Toque longo / clique direito na
+ * bolha também abre, via estado controlado pelo pai.
  *
  * Renderização: `createPortal` no <body> com `position: fixed`, para
  * escapar de qualquer ancestral com `overflow: hidden` (o chat-area e a
  * lista de mensagens são scrollables e clipam popovers absolutamente
- * posicionados). O `useLayoutEffect` computa o rect do chevron e aplica
+ * posicionados). O `useLayoutEffect` computa o rect do gatilho e aplica
  * auto-flip vertical (abre pra cima quando não cabe abaixo) e horizontal
  * (clampa à borda da viewport pra nunca cortar).
  *
@@ -1089,6 +1094,8 @@ function CaptionText({
  */
 function ReceivedMessageMenu({
   message,
+  open,
+  onOpenChange,
   onReply,
   onForward,
   onReact,
@@ -1096,13 +1103,20 @@ function ReceivedMessageMenu({
   onFavorite,
 }: {
   message: Message
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onReply?: (message: Message) => void
   onForward?: (message: Message) => void
   onReact?: (message: Message, emoji: string | null) => void
   onPin?: (message: Message) => void
   onFavorite?: (message: Message) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const setOpen = useCallback(
+    (next: boolean | ((current: boolean) => boolean)) => {
+      onOpenChange(typeof next === "function" ? next(open) : next)
+    },
+    [open, onOpenChange],
+  )
   /** Expande o picker completo (ação "Reagir"), estilo WhatsApp. */
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -1220,15 +1234,16 @@ function ReceivedMessageMenu({
           e.stopPropagation()
           setOpen((v) => !v)
         }}
-        aria-label="Ações da mensagem"
+        aria-label="Reagir à mensagem"
+        title="Reagir"
         aria-expanded={open}
         className={cn(
-          "absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
-          open ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          "mt-1 flex h-7 w-7 shrink-0 self-start items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-transform",
+          open ? "scale-105" : "hover:scale-105",
         )}
         style={{ background: "#ffffff", color: "#334155" }}
       >
-        <IconChevronDown size={14} stroke={2.2} />
+        <IconMoodPlus size={16} stroke={2.1} />
       </button>
 
       {open && coords && typeof document !== "undefined"
@@ -1432,11 +1447,23 @@ export function MessageBubble({
     !hasForm &&
     message.messageType !== "sip_call" &&
     message.messageType !== "whatsapp_call" &&
-    message.messageType !== "whatsapp_call_recording" &&
-    // Sempre monta em mensagens recebidas de texto/mídia. Mesmo sem
-    // callbacks plugados, o menu ainda oferece "Copiar" e mostra os
-    // demais itens como stubs — melhor UX que sumir o chevron todo.
-    !!(message.content && message.content.trim() || message.mediaUrl)
+    message.messageType !== "whatsapp_call_recording"
+  const [receivedMenuOpen, setReceivedMenuOpen] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+  useEffect(() => () => clearLongPress(), [clearLongPress])
+  const startLongPress = useCallback(() => {
+    if (!hasReceivedMenu) return
+    clearLongPress()
+    longPressTimer.current = setTimeout(() => {
+      setReceivedMenuOpen(true)
+    }, RECEIVED_MENU_LONG_PRESS_MS)
+  }, [hasReceivedMenu, clearLongPress])
 
   if (hasForm) {
     return <FormBubble message={message} className={className} />
@@ -1516,6 +1543,22 @@ export function MessageBubble({
   const isCallRec =
     String(message.messageType ?? "").toLowerCase() === "whatsapp_call_recording" &&
     !!message.mediaUrl
+  const incomingMenuHandlers = hasReceivedMenu
+    ? {
+        onContextMenu: (e: { preventDefault: () => void }) => {
+          e.preventDefault()
+          setReceivedMenuOpen(true)
+        },
+        onTouchStart: startLongPress,
+        onTouchEnd: (e: TouchEvent<HTMLDivElement>) => {
+          // Toque longo já abriu: não dispara o click sintético do browser.
+          if (receivedMenuOpen) e.preventDefault()
+          clearLongPress()
+        },
+        onTouchMove: clearLongPress,
+        onTouchCancel: clearLongPress,
+      }
+    : {}
 
   return (
     <div
@@ -1526,7 +1569,13 @@ export function MessageBubble({
         className,
       )}
     >
-      <div className={cn("group flex max-w-full items-end gap-2.5 overflow-visible", isOutgoing && "flex-row-reverse")}>
+      <div
+        className={cn(
+          "group flex max-w-full overflow-visible",
+          isOutgoing ? "flex-row-reverse items-end gap-2.5" : "items-start gap-1",
+        )}
+        {...incomingMenuHandlers}
+      >
         {/* Avatar: robô para bot, iniciais para agente — com tooltip do nome.
             Automação manual (colab): robô + chip de iniciais do agente que
             acionou, sobreposto no canto inferior direito. */}
@@ -1725,19 +1774,6 @@ export function MessageBubble({
               </span>
             </div>
           )}
-          {/* Menu WhatsApp-like nas mensagens recebidas: chevron que
-              expande com reações rápidas + Responder/Encaminhar/Copiar/Reagir.
-              Só monta quando há pelo menos uma ação (senão o hover fica vazio). */}
-          {hasReceivedMenu && (
-            <ReceivedMessageMenu
-              message={message}
-              onReply={onReplyMessage}
-              onForward={onForwardMessage}
-              onReact={onReactMessage}
-              onPin={onPinMessage}
-              onFavorite={onFavoriteMessage}
-            />
-          )}
           {/* Citação: cliente respondeu uma mensagem específica.
               Barra vertical + trecho curto, estilo WhatsApp. */}
           {message.replyTo?.snippet && (
@@ -1809,9 +1845,24 @@ export function MessageBubble({
             <ReactionBadge
               reactions={message.reactions}
               anchor={isOutgoing ? "left" : "right"}
+              onClick={
+                hasReceivedMenu ? () => setReceivedMenuOpen(true) : undefined
+              }
             />
           )}
         </div>
+        {hasReceivedMenu && (
+          <ReceivedMessageMenu
+            message={message}
+            open={receivedMenuOpen}
+            onOpenChange={setReceivedMenuOpen}
+            onReply={onReplyMessage}
+            onForward={onForwardMessage}
+            onReact={onReactMessage}
+            onPin={onPinMessage}
+            onFavorite={onFavoriteMessage}
+          />
+        )}
       </div>
 
       {/* Nome do remetente apenas no tooltip do avatar (acima) */}
@@ -1903,9 +1954,11 @@ function QuotedPreview({
 function ReactionBadge({
   reactions,
   anchor,
+  onClick,
 }: {
   reactions: NonNullable<Message["reactions"]>
   anchor: "left" | "right"
+  onClick?: () => void
 }) {
   // Agrupa por emoji (contagem). WhatsApp 1:1 quase sempre entrega
   // apenas uma reação por bolha; a agregação é defensiva para grupos
@@ -1918,10 +1971,32 @@ function ReactionBadge({
   const total = reactions.length
   return (
     <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={
+        onClick
+          ? (e) => {
+              e.stopPropagation()
+              onClick()
+            }
+          : undefined
+      }
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                onClick()
+              }
+            }
+          : undefined
+      }
       className={cn(
         // top-full -mt-1: pílula na frente da borda, ~4px sobre o card —
         // abaixo do horário (bottom-2) pra não cobrir time/ticks.
-        "pointer-events-none absolute top-full z-20 -mt-1 flex items-center gap-0.5 overflow-visible rounded-full border border-black/5 bg-white px-1.5 py-0.5 shadow-[0_2px_6px_rgba(15,20,40,0.18)]",
+        "absolute top-full z-20 -mt-1 flex items-center gap-0.5 overflow-visible rounded-full border border-black/5 bg-white px-1.5 py-0.5 shadow-[0_2px_6px_rgba(15,20,40,0.18)]",
+        onClick ? "pointer-events-auto cursor-pointer" : "pointer-events-none",
         anchor === "left" ? "left-1" : "right-1",
       )}
       title={reactions.map((r) => r.emoji).join(" ")}
