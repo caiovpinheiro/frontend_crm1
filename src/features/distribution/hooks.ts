@@ -69,7 +69,7 @@ export function useDistributionDepartmentStats(enabled = true) {
     queryFn: fetchDistributionDepartmentStats,
     enabled,
     staleTime: 10_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -101,7 +101,7 @@ export function useDistributionResponsibles(enabled = true) {
     staleTime: 30_000,
     refetchInterval: false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -337,7 +337,7 @@ export function usePendingDistributions(
     staleTime: 30_000,
     refetchInterval: false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 
