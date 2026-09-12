@@ -23,6 +23,7 @@ import { EmailList } from "./email-list";
 import { EmailReader } from "./email-reader";
 import { EmailSidebar } from "./email-sidebar";
 import { EmailRulesModal } from "./email-rules-modal";
+import { EmailForwardDialog } from "./email-forward-dialog";
 import { ComposeView } from "./compose-view";
 import { useEmailAccounts, useEmailCustomFolders, useEmailDetail, useEmails } from "../hooks";
 import { deleteEmail, moveEmail } from "../api/emails";
@@ -103,6 +104,7 @@ export function EmailClient() {
   const [composing, setComposing] = React.useState(false);
   const [composeDraft, setComposeDraft] = React.useState<ComposeDraft>(newComposeDraft());
   const [rulesOpen, setRulesOpen] = React.useState(false);
+  const [forwardOpen, setForwardOpen] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
   const [lastSyncMsg, setLastSyncMsg] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
@@ -291,6 +293,12 @@ export function EmailClient() {
 
   function handleForward() {
     if (!emailDetail) return;
+    setForwardOpen(true);
+  }
+
+  function handleForwardCompose() {
+    if (!emailDetail) return;
+    setForwardOpen(false);
     openCompose(buildComposeDraft(emailDetail, "forward"));
   }
 
@@ -603,6 +611,16 @@ export function EmailClient() {
         accounts={accounts}
         customFolders={customFolders}
         defaultAccountId={selectedAccountId}
+        onAccountsChange={() => void reloadAccounts()}
+      />
+
+      <EmailForwardDialog
+        open={forwardOpen}
+        onOpenChange={setForwardOpen}
+        email={emailDetail}
+        accountId={emailDetail?.account.id ?? selectedAccountId ?? accounts[0]?.id}
+        onSent={handleSend}
+        onCompose={handleForwardCompose}
       />
 
       {confirmDialog}

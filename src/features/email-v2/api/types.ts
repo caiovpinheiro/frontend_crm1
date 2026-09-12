@@ -24,6 +24,10 @@ export interface EmailAccount {
   /** Não lidos na caixa de entrada (INBOX, sem pasta custom). */
   unreadCount: number;
   folderUnread?: EmailFolderUnread;
+  oooEnabled?: boolean;
+  oooMessage?: string | null;
+  oooStartsAt?: string | null;
+  oooEndsAt?: string | null;
   createdAt: string;
   lastSyncedAt: string | null;
 }
@@ -92,8 +96,8 @@ export interface EmailCustomFolder {
   unreadCount: number;
 }
 
-export type EmailRuleField = "FROM" | "TO" | "SUBJECT";
-export type EmailRuleAction = "MOVE" | "TRASH";
+export type EmailRuleField = "FROM" | "TO" | "SUBJECT" | "BODY" | "ALWAYS";
+export type EmailRuleAction = "MOVE" | "TRASH" | "SPAM" | "FORWARD" | "REPLY" | "MARK_READ";
 
 export interface EmailRule {
   id: string;
@@ -104,6 +108,8 @@ export interface EmailRule {
   conditionValue: string;
   action: EmailRuleAction;
   targetFolderId: string | null;
+  actionTarget: string | null;
+  actionBody: string | null;
   priority: number;
   createdAt: string;
 }
@@ -116,5 +122,14 @@ export interface EmailRuleInput {
   conditionValue: string;
   action: EmailRuleAction;
   targetFolderId?: string | null;
+  actionTarget?: string | null;
+  actionBody?: string | null;
   priority?: number;
+}
+
+export interface EmailOooSettings {
+  oooEnabled: boolean;
+  oooMessage: string | null;
+  oooStartsAt: string | null;
+  oooEndsAt: string | null;
 }
