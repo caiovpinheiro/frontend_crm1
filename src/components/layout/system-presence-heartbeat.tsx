@@ -20,12 +20,12 @@ import { useIdleEnabled } from "@/hooks/use-idle-enabled";
  */
 export function SystemPresenceHeartbeat() {
   const { status } = useSession();
-  const authenticated = status === "authenticated";
+  const canFetch = status !== "unauthenticated";
   const idle = useIdleEnabled();
-  usePresenceHeartbeat({ enabled: authenticated && idle });
-  useSystemPresenceSync(authenticated && idle);
+  usePresenceHeartbeat({ enabled: canFetch && idle });
+  useSystemPresenceSync(canFetch && idle);
   // Uso REAL (interações humanas visíveis). Independente do heartbeat de
   // presença acima — envia pulsos agregados para /api/agents/me/activity.
-  useSystemActivity(authenticated && idle);
+  useSystemActivity(canFetch && idle);
   return null;
 }

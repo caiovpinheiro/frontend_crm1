@@ -2,6 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import { fetchAcademicCockpit } from "./api";
 import type { AcademicCockpit } from "./types";
 
@@ -11,12 +13,14 @@ import type { AcademicCockpit } from "./types";
  * "Agentes" nada é buscado.
  */
 export function useAcademicCockpit(enabled: boolean) {
+  const visible = useDocumentVisible();
   return useQuery<AcademicCockpit>({
     queryKey: ["academic-cockpit"],
     queryFn: fetchAcademicCockpit,
     enabled,
     staleTime: 30 * 1000,
-    refetchInterval: enabled ? 60 * 1000 : false,
+    refetchInterval: enabled && visible ? 60 * 1000 : false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
     retry: 1,
   });

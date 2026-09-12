@@ -2,6 +2,8 @@
 
 import { apiUrl } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
+
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { IconAlertCircle as AlertCircle, IconArrowRight as ArrowRight, IconClock as Clock, IconCurrencyDollar as DollarSign, IconHash as Hash, IconLoader2 as Loader2 } from "@tabler/icons-react";
 import * as React from "react";
 
@@ -47,6 +49,7 @@ const HANDOFF_LABELS: Record<string, string> = {
  * do dialog de edição e embeddable no /monitor.
  */
 export function UsagePanel({ agentId }: { agentId: string }) {
+  const visible = useDocumentVisible();
   const { data, isLoading } = useQuery({
     queryKey: ["ai-agent-stats", agentId],
     queryFn: async () => {
@@ -54,7 +57,8 @@ export function UsagePanel({ agentId }: { agentId: string }) {
       if (!res.ok) throw new Error("Falha ao carregar estatísticas.");
       return (await res.json()) as Stats;
     },
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 

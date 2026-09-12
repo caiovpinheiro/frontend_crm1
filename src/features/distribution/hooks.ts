@@ -73,7 +73,7 @@ export function useDistributionDepartmentStats(enabled = true) {
     queryFn: fetchDistributionDepartmentStats,
     enabled,
     staleTime: 10_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 

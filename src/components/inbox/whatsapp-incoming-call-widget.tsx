@@ -69,7 +69,7 @@ function startRingtone(): () => void {
 
 export function WhatsappIncomingCallWidget() {
   const { status: sessionStatus } = useSession();
-  const enabled = sessionStatus === "authenticated";
+  const enabled = sessionStatus !== "unauthenticated";
   const inbound = useWhatsappInboundWebRtc(enabled);
   const router = useRouter();
   const remoteAudioRef = React.useRef<HTMLAudioElement | null>(null);

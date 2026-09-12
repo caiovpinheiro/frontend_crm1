@@ -2,6 +2,8 @@
 
 import { apiUrl } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { IconAlertCircle as AlertCircle, IconCircleCheck as CheckCircle2, IconFileText as FileText, IconLoader2 as Loader2, IconPlus as Plus, IconRefresh as RefreshCcw, IconTrash as Trash2 } from "@tabler/icons-react";
 import * as React from "react";
 
@@ -45,6 +47,7 @@ function unwrapKnowledgeDocs(payload: unknown): KnowledgeDoc[] {
  */
 export function KnowledgePanel({ agentId }: { agentId: string }) {
   const queryClient = useQueryClient();
+  const visible = useDocumentVisible();
   const [adding, setAdding] = React.useState(false);
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
@@ -59,6 +62,7 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
       return unwrapKnowledgeDocs(await res.json());
     },
     refetchInterval: (q) => {
+      if (!visible) return false;
       const data = q.state.data;
       if (!data) return false;
       const anyBusy = data.some(
@@ -66,6 +70,7 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
       );
       return anyBusy ? 2000 : false;
     },
+    refetchIntervalInBackground: false,
   });
 
   const createMut = useMutation({
