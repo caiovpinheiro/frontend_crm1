@@ -34,7 +34,6 @@ import { AwaitingReplyFooter } from "@/components/crm/awaiting-reply-footer"
 import { useInboxSettings } from "@/features/conversations-settings/hooks/use-inbox-settings"
 import { Chip } from "./chip"
 import { CheckboxGlass } from "./checkbox-glass"
-import { TagChip } from "./tag-chip"
 
 export type ConversationAvatarColor = "sunset" | "forest" | "ocean" | "dusk"
 
@@ -83,6 +82,8 @@ export interface Conversation {
   assigneeType?: string | null
   /** Foto (User.avatarUrl) do responsável — usada no UserAvatar do slot. */
   assigneeAvatarUrl?: string | null
+  /** Nome do departamento da conversa — exibido ao lado do responsável. */
+  department?: string | null
   /**
    * Canal de origem da conversa. Quando presente, substitui o status
    * dot pelo logo do canal no canto inferior direito do avatar.
@@ -354,34 +355,9 @@ export function ConversationCard({
         </div>
       </div>
 
-      {/* Tags de contato — max 2 visíveis, +N para overflow */}
-      {conversation.tags && conversation.tags.length > 0 && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1 @max-[280px]:hidden">
-          {conversation.tags.slice(0, 2).map((t) => (
-            <TooltipGlass key={t.id} label={t.name} side="top">
-              <TagChip
-                name={t.name}
-                color={t.color}
-                className="max-w-[7.5rem]"
-              />
-            </TooltipGlass>
-          ))}
-          {conversation.tags.length > 2 && (
-            <TooltipGlass
-              label={conversation.tags.slice(2).map((t) => t.name).join(", ")}
-              side="top"
-            >
-              <span className="inline-flex shrink-0 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-1.5 py-px font-display text-[9px] font-bold text-[var(--text-secondary)]">
-                +{conversation.tags.length - 2}
-              </span>
-            </TooltipGlass>
-          )}
-        </div>
-      )}
-
-      {/* Linha 3: assignee + sessao — flex-nowrap evita quebrar em 2 linhas
-          quando o nome do responsavel + chip de sessao somam mais largura
-          do que a coluna. O chip do assignee trunca com ellipsis. */}
+      {/* Linha 3: assignee + departamento + sessao — flex-nowrap evita quebrar
+          em 2 linhas quando o nome do responsavel + chip de sessao somam mais
+          largura do que a coluna. O chip do assignee trunca com ellipsis. */}
       <div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 @max-[220px]:hidden">
         {/* Quando há responsável: exibe label "RESPONSÁVEL" + chip/slot.
             Sem responsável: apenas chip ghost "+Responsável". */}
@@ -401,40 +377,38 @@ export function ConversationCard({
                 +Responsável
               </Chip>
             ))}
+          {conversation.department ? (
+            <Chip
+              variant="ghost"
+              className="max-w-[7.5rem] truncate whitespace-nowrap !px-1.5 !py-0 !text-[10px]"
+            >
+              {conversation.department}
+            </Chip>
+          ) : null}
         </span>
 
-        {conversation.resolved ? (
-          <TooltipGlass label="Conversa encerrada" side="top">
-            <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-px font-display text-[9px] font-bold text-emerald-700 v2-dark:text-emerald-300">
-              <IconCheck size={9} stroke={3} />
-              Encerrada
+        {!conversation.resolved && conversation.sessionExpiresIn ? (
+          <TooltipGlass
+            label={conversation.sessionExpired ? "Sessão de 24h da Meta expirada" : "Tempo até expirar a sessão de 24h"}
+            side="top"
+          >
+            <span
+              className={cn(
+                "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-px font-display text-[9px] font-bold",
+                conversation.sessionExpired
+                  ? "border-[var(--color-danger)]/25 bg-[var(--color-danger)]/[0.10] text-[var(--color-danger-text)]"
+                  : "border-[var(--color-lead)]/25 bg-[var(--color-lead-bg)] text-[var(--color-warning-text)]",
+              )}
+            >
+              <IconClock size={9} />
+              {conversation.sessionExpiresIn}
             </span>
           </TooltipGlass>
-        ) : (
-          conversation.sessionExpiresIn && (
-            <TooltipGlass
-              label={conversation.sessionExpired ? "Sessão de 24h da Meta expirada" : "Tempo até expirar a sessão de 24h"}
-              side="top"
-            >
-              <span
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full border px-1.5 py-px font-display text-[9px] font-bold",
-                  conversation.sessionExpired
-                    ? "border-[var(--color-danger)]/25 bg-[var(--color-danger)]/[0.10] text-[var(--color-danger-text)]"
-                    : "border-[var(--color-lead)]/25 bg-[var(--color-lead-bg)] text-[var(--color-warning-text)]",
-                )}
-              >
-                <IconClock size={9} />
-                {conversation.sessionExpiresIn}
-              </span>
-            </TooltipGlass>
-          )
-        )}
+        ) : null}
       </div>
 
-      {/* Rodapé: nº da conversa (ticket) no canto inferior esquerdo, em verde
-          — estilo Kommo. Quando encerrada, fica cinza. */}
-      {(conversation.number != null || menuSlot) && (
+      {/* Rodapé: nº da conversa à esquerda; Encerrada à direita, na mesma linha. */}
+      {(conversation.number != null || menuSlot || conversation.resolved) && (
         <div
           className={cn(
             "mt-1 flex items-center justify-between gap-2 font-display text-[10px] font-semibold tabular-nums @max-[260px]:hidden",
@@ -444,7 +418,17 @@ export function ConversationCard({
           )}
         >
           {conversation.number != null ? <span>Conversa Nº {conversation.number}</span> : <span />}
-          {menuSlot}
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            {conversation.resolved ? (
+              <TooltipGlass label="Conversa encerrada" side="top">
+                <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-px font-display text-[9px] font-bold text-emerald-700 v2-dark:text-emerald-300">
+                  <IconCheck size={9} stroke={3} />
+                  Encerrada
+                </span>
+              </TooltipGlass>
+            ) : null}
+            {menuSlot}
+          </span>
         </div>
       )}
       </div>

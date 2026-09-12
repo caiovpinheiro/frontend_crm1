@@ -114,6 +114,8 @@ export interface ContactDetails {
     stageDropdownSlot?: React.ReactNode
     /** Slot para renderizar o seletor de responsável abaixo das info do deal. */
     assigneeSlot?: React.ReactNode
+    /** Departamento da conversa — alinhado ao responsável no hero. */
+    departmentName?: string | null
     /** Slot para renderizar as tags do negócio (add/remove). */
     dealTagsNode?: React.ReactNode
     customFields?: { fieldId: string; label: string; value: string | null }[]
@@ -519,9 +521,21 @@ function DealInline({
               {totalStages > 0 ? ` · Etapa ${currentStage} de ${totalStages}` : ""}
             </p>
           </div>
-          {deal.assigneeSlot && (
-            <div className="shrink-0 [&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
-              {deal.assigneeSlot}
+          {(deal.assigneeSlot || deal.departmentName) && (
+            <div className="flex shrink-0 items-center gap-1.5">
+              {deal.assigneeSlot ? (
+                <div className="[&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
+                  {deal.assigneeSlot}
+                </div>
+              ) : null}
+              {deal.departmentName ? (
+                <span
+                  className="inline-flex max-w-[8.5rem] truncate rounded-full bg-white px-2.5 py-1 font-display text-[10.5px] font-semibold text-[#2e3b6e] shadow-sm"
+                  title={deal.departmentName}
+                >
+                  {deal.departmentName}
+                </span>
+              ) : null}
             </div>
           )}
         </div>
