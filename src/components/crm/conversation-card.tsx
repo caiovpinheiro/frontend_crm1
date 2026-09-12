@@ -56,6 +56,10 @@ export interface Conversation {
   number?: number | null
   name: string
   initials: string
+  /** Id do contato — seed do avatar (mesmo da header). Sem isso, usa o nome. */
+  contactId?: string | null
+  /** Foto do contato — mesma face da header / ChatAvatar. */
+  imageUrl?: string | null
   avatarColor: ConversationAvatarColor | "blue" | "teal" | "orange" | "purple" | "pink" | "coral"
   status: "online" | "offline" | "none"
   time: string
@@ -279,8 +283,9 @@ export function ConversationCard({
         <div className="relative shrink-0">
           <ChatAvatar
             user={{
-              id: conversation.id,
+              id: conversation.contactId ?? conversation.name,
               name: conversation.name,
+              imageUrl: conversation.imageUrl,
             }}
             channel={(conversation.channel as ChatAvatarChannel) ?? null}
             size={AVATAR_SIZE.lg}
