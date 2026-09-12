@@ -144,6 +144,8 @@ export interface ConversationListRow {
     id: string;
     name: string;
     requireTabulationOnClose: boolean;
+    color?: string | null;
+    icon?: string | null;
   } | null;
   /** Tabulacao final escolhida ao encerrar (folha). Null enquanto OPEN. */
   tabulationId?: string | null;
