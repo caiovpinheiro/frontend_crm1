@@ -44,6 +44,12 @@ const IcoPlus = () => (
     <path d="M12 5v14M5 12h14"/>
   </svg>
 );
+const IcoRules = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 6h16M4 12h10M4 18h7" />
+    <path d="M16 15l2 2 4-4" />
+  </svg>
+);
 const IcoX = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <path d="M18 6 6 18M6 6l12 12"/>
@@ -89,6 +95,7 @@ interface Props {
   onRecolorFolder?: (folderId: string, color: string) => Promise<void> | void;
   onDropToSystemFolder?: (emailId: string, folder: EmailFolder) => void;
   onDropToCustomFolder?: (emailId: string, folderId: string) => void;
+  onOpenRules?: () => void;
 }
 
 const DRAG_MIME = "application/x-email-id";
@@ -130,6 +137,7 @@ export function EmailSidebar({
   onRecolorFolder,
   onDropToSystemFolder,
   onDropToCustomFolder,
+  onOpenRules,
 }: Props) {
   const [hoveredFolder, setHoveredFolder] = React.useState<string | null>(null);
   const [dropTarget, setDropTarget] = React.useState<string | null>(null);
@@ -307,6 +315,20 @@ export function EmailSidebar({
           }}
         />
       </div>
+
+      {onOpenRules ? (
+        <button
+          type="button"
+          disabled={accounts.length === 0}
+          onClick={onOpenRules}
+          className="mt-3 flex w-full items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2.5 py-2 font-display text-[12.5px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)] disabled:opacity-40"
+        >
+          <FolderGlyph tone="violet">
+            <IcoRules />
+          </FolderGlyph>
+          <span className="flex-1 text-left">Regras</span>
+        </button>
+      ) : null}
     </div>
   );
 }
