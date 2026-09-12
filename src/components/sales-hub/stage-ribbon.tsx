@@ -30,7 +30,8 @@ type StageRibbonProps = {
 };
 
 function stageTone(color: string): { bg: string; fg: string } {
-  return { bg: color, fg: getContrastColor(color) };
+  const hex = /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/.exec(color)?.[0] ?? color;
+  return { bg: color, fg: getContrastColor(hex) };
 }
 
 export function StageRibbon({
