@@ -14,7 +14,12 @@ import {
   formDialogPrimaryClass,
 } from "@/components/ui/form-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ARCHETYPES } from "@/lib/ai-agents/archetypes";
+import {
+  ARCHETYPES,
+  isTabulationAllowedTool,
+  isTabulationArchetype,
+  sanitizeEnabledToolsForArchetype,
+} from "@/lib/ai-agents/archetypes";
 import {
   normalizeAutoClosePolicy,
   normalizeBusinessHours,
@@ -237,12 +242,18 @@ export function AgentSettingsDialog({
   ) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const toggleTool = (toolId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      enabledTools: prev.enabledTools.includes(toolId)
-        ? prev.enabledTools.filter((t) => t !== toolId)
-        : [...prev.enabledTools, toolId],
-    }));
+    setForm((prev) => {
+      if (isTabulationArchetype(prev.archetype)) {
+        if (!isTabulationAllowedTool(toolId)) return prev;
+        if (prev.enabledTools.includes(toolId)) return prev;
+      }
+      return {
+        ...prev,
+        enabledTools: prev.enabledTools.includes(toolId)
+          ? prev.enabledTools.filter((t) => t !== toolId)
+          : [...prev.enabledTools, toolId],
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -288,7 +299,10 @@ export function AgentSettingsDialog({
             : form.clearOpenaiApiKey
               ? { openaiApiKey: null }
               : {}),
-          enabledTools: form.enabledTools,
+          enabledTools: sanitizeEnabledToolsForArchetype(
+            form.archetype,
+            form.enabledTools,
+          ),
           systemPromptOverride: simple.systemPromptOverride.trim() || null,
           systemPromptTemplate: form.systemPromptTemplate.trim() || undefined,
           steeringRules: simple.steeringRules.trim() || null,
@@ -481,6 +495,7 @@ export function AgentSettingsDialog({
               )}
               {advanced && section === "tools" && (
                 <ToolsSection
+                  archetype={form.archetype}
                   enabledTools={form.enabledTools}
                   onToggleTool={toggleTool}
                   toolConfig={form.toolConfig}

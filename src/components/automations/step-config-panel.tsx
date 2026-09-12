@@ -3503,10 +3503,10 @@ function TransferToAIAgentStepConfig({
         <p>
           {tabulator ? (
             <>
-              Este agente é um <b>classificador</b>: lê as mensagens,
-              entende a dúvida e aplica <b>uma</b> folha. Assume só a
-              conversa para tabular — <b>não vira dono do negócio</b>.{" "}
-              <b>Não envia WhatsApp</b> e não encerra.
+              Este agente é um <b>classificador</b>: só tabula se o
+              contato trouxe uma demanda. Sem atendimento (silêncio, só
+              mensagem da empresa), <b>não tabula e não encerra</b>.
+              Assume só a conversa — <b>não vira dono do negócio</b>.
             </>
           ) : selected?.archetype === "ENCERRAMENTO" ? (
             <>
@@ -3579,8 +3579,9 @@ function TransferToAIAgentStepConfig({
 
       {tabulator ? (
         <p className="text-[11px] text-muted-foreground">
-          O classificador assume só a conversa para tabular. O negócio
-          permanece com o responsável atual.
+          Sem atendimento real o classificador não tabula e não encerra.
+          Se tabular, assume só a conversa — o negócio fica com o
+          responsável atual.
         </p>
       ) : (
         <div className="space-y-2">
