@@ -37,13 +37,14 @@ export function IdentityAvatar({
   const index: AvatarTokenIndex = getAvatarTokenIndex(seed ?? name ?? initialsProp ?? "?");
   const initials = (initialsProp ?? avatarInitials(name ?? seed ?? "?")).slice(0, 2).toUpperCase();
   const px = typeof size === "number" ? size : null;
+  const tokenClass = typeof size === "string" ? sizeClass[size] : undefined;
 
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
       <span
         className={cn(
           "flex items-center justify-center overflow-hidden rounded-full font-bold uppercase",
-          px == null && sizeClass[size],
+          px == null && tokenClass,
         )}
         style={{
           backgroundColor: `var(--avatar-${index})`,
