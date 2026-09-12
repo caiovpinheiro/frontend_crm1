@@ -1076,10 +1076,10 @@ function CaptionText({
  *
  * Layout: barra horizontal de reações rápidas (6 emojis) + lista vertical
  * de ações (Responder / Reagir / Encaminhar / Fixar / Favoritar / Copiar).
- * O gatilho fica ao lado da bolha (sempre visível) — o chevron antigo
- * (`opacity-0` + `group-hover` + `absolute -top-2`) sumia no scroll do
- * chat e no toque (APK / sem hover). Toque longo / clique direito na
- * bolha também abre, via estado controlado pelo pai.
+ * A carinha só aparece no mouse over da bolha (`group-hover`). Fica ao
+ * lado (não em `-top-2` por cima do card anterior), pra o scroll do
+ * chat não recortar. Menu aberto ou toque longo / clique direito
+ * também mostram o gatilho, via estado controlado pelo pai.
  *
  * Renderização: `createPortal` no <body> com `position: fixed`, para
  * escapar de qualquer ancestral com `overflow: hidden` (o chat-area e a
@@ -1238,8 +1238,10 @@ function ReceivedMessageMenu({
         title="Reagir"
         aria-expanded={open}
         className={cn(
-          "mt-1 flex h-7 w-7 shrink-0 self-start items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-transform",
-          open ? "scale-105" : "hover:scale-105",
+          "absolute left-full top-1 z-10 ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
+          open
+            ? "opacity-100"
+            : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100",
         )}
         style={{ background: "#ffffff", color: "#334155" }}
       >
@@ -1571,8 +1573,8 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "group flex max-w-full overflow-visible",
-          isOutgoing ? "flex-row-reverse items-end gap-2.5" : "items-start gap-1",
+          "group relative flex max-w-full overflow-visible",
+          isOutgoing ? "flex-row-reverse items-end gap-2.5" : "items-start",
         )}
         {...incomingMenuHandlers}
       >
