@@ -1,16 +1,19 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { IconArrowLeft, IconMail } from "@tabler/icons-react";
+import { SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
-import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
-import { FilterChip } from "@/components/crm/filter-popover";
+import { FilterApplyButton, FilterCheckRow } from "@/components/crm/filter-popover";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PageHeader } from "@/components/crm/page-header";
 import { PagePrimaryButton } from "@/components/crm/page-toolbar";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
+import { Input } from "@/components/ui/input";
+import { formDialogCancelClass } from "@/components/ui/form-dialog";
 import { ColumnResizer, usePersistentWidth } from "@/components/crm/column-resizer";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -622,70 +625,162 @@ function EmailSearchFilterBar({
   onOpenRules: () => void;
   rulesDisabled: boolean;
 }) {
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
+  const [draftQuery, setDraftQuery] = React.useState(query);
+  const [draftUnread, setDraftUnread] = React.useState(unreadOnly);
+  const [coords, setCoords] = React.useState<{ top: number; left: number; width: number } | null>(
+    null,
+  );
+
   const activeCount = unreadOnly ? 1 : 0;
 
+  const syncDrafts = React.useCallback(() => {
+    setDraftQuery(query);
+    setDraftUnread(unreadOnly);
+  }, [query, unreadOnly]);
+
+  const placePanel = React.useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = Math.min(Math.max(r.width, 320), 440);
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
+    setCoords({ top: r.bottom + 8, left, width });
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    syncDrafts();
+    placePanel();
+    window.addEventListener("resize", placePanel);
+    window.addEventListener("scroll", placePanel, true);
+    return () => {
+      window.removeEventListener("resize", placePanel);
+      window.removeEventListener("scroll", placePanel, true);
+    };
+  }, [open, placePanel, syncDrafts]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    function onDown(e: PointerEvent) {
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [open]);
+
+  function apply(nextQuery = draftQuery, nextUnread = draftUnread) {
+    onQueryChange(nextQuery);
+    onUnreadOnlyChange(nextUnread);
+    setOpen(false);
+  }
+
   return (
-    <div className="relative w-full min-w-0">
+    <div ref={wrapRef} className="relative w-full min-w-0">
       <SearchFilterBar
         value={query}
         onChange={onQueryChange}
-        placeholder="Pesquisar e filtrar e-mails..."
-        ariaLabel="Buscar e filtrar e-mails"
+        placeholder="Pesquisar e-mail"
+        ariaLabel="Pesquisar e-mail"
         clearable
+        filterLabel={false}
         filterOpen={open}
         activeCount={activeCount}
-        onFilterClick={() => setOpen((o) => !o)}
-        chips={
-          unreadOnly
-            ? [
-                {
-                  id: "unread",
-                  title: "Não lidos",
-                  count: 1,
-                  onRemove: () => onUnreadOnlyChange(false),
-                },
-              ]
-            : undefined
+        filterSlot={
+          <button
+            type="button"
+            title="Mostrar opções de pesquisa"
+            aria-label="Mostrar opções de pesquisa"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+            className={cn(
+              "absolute right-1.5 top-1/2 z-[1] flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
+              open || activeCount > 0
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+            )}
+          >
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
+          </button>
         }
       />
 
-      <FilterColumnsModal
-        open={open}
-        onClose={() => setOpen(false)}
-        onClear={() => {
-          onUnreadOnlyChange(false);
-          onQueryChange("");
-        }}
-        onApply={() => setOpen(false)}
-        count={activeCount}
-        clearDisabled={activeCount === 0 && !query.trim()}
-        title="Filtros"
-        description="Refine as mensagens desta pasta."
-        labelledBy="Filtros de e-mail"
-      >
-        <FilterCategoryColumn title="Leitura" hint="Mostre todas as mensagens ou só as novas.">
-          <FilterChip tone="fill" selected={!unreadOnly} onClick={() => onUnreadOnlyChange(false)}>
-            Todas
-          </FilterChip>
-          <FilterChip tone="fill" selected={unreadOnly} onClick={() => onUnreadOnlyChange(true)}>
-            Não lidas
-          </FilterChip>
-        </FilterCategoryColumn>
-        <FilterCategoryColumn title="Automação" hint="Regras que movem e-mails automaticamente.">
-          <button
-            type="button"
-            disabled={rulesDisabled}
-            onClick={() => {
-              setOpen(false);
-              onOpenRules();
-            }}
-            className="flex w-full items-center justify-start rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Gerenciar regras
-          </button>
-        </FilterCategoryColumn>
-      </FilterColumnsModal>
+      {open && coords && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={panelRef}
+              role="dialog"
+              aria-label="Opções de pesquisa"
+              style={{ top: coords.top, left: coords.left, width: coords.width }}
+              className="fixed z-(--z-popover) rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] p-4 text-foreground shadow-lg"
+            >
+              <form
+                className="flex flex-col gap-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  apply();
+                }}
+              >
+                <label className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-3">
+                  <span className="text-right text-xs font-semibold text-muted-foreground">
+                    Tem as palavras
+                  </span>
+                  <Input
+                    value={draftQuery}
+                    onChange={(e) => setDraftQuery(e.target.value)}
+                    placeholder="assunto, remetente…"
+                    className="h-9"
+                  />
+                </label>
+                <FilterCheckRow
+                  checked={draftUnread}
+                  onClick={() => setDraftUnread((v) => !v)}
+                >
+                  Somente não lidas
+                </FilterCheckRow>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={rulesDisabled}
+                    onClick={() => {
+                      setOpen(false);
+                      onOpenRules();
+                    }}
+                    className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                  >
+                    Gerenciar regras
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className={cn(formDialogCancelClass, "h-9")}
+                      onClick={() => {
+                        setDraftQuery("");
+                        setDraftUnread(false);
+                        apply("", false);
+                      }}
+                    >
+                      Limpar
+                    </button>
+                    <FilterApplyButton onClick={() => apply()}>Pesquisar</FilterApplyButton>
+                  </div>
+                </div>
+              </form>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
