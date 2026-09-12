@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   IconPlus,
   IconSearch,
@@ -43,7 +44,8 @@ interface UserListItem extends RoleUser {
 }
 
 function useUsers() {
-  return useTeamUsersQuery<UserListItem>();
+  const { status } = useSession();
+  return useTeamUsersQuery<UserListItem>(status !== "unauthenticated");
 }
 
 // ─── Página ─────────────────────────────────────────────────────────────────

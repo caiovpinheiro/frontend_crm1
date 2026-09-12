@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -328,8 +329,9 @@ export function TabulationsDashboard({
   const setActorUserId = onActorUserIdChange ?? setActorUserIdLocal;
   const setDepartmentId = onDepartmentIdChange ?? setDepartmentIdLocal;
 
+  const { status: sessionStatus } = useSession();
   const departmentsQuery = useDepartments();
-  const usersQuery = useTeamUsersQuery();
+  const usersQuery = useTeamUsersQuery(sessionStatus !== "unauthenticated");
 
   const fromIso = period?.from
     ? period.from

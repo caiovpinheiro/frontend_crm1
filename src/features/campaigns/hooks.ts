@@ -6,6 +6,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
@@ -55,42 +57,53 @@ function hasActiveCampaign(statuses: CampaignStatus[]): boolean {
 }
 
 export function useCampaigns(params: FetchCampaignsParams = {}, enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: [...CAMPAIGNS_KEY, "list", params],
     queryFn: () => fetchCampaigns(params),
     enabled: resolveEnabled(enabled),
     staleTime: 5_000,
     refetchInterval: (query) =>
+      visible &&
       query.state.data &&
       hasActiveCampaign(query.state.data.items.map((c) => c.status))
         ? 10_000
         : false,
+    refetchIntervalInBackground: false,
   });
 }
 
 /** Lista completa para KPIs e chips de status (pagina o GET existente). */
 export function useAllCampaigns(enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery<CampaignListItem[]>({
     queryKey: [...CAMPAIGNS_KEY, "all"],
     queryFn: () => fetchAllCampaigns(),
     enabled: resolveEnabled(enabled),
     staleTime: 5_000,
     refetchInterval: (query) =>
-      query.state.data && hasActiveCampaign(query.state.data.map((c) => c.status))
+      visible &&
+      query.state.data &&
+      hasActiveCampaign(query.state.data.map((c) => c.status))
         ? 10_000
         : false,
+    refetchIntervalInBackground: false,
   });
 }
 
 export function useCampaign(id: string, enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: [...CAMPAIGNS_KEY, "detail", id],
     queryFn: () => fetchCampaign(id),
     enabled: resolveEnabled(enabled) && !!id,
     refetchInterval: (query) =>
-      query.state.data && ACTIVE_STATUSES.includes(query.state.data.status)
+      visible &&
+      query.state.data &&
+      ACTIVE_STATUSES.includes(query.state.data.status)
         ? 5_000
         : false,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -99,11 +112,13 @@ export function useCampaignStats(
   isActive: boolean,
   enabled = true,
 ) {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: [...CAMPAIGNS_KEY, "stats", id],
     queryFn: () => fetchCampaignStats(id),
     enabled: resolveEnabled(enabled) && !!id,
-    refetchInterval: isActive ? 10_000 : false,
+    refetchInterval: visible && isActive ? 10_000 : false,
+    refetchIntervalInBackground: false,
   });
 }
 

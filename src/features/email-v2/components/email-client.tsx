@@ -156,14 +156,42 @@ export function EmailClient() {
 
   React.useEffect(() => {
     if (accounts.length === 0) return;
-    const timer = setInterval(() => {
+
+    let timer: number | null = null;
+
+    function tick() {
       accounts.forEach((a) => void sync(a.id).catch(() => {}));
-      setTimeout(() => {
+      window.setTimeout(() => {
         refreshEmails();
         refreshUnreadCounts();
       }, 3000);
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
+    }
+
+    function startTimer() {
+      if (timer != null) return;
+      timer = window.setInterval(tick, POLL_INTERVAL_MS);
+    }
+
+    function clearTimer() {
+      if (timer == null) return;
+      window.clearInterval(timer);
+      timer = null;
+    }
+
+    function onVisibilityChange() {
+      if (document.hidden) {
+        clearTimer();
+        return;
+      }
+      startTimer();
+    }
+
+    if (!document.hidden) startTimer();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearTimer();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [accounts, sync, refreshEmails, refreshUnreadCounts]);
 
   async function handleRefresh() {

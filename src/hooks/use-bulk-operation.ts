@@ -125,7 +125,7 @@ export function useBulkOperation(
       if (!data) return pollIntervalMs;
       return ACTIVE_STATUSES.has(data.status) ? pollIntervalMs : false;
     },
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
   });

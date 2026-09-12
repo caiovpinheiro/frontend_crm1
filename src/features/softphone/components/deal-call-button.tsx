@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconPhone } from "@tabler/icons-react";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import { useSession } from "next-auth/react";
+
 import { useDealDial } from "../hooks/use-deal-dial";
 import { useCallsWidget } from "../hooks/use-calls-widget";
 
@@ -19,7 +21,9 @@ interface DealCallButtonProps {
 export function DealCallButton({ dealId, phone, contactId, fab = false }: DealCallButtonProps) {
   // Gate por widget: se a org desinstalou a Telefonia em /widgets, o
   // botão some do card (espelha o comportamento do SoftphoneWidget).
-  const callsWidget = useCallsWidget();
+  const { status: sessionStatus } = useSession();
+  const canFetch = sessionStatus !== "unauthenticated";
+  const callsWidget = useCallsWidget(canFetch);
   const { dial, canDial, loading } = useDealDial({ dealId, phone, contactId });
   const [mounted, setMounted] = useState(false);
 

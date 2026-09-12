@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import {
   IconClock,
   IconPencil,
@@ -121,10 +123,12 @@ export function ExpedienteTab({
   onNewExpedienteOpenChange: (open: boolean) => void;
 }) {
   const qc = useQueryClient();
+  const visible = useDocumentVisible();
   const { data: agents = [], isLoading, isError } = useQuery({
     queryKey: ["agents-schedules"],
     queryFn: fetchAgents,
-    refetchInterval: 60_000,
+    refetchInterval: visible ? 60_000 : false,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 

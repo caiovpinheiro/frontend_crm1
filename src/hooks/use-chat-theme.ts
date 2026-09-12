@@ -21,13 +21,13 @@ export function useChatTheme() {
       if (!res.ok) throw new Error("profile");
       return res.json() as { chatTheme?: string | null };
     },
-    enabled: status === "authenticated",
+    enabled: status !== "unauthenticated",
     staleTime: 60_000,
   });
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (status !== "authenticated") {
+    if (status === "unauthenticated") {
       document.documentElement.setAttribute("data-chat-theme", DEFAULT_CHAT_THEME);
       return;
     }
