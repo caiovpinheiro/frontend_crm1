@@ -512,15 +512,15 @@ function DealInline({
             comunicada apenas pela barra segmentada logo abaixo. Etapa e funil
             trocaram de lugar: a etapa atual passou a ser o dado em destaque. */}
         <div className="relative mb-2.5 flex items-center gap-3">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             {deal.stageDropdownSlot ? (
               /* Fase em destaque = gatilho do dropdown. O slot já renderiza
                  dot + nome + chevron; aqui só ampliamos pro tamanho do título. */
-              <div className="min-w-0 [&_button]:!max-w-full [&_button]:!gap-2 [&_button]:!text-[17px] [&_button]:!font-bold [&_button]:!uppercase [&_button]:!leading-tight [&_button]:!tracking-tight [&_button]:!text-white [&_button:hover]:!text-white [&_button:hover]:!opacity-90 [&_svg]:!size-4">
+              <div className="min-w-0 [&_button]:!max-w-full [&_button]:!min-w-0 [&_button]:!flex-nowrap [&_button]:!gap-2 [&_button]:!text-[17px] [&_button]:!font-bold [&_button]:!uppercase [&_button]:!leading-tight [&_button]:!tracking-tight [&_button]:!text-white [&_button:hover]:!text-white [&_button:hover]:!opacity-90 [&_svg]:!size-4">
                 {deal.stageDropdownSlot}
               </div>
             ) : (
-              <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <span
                   className="size-2 shrink-0 rounded-full"
                   style={{ backgroundColor: currentStageColor }}
@@ -537,9 +537,9 @@ function DealInline({
             </p>
           </div>
           {(deal.assigneeSlot || deal.departmentName) && (
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex w-max max-w-[46%] shrink-0 flex-col items-end gap-1">
               {deal.assigneeSlot ? (
-                <div className="[&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
+                <div className="max-w-full min-w-0 [&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
                   {deal.assigneeSlot}
                 </div>
               ) : null}
@@ -548,7 +548,8 @@ function DealInline({
                   name={deal.departmentName}
                   icon={departmentIcon}
                   color={departmentColor}
-                  className="max-w-[8.5rem] px-2 py-0.5 text-[10.5px] shadow-sm"
+                  surface="solid"
+                  className="max-w-full px-2 py-0.5 text-[10.5px] shadow-sm"
                 />
               ) : null}
             </div>
