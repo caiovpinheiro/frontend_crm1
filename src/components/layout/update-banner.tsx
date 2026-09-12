@@ -137,7 +137,7 @@ function ReleaseCard({ release }: { release: Release }) {
 export function UpdateAvailableBanner() {
   const { status: sessionStatus } = useSession();
   const visible = useDocumentVisible();
-  const pollingEnabled = sessionStatus === "authenticated";
+  const pollingEnabled = sessionStatus !== "unauthenticated";
 
   const { data } = useQuery({
     queryKey: ["changelog"],

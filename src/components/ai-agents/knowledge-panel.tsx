@@ -15,6 +15,8 @@ import {
   IconUpload as Upload,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import * as React from "react";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -116,6 +118,7 @@ const GRID_TEMPLATE = `minmax(0,1fr) 8.5rem 5rem ${LIST_ACTIONS_TRACK}`;
  */
 export function KnowledgePanel({ agentId }: { agentId: string }) {
   const queryClient = useQueryClient();
+  const visible = useDocumentVisible();
   const { confirm, dialog } = useConfirm();
 
   const [search, setSearch] = React.useState("");
@@ -167,12 +170,14 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
       );
     },
     refetchInterval: (q) => {
+      if (!visible) return false;
       const current = q.state.data as KnowledgeList | undefined;
       const busy = current?.items.some(
         (d) => d.status === "PENDING" || d.status === "INDEXING",
       );
       return busy ? 2000 : false;
     },
+    refetchIntervalInBackground: false,
   });
 
   const invalidate = React.useCallback(() => {
