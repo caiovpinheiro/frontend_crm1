@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { IconArrowLeft, IconExternalLink, IconShield, IconUser } from "@tabler/icons-react";
+import { IconArrowLeft, IconExternalLink, IconNote, IconShield, IconUser } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -93,70 +93,65 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
     <div className="flex h-full min-h-0 flex-col">
       {onBack ? <ReaderBackBar onBack={onBack} /> : null}
 
-      <div className="flex-shrink-0 border-b border-[var(--glass-border-subtle,var(--glass-border))] px-5 pb-4 pt-5">
+      <div className="flex-shrink-0 border-b-2 border-[var(--glass-border)] px-5 pb-4 pt-5">
         <h2 className="mb-3 font-display text-[18px] font-extrabold leading-snug tracking-[-0.2px] text-[var(--text-primary)]">
           {email.subject ?? "(sem assunto)"}
         </h2>
 
-        {/* Meta: avatar + remetente + ações */}
-        <div className="flex items-center gap-3">
-          {/* Avatar com iniciais */}
+        <div className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
           <AvatarInitials name={email.fromName} email={email.fromAddress} />
-
-          {/* Nome + endereço */}
-          <div className="flex-1 min-w-0">
-            <p className="font-display font-bold text-[13.5px] text-[var(--text-primary)] leading-tight truncate">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-[13.5px] font-bold leading-tight text-[var(--text-primary)]">
               {email.fromName ?? email.fromAddress}
             </p>
-            <p className="text-[12px] text-[var(--text-muted)] leading-tight truncate">
+            <p className="truncate text-[12px] leading-tight text-[var(--text-muted)]">
               {email.fromName
                 ? `${email.fromAddress} · para ${email.toAddress}`
                 : `para ${email.toAddress}`}
             </p>
           </div>
-
-          {/* Data */}
-          <span className="text-[11.5px] text-[var(--text-muted)] shrink-0 hidden lg:block">
+          <span className="hidden shrink-0 text-[11.5px] text-[var(--text-muted)] lg:block">
             {formatFullDate(email.receivedAt)}
           </span>
-
-          {/* Ações */}
-          <div className="flex gap-1.5 shrink-0">
+          <div className="flex shrink-0 gap-1.5">
             <IconBtn onClick={onReply} label="Responder"><IcoReply /></IconBtn>
             <IconBtn onClick={onForward} label="Encaminhar"><IcoForward /></IconBtn>
             <IconBtn onClick={onDelete} label="Excluir" danger><IcoTrash /></IconBtn>
           </div>
         </div>
 
-        {/* Linha: contato vinculado */}
-        {email.contact && (
-          <div className="flex items-center gap-1.5 mt-2.5">
-            <span className="text-[11px] text-[var(--text-muted)]">Contato:</span>
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {email.contact ? (
             <a
               href={`/contacts/${email.contact.id}`}
-              className="inline-flex items-center gap-1 text-[12px] text-[var(--brand-primary)] hover:underline font-medium"
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-0.5 text-[12px] font-medium text-[var(--brand-primary)] hover:underline"
             >
               <IconUser size={12} />
               {email.contact.name}
               <IconExternalLink size={10} className="opacity-60" />
             </a>
-          </div>
-        )}
+          ) : null}
+          <span className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
+            {email.folder === "SENT" ? "Enviado" : email.folder === "TRASH" ? "Excluído" : "Recebido"}
+          </span>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5 text-[14px] leading-[1.7] text-[var(--text-secondary)]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <EmailAnnotation emailId={email.id} />
         {security ? <SecurityAlertCard email={email} /> : null}
-        {email.bodyHtml ? (
-          <HtmlEmailFrame html={email.bodyHtml} />
-        ) : (
-          <pre className="whitespace-pre-wrap font-sans text-[14px] leading-[1.7]">
-            {email.bodyText ? decodeIfQuotedPrintable(email.bodyText) : "(sem conteúdo)"}
-          </pre>
-        )}
+        <div className="rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-4 text-[14px] leading-[1.7] text-[var(--text-secondary)]">
+          {email.bodyHtml ? (
+            <HtmlEmailFrame html={email.bodyHtml} />
+          ) : (
+            <pre className="whitespace-pre-wrap font-sans text-[14px] leading-[1.7]">
+              {email.bodyText ? decodeIfQuotedPrintable(email.bodyText) : "(sem conteúdo)"}
+            </pre>
+          )}
+        </div>
       </div>
 
-      {/* ── Rodapé ───────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-5 py-4 border-t border-[var(--glass-border-subtle,var(--glass-border))] flex-shrink-0">
+      <div className="flex flex-shrink-0 items-center gap-2 border-t-2 border-[var(--glass-border)] px-5 py-4">
         <button
           onClick={onReply}
           className="inline-flex items-center gap-1.5 font-display font-bold text-[13px] px-4 py-2 rounded-full bg-[var(--brand-primary)] text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] hover:bg-[var(--brand-primary-dark,#3d52e8)] hover:-translate-y-px transition-all"
@@ -309,6 +304,70 @@ function SecurityActivityRow({
         </div>
       )}
     </li>
+  );
+}
+
+function noteKey(id: string) {
+  return `email-v2:note:${id}`;
+}
+
+function EmailAnnotation({ emailId }: { emailId: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [value, setValue] = React.useState("");
+  const [saved, setSaved] = React.useState(false);
+
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem(noteKey(emailId)) ?? "";
+      setValue(stored);
+      setOpen(stored.length > 0);
+      setSaved(false);
+    } catch {
+      setValue("");
+    }
+  }, [emailId]);
+
+  function persist(next: string) {
+    setValue(next);
+    try {
+      if (next.trim()) localStorage.setItem(noteKey(emailId), next);
+      else localStorage.removeItem(noteKey(emailId));
+      setSaved(true);
+    } catch {
+      /* ignore quota */
+    }
+  }
+
+  return (
+    <div className="mb-4 rounded-[var(--radius-lg)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <IconNote size={15} className="text-[var(--brand-primary)]" />
+        <span className="flex-1 font-display text-[12.5px] font-bold text-[var(--text-primary)]">
+          Anotação interna
+        </span>
+        <span className="font-display text-[11px] font-semibold text-[var(--brand-primary)]">
+          {open ? "Ocultar" : value.trim() ? "Editar" : "Criar"}
+        </span>
+      </button>
+      {open ? (
+        <>
+          <textarea
+            value={value}
+            onChange={(e) => persist(e.target.value)}
+            placeholder="Nota só para a equipe — não vai no e-mail."
+            rows={3}
+            className="mt-2 w-full resize-none rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2.5 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]"
+          />
+          {saved && value.trim() ? (
+            <p className="mt-1 font-body text-[11px] text-[var(--text-muted)]">Salva neste navegador.</p>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }
 

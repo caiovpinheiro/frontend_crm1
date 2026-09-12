@@ -116,6 +116,7 @@ export function EmailClient() {
   const {
     folders: customFolders,
     create: createCustomFolder,
+    rename: renameCustomFolder,
     remove: removeCustomFolder,
     reload: reloadCustomFolders,
   } = useEmailCustomFolders();
@@ -215,14 +216,22 @@ export function EmailClient() {
     setMobilePane("list");
   }
 
-  async function handleCreateFolder(accountId: string, name: string) {
-    const folder = await createCustomFolder({ accountId, name });
+  async function handleCreateFolder(accountId: string, name: string, color?: string) {
+    const folder = await createCustomFolder({ accountId, name, color: color ?? null });
     setSelectedAccountId(accountId);
     setSelectedCustomFolderId(folder.id);
     setSelectedEmailId(null);
     setComposing(false);
     setQuery("");
     setMobilePane("list");
+  }
+
+  async function handleRecolorFolder(folderId: string, color: string) {
+    try {
+      await renameCustomFolder(folderId, { color });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao recolorir pasta.");
+    }
   }
 
   async function handleDeleteCustomFolder(folderId: string) {
@@ -444,7 +453,7 @@ export function EmailClient() {
         </div>
 
         <div
-          className="grid min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow)] max-md:grid-cols-1"
+          className="grid min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border-2 border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow)] max-md:grid-cols-1"
           style={
             isMobile
               ? undefined
@@ -453,7 +462,7 @@ export function EmailClient() {
         >
           <div
             className={cn(
-              "relative min-h-0 flex-col overflow-hidden border-r border-[var(--glass-border-subtle,var(--glass-border))] bg-[var(--glass-bg-overlay)]",
+              "relative min-h-0 flex-col overflow-hidden border-r-2 border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]",
               showSidebar ? "flex" : "hidden",
             )}
           >
@@ -484,6 +493,7 @@ export function EmailClient() {
               onSelectCustomFolder={handleSelectCustomFolder}
               onCreateCustomFolder={handleCreateFolder}
               onDeleteCustomFolder={handleDeleteCustomFolder}
+              onRecolorFolder={handleRecolorFolder}
               onDropToSystemFolder={handleDropToSystemFolder}
               onDropToCustomFolder={handleMoveToCustomFolder}
             />
@@ -498,11 +508,11 @@ export function EmailClient() {
 
           <div
             className={cn(
-              "relative min-h-0 flex-col overflow-hidden border-r border-[var(--glass-border-subtle,var(--glass-border))]",
+              "relative min-h-0 flex-col overflow-hidden border-r-2 border-[var(--glass-border)]",
               showList ? "flex" : "hidden",
             )}
           >
-            <div className="flex shrink-0 items-center gap-2.5 border-b border-[var(--glass-border-subtle,var(--glass-border))] px-4 py-3.5">
+            <div className="flex shrink-0 items-center gap-2.5 border-b-2 border-[var(--glass-border)] px-4 py-3.5">
               {isMobile ? (
                 <button
                   type="button"
@@ -539,7 +549,7 @@ export function EmailClient() {
               </button>
             </div>
 
-            <div className="flex shrink-0 items-center border-b border-[var(--glass-border-subtle,var(--glass-border))] px-4 py-2">
+            <div className="flex shrink-0 items-center border-b border-[var(--glass-border)] px-4 py-2">
               <button
                 type="button"
                 onClick={() => setUnreadOnly((v) => !v)}
