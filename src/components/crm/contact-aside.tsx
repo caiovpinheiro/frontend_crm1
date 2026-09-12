@@ -54,6 +54,8 @@ import { useFieldLayout } from "@/hooks/use-field-layout"
 import { useIdleEnabled } from "@/hooks/use-idle-enabled"
 import { resolveCustomFieldGroups, type CustomFieldDef } from "@/lib/field-layout"
 import { CustomFieldGroupBlock } from "@/components/crm/fields/custom-field-group-block"
+import { useDepartments } from "@/features/conversations-settings/hooks/use-departments"
+import { DepartmentChip } from "@/features/conversations-settings/department-icons"
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -116,6 +118,9 @@ export interface ContactDetails {
     assigneeSlot?: React.ReactNode
     /** Departamento da conversa — alinhado ao responsável no hero. */
     departmentName?: string | null
+    departmentId?: string | null
+    departmentIcon?: string | null
+    departmentColor?: string | null
     /** Slot para renderizar as tags do negócio (add/remove). */
     dealTagsNode?: React.ReactNode
     customFields?: { fieldId: string; label: string; value: string | null }[]
@@ -390,6 +395,16 @@ function DealInline({
   collapsed?: boolean
   onToggle?: () => void
 }) {
+  const { data: departments = [] } = useDepartments(
+    Boolean(deal.departmentName || deal.departmentId),
+  )
+  const catalogDept = departments.find(
+    (d) =>
+      (deal.departmentId && d.id === deal.departmentId) ||
+      (deal.departmentName && d.name === deal.departmentName),
+  )
+  const departmentIcon = deal.departmentIcon ?? catalogDept?.icon
+  const departmentColor = deal.departmentColor ?? catalogDept?.color
   const fields = deal.customFields ?? []
   const segments = deal.funnelSegments
   const sortedSegments = segments
@@ -529,12 +544,12 @@ function DealInline({
                 </div>
               ) : null}
               {deal.departmentName ? (
-                <span
-                  className="inline-flex max-w-[8.5rem] truncate rounded-full bg-white px-2.5 py-1 font-display text-[10.5px] font-semibold text-[#2e3b6e] shadow-sm"
-                  title={deal.departmentName}
-                >
-                  {deal.departmentName}
-                </span>
+                <DepartmentChip
+                  name={deal.departmentName}
+                  icon={departmentIcon}
+                  color={departmentColor}
+                  className="max-w-[8.5rem] px-2 py-0.5 text-[10.5px] shadow-sm"
+                />
               ) : null}
             </div>
           )}
