@@ -84,19 +84,41 @@ export function MobileAppUpdateDialog() {
   React.useEffect(() => {
     if (!active) return;
 
-    void checkForUpdate();
-    const interval = window.setInterval(() => void checkForUpdate(), POLL_INTERVAL_MS);
+    let interval: number | null = null;
+
+    function startTimer() {
+      if (interval != null) return;
+      interval = window.setInterval(() => void checkForUpdate(), POLL_INTERVAL_MS);
+    }
+
+    function clearTimer() {
+      if (interval == null) return;
+      window.clearInterval(interval);
+      interval = null;
+    }
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") void checkForUpdate();
+      if (document.visibilityState === "visible") {
+        void checkForUpdate();
+        startTimer();
+      } else {
+        clearTimer();
+      }
     };
-    const onFocus = () => void checkForUpdate();
+    const onFocus = () => {
+      if (!document.hidden) void checkForUpdate();
+    };
+
+    if (!document.hidden) {
+      void checkForUpdate();
+      startTimer();
+    }
 
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("focus", onFocus);
 
     return () => {
-      window.clearInterval(interval);
+      clearTimer();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("focus", onFocus);
     };

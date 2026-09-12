@@ -1277,11 +1277,11 @@ function PipelineSettingsTabs({
 
 export default function PipelineSettingsClientPage() {
   const { status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
   const { role, isSuperAdmin } = useUserRole();
   const canDeletePipeline = role === "ADMIN" || isSuperAdmin;
 
-  const { data: pipelines } = usePipelines(isAuthenticated);
+  const { data: pipelines } = usePipelines(canFetch);
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
 
@@ -1349,7 +1349,7 @@ export default function PipelineSettingsClientPage() {
   // Automações do backend para look-up e hidratação da lista por estágio.
   // perPage usa o máximo aceito pelo backend (100). Orgs com >100 automações
   // precisariam de paginação adicional; fora do escopo do bugfix atual.
-  const { data: automationsData } = useAutomations({ perPage: 100, enabled: isAuthenticated });
+  const { data: automationsData } = useAutomations({ perPage: 100, enabled: canFetch });
 
   // Persistência do último funil — mesma chave/lógica do `/pipeline`
   // (ver `app/(app)/pipeline/_v2-client.tsx`). Trocar funil aqui ou lá deve
@@ -1386,7 +1386,7 @@ export default function PipelineSettingsClientPage() {
   const { data: board = [] } = useBoard({
     pipelineId,
     status: "OPEN",
-    enabled: isAuthenticated,
+    enabled: canFetch,
   });
 
   // Snapshot do estado original do board — usado para diff ao salvar e para
@@ -2211,7 +2211,7 @@ export default function PipelineSettingsClientPage() {
                 />
               ))
             ) : (
-              <EmptyStages isAuthenticated={isAuthenticated} />
+              <EmptyStages canFetch={canFetch} />
             )}
 
             {/* Botão de adicionar nova etapa */}
@@ -2302,12 +2302,12 @@ export default function PipelineSettingsClientPage() {
   );
 }
 
-function EmptyStages({ isAuthenticated }: { isAuthenticated: boolean }) {
+function EmptyStages({ canFetch }: { canFetch: boolean }) {
   return (
     <div className="grid w-full place-items-center rounded-xl border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-12 text-center backdrop-blur-md">
       <div>
         <h2 className="font-display text-base font-bold text-[var(--text-primary)]">
-          {isAuthenticated ? "Selecione um pipeline" : "Carregando..."}
+          {canFetch ? "Selecione um pipeline" : "Carregando..."}
         </h2>
         <p className="mt-1 max-w-sm font-display text-[12.5px] text-[var(--text-muted)]">
           Pipeline ativo não retornou estágios. Verifique a configuração no painel de administração.

@@ -251,7 +251,7 @@ function TeamContent() {
     isLoading,
     isError,
     error,
-  } = useTeamUsersQuery<UserRow>(status === "authenticated");
+  } = useTeamUsersQuery<UserRow>(status !== "unauthenticated");
 
   // ─── Derivados: busca client-side ──────────────────────────────────────
   const term = search.trim().toLowerCase();

@@ -284,7 +284,7 @@ export default function LogsClientPage() {
   );
 
   // Aba Chamadas (histórico movido do ícone da nav rail para dentro de Logs).
-  const callsWidget = useCallsWidget(sessionStatus === "authenticated");
+  const callsWidget = useCallsWidget(sessionStatus !== "unauthenticated");
   const queryClient = useQueryClient();
   const callsSyncMutation = useMutation({
     mutationFn: syncCalls,

@@ -45,7 +45,7 @@ export function TeamChatApp() {
   const [addOpen, setAddOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
 
-  const ready = status === "authenticated";
+  const ready = status !== "unauthenticated";
   const roomsQuery = useTeamChatRooms(ready);
   const peopleQuery = useTeamChatColleagues(ready);
   const { favorites, toggleFavorite } = useOrbitaFavorites();

@@ -7,6 +7,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import {
   claimSupportTicket,
   createSupportTicket,
@@ -32,23 +34,27 @@ export function useSupportMeta() {
 }
 
 export function useSupportTickets(scope: SupportScope, enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: [TICKETS_KEY, scope],
     queryFn: () => listSupportTickets(scope),
     enabled,
     // Realtime vem do SSE (useSupportRealtime). O interval é só safety-net
     // para queda silenciosa da stream.
-    refetchInterval: 120_000,
+    refetchInterval: visible ? 120_000 : false,
+    refetchIntervalInBackground: false,
   });
 }
 
 export function useSupportMessages(ticketId: string | null) {
+  const visible = useDocumentVisible();
   return useQuery({
     queryKey: [MESSAGES_KEY, ticketId],
     queryFn: () => listSupportMessages(ticketId as string),
     enabled: !!ticketId,
     // Idem: SSE `support_message` invalida esta key; interval é safety-net.
-    refetchInterval: 120_000,
+    refetchInterval: visible ? 120_000 : false,
+    refetchIntervalInBackground: false,
   });
 }
 

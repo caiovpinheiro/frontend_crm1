@@ -28,10 +28,10 @@ import { useIdleEnabled } from "@/hooks/use-idle-enabled";
  */
 export function TaskAlertCenter() {
   const { status } = useSession();
-  const authenticated = status === "authenticated";
+  const canFetch = status !== "unauthenticated";
   const qc = useQueryClient();
   const idle = useIdleEnabled();
-  const { data } = useActivityAlert(authenticated && idle);
+  const { data } = useActivityAlert(canFetch && idle);
   const dismissMutation = useDismissActivityAlert();
   const updateMutation = useUpdateActivity();
   const [held, setHeld] = useState<ActivityAlertDto | null>(null);
@@ -82,7 +82,7 @@ export function TaskAlertCenter() {
     [alert, dismissMutation, dropStaleAlert, updateMutation],
   );
 
-  if (!authenticated || !alert) return null;
+  if (!canFetch || !alert) return null;
 
   return (
     <ActivityReminderCard

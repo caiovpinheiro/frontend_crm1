@@ -39,9 +39,9 @@ interface WidgetRunnerProps {
 export default function WidgetRunnerClientPage({ slug, navRail }: WidgetRunnerProps) {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
 
-  const widgetsQuery = useWidgets(isAuthenticated);
+  const widgetsQuery = useWidgets(canFetch);
   const widget: WidgetDto | undefined = useMemo(
     () => widgetsQuery.data?.items.find((w) => w.slug === slug),
     [widgetsQuery.data, slug],
@@ -60,7 +60,7 @@ export default function WidgetRunnerClientPage({ slug, navRail }: WidgetRunnerPr
 
   const ssoQuery = useWidgetSso(
     isPartner && widget?.installed ? slug : null,
-    isAuthenticated,
+    canFetch,
   );
 
   const isLoading = widgetsQuery.isLoading || (isPartner && widget?.installed && ssoQuery.isLoading);
