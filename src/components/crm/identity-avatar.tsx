@@ -5,20 +5,22 @@ import {
   type AvatarTokenIndex,
 } from "@/lib/avatar";
 
-type AvatarSize = "sm" | "md" | "lg";
+type AvatarSizeToken = "sm" | "md" | "lg";
 
-const sizeClass: Record<AvatarSize, string> = {
+const sizeClass: Record<AvatarSizeToken, string> = {
   sm: "size-8 text-[11px]",
   md: "size-10 text-sm",
   lg: "size-12 text-base",
 };
+
+export type IdentityAvatarSize = AvatarSizeToken | number;
 
 interface IdentityAvatarProps {
   name?: string | null;
   seed?: string | null;
   initials?: string;
   imageUrl?: string | null;
-  size?: AvatarSize;
+  size?: IdentityAvatarSize;
   online?: boolean;
   className?: string;
 }
@@ -34,17 +36,21 @@ export function IdentityAvatar({
 }: IdentityAvatarProps) {
   const index: AvatarTokenIndex = getAvatarTokenIndex(seed ?? name ?? initialsProp ?? "?");
   const initials = (initialsProp ?? avatarInitials(name ?? seed ?? "?")).slice(0, 2).toUpperCase();
+  const px = typeof size === "number" ? size : null;
 
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
       <span
         className={cn(
           "flex items-center justify-center overflow-hidden rounded-full font-bold uppercase",
-          sizeClass[size],
+          px == null && sizeClass[size],
         )}
         style={{
           backgroundColor: `var(--avatar-${index})`,
           color: `var(--avatar-${index}-foreground)`,
+          ...(px != null
+            ? { width: px, height: px, fontSize: Math.max(9, Math.round(px * 0.36)) }
+            : null),
         }}
       >
         {imageUrl ? (
