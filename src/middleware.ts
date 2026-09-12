@@ -182,6 +182,7 @@ const PUBLIC_PATHS = new Set([
   "/dev/campaigns-cards-preview",
   // Cockpit: HTML estático; dados via Bearer token ou sessão CRM.
   "/cockpit-agente.html",
+  "/proofread",
 ]);
 
 const PUBLIC_API_PATHS = new Set([
@@ -191,6 +192,7 @@ const PUBLIC_API_PATHS = new Set([
   "/api/organization/by-slug",
   "/api/invites/validate",
   "/api/invites/accept",
+  "/api/proofread",
 ]);
 
 const PWA_PUBLIC_PATHS = new Set([
