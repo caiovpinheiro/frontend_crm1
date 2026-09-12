@@ -109,7 +109,7 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
       {
         id: "email-accounts",
         label: "Contas de e-mail",
-        description: "Presets IMAP/SMTP e caixas",
+        description: "Conectar caixas IMAP/SMTP",
         icon: Mail,
         href: "/settings/email-accounts",
         requiredPermission: "email_account:connect",

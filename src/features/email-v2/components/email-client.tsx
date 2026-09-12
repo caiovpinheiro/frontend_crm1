@@ -483,6 +483,7 @@ export function EmailClient() {
               onRecolorFolder={handleRecolorFolder}
               onDropToSystemFolder={handleDropToSystemFolder}
               onDropToCustomFolder={handleMoveToCustomFolder}
+              onOpenRules={accounts.length > 0 ? () => setRulesOpen(true) : undefined}
             />
             <ColumnResizer
               value={sidebarWidth}
