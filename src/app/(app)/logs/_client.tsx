@@ -194,11 +194,6 @@ function resolveEntityId(ev: FeedEvent): string | null {
   return ev.entityId ?? null;
 }
 
-function truncateId(id: string): string {
-  if (id.length <= 10) return `#${id}`;
-  return `#${id.slice(0, 8)}…`;
-}
-
 async function copyId(id: string) {
   try {
     await navigator.clipboard.writeText(id);
@@ -670,7 +665,7 @@ export default function LogsClientPage() {
           }
         />
         }
-        bodyClassName="gap-3 sm:gap-4"
+        bodyClassName="gap-2 sm:gap-2.5"
       >
 
         {isFeed ? (
@@ -708,8 +703,8 @@ export default function LogsClientPage() {
               <ListHScroll className={LIST_PAGE_STACK_CLASS}>
               <DataView
                 view={view}
-                columnClass={`grid ${FEED_GRID} items-center gap-3.5`}
-                className="min-w-[960px]"
+                columnClass={`grid ${FEED_GRID} items-center gap-2.5 [&>*]:min-w-0`}
+                className="!min-w-[880px] !gap-1.5"
                 header={
                   <>
                     <SortableHeader
@@ -956,13 +951,13 @@ function EventCard({ event }: { event: FeedEvent }) {
   const origin = resolveOrigin(event);
 
   return (
-    <DataRow>
+    <DataRow className="!py-2">
       {/* Coluna: Evento */}
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden">
         <span
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 ${cfg.ring} ${cfg.bg}`}
+          className={`flex size-6 shrink-0 items-center justify-center rounded-full ring-1 ${cfg.ring} ${cfg.bg}`}
         >
-          <Icon size={14} />
+          <Icon size={13} />
         </span>
         <span className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
           {cfg.label}
@@ -970,7 +965,7 @@ function EventCard({ event }: { event: FeedEvent }) {
       </div>
 
       {/* Coluna: Detalhe */}
-      <span className="block truncate font-display text-[12.5px] text-[var(--text-secondary)]">
+      <span className="min-w-0 truncate font-display text-[12.5px] text-[var(--text-secondary)]" title={detail || undefined}>
         {detail || "—"}
       </span>
 
@@ -989,7 +984,7 @@ function EventCard({ event }: { event: FeedEvent }) {
       </div>
 
       {/* Coluna: Responsável */}
-      <div>
+      <div className="min-w-0">
         <span
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-display text-[11px] font-semibold ${badge.className}`}
         >
@@ -998,7 +993,7 @@ function EventCard({ event }: { event: FeedEvent }) {
       </div>
 
       {/* Coluna: Data */}
-      <div className="text-right">
+      <div className="min-w-0 text-right">
         <EventDate iso={event.occurredAt} />
       </div>
     </DataRow>
@@ -1115,47 +1110,42 @@ function EntityCell({
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="flex min-w-0 items-center gap-1.5">
-        {href ? (
-          <Link
-            href={href}
-            title={`Abrir ${label?.toLowerCase()}`}
-            className="shrink-0"
-          >
-            {pill}
-          </Link>
-        ) : (
-          pill
-        )}
-        {entityLabel && (
-          <span className="min-w-0 truncate font-display text-[12.5px] text-[var(--text-secondary)]">
-            {entityLabel}
-          </span>
-        )}
-      </span>
+    <div className="flex min-w-0 items-center gap-1.5">
+      {href ? (
+        <Link
+          href={href}
+          title={`Abrir ${label?.toLowerCase()}`}
+          className="shrink-0"
+        >
+          {pill}
+        </Link>
+      ) : (
+        pill
+      )}
+      {entityLabel && (
+        <span className="min-w-0 truncate font-display text-[12.5px] text-[var(--text-secondary)]">
+          {entityLabel}
+        </span>
+      )}
       {entityId && (
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={() => void copyId(entityId)}
-            title={`Copiar ID: ${entityId}`}
-            className="inline-flex w-fit items-center gap-1 rounded px-1 py-0.5 font-mono text-[10px] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-secondary)]"
-          >
-            <span>{truncateId(entityId)}</span>
-            <IconCopy size={10} />
-          </button>
-          {href && (
-            <button
-              type="button"
-              onClick={() => void copyEntityLink(href)}
-              title="Copiar link"
-              className="inline-flex items-center rounded p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]"
-            >
-              <IconLink size={11} />
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => void copyId(entityId)}
+          title={`Copiar ID: ${entityId}`}
+          className="inline-flex shrink-0 items-center rounded p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-secondary)]"
+        >
+          <IconCopy size={11} />
+        </button>
+      )}
+      {href && (
+        <button
+          type="button"
+          onClick={() => void copyEntityLink(href)}
+          title="Copiar link"
+          className="inline-flex shrink-0 items-center rounded p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]"
+        >
+          <IconLink size={11} />
+        </button>
       )}
     </div>
   );
@@ -1255,17 +1245,18 @@ function OriginCell({ origin }: { origin: OriginInfo }) {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="flex min-w-0 items-center gap-1.5">
-        {pillNode}
-        {origin.pill !== "channel" && origin.primary && (
-          <span className="min-w-0 truncate font-display text-[12.5px] text-[var(--text-secondary)]">
-            {origin.primary}
-          </span>
-        )}
-      </span>
+    <div
+      className="flex min-w-0 items-center gap-1.5"
+      title={origin.secondary ?? undefined}
+    >
+      {pillNode}
+      {origin.pill !== "channel" && origin.primary && (
+        <span className="min-w-0 truncate font-display text-[12.5px] text-[var(--text-secondary)]">
+          {origin.primary}
+        </span>
+      )}
       {origin.secondary && (
-        <span className="truncate font-display text-[11px] text-[var(--text-muted)]">
+        <span className="min-w-0 truncate font-display text-[11px] text-[var(--text-muted)]">
           {origin.secondary}
         </span>
       )}
@@ -1304,7 +1295,7 @@ function FeedMiniDash({ items }: { items: FeedEvent[] }) {
       shortLabel: "Eventos",
       value: stats.total,
       accent: "var(--brand-primary)",
-      icon: <IconActivity size={16} />,
+      icon: <IconActivity size={14} />,
     },
     {
       key: "messages",
@@ -1312,7 +1303,7 @@ function FeedMiniDash({ items }: { items: FeedEvent[] }) {
       shortLabel: "Mensagens",
       value: stats.messages,
       accent: "var(--color-success)",
-      icon: <IconMessageCircle size={16} />,
+      icon: <IconMessageCircle size={14} />,
     },
     {
       key: "conversations",
@@ -1320,7 +1311,7 @@ function FeedMiniDash({ items }: { items: FeedEvent[] }) {
       shortLabel: "Conversas",
       value: stats.conversations,
       accent: "var(--color-info)",
-      icon: <IconUsers size={16} />,
+      icon: <IconUsers size={14} />,
     },
     {
       key: "deals",
@@ -1328,7 +1319,7 @@ function FeedMiniDash({ items }: { items: FeedEvent[] }) {
       shortLabel: "Negócios",
       value: stats.deals,
       accent: "var(--brand-secondary, #a78bfa)",
-      icon: <IconBriefcase size={16} />,
+      icon: <IconBriefcase size={14} />,
     },
   ];
 
@@ -1343,14 +1334,14 @@ function FeedMiniDash({ items }: { items: FeedEvent[] }) {
           accent: c.accent,
         }))}
       />
-      <div className="hidden gap-3 sm:grid-cols-2 lg:grid lg:grid-cols-4">
+      <div className="hidden gap-2 sm:grid-cols-2 lg:grid lg:grid-cols-4">
         {cards.map((c) => (
           <div
             key={c.key}
-            className="flex items-center gap-3 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3 shadow-[var(--glass-shadow-sm)] backdrop-blur-md"
+            className="flex items-center gap-2.5 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3 py-2 shadow-[var(--glass-shadow-sm)] backdrop-blur-md"
           >
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+              className="flex size-7 shrink-0 items-center justify-center rounded-full"
               style={{
                 background: `color-mix(in srgb, ${c.accent} 14%, transparent)`,
                 color: c.accent,
@@ -1359,10 +1350,10 @@ function FeedMiniDash({ items }: { items: FeedEvent[] }) {
               {c.icon}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="font-display text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[var(--text-muted)]">
+              <div className="font-display text-[11px] font-semibold text-[var(--text-muted)]">
                 {c.label}
               </div>
-              <div className="font-display text-[22px] font-bold leading-none tabular-nums text-[var(--text-primary)]">
+              <div className="font-display text-lg font-bold leading-none tabular-nums text-[var(--text-primary)]">
                 {c.value.toLocaleString("pt-BR")}
               </div>
             </div>
