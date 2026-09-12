@@ -69,8 +69,7 @@ import {
   PeriodPresetPanel,
 } from "@/components/crm/period-calendar-button";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
-import { LIST_PAGE_PANE_CLASS, LIST_PAGE_STACK_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
-import { ListHScroll } from "@/components/crm/list-hscroll";
+import { LIST_PAGE_PANE_CLASS, PaginationGlass } from "@/components/crm/pagination-glass";
 import {
   SortableHeader,
   type SortDir,
@@ -162,9 +161,9 @@ const ACTOR_BADGE: Record<
 };
 
 // 6 colunas: Evento | Detalhe | Entidade | Origem | Responsável | Data.
-// minmax garante largura mínima legível mesmo ao rolar lateralmente.
+// minmax(0, fr) + Data fixa: cabe na viewport e trunca o detalhe.
 const FEED_GRID =
-  "grid-cols-[minmax(160px,1.4fr)_minmax(180px,1.7fr)_minmax(150px,1.5fr)_minmax(150px,1.5fr)_minmax(120px,0.9fr)_minmax(132px,0.85fr)]";
+  "grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)_6.75rem]";
 
 function endOfInclusiveDay(d: Date): Date {
   const c = new Date(d);
@@ -700,11 +699,11 @@ export default function LogsClientPage() {
                 />
               </div>
             ) : (
-              <ListHScroll className={LIST_PAGE_STACK_CLASS}>
               <DataView
                 view={view}
-                columnClass={`grid ${FEED_GRID} items-center gap-2.5 [&>*]:min-w-0`}
-                className="!min-w-[880px] !gap-1.5"
+                fitViewport
+                columnClass={`grid ${FEED_GRID} min-w-0 items-center gap-2.5 [&>*]:min-w-0 [&>*]:overflow-hidden`}
+                className="min-w-0 !gap-1.5"
                 header={
                   <>
                     <SortableHeader
@@ -745,7 +744,6 @@ export default function LogsClientPage() {
                     <EventCard key={ev.id} event={ev} />
                   ))}
               </DataView>
-              </ListHScroll>
             )}
 
             {!isLoading && !isError && allItems.length > 0 && (
