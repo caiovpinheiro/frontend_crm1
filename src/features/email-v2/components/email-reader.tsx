@@ -83,7 +83,7 @@ interface Props {
 export function EmailReader({ email, loading, onBack, onReply, onForward, onDelete, onMarkSpam, onNotSpam }: Props) {
   if (loading || !email) {
     return (
-      <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         {onBack ? <ReaderBackBar onBack={onBack} /> : null}
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
           {loading ? (
@@ -102,7 +102,7 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
   const security = isSecurityAlertEmail(email);
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {onBack ? <ReaderBackBar onBack={onBack} /> : null}
 
       <div className="flex min-w-0 shrink-0 flex-col gap-3 border-b border-border px-5 pt-5 pb-4">

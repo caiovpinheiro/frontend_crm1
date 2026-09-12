@@ -63,6 +63,10 @@ interface Props {
   onBulkSpam?: (ids: string[]) => void | Promise<void>;
   onBulkNotSpam?: (ids: string[]) => void | Promise<void>;
   bulkBusy?: boolean;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
+  scrollRootRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export function EmailList({
@@ -88,6 +92,10 @@ export function EmailList({
   onBulkSpam,
   onBulkNotSpam,
   bulkBusy = false,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
+  scrollRootRef,
 }: Props) {
   const [checkedIds, setCheckedIds] = React.useState<Set<string>>(new Set());
   const [menu, setMenu] = React.useState<{
@@ -95,6 +103,9 @@ export function EmailList({
     x: number;
     y: number;
   } | null>(null);
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const onLoadMoreRef = React.useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
 
   React.useEffect(() => {
     const visible = new Set(emails.map((e) => e.id));
@@ -103,6 +114,22 @@ export function EmailList({
       return next.size === prev.size ? prev : next;
     });
   }, [emails]);
+
+  React.useEffect(() => {
+    if (!hasMore || loadingMore || loading) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          onLoadMoreRef.current?.();
+        }
+      },
+      { root: scrollRootRef?.current ?? null, rootMargin: "160px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasMore, loadingMore, loading, emails.length, scrollRootRef]);
 
   function openMenu(email: EmailListItem, x: number, y: number) {
     setMenu({ email, x, y });
@@ -200,6 +227,20 @@ export function EmailList({
           onContextMenu={openMenu}
         />
       ))}
+
+      {hasMore ? (
+        <div className="flex flex-col items-center gap-2 py-3">
+          <div ref={sentinelRef} aria-hidden className="h-px w-full" />
+          <button
+            type="button"
+            disabled={loadingMore}
+            onClick={() => onLoadMore?.()}
+            className="inline-flex h-8 items-center rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+          >
+            {loadingMore ? "Carregando…" : "Carregar mais"}
+          </button>
+        </div>
+      ) : null}
 
       {menu && (
         <ContextMenu
@@ -403,7 +444,7 @@ function EmailRow({
       draggable
       onDragStart={handleDragStart}
       onContextMenu={handleContextMenu}
-      className="group relative"
+      className="group relative [touch-action:pan-y]"
     >
       <div
         className={cn(
