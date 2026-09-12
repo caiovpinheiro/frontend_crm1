@@ -12,7 +12,7 @@ import {
 } from "@/lib/call-recording";
 import { getBrowserIceServers, waitIceGatheringComplete } from "@/lib/webrtc-ice";
 import { sanitizeMetaWhatsappSdpForBrowser, stripSsrcLinesFromSdp } from "@/lib/whatsapp-webrtc-sdp";
-import { useSSE } from "@/hooks/use-sse";
+import { holdSSEWhileHidden, useSSE } from "@/hooks/use-sse";
 import { ensureMicrophonePermission } from "@/lib/native/permissions";
 
 export type InboundCallPhase = "idle" | "ringing" | "connecting" | "live" | "error";
@@ -54,6 +54,11 @@ export function useWhatsappInboundWebRtc(enabled: boolean) {
   incomingRef.current = incoming;
   const phaseRef = React.useRef(phase);
   phaseRef.current = phase;
+
+  React.useEffect(() => {
+    if (phase === "idle" || phase === "error") return;
+    return holdSSEWhileHidden();
+  }, [phase]);
 
   const finishRecording = React.useCallback(() => {
     const handle = recorderRef.current;
