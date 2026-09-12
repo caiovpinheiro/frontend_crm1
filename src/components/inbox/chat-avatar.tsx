@@ -12,11 +12,11 @@ import {
   IconRobot,
 } from "@tabler/icons-react";
 
+import { IdentityAvatar } from "@/components/crm/identity-avatar";
 import {
   AVATAR_BOT_BG,
   AVATAR_UNREAD_BG,
   avatarInitials,
-  getAvatarSolidColor,
 } from "@/lib/avatar";
 import { cn } from "@/lib/utils";
 
@@ -116,9 +116,6 @@ export function ChatAvatar({
     lowered === "sistema" ||
     lowered === "bot";
 
-  const bgColor =
-    customBgColor || (isBotResolved ? AVATAR_BOT_BG : getAvatarSolidColor(finalId));
-
   const showUnread = typeof unreadCount === "number" && unreadCount > 0;
   const channelBadge = resolveChannelBadge(channel);
 
@@ -126,7 +123,6 @@ export function ChatAvatar({
   const badgeFontSize = Math.max(9, Math.round(size * 0.17));
   const badgeBorder = Math.max(1.5, Math.round(size * 0.033));
   const channelIconSize = Math.max(8, Math.round(badgeSize * 0.55));
-  const initialsFontSize = Math.max(10, Math.round(size * 0.3));
 
   return (
     <div
@@ -151,41 +147,27 @@ export function ChatAvatar({
         </div>
       )}
 
-      <div
-        className="relative flex size-full items-center justify-center overflow-hidden rounded-full shadow-[var(--shadow-sm)]"
-        style={{
-          backgroundColor: bgColor,
-          border: `${badgeBorder}px solid var(--color-border)`,
-        }}
-      >
-        {finalImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={finalImageUrl}
-            alt={finalName}
-            className="size-full object-cover"
-            referrerPolicy="no-referrer"
+      {isBotResolved ? (
+        <div
+          className="relative flex size-full items-center justify-center overflow-hidden rounded-full"
+          style={{ backgroundColor: customBgColor || AVATAR_BOT_BG }}
+        >
+          <IconRobot
+            size="72%"
+            stroke={1.8}
+            className="relative z-10 text-white"
+            aria-label="Automação"
           />
-        ) : isBotResolved ? (
-          <div className="relative flex size-full items-center justify-center">
-            <IconRobot
-              size="72%"
-              stroke={1.8}
-              className="relative z-10 text-white"
-              aria-label="Automação"
-            />
-          </div>
-        ) : (
-          <div className="relative flex size-full items-center justify-center">
-            <span
-              className="pointer-events-none font-semibold uppercase leading-none text-white/95"
-              style={{ fontSize: initialsFontSize }}
-            >
-              {initials}
-            </span>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <IdentityAvatar
+          name={finalName}
+          seed={finalId}
+          initials={initials}
+          imageUrl={finalImageUrl}
+          size={size}
+        />
+      )}
 
       {channelBadge && (
         <div

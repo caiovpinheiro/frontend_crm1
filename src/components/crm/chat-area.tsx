@@ -71,6 +71,7 @@ interface ChatContact {
   status?: string
   phone?: string
   contactId?: string
+  imageUrl?: string | null
   /** Canal — badge no canto inferior direito (padrão Inbox / ChatAvatar). */
   channel?: string | null
 }
@@ -657,6 +658,7 @@ export function ChatArea({
               user={{
                 id: contact.contactId ?? contact.name,
                 name: contact.name,
+                imageUrl: contact.imageUrl,
               }}
               phone={contact.phone}
               channel={contact.channel ?? connection?.type ?? null}

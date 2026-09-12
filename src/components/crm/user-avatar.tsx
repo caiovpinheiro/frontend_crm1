@@ -1,17 +1,10 @@
+import { IdentityAvatar } from "@/components/crm/identity-avatar"
 import { cn } from "@/lib/utils"
-import { avatarInitials } from "@/lib/avatar"
 
 /**
- * Avatar CANÔNICO de USUÁRIO/AGENTE — padrão único do sistema, espelhando o
- * token do chat (bolha outgoing "ED"): círculo com gradiente da marca
- * (brand-primary → brand-secondary) e iniciais brancas em negrito.
- *
- * "Quem manda é o perfil": se houver `imageUrl` (User.avatarUrl /
- * session.user.image), a foto sobrepõe as iniciais.
- *
- * Usar SEMPRE que representar uma pessoa interna (equipe, expediente,
- * navrail, chat, perfil). NÃO usar para contatos/clientes — esses seguem o
- * `ChatAvatar` (cor sólida determinística + badge de canal).
+ * Avatar canônico de pessoa interna (equipe, expediente, navrail, bolha).
+ * Mesma face de `IdentityAvatar` (`--avatar-1..5` + foto). Não usar para
+ * contato/cliente — esses usam `ChatAvatar` (mesma face + badge de canal).
  */
 type UserAvatarStatus = "online" | "offline" | "away"
 
@@ -21,6 +14,8 @@ interface UserAvatarProps {
   initials?: string
   /** Foto do perfil — quando presente, sobrepõe as iniciais. */
   imageUrl?: string | null
+  /** Seed estável (user id). Sem isso, a cor vem do nome. */
+  seed?: string | null
   /** Diâmetro em px (default 40). */
   size?: number
   /** Bolinha de status no canto inferior direito. */
@@ -29,7 +24,7 @@ interface UserAvatarProps {
   statusColor?: string
   /** Anel de destaque (ex.: item ativo no navrail). */
   ring?: "none" | "active"
-  /** Gradiente da NavRail (sidebar-primary → accent). */
+  /** @deprecated A face é sempre o token canônico; mantido por compat. */
   variant?: "default" | "sidebar"
   className?: string
   title?: string
@@ -45,49 +40,34 @@ export function UserAvatar({
   name,
   initials,
   imageUrl,
+  seed,
   size = 40,
   status,
   statusColor,
   ring = "none",
-  variant = "default",
   className,
   title,
 }: UserAvatarProps) {
-  const text = initials ?? avatarInitials(name ?? "?")
   const dot = status ? statusColor ?? STATUS_DOT[status] : statusColor
-  const dotSize = Math.max(10, Math.round(size * 0.26))
+  const dotSize = Math.max(8, Math.round(size * 0.26))
 
   return (
-    <div
-      className={cn("relative shrink-0 rounded-full", className)}
-      style={{ width: size, height: size }}
+    <span
+      className={cn("relative inline-flex shrink-0", className)}
       title={title ?? name ?? undefined}
     >
-      <div
-        className={cn(
-          "relative flex size-full items-center justify-center overflow-hidden rounded-full bg-gradient-to-br font-display font-bold leading-none text-accent-foreground",
-          variant === "sidebar"
-            ? "from-sidebar-primary to-accent"
-            : "from-primary to-accent",
-          ring === "active" &&
-            "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
-        )}
-        style={{ fontSize: Math.round(size * 0.36) }}
-      >
-        <span aria-hidden={Boolean(imageUrl)}>{text}</span>
-        {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imageUrl}
-            alt={name ?? text}
-            className="absolute inset-0 size-full object-cover"
-            referrerPolicy="no-referrer"
-            onError={(e) => {
-              e.currentTarget.style.display = "none"
-            }}
-          />
-        ) : null}
-      </div>
+      <IdentityAvatar
+        name={name}
+        seed={seed ?? name}
+        initials={initials}
+        imageUrl={imageUrl}
+        size={size}
+        className={
+          ring === "active"
+            ? "rounded-full ring-2 ring-primary/60 ring-offset-2 ring-offset-background"
+            : undefined
+        }
+      />
       {dot ? (
         <span
           aria-hidden
@@ -95,6 +75,6 @@ export function UserAvatar({
           style={{ width: dotSize, height: dotSize, backgroundColor: dot }}
         />
       ) : null}
-    </div>
+    </span>
   )
 }
