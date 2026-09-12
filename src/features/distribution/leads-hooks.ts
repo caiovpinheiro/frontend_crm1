@@ -56,7 +56,7 @@ export function useLeadsParticipants(enabled = true) {
     queryFn: fetchLeadsParticipants,
     enabled,
     staleTime: 10_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 
