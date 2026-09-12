@@ -291,8 +291,20 @@ export function ConversationActionsMenu({
       toast.error("Sessão inválida para assumir.");
       return;
     }
+    const sessionUser = session?.user as
+      | { name?: string | null; image?: string | null }
+      | undefined;
     assign.mutate(
-      { conversationId, assignedToId: currentUserId },
+      {
+        conversationId,
+        assignedToId: currentUserId,
+        assignedTo: {
+          id: currentUserId,
+          name: sessionUser?.name?.trim() || "",
+          avatarUrl: sessionUser?.image ?? null,
+          type: "HUMAN",
+        },
+      },
       {
         onSuccess: () => {
           setOpen(false);
@@ -316,7 +328,15 @@ export function ConversationActionsMenu({
       return;
     }
     assign.mutate(
-      { conversationId, assignedToId: agent.userId },
+      {
+        conversationId,
+        assignedToId: agent.userId,
+        assignedTo: {
+          id: agent.userId,
+          name: agent.name,
+          type: "AI",
+        },
+      },
       {
         onSuccess: () => {
           setOpen(false);

@@ -373,11 +373,6 @@ export function ConversationCard({
       {/* Linha 3: assignee + departamento. Sessão/Encerrada vão no rodapé. */}
       <div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 @max-[220px]:hidden">
         <span className="flex min-w-0 flex-1 items-center gap-1">
-          {(conversation.assignee || conversation.assigneeId) && (
-            <span className="shrink-0 font-display text-[9px] font-bold text-[var(--text-muted)] @max-[280px]:hidden">
-              Responsável
-            </span>
-          )}
           {assigneeSlot ??
             (conversation.assignee ? (
               <Chip variant="brand" className="max-w-full truncate whitespace-nowrap !px-1.5 !py-0 !text-[10px]">

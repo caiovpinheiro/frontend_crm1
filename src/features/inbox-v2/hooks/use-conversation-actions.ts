@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
@@ -15,36 +15,142 @@ import { distributionOutcomeToast } from "@/features/distribution/outcome-toast"
 import {
   applyConversationFieldsToInboxCaches,
   applyInboxConversationRow,
+  findCachedConversationRow,
 } from "./apply-outbound-inbox-card";
 import { messagesKey } from "./use-messages";
+import { teamUsersKey } from "@/features/shared/queries/team-users";
 
-/** Atribuir conversa (assign) — comportamento otimista. */
+type AssignSnapshot = {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+  type?: string | null;
+};
+
+type AssignVars = {
+  conversationId: string;
+  assignedToId: string | null;
+  assignedTo?: AssignSnapshot | null;
+};
+
+function assignedToFromTeamCache(
+  qc: QueryClient,
+  assignedToId: string,
+): ConversationListRow["assignedTo"] | null {
+  for (const includeAi of [true, false] as const) {
+    const users = qc.getQueryData<
+      Array<{
+        id: string;
+        name?: string | null;
+        email?: string | null;
+        avatarUrl?: string | null;
+        type?: string | null;
+      }>
+    >(teamUsersKey(includeAi));
+    const user = users?.find((u) => u.id === assignedToId);
+    if (!user) continue;
+    return {
+      id: user.id,
+      name: user.name?.trim() || user.email || "",
+      avatarUrl: user.avatarUrl ?? null,
+      type: user.type ?? "HUMAN",
+    };
+  }
+  return null;
+}
+
+function resolveAssignedTo(
+  qc: QueryClient,
+  assignedToId: string | null,
+  hint?: AssignSnapshot | null,
+): ConversationListRow["assignedTo"] {
+  if (assignedToId == null) return null;
+  if (hint && hint.id === assignedToId && hint.name.trim()) {
+    return {
+      id: hint.id,
+      name: hint.name,
+      avatarUrl: hint.avatarUrl ?? null,
+      type: hint.type ?? "HUMAN",
+    };
+  }
+  return (
+    assignedToFromTeamCache(qc, assignedToId) ??
+    (hint
+      ? {
+          id: hint.id,
+          name: hint.name,
+          avatarUrl: hint.avatarUrl ?? null,
+          type: hint.type ?? "HUMAN",
+        }
+      : { id: assignedToId, name: "", type: "HUMAN" })
+  );
+}
+
+function patchAssignedToOnInboxCaches(
+  qc: QueryClient,
+  conversationId: string,
+  assignedToId: string | null,
+  assignedTo: ConversationListRow["assignedTo"],
+) {
+  applyConversationFieldsToInboxCaches(qc, conversationId, {
+    assignedToId,
+    assignedTo,
+  });
+}
+
+/** Atribuir conversa (assign) — atualiza o card na hora (otimista + resposta). */
 export function useAssignConversation() {
   const qc = useQueryClient();
   return useMutation<
     Awaited<ReturnType<typeof postConversationAction>>,
     Error,
-    { conversationId: string; assignedToId: string | null }
+    AssignVars,
+    { assignedToId: string | null; assignedTo: ConversationListRow["assignedTo"] } | undefined
   >({
     mutationFn: (vars) =>
       postConversationAction(vars.conversationId, {
         action: "assign",
         assignedToId: vars.assignedToId,
       }),
-    onSuccess: (_data, vars) => {
-      applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
-        assignedToId: vars.assignedToId,
-        assignedTo:
-          vars.assignedToId == null
-            ? null
-            : { id: vars.assignedToId, name: "", type: "HUMAN" },
-      });
+    onMutate: (vars) => {
+      const prev = findCachedConversationRow(qc, vars.conversationId);
+      patchAssignedToOnInboxCaches(
+        qc,
+        vars.conversationId,
+        vars.assignedToId,
+        resolveAssignedTo(qc, vars.assignedToId, vars.assignedTo),
+      );
+      return prev
+        ? { assignedToId: prev.assignedToId, assignedTo: prev.assignedTo }
+        : undefined;
+    },
+    onSuccess: (data, vars) => {
+      const fromApi = data.conversation;
+      patchAssignedToOnInboxCaches(
+        qc,
+        vars.conversationId,
+        fromApi?.assignedToId ?? vars.assignedToId,
+        vars.assignedToId == null
+          ? null
+          : fromApi?.assignedTo ??
+            resolveAssignedTo(qc, vars.assignedToId, vars.assignedTo),
+      );
       qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
       });
     },
-    onError: (err) => toast.error(err.message || "Falha ao atribuir"),
+    onError: (err, vars, ctx) => {
+      toast.error(err.message || "Falha ao atribuir");
+      if (ctx) {
+        patchAssignedToOnInboxCaches(
+          qc,
+          vars.conversationId,
+          ctx.assignedToId,
+          ctx.assignedTo,
+        );
+      }
+    },
   });
 }
 
