@@ -10,6 +10,14 @@ import type {
   EmailCustomFolder,
   EmailFolder,
 } from "../api/types";
+import {
+  FOLDER_TONE,
+  FOLDER_TONES,
+  SYSTEM_FOLDER_TONE,
+  nextFolderTone,
+  resolveFolderTone,
+  type FolderTone,
+} from "../lib/folder-colors";
 
 const IcoInbox = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -48,6 +56,24 @@ const SYSTEM_FOLDERS: { key: EmailFolder; label: string; icon: React.ReactNode }
   { key: "TRASH", label: "Excluídos", icon: <IcoTrash /> },
 ];
 
+function FolderGlyph({
+  tone,
+  children,
+}: {
+  tone: FolderTone;
+  children: React.ReactNode;
+}) {
+  const c = FOLDER_TONE[tone];
+  return (
+    <span
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)]"
+      style={{ background: c.bg, color: c.fg }}
+    >
+      {children}
+    </span>
+  );
+}
+
 interface Props {
   accounts: EmailAccount[];
   loading: boolean;
@@ -58,8 +84,9 @@ interface Props {
   onSelectAccount: (id: string | undefined) => void;
   onSelectFolder: (folder: EmailFolder) => void;
   onSelectCustomFolder: (folderId: string) => void;
-  onCreateCustomFolder: (accountId: string, name: string) => Promise<void> | void;
+  onCreateCustomFolder: (accountId: string, name: string, color?: string) => Promise<void> | void;
   onDeleteCustomFolder: (folderId: string) => Promise<void> | void;
+  onRecolorFolder?: (folderId: string, color: string) => Promise<void> | void;
   onDropToSystemFolder?: (emailId: string, folder: EmailFolder) => void;
   onDropToCustomFolder?: (emailId: string, folderId: string) => void;
 }
@@ -100,6 +127,7 @@ export function EmailSidebar({
   onSelectCustomFolder,
   onCreateCustomFolder,
   onDeleteCustomFolder,
+  onRecolorFolder,
   onDropToSystemFolder,
   onDropToCustomFolder,
 }: Props) {
@@ -146,7 +174,7 @@ export function EmailSidebar({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3">
-      <div className="mb-3">
+      <div className="mb-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-2.5">
         <p className="mb-1.5 px-0.5 font-display text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
           Conta
         </p>
@@ -171,12 +199,13 @@ export function EmailSidebar({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-1.5">
         {SYSTEM_FOLDERS.map((f) => {
           const active = !selectedCustomFolderId && selectedFolder === f.key;
           const canDrop = f.key !== "SENT" && !!onDropToSystemFolder;
           const dropKey = `sys:${f.key}`;
           const isDropOver = dropTarget === dropKey;
+          const tone = SYSTEM_FOLDER_TONE[f.key];
           return (
             <button
               key={f.key}
@@ -184,7 +213,7 @@ export function EmailSidebar({
               onClick={() => onSelectFolder(f.key)}
               {...(canDrop ? dropHandlers(dropKey, (emailId) => onDropToSystemFolder!(emailId, f.key)) : {})}
               className={[
-                "flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 font-display text-[12.5px] font-semibold transition-colors",
+                "flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 font-display text-[12.5px] font-semibold transition-colors",
                 isDropOver
                   ? "bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)]/40"
                   : active
@@ -192,7 +221,7 @@ export function EmailSidebar({
                     : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
               ].join(" ")}
             >
-              <span className="shrink-0">{f.icon}</span>
+              <FolderGlyph tone={tone}>{f.icon}</FolderGlyph>
               <span className="flex-1 text-left">{f.label}</span>
               <UnreadBadge count={systemUnread(f.key)} />
             </button>
@@ -200,40 +229,51 @@ export function EmailSidebar({
         })}
       </div>
 
-      <div className="mt-3 border-t border-[var(--glass-border-subtle,var(--glass-border))] pt-2">
-        <p className="mb-1 px-2 font-display text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+      <div className="mt-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-1.5">
+        <p className="mb-1 px-2 pt-1 font-display text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
           Pastas
         </p>
         {visibleCustom.map((cf) => {
           const active = selectedCustomFolderId === cf.id;
           const dropKey = `cust:${cf.id}`;
           const isDropOver = dropTarget === dropKey;
+          const tone = resolveFolderTone(cf.color, cf.name);
           return (
             <div
               key={cf.id}
-              className="group relative"
+              className={[
+                "group relative flex items-center rounded-[var(--radius-md)] pr-1",
+                isDropOver
+                  ? "bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)]/40"
+                  : active
+                    ? "bg-[var(--color-enterprise-bg,rgba(91,111,245,0.15))] text-[var(--brand-primary-dark,var(--brand-primary))]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
+              ].join(" ")}
               onMouseEnter={() => setHoveredFolder(cf.id)}
               onMouseLeave={() => setHoveredFolder(null)}
+              {...(onDropToCustomFolder
+                ? dropHandlers(dropKey, (emailId) => onDropToCustomFolder(emailId, cf.id))
+                : {})}
             >
+              <button
+                type="button"
+                title="Trocar cor da pasta"
+                onClick={() => {
+                  if (!onRecolorFolder) return;
+                  void onRecolorFolder(cf.id, nextFolderTone(tone));
+                }}
+                className="ml-1.5 shrink-0 rounded-[var(--radius-md)]"
+              >
+                <FolderGlyph tone={tone}><IcoFolder /></FolderGlyph>
+              </button>
               <button
                 type="button"
                 onClick={() => {
                   onSelectAccount(cf.accountId);
                   onSelectCustomFolder(cf.id);
                 }}
-                {...(onDropToCustomFolder
-                  ? dropHandlers(dropKey, (emailId) => onDropToCustomFolder(emailId, cf.id))
-                  : {})}
-                className={[
-                  "flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 font-display text-[12.5px] font-semibold transition-colors",
-                  isDropOver
-                    ? "bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)]/40"
-                    : active
-                      ? "bg-[var(--color-enterprise-bg,rgba(91,111,245,0.15))] text-[var(--brand-primary-dark,var(--brand-primary))]"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
-                ].join(" ")}
+                className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 font-display text-[12.5px] font-semibold"
               >
-                <span className="shrink-0"><IcoFolder /></span>
                 <span className="min-w-0 flex-1 truncate text-left">{cf.name}</span>
                 <UnreadBadge count={cf.unreadCount} />
               </button>
@@ -256,13 +296,14 @@ export function EmailSidebar({
 
         <NewFolderInput
           disabled={!selectedAccountId && accounts.length !== 1}
-          onCreate={(name) => {
+          usedCount={visibleCustom.length}
+          onCreate={(name, color) => {
             const accountId = selectedAccountId ?? accounts[0]?.id;
             if (!accountId) {
               toast.error("Selecione uma conta para criar a pasta.");
               return;
             }
-            return onCreateCustomFolder(accountId, name);
+            return onCreateCustomFolder(accountId, name, color);
           }}
         />
       </div>
@@ -273,12 +314,15 @@ export function EmailSidebar({
 function NewFolderInput({
   onCreate,
   disabled,
+  usedCount,
 }: {
-  onCreate: (name: string) => Promise<void> | void;
+  onCreate: (name: string, color: FolderTone) => Promise<void> | void;
   disabled?: boolean;
+  usedCount: number;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState("");
+  const [tone, setTone] = React.useState<FolderTone>(FOLDER_TONES[usedCount % FOLDER_TONES.length] ?? "blue");
   const [submitting, setSubmitting] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -295,8 +339,9 @@ function NewFolderInput({
     }
     setSubmitting(true);
     try {
-      await onCreate(name);
+      await onCreate(name, tone);
       setValue("");
+      setTone(FOLDER_TONES[(usedCount + 1) % FOLDER_TONES.length] ?? "blue");
       setEditing(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar pasta.");
@@ -320,24 +365,41 @@ function NewFolderInput({
   }
 
   return (
-    <div className="flex w-full items-center gap-1 px-2 py-1">
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") void submit();
-          if (e.key === "Escape") {
-            setEditing(false);
-            setValue("");
-          }
-        }}
-        onBlur={() => void submit()}
-        disabled={submitting}
-        placeholder="Nome da pasta"
-        className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2 py-1 font-display text-[12.5px] font-semibold focus:border-[var(--brand-primary)] focus:outline-none"
-      />
+    <div className="px-2 py-1.5">
+      <div className="flex w-full items-center gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void submit();
+            if (e.key === "Escape") {
+              setEditing(false);
+              setValue("");
+            }
+          }}
+          disabled={submitting}
+          placeholder="Nome da pasta"
+          className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2 py-1 font-display text-[12.5px] font-semibold focus:border-[var(--brand-primary)] focus:outline-none"
+        />
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        {FOLDER_TONES.map((t) => (
+          <button
+            key={t}
+            type="button"
+            aria-label={`Cor ${t}`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setTone(t)}
+            className="h-4 w-4 rounded-full border-2"
+            style={{
+              background: FOLDER_TONE[t].swatch,
+              borderColor: tone === t ? "var(--text-primary)" : "transparent",
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
