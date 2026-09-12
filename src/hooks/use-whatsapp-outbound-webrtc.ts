@@ -11,7 +11,7 @@ import {
 } from "@/lib/call-recording";
 import { getBrowserIceServers } from "@/lib/webrtc-ice";
 import { sanitizeMetaWhatsappSdpForBrowser, stripSsrcLinesFromSdp } from "@/lib/whatsapp-webrtc-sdp";
-import { useSSE } from "@/hooks/use-sse";
+import { holdSSEWhileHidden, useSSE } from "@/hooks/use-sse";
 import { ensureMicrophonePermission } from "@/lib/native/permissions";
 
 function waitIceGatheringComplete(pc: RTCPeerConnection, timeoutMs = 12_000): Promise<void> {
@@ -58,6 +58,11 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
   remoteStreamRef.current = remoteStream;
   const [isInitiating, setIsInitiating] = React.useState(false);
   const [mediaDebug, setMediaDebug] = React.useState<{ ice: string; conn: string } | null>(null);
+
+  React.useEffect(() => {
+    if (phase === "idle" || phase === "error") return;
+    return holdSSEWhileHidden();
+  }, [phase]);
 
   /**
    * Inicia o MediaRecorder no momento do ACCEPTED (não espera o useEffect).
