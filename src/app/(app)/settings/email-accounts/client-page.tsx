@@ -57,7 +57,18 @@ const FIELD_LABELS: Record<EmailRuleField, string> = {
   FROM: "Enviado de",
   TO: "Enviado para",
   SUBJECT: "Assunto",
+  BODY: "Corpo",
+  ALWAYS: "Qualquer mensagem",
 };
+
+function actionLabel(rule: EmailRule, folderName?: string) {
+  if (rule.action === "TRASH") return "Lixeira";
+  if (rule.action === "SPAM") return "Spam";
+  if (rule.action === "FORWARD") return `Encaminhar: ${rule.actionTarget ?? "—"}`;
+  if (rule.action === "REPLY") return "Resposta automática";
+  if (rule.action === "MARK_READ") return "Marcar lida";
+  return `Mover: ${folderName ?? "—"}`;
+}
 
 type SortFieldAccounts = "email" | "imapHost" | "visibility" | "lastSyncedAt";
 type SortFieldRules = "name" | "priority";
@@ -698,7 +709,7 @@ function AccountRules({
                         : "bg-[var(--color-enterprise-bg,rgba(91,111,245,0.12))] text-[var(--brand-primary)]",
                     )}
                   >
-                    {rule.action === "TRASH" ? "Lixeira" : `Mover: ${target?.name ?? "—"}`}
+                    {actionLabel(rule, target?.name)}
                   </span>
                 </span>
 
@@ -764,6 +775,8 @@ function RuleForm({
     conditionValue: string;
     action: EmailRuleAction;
     targetFolderId?: string | null;
+    actionTarget?: string | null;
+    actionBody?: string | null;
   }) => Promise<void>;
 }) {
   const [name, setName] = React.useState("");
@@ -771,6 +784,8 @@ function RuleForm({
   const [conditionValue, setConditionValue] = React.useState("");
   const [action, setAction] = React.useState<EmailRuleAction>("MOVE");
   const [targetFolderId, setTargetFolderId] = React.useState<string>(folders[0]?.id ?? "");
+  const [actionTarget, setActionTarget] = React.useState("");
+  const [actionBody, setActionBody] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -778,9 +793,17 @@ function RuleForm({
     e.preventDefault();
     setError(null);
     if (!name.trim()) return setError("Dê um nome à regra.");
-    if (!conditionValue.trim()) return setError("Informe o valor da condição.");
+    if (conditionField !== "ALWAYS" && !conditionValue.trim()) {
+      return setError("Informe o valor da condição.");
+    }
     if (action === "MOVE" && !targetFolderId) {
       return setError("Crie uma pasta antes de usar a ação 'Mover para'.");
+    }
+    if (action === "FORWARD" && !actionTarget.includes("@")) {
+      return setError("Informe o e-mail para encaminhar.");
+    }
+    if (action === "REPLY" && !actionBody.trim()) {
+      return setError("Escreva o texto da resposta automática.");
     }
 
     setSubmitting(true);
@@ -789,9 +812,11 @@ function RuleForm({
         accountId,
         name: name.trim(),
         conditionField,
-        conditionValue: conditionValue.trim(),
+        conditionValue: conditionValue.trim() || "*",
         action,
         targetFolderId: action === "MOVE" ? targetFolderId : null,
+        actionTarget: action === "FORWARD" ? actionTarget.trim() : null,
+        actionBody: action === "REPLY" ? actionBody.trim() : null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar.");
@@ -831,6 +856,8 @@ function RuleForm({
               { value: "FROM", label: "Enviado de" },
               { value: "TO", label: "Enviado para" },
               { value: "SUBJECT", label: "Assunto" },
+              { value: "BODY", label: "Corpo" },
+              { value: "ALWAYS", label: "Qualquer mensagem" },
             ]}
           />
         </label>
@@ -858,7 +885,11 @@ function RuleForm({
             onValueChange={(v) => setAction(v as EmailRuleAction)}
             options={[
               { value: "MOVE", label: "Mover para pasta" },
-              { value: "TRASH", label: "Excluir (mover para lixeira)" },
+              { value: "TRASH", label: "Excluir (lixeira)" },
+              { value: "SPAM", label: "Tratar como spam" },
+              { value: "FORWARD", label: "Encaminhar para" },
+              { value: "REPLY", label: "Responder automaticamente" },
+              { value: "MARK_READ", label: "Marcar como lida" },
             ]}
           />
         </label>
@@ -881,7 +912,34 @@ function RuleForm({
             />
           </label>
         )}
+        {action === "FORWARD" && (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Encaminhar para
+            </span>
+            <InputGlass
+              type="email"
+              value={actionTarget}
+              onChange={(e) => setActionTarget(e.target.value)}
+              placeholder="copia@empresa.com"
+            />
+          </label>
+        )}
       </div>
+      {action === "REPLY" ? (
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Texto da resposta
+          </span>
+          <textarea
+            value={actionBody}
+            onChange={(e) => setActionBody(e.target.value)}
+            rows={3}
+            placeholder="Recebemos sua mensagem e retornamos em breve."
+            className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 font-body text-[13px]"
+          />
+        </label>
+      ) : null}
 
       {error && (
         <p className="text-[12px] font-semibold text-[var(--color-danger)]">{error}</p>

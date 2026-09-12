@@ -1,5 +1,5 @@
 import { apiUrl } from "@/lib/api";
-import type { EmailAccount, ConnectEmailInput, ApiFieldError } from "./types";
+import type { EmailAccount, ConnectEmailInput, ApiFieldError, EmailOooSettings } from "./types";
 
 function fieldErrorFromBody(data: unknown, fallback: string): ApiFieldError {
   const body = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -53,6 +53,21 @@ export async function disconnectEmailAccount(id: string): Promise<void> {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.message ?? "Erro ao desconectar conta.");
   }
+}
+
+export async function updateEmailAccountOoo(
+  id: string,
+  input: EmailOooSettings,
+): Promise<EmailOooSettings> {
+  const res = await fetch(apiUrl(`/api/email-accounts/${id}/ooo`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message ?? "Erro ao salvar ausência.");
+  return data.ooo as EmailOooSettings;
 }
 
 export async function syncEmailAccount(
