@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * StageRibbon — chevrons encadeados do funil no Flow.
- * Largura mínima por etapa; a faixa rola na horizontal quando não cabe.
+ * StageRibbon — controle segmentado das etapas do funil no Flow.
+ * Trilha única, segmentos de largura igual; a faixa rola na horizontal quando não cabe.
  * O ScrollMap do Flow (mesmo do Kanban) navega esse recorte.
  */
 
 import { type RefObject } from "react";
 
-import { cn } from "@/lib/utils";
+import { formatCount } from "@/lib/dashboard-tokens";
+import { cn, getContrastColor } from "@/lib/utils";
 
 type StageRibbonStage = {
   id: string;
@@ -28,70 +29,8 @@ type StageRibbonProps = {
   scrollerRef?: RefObject<HTMLDivElement | null>;
 };
 
-/** Primeiro segmento: borda reta à esquerda, ponta à direita. */
-const CLIP_FIRST =
-  "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)";
-/** Demais: entalhe à esquerda (encaixa no chevron anterior). */
-const CLIP_CHEVRON =
-  "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%)";
-
-function StageChevron({
-  label,
-  count,
-  color,
-  active,
-  first,
-  compact,
-  onClick,
-}: {
-  label: string;
-  count: number | string;
-  color: string;
-  active: boolean;
-  first: boolean;
-  compact: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      aria-pressed={active}
-      title={label}
-      onClick={onClick}
-      style={{
-        clipPath: first ? CLIP_FIRST : CLIP_CHEVRON,
-        backgroundColor: active
-          ? color
-          : `color-mix(in srgb, ${color} 16%, #ffffff)`,
-        color: active ? "#ffffff" : color,
-      }}
-      className={cn(
-        "relative flex w-[132px] shrink-0 items-center justify-center gap-1.5 font-display font-semibold tracking-tight transition-[filter,opacity] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1",
-        first ? "pl-2.5 pr-4 sm:pl-3 sm:pr-5" : "pl-4 pr-4 sm:pl-5 sm:pr-5",
-        compact ? "h-8 text-[11.5px] sm:h-9 sm:text-[12px]" : "h-9 text-[12px] sm:h-10 sm:text-[12.5px]",
-        active ? "z-[1]" : "hover:brightness-[0.97]",
-      )}
-    >
-      <span className="min-w-0 truncate">{label}</span>
-      <span
-        className={cn(
-          "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10.5px] font-bold tabular-nums leading-none sm:h-[22px] sm:min-w-[22px] sm:text-[11px]",
-        )}
-        style={
-          active
-            ? { backgroundColor: "rgba(255,255,255,0.28)", color: "#ffffff" }
-            : {
-                backgroundColor: `color-mix(in srgb, ${color} 22%, #ffffff)`,
-                color: `color-mix(in srgb, ${color} 82%, #1a1a1a)`,
-              }
-        }
-      >
-        {count}
-      </span>
-    </button>
-  );
+function stageTone(color: string): { bg: string; fg: string } {
+  return { bg: color, fg: getContrastColor(color) };
 }
 
 export function StageRibbon({
@@ -102,8 +41,20 @@ export function StageRibbon({
   compact = false,
   scrollerRef,
 }: StageRibbonProps) {
-  const allActive = selectedStageId === null;
-  const allColor = "var(--brand-primary, #5b6ff5)";
+  const items = [
+    {
+      id: null as string | null,
+      label: "Todos",
+      count: totalDeals,
+      color: "var(--brand-primary, #5b6ff5)",
+    },
+    ...stages.map((stage) => ({
+      id: stage.id as string | null,
+      label: stage.name,
+      count: stage.count,
+      color: stage.color || "#64748b",
+    })),
+  ];
 
   return (
     <div
@@ -114,35 +65,51 @@ export function StageRibbon({
     >
       <div
         ref={scrollerRef}
-        className="flex w-full min-w-0 items-stretch gap-1 overflow-x-auto scrollbar-none"
+        className="w-full min-w-0 overflow-x-auto scrollbar-none"
         role="tablist"
         aria-label="Filtrar por etapa"
       >
-        <StageChevron
-          label="Todos"
-          count={totalDeals}
-          color={allColor}
-          active={allActive}
-          first
-          compact={compact}
-          onClick={() => onSelectStage(null)}
-        />
-
-        {stages.map((stage) => {
-          const isActive = stage.id === selectedStageId;
-          return (
-            <StageChevron
-              key={stage.id}
-              label={stage.name}
-              count={stage.count}
-              color={stage.color || "#64748b"}
-              active={isActive}
-              first={false}
-              compact={compact}
-              onClick={() => onSelectStage(isActive ? null : stage.id)}
-            />
-          );
-        })}
+        <div className="flex w-full min-w-max items-stretch gap-0.5 rounded-md bg-muted p-1">
+          {items.map((item) => {
+            const active =
+              item.id === null
+                ? selectedStageId === null
+                : item.id === selectedStageId;
+            const tone = stageTone(item.color);
+            return (
+              <button
+                key={item.id ?? "all"}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-pressed={active}
+                title={item.label}
+                onClick={() =>
+                  onSelectStage(item.id === null ? null : active ? null : item.id)
+                }
+                className={cn(
+                  "flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-1",
+                  !active && "text-muted-foreground hover:text-foreground",
+                )}
+                style={
+                  active
+                    ? { backgroundColor: tone.bg, color: tone.fg }
+                    : undefined
+                }
+              >
+                {item.label}
+                <span
+                  className={cn(
+                    "text-xs font-semibold tabular-nums",
+                    active ? "opacity-80" : "text-muted-foreground/70",
+                  )}
+                >
+                  {formatCount(item.count)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
