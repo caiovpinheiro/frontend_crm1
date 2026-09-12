@@ -276,6 +276,16 @@ export function dealFilterChips(
     });
   }
 
+  if (filters.lastMessageDirection) {
+    chips.push({
+      label:
+        filters.lastMessageDirection === "in"
+          ? "Mensagem recebida"
+          : "Mensagem enviada",
+      onRemove: () => onPatch({ lastMessageDirection: undefined }),
+    });
+  }
+
   for (const cf of filters.dealCustomFields ?? []) {
     chips.push({
       id: `deal-cf-${cf.name}`,
