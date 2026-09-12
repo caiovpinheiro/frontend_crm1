@@ -66,6 +66,18 @@ npm start
 - **Login**: depende do backend responder em `/api/auth/*` com o mesmo `NEXTAUTH_SECRET` e política de cookie compatível com `NEXTAUTH_URL` do frontend.
 - Telas que chamam API retornam erro de rede até o backend estar no ar — comportamento esperado.
 
+## Design system
+
+Tokens de cor em **OKLCH** (`src/styles/ds-tokens.css`), consumidos via CSS variables e Tailwind (`bg-primary`, `bg-panel`, `bg-accent`). Sem hex no tema.
+
+- Fonte: **Geist** (títulos e corpo). **Geist Mono** só em IDs, protocolos e e-mails secundários.
+- Paleta: fundo gelo · índigo (`--primary`) · âmbar (`--accent`) · navy (`--panel`, cartões pontuais) · avatares `--avatar-1`…`--avatar-5`.
+- Raio base `--radius: 0.9rem`, com escala `sm`…`4xl`.
+
+```bash
+npm run dev -- -p 43123
+```
+
 ## Estrutura
 
 - `src/app/` — App Router (UI); **sem** `api/`, **sem** `health` de servidor.

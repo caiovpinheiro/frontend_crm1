@@ -32,13 +32,13 @@ const sizePx: Record<AvatarSize, number> = {
   lg: 56,
 }
 
-const colorStyle: Record<AvatarGlassColor, string> = {
-  blue: "var(--avatar-glass-blue)",
-  teal: "var(--avatar-glass-teal)",
-  orange: "var(--avatar-glass-orange)",
-  purple: "var(--avatar-glass-purple)",
-  pink: "var(--avatar-glass-pink)",
-  coral: "var(--avatar-glass-coral)",
+const colorStyle: Record<AvatarGlassColor, { bg: string; fg: string }> = {
+  blue: { bg: "var(--avatar-2)", fg: "var(--avatar-2-foreground)" },
+  teal: { bg: "var(--avatar-3)", fg: "var(--avatar-3-foreground)" },
+  orange: { bg: "var(--avatar-4)", fg: "var(--avatar-4-foreground)" },
+  purple: { bg: "var(--avatar-2)", fg: "var(--avatar-2-foreground)" },
+  pink: { bg: "var(--avatar-1)", fg: "var(--avatar-1-foreground)" },
+  coral: { bg: "var(--avatar-5)", fg: "var(--avatar-5-foreground)" },
 }
 
 export function AvatarGlass({
@@ -57,36 +57,34 @@ export function AvatarGlass({
     initialsProp ?? avatarInitials(name ?? "?")
 
   return (
-    <div
-      className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--glass-bg-strong)] font-display font-bold text-white",
-        sizeClasses[size],
-        className,
-      )}
-      style={{
-        width: sizePx[size],
-        height: sizePx[size],
-        backgroundImage: colorStyle[resolvedColor],
-      }}
-    >
-      {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt={name ?? initials}
-          className="size-full object-cover"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        initials
-      )}
+    <div className={cn("relative inline-flex shrink-0", className)} style={{ width: sizePx[size], height: sizePx[size] }}>
+      <div
+        className={cn(
+          "flex size-full items-center justify-center overflow-hidden rounded-full font-bold uppercase",
+          sizeClasses[size],
+        )}
+        style={{
+          backgroundColor: colorStyle[resolvedColor].bg,
+          color: colorStyle[resolvedColor].fg,
+        }}
+      >
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt={name ?? initials}
+            className="size-full object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          initials.slice(0, 2).toUpperCase()
+        )}
+      </div>
       {status !== "none" && (
         <span
           className={cn(
-            "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--glass-bg-strong)]",
-            status === "online"
-              ? "bg-[var(--color-online)]"
-              : "bg-[var(--color-offline)]",
+            "absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-background",
+            status === "online" ? "bg-channel-online" : "bg-muted-foreground",
           )}
         />
       )}

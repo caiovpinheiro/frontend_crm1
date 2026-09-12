@@ -13,9 +13,9 @@ export const dt = {
     // Tokens semânticos do tema (globals.css → light + .dark). Sem
     // `text-slate-*` hardcoded — em dark mode preto sobre navy fica
     // ilegível, sintoma reportado nos cards do Kanban e nos badges.
-    title: "text-[15px] font-semibold tracking-tight text-foreground",
-    label: "text-[12px] text-[var(--color-ink-muted)]",
-    value: "text-[13px] font-medium text-[var(--color-ink-soft)]",
+    title: "text-lg font-bold tracking-normal text-foreground",
+    label: "text-sm text-muted-foreground",
+    value: "text-[13px] font-medium text-foreground",
     link: "text-[13px] font-medium text-primary",
     section: "text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--color-ink-muted)]",
     muted: "text-[11px] text-[var(--color-ink-muted)]",
@@ -35,8 +35,8 @@ export const dt = {
 
   pill: {
     /** Tag padrão F — combinar com `tagStyle` / `tagPillStyle` em `utils.ts`. */
-    base: "inline-flex items-center px-2 py-0.5 text-[11px] font-semibold leading-tight rounded",
-    sm: "inline-flex items-center px-2 py-0.5 text-[10px] font-semibold leading-tight rounded",
+    base: "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium leading-tight",
+    sm: "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium leading-tight",
     expired:
       "inline-flex items-center rounded border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground",
     neutral:
@@ -50,13 +50,13 @@ export const dt = {
   /** Header petróleo do DealWorkspace (coluna esquerda compacta). */
   workspace: {
     leader:
-      "shrink-0 border-b border-[#0a3d5e] bg-[#0f4c75]",
-    leaderLabel: "mb-1 text-[10px] font-medium text-white/45",
-    leaderTitle: "mb-3 truncate text-[14px] font-semibold text-white",
-    leaderValue: "text-[13px] font-bold text-white tabular-nums",
-    leaderBarTrack: "relative h-[3px] overflow-hidden rounded-full bg-[var(--glass-bg-subtle)]",
-    leaderBarFill: "absolute inset-y-0 left-0 rounded-full bg-sky-400 transition-all",
-    leaderMeta: "mt-1 text-[10px] text-white/35",
+      "shrink-0 rounded-3xl bg-panel p-5 text-panel-foreground",
+    leaderLabel: "mb-1 text-xs font-medium text-panel-muted",
+    leaderTitle: "mb-3 truncate text-lg font-bold tracking-normal text-panel-foreground",
+    leaderValue: "text-[13px] font-medium text-panel-foreground tabular-nums",
+    leaderBarTrack: "relative h-[3px] overflow-hidden rounded-full bg-panel-border",
+    leaderBarFill: "absolute inset-y-0 left-0 rounded-full bg-primary transition-all",
+    leaderMeta: "mt-1 text-xs text-panel-muted",
   },
 
   chat: {

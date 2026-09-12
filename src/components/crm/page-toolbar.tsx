@@ -224,7 +224,7 @@ export function pageGhostButtonClass(active?: boolean) {
 }
 
 export const pagePrimaryButtonClass =
-  "inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--brand-primary)] px-4 py-2 font-display text-[13px] font-bold text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] transition-all hover:-translate-y-px hover:bg-[var(--brand-primary-dark)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0";
+  "inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50";
 
 export interface PageGhostButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {

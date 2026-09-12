@@ -453,7 +453,7 @@ export function EmailClient() {
         </div>
 
         <div
-          className="grid min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border-2 border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow)] max-md:grid-cols-1"
+          className="grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card max-md:grid-cols-1"
           style={
             isMobile
               ? undefined

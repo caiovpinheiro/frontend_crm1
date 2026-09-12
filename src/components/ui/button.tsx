@@ -64,7 +64,7 @@ const buttonVariants = cva(
       variant: {
         // Brand sólido com glow — CTA primário
         default:
-          "bg-primary text-primary-foreground shadow-[0_4px_14px_rgba(91,111,245,0.35)] hover:bg-primary-dark hover:-translate-y-px hover:shadow-[var(--shadow-indigo-glow)]",
+          "bg-primary text-primary-foreground hover:bg-primary-dark",
         destructive:
           "bg-destructive text-destructive-foreground shadow-[0_4px_14px_rgba(239,68,68,0.30)] hover:bg-destructive/90 hover:-translate-y-px",
         // Outline limpo

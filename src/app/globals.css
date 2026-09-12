@@ -1,5 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
+@import "../styles/ds-tokens.css";
 /* Classes usadas só em strings em `design-tokens.ts` — precisam entrar no scan (v4: @source). */
 @source "../lib/design-tokens.ts";
 /* Cópias de backup no root: não participam do scan (evita utilitários "fantasma" / cache inválido). */
@@ -41,97 +41,101 @@ html.light {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   GLASS DESIGN SYSTEM v2 — CRM EduIT
-   Glassmorphism-first · Plus Jakarta Sans (display) + DM Sans (body)
-   Brand: #2f66f2 (azul elétrico) · Accent: #6a37d6 (violeta)
-   Mesh: #f4f6fb (cinza canvas — Distribuição / listas)
+   DESIGN SYSTEM — CRM interno
+   Geist · gelo + índigo · âmbar · navy pontual · avatares 1–5
+   Tokens OKLCH em :root / .dark (ver styles/ds-tokens.css)
    ══════════════════════════════════════════════════════════════════ */
 
 @theme {
   /* ── Tipografia ─────────────────────────────────────────────── */
-  --font-sans:    "DM Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-display: "Plus Jakarta Sans", "DM Sans", system-ui, sans-serif;
-  --font-mono:    "JetBrains Mono", ui-monospace, "Cascadia Code", monospace;
+  --font-sans:    var(--font-sans-next), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sans-next), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-mono-next), "Geist Mono", ui-monospace, monospace;
 
-  /* ── Surfaces (base do mesh + camadas translúcidas) ─────────── */
-  /* Canvas da página — cinza canônico (Distribuição). Cards ficam brancos. */
-  --color-background:     #f4f6fb;
-  --color-bg-subtle:      rgba(255, 255, 255, 0.35);
-  --color-bg-muted:       rgba(255, 255, 255, 0.45);
-  --color-bg-hover:       rgba(255, 255, 255, 0.55);
+  /* ── Surfaces ───────────────────────────────────────────────── */
+  --color-background:     var(--background);
+  --color-bg-subtle:      color-mix(in oklch, var(--card) 55%, transparent);
+  --color-bg-muted:       var(--muted);
+  --color-bg-hover:       color-mix(in oklch, var(--muted) 80%, transparent);
 
   /* ── Foreground / Texto ─────────────────────────────────────── */
-  --color-foreground:     #1e2a3b;
-  --color-ink-soft:       #374151;   /* era #4a5568 — ratio 7.2:1 sobre branco */
-  --color-ink-muted:      #4b5563;   /* era #718096 — ratio 6.1:1 sobre branco (era 3.8) */
-  --color-ink-subtle:     #6b7280;   /* era #a0aec0 — ratio 4.6:1 sobre branco */
+  --color-foreground:     var(--foreground);
+  --color-ink-soft:       var(--foreground);
+  --color-ink-muted:      var(--muted-foreground);
+  --color-ink-subtle:     color-mix(in oklch, var(--muted-foreground) 72%, var(--background));
 
-  /* ── Borders translúcidas ───────────────────────────────────── */
-  --color-border:         oklch(0.915 0.012 264);
-  --color-border-soft:    oklch(0.94 0.01 264);
-  --color-input:          oklch(0.915 0.012 264);
-  --color-ring:           #2f66f2;
+  /* ── Borders ────────────────────────────────────────────────── */
+  --color-border:         var(--border);
+  --color-border-soft:    color-mix(in oklch, var(--border) 70%, var(--background));
+  --color-input:          var(--input);
+  --color-ring:           var(--ring);
 
-  /* ── Brand: Azul elétrico (CTA, da logo) ─────────────────────── */
-  --color-primary:             #2f66f2;
-  --color-primary-dark:        #1e4ed8;
-  --color-primary-soft:        rgba(47, 102, 242, 0.15);
-  --color-primary-foreground:  #fbfcff;
+  /* ── Brand: índigo-violeta ──────────────────────────────────── */
+  --color-primary:             var(--primary);
+  --color-primary-dark:        var(--primary-dark);
+  --color-primary-soft:        var(--primary-soft);
+  --color-primary-foreground:  var(--primary-foreground);
 
-  /* ── Brand: Violeta (accent / rabo da logo) ─────────────────── */
-  --color-lavender:            #6a37d6;
-  --color-lavender-soft:       rgba(106, 55, 214, 0.15);
-  --color-lavender-muted:      rgba(106, 55, 214, 0.08);
-  --color-lavender-foreground: #fbfcff;
+  --color-lavender:            var(--primary);
+  --color-lavender-soft:       var(--primary-soft);
+  --color-lavender-muted:      color-mix(in oklch, var(--primary) 8%, transparent);
+  --color-lavender-foreground: var(--primary-foreground);
 
   /* ── Semânticas ─────────────────────────────────────────────── */
-  --color-secondary:            oklch(0.955 0.012 264);
-  --color-secondary-foreground: oklch(0.3 0.05 266);
-  --color-accent:               oklch(0.53 0.23 288);
-  --color-accent-foreground:    oklch(0.99 0.005 264);
-  --color-muted:                oklch(0.955 0.012 264);
-  --color-muted-foreground:     oklch(0.55 0.03 264);
+  --color-secondary:            var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent:               var(--accent);
+  --color-accent-foreground:    var(--accent-foreground);
+  --color-muted:                var(--muted);
+  --color-muted-foreground:     var(--muted-foreground);
 
-  /* Card sólido — contraste com o fundo cinza-azulado (handoff Automações). */
-  --color-card:               oklch(1 0 0);
-  --color-card-foreground:    oklch(0.24 0.045 266);
-  --color-popover:            rgba(255, 255, 255, 0.75);
-  --color-popover-foreground: #1e2a3b;
+  --color-card:               var(--card);
+  --color-card-foreground:    var(--card-foreground);
+  --color-popover:            var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-panel:              var(--panel);
+  --color-panel-foreground:   var(--panel-foreground);
+  --color-panel-border:       var(--panel-border);
+  --color-panel-muted:        var(--panel-muted);
+  --color-channel-online:     var(--channel-online);
+  --color-avatar-1:           var(--avatar-1);
+  --color-avatar-2:           var(--avatar-2);
+  --color-avatar-3:           var(--avatar-3);
+  --color-avatar-4:           var(--avatar-4);
+  --color-avatar-5:           var(--avatar-5);
+  --color-success:            var(--channel-online);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning:            var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
 
   /* Background SÓLIDO pra dropdowns/menus — evita bleed-through das
      conversas/conteúdo atrás. Usado via `style={{ backgroundColor:
      "var(--dropdown-solid-bg)" }}` em componentes que abrem em cima
      de listas com framer-motion (que cria stacking contexts isolados). */
-  --dropdown-solid-bg: #ffffff;
+  --dropdown-solid-bg: var(--card);
 
   /* ── Status ─────────────────────────────────────────────────── */
-  --color-success:             oklch(0.62 0.16 152);
-  --color-success-soft:        oklch(0.94 0.05 152);
-  --color-success-foreground:  #f5fdf9;
+  --color-success-soft:        var(--success);
+  --color-warning-soft:        color-mix(in oklch, var(--warning) 16%, transparent);
+  --color-destructive:         var(--destructive);
+  --color-destructive-soft:    color-mix(in oklch, var(--destructive) 14%, transparent);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-info:                var(--primary);
+  --color-info-foreground:     var(--primary-foreground);
 
-  --color-warning:             oklch(0.72 0.16 62);
-  --color-warning-soft:        oklch(0.95 0.05 70);
-  --color-warning-foreground:  #FFFFFF;
-
-  --color-destructive:         #d64545;
-  --color-destructive-soft:    #fbe2e2;
-  --color-destructive-foreground: #FFFFFF;
-
-  --color-info:                #2f66f2;
-  --color-info-foreground:     #FFFFFF;
-
-  /* ── Sidebar — azul-marinho da logo ──────────────────────────── */
-  --color-sidebar:                    oklch(0.27 0.075 266);
-  --color-sidebar-foreground:         oklch(0.82 0.03 264);
-  --color-sidebar-border:             oklch(0.36 0.06 266);
-  --color-sidebar-muted:              oklch(0.82 0.03 264);
-  --color-sidebar-primary:            oklch(0.62 0.2 262);
-  --color-sidebar-primary-foreground: oklch(0.99 0.005 264);
-  --color-sidebar-accent:             oklch(0.34 0.08 266);
-  --color-sidebar-accent-foreground:  oklch(0.98 0.005 264);
-  --color-sidebar-active-bg:          oklch(0.62 0.2 262);
-  --color-sidebar-active-fg:          oklch(0.99 0.005 264);
-  --color-sidebar-hover:              oklch(0.34 0.08 266);
+  /* ── Sidebar / painel navy ──────────────────────────────────── */
+  --color-sidebar:                    var(--panel);
+  --color-sidebar-foreground:         var(--panel-foreground);
+  --color-sidebar-border:             var(--panel-border);
+  --color-sidebar-muted:              var(--panel-muted);
+  --color-sidebar-primary:            var(--primary);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-accent:             color-mix(in oklch, var(--panel-foreground) 8%, var(--panel));
+  --color-sidebar-accent-foreground:  var(--panel-foreground);
+  --color-sidebar-active-bg:          var(--primary);
+  --color-sidebar-active-fg:          var(--primary-foreground);
+  --color-sidebar-hover:              color-mix(in oklch, var(--panel-foreground) 8%, var(--panel));
 
   /* ── Chat ───────────────────────────────────────────────────── */
   --color-chat-sent:            rgba(91, 111, 245, 0.18);
@@ -145,9 +149,9 @@ html.light {
   --color-chat-bg:              transparent;
 
   /* ── Status de Presença ─────────────────────────────────────── */
-  --color-status-online:  #10b981;
-  --color-status-away:    #f59e0b;
-  --color-status-offline: #94a3b8;
+  --color-status-online:  var(--channel-online);
+  --color-status-away:    var(--warning);
+  --color-status-offline: var(--muted-foreground);
 
   /* ── Canais ─────────────────────────────────────────────────── */
   --color-channel-whatsapp: #25D366;
@@ -161,11 +165,11 @@ html.light {
   --color-subtle:             rgba(255, 255, 255, 0.55);
 
   /* ── Gráficos ───────────────────────────────────────────────── */
-  --color-chart-1: #2f66f2;
-  --color-chart-2: #2f9e6b;
-  --color-chart-3: #d9930f;
-  --color-chart-4: #6a37d6;
-  --color-chart-5: #d64545;
+  --color-chart-1: var(--primary);
+  --color-chart-2: var(--channel-online);
+  --color-chart-3: var(--warning);
+  --color-chart-4: var(--panel);
+  --color-chart-5: var(--destructive);
 
   /* ── Chips de fluxo (fundo -soft + ícone cheio) ─────────────── */
   --color-chip-blue:        oklch(0.55 0.205 262);
@@ -208,20 +212,23 @@ html.light {
   --color-text-primary:    var(--color-foreground);        /* #1e2a3b */
   --color-text-secondary:  var(--color-ink-soft);          /* #374151 */
   --color-text-muted:      var(--color-ink-muted);         /* #4b5563 */
-  --color-text-inverse:    #ffffff;
-  --color-bg-card:         #ffffff;
-  --color-brand-primary:   var(--color-primary);           /* #2f66f2 */
-  --color-success-subtle:  var(--color-success-soft);      /* rgba(16,185,129,0.12) */
+  --color-text-inverse:    var(--primary-foreground);
+  --color-bg-card:         var(--card);
+  --color-brand-primary:   var(--primary);
+  --color-success-soft:    var(--success);
+  --color-success-subtle:  var(--color-success-soft);
   --color-danger-subtle:   var(--color-destructive-soft);  /* rgba(239,68,68,0.12) */
   --color-warn-subtle:     var(--color-warning-soft);      /* rgba(245,158,11,0.12) */
   --color-border-strong:   rgba(180, 200, 230, 0.65);
 
-  /* ── Radius (escala glassmorphism) ──────────────────────────── */
-  --radius-sm:  0.375rem;   /* 6px  */
-  --radius-md:  0.625rem;   /* 10px */
-  --radius-lg:  1rem;       /* 16px */
-  --radius-xl:  1.375rem;   /* 22px */
-  --radius-2xl: 2rem;       /* 32px */
+  --radius: 0.9rem;
+  --radius-sm:  calc(var(--radius) * 0.4);
+  --radius-md:  calc(var(--radius) * 0.6);
+  --radius-lg:  calc(var(--radius) * 0.8);
+  --radius-xl:  var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.4);
+  --radius-3xl: calc(var(--radius) * 1.8);
+  --radius-4xl: calc(var(--radius) * 2.2);
 
   /* ── Sombras glass (suaves, blueish) ────────────────────────── */
   --shadow-sm:      0 1px 2px rgba(100, 130, 180, 0.06);
@@ -270,9 +277,8 @@ html.light {
   --glass-blur-strong: blur(24px);
   --glass-blur-subtle: blur(8px);
 
-  /* Canvas da página — sólido, mesmo cinza de Distribuição */
-  --bg-gradient: #f4f6fb;
-  --bg-base: #f4f6fb;
+  --bg-gradient: var(--background);
+  --bg-base: var(--background);
 
   /* ── bWiPO Chat / Inbox — aliases semânticos (sem hex novo) ──
      Paleta fechada: 1 marca (logo #2f66f2), neutros (canvas/ink/borda),
@@ -420,34 +426,34 @@ html.light {
    Aditivo: nomes novos, não sobrescrevem tokens shadcn deste arquivo.
    ══════════════════════════════════════════════════════════════════ */
 :root {
-  --brand-primary:        #2f66f2;
-  --brand-primary-light:  #5b8af5;
-  --brand-primary-dark:   #1e4ed8;
-  --brand-secondary:      #6a37d6;
+  --brand-primary:        var(--primary);
+  --brand-primary-light:  color-mix(in oklch, var(--primary) 72%, white);
+  --brand-primary-dark:   color-mix(in oklch, var(--primary) 82%, black);
+  --brand-secondary:      var(--primary);
 
-  --text-primary:         #0f172a;
-  --text-secondary:       #374151;
-  --text-muted:           #4b5563;
+  --text-primary:         var(--foreground);
+  --text-secondary:       var(--muted-foreground);
+  --text-muted:           var(--muted-foreground);
 
-  --glass-bg-base:        rgba(255, 255, 255, 0.82);
-  --glass-bg-panel:       rgba(255, 255, 255, 0.32);
-  --glass-bg-modal:       rgba(255, 255, 255, 0.97);
+  --glass-bg-base:        var(--card);
+  --glass-bg-panel:       color-mix(in oklch, var(--muted) 70%, transparent);
+  --glass-bg-modal:       var(--card);
 
-  --color-online:         #10b981;
-  --color-offline:        #94a3b8;
-  --color-enterprise-bg:  rgba(47, 102, 242, 0.15);
-  --color-success-bg:     #dff3e9;
-  --color-success-text:   #2f9e6b;
-  --color-danger-bg:      #fbe2e2;
-  --color-danger-text:    #d64545;
-  --color-warn:           #d9930f;
-  --color-warn-bg:        #fbf0d6;
-  --color-warn-border:    rgba(217, 147, 15, 0.30);
-  --color-info-bg:        rgba(47, 102, 242, 0.08);
-  --color-info-border:    rgba(47, 102, 242, 0.28);
+  --color-online:         var(--channel-online);
+  --color-offline:        var(--muted-foreground);
+  --color-enterprise-bg:  var(--primary-soft);
+  --color-success-bg:     var(--success);
+  --color-success-text:   var(--success-foreground);
+  --color-danger-bg:      color-mix(in oklch, var(--destructive) 12%, transparent);
+  --color-danger-text:    var(--destructive);
+  --color-warn:           var(--warning);
+  --color-warn-bg:        color-mix(in oklch, var(--accent) 70%, transparent);
+  --color-warn-border:    color-mix(in oklch, var(--warning) 35%, transparent);
+  --color-info-bg:        var(--primary-soft);
+  --color-info-border:    color-mix(in oklch, var(--primary) 28%, transparent);
 
-  --input-border-focus:   rgba(47, 102, 242, 0.50);
-  --input-ring-focus:     rgba(47, 102, 242, 0.20);
+  --input-border-focus:   color-mix(in oklch, var(--primary) 50%, transparent);
+  --input-ring-focus:     color-mix(in oklch, var(--primary) 20%, transparent);
 
   /* WhatsApp — cores de marca do canal, ISOLADAS (mock do editor de Flow
      e preview do template). Não usar fora do contexto do balão WhatsApp. */
@@ -591,7 +597,7 @@ html.light {
     font-family: var(--font-sans);
     text-rendering: optimizeLegibility;
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
-    background: var(--bg-gradient);
+    background: var(--background);
     background-attachment: fixed;
     min-height: 100vh;
     min-height: 100dvh;
@@ -602,8 +608,8 @@ html.light {
   }
 
   ::selection {
-    background: rgba(91, 111, 245, 0.20);
-    color: #3d52e8;
+    background: color-mix(in oklch, var(--primary) 20%, transparent);
+    color: var(--primary);
   }
 }
 
@@ -611,8 +617,8 @@ html.light {
    DARK MODE — glass deep navy + brand
    ══════════════════════════════════════════════════════════════════ */
 .dark {
-  --color-background:     #0b1220;
-  --color-foreground:     #e8edf5;
+  --color-background:     var(--background);
+  --color-foreground:     var(--foreground);
   --color-bg-subtle:      rgba(255, 255, 255, 0.04);
   --color-bg-muted:       rgba(255, 255, 255, 0.06);
   --color-bg-hover:       rgba(255, 255, 255, 0.08);
@@ -694,10 +700,10 @@ html.light {
    Espelha styles/globals-v2.css (.v2-dark) para a rota legada do editor
    de Flow, que usa o .dark do next-themes (não o .v2-dark). */
 .dark {
-  --brand-primary:        #5b8af5;
-  --brand-primary-light:  #8aa8f8;
-  --brand-primary-dark:   #2f66f2;
-  --brand-secondary:      #8b5cf6;
+  --brand-primary:        var(--primary);
+  --brand-primary-light:  color-mix(in oklch, var(--primary) 78%, white);
+  --brand-primary-dark:   color-mix(in oklch, var(--primary) 86%, black);
+  --brand-secondary:      var(--primary);
 
   --color-chip-blue:        #7a9af6;
   --color-chip-blue-soft:   rgba(47, 102, 242, 0.22);
@@ -827,11 +833,9 @@ html.light {
    UTILITIES GLASS
    ══════════════════════════════════════════════════════════════════ */
 @layer utilities {
-  /* Fonte display (Plus Jakarta Sans) */
   .font-display {
-    font-family: var(--font-display);
+    font-family: var(--font-sans);
   }
-  /* Fonte body (DM Sans) — reseta herança de font-display em filhos */
   .font-body {
     font-family: var(--font-sans);
   }
@@ -1591,3 +1595,5 @@ html.light {
   background-repeat: repeat;
   background-size: 340px 340px;
 }
+
+@import "../styles/ds-tokens.css";

@@ -13,15 +13,15 @@
 
 @theme {
   /* ── Background do mesh (DealDetailPanel fullscreen + v2 layout) ── */
-  --bg-base:                #f4f6fb;
-  --bg-mesh-1:              #f4f6fb;
-  --bg-mesh-2:              #f4f6fb;
-  --bg-mesh:                #f4f6fb;
+  --bg-base:                var(--background);
+  --bg-mesh-1:              var(--background);
+  --bg-mesh-2:              var(--background);
+  --bg-mesh:                var(--background);
 
   /* ── Cores semânticas faltantes do v0 ─────────────────────────── */
   /* Opacidade aumentada para chips/badges terem contraste sobre fundo
      quasi-branco — mínimo 18% para ser legível em superfície clara */
-  --color-online:           #10b981;
+  --color-online:           var(--channel-online);
   --color-enterprise-bg:    rgba(91, 111, 245, 0.12);
   --color-lead:             #f59e0b;
   --color-lead-bg:          rgba(245, 158, 11, 0.14);
@@ -34,13 +34,13 @@
      bubble outgoing do chat, botões Ganhar, NavRail). Sem isso o
      gradient resolve para "transparent" e o balão fica invisível.
      Valores idênticos ao ds base (ds-deal-aberto.html). */
-  --brand-primary:          #2f66f2;
-  --brand-primary-light:    #5b8af5;
-  --brand-primary-dark:     #1e4ed8;
-  --brand-primary-hover:    #1e4ed8;
-  --brand-gradient-end:     #1c274c;
-  --brand-secondary:        #6a37d6;
-  --brand-accent:           #6a37d6;
+  --brand-primary:          var(--primary);
+  --brand-primary-light:    color-mix(in oklch, var(--primary) 72%, white);
+  --brand-primary-dark:     color-mix(in oklch, var(--primary) 82%, black);
+  --brand-primary-hover:    color-mix(in oklch, var(--primary) 82%, black);
+  --brand-gradient-end:     var(--panel);
+  --brand-secondary:        var(--primary);
+  --brand-accent:           var(--accent);
 
   /* ── Cores semânticas adicionais usadas em inline styles do v0 ── */
   --color-success:          #2f9e6b;
@@ -95,10 +95,10 @@
   --tooltip-text:           #f8fafc;
 
   /* ── Tokens de texto (espelhar globals.css principal) ─────────── */
-  --text-primary:           #0f172a;
-  --text-secondary:         #374151;   /* era #475569 — escurecido para ratio 7.2:1 */
-  --text-muted:             #4b5563;   /* era #64748b — escurecido para ratio 6.1:1 */
-  --text-faint:             #94a3b8;
+  --text-primary:           var(--foreground);
+  --text-secondary:         var(--muted-foreground);
+  --text-muted:             var(--muted-foreground);
+  --text-faint:             color-mix(in oklch, var(--muted-foreground) 70%, var(--background));
 
   /* ── Cores das colunas do Kanban (KanbanColumn.color) ─────────── */
   --col-novo:      #94a3b8;    /* slate — estágio inicial neutro */
@@ -111,7 +111,7 @@
      Trilho lateral escuro que devolve identidade visual perdida
      quando a rail virou glass sobre mesh lavanda. Ficando fora da
      família --glass-* pra permitir escurecer sem afetar cards. */
-  --nav-bg:               oklch(0.27 0.075 266);
+  --nav-bg:               var(--panel);
   --nav-border:           rgba(255, 255, 255, 0.06);
   --nav-text-muted:       rgba(199, 210, 254, 0.65);    /* indigo-200 — ícone inativo */
   --nav-text-hover-bg:    rgba(255, 255, 255, 0.10);    /* hover leve */
@@ -122,14 +122,14 @@
   --color-warning-text:    #b45309;
 
   /* ── Glass — superfícies semitransparentes sobre fundo azul-lavanda ── */
-  --glass-bg-base:          rgba(255, 255, 255, 0.82);
-  --glass-bg-overlay:       rgba(255, 255, 255, 0.60);
-  --glass-bg-panel:         rgba(255, 255, 255, 0.40);
-  --glass-bg-strong:        rgba(255, 255, 255, 0.50);
-  --glass-bg-modal:         rgba(255, 255, 255, 0.97);
-  --glass-bg-subtle:        rgba(255, 255, 255, 0.18);
-  --glass-border:           rgba(255, 255, 255, 0.55);
-  --glass-border-subtle:    rgba(255, 255, 255, 0.35);
+  --glass-bg-base:          var(--card);
+  --glass-bg-overlay:       color-mix(in oklch, var(--card) 80%, transparent);
+  --glass-bg-panel:         color-mix(in oklch, var(--muted) 70%, transparent);
+  --glass-bg-strong:        var(--card);
+  --glass-bg-modal:         var(--card);
+  --glass-bg-subtle:        color-mix(in oklch, var(--muted) 55%, transparent);
+  --glass-border:           var(--border);
+  --glass-border-subtle:    color-mix(in oklch, var(--border) 70%, transparent);
   --glass-shadow-sm:        0 4px 16px rgba(100, 130, 180, 0.12);
   --glass-shadow:           0 8px 32px rgba(100, 130, 180, 0.18);
   --glass-shadow-lg:        0 16px 48px rgba(100, 130, 180, 0.24);
@@ -138,14 +138,14 @@
   --shadow-danger:          0 4px 14px rgba(239, 68, 68, 0.35);
 
   /* ── Raios extras usados nos componentes do v0 ────────────────── */
-  --radius-sm:   0.375rem;  /*  6px */
-  --radius-md:   0.5rem;    /*  8px */
-  --radius-lg:   0.75rem;   /* 12px */
-  --radius-xl:   1rem;      /* 16px — card de conteúdo (lista, KPI, empty) */
-  --radius-2xl:  2rem;      /* 32px — shells: NavRail, modal, painel */
-  --radius-xs:   0.25rem;   /*  4px — checkboxes, small badges, mínimo UI */
-  --radius-card: var(--radius-xl);
-  --radius-input: 0.625rem; /* 10px — inputs, chips, pills */
+  --radius-sm:   calc(var(--radius) * 0.4);
+  --radius-md:   calc(var(--radius) * 0.6);
+  --radius-lg:   calc(var(--radius) * 0.8);
+  --radius-xl:   var(--radius);
+  --radius-2xl:  calc(var(--radius) * 1.4);
+  --radius-xs:   calc(var(--radius) * 0.28);
+  --radius-card: var(--radius-2xl);
+  --radius-input: var(--radius-lg);
   --radius-full: 9999px;
 
   /* ── Transições padrão do v0 ──────────────────────────────────── */
@@ -186,18 +186,18 @@
    ────────────────────────────────────────────────────────────────── */
 :root {
   /* Background — lavanda sólido (sem gradiente) */
-  --bg-base: #f4f6fb;
-  --bg-mesh-1: #f4f6fb;
-  --bg-mesh-2: #f4f6fb;
-  --bg-mesh: #f4f6fb;
+  --bg-base: var(--background);
+  --bg-mesh-1: var(--background);
+  --bg-mesh-2: var(--background);
+  --bg-mesh: var(--background);
 
   /* Marca — duplicado em :root para garantir que inline styles
      resolvam mesmo quando o resolver do Tailwind v4 falha. */
-  --brand-primary:       #2f66f2;
-  --brand-primary-light: #5b8af5;
-  --brand-primary-dark:  #1e4ed8;
-  --brand-secondary:     #6a37d6;
-  --brand-accent:        #6a37d6;
+  --brand-primary:       var(--primary);
+  --brand-primary-light: color-mix(in oklch, var(--primary) 72%, white);
+  --brand-primary-dark:  color-mix(in oklch, var(--primary) 82%, black);
+  --brand-secondary:     var(--primary);
+  --brand-accent:        var(--accent);
 
   /* bWiPO Chat — aliases (mesma paleta; sem hex extra). */
   --inbox-brand: var(--brand-primary);
@@ -222,7 +222,7 @@
   --color-danger-dark:   #dc2626;
   --color-warning:       #d9930f;
   --color-info:          #3b82f6;
-  --color-online:        #10b981;
+  --color-online:        var(--channel-online);
   --color-enterprise-bg: rgba(91, 111, 245, 0.15);
   --color-lead:          #f59e0b;
   --color-lead-bg:       rgba(245, 158, 11, 0.15);
@@ -233,9 +233,9 @@
   --tooltip-text:        #f8fafc;
 
   /* Texto */
-  --text-primary:        #0f172a;
-  --text-secondary:      #374151;
-  --text-muted:          #4b5563;
+  --text-primary:        var(--foreground);
+  --text-secondary:      var(--muted-foreground);
+  --text-muted:          var(--muted-foreground);
 
   /* Funil operacional (dashboard) — tema claro */
   --pipeline-surface:         #f7f9fc;
@@ -262,39 +262,36 @@
   --col-fecha:     #10b981;
 
   /* NavRail — azul-marinho da logo (handoff Automações) */
-  --nav-bg:               oklch(0.27 0.075 266);
-  --nav-border:           rgba(255, 255, 255, 0.06);
-  --nav-text-muted:       rgba(199, 210, 254, 0.65);
-  --nav-text-hover-bg:    rgba(255, 255, 255, 0.10);
-  --nav-text-hover:       #ffffff;
+  --nav-bg:               var(--panel);
+  --nav-border:           var(--panel-border);
+  --nav-text-muted:       var(--panel-muted);
+  --nav-text-hover-bg:    oklch(1 0 0 / 8%);
+  --nav-text-hover:       var(--panel-foreground);
 
-  /* Glass — superfícies semitransparentes sobre fundo azul-lavanda
-     (o efeito visual original vinha da transparência, não da opacidade).
-     Valores calibrados para reproduzir o look da versão pré-DS-v2. */
-  --glass-bg-base:          rgba(255, 255, 255, 0.82);   /* cards de conversa/deal */
-  --glass-bg-overlay:       rgba(255, 255, 255, 0.60);   /* inputs, popovers */
-  --glass-bg-panel:         rgba(255, 255, 255, 0.40);   /* colunas kanban */
-  --glass-bg-strong:        rgba(255, 255, 255, 0.50);   /* header de coluna */
-  --glass-bg-modal:         rgba(255, 255, 255, 0.97);   /* modais */
-  --glass-bg-subtle:        rgba(255, 255, 255, 0.18);   /* hovers sutis */
-  --glass-border:           rgba(255, 255, 255, 0.55);   /* borda principal */
-  --glass-border-subtle:    rgba(255, 255, 255, 0.35);   /* borda sutil */
-  --glass-shadow-sm:        0 4px 16px rgba(100, 130, 180, 0.12);
-  --glass-shadow:           0 8px 32px rgba(100, 130, 180, 0.18);
-  --glass-shadow-lg:        0 16px 48px rgba(100, 130, 180, 0.24);
-  --shadow-brand:           0 4px 14px rgba(91, 111, 245, 0.35);
+  --glass-bg-base:          var(--card);
+  --glass-bg-overlay:       color-mix(in oklch, var(--card) 80%, transparent);
+  --glass-bg-panel:         color-mix(in oklch, var(--muted) 70%, transparent);
+  --glass-bg-strong:        var(--card);
+  --glass-bg-modal:         var(--card);
+  --glass-bg-subtle:        color-mix(in oklch, var(--muted) 55%, transparent);
+  --glass-border:           var(--border);
+  --glass-border-subtle:    color-mix(in oklch, var(--border) 70%, transparent);
+  --glass-shadow-sm:        0 4px 16px color-mix(in oklch, var(--foreground) 8%, transparent);
+  --glass-shadow:           0 8px 32px color-mix(in oklch, var(--foreground) 10%, transparent);
+  --glass-shadow-lg:        0 16px 48px color-mix(in oklch, var(--foreground) 12%, transparent);
+  --shadow-brand:           0 4px 14px color-mix(in oklch, var(--primary) 22%, transparent);
   --shadow-success:         0 4px 14px rgba(16, 185, 129, 0.35);
   --shadow-danger:          0 4px 14px rgba(239, 68, 68, 0.35);
 
   /* Raios extras */
-  --radius-sm:   0.375rem;
-  --radius-md:   0.5rem;
-  --radius-lg:   0.75rem;
-  --radius-xl:   1rem;
-  --radius-2xl:  2rem;
-  --radius-xs:   0.25rem;
-  --radius-card: var(--radius-xl);
-  --radius-input: 0.625rem;
+  --radius-sm:   calc(var(--radius) * 0.4);
+  --radius-md:   calc(var(--radius) * 0.6);
+  --radius-lg:   calc(var(--radius) * 0.8);
+  --radius-xl:   var(--radius);
+  --radius-2xl:  calc(var(--radius) * 1.4);
+  --radius-xs:   calc(var(--radius) * 0.28);
+  --radius-card: var(--radius-2xl);
+  --radius-input: var(--radius-lg);
   --radius-full: 9999px;
 
   /* Escala fechada de z-index (DS-008) — espelho do @theme */
@@ -306,13 +303,13 @@
   --z-above:   100;
 
   /* Tokens de input */
-  --input-bg:           rgba(255, 255, 255, 0.72);
-  --input-border:       rgba(180, 200, 230, 0.55);
-  --input-border-focus: rgba(91, 111, 245, 0.50);
-  --input-ring-focus:   rgba(91, 111, 245, 0.20);
-  --input-text:         #0f172a;
-  --input-placeholder:  #64748b;
-  --input-radius:       0.75rem;
+  --input-bg:           var(--card);
+  --input-border:       var(--input);
+  --input-border-focus: color-mix(in oklch, var(--primary) 50%, transparent);
+  --input-ring-focus:   color-mix(in oklch, var(--primary) 20%, transparent);
+  --input-text:         var(--foreground);
+  --input-placeholder:  var(--muted-foreground);
+  --input-radius:       var(--radius-lg);
   --input-height:       2.5rem;
 
   /* Chat bubbles — light mode */
@@ -351,29 +348,29 @@
   --channel-webchat:   var(--brand-primary);
 
   /* ── Avatar (contato = sólido; interno = glass) ─────────────────────────── */
-  --avatar-fallback-1: #2563eb;
-  --avatar-fallback-2: #059669;
-  --avatar-fallback-3: #7c3aed;
-  --avatar-fallback-4: #db2777;
-  --avatar-fallback-5: #0891b2;
-  --avatar-fallback-6: #d97706;
-  --avatar-fallback-7: #dc2626;
-  --avatar-fallback-8: #0f766e;
-  --avatar-bot-bg:     #475569;
-  --avatar-unread-bg:  #22c55e;
-  --avatar-ring:       var(--color-background, #fff);
+  --avatar-fallback-1: var(--avatar-1);
+  --avatar-fallback-2: var(--avatar-2);
+  --avatar-fallback-3: var(--avatar-3);
+  --avatar-fallback-4: var(--avatar-4);
+  --avatar-fallback-5: var(--avatar-5);
+  --avatar-fallback-6: var(--avatar-1);
+  --avatar-fallback-7: var(--avatar-5);
+  --avatar-fallback-8: var(--avatar-3);
+  --avatar-bot-bg:     var(--panel);
+  --avatar-unread-bg:  var(--channel-online);
+  --avatar-ring:       var(--background);
   --avatar-size-xs:    24px;
   --avatar-size-sm:    28px;
   --avatar-size-md:    36px;
   --avatar-size-lg:    44px;
   --avatar-size-xl:    56px;
   --avatar-size-inbox: 48px;
-  --avatar-glass-blue:   linear-gradient(to bottom right, #5DFF7B, color-mix(in srgb, #5DFF7B 60%, transparent), #356823);
-  --avatar-glass-teal:   linear-gradient(to bottom right, #5D90FF, color-mix(in srgb, #5D90FF 60%, transparent), #37A5FF);
-  --avatar-glass-orange: linear-gradient(to bottom right, #FAFF5D, color-mix(in srgb, #FAFF5D 60%, transparent), #FF6C37);
-  --avatar-glass-purple: linear-gradient(to bottom right, #D15DFF, color-mix(in srgb, #D15DFF 60%, transparent), #AF37FF);
-  --avatar-glass-pink:   linear-gradient(to bottom right, #FF5DFC, color-mix(in srgb, #FF5DFC 60%, transparent), #3752FF);
-  --avatar-glass-coral:  linear-gradient(to bottom right, #FF5D6D, color-mix(in srgb, #FF5D6D 60%, transparent), #FFC037);
+  --avatar-glass-blue:   var(--avatar-2);
+  --avatar-glass-teal:   var(--avatar-3);
+  --avatar-glass-orange: var(--avatar-4);
+  --avatar-glass-purple: var(--avatar-2);
+  --avatar-glass-pink:   var(--avatar-1);
+  --avatar-glass-coral:  var(--avatar-5);
 }
 
 /* ──────────────────────────────────────────────────────────────────
@@ -837,24 +834,21 @@ html[data-nav-expanded="true"] {
    DARK MODE v2 — ativado pela classe .v2-dark no <html>
    ══════════════════════════════════════════════════════════════════ */
 .v2-dark {
-  /* Background mesh escuro — azul-marinho profundo com toque roxo */
-  --bg-base:    #0f1623;
-  --bg-mesh-1:  #141d2e;
-  --bg-mesh-2:  #1a1030;
-  --bg-mesh:    linear-gradient(135deg, #0f1623 0%, #141d2e 40%, #1a1030 70%, #0f1623 100%);
+  --bg-base:    var(--background);
+  --bg-mesh-1:  var(--background);
+  --bg-mesh-2:  var(--background);
+  --bg-mesh:    var(--background);
 
-  /* Marca — mantém as mesmas cores de destaque, levemente mais claras */
-  --brand-primary:       #7b8df7;
-  --brand-primary-light: #a0aefa;
-  --brand-primary-dark:  #5b6ff5;
-  --brand-secondary:     #c4b5fd;
-  --brand-accent:        #f9a8d4;
+  --brand-primary:       var(--primary);
+  --brand-primary-light: color-mix(in oklch, var(--primary) 78%, white);
+  --brand-primary-dark:  color-mix(in oklch, var(--primary) 86%, black);
+  --brand-secondary:     var(--primary);
+  --brand-accent:        var(--accent);
 
-  /* Texto */
-  --text-primary:   #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted:     #64748b;
-  --text-faint:     #475569;
+  --text-primary:   var(--foreground);
+  --text-secondary: var(--muted-foreground);
+  --text-muted:     var(--muted-foreground);
+  --text-faint:     color-mix(in oklch, var(--muted-foreground) 70%, var(--background));
 
   --inbox-brand: var(--brand-primary);
   --inbox-text: var(--text-primary);
@@ -876,14 +870,14 @@ html[data-nav-expanded="true"] {
   --pipeline-danger:          #fca5a5;
 
   /* Glass — escuro com blur */
-  --glass-bg-base:     rgba(30, 41, 59, 0.85);
-  --glass-bg-overlay:  rgba(30, 41, 59, 0.65);
-  --glass-bg-panel:    rgba(15, 23, 42, 0.55);
-  --glass-bg-strong:   rgba(15, 23, 42, 0.55);
-  --glass-bg-modal:    rgba(15, 23, 42, 0.98);
-  --glass-bg-subtle:   rgba(255, 255, 255, 0.06);   /* hovers sutis — realce leve no escuro */
-  --glass-border:      rgba(99, 120, 180, 0.30);
-  --glass-border-subtle: rgba(99, 120, 180, 0.18);
+  --glass-bg-base:     var(--card);
+  --glass-bg-overlay:  color-mix(in oklch, var(--card) 78%, transparent);
+  --glass-bg-panel:    color-mix(in oklch, var(--muted) 80%, transparent);
+  --glass-bg-strong:   var(--card);
+  --glass-bg-modal:    var(--card);
+  --glass-bg-subtle:   color-mix(in oklch, var(--muted) 70%, transparent);
+  --glass-border:      var(--border);
+  --glass-border-subtle: color-mix(in oklch, var(--border) 70%, transparent);
   --glass-shadow-sm:   0 1px 6px rgba(0, 0, 0, 0.35);
   --glass-shadow:      0 4px 24px rgba(0, 0, 0, 0.50);
   --glass-shadow-lg:   0 8px 40px rgba(0, 0, 0, 0.60);
@@ -910,15 +904,15 @@ html[data-nav-expanded="true"] {
   --color-offline:       #64748b;
 
   /* Tokens shadcn usados em páginas v2 (text-foreground, bg-muted, ink-*) */
-  --color-foreground:       #e8edf5;
-  --color-background:     #0b1220;
-  --color-muted:          rgba(255, 255, 255, 0.05);
-  --color-muted-foreground: #6b7a8c;
-  --color-ink-soft:       #9ba8b9;
-  --color-ink-muted:      #6b7a8c;
-  --color-ink-subtle:     #3d4455;
-  --color-border:         rgba(255, 255, 255, 0.08);
-  --dropdown-solid-bg:    #1a2238;
+  --color-foreground:       var(--foreground);
+  --color-background:     var(--background);
+  --color-muted:          var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-ink-soft:       var(--foreground);
+  --color-ink-muted:      var(--muted-foreground);
+  --color-ink-subtle:     color-mix(in oklch, var(--muted-foreground) 55%, var(--background));
+  --color-border:         var(--border);
+  --dropdown-solid-bg:    var(--card);
 
   /* Tooltip */
   --tooltip-bg:   #1e2d45;
@@ -950,7 +944,7 @@ html[data-nav-expanded="true"] {
      Sem isso `--bg-gradient` herdava o valor light (#f4f6fb) definido em
      `:root`, deixando a moldura clara visível ao redor dos cards escuros
      (mais evidente ainda com `.v2-root { zoom: 0.93 }`). */
-  --bg-gradient: linear-gradient(135deg, #0b1220 0%, #131b30 40%, #1c1530 70%, #0e1426 100%);
+  --bg-gradient: var(--background);
 
   /* Scrollbar no dark */
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
@@ -1325,3 +1319,5 @@ dialog *  { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.18) transpar
 .negocios-grid .react-grid-item > .react-resizable-handle::after {
   border-color: var(--border);
 }
+
+@import "./ds-tokens.css";
