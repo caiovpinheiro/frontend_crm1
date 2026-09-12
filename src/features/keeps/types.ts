@@ -2,6 +2,28 @@ import type { JSONContent } from "@tiptap/core";
 
 export type KeepFolder = "notes" | "archive" | "trash";
 
+export type KeepLayout = "grid" | "list";
+
+export type KeepNoteColor =
+  | "default"
+  | "yellow"
+  | "orange"
+  | "coral"
+  | "green"
+  | "teal"
+  | "blue"
+  | "lavender";
+
+export type KeepLabel = {
+  id: string;
+  name: string;
+};
+
+export type KeepNoteMeta = {
+  color: KeepNoteColor;
+  labelIds: string[];
+};
+
 export type KeepAttachment = {
   id: string;
   fileName: string;
