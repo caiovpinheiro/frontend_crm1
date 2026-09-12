@@ -184,25 +184,29 @@ Diagnosticar e resolver problemas técnicos de primeiro nível. Quando o problem
     id: "TABULACAO",
     label: "Tabulação — Classificar demanda",
     shortDescription:
-      "Lê o histórico e aplica uma única folha da dúvida.",
+      "Tabula só se houve atendimento real — uma folha, sem encerrar.",
     longDescription:
-      "Não conversa com o cliente. Lê as mensagens, entende a dúvida e aplica UMA folha. Prefere o departamento da conversa; só usa outra árvore se a demanda das mensagens for claramente de outro assunto.",
+      "Não conversa com o cliente e não encerra ticket. Só tabula quando o contato trouxe uma demanda. Sem atendimento (só mensagem da empresa, silêncio, abertura de sistema), não faz nada.",
     defaultTools: ["list_tabulations", "tabulate_conversation"],
     defaultTone: "objetivo e analítico",
     suggestedModel: "gpt-4o-mini",
-    systemPromptTemplate: `Você é {{agent_name}}, classificador interno da {{company_name}}. Você NÃO atende o cliente e NÃO envia WhatsApp.
+    systemPromptTemplate: `Você é {{agent_name}}, classificador interno da {{company_name}}. Você NÃO atende o cliente, NÃO envia WhatsApp e NÃO encerra ticket.
 
 ## Sua missão
-Entender a demanda real nas mensagens trocadas (o que o contato perguntou ou reclamou) e aplicar UMA tabulação FOLHA.
+Decidir se houve ATENDIMENTO REAL. Só então aplicar UMA tabulação FOLHA.
+
+## O que é atendimento real
+O contato mandou pelo menos uma mensagem com dúvida, reclamação ou pedido. "ok", "obrigado", silêncio, só mensagem da empresa, só evento de sistema ou conversa aberta sem o contato falar NÃO são atendimento.
 
 ## Regras
-- Chame \`tabulate_conversation\` EXATAMENTE UMA vez nesta execução. Nunca chame de novo. Nunca aplique duas folhas.
+- Se NÃO houve atendimento real: NÃO chame nenhuma tool. NÃO tabule. NÃO encerre. Resposta textual: sem atendimento.
+- Nunca chame \`close_conversation\`. Encerrar não é sua função.
+- Só se houve atendimento real: chame \`tabulate_conversation\` EXATAMENTE UMA vez. Nunca chame de novo. Nunca aplique duas folhas.
 - Classifique SOMENTE pelo que está nas mensagens. Ignore polo, curso, ciclo, tags, deal e dados de cadastro — a menos que o contato tenha falado disso.
 - Prefira folhas do departamento atual da conversa. Só escolha folha de outro departamento se as mensagens deixarem claro que a demanda é daquele assunto (ex.: cancelamento em conversa de Acolhimento).
 - Use SOMENTE IDs do catálogo (prompt ou tool \`list_tabulations\`).
 - Se duas folhas forem plausíveis, fique só com a mais específica (mais fundo na árvore). Não aplique as duas.
-- Se o contato não respondeu, a conversa só tem follow-up do agente, ou o encerramento é por falta de interação: use a folha de sem resposta / sem interação. Não invente tema.
-- Fallback do catálogo só se nenhuma folha tiver relação com o assunto.
+- Fallback do catálogo só se houve atendimento e nenhuma folha tiver relação com o assunto.
 - Nunca invente ID. Nunca escolha uma categoria pai.
 - Não chame tools de conversa (transfer, close_conversation, send_whatsapp_template, add_tag).
 - A resposta textual pode ser um resumo interno de uma linha. O sistema não envia ao cliente.
@@ -273,4 +277,26 @@ export function aiTransferTargetForArchetype(
   archetype: string | null | undefined,
 ): "deal" | "contact" {
   return isTabulationArchetype(archetype) ? "contact" : "deal";
+}
+
+export const TABULATION_ALLOWED_TOOLS = [
+  "list_tabulations",
+  "tabulate_conversation",
+] as const;
+
+export function isTabulationAllowedTool(id: string): boolean {
+  return (TABULATION_ALLOWED_TOOLS as readonly string[]).includes(id);
+}
+
+/** Tabulador só lista e aplica folha — sem encerrar nem falar com o cliente. */
+export function sanitizeEnabledToolsForArchetype(
+  archetype: string | null | undefined,
+  tools: readonly string[],
+): string[] {
+  if (!isTabulationArchetype(archetype)) {
+    return tools.filter(
+      (t): t is string => typeof t === "string" && t.trim().length > 0,
+    );
+  }
+  return [...TABULATION_ALLOWED_TOOLS];
 }
