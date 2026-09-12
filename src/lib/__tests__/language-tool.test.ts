@@ -4,6 +4,7 @@ import {
   applyLanguageToolReplacements,
   describeLanguageToolHttpError,
   isWhatsappUsefulMatch,
+  shouldFallbackLanguageTool,
 } from "@/lib/language-tool";
 
 describe("applyLanguageToolReplacements", () => {
@@ -144,6 +145,32 @@ describe("isWhatsappUsefulMatch", () => {
         },
         "vc pode confirmar",
       ),
+    ).toBe(false);
+  });
+});
+
+describe("shouldFallbackLanguageTool", () => {
+  const worker = "https://crm-languagetool-worker.ca31ey.easypanel.host/v2/check";
+
+  it("cai na API pública no 502 EasyPanel", () => {
+    expect(
+      shouldFallbackLanguageTool(worker, {
+        status: 502,
+        body: "<html>Service is not reachable</html>",
+      }),
+    ).toBe(true);
+  });
+
+  it("cai na API pública se o worker não responde", () => {
+    expect(shouldFallbackLanguageTool(worker, { networkError: true })).toBe(true);
+  });
+
+  it("não faz loop se já é a API pública", () => {
+    expect(
+      shouldFallbackLanguageTool("https://api.languagetool.org/v2/check", {
+        status: 502,
+        networkError: true,
+      }),
     ).toBe(false);
   });
 });

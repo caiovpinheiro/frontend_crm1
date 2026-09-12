@@ -120,6 +120,27 @@ export function applyLanguageToolReplacements(
   return result;
 }
 
+export const PUBLIC_LANGUAGETOOL_CHECK_URL =
+  "https://api.languagetool.org/v2/check";
+
+function normalizeCheckUrl(url: string): string {
+  return url.trim().replace(/\/$/, "");
+}
+
+/** Worker EasyPanel fora do ar / HTML 502 → usa a API pública. */
+export function shouldFallbackLanguageTool(
+  checkUrl: string,
+  opts: { status?: number; body?: string; networkError?: boolean } = {},
+): boolean {
+  if (normalizeCheckUrl(checkUrl) === normalizeCheckUrl(PUBLIC_LANGUAGETOOL_CHECK_URL)) {
+    return false;
+  }
+  if (opts.networkError) return true;
+  if (typeof opts.status === "number" && opts.status >= 500) return true;
+  const snippet = (opts.body ?? "").slice(0, 800);
+  return /<!DOCTYPE|<html|Service is not reachable|easypanel/i.test(snippet);
+}
+
 /** Mensagem de toast quando o worker devolve HTML/502 do proxy (EasyPanel). */
 export function describeLanguageToolHttpError(
   status: number,

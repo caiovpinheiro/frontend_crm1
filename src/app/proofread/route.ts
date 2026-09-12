@@ -14,11 +14,13 @@ import {
   applyLanguageToolReplacements,
   describeLanguageToolHttpError,
   isWhatsappUsefulMatch,
+  PUBLIC_LANGUAGETOOL_CHECK_URL,
+  shouldFallbackLanguageTool,
   type ProofreadMatch,
   type ProofreadResult,
 } from "@/lib/language-tool";
 
-const DEFAULT_CHECK_URL = "https://api.languagetool.org/v2/check";
+const DEFAULT_CHECK_URL = PUBLIC_LANGUAGETOOL_CHECK_URL;
 const MAX_TEXT_LENGTH = 20_000;
 const LANGUAGE_RE = /^[a-z]{2}(?:-[A-Z]{2})?$/;
 const CHECK_TIMEOUT_MS = 12_000;
@@ -143,15 +145,8 @@ export async function POST(request: NextRequest) {
   } catch {
     /* URL inválida — cai no fetch e vira 504 */
   }
-  if (checkHost === "localhost" || checkHost === "127.0.0.1") {
-    return NextResponse.json(
-      {
-        error:
-          "LANGUAGETOOL_API_URL aponta para localhost (o Next, não o worker). Use http://languagetool:8010/v2/check ou o domínio HTTPS do serviço.",
-      },
-      { status: 503 },
-    );
-  }
+  const localhost =
+    checkHost === "localhost" || checkHost === "127.0.0.1";
 
   const cached = cacheGet(text, language);
   if (cached) {
@@ -167,8 +162,8 @@ export async function POST(request: NextRequest) {
   if (apiKey) params.set("apiKey", apiKey);
   if (username) params.set("username", username);
 
-  async function callLanguageTool() {
-    return fetch(checkUrl, {
+  async function callLanguageTool(url: string) {
+    return fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -180,11 +175,49 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  let ltRes: Response;
+  async function callPrimary(): Promise<Response> {
+    if (localhost) {
+      throw new Error("LANGUAGETOOL_API_URL aponta para localhost");
+    }
+    return callLanguageTool(checkUrl);
+  }
+
+  let ltRes: Response | null = null;
+  let errBody = "";
   try {
-    ltRes = await callLanguageTool();
+    ltRes = await callPrimary();
+    if (!ltRes.ok) {
+      errBody = await ltRes.text().catch(() => "");
+    }
   } catch (err) {
     console.error("[proofread] LanguageTool fetch error:", checkHost, err);
+  }
+
+  const canFallback = shouldFallbackLanguageTool(checkUrl, {
+    status: ltRes?.status,
+    body: errBody,
+    networkError: !ltRes,
+  });
+
+  if (canFallback) {
+    try {
+      const fallbackRes = await callLanguageTool(DEFAULT_CHECK_URL);
+      if (fallbackRes.ok) {
+        console.warn(
+          `[proofread] worker ${checkHost} falhou; usando api.languagetool.org`,
+        );
+        ltRes = fallbackRes;
+        errBody = "";
+      } else if (!ltRes) {
+        ltRes = fallbackRes;
+        errBody = await fallbackRes.text().catch(() => "");
+      }
+    } catch (err) {
+      console.error("[proofread] fallback api.languagetool.org error:", err);
+    }
+  }
+
+  if (!ltRes) {
     return NextResponse.json(
       {
         error: `Não alcançou o worker LanguageTool (${checkHost}). Confira se o serviço está no ar e na mesma rede do frontend.`,
@@ -194,7 +227,6 @@ export async function POST(request: NextRequest) {
   }
 
   if (!ltRes.ok) {
-    const errBody = await ltRes.text().catch(() => "");
     console.error(`[proofread] LanguageTool ${ltRes.status}:`, errBody.slice(0, 300));
     return NextResponse.json(
       {
