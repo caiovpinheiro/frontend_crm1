@@ -52,6 +52,7 @@ export interface EmailListItem {
 
 export interface EmailDetail extends EmailListItem {
   bodyHtml: string | null;
+  messageId: string | null;
   account: { id: string; email: string; visibility: EmailVisibility };
 }
 

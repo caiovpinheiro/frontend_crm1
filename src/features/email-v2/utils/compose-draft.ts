@@ -10,6 +10,7 @@ export interface ComposeDraft {
   bcc?: string;
   subject?: string;
   bodyHtml?: string;
+  inReplyTo?: string;
 }
 
 function replySubject(subject: string | null): string {
@@ -58,6 +59,7 @@ export function buildComposeDraft(
       to: replyToAddress(email),
       subject: replySubject(email.subject),
       bodyHtml: quoteBlock(email),
+      inReplyTo: email.messageId ?? undefined,
     };
   }
 

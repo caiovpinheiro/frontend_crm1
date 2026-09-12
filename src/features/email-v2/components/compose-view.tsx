@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 
 import { sendEmail } from "../api/emails";
 import type { EmailAccount } from "../api/types";
+import { isBlankEmailBody, parseEmailAddresses } from "../lib/parse-addresses";
 import type { ComposeDraft, ComposeMode } from "../utils/compose-draft";
-import { EmailRichEditor } from "./email-rich-editor";
+import { EmailRichEditor, type EmailRichEditorHandle } from "./email-rich-editor";
 
 const MODE_TITLES: Record<ComposeMode, string> = {
   new: "Novo e-mail",
@@ -35,25 +36,39 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
   const [loading, setLoading] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [editorKey, setEditorKey] = React.useState(0);
+  const editorRef = React.useRef<EmailRichEditorHandle>(null);
+  const draftKey = `${draft.mode}|${draft.accountId ?? ""}|${draft.to ?? ""}|${draft.subject ?? ""}|${draft.inReplyTo ?? ""}|${draft.bodyHtml ?? ""}`;
 
   React.useEffect(() => {
-    setAccountId(draft.accountId ?? accounts[0]?.id ?? "");
+    setAccountId(draft.accountId ?? "");
     setTo(draft.to ?? "");
     setSubject(draft.subject ?? "");
     setBodyHtml(draft.bodyHtml ?? "");
     setBodyText("");
     setErrors({});
     setEditorKey((k) => k + 1);
-  }, [draft, accounts]);
+  }, [draftKey, draft.accountId, draft.to, draft.subject, draft.bodyHtml]);
+
+  React.useEffect(() => {
+    if (accountId) return;
+    const fallback = draft.accountId ?? accounts[0]?.id;
+    if (fallback) setAccountId(fallback);
+  }, [accountId, accounts, draft.accountId]);
 
   const fromAccount = accounts.find((a) => a.id === accountId);
   const title = MODE_TITLES[draft.mode];
 
   async function handleSend() {
+    const live = editorRef.current?.getContent();
+    const html = live?.html || bodyHtml;
+    const text = live?.text || bodyText;
+    const recipients = parseEmailAddresses(to);
     const errs: Record<string, string> = {};
     if (!accountId) errs.accountId = "Selecione uma conta.";
-    if (!to.trim()) errs.to = "Destinatário obrigatório.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) errs.to = "E-mail inválido.";
+    if (recipients.length === 0) errs.to = "Informe um destinatário válido.";
+    if (draft.mode === "new" && isBlankEmailBody(html, text)) {
+      errs.send = "Escreva o corpo da mensagem antes de enviar.";
+    }
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
@@ -62,10 +77,11 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
     try {
       const sent = await sendEmail({
         accountId,
-        to: to.trim(),
+        to: recipients.join(", "),
         subject: subject.trim() || "(sem assunto)",
-        bodyText,
-        bodyHtml,
+        bodyText: text,
+        bodyHtml: html,
+        inReplyTo: draft.inReplyTo,
       });
       onSent(sent.id);
     } catch (err) {
@@ -120,7 +136,7 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
         </Field>
         <Field label="Para">
           <Input
-            placeholder="destinatario@email.com"
+            placeholder="destinatario@email.com, outro@email.com"
             value={to}
             onChange={(e) => {
               setTo(e.target.value);
@@ -148,6 +164,7 @@ export function ComposeView({ accounts, draft, onCancel, onSent, onBack }: Props
 
       <div className="flex min-h-0 flex-1 flex-col">
         <EmailRichEditor
+          ref={editorRef}
           key={editorKey}
           content={bodyHtml}
           onChange={(html, text) => {
