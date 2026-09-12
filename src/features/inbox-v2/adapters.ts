@@ -323,6 +323,10 @@ export function toConversationCard(
     assigneeId: row.assignedTo?.id ?? null,
     assigneeAvatarUrl: row.assignedTo?.avatarUrl ?? null,
     assigneeType: row.assignedTo?.type ?? null,
+    department: row.department?.name?.trim() || null,
+    departmentId: row.departmentId ?? row.department?.id ?? null,
+    departmentIcon: row.department?.icon ?? null,
+    departmentColor: row.department?.color ?? null,
     sessionExpiresIn: sess.label,
     sessionExpired: sess.expired,
     lastMessageType,
@@ -806,6 +810,10 @@ export interface ContactAsideView {
     /** Motivo da perda — preenchido quando status = LOST. */
     lostReason: string | null;
     customFields: { fieldId: string; label: string; value: string | null }[];
+    departmentName?: string | null;
+    departmentId?: string | null;
+    departmentIcon?: string | null;
+    departmentColor?: string | null;
   }[];
 }
 
@@ -887,6 +895,10 @@ export function toContactAside(
     lostReason: (d as { lostReason?: string | null }).lostReason ?? null,
     origin: dealOrigin,
     customFields: (d as { customFields?: { fieldId: string; label: string; value: string | null }[] }).customFields ?? [],
+    departmentName: row.department?.name?.trim() || null,
+    departmentId: row.departmentId ?? row.department?.id ?? null,
+    departmentIcon: row.department?.icon ?? null,
+    departmentColor: row.department?.color ?? null,
   }));
 
   // ── panelFields: mescla inboxLeadPanelFields (contato) + dealInboxPanelFields

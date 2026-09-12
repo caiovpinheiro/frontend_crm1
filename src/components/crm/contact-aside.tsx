@@ -54,6 +54,8 @@ import { useFieldLayout } from "@/hooks/use-field-layout"
 import { useIdleEnabled } from "@/hooks/use-idle-enabled"
 import { resolveCustomFieldGroups, type CustomFieldDef } from "@/lib/field-layout"
 import { CustomFieldGroupBlock } from "@/components/crm/fields/custom-field-group-block"
+import { useDepartments } from "@/features/conversations-settings/hooks/use-departments"
+import { DepartmentChip } from "@/features/conversations-settings/department-icons"
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -114,6 +116,11 @@ export interface ContactDetails {
     stageDropdownSlot?: React.ReactNode
     /** Slot para renderizar o seletor de responsável abaixo das info do deal. */
     assigneeSlot?: React.ReactNode
+    /** Departamento da conversa — alinhado ao responsável no hero. */
+    departmentName?: string | null
+    departmentId?: string | null
+    departmentIcon?: string | null
+    departmentColor?: string | null
     /** Slot para renderizar as tags do negócio (add/remove). */
     dealTagsNode?: React.ReactNode
     customFields?: { fieldId: string; label: string; value: string | null }[]
@@ -388,6 +395,16 @@ function DealInline({
   collapsed?: boolean
   onToggle?: () => void
 }) {
+  const { data: departments = [] } = useDepartments(
+    Boolean(deal.departmentName || deal.departmentId),
+  )
+  const catalogDept = departments.find(
+    (d) =>
+      (deal.departmentId && d.id === deal.departmentId) ||
+      (deal.departmentName && d.name === deal.departmentName),
+  )
+  const departmentIcon = deal.departmentIcon ?? catalogDept?.icon
+  const departmentColor = deal.departmentColor ?? catalogDept?.color
   const fields = deal.customFields ?? []
   const segments = deal.funnelSegments
   const sortedSegments = segments
@@ -495,15 +512,15 @@ function DealInline({
             comunicada apenas pela barra segmentada logo abaixo. Etapa e funil
             trocaram de lugar: a etapa atual passou a ser o dado em destaque. */}
         <div className="relative mb-2.5 flex items-center gap-3">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             {deal.stageDropdownSlot ? (
               /* Fase em destaque = gatilho do dropdown. O slot já renderiza
                  dot + nome + chevron; aqui só ampliamos pro tamanho do título. */
-              <div className="min-w-0 [&_button]:!max-w-full [&_button]:!gap-2 [&_button]:!text-[17px] [&_button]:!font-bold [&_button]:!uppercase [&_button]:!leading-tight [&_button]:!tracking-tight [&_button]:!text-white [&_button:hover]:!text-white [&_button:hover]:!opacity-90 [&_svg]:!size-4">
+              <div className="min-w-0 [&_button]:!max-w-full [&_button]:!min-w-0 [&_button]:!flex-nowrap [&_button]:!gap-2 [&_button]:!text-[17px] [&_button]:!font-bold [&_button]:!uppercase [&_button]:!leading-tight [&_button]:!tracking-tight [&_button]:!text-white [&_button:hover]:!text-white [&_button:hover]:!opacity-90 [&_svg]:!size-4">
                 {deal.stageDropdownSlot}
               </div>
             ) : (
-              <div className="flex items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <span
                   className="size-2 shrink-0 rounded-full"
                   style={{ backgroundColor: currentStageColor }}
@@ -519,9 +536,22 @@ function DealInline({
               {totalStages > 0 ? ` · Etapa ${currentStage} de ${totalStages}` : ""}
             </p>
           </div>
-          {deal.assigneeSlot && (
-            <div className="shrink-0 [&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
-              {deal.assigneeSlot}
+          {(deal.assigneeSlot || deal.departmentName) && (
+            <div className="flex w-max max-w-[46%] shrink-0 flex-col items-end gap-1">
+              {deal.assigneeSlot ? (
+                <div className="max-w-full min-w-0 [&_button>span]:rounded-full [&_button>span]:border-transparent [&_button>span]:bg-white [&_button>span]:text-[#2e3b6e] [&_button>span]:shadow-sm">
+                  {deal.assigneeSlot}
+                </div>
+              ) : null}
+              {deal.departmentName ? (
+                <DepartmentChip
+                  name={deal.departmentName}
+                  icon={departmentIcon}
+                  color={departmentColor}
+                  surface="solid"
+                  className="max-w-full px-2 py-0.5 text-[10.5px] shadow-sm"
+                />
+              ) : null}
             </div>
           )}
         </div>
