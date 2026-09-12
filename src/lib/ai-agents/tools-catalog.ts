@@ -128,7 +128,7 @@ export const TOOLS_CATALOG: ToolDescriptor[] = [
     id: "tabulate_conversation",
     label: "Tabular conversa",
     description:
-      "Aplica UMA folha (motivo da demanda). Chame uma única vez. Não empilha motivos. Não encerra e não envia mensagem ao cliente.",
+      "Aplica UMA folha só se o contato trouxe uma demanda. Sem atendimento, não chame. Não encerra e não envia mensagem.",
     category: "handoff",
     defaultForArchetypes: ["TABULACAO"],
   },

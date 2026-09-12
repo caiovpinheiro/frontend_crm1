@@ -34,6 +34,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import {
   ARCHETYPES,
+  isTabulationAllowedTool,
+  isTabulationArchetype,
+  sanitizeEnabledToolsForArchetype,
   type ArchetypeDescriptor,
   type ArchetypeId,
 } from "@/lib/ai-agents/archetypes";
@@ -190,7 +193,10 @@ export function AgentWizard({
           ...(openaiApiKey.trim() ? { openaiApiKey: openaiApiKey.trim() } : {}),
           systemPromptOverride: override.trim() || null,
           productPolicy: productPolicy.trim() || null,
-          enabledTools,
+          enabledTools: sanitizeEnabledToolsForArchetype(
+            archetype,
+            enabledTools,
+          ),
           autonomyMode,
         }),
       });
@@ -251,6 +257,7 @@ export function AgentWizard({
             )}
             {step === "tools" && (
               <ToolsStep
+                archetype={archetype}
                 enabledTools={enabledTools}
                 setEnabledTools={setEnabledTools}
               />
@@ -640,14 +647,21 @@ function PersonalityStep({
 }
 
 function ToolsStep({
+  archetype,
   enabledTools,
   setEnabledTools,
 }: {
+  archetype: ArchetypeId;
   enabledTools: string[];
   setEnabledTools: (v: string[]) => void;
 }) {
   const grouped = React.useMemo(() => toolsByCategory(), []);
+  const tabulator = isTabulationArchetype(archetype);
   const toggle = (id: string) => {
+    if (tabulator) {
+      if (!isTabulationAllowedTool(id)) return;
+      if (enabledTools.includes(id)) return;
+    }
     if (enabledTools.includes(id)) {
       setEnabledTools(enabledTools.filter((t) => t !== id));
     } else {
@@ -666,8 +680,9 @@ function ToolsStep({
       <div>
         <h3 className="text-base font-semibold">Ferramentas habilitadas</h3>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Defina o que o agente pode fazer. Selecione pelo menos uma ferramenta.
-          Recomendamos sempre deixar <strong>transfer_to_human</strong> ativo.
+          {tabulator
+            ? "Classificador só lista e aplica uma folha. Sem close_conversation — ele não encerra ticket."
+            : "Defina o que o agente pode fazer. Selecione pelo menos uma ferramenta. Recomendamos sempre deixar transfer_to_human ativo."}
         </p>
       </div>
 

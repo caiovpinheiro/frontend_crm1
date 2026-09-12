@@ -23,6 +23,10 @@ import {
   type ToolConfigMap,
   type ToolPolicy,
 } from "@/lib/ai-agents/steering";
+import {
+  isTabulationAllowedTool,
+  isTabulationArchetype,
+} from "@/lib/ai-agents/archetypes";
 import { TOOLS_CATALOG } from "@/lib/ai-agents/tools-catalog";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +47,7 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
 };
 
 export function ToolsSection({
+  archetype,
   enabledTools,
   onToggleTool,
   toolConfig,
@@ -50,6 +55,7 @@ export function ToolsSection({
   productPolicy,
   onProductPolicyChange,
 }: {
+  archetype?: string;
   enabledTools: string[];
   onToggleTool: (toolId: string) => void;
   toolConfig: ToolConfigMap;
@@ -85,7 +91,11 @@ export function ToolsSection({
     <div className="space-y-5">
       <SectionHeader
         title="Ferramentas"
-        description="Liga ou desliga cada tool e, na selecionada, trava argumentos, tags e departamentos."
+        description={
+          isTabulationArchetype(archetype)
+            ? "Classificador só lista e aplica uma folha. Encerrar conversa fica desligado — ele não fecha atendimento que não aconteceu."
+            : "Liga ou desliga cada tool e, na selecionada, trava argumentos, tags e departamentos."
+        }
       />
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -139,6 +149,12 @@ export function ToolsSection({
                 aria-checked={active}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (
+                    isTabulationArchetype(archetype) &&
+                    !isTabulationAllowedTool(t.id)
+                  ) {
+                    return;
+                  }
                   onToggleTool(t.id);
                 }}
                 className={cn(
