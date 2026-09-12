@@ -284,6 +284,7 @@ export function KeepsApp() {
                     if (file) await mut.attach.mutateAsync({ noteId: created.note.id, file });
                     if (pinned) await mut.patch.mutateAsync({ id: created.note.id, patch: { pinned: true } });
                     if (archived) await mut.patch.mutateAsync({ id: created.note.id, patch: { archived: true } });
+                    toast.success(archived ? "Nota arquivada" : "Nota criada");
                   } catch (err) {
                     toast.error(err instanceof Error ? err.message : "Não foi possível salvar a nota.");
                     throw err;
