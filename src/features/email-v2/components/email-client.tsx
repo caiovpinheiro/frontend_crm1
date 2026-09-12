@@ -127,10 +127,14 @@ export function EmailClient() {
     reload: reloadCustomFolders,
   } = useEmailCustomFolders();
 
+  const listScrollRef = React.useRef<HTMLDivElement>(null);
   const {
     emails,
     loading: emailsLoading,
+    loadingMore: emailsLoadingMore,
     error: emailsError,
+    hasMore: emailsHasMore,
+    loadMore: loadMoreEmails,
     refresh: refreshEmails,
     markRead,
     searching,
@@ -546,7 +550,7 @@ export function EmailClient() {
   const showDetail = !isMobile || mobilePane === "detail" || mobilePane === "compose";
 
   return (
-    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] gap-3 overflow-hidden p-3 md:gap-4 md:p-4">
+    <div className="v2-screen grid grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-3 overflow-hidden p-3 md:gap-4 md:p-4">
       <NavRailSpacer />
 
       <main className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden md:gap-4">
@@ -577,7 +581,7 @@ export function EmailClient() {
         />
 
         <div
-          className="grid min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card max-md:grid-cols-1"
+          className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-border bg-card max-md:grid-cols-1"
           style={
             isMobile
               ? undefined
@@ -676,7 +680,7 @@ export function EmailClient() {
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {emailsError ? (
                 <p className="px-4 py-3 font-body text-[13px] text-destructive">{emailsError}</p>
               ) : accounts.length === 0 && !accountsLoading ? (
@@ -706,6 +710,10 @@ export function EmailClient() {
                   onBulkSpam={handleMarkSpam}
                   onBulkNotSpam={handleNotSpam}
                   bulkBusy={bulkBusy}
+                  hasMore={emailsHasMore}
+                  loadingMore={emailsLoadingMore}
+                  onLoadMore={loadMoreEmails}
+                  scrollRootRef={listScrollRef}
                 />
               )}
             </div>
