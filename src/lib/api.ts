@@ -14,7 +14,7 @@ export function getApiBaseUrl(): string {
 /**
  * Rotas que DEVEM ficar no origin do frontend:
  *  - NextAuth + CSRF host-only (`__Host-` / rewrite /api/auth)
- *  - handlers locais do Next (preview, transcribe, revision, WA call)
+ *  - handlers locais do Next (preview, transcribe, proofread, revision, WA call)
  *  - `/wa-call-permission` e `/wa-whatsapp-call` (fora de `/api/*` de
  *    propósito — o rewrite afterFiles intercepta App Router em `/api/`)
  *  - multipart fora do matcher CORS do backend (`/api/uploads`)
@@ -27,6 +27,8 @@ const SAME_ORIGIN_API_PREFIXES = [
   "/wa-call-permission",
   "/wa-whatsapp-call",
   "/api/transcribe",
+  "/api/proofread",
+  "/proofread",
   "/api/app-revision",
   "/api/mobile-release",
   "/api/uploads",

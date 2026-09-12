@@ -24,6 +24,7 @@ import {
   IconX,
   IconCornerUpLeft,
   IconPaperclip,
+  IconTextSpellcheck,
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -59,12 +60,14 @@ import {
 } from "./channel-switch-confirm";
 import { ComposerMenu } from "./composer-menu";
 import { ConversationResolveButton } from "./conversation-resolve-button";
+import { ProofreadDialog } from "./proofread-dialog";
 import {
   TemplateComposePanel,
   whatsappTemplateToPending,
   type PendingTemplate,
 } from "./template-compose-panel";
 import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channels";
+import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
 
 /**
  * Composer completo para o ChatArea. Substitui o footer estático
@@ -201,6 +204,7 @@ export function Composer({
   enableCallPermission?: boolean;
 }) {
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
+  const proofread = useProofreadSendGate();
   const [noteMode, setNoteMode] = useState(false);
   const [audioRecState, setAudioRecState] = useState<AudioRecordState>("idle");
   const isAudioActive = audioRecState !== "idle";
@@ -281,7 +285,7 @@ export function Composer({
   // 29/jul/26 — trava local da sequência multi-anexo: `sending` do pai só
   // cobre a mutation, não o upload longo — sem isso o Enter reenvia o texto.
   const [sequenceSending, setSequenceSending] = useState(false);
-  const busy = !!sending || sequenceSending;
+  const busy = !!sending || sequenceSending || proofread.checking;
 
   const qc = useQueryClient();
 
@@ -701,6 +705,18 @@ export function Composer({
     files.forEach((f) => URL.revokeObjectURL(f.previewUrl));
   }
 
+  async function flushOutbound(text: string | null) {
+    if (text) {
+      try {
+        await Promise.resolve(onSend(text));
+      } catch {
+        /* texto falhou; ainda tenta anexos se o caller não bloqueou */
+      }
+    }
+    await flushPendingMedia();
+    await flushPendingFiles();
+  }
+
   async function performSend() {
     const trimmed = value.trim();
     // Permite enviar quando há texto OU algum anexo encostado (modelo ou imagem colada).
@@ -723,14 +739,17 @@ export function Composer({
     // Aguarda o texto sair antes dos anexos — evita race (arquivo aparecer
     // antes da 1ª mensagem) e garante ordem: texto → arq1 → msg2 → arq2…
     if (trimmed) {
-      try {
-        await Promise.resolve(onSend(applySignature(trimmed)));
-      } catch {
-        /* texto falhou; ainda tenta anexos se o caller não bloqueou */
-      }
+      const status = await proofread.gate(trimmed);
+      if (status === "block") return;
     }
-    await flushPendingMedia();
-    await flushPendingFiles();
+    await flushOutbound(trimmed ? applySignature(trimmed) : null);
+  }
+
+  async function handleSendCorrection(text: string) {
+    const next = text.trim();
+    if (!next) return;
+    proofread.close();
+    await flushOutbound(applySignature(next));
   }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -819,6 +838,15 @@ export function Composer({
   return (
     <div ref={rootRef} className="relative mx-3 mb-1 max-md:mx-2 max-md:mb-1 sm:mx-4">
       {confirmDialogNode}
+      <ProofreadDialog
+        open={proofread.open}
+        onOpenChange={(next) => {
+          if (!next) proofread.close();
+        }}
+        result={proofread.result}
+        sending={!!sending}
+        onSendCorrection={handleSendCorrection}
+      />
       {/* Painel de validação do template do WhatsApp — flutua acima do composer */}
       {pendingTemplate && conversationId ? (
         <TemplateComposePanel
@@ -947,7 +975,7 @@ export function Composer({
       {/* ── Row: Transferir + tabs (esq.) … Nº + Encerrar/Reabrir (dir.) ── */}
       {(transferSlot ||
         onSendNote ||
-        (signatureAllowed && !noteMode) ||
+        !noteMode ||
         (!noteMode && (availableChannels?.length ?? 0) > 1) ||
         conversationId ||
         conversationNumber != null) && (
@@ -1008,7 +1036,9 @@ export function Composer({
             <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 font-display text-[11.5px] font-semibold text-warning ring-1 ring-inset ring-warning/25">
               <IconLock size={12} /> Nota
             </span>
-          ) : signatureAllowed ? (
+          ) : (
+            <>
+          {signatureAllowed ? (
             /* Assinatura do agente */
             <div className="flex items-center gap-1.5">
               <button
@@ -1097,6 +1127,54 @@ export function Composer({
               )}
             </div>
           ) : null}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={proofread.enabled}
+                aria-label={
+                  proofread.enabled
+                    ? "Desligar corretor automático"
+                    : "Ligar corretor automático"
+                }
+                onClick={() => proofread.persistEnabled(!proofread.enabled)}
+                className={cn(
+                  "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
+                  proofread.enabled
+                    ? "bg-[var(--brand-primary)]"
+                    : "bg-[var(--text-muted)]/40",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block size-3 rounded-full bg-white shadow transition-transform",
+                    proofread.enabled ? "translate-x-[14px]" : "translate-x-[2px]",
+                  )}
+                />
+              </button>
+              <IconTextSpellcheck size={13} className="shrink-0 text-[var(--text-muted)]" />
+              <TooltipGlass
+                label={
+                  proofread.enabled
+                    ? "Corretor automático ligado — erros impedem o envio"
+                    : "Corretor automático desligado"
+                }
+                side="top"
+              >
+                <span
+                  className={cn(
+                    "max-w-[140px] truncate font-body text-[11.5px] font-semibold transition-colors",
+                    proofread.enabled
+                      ? "text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)]",
+                  )}
+                >
+                  Corretor automático
+                </span>
+              </TooltipGlass>
+            </div>
+            </>
+          )}
 
           {/* Nº da conversa + Encerrar/Reabrir */}
           {(conversationNumber != null || conversationId) && (
