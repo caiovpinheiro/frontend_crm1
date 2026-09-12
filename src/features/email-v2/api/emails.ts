@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/api";
+import { apiFetch, apiUrl, parseApiResponse } from "@/lib/api";
 import type { EmailDetail, EmailFolder, EmailListItem, EmailPagination } from "./types";
 
 export async function listEmails(params: {
@@ -19,9 +19,11 @@ export async function listEmails(params: {
   if (params.page) q.set("page", String(params.page));
   if (params.perPage) q.set("perPage", String(params.perPage));
 
-  const res = await fetch(apiUrl(`/api/emails?${q.toString()}`));
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message ?? "Erro ao listar e-mails.");
+  const res = await apiFetch(`/api/emails?${q.toString()}`);
+  const data = await parseApiResponse<{
+    emails: EmailListItem[];
+    pagination: EmailPagination;
+  }>(res, "Erro ao listar e-mails.");
   return { emails: data.emails ?? [], pagination: data.pagination };
 }
 
