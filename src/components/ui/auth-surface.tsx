@@ -9,7 +9,26 @@ import { cn } from "@/lib/utils";
 export const AUTH_LIGHT_CLASS = "auth-light";
 
 export const AUTH_CARD_CLASS =
-  "auth-light relative flex w-full flex-col gap-4 rounded-2xl border border-border bg-background p-6 text-foreground shadow-xl md:p-8";
+  "auth-light relative flex w-full flex-col gap-4 rounded-3xl border border-border bg-card p-6 text-foreground md:p-8";
+
+export function AuthPageShell({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-dvh items-center justify-center bg-background p-6 text-foreground",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
 /** Card sólido das telas de auth (mesmo casco do signup na landing). */
 export function AuthSurface({
@@ -28,7 +47,6 @@ export function AuthSurface({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
-      <div className="absolute -inset-2 rounded-3xl bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
       <div className={AUTH_CARD_CLASS}>{children}</div>
     </motion.div>
   );

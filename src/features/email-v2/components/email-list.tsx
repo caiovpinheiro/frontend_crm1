@@ -217,7 +217,7 @@ function EmailRow({
           seed={avatarSrc}
           initials={initialsOf(folder === "SENT" ? null : email.fromName, avatarSrc)}
           size="md"
-          online={!!email.contact}
+          online={folder === "INBOX"}
         />
 
         <div className="min-w-0 flex-1">

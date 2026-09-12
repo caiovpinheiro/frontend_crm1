@@ -9,8 +9,7 @@ import {
 import { motion } from "framer-motion";
 
 import { BlurText } from "@/components/ui/blur-text";
-import { AUTH_CARD_CLASS } from "@/components/ui/auth-surface";
-import { HeroGeometric } from "@/components/ui/hero-geometric";
+import { AUTH_CARD_CLASS, AuthPageShell } from "@/components/ui/auth-surface";
 import { cn } from "@/lib/utils";
 
 export type TenantOrgChoice = {
@@ -59,20 +58,19 @@ export function OrgAccountPicker({
   const welcome = firstName(displayName, email);
 
   return (
-    <HeroGeometric color1="#a78bfa" color2="#f472b6" speed={1}>
-      <div className="flex min-h-screen items-center justify-center p-6">
+    <AuthPageShell>
         <div className="flex w-full max-w-md flex-col items-center">
           <div className="mb-6 flex flex-col items-center text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo-bwipo-white.png"
-              alt="Bwipo"
-              className="mb-4 h-12 w-auto max-w-[220px] object-contain"
+            src="/logo-bwipo-white.png"
+            alt="Bwipo"
+            className="mb-4 h-12 w-auto max-w-[220px] object-contain brightness-0"
             />
-            <p className="font-display text-[22px] font-bold tracking-tight text-white">
+            <p className="text-xl font-bold tracking-normal text-foreground">
               Bem-vindo de volta, {welcome}
             </p>
-            <p className="mt-1 text-[14px] text-white/70">{email}</p>
+            <p className="mt-1 font-mono text-sm text-muted-foreground">{email}</p>
           </div>
 
           <motion.div
@@ -81,7 +79,6 @@ export function OrgAccountPicker({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
-            <div className="absolute -inset-2 rounded-3xl bg-linear-to-br from-primary/20 via-primary/5 to-transparent blur-2xl" />
             <motion.div
               className={AUTH_CARD_CLASS}
               initial="hidden"
@@ -171,11 +168,10 @@ export function OrgAccountPicker({
             </motion.div>
           </motion.div>
 
-          <p className="mt-6 text-center text-[12px] text-white/75">
+          <p className="mt-6 text-center text-xs text-muted-foreground">
             Acesso restrito · Bwipo
           </p>
         </div>
-      </div>
-    </HeroGeometric>
+    </AuthPageShell>
   );
 }

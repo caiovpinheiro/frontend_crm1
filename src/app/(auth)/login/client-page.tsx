@@ -8,9 +8,8 @@ import { IconAlertCircle as AlertCircle, IconEye as Eye, IconEyeOff as EyeOff, I
 import { motion } from "framer-motion";
 
 import { BlurText } from "@/components/ui/blur-text";
-import { AUTH_CARD_CLASS } from "@/components/ui/auth-surface";
+import { AUTH_CARD_CLASS, AuthPageShell } from "@/components/ui/auth-surface";
 import { Button } from "@/components/ui/button";
-import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isNativePlatform } from "@/lib/native/capacitor";
@@ -347,9 +346,9 @@ function LoginForm() {
 
   if (loginSuccess) {
     return (
-      <HeroGeometric color1="#a78bfa" color2="#f472b6" speed={1}>
+      <AuthPageShell className="flex-col gap-5">
         <div
-          className="flex min-h-screen w-full flex-col items-center justify-center gap-5 p-6 text-white"
+          className="flex w-full flex-col items-center justify-center gap-5 text-foreground"
           role="status"
           aria-live="polite"
           aria-label="Login concluído, carregando o CRM"
@@ -406,7 +405,7 @@ function LoginForm() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.4 }}
-            className="font-display text-[24px] font-bold tracking-tight text-white"
+            className="text-2xl font-bold tracking-normal text-foreground"
           >
             Acesso liberado
           </motion.h2>
@@ -414,26 +413,25 @@ function LoginForm() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7, duration: 0.4 }}
-            className="text-[14px] text-white/80"
+            className="text-sm text-muted-foreground"
           >
             Carregando o CRM…
           </motion.p>
           <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-[var(--glass-bg-subtle)]">
             <motion.div
-              className="h-full rounded-full bg-white"
+              className="h-full rounded-full bg-primary"
               initial={{ width: "0%" }}
               animate={{ width: "100%" }}
               transition={{ duration: 1.5, ease: "easeInOut" }}
             />
           </div>
         </div>
-      </HeroGeometric>
+      </AuthPageShell>
     );
   }
 
   return (
-    <HeroGeometric color1="#a78bfa" color2="#f472b6" speed={1}>
-    <div className="flex min-h-screen items-center justify-center p-6">
+    <AuthPageShell>
       <div className="flex w-full max-w-sm flex-col items-center">
         <div className="mb-6 flex flex-col items-center text-center">
           {/* Wordmark Bwipo: marca + wipo branco (fundo transparente) */}
@@ -441,9 +439,9 @@ function LoginForm() {
           <img
             src="/logo-bwipo-white.png"
             alt="Bwipo"
-            className="mb-4 h-12 w-auto max-w-[220px] object-contain"
+            className="mb-4 h-12 w-auto max-w-[220px] object-contain brightness-0"
           />
-          <p className="mt-1 text-[14px] text-white/70">
+          <p className="mt-1 text-sm text-muted-foreground">
             {identifyOnly
               ? "Informe seu e-mail para abrir o login da sua empresa."
               : "Faça login para gerenciar conversas e negócios."}
@@ -609,10 +607,9 @@ function LoginForm() {
           </motion.form>
         </motion.div>
 
-        <p className="mt-6 text-center text-[12px] text-white/75">Acesso restrito · Bwipo</p>
+        <p className="mt-6 text-center text-xs text-muted-foreground">Acesso restrito · Bwipo</p>
       </div>
-    </div>
-    </HeroGeometric>
+    </AuthPageShell>
   );
 }
 

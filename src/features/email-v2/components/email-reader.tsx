@@ -152,11 +152,14 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
             ) : null}
           </div>
 
-          {email.contact ? (
-            <div className="h-1 overflow-hidden rounded-full bg-panel-border">
-              <div className="h-full w-2/3 rounded-full bg-primary" />
-            </div>
-          ) : null}
+          <div className="h-1 overflow-hidden rounded-full bg-panel-border">
+            <div
+              className={cn(
+                "h-full rounded-full",
+                email.folder === "TRASH" ? "w-1/4 bg-accent" : "w-2/3 bg-primary",
+              )}
+            />
+          </div>
         </aside>
       </div>
 
