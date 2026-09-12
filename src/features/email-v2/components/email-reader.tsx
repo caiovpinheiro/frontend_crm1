@@ -28,7 +28,8 @@ import {
 import { formatFullDate } from "../utils";
 import { HtmlEmailFrame, decodeIfQuotedPrintable } from "./html-email-frame";
 
-function formatPanelDate(dateStr: string): string {
+function formatPanelDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
   try {
     return format(parseISO(dateStr), "dd/MM/yyyy HH:mm", { locale: ptBR });
   } catch {
