@@ -32,6 +32,10 @@ interface Props {
   className?: string;
 }
 
+export type EmailRichEditorHandle = {
+  getContent: () => { html: string; text: string };
+};
+
 type ToolbarButtonProps = {
   onClick: () => void;
   active?: boolean;
@@ -63,8 +67,12 @@ function Divider() {
   return <span className="mx-1 h-5 w-px bg-[var(--glass-border)]" />;
 }
 
-export function EmailRichEditor({ content, onChange, placeholder, minHeight = "200px", className }: Props) {
+export const EmailRichEditor = React.forwardRef<EmailRichEditorHandle, Props>(function EmailRichEditor(
+  { content, onChange, placeholder, minHeight = "200px", className },
+  ref,
+) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: false,
@@ -98,6 +106,13 @@ export function EmailRichEditor({ content, onChange, placeholder, minHeight = "2
       onChange?.(editor.getHTML(), editor.getText());
     },
   });
+
+  React.useImperativeHandle(ref, () => ({
+    getContent: () => ({
+      html: editor?.getHTML() ?? "",
+      text: editor?.getText() ?? "",
+    }),
+  }), [editor]);
 
   const addLink = React.useCallback(() => {
     if (!editor) return;
@@ -196,4 +211,4 @@ export function EmailRichEditor({ content, onChange, placeholder, minHeight = "2
       />
     </div>
   );
-}
+});

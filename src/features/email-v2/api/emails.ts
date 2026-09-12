@@ -69,6 +69,7 @@ export async function sendEmail(params: {
   subject: string;
   bodyText?: string;
   bodyHtml?: string;
+  inReplyTo?: string;
 }): Promise<{ id: string }> {
   const res = await fetch(apiUrl("/api/emails/send"), {
     method: "POST",

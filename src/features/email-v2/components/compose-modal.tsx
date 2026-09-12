@@ -13,9 +13,10 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-import { EmailRichEditor } from "./email-rich-editor";
+import { EmailRichEditor, type EmailRichEditorHandle } from "./email-rich-editor";
 import { sendEmail } from "../api/emails";
 import type { EmailAccount } from "../api/types";
+import { isBlankEmailBody, parseEmailAddresses } from "../lib/parse-addresses";
 import type { ComposeDraft, ComposeMode } from "../utils/compose-draft";
 
 interface Props {
@@ -51,15 +52,15 @@ export function ComposeModal({
   const [showCc, setShowCc] = React.useState(false);
   const [showBcc, setShowBcc] = React.useState(false);
   const [editorKey, setEditorKey] = React.useState(0);
+  const editorRef = React.useRef<EmailRichEditorHandle>(null);
 
   const mode = draft?.mode ?? "new";
   const title = MODE_TITLES[mode];
+  const draftKey = `${draft?.mode ?? "new"}|${draft?.accountId ?? ""}|${draft?.to ?? ""}|${draft?.subject ?? ""}|${draft?.bodyHtml ?? ""}`;
 
   React.useEffect(() => {
     if (!open) return;
-    const nextAccount =
-      draft?.accountId ?? accounts[0]?.id ?? "";
-    setAccountId(nextAccount);
+    setAccountId(draft?.accountId ?? "");
     setTo(draft?.to ?? "");
     setCc(draft?.cc ?? "");
     setBcc(draft?.bcc ?? "");
@@ -70,7 +71,13 @@ export function ComposeModal({
     setShowCc(Boolean(draft?.cc));
     setShowBcc(Boolean(draft?.bcc));
     setEditorKey((k) => k + 1);
-  }, [open, draft, accounts]);
+  }, [open, draftKey, draft?.accountId, draft?.to, draft?.cc, draft?.bcc, draft?.subject, draft?.bodyHtml]);
+
+  React.useEffect(() => {
+    if (!open || accountId) return;
+    const fallback = draft?.accountId ?? accounts[0]?.id;
+    if (fallback) setAccountId(fallback);
+  }, [open, accountId, accounts, draft?.accountId]);
 
   function resetAndClose() {
     setTo("");
@@ -86,10 +93,16 @@ export function ComposeModal({
   }
 
   async function handleSend() {
+    const live = editorRef.current?.getContent();
+    const html = live?.html || bodyHtml;
+    const text = live?.text || bodyText;
+    const recipients = parseEmailAddresses(to);
     const errs: Record<string, string> = {};
     if (!accountId) errs.accountId = "Selecione uma conta.";
-    if (!to.trim()) errs.to = "Destinatário obrigatório.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) errs.to = "E-mail inválido.";
+    if (recipients.length === 0) errs.to = "Informe um destinatário válido.";
+    if (mode === "new" && isBlankEmailBody(html, text)) {
+      errs.send = "Escreva o corpo da mensagem antes de enviar.";
+    }
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
@@ -99,10 +112,11 @@ export function ComposeModal({
     try {
       await sendEmail({
         accountId,
-        to: to.trim(),
+        to: recipients.join(", "),
         subject: subject.trim() || "(sem assunto)",
-        bodyText,
-        bodyHtml,
+        bodyText: text,
+        bodyHtml: html,
+        inReplyTo: draft?.inReplyTo,
       });
       onSent?.();
       resetAndClose();
@@ -235,6 +249,7 @@ export function ComposeModal({
         {/* Editor */}
         <div className="flex min-h-0 flex-1 flex-col">
           <EmailRichEditor
+            ref={editorRef}
             key={editorKey}
             content={bodyHtml}
             onChange={(html, text) => { setBodyHtml(html); setBodyText(text); }}
