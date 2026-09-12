@@ -93,8 +93,8 @@ interface Props {
   onCreateCustomFolder: (accountId: string, name: string, color?: string) => Promise<void> | void;
   onDeleteCustomFolder: (folderId: string) => Promise<void> | void;
   onRecolorFolder?: (folderId: string, color: string) => Promise<void> | void;
-  onDropToSystemFolder?: (emailId: string, folder: EmailFolder) => void;
-  onDropToCustomFolder?: (emailId: string, folderId: string) => void;
+  onDropToSystemFolder?: (emailIds: string[], folder: EmailFolder) => void;
+  onDropToCustomFolder?: (emailIds: string[], folderId: string) => void;
   onOpenRules?: () => void;
 }
 
@@ -118,8 +118,11 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-function readEmailId(e: React.DragEvent): string | null {
-  return e.dataTransfer.getData(DRAG_MIME) || null;
+function readEmailIds(e: React.DragEvent): string[] {
+  return (e.dataTransfer.getData(DRAG_MIME) || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
 }
 
 export function EmailSidebar({
@@ -157,7 +160,7 @@ export function EmailSidebar({
     return base;
   };
 
-  function dropHandlers(key: string, onDrop: (emailId: string) => void) {
+  function dropHandlers(key: string, onDrop: (emailIds: string[]) => void) {
     return {
       onDragOver: (e: React.DragEvent) => {
         if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
@@ -171,9 +174,9 @@ export function EmailSidebar({
       },
       onDrop: (e: React.DragEvent) => {
         e.preventDefault();
-        const id = readEmailId(e);
+        const ids = readEmailIds(e);
         setDropTarget(null);
-        if (id) onDrop(id);
+        if (ids.length > 0) onDrop(ids);
       },
     };
   }
@@ -219,7 +222,7 @@ export function EmailSidebar({
               key={f.key}
               type="button"
               onClick={() => onSelectFolder(f.key)}
-              {...(canDrop ? dropHandlers(dropKey, (emailId) => onDropToSystemFolder!(emailId, f.key)) : {})}
+              {...(canDrop ? dropHandlers(dropKey, (emailIds) => onDropToSystemFolder!(emailIds, f.key)) : {})}
               className={[
                 "flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 font-display text-[12.5px] font-semibold transition-colors",
                 isDropOver
@@ -260,7 +263,7 @@ export function EmailSidebar({
               onMouseEnter={() => setHoveredFolder(cf.id)}
               onMouseLeave={() => setHoveredFolder(null)}
               {...(onDropToCustomFolder
-                ? dropHandlers(dropKey, (emailId) => onDropToCustomFolder(emailId, cf.id))
+                ? dropHandlers(dropKey, (emailIds) => onDropToCustomFolder(emailIds, cf.id))
                 : {})}
             >
               <button

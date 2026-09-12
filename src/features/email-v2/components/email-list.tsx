@@ -3,6 +3,8 @@
 import * as React from "react";
 import { IconUser } from "@tabler/icons-react";
 import type { EmailCustomFolder, EmailFolder, EmailListItem } from "../api/types";
+import { CheckboxGlass } from "@/components/crm/checkbox-glass";
+import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { IdentityAvatar } from "@/components/crm/identity-avatar";
 import { FOLDER_TONE, resolveFolderTone } from "../lib/folder-colors";
 import { formatRelativeDate } from "../utils";
@@ -45,6 +47,10 @@ interface Props {
   onRemoveFromCustomFolder?: (emailId: string) => void;
   /** Marca como lido/não lido pelo menu de contexto. */
   onToggleRead?: (emailId: string, isRead: boolean) => void;
+  onBulkMove?: (ids: string[], folderId: string) => void | Promise<void>;
+  onBulkInbox?: (ids: string[]) => void | Promise<void>;
+  onBulkTrash?: (ids: string[]) => void | Promise<void>;
+  bulkBusy?: boolean;
 }
 
 export function EmailList({
@@ -62,12 +68,25 @@ export function EmailList({
   onMoveToCustomFolder,
   onRemoveFromCustomFolder,
   onToggleRead,
+  onBulkMove,
+  onBulkInbox,
+  onBulkTrash,
+  bulkBusy = false,
 }: Props) {
+  const [checkedIds, setCheckedIds] = React.useState<Set<string>>(new Set());
   const [menu, setMenu] = React.useState<{
     email: EmailListItem;
     x: number;
     y: number;
   } | null>(null);
+
+  React.useEffect(() => {
+    const visible = new Set(emails.map((e) => e.id));
+    setCheckedIds((prev) => {
+      const next = new Set([...prev].filter((id) => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [emails]);
 
   function openMenu(email: EmailListItem, x: number, y: number) {
     setMenu({ email, x, y });
@@ -99,18 +118,58 @@ export function EmailList({
     );
   }
 
+  const allChecked = emails.length > 0 && emails.every((e) => checkedIds.has(e.id));
+  const someChecked = emails.some((e) => checkedIds.has(e.id)) && !allChecked;
+  const selectedEmails = emails.filter((e) => checkedIds.has(e.id));
+  const selectedAccountIds = new Set(selectedEmails.map((e) => e.accountId));
+  const moveFolders = customFolders.filter((f) => selectedAccountIds.has(f.accountId));
+  const canInbox = selectedEmails.some((e) => e.folder !== "INBOX" || e.customFolderId);
+  const inTrashView = folder === "TRASH" || selectedEmails.every((e) => e.folder === "TRASH");
+
+  function toggleChecked(id: string, next: boolean) {
+    setCheckedIds((prev) => {
+      const copy = new Set(prev);
+      if (next) copy.add(id);
+      else copy.delete(id);
+      return copy;
+    });
+  }
+
+  function toggleAll(next: boolean) {
+    setCheckedIds(next ? new Set(emails.map((e) => e.id)) : new Set());
+  }
+
+  const checkedList = [...checkedIds];
+
   return (
     <div className="flex flex-col gap-2 p-3">
+      <BulkBar
+        allChecked={allChecked}
+        someChecked={someChecked}
+        count={checkedIds.size}
+        total={emails.length}
+        moveFolders={moveFolders}
+        canInbox={canInbox}
+        inTrash={inTrashView}
+        busy={bulkBusy}
+        onToggleAll={toggleAll}
+        onMove={(folderId) => void onBulkMove?.(checkedList, folderId)}
+        onInbox={() => void onBulkInbox?.(checkedList)}
+        onTrash={() => void onBulkTrash?.(checkedList)}
+      />
       {emails.map((email) => (
         <EmailRow
           key={email.id}
           email={email}
           selected={selectedId === email.id}
+          checked={checkedIds.has(email.id)}
+          dragIds={checkedIds.has(email.id) && checkedIds.size > 1 ? checkedList : [email.id]}
           folder={folder}
           showAccountTag={showAccountTag}
           accountEmail={accountEmails[email.accountId]}
           customFolder={customFolders.find((f) => f.id === email.customFolderId) ?? null}
           onSelect={onSelect}
+          onCheckedChange={(next) => toggleChecked(email.id, next)}
           onTrash={onTrash}
           onRestore={onRestore}
           onDeletePermanent={onDeletePermanent}
@@ -144,14 +203,93 @@ function initialsOf(name: string | null, email: string): string {
   return src.slice(0, 2).toUpperCase();
 }
 
+function BulkBar({
+  allChecked,
+  someChecked,
+  count,
+  total,
+  moveFolders,
+  canInbox,
+  inTrash,
+  busy,
+  onToggleAll,
+  onMove,
+  onInbox,
+  onTrash,
+}: {
+  allChecked: boolean;
+  someChecked: boolean;
+  count: number;
+  total: number;
+  moveFolders: EmailCustomFolder[];
+  canInbox: boolean;
+  inTrash: boolean;
+  busy: boolean;
+  onToggleAll: (next: boolean) => void;
+  onMove: (folderId: string) => void;
+  onInbox: () => void;
+  onTrash: () => void;
+}) {
+  const moveOptions = [
+    ...(canInbox ? [{ value: "__inbox", label: "Caixa de entrada" }] : []),
+    ...moveFolders.map((f) => ({ value: f.id, label: f.name })),
+  ];
+
+  return (
+    <div className="flex items-center gap-2 px-1 pb-0.5">
+      <CheckboxGlass
+        checked={allChecked}
+        indeterminate={someChecked}
+        onChange={onToggleAll}
+        aria-label="Selecionar todos"
+      />
+      <span className="min-w-0 flex-1 truncate font-display text-[12px] font-semibold text-[var(--text-muted)]">
+        {count > 0
+          ? `${count} selecionado${count === 1 ? "" : "s"}`
+          : `Selecionar (${total})`}
+      </span>
+      {count > 0 ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          {moveOptions.length > 0 ? (
+            <DropdownGlass
+              value=""
+              placeholder="Mover"
+              options={moveOptions}
+              disabled={busy}
+              triggerClassName="h-8 w-auto min-w-[6.5rem] px-2.5"
+              matchTriggerWidth={false}
+              onValueChange={(value) => {
+                if (value === "__inbox") onInbox();
+                else onMove(value);
+              }}
+            />
+          ) : null}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onTrash}
+            className="inline-flex h-8 items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2.5 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--color-danger)] hover:text-[var(--color-danger)] disabled:opacity-40"
+          >
+            <IcoTrash />
+            {inTrash ? "Excluir" : "Excluir"}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function EmailRow({
   email,
   selected,
+  checked,
+  dragIds,
   folder,
   showAccountTag,
   accountEmail,
   customFolder,
   onSelect,
+  onCheckedChange,
   onTrash,
   onRestore,
   onDeletePermanent,
@@ -159,11 +297,14 @@ function EmailRow({
 }: {
   email: EmailListItem;
   selected: boolean;
+  checked: boolean;
+  dragIds: string[];
   folder: EmailFolder;
   showAccountTag: boolean;
   accountEmail: string | undefined;
   customFolder: EmailCustomFolder | null;
   onSelect: (id: string) => void;
+  onCheckedChange: (next: boolean) => void;
   onTrash?: (id: string) => void;
   onRestore?: (id: string) => void;
   onDeletePermanent?: (id: string) => void;
@@ -177,13 +318,14 @@ function EmailRow({
   const folderTone = customFolder ? resolveFolderTone(customFolder.color, customFolder.name) : null;
 
   function handleDragStart(e: React.DragEvent) {
-    // Tipo MIME custom para distinguir de outros drags no app
-    e.dataTransfer.setData("application/x-email-id", email.id);
+    e.dataTransfer.setData("application/x-email-id", dragIds.join(","));
     e.dataTransfer.setData("application/x-email-account-id", email.accountId);
     e.dataTransfer.effectAllowed = "move";
-    // Preview compacta — assunto/remetente
     const ghost = document.createElement("div");
-    ghost.textContent = email.subject || displayName || "E-mail";
+    ghost.textContent =
+      dragIds.length > 1
+        ? `${dragIds.length} e-mails`
+        : email.subject || displayName || "E-mail";
     ghost.style.cssText = "position:absolute;top:-9999px;padding:6px 12px;background:var(--primary);color:var(--primary-foreground);font:500 12px Geist,sans-serif;border-radius:999px;";
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 10, 10);
@@ -203,15 +345,28 @@ function EmailRow({
       onContextMenu={handleContextMenu}
       className="group relative"
     >
-      <button
-        onClick={() => onSelect(email.id)}
+      <div
         className={cn(
-          "flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left transition-colors",
+          "flex w-full items-center gap-2 rounded-2xl border border-border bg-card pr-3 text-left transition-colors",
           selected
             ? "border-primary bg-primary/5 ring-1 ring-primary"
-            : "hover:bg-muted/50",
+            : checked
+              ? "border-primary/40 bg-primary/5"
+              : "hover:bg-muted/50",
         )}
       >
+        <div className="flex shrink-0 items-center self-stretch pl-3">
+          <CheckboxGlass
+            checked={checked}
+            onChange={onCheckedChange}
+            aria-label={`Selecionar ${email.subject ?? "e-mail"}`}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => onSelect(email.id)}
+          className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left"
+        >
         <IdentityAvatar
           name={folder === "SENT" ? displayName : email.fromName}
           seed={avatarSrc}
@@ -269,7 +424,8 @@ function EmailRow({
             </span>
           ) : null}
         </div>
-      </button>
+        </button>
+      </div>
 
       <div className="absolute top-2.5 right-2.5 hidden gap-1 group-hover:flex">
         {inTrash ? (
