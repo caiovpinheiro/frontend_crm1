@@ -703,9 +703,13 @@ function EmailSearchFilterBar({
             title="Mostrar opções de pesquisa"
             aria-label="Mostrar opções de pesquisa"
             aria-expanded={open}
-            onClick={() => setOpen((o) => !o)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen((o) => !o);
+            }}
             className={cn(
-              "absolute right-1.5 top-1/2 z-[1] flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
+              "absolute right-1.5 top-1/2 z-20 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
               open || activeCount > 0
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",

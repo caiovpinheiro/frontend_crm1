@@ -26,7 +26,7 @@ export const SEARCH_PILL_INPUT_CLASS =
   "h-10 w-full rounded-full border border-border bg-card pl-9 font-body text-[13px] text-foreground shadow-none outline-none placeholder:text-muted-foreground"
 
 export const SEARCH_FILTER_BTN_CLASS =
-  "absolute right-1.5 top-1/2 z-[1] flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold leading-none transition-colors"
+  "absolute right-1.5 top-1/2 z-20 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold leading-none transition-colors"
 
 function SearchPillChipScroll({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -119,7 +119,7 @@ function SearchPillChipScroll({ children }: { children: ReactNode }) {
   return (
     <div
       ref={ref}
-      className="search-pill-hscroll my-auto h-7 min-w-0 flex-1 select-none rounded-full"
+      className="search-pill-hscroll pointer-events-auto my-auto h-7 min-w-0 flex-1 select-none rounded-full"
     >
       <div className="flex h-full w-max min-w-full flex-nowrap items-center gap-1.5 px-1">
         {children}
@@ -219,13 +219,13 @@ export function SearchFilterBar({
       )}
     >
       {hasChips ? null : (
-        <span className="pointer-events-none absolute left-3.5 top-1/2 z-[1] -translate-y-1/2 text-muted-foreground">
+        <span className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 text-muted-foreground">
           {leading ?? <Search className="size-[15px]" aria-hidden="true" />}
         </span>
       )}
       <div
         className={cn(
-          "flex h-10 w-full min-w-0 items-center overflow-hidden rounded-full border border-border bg-card shadow-none",
+          "pointer-events-none flex h-10 w-full min-w-0 items-center overflow-hidden rounded-full border border-border bg-card shadow-none",
           hasChips ? "pl-3" : "pl-9",
           padRight,
         )}
@@ -251,7 +251,7 @@ export function SearchFilterBar({
             placeholder={placeholder}
             aria-label={ariaLabel ?? placeholder}
             autoComplete="off"
-            className={cn(inputClass, "h-full min-w-0 flex-1")}
+            className={cn(inputClass, "pointer-events-auto h-full min-w-0 flex-1")}
           />
         )}
       </div>
