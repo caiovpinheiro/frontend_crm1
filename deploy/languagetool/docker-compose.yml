@@ -1,0 +1,45 @@
+# Worker LanguageTool (HTTP :8010). EasyPanel: App + imagem, NÃO tipo Worker.
+# Tipo Worker do EasyPanel não tem porta — Traefik devolve
+# "Service is not reachable" (HTML 502).
+#
+# Java demora 1–2 min para subir. Até /v2/languages responder, o domínio
+# público também cai no 502 do EasyPanel.
+#
+# No frontend (crm-dev-frontend / prod), variável de RUNTIME (sem rebuild):
+#   LANGUAGETOOL_API_URL=http://languagetool:8010/v2/check
+# Preferir DNS interno (mesma rede). Domínio HTTPS só se o Next não alcançar.
+
+services:
+  languagetool:
+    image: erikvl87/languagetool:latest
+    container_name: languagetool
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    environment:
+      Java_Xms: 512m
+      Java_Xmx: 2g
+      langtool_pipelinePrewarming: "true"
+      langtool_cacheSize: "1000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8010/v2/languages >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+    # N-grams (pt-BR melhor: Então, é, acento). Volume grande (vários GB).
+    # 1) Baixe o modelo: https://languagetool.org/download/ngram-data/
+    # 2) Descomente:
+    # environment:
+    #   Java_Xms: 1g
+    #   Java_Xmx: 4g
+    #   langtool_languageModel: /ngrams
+    # volumes:
+    #   - languagetool-ngrams:/ngrams
+
+# volumes:
+#   languagetool-ngrams:

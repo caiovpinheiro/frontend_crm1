@@ -59,12 +59,14 @@ import {
 } from "./channel-switch-confirm";
 import { ComposerMenu } from "./composer-menu";
 import { ConversationResolveButton } from "./conversation-resolve-button";
+import { ProofreadDialog } from "./proofread-dialog";
 import {
   TemplateComposePanel,
   whatsappTemplateToPending,
   type PendingTemplate,
 } from "./template-compose-panel";
 import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channels";
+import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
 
 /**
  * Composer completo para o ChatArea. Substitui o footer estático
@@ -201,6 +203,7 @@ export function Composer({
   enableCallPermission?: boolean;
 }) {
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
+  const proofread = useProofreadSendGate();
   const [noteMode, setNoteMode] = useState(false);
   const [audioRecState, setAudioRecState] = useState<AudioRecordState>("idle");
   const isAudioActive = audioRecState !== "idle";
@@ -278,10 +281,18 @@ export function Composer({
     draftRef.current = value;
   }, [value]);
 
+  useEffect(() => {
+    if (!proofread.enabled || noteMode) return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const timer = window.setTimeout(() => proofread.prefetch(trimmed), 400);
+    return () => window.clearTimeout(timer);
+  }, [value, noteMode, proofread.enabled, proofread.prefetch]);
+
   // 29/jul/26 — trava local da sequência multi-anexo: `sending` do pai só
   // cobre a mutation, não o upload longo — sem isso o Enter reenvia o texto.
   const [sequenceSending, setSequenceSending] = useState(false);
-  const busy = !!sending || sequenceSending;
+  const busy = !!sending || sequenceSending || proofread.checking;
 
   const qc = useQueryClient();
 
@@ -701,6 +712,18 @@ export function Composer({
     files.forEach((f) => URL.revokeObjectURL(f.previewUrl));
   }
 
+  async function flushOutbound(text: string | null) {
+    if (text) {
+      try {
+        await Promise.resolve(onSend(text));
+      } catch {
+        /* texto falhou; ainda tenta anexos se o caller não bloqueou */
+      }
+    }
+    await flushPendingMedia();
+    await flushPendingFiles();
+  }
+
   async function performSend() {
     const trimmed = value.trim();
     // Permite enviar quando há texto OU algum anexo encostado (modelo ou imagem colada).
@@ -723,14 +746,19 @@ export function Composer({
     // Aguarda o texto sair antes dos anexos — evita race (arquivo aparecer
     // antes da 1ª mensagem) e garante ordem: texto → arq1 → msg2 → arq2…
     if (trimmed) {
-      try {
-        await Promise.resolve(onSend(applySignature(trimmed)));
-      } catch {
-        /* texto falhou; ainda tenta anexos se o caller não bloqueou */
-      }
+      const gated = await proofread.gate(trimmed);
+      if (gated.status === "block") return;
+      await flushOutbound(applySignature(gated.text));
+      return;
     }
-    await flushPendingMedia();
-    await flushPendingFiles();
+    await flushOutbound(null);
+  }
+
+  async function handleSendCorrection(text: string) {
+    const next = text.trim();
+    if (!next) return;
+    proofread.close();
+    await flushOutbound(applySignature(next));
   }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -819,6 +847,16 @@ export function Composer({
   return (
     <div ref={rootRef} className="relative mx-3 mb-1 max-md:mx-2 max-md:mb-1 sm:mx-4">
       {confirmDialogNode}
+      <ProofreadDialog
+        open={proofread.open}
+        onOpenChange={(next) => {
+          if (!next) proofread.close();
+        }}
+        result={proofread.result}
+        sending={!!sending}
+        onSendCorrection={handleSendCorrection}
+        onIgnoreExcerpt={proofread.ignoreExcerpt}
+      />
       {/* Painel de validação do template do WhatsApp — flutua acima do composer */}
       {pendingTemplate && conversationId ? (
         <TemplateComposePanel
@@ -947,7 +985,7 @@ export function Composer({
       {/* ── Row: Transferir + tabs (esq.) … Nº + Encerrar/Reabrir (dir.) ── */}
       {(transferSlot ||
         onSendNote ||
-        (signatureAllowed && !noteMode) ||
+        !noteMode ||
         (!noteMode && (availableChannels?.length ?? 0) > 1) ||
         conversationId ||
         conversationNumber != null) && (
@@ -1008,7 +1046,9 @@ export function Composer({
             <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 font-display text-[11.5px] font-semibold text-warning ring-1 ring-inset ring-warning/25">
               <IconLock size={12} /> Nota
             </span>
-          ) : signatureAllowed ? (
+          ) : (
+            <>
+          {signatureAllowed ? (
             /* Assinatura do agente */
             <div className="flex items-center gap-1.5">
               <button
@@ -1097,6 +1137,8 @@ export function Composer({
               )}
             </div>
           ) : null}
+            </>
+          )}
 
           {/* Nº da conversa + Encerrar/Reabrir */}
           {(conversationNumber != null || conversationId) && (

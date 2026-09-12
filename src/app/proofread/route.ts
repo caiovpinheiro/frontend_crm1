@@ -1,0 +1,252 @@
+/**
+ * POST /proofread  (rota frontend — servidor Next.js)
+ *
+ * Checa ortografia/gramática via LanguageTool antes do envio no composer.
+ * O browser chama `/api/proofread`; `next.config.ts` reescreve para cá
+ * porque `afterFiles` `/api/:path*` ganharia do App Router em `/api/*`.
+ *
+ * Body : { text: string, language?: "pt-BR" }
+ * Resp : { ok: boolean, suggested: string, matches: ProofreadMatch[] }
+ */
+import { NextResponse, type NextRequest } from "next/server";
+
+import {
+  applyLanguageToolReplacements,
+  describeLanguageToolHttpError,
+  isWhatsappUsefulMatch,
+  PUBLIC_LANGUAGETOOL_CHECK_URL,
+  shouldFallbackLanguageTool,
+  type ProofreadMatch,
+  type ProofreadResult,
+} from "@/lib/language-tool";
+
+const DEFAULT_CHECK_URL = PUBLIC_LANGUAGETOOL_CHECK_URL;
+const MAX_TEXT_LENGTH = 20_000;
+const LANGUAGE_RE = /^[a-z]{2}(?:-[A-Z]{2})?$/;
+const CHECK_TIMEOUT_MS = 12_000;
+const SERVER_CACHE_TTL_MS = 60_000;
+const SERVER_CACHE_MAX = 200;
+
+const resultCache = new Map<string, { at: number; body: ProofreadResult }>();
+
+function cacheKey(text: string, language: string): string {
+  return `v2\n${language}\n${text}`;
+}
+
+function cacheGet(text: string, language: string): ProofreadResult | null {
+  const key = cacheKey(text, language);
+  const hit = resultCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > SERVER_CACHE_TTL_MS) {
+    resultCache.delete(key);
+    return null;
+  }
+  return hit.body;
+}
+
+function cacheSet(text: string, language: string, body: ProofreadResult) {
+  if (resultCache.size >= SERVER_CACHE_MAX) {
+    const oldest = resultCache.keys().next().value;
+    if (oldest !== undefined) resultCache.delete(oldest);
+  }
+  resultCache.set(cacheKey(text, language), { at: Date.now(), body });
+}
+
+function languageToolCheckUrl(): string {
+  const raw = (process.env.LANGUAGETOOL_API_URL ?? DEFAULT_CHECK_URL).trim();
+  if (!raw) return DEFAULT_CHECK_URL;
+  if (raw.includes("/v2/check")) return raw;
+  return `${raw.replace(/\/$/, "")}/v2/check`;
+}
+
+type LtReplacement = { value?: unknown };
+type LtMatch = {
+  message?: unknown;
+  shortMessage?: unknown;
+  offset?: unknown;
+  length?: unknown;
+  replacements?: LtReplacement[];
+  rule?: {
+    id?: unknown;
+    issueType?: unknown;
+    category?: { id?: unknown };
+  };
+};
+
+function normalizeMatches(raw: unknown): ProofreadMatch[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ProofreadMatch[] = [];
+  for (const item of raw as LtMatch[]) {
+    const offset = typeof item.offset === "number" ? item.offset : NaN;
+    const length = typeof item.length === "number" ? item.length : NaN;
+    if (!Number.isFinite(offset) || !Number.isFinite(length)) continue;
+    const replacements = (item.replacements ?? [])
+      .map((r) => (typeof r?.value === "string" ? r.value : ""))
+      .filter((v) => v.length > 0);
+    const message =
+      typeof item.message === "string" && item.message.trim()
+        ? item.message
+        : "Possível erro encontrado.";
+    out.push({
+      message,
+      shortMessage:
+        typeof item.shortMessage === "string" && item.shortMessage.trim()
+          ? item.shortMessage
+          : undefined,
+      offset,
+      length,
+      replacements,
+      ruleId: typeof item.rule?.id === "string" ? item.rule.id : undefined,
+      categoryId:
+        typeof item.rule?.category?.id === "string"
+          ? item.rule.category.id
+          : undefined,
+      issueType:
+        typeof item.rule?.issueType === "string" ? item.rule.issueType : undefined,
+    });
+  }
+  return out;
+}
+
+export async function POST(request: NextRequest) {
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Body JSON inválido." }, { status: 400 });
+  }
+
+  const record = body as Record<string, unknown>;
+  const text = typeof record.text === "string" ? record.text : "";
+  if (!text.trim()) {
+    return NextResponse.json({ error: "Campo 'text' é obrigatório." }, { status: 400 });
+  }
+
+  const languageRaw =
+    typeof record.language === "string" && record.language.trim()
+      ? record.language.trim()
+      : "pt-BR";
+  const language = LANGUAGE_RE.test(languageRaw) ? languageRaw : "pt-BR";
+
+  if (text.length > MAX_TEXT_LENGTH) {
+    const passthrough: ProofreadResult = {
+      ok: true,
+      original: text,
+      suggested: text,
+      matches: [],
+    };
+    return NextResponse.json(passthrough);
+  }
+
+  const checkUrl = languageToolCheckUrl();
+  let checkHost = "languagetool";
+  try {
+    checkHost = new URL(checkUrl).hostname;
+  } catch {
+    /* URL inválida — cai no fetch e vira 504 */
+  }
+  const localhost =
+    checkHost === "localhost" || checkHost === "127.0.0.1";
+
+  const cached = cacheGet(text, language);
+  if (cached) {
+    return NextResponse.json(cached);
+  }
+
+  const params = new URLSearchParams();
+  params.set("text", text);
+  params.set("language", language);
+  params.set("disabledCategories", "FORMAL,STYLE,TYPOGRAPHY,REDUNDANCY");
+  const apiKey = (process.env.LANGUAGETOOL_API_KEY ?? "").trim();
+  const username = (process.env.LANGUAGETOOL_USERNAME ?? "").trim();
+  if (apiKey) params.set("apiKey", apiKey);
+  if (username) params.set("username", username);
+
+  async function callLanguageTool(url: string) {
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+        "User-Agent": "Bwipo-CRM-Proofread/1.0",
+      },
+      body: params.toString(),
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+    });
+  }
+
+  async function callPrimary(): Promise<Response> {
+    if (localhost) {
+      throw new Error("LANGUAGETOOL_API_URL aponta para localhost");
+    }
+    return callLanguageTool(checkUrl);
+  }
+
+  let ltRes: Response | null = null;
+  let errBody = "";
+  try {
+    ltRes = await callPrimary();
+    if (!ltRes.ok) {
+      errBody = await ltRes.text().catch(() => "");
+    }
+  } catch (err) {
+    console.error("[proofread] LanguageTool fetch error:", checkHost, err);
+  }
+
+  const canFallback = shouldFallbackLanguageTool(checkUrl, {
+    status: ltRes?.status,
+    body: errBody,
+    networkError: !ltRes,
+  });
+
+  if (canFallback) {
+    try {
+      const fallbackRes = await callLanguageTool(DEFAULT_CHECK_URL);
+      if (fallbackRes.ok) {
+        console.warn(
+          `[proofread] worker ${checkHost} falhou; usando api.languagetool.org`,
+        );
+        ltRes = fallbackRes;
+        errBody = "";
+      } else if (!ltRes) {
+        ltRes = fallbackRes;
+        errBody = await fallbackRes.text().catch(() => "");
+      }
+    } catch (err) {
+      console.error("[proofread] fallback api.languagetool.org error:", err);
+    }
+  }
+
+  if (!ltRes) {
+    return NextResponse.json(
+      {
+        error: `Não alcançou o worker LanguageTool (${checkHost}). Confira se o serviço está no ar e na mesma rede do frontend.`,
+      },
+      { status: 504 },
+    );
+  }
+
+  if (!ltRes.ok) {
+    console.error(`[proofread] LanguageTool ${ltRes.status}:`, errBody.slice(0, 300));
+    return NextResponse.json(
+      {
+        error: describeLanguageToolHttpError(ltRes.status, checkHost, errBody),
+      },
+      { status: 502 },
+    );
+  }
+
+  const data = (await ltRes.json().catch(() => ({}))) as { matches?: unknown };
+  const matches = normalizeMatches(data.matches).filter((m) =>
+    isWhatsappUsefulMatch(m, text),
+  );
+  const suggested = applyLanguageToolReplacements(text, matches);
+  const result: ProofreadResult = {
+    ok: matches.length === 0,
+    original: text,
+    suggested,
+    matches,
+  };
+  cacheSet(text, language, result);
+  return NextResponse.json(result);
+}

@@ -39,6 +39,8 @@ import {
   LazyChatVideo,
 } from "@/components/crm/lazy-chat-media";
 import { ResolveConfirmDialog } from "@/features/inbox-v2/extras/skip-automations-option";
+import { ProofreadDialog } from "@/features/inbox-v2/extras/proofread-dialog";
+import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import { Button } from "@/components/ui/button";
 import {
@@ -636,6 +638,14 @@ export function ChatWindow({
     }
   }, []);
   const effectiveSignature = (signature.trim() || agentName).trim();
+  const proofread = useProofreadSendGate();
+  React.useEffect(() => {
+    if (!proofread.enabled || noteMode) return;
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    const timer = window.setTimeout(() => proofread.prefetch(trimmed), 400);
+    return () => window.clearTimeout(timer);
+  }, [draft, noteMode, proofread.enabled, proofread.prefetch]);
 
   const typingTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -1379,7 +1389,33 @@ export function ChatWindow({
     }
   }, [conversationId, queryClient, messagesKey]);
 
-  const onSend = React.useCallback(() => {
+  const commitOutbound = React.useCallback(
+    (payloadText: string, hasParkedMedia: boolean) => {
+      if (payloadText) {
+        sendMutation.mutate({
+          content: payloadText,
+          asNote: noteMode,
+          replyId: replyTo ? String(replyTo.id) : null,
+        });
+      }
+      if (hasParkedMedia) {
+        void flushPendingTemplateMedia();
+      }
+      setDraft("");
+      draftRef.current = "";
+      setActivePanel("none");
+      setReplyTo(null);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const ta = textareaRef.current;
+          if (ta && document.activeElement !== ta) ta.focus();
+        });
+      });
+    },
+    [flushPendingTemplateMedia, noteMode, replyTo, sendMutation],
+  );
+
+  const onSend = React.useCallback(async () => {
     const text = draft.trim();
     const hasParkedMedia = pendingTemplateMediaRef.current.length > 0;
     // NÃO bloqueamos por `sendMutation.isPending` — o agente precisa
@@ -1388,7 +1424,7 @@ export function ChatWindow({
     // otimista (nova bolha aparece na hora) e o servidor processa em
     // paralelo. O `setDraft("")` síncrono garante que Enters duplos
     // acidentais caiam no `if (!text)` e não duplicam mensagens.
-    if ((!text && !hasParkedMedia) || !conversationId) return;
+    if ((!text && !hasParkedMedia) || !conversationId || proofread.checking) return;
     // Assinatura do agente: quando o toggle está ligado e NÃO é nota interna,
     // prefixamos a assinatura em negrito (sintaxe WhatsApp `*nome*`) seguida
     // de dois pontos e UM espaço antes da mensagem. Formato INLINE — padrão
@@ -1412,48 +1448,49 @@ export function ChatWindow({
       (lower.startsWith(`*${sigLower}:*`) ||
         lower.startsWith(`*${sigLower}*`) ||
         lower.startsWith(`${sigLower}:`));
+    let outbound = text;
+    if (text && !noteMode) {
+      const gated = await proofread.gate(text);
+      if (gated.status === "block") return;
+      outbound = gated.text;
+    }
     const payloadText =
       shouldSign && !alreadyPrefixed
-        ? `*${effectiveSignature}:* ${text}`
-        : text;
-    if (text) {
-      sendMutation.mutate({
-        content: payloadText,
-        asNote: noteMode,
-        replyId: replyTo ? String(replyTo.id) : null,
-      });
-    }
-    if (hasParkedMedia) {
-      void flushPendingTemplateMedia();
-    }
-    setDraft("");
-    draftRef.current = "";
-    setActivePanel("none");
-    setReplyTo(null);
-    // Após enviar, o botão "Enviar" desaparece do DOM (condicional ao
-    // draft não vazio) — o React remove o nó e o browser realoca o
-    // foco no body. Devolvemos o foco ao textarea para que o agente
-    // possa digitar e disparar Enter de novo IMEDIATAMENTE, sem
-    // precisar clicar. Usamos dois `requestAnimationFrame` aninhados
-    // pra garantir que o foco aconteça DEPOIS do React commit + paint,
-    // sobrevivendo a outras re-renderizações que podem rolar no mesmo
-    // tick (ex.: `cancelQueries` da mutation otimista).
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const ta = textareaRef.current;
-        if (ta && document.activeElement !== ta) ta.focus();
-      });
-    });
+        ? `*${effectiveSignature}:* ${outbound}`
+        : outbound;
+    commitOutbound(outbound ? payloadText : "", hasParkedMedia);
   }, [
     conversationId,
     draft,
     noteMode,
-    sendMutation,
     replyTo,
     signatureEnabled,
     effectiveSignature,
-    flushPendingTemplateMedia,
+    proofread,
+    commitOutbound,
   ]);
+
+  const handleSendCorrection = React.useCallback(
+    (text: string) => {
+      const next = text.trim();
+      if (!next) return;
+      const shouldSign = signatureEnabled && !noteMode && !!effectiveSignature;
+      const sigLower = effectiveSignature.toLowerCase();
+      const lower = next.toLowerCase();
+      const alreadyPrefixed =
+        shouldSign &&
+        (lower.startsWith(`*${sigLower}:*`) ||
+          lower.startsWith(`*${sigLower}*`) ||
+          lower.startsWith(`${sigLower}:`));
+      const payloadText =
+        shouldSign && !alreadyPrefixed
+          ? `*${effectiveSignature}:* ${next}`
+          : next;
+      proofread.close();
+      commitOutbound(payloadText, pendingTemplateMediaRef.current.length > 0);
+    },
+    [commitOutbound, effectiveSignature, noteMode, proofread, signatureEnabled],
+  );
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // CRÍTICO: dar prioridade ao slash menu — quando ele está aberto,
     // Up/Down/Enter/Esc/Tab DEVEM controlá-lo, e não disparar envio.
@@ -1768,7 +1805,11 @@ export function ChatWindow({
     },
     [conversationId, attachMutation],
   );
-  const isBusy = sendMutation.isPending || attachMutation.isPending || sequenceSending;
+  const isBusy =
+    sendMutation.isPending ||
+    attachMutation.isPending ||
+    sequenceSending ||
+    proofread.checking;
   const isResolved = conversationStatus === "RESOLVED";
 
   /** Composer Meta sem sessão ativa (textarea desabilitado) — mesmo critério do `disabled` do textarea. */
@@ -4314,6 +4355,16 @@ export function ChatWindow({
         onConfirm={(skipAutomations) =>
           statusMutation.mutate({ action: "resolve", skipAutomations })
         }
+      />
+      <ProofreadDialog
+        open={proofread.open}
+        onOpenChange={(next) => {
+          if (!next) proofread.close();
+        }}
+        result={proofread.result}
+        sending={sendMutation.isPending}
+        onSendCorrection={handleSendCorrection}
+        onIgnoreExcerpt={proofread.ignoreExcerpt}
       />
       <Dialog open={signatureModalOpen} onOpenChange={setSignatureModalOpen}>
         <DialogContent className="sm:max-w-[460px]">
