@@ -690,8 +690,8 @@ html.light {
     drop-shadow(0 8px 20px color-mix(in srgb, var(--brand-primary) 15%, transparent))
     drop-shadow(0 0 1px color-mix(in srgb, var(--brand-primary) 40%, transparent));
 
-  --bg-gradient: linear-gradient(135deg, #0b1220 0%, #131b30 40%, #1c1530 70%, #0e1426 100%);
-  --bg-base: #0b1220;
+  --bg-gradient: var(--background);
+  --bg-base: var(--background);
 
   ::selection { background: rgba(91, 111, 245, 0.30); color: #e8edf5; }
 }
