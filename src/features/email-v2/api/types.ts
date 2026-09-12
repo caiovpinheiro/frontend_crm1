@@ -1,10 +1,11 @@
 export type EmailEncryption = "NONE" | "SSL_TLS" | "STARTTLS";
 export type EmailVisibility = "SHARED" | "PERSONAL";
-export type EmailFolder = "INBOX" | "SENT" | "TRASH";
+export type EmailFolder = "INBOX" | "SENT" | "SPAM" | "TRASH";
 
 export interface EmailFolderUnread {
   inbox: number;
   sent: number;
+  spam?: number;
   trash: number;
 }
 
