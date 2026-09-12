@@ -170,10 +170,15 @@ export function SearchFilterBar({
   const showClear = clearable && Boolean(value?.trim())
   const showFilter = withFilter || Boolean(filterSlot)
   const hasChips = Boolean(chips && chips.length > 0)
+  const iconFilter = showFilter && filterLabel === false
   const padRight = showFilter
     ? showClear && !hasChips
-      ? "pr-36"
-      : "pr-[7.25rem]"
+      ? iconFilter
+        ? "pr-20"
+        : "pr-36"
+      : iconFilter
+        ? "pr-11"
+        : "pr-[7.25rem]"
     : showClear && !hasChips
       ? "pr-10"
       : "pr-3"
@@ -257,7 +262,7 @@ export function SearchFilterBar({
           onClick={() => onChange?.("")}
           className={cn(
             "absolute top-1/2 z-[1] grid size-6 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
-            showFilter ? "right-[6.5rem]" : "right-2",
+            showFilter ? (iconFilter ? "right-11" : "right-[6.5rem]") : "right-2",
           )}
         >
           <X className="size-3.5" aria-hidden="true" />
