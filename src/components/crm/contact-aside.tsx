@@ -520,7 +520,7 @@ function DealInline({
             </p>
           </div>
           {deal.assigneeSlot && (
-            <div className="shrink-0 [&_span]:!border-transparent [&_span]:!bg-white [&_span]:!text-[#2e3b6e] [&_span]:shadow-sm">
+            <div className="shrink-0 [&_span:not(.identity-avatar)]:!border-transparent [&_span:not(.identity-avatar)]:!bg-white [&_span:not(.identity-avatar)]:!text-[#2e3b6e] [&_span:not(.identity-avatar)]:shadow-sm">
               {deal.assigneeSlot}
             </div>
           )}
