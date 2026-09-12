@@ -460,14 +460,14 @@ function DealInline({
       {/* ── Hero header (ref. Stitch): card escuro #2e3b6e como CARD interno,
           dentro do padding do container (não mais edge-to-edge). Mesma forma
           dos cards de contato/negócio: rounded-xl + borda sutil + shadow. ── */}
-      <header className="relative isolate mb-2 rounded-xl border border-white/10 bg-[#2e3b6e] px-3 pb-2.5 pt-2.5 text-white shadow-[var(--glass-shadow-sm)]">
+      <header className="relative isolate mb-2 rounded-3xl border border-panel-border bg-panel px-3 pt-2.5 pb-2.5 text-panel-foreground shadow-[var(--glass-shadow-sm)]">
         {/* Linha topo: título (até 2 linhas, sem truncar o nome) + pill de etapa */}
         <div className="relative mb-2 flex items-start justify-between gap-2">
-          <h1 className="min-w-0 text-[13px] font-bold leading-snug text-white">
+          <h1 className="min-w-0 text-lg font-bold leading-snug tracking-normal text-panel-foreground">
             <span className="line-clamp-2">
               {deal.title}
               {deal.number != null && (
-                <span className="ml-1.5 whitespace-nowrap text-[11px] font-normal text-slate-400">
+                <span className="ml-1.5 font-mono text-xs font-normal whitespace-nowrap text-panel-muted">
                   #{deal.number}
                 </span>
               )}

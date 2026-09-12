@@ -105,7 +105,7 @@ function folderUnreadFor(account: EmailAccount, folder: EmailFolder): number {
 function UnreadBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="shrink-0 rounded-full bg-[var(--color-enterprise-bg,rgba(91,111,245,0.15))] px-2 py-0.5 font-display text-[10px] font-bold text-[var(--brand-primary-dark,var(--brand-primary))]">
+    <span className="shrink-0 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
       {count > 99 ? "99+" : count}
     </span>
   );
@@ -217,7 +217,7 @@ export function EmailSidebar({
                 isDropOver
                   ? "bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)]/40"
                   : active
-                    ? "bg-[var(--color-enterprise-bg,rgba(91,111,245,0.15))] text-[var(--brand-primary-dark,var(--brand-primary))]"
+                    ? "bg-primary/5 text-primary ring-1 ring-primary/40"
                     : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
               ].join(" ")}
             >
@@ -246,7 +246,7 @@ export function EmailSidebar({
                 isDropOver
                   ? "bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)]/40"
                   : active
-                    ? "bg-[var(--color-enterprise-bg,rgba(91,111,245,0.15))] text-[var(--brand-primary-dark,var(--brand-primary))]"
+                    ? "bg-primary/5 text-primary ring-1 ring-primary/40"
                     : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
               ].join(" ")}
               onMouseEnter={() => setHoveredFolder(cf.id)}

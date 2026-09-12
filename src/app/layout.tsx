@@ -9,7 +9,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { DM_Sans, Plus_Jakarta_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 
 import { auth } from "@/lib/auth-public";
@@ -20,24 +20,17 @@ import { NativeApkUpdateDialog } from "@/components/layout/native-apk-update-dia
 import { Providers } from "./providers";
 import "./globals.css";
 
-/* Fontes via next/font: bundling local + preload + zero FOUT.
-   - DM Sans   → body (via --font-sans-next)
-   - Plus Jakarta Sans → display/headings (via --font-display-next)
-   Mantemos os import @import url(...) em globals.css como fallback
-   pra navegadores que não recebem o CSS dos chunks do Next em
-   tempo de paint (paranoia útil em SSR + cache estale). */
-const dmSans = DM_Sans({
+/* Geist para títulos e corpo. Geist Mono só em dados técnicos. */
+const geistSans = Geist({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
   variable: "--font-sans-next",
 });
 
-const plusJakarta = Plus_Jakarta_Sans({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
-  variable: "--font-display-next",
+  variable: "--font-mono-next",
 });
 
 export const metadata: Metadata = {
@@ -85,7 +78,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "#f4f6fb",
+  themeColor: "oklch(0.973 0.005 262)",
 };
 
 export default async function RootLayout({
@@ -99,7 +92,7 @@ export default async function RootLayout({
     <html
       lang="pt-BR"
       suppressHydrationWarning
-      className={`bg-background ${dmSans.variable} ${plusJakarta.variable}`}
+      className={`bg-background ${geistSans.variable} ${geistMono.variable}`}
       data-chat-theme="azul"
       style={{ fontFamily: "var(--font-sans)" }}
     >

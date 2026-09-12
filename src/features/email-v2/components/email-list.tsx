@@ -3,7 +3,7 @@
 import * as React from "react";
 import { IconUser } from "@tabler/icons-react";
 import type { EmailCustomFolder, EmailFolder, EmailListItem } from "../api/types";
-import { AVATAR_TONE_CLASS, avatarToneFromAddress } from "../lib/security-alert";
+import { IdentityAvatar } from "@/components/crm/identity-avatar";
 import { FOLDER_TONE, resolveFolderTone } from "../lib/folder-colors";
 import { formatRelativeDate } from "../utils";
 import { decodeIfQuotedPrintable } from "./html-email-frame";
@@ -82,7 +82,7 @@ export function EmailList({
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-0">
+      <div className="flex flex-col gap-2 p-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <SkeletonRow key={i} />
         ))}
@@ -100,7 +100,7 @@ export function EmailList({
   }
 
   return (
-    <div>
+    <div className="flex flex-col gap-2 p-3">
       {emails.map((email) => (
         <EmailRow
           key={email.id}
@@ -172,7 +172,6 @@ function EmailRow({
   const displayName =
     folder === "SENT" ? (email.toAddress ?? "") : (email.fromName ?? email.fromAddress);
   const avatarSrc = folder === "SENT" ? email.toAddress : email.fromAddress;
-  const tone = avatarToneFromAddress(avatarSrc);
   const preview = email.bodyText ? decodeIfQuotedPrintable(email.bodyText).slice(0, 110) : "";
   const inTrash = email.folder === "TRASH";
   const folderTone = customFolder ? resolveFolderTone(customFolder.color, customFolder.name) : null;
@@ -185,7 +184,7 @@ function EmailRow({
     // Preview compacta — assunto/remetente
     const ghost = document.createElement("div");
     ghost.textContent = email.subject || displayName || "E-mail";
-    ghost.style.cssText = "position:absolute;top:-9999px;padding:6px 12px;background:#5b6ff5;color:#fff;font:600 12px sans-serif;border-radius:999px;box-shadow:0 4px 14px rgba(91,111,245,.45);";
+    ghost.style.cssText = "position:absolute;top:-9999px;padding:6px 12px;background:var(--primary);color:var(--primary-foreground);font:500 12px Geist,sans-serif;border-radius:999px;";
     document.body.appendChild(ghost);
     e.dataTransfer.setDragImage(ghost, 10, 10);
     setTimeout(() => document.body.removeChild(ghost), 0);
@@ -202,98 +201,77 @@ function EmailRow({
       draggable
       onDragStart={handleDragStart}
       onContextMenu={handleContextMenu}
-      className={cn(
-        "group relative border-b border-[var(--glass-border)]",
-        selected
-          ? "bg-[var(--color-enterprise-bg,rgba(91,111,245,0.12))]"
-          : "hover:bg-[var(--glass-bg-overlay)]",
-      )}
+      className="group relative"
     >
       <button
         onClick={() => onSelect(email.id)}
-        className="relative flex w-full gap-3 px-3 py-3 text-left"
+        className={cn(
+          "flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left transition-colors",
+          selected
+            ? "border-primary bg-primary/5 ring-1 ring-primary"
+            : "hover:bg-muted/50",
+        )}
       >
-        {selected ? (
-          <span className="absolute bottom-0 left-0 top-0 w-[3px] rounded-r-full bg-[var(--brand-primary)]" />
-        ) : null}
-
-        <span
-          className={cn(
-            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-white",
-            AVATAR_TONE_CLASS[tone],
-          )}
-        >
-          {initialsOf(folder === "SENT" ? null : email.fromName, avatarSrc)}
-        </span>
+        <IdentityAvatar
+          name={folder === "SENT" ? displayName : email.fromName}
+          seed={avatarSrc}
+          initials={initialsOf(folder === "SENT" ? null : email.fromName, avatarSrc)}
+          size="md"
+          online={!!email.contact}
+        />
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate font-display text-[13.5px] leading-tight",
-                email.isRead
-                  ? "font-semibold text-[var(--text-secondary)]"
-                  : "font-bold text-[var(--text-primary)]",
-              )}
-            >
-              {displayName}
-            </span>
-            <span className="shrink-0 font-body text-[11px] leading-tight text-[var(--text-muted)] group-hover:opacity-0">
-              {formatRelativeDate(email.receivedAt)}
-            </span>
-          </div>
-
           <p
             className={cn(
-              "mt-0.5 truncate font-display text-[12.5px] leading-tight",
-              email.isRead
-                ? "font-medium text-[var(--text-secondary)]"
-                : "font-bold text-[var(--text-primary)]",
+              "truncate text-sm leading-tight",
+              email.isRead ? "font-medium text-foreground" : "font-bold text-foreground",
             )}
           >
+            {displayName}
+          </p>
+          <p className="truncate text-sm font-medium text-foreground">
             {email.subject ?? "(sem assunto)"}
           </p>
-
           {preview ? (
-            <p className="mt-1.5 line-clamp-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-1 font-body text-[12px] leading-snug text-[var(--text-muted)]">
-              {preview}
-            </p>
+            <p className="truncate text-sm text-muted-foreground">{preview}</p>
           ) : null}
+        </div>
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-            {!email.isRead ? (
-              <span className="rounded-full bg-[var(--brand-primary)] px-1.5 py-0.5 font-display text-[9px] font-bold uppercase tracking-wide text-white">
-                Novo
-              </span>
-            ) : null}
-            {email.contact ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-1.5 py-0.5 font-display text-[10px] font-semibold text-[var(--text-secondary)]">
-                <IconUser size={10} />
-                {email.contact.name}
-              </span>
-            ) : null}
-            {customFolder && folderTone ? (
-              <span
-                className="rounded-full px-1.5 py-0.5 font-display text-[10px] font-semibold"
-                style={{
-                  background: FOLDER_TONE[folderTone].bg,
-                  color: FOLDER_TONE[folderTone].fg,
-                }}
-              >
-                {customFolder.name}
-              </span>
-            ) : null}
-            {showAccountTag && accountEmail ? (
-              <span className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-1.5 py-0.5 font-display text-[10px] text-[var(--text-muted)]">
-                {accountEmail}
-              </span>
-            ) : null}
-          </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
+            {formatRelativeDate(email.receivedAt)}
+          </span>
+          {!email.isRead ? (
+            <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
+              Novo
+            </span>
+          ) : null}
+          {email.contact ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+              <IconUser size={10} />
+              {email.contact.name}
+            </span>
+          ) : null}
+          {customFolder && folderTone ? (
+            <span
+              className="rounded-full px-2.5 py-0.5 text-xs font-medium"
+              style={{
+                background: FOLDER_TONE[folderTone].bg,
+                color: FOLDER_TONE[folderTone].fg,
+              }}
+            >
+              {customFolder.name}
+            </span>
+          ) : null}
+          {showAccountTag && accountEmail ? (
+            <span className="max-w-[140px] truncate font-mono text-xs text-muted-foreground">
+              {accountEmail}
+            </span>
+          ) : null}
         </div>
       </button>
 
-      {/* Ações hover (canto superior direito) */}
-      <div className="absolute right-3 top-3 hidden group-hover:flex gap-1">
+      <div className="absolute top-2.5 right-2.5 hidden gap-1 group-hover:flex">
         {inTrash ? (
           <>
             {onRestore && (
@@ -541,14 +519,13 @@ function MenuSep() {
 
 function SkeletonRow() {
   return (
-    <div className="flex flex-col gap-1.5 px-4 py-3.5 border-b border-[var(--glass-border-subtle,var(--glass-border))] animate-pulse">
-      <div className="flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-[var(--glass-border)] shrink-0" />
-        <span className="h-3.5 rounded bg-[var(--glass-border)] flex-1 max-w-[140px]" />
-        <span className="h-3 rounded bg-[var(--glass-border)] w-12 shrink-0" />
+    <div className="flex animate-pulse items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
+      <span className="size-10 shrink-0 rounded-full bg-muted" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <span className="h-3.5 max-w-[140px] rounded-full bg-muted" />
+        <span className="h-3 w-4/5 rounded-full bg-muted" />
       </div>
-      <span className="h-3 rounded bg-[var(--glass-border)] w-4/5 ml-4" />
-      <span className="h-3 rounded bg-[var(--glass-border)] w-3/5 ml-4 opacity-60" />
+      <span className="h-5 w-12 shrink-0 rounded-full bg-accent/60" />
     </div>
   );
 }

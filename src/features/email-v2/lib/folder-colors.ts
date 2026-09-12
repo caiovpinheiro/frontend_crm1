@@ -9,29 +9,29 @@ export const FOLDER_TONE: Record<
   { swatch: string; bg: string; fg: string }
 > = {
   blue: {
-    swatch: "var(--brand-primary)",
-    bg: "color-mix(in srgb, var(--brand-primary) 16%, transparent)",
-    fg: "var(--brand-primary)",
+    swatch: "var(--primary)",
+    bg: "color-mix(in oklch, var(--primary) 14%, transparent)",
+    fg: "var(--primary)",
   },
   violet: {
-    swatch: "var(--brand-secondary, #a78bfa)",
-    bg: "color-mix(in srgb, var(--brand-secondary, #a78bfa) 18%, transparent)",
-    fg: "var(--brand-secondary, #7c3aed)",
+    swatch: "var(--primary)",
+    bg: "color-mix(in oklch, var(--primary) 14%, transparent)",
+    fg: "var(--primary)",
   },
   green: {
-    swatch: "var(--color-success, #16a34a)",
-    bg: "color-mix(in srgb, var(--color-success, #16a34a) 16%, transparent)",
-    fg: "var(--color-success, #16a34a)",
+    swatch: "var(--channel-online)",
+    bg: "var(--success)",
+    fg: "var(--success-foreground)",
   },
   amber: {
-    swatch: "var(--color-warning, #d97706)",
-    bg: "color-mix(in srgb, var(--color-warning, #d97706) 18%, transparent)",
-    fg: "var(--color-warning, #d97706)",
+    swatch: "var(--warning)",
+    bg: "var(--accent)",
+    fg: "var(--accent-foreground)",
   },
   rose: {
-    swatch: "var(--color-danger, #e11d48)",
-    bg: "color-mix(in srgb, var(--color-danger, #e11d48) 16%, transparent)",
-    fg: "var(--color-danger, #e11d48)",
+    swatch: "var(--destructive)",
+    bg: "color-mix(in oklch, var(--destructive) 12%, transparent)",
+    fg: "var(--destructive)",
   },
 };
 

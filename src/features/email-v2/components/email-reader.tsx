@@ -5,6 +5,7 @@ import { IconArrowLeft, IconExternalLink, IconNote, IconShield, IconUser } from 
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { IdentityAvatar } from "@/components/crm/identity-avatar";
 import {
   Dialog,
   DialogClose,
@@ -18,8 +19,6 @@ import { cn } from "@/lib/utils";
 
 import type { EmailDetail } from "../api/types";
 import {
-  AVATAR_TONE_CLASS,
-  avatarToneFromAddress,
   isSecurityAlertEmail,
   parseSecurityAlert,
   type SecurityActivity,
@@ -93,48 +92,72 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
     <div className="flex h-full min-h-0 flex-col">
       {onBack ? <ReaderBackBar onBack={onBack} /> : null}
 
-      <div className="flex-shrink-0 border-b-2 border-[var(--glass-border)] px-5 pb-4 pt-5">
-        <h2 className="mb-3 font-display text-[18px] font-extrabold leading-snug tracking-[-0.2px] text-[var(--text-primary)]">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border px-5 pt-5 pb-4">
+        <h2 className="text-xl font-bold tracking-normal text-foreground">
           {email.subject ?? "(sem assunto)"}
         </h2>
 
-        <div className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
-          <AvatarInitials name={email.fromName} email={email.fromAddress} />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-[13.5px] font-bold leading-tight text-[var(--text-primary)]">
-              {email.fromName ?? email.fromAddress}
-            </p>
-            <p className="truncate text-[12px] leading-tight text-[var(--text-muted)]">
-              {email.fromName
-                ? `${email.fromAddress} · para ${email.toAddress}`
-                : `para ${email.toAddress}`}
-            </p>
-          </div>
-          <span className="hidden shrink-0 text-[11.5px] text-[var(--text-muted)] lg:block">
-            {formatFullDate(email.receivedAt)}
-          </span>
-          <div className="flex shrink-0 gap-1.5">
-            <IconBtn onClick={onReply} label="Responder"><IcoReply /></IconBtn>
-            <IconBtn onClick={onForward} label="Encaminhar"><IcoForward /></IconBtn>
-            <IconBtn onClick={onDelete} label="Excluir" danger><IcoTrash /></IconBtn>
-          </div>
+        <div className="flex items-center justify-end gap-1.5">
+          <IconBtn onClick={onReply} label="Responder"><IcoReply /></IconBtn>
+          <IconBtn onClick={onForward} label="Encaminhar"><IcoForward /></IconBtn>
+          <IconBtn onClick={onDelete} label="Excluir" danger><IcoTrash /></IconBtn>
         </div>
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          {email.contact ? (
-            <a
-              href={`/contacts/${email.contact.id}`}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-0.5 text-[12px] font-medium text-[var(--brand-primary)] hover:underline"
+        <aside className="flex flex-col gap-4 rounded-3xl bg-panel p-5 text-panel-foreground">
+          <div className="flex items-center gap-3">
+            <IdentityAvatar
+              name={email.fromName}
+              seed={email.fromAddress}
+              initials={getInitials(email.fromName, email.fromAddress)}
+              size="lg"
+              online={!!email.contact}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-lg font-bold tracking-normal">
+                {email.fromName ?? email.fromAddress}
+              </p>
+              <p className="truncate font-mono text-xs text-panel-muted">
+                {email.fromAddress}
+              </p>
+            </div>
+            <span
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                email.folder === "TRASH"
+                  ? "bg-destructive/20 text-destructive-foreground"
+                  : email.folder === "SENT"
+                    ? "bg-success text-success-foreground"
+                    : "bg-accent text-accent-foreground",
+              )}
             >
-              <IconUser size={12} />
-              {email.contact.name}
-              <IconExternalLink size={10} className="opacity-60" />
-            </a>
+              {email.folder === "SENT" ? "Enviado" : email.folder === "TRASH" ? "Excluído" : "Recebido"}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <PanelField label="Para" value={email.toAddress} mono />
+            <PanelField label="Recebido" value={formatFullDate(email.receivedAt)} />
+            {email.contact ? (
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs text-panel-muted">Contato</span>
+                <a
+                  href={`/contacts/${email.contact.id}`}
+                  className="inline-flex items-center gap-1 font-medium text-panel-foreground hover:underline"
+                >
+                  <IconUser size={12} />
+                  {email.contact.name}
+                  <IconExternalLink size={10} className="opacity-60" />
+                </a>
+              </div>
+            ) : null}
+          </div>
+
+          {email.contact ? (
+            <div className="h-1 overflow-hidden rounded-full bg-panel-border">
+              <div className="h-full w-2/3 rounded-full bg-primary" />
+            </div>
           ) : null}
-          <span className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2 py-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
-            {email.folder === "SENT" ? "Enviado" : email.folder === "TRASH" ? "Excluído" : "Recebido"}
-          </span>
-        </div>
+        </aside>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -154,7 +177,7 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
       <div className="flex flex-shrink-0 items-center gap-2 border-t-2 border-[var(--glass-border)] px-5 py-4">
         <button
           onClick={onReply}
-          className="inline-flex items-center gap-1.5 font-display font-bold text-[13px] px-4 py-2 rounded-full bg-[var(--brand-primary)] text-white shadow-[0_4px_14px_rgba(91,111,245,0.35)] hover:bg-[var(--brand-primary-dark,#3d52e8)] hover:-translate-y-px transition-all"
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary-dark"
         >
           <IcoReply /> Responder
         </button>
@@ -185,18 +208,22 @@ function ReaderBackBar({ onBack }: { onBack: () => void }) {
   );
 }
 
-function AvatarInitials({ name, email }: { name: string | null; email: string }) {
-  const initials = getInitials(name, email);
-  const tone = avatarToneFromAddress(email);
+function PanelField({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
-    <span
-      className={cn(
-        "flex h-[42px] w-[42px] shrink-0 select-none items-center justify-center rounded-full font-display text-[14px] font-bold text-white",
-        AVATAR_TONE_CLASS[tone],
-      )}
-    >
-      {initials}
-    </span>
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-xs text-panel-muted">{label}</span>
+      <span className={cn("min-w-0 truncate font-medium", mono && "font-mono text-xs")}>
+        {value}
+      </span>
+    </div>
   );
 }
 

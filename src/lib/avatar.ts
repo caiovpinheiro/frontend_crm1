@@ -10,16 +10,27 @@ function firstGrapheme(s: string): string {
   return Array.from(s)[0] ?? "";
 }
 
+export type AvatarTokenIndex = 1 | 2 | 3 | 4 | 5;
+
 export const AVATAR_FALLBACK_COLORS = [
-  "var(--avatar-fallback-1)",
-  "var(--avatar-fallback-2)",
-  "var(--avatar-fallback-3)",
-  "var(--avatar-fallback-4)",
-  "var(--avatar-fallback-5)",
-  "var(--avatar-fallback-6)",
-  "var(--avatar-fallback-7)",
-  "var(--avatar-fallback-8)",
+  "var(--avatar-1)",
+  "var(--avatar-2)",
+  "var(--avatar-3)",
+  "var(--avatar-4)",
+  "var(--avatar-5)",
 ] as const;
+
+export function hashSeed(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash);
+}
+
+export function getAvatarTokenIndex(seed: string): AvatarTokenIndex {
+  return ((hashSeed(seed) % 5) + 1) as AvatarTokenIndex;
+}
 
 export const AVATAR_BOT_BG = "var(--avatar-bot-bg)";
 export const AVATAR_UNREAD_BG = "var(--avatar-unread-bg)";
@@ -27,11 +38,10 @@ export const AVATAR_UNREAD_BG = "var(--avatar-unread-bg)";
 export type AvatarGlassColor = "blue" | "teal" | "orange" | "purple" | "pink" | "coral";
 
 export const AVATAR_GLASS_COLORS: AvatarGlassColor[] = [
+  "pink",
   "blue",
   "teal",
   "orange",
-  "purple",
-  "pink",
   "coral",
 ];
 
@@ -41,20 +51,12 @@ export function getAvatarSolidColor(seed: string): string {
   if (normalized === "luz" || normalized.includes("luz")) {
     return "var(--color-warning)";
   }
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_FALLBACK_COLORS[Math.abs(hash) % AVATAR_FALLBACK_COLORS.length];
+  return AVATAR_FALLBACK_COLORS[getAvatarTokenIndex(seed) - 1];
 }
 
 /** Cor glass determinística para avatares de pessoas internas. */
 export function getAvatarGlassColor(seed: string): AvatarGlassColor {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_GLASS_COLORS[Math.abs(hash) % AVATAR_GLASS_COLORS.length];
+  return AVATAR_GLASS_COLORS[getAvatarTokenIndex(seed) - 1];
 }
 
 export function avatarInitials(name: string | null | undefined): string {

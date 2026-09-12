@@ -1,15 +1,15 @@
 import type { EmailDetail } from "../api/types";
 
-export type AvatarTone = "blue" | "violet" | "green" | "amber" | "rose";
+export type AvatarTone = "1" | "2" | "3" | "4" | "5";
 
-const TONES: AvatarTone[] = ["blue", "violet", "green", "amber", "rose"];
+const TONES: AvatarTone[] = ["1", "2", "3", "4", "5"];
 
 export const AVATAR_TONE_CLASS: Record<AvatarTone, string> = {
-  blue: "bg-[var(--brand-primary)]",
-  violet: "bg-[var(--brand-secondary,#a78bfa)]",
-  green: "bg-[var(--color-success,#16a34a)]",
-  amber: "bg-[var(--color-warning,#d97706)]",
-  rose: "bg-[var(--color-danger,#e11d48)]",
+  "1": "bg-[var(--avatar-1)] text-[var(--avatar-1-foreground)]",
+  "2": "bg-[var(--avatar-2)] text-[var(--avatar-2-foreground)]",
+  "3": "bg-[var(--avatar-3)] text-[var(--avatar-3-foreground)]",
+  "4": "bg-[var(--avatar-4)] text-[var(--avatar-4-foreground)]",
+  "5": "bg-[var(--avatar-5)] text-[var(--avatar-5-foreground)]",
 };
 
 export function avatarToneFromAddress(address: string): AvatarTone {
@@ -17,7 +17,7 @@ export function avatarToneFromAddress(address: string): AvatarTone {
   for (let i = 0; i < address.length; i += 1) {
     hash = (hash * 31 + address.charCodeAt(i)) | 0;
   }
-  return TONES[Math.abs(hash) % TONES.length] ?? "blue";
+  return TONES[Math.abs(hash) % TONES.length] ?? "1";
 }
 
 export interface SecurityActivity {
