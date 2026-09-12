@@ -259,3 +259,18 @@ export const ARCHETYPE_MAP: Record<ArchetypeId, ArchetypeDescriptor> =
 export function getArchetype(id: ArchetypeId): ArchetypeDescriptor {
   return ARCHETYPE_MAP[id] ?? ARCHETYPES[0];
 }
+
+/** Classificador interno: não atende e não deve virar dono do deal. */
+export function isTabulationArchetype(id: string | null | undefined): boolean {
+  return id === "TABULACAO";
+}
+
+/**
+ * `deal` chama assignDealOwner no runner. Tabulador só precisa da
+ * conversa (`contact`) pra `maybeReplyAsAIAgent` classificar.
+ */
+export function aiTransferTargetForArchetype(
+  archetype: string | null | undefined,
+): "deal" | "contact" {
+  return isTabulationArchetype(archetype) ? "contact" : "deal";
+}
