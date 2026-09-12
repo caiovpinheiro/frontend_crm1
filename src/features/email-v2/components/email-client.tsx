@@ -26,7 +26,7 @@ import { EmailRulesModal } from "./email-rules-modal";
 import { EmailForwardDialog } from "./email-forward-dialog";
 import { ComposeView } from "./compose-view";
 import { useEmailAccounts, useEmailCustomFolders, useEmailDetail, useEmails } from "../hooks";
-import { deleteEmail, moveEmail } from "../api/emails";
+import { bulkMoveEmails, deleteEmail, moveEmail } from "../api/emails";
 import type { EmailAccount, EmailCustomFolder, EmailFolder } from "../api/types";
 import {
   buildComposeDraft,
@@ -111,6 +111,7 @@ export function EmailClient() {
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [unreadOnly, setUnreadOnly] = React.useState(false);
   const [mobilePane, setMobilePane] = React.useState<MobilePane>("list");
+  const [bulkBusy, setBulkBusy] = React.useState(false);
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(query.trim()), 300);
@@ -385,15 +386,80 @@ export function EmailClient() {
     }
   }
 
-  async function handleDropToSystemFolder(emailId: string, folder: EmailFolder) {
-    if (folder === "TRASH") return handleDelete(emailId);
+  async function runBulk(
+    ids: string[],
+    input: { systemFolder?: EmailFolder; customFolderId?: string | null },
+    okMsg: (count: number) => string,
+  ) {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return;
+    setBulkBusy(true);
     try {
-      await moveEmail(emailId, { systemFolder: folder, customFolderId: null });
+      const updated = await bulkMoveEmails(unique, input);
+      if (selectedEmailId && unique.includes(selectedEmailId)) {
+        setSelectedEmailId(null);
+        if (isMobile) setMobilePane("list");
+      }
       refreshEmails();
       refreshUnreadCounts();
+      if (updated > 0) toast.success(okMsg(updated));
+      else toast.error("Nenhum e-mail foi atualizado.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao mover.");
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar e-mails.");
+    } finally {
+      setBulkBusy(false);
     }
+  }
+
+  async function handleBulkMove(ids: string[], folderId: string) {
+    await runBulk(ids, { systemFolder: "INBOX", customFolderId: folderId }, (n) =>
+      n === 1 ? "1 e-mail movido." : `${n} e-mails movidos.`,
+    );
+  }
+
+  async function handleBulkInbox(ids: string[]) {
+    await runBulk(ids, { systemFolder: "INBOX", customFolderId: null }, (n) =>
+      n === 1 ? "1 e-mail voltou para a caixa de entrada." : `${n} e-mails voltaram para a caixa de entrada.`,
+    );
+  }
+
+  async function handleBulkTrash(ids: string[]) {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return;
+    if (selectedFolder === "TRASH") {
+      const ok = await confirm({
+        title: unique.length === 1 ? "Excluir permanentemente?" : `Excluir ${unique.length} e-mails?`,
+        description: "Essa ação não pode ser desfeita. Os e-mails serão apagados da lixeira.",
+        confirmLabel: "Excluir",
+        destructive: true,
+      });
+      if (!ok) return;
+      setBulkBusy(true);
+      try {
+        await Promise.all(unique.map((id) => deleteEmail(id)));
+        if (selectedEmailId && unique.includes(selectedEmailId)) {
+          setSelectedEmailId(null);
+          if (isMobile) setMobilePane("list");
+        }
+        refreshEmails();
+        toast.success(unique.length === 1 ? "E-mail excluído." : `${unique.length} e-mails excluídos.`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erro ao excluir.");
+      } finally {
+        setBulkBusy(false);
+      }
+      return;
+    }
+    await runBulk(unique, { systemFolder: "TRASH", customFolderId: null }, (n) =>
+      n === 1 ? "1 e-mail enviado para a lixeira." : `${n} e-mails enviados para a lixeira.`,
+    );
+  }
+
+  async function handleDropToSystemFolder(emailIds: string[], folder: EmailFolder) {
+    if (folder === "TRASH") return handleBulkTrash(emailIds);
+    await runBulk(emailIds, { systemFolder: folder, customFolderId: null }, (n) =>
+      n === 1 ? "1 e-mail movido." : `${n} e-mails movidos.`,
+    );
   }
 
   async function handleToggleRead(id: string, isRead: boolean) {
@@ -510,7 +576,7 @@ export function EmailClient() {
               onDeleteCustomFolder={handleDeleteCustomFolder}
               onRecolorFolder={handleRecolorFolder}
               onDropToSystemFolder={handleDropToSystemFolder}
-              onDropToCustomFolder={handleMoveToCustomFolder}
+              onDropToCustomFolder={handleBulkMove}
               onOpenRules={accounts.length > 0 ? () => setRulesOpen(true) : undefined}
             />
             <ColumnResizer
@@ -572,6 +638,7 @@ export function EmailClient() {
                 <EmptyAccounts />
               ) : (
                 <EmailList
+                  key={`${selectedAccountId ?? "all"}:${selectedFolder}:${selectedCustomFolderId ?? ""}:${debouncedSearch}`}
                   emails={emails}
                   loading={emailsLoading}
                   selectedId={selectedEmailId}
@@ -586,6 +653,10 @@ export function EmailClient() {
                   onMoveToCustomFolder={handleMoveToCustomFolder}
                   onRemoveFromCustomFolder={handleRemoveFromCustomFolder}
                   onToggleRead={handleToggleRead}
+                  onBulkMove={handleBulkMove}
+                  onBulkInbox={handleBulkInbox}
+                  onBulkTrash={handleBulkTrash}
+                  bulkBusy={bulkBusy}
                 />
               )}
             </div>

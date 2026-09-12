@@ -42,6 +42,19 @@ export async function markEmailRead(id: string, isRead: boolean): Promise<void> 
   });
 }
 
+export async function bulkMoveEmails(
+  ids: string[],
+  input: { systemFolder?: EmailFolder; customFolderId?: string | null },
+): Promise<number> {
+  const res = await apiFetch("/api/emails/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, ...input }),
+  });
+  const data = await parseApiResponse<{ updated?: number }>(res, "Erro ao atualizar e-mails.");
+  return data.updated ?? 0;
+}
+
 export async function moveEmail(
   id: string,
   input: { systemFolder?: EmailFolder; customFolderId?: string | null },
