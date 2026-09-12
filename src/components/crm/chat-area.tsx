@@ -723,7 +723,7 @@ export function ChatArea({
           className="flex shrink-0 items-center justify-center gap-1.5 border-b border-emerald-500/15 bg-emerald-500/10 px-4 py-1 text-[11px] font-medium text-emerald-700 v2-dark:text-emerald-400"
         >
           <IconLock size={11} className="shrink-0" />
-          Conversa resolvida
+          Conversa encerrada
           {conversationClosedAt && (() => {
             const d = new Date(conversationClosedAt)
             if (Number.isNaN(d.getTime())) return null
