@@ -9,6 +9,7 @@ export function useEmails(params: {
   folder?: EmailFolder;
   customFolderId?: string;
   search?: string;
+  unreadOnly?: boolean;
 }) {
   const [emails, setEmails] = useState<EmailListItem[]>([]);
   const [pagination, setPagination] = useState<EmailPagination | null>(null);
@@ -27,6 +28,7 @@ export function useEmails(params: {
         folder: searching ? undefined : params.folder,
         customFolderId: searching ? undefined : params.customFolderId,
         search: params.search,
+        unreadOnly: params.unreadOnly,
         page: p,
         perPage: 30,
       });
@@ -37,7 +39,7 @@ export function useEmails(params: {
     } finally {
       setLoading(false);
     }
-  }, [params.accountId, params.folder, params.customFolderId, params.search, searching]);
+  }, [params.accountId, params.folder, params.customFolderId, params.search, params.unreadOnly, searching]);
 
   useEffect(() => {
     setPage(1);

@@ -6,6 +6,7 @@ export async function listEmails(params: {
   folder?: EmailFolder;
   customFolderId?: string;
   search?: string;
+  unreadOnly?: boolean;
   page?: number;
   perPage?: number;
 }): Promise<{ emails: EmailListItem[]; pagination: EmailPagination }> {
@@ -14,6 +15,7 @@ export async function listEmails(params: {
   if (params.folder) q.set("folder", params.folder);
   if (params.customFolderId) q.set("customFolderId", params.customFolderId);
   if (params.search?.trim()) q.set("q", params.search.trim());
+  if (params.unreadOnly) q.set("unreadOnly", "1");
   if (params.page) q.set("page", String(params.page));
   if (params.perPage) q.set("perPage", String(params.perPage));
 
