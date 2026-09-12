@@ -46,11 +46,17 @@ export function InboxConversationsPrefetch() {
 
     const schedule = () => {
       if (started.current || cancelled) return;
-      // Early-return evita narrowing de `window` para `never` no else
-      // (`typeof window !== "undefined" && "x" in window` quebra o tsc).
-      if (typeof window === "undefined") return;
-      if ("requestIdleCallback" in window) {
-        idleId = window.requestIdleCallback(run, { timeout: 2_500 });
+      // Não usar `"requestIdleCallback" in window`: o `else` tipa `window`
+      // como `never` no tsc do CI (DOM lib + narrowing do operador `in`).
+      const idleApi = window as Window & {
+        requestIdleCallback?: (
+          callback: IdleRequestCallback,
+          options?: IdleRequestOptions,
+        ) => number;
+        cancelIdleCallback?: (handle: number) => void;
+      };
+      if (typeof idleApi.requestIdleCallback === "function") {
+        idleId = idleApi.requestIdleCallback(run, { timeout: 2_500 });
       } else {
         timeoutId = window.setTimeout(run, 1_500);
       }
@@ -67,8 +73,11 @@ export function InboxConversationsPrefetch() {
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
-      if (idleId && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleId);
+      const idleApi = window as Window & {
+        cancelIdleCallback?: (handle: number) => void;
+      };
+      if (idleId && typeof idleApi.cancelIdleCallback === "function") {
+        idleApi.cancelIdleCallback(idleId);
       }
       if (timeoutId) window.clearTimeout(timeoutId);
     };
