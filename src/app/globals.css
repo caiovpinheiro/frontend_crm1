@@ -70,7 +70,7 @@ html.light {
   --color-input:          var(--input);
   --color-ring:           var(--ring);
 
-  /* ── Brand: índigo-violeta ──────────────────────────────────── */
+  /* ── Brand: índigo (#2f66f2) ────────────────────────────────── */
   --color-primary:             var(--primary);
   --color-primary-dark:        var(--primary-dark);
   --color-primary-soft:        var(--primary-soft);
