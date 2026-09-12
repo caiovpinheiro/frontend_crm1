@@ -775,25 +775,41 @@ export function TriggerConfigFields({ triggerType, value, onChange, stacked }: P
               id="tc-msg-stage"
               label="Estágio(s) (opcional)"
               values={readStageIdsFromConfig(value, "stage")}
-              onChange={(sids, owner, names) =>
+              onChange={(sids, _owner, names) =>
                 patch({
                   stageIds: sids,
                   stageId: "",
                   stageNames: names,
                   stageName: names[0] ?? "",
-                  ...(owner && !value.pipelineId
-                    ? { pipelineId: owner.id, pipelineName: owner.name }
-                    : {}),
                 })
               }
               pipelinesFromValue={String(value.pipelineId ?? "")}
               helper={
                 triggerType === "message_received"
-                  ? "Dispara quando o lead que enviou a mensagem está em algum destes estágios."
-                  : "Dispara quando a mensagem é enviada para um lead em algum destes estágios."
+                  ? "Vazio = qualquer funil e fase. Se filtrar, a mensagem num outro funil (ex.: Atendimento) não dispara o robô — o operador precisa devolver o negócio à origem."
+                  : "Vazio = qualquer funil e fase. Filtro trava o disparo no funil/etapa escolhidos."
               }
             />
           </div>
+          {(Boolean(value.pipelineId) ||
+            readStageIdsFromConfig(value, "stage").length > 0) && (
+            <button
+              type="button"
+              className="text-left font-display text-[12px] font-semibold text-[var(--brand-primary)] hover:underline"
+              onClick={() =>
+                patch({
+                  pipelineId: "",
+                  pipelineName: "",
+                  stageIds: [],
+                  stageId: "",
+                  stageNames: [],
+                  stageName: "",
+                })
+              }
+            >
+              Atender em qualquer fase
+            </button>
+          )}
           {/*
             27/mai/26 — Filtro por status do negocio. Usamos um select
             simples (em vez de multi-select) com 4 opcoes + uma composta
