@@ -2,16 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { IconArrowLeft, IconFilter, IconMail } from "@tabler/icons-react";
+import { IconArrowLeft, IconMail } from "@tabler/icons-react";
 import { toast } from "sonner";
 
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
+import { FilterChip } from "@/components/crm/filter-popover";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PageHeader } from "@/components/crm/page-header";
-import {
-  PageGhostButton,
-  PagePrimaryButton,
-  PageSearchBar,
-} from "@/components/crm/page-toolbar";
+import { PagePrimaryButton } from "@/components/crm/page-toolbar";
+import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { ColumnResizer, usePersistentWidth } from "@/components/crm/column-resizer";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -405,64 +404,41 @@ export function EmailClient() {
           icon={<IconMail size={22} />}
           title="E-mail"
           center={
-            isMobile ? undefined : (
-              <div className="ml-auto max-w-sm">
-                <PageSearchBar
-                  variant="compact"
-                  value={query}
-                  onChange={setQuery}
-                  placeholder="Buscar e-mails…"
-                  aria-label="Buscar e-mails"
-                />
-              </div>
-            )
+            <EmailSearchFilterBar
+              query={query}
+              onQueryChange={setQuery}
+              unreadOnly={unreadOnly}
+              onUnreadOnlyChange={setUnreadOnly}
+              onOpenRules={() => setRulesOpen(true)}
+              rulesDisabled={accounts.length === 0}
+            />
           }
           actions={
-            <>
-              <PageGhostButton
-                type="button"
-                onClick={() => setRulesOpen(true)}
-                disabled={accounts.length === 0}
-                aria-label="Regras de e-mail"
-                title="Regras"
-                className="h-10 w-10 justify-center px-0"
-              >
-                <IconFilter size={16} stroke={2.2} />
-              </PageGhostButton>
-              <PagePrimaryButton
-                type="button"
-                onClick={() => openCompose()}
-                disabled={accounts.length === 0}
-              >
-                <IcoCompose />
-                <span className="hidden sm:inline">Novo e-mail</span>
-                <span className="sm:hidden">Nova</span>
-              </PagePrimaryButton>
-            </>
+            <PagePrimaryButton
+              type="button"
+              onClick={() => openCompose()}
+              disabled={accounts.length === 0}
+            >
+              <IcoCompose />
+              <span className="hidden sm:inline">Novo e-mail</span>
+              <span className="sm:hidden">Nova</span>
+            </PagePrimaryButton>
           }
         />
 
-        <div className="md:hidden">
-          <PageSearchBar
-            variant="compact"
-            value={query}
-            onChange={setQuery}
-            placeholder="Buscar e-mails…"
-            aria-label="Buscar e-mails"
-          />
-        </div>
-
         <div
-          className="grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card max-md:grid-cols-1"
+          className="grid min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card max-md:grid-cols-1"
           style={
             isMobile
               ? undefined
-              : { gridTemplateColumns: `${sidebarWidth}px ${listWidth}px 1fr` }
+              : {
+                  gridTemplateColumns: `minmax(0, ${sidebarWidth}px) minmax(0, ${listWidth}px) minmax(0, 1fr)`,
+                }
           }
         >
           <div
             className={cn(
-              "relative min-h-0 flex-col overflow-hidden border-r-2 border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]",
+              "relative min-h-0 min-w-0 flex-col overflow-hidden border-r-2 border-[var(--glass-border)] bg-[var(--glass-bg-overlay)]",
               showSidebar ? "flex" : "hidden",
             )}
           >
@@ -508,7 +484,7 @@ export function EmailClient() {
 
           <div
             className={cn(
-              "relative min-h-0 flex-col overflow-hidden border-r-2 border-[var(--glass-border)]",
+              "relative min-h-0 min-w-0 flex-col overflow-hidden border-r-2 border-[var(--glass-border)]",
               showList ? "flex" : "hidden",
             )}
           >
@@ -549,27 +525,6 @@ export function EmailClient() {
               </button>
             </div>
 
-            <div className="flex shrink-0 items-center border-b border-[var(--glass-border)] px-4 py-2">
-              <button
-                type="button"
-                onClick={() => setUnreadOnly((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors"
-                style={{
-                  background: unreadOnly
-                    ? "color-mix(in srgb, var(--brand-primary) 14%, transparent)"
-                    : "var(--glass-bg-soft, var(--glass-bg-overlay))",
-                  color: unreadOnly ? "var(--brand-primary)" : "var(--glass-fg-muted, var(--text-muted))",
-                  border: `1px solid ${
-                    unreadOnly
-                      ? "color-mix(in srgb, var(--brand-primary) 28%, transparent)"
-                      : "var(--glass-border)"
-                  }`,
-                }}
-              >
-                Somente não lidos
-              </button>
-            </div>
-
             <div className="min-h-0 flex-1 overflow-y-auto">
               {emailsError ? (
                 <p className="px-4 py-3 font-body text-[13px] text-destructive">{emailsError}</p>
@@ -603,7 +558,7 @@ export function EmailClient() {
             />
           </div>
 
-          <div className={cn("min-h-0 flex-col", showDetail ? "flex" : "hidden")}>
+          <div className={cn("min-h-0 min-w-0 flex-col overflow-hidden", showDetail ? "flex" : "hidden")}>
             {composing ? (
               <ComposeView
                 accounts={composeAccounts.length > 0 ? composeAccounts : accounts}
@@ -648,6 +603,89 @@ export function EmailClient() {
       />
 
       {confirmDialog}
+    </div>
+  );
+}
+
+function EmailSearchFilterBar({
+  query,
+  onQueryChange,
+  unreadOnly,
+  onUnreadOnlyChange,
+  onOpenRules,
+  rulesDisabled,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+  unreadOnly: boolean;
+  onUnreadOnlyChange: (value: boolean) => void;
+  onOpenRules: () => void;
+  rulesDisabled: boolean;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const activeCount = unreadOnly ? 1 : 0;
+
+  return (
+    <div className="relative w-full min-w-0">
+      <SearchFilterBar
+        value={query}
+        onChange={onQueryChange}
+        placeholder="Pesquisar e filtrar e-mails..."
+        ariaLabel="Buscar e filtrar e-mails"
+        clearable
+        filterOpen={open}
+        activeCount={activeCount}
+        onFilterClick={() => setOpen((o) => !o)}
+        chips={
+          unreadOnly
+            ? [
+                {
+                  id: "unread",
+                  title: "Não lidos",
+                  count: 1,
+                  onRemove: () => onUnreadOnlyChange(false),
+                },
+              ]
+            : undefined
+        }
+      />
+
+      <FilterColumnsModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onClear={() => {
+          onUnreadOnlyChange(false);
+          onQueryChange("");
+        }}
+        onApply={() => setOpen(false)}
+        count={activeCount}
+        clearDisabled={activeCount === 0 && !query.trim()}
+        title="Filtros"
+        description="Refine as mensagens desta pasta."
+        labelledBy="Filtros de e-mail"
+      >
+        <FilterCategoryColumn title="Leitura" hint="Mostre todas as mensagens ou só as novas.">
+          <FilterChip tone="fill" selected={!unreadOnly} onClick={() => onUnreadOnlyChange(false)}>
+            Todas
+          </FilterChip>
+          <FilterChip tone="fill" selected={unreadOnly} onClick={() => onUnreadOnlyChange(true)}>
+            Não lidas
+          </FilterChip>
+        </FilterCategoryColumn>
+        <FilterCategoryColumn title="Automação" hint="Regras que movem e-mails automaticamente.">
+          <button
+            type="button"
+            disabled={rulesDisabled}
+            onClick={() => {
+              setOpen(false);
+              onOpenRules();
+            }}
+            className="flex w-full items-center justify-start rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Gerenciar regras
+          </button>
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
     </div>
   );
 }

@@ -117,13 +117,13 @@ export type PageHeaderBack = {
  * Descrições de página foram removidas do padrão NavRail.
  */
 
-/** Cluster de busca + ações — sempre à direita, wrap alinhado ao fim. */
+/** Cluster de busca + ações — encolhe a pílula; o título não some. */
 export const PAGE_HEADER_CONTROLS_CLASS =
-  "ml-auto flex min-w-0 w-max max-w-full flex-wrap items-center justify-end gap-2"
+  "ml-auto flex min-w-0 flex-1 items-center justify-end gap-2"
 
-/** Slot da pílula — largura canônica 32rem; `h-10` vem do input. */
+/** Slot da busca — até 32rem, mas cede espaço antes de esmagar a identidade. */
 export const PAGE_HEADER_SEARCH_SLOT_CLASS =
-  "min-w-0 w-[32rem] max-w-full [&_.relative]:w-full"
+  "min-w-0 flex-1 w-full max-w-[32rem] [&_.relative]:w-full"
 
 interface PageHeaderProps {
   icon: React.ReactNode
@@ -211,7 +211,7 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="min-w-0 shrink">
+      <div className="shrink-0">
         <Identity icon={icon} title={title} back={back} titleAccessory={titleAccessory} />
       </div>
       {hasControls ? (

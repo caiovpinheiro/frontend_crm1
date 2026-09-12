@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { IconArrowLeft, IconExternalLink, IconNote, IconShield, IconUser } from "@tabler/icons-react";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -25,6 +27,14 @@ import {
 } from "../lib/security-alert";
 import { formatFullDate } from "../utils";
 import { HtmlEmailFrame, decodeIfQuotedPrintable } from "./html-email-frame";
+
+function formatPanelDate(dateStr: string): string {
+  try {
+    return format(parseISO(dateStr), "d MMM yyyy, HH:mm", { locale: ptBR });
+  } catch {
+    return formatFullDate(dateStr);
+  }
+}
 
 // ── SVG icons (DS v2 reference) ────────────────────────────────────────────
 const IcoReply = () => (
@@ -89,22 +99,23 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
   const security = isSecurityAlertEmail(email);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
       {onBack ? <ReaderBackBar onBack={onBack} /> : null}
 
-      <div className="flex shrink-0 flex-col gap-3 border-b border-border px-5 pt-5 pb-4">
-        <h2 className="text-xl font-bold tracking-normal text-foreground">
-          {email.subject ?? "(sem assunto)"}
-        </h2>
-
-        <div className="flex items-center justify-end gap-1.5">
-          <IconBtn onClick={onReply} label="Responder"><IcoReply /></IconBtn>
-          <IconBtn onClick={onForward} label="Encaminhar"><IcoForward /></IconBtn>
-          <IconBtn onClick={onDelete} label="Excluir" danger><IcoTrash /></IconBtn>
+      <div className="flex min-w-0 shrink-0 flex-col gap-3 border-b border-border px-5 pt-5 pb-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <h2 className="min-w-0 flex-1 text-lg font-bold tracking-normal break-words [overflow-wrap:anywhere] line-clamp-3 text-foreground">
+            {email.subject ?? "(sem assunto)"}
+          </h2>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <IconBtn onClick={onReply} label="Responder"><IcoReply /></IconBtn>
+            <IconBtn onClick={onForward} label="Encaminhar"><IcoForward /></IconBtn>
+            <IconBtn onClick={onDelete} label="Excluir" danger><IcoTrash /></IconBtn>
+          </div>
         </div>
 
-        <aside className="flex flex-col gap-4 rounded-3xl bg-panel p-5 text-panel-foreground">
-          <div className="flex items-center gap-3">
+        <aside className="flex min-w-0 flex-col gap-4 rounded-3xl bg-panel p-5 text-panel-foreground">
+          <div className="flex min-w-0 flex-wrap items-start gap-3">
             <IdentityAvatar
               name={email.fromName}
               seed={email.fromAddress}
@@ -113,16 +124,16 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
               online={!!email.contact}
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-lg font-bold tracking-normal">
+              <p className="break-words text-lg font-bold tracking-normal [overflow-wrap:anywhere]">
                 {email.fromName ?? email.fromAddress}
               </p>
-              <p className="truncate font-mono text-xs text-panel-muted">
+              <p className="break-all font-mono text-xs text-panel-muted">
                 {email.fromAddress}
               </p>
             </div>
             <span
               className={cn(
-                "rounded-full px-2.5 py-0.5 text-xs font-medium",
+                "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
                 email.folder === "TRASH"
                   ? "bg-destructive/20 text-destructive-foreground"
                   : email.folder === "SENT"
@@ -134,19 +145,19 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
             </span>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <PanelField label="Para" value={email.toAddress} mono />
-            <PanelField label="Recebido" value={formatFullDate(email.receivedAt)} />
+          <div className="flex min-w-0 flex-col gap-2">
+            <PanelField label="Para" value={email.toAddress?.trim() || "—"} mono />
+            <PanelField label="Recebido" value={formatPanelDate(email.receivedAt)} />
             {email.contact ? (
-              <div className="flex items-baseline justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-xs text-panel-muted">Contato</span>
                 <a
                   href={`/contacts/${email.contact.id}`}
-                  className="inline-flex items-center gap-1 font-medium text-panel-foreground hover:underline"
+                  className="inline-flex min-w-0 items-center gap-1 truncate font-medium text-panel-foreground hover:underline"
                 >
-                  <IconUser size={12} />
-                  {email.contact.name}
-                  <IconExternalLink size={10} className="opacity-60" />
+                  <IconUser size={12} className="shrink-0" />
+                  <span className="truncate">{email.contact.name}</span>
+                  <IconExternalLink size={10} className="shrink-0 opacity-60" />
                 </a>
               </div>
             ) : null}
@@ -221,9 +232,14 @@ function PanelField({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <span className="text-xs text-panel-muted">{label}</span>
-      <span className={cn("min-w-0 truncate font-medium", mono && "font-mono text-xs")}>
+      <span
+        className={cn(
+          "min-w-0 font-medium break-words [overflow-wrap:anywhere]",
+          mono && "font-mono text-xs",
+        )}
+      >
         {value}
       </span>
     </div>
