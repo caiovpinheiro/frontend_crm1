@@ -378,12 +378,12 @@ export function ConversationCard({
               </Chip>
             ))}
           {conversation.department ? (
-            <Chip
-              variant="ghost"
-              className="max-w-[7.5rem] truncate whitespace-nowrap !px-1.5 !py-0 !text-[10px]"
+            <span
+              className="inline-flex max-w-[7.5rem] truncate whitespace-nowrap rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] px-1.5 py-px font-display text-[10px] font-semibold text-[var(--text-secondary)]"
+              title={conversation.department}
             >
               {conversation.department}
-            </Chip>
+            </span>
           ) : null}
         </span>
 
