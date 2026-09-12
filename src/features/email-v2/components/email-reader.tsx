@@ -30,7 +30,7 @@ import { HtmlEmailFrame, decodeIfQuotedPrintable } from "./html-email-frame";
 
 function formatPanelDate(dateStr: string): string {
   try {
-    return format(parseISO(dateStr), "d MMM yyyy, HH:mm", { locale: ptBR });
+    return format(parseISO(dateStr), "dd/MM/yyyy HH:mm", { locale: ptBR });
   } catch {
     return formatFullDate(dateStr);
   }
