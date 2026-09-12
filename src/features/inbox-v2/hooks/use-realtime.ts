@@ -9,7 +9,9 @@ import { messagesKey } from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { playInboxPing } from "./use-inbox-sound";
 import {
+  conversationUpdatedLikelyOnTabs,
   inboxQueueTabFor,
+  newMessageLikelyOnTabs,
   rowBelongsToAnyInboxTab,
   rowStaysOnAutomacaoTab,
   tabMoved,
@@ -34,8 +36,9 @@ import {
  *
  *  - 1 EventSource só, compartilhado pela página.
  *  - new_message prefere patch do card no cache (zero GET). Card fora
- *    da página hidrata via GET ?ids= em lote (debounce 400ms), só se a
- *    lista da inbox estiver montada. Miss que não entra na lista fica
+ *    da página hidrata via GET ?ids= em lote (debounce 2s), só se a
+ *    lista da inbox estiver montada e a aba puder mostrar o ticket.
+ *    Miss que não entra na lista fica
  *    em skip ~90s — sem poll. Badges ±1 se a fila canônica mudou.
  *  - conversation_updated: GET /:id SOMENTE se o ticket está ABERTO
  *    nesta aba. Card só na lista → patch do payload (se der) ou
@@ -199,6 +202,15 @@ function inboxTabsFromQueryKey(queryKey: readonly unknown[]): InboxTab[] {
   return [];
 }
 
+function activeInboxListTabs(qc: QueryClient): InboxTab[] {
+  const tabs = new Set<InboxTab>();
+  for (const q of qc.getQueryCache().findAll({ queryKey: ["inbox-conversations"] })) {
+    if (!q.isActive() || q.state.data == null) continue;
+    for (const t of inboxTabsFromQueryKey(q.queryKey)) tabs.add(t);
+  }
+  return [...tabs];
+}
+
 function inboxFiltersFromQueryKey(
   queryKey: readonly unknown[],
 ): InboxFilters | undefined {
@@ -332,7 +344,7 @@ function hasActiveInboxListQuery(qc: QueryClient): boolean {
     .some((q) => q.isActive() && q.state.data != null);
 }
 
-const MISSING_HYDRATE_DEBOUNCE_MS = 400;
+const MISSING_HYDRATE_DEBOUNCE_MS = 2_000;
 const MISSING_HYDRATE_SKIP_TTL_MS = 90_000;
 const MISSING_HYDRATE_ERROR_TTL_MS = 15_000;
 const missingHydratePending = new Set<string>();
@@ -826,7 +838,9 @@ export function useInboxRealtime(options: {
           } else if (isEventMessageType(data.messageType)) {
             // Timeline fora da 1ª página: não relista nem re-agrega.
           } else if (data.conversationId) {
-            scheduleMissingCardHydrate(qc, data.conversationId);
+            if (newMessageLikelyOnTabs(activeInboxListTabs(qc), data)) {
+              scheduleMissingCardHydrate(qc, data.conversationId);
+            }
           }
           if (!isEventMessageType(data.messageType)) {
             scheduleDailyStatsRefresh();
@@ -938,7 +952,10 @@ export function useInboxRealtime(options: {
           // Card + badges ±1 sem GET :id / counts=1.
         } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
-        } else if (!findCachedConversationRow(qc, id)) {
+        } else if (
+          !findCachedConversationRow(qc, id) &&
+          conversationUpdatedLikelyOnTabs(activeInboxListTabs(qc), payload)
+        ) {
           scheduleMissingCardHydrate(qc, id);
         }
         scheduleDailyStatsRefresh();

@@ -217,3 +217,54 @@ export function inboxQueueSectionFor(
   }
   return inboxQueueTabFor(row);
 }
+
+/** SSE `new_message` sem o card: só hidrata se a aba aberta puder
+ *  mostrar esse ticket. Sem sinal de direção, não afirma — hidrata. */
+export function newMessageLikelyOnTabs(
+  tabs: readonly InboxTab[],
+  event: { direction?: string | null; assignedToId?: string | null },
+): boolean {
+  if (tabs.length === 0) return false;
+  if (tabs.some((t) => t === "todos" || t === "abertas")) return true;
+  const dir = String(event.direction ?? "").toLowerCase();
+  if (!dir) return true;
+  const inbound = dir === "in" || dir === "inbound";
+  const outbound = dir === "out" || dir === "outbound";
+  const assigned = Boolean(event.assignedToId);
+
+  return tabs.some((tab) => {
+    if (tab === "esperando") return inbound && assigned;
+    if (tab === "respondidas") return outbound && assigned;
+    if (tab === "entrada") return !assigned && inbound;
+    if (tab === "agente_ia" || tab === "ligar" || tab === "automacao") return true;
+    return false;
+  });
+}
+
+/** SSE `conversation_updated` sem row completo: skip só quando o
+ *  payload já prova que o ticket não é desta aba. */
+export function conversationUpdatedLikelyOnTabs(
+  tabs: readonly InboxTab[],
+  payload: {
+    assignedToId?: string | null;
+    status?: string;
+    closedAt?: string | null;
+    followUpAt?: string | null;
+  },
+): boolean {
+  if (tabs.length === 0) return false;
+  if (tabs.some((t) => t === "todos" || t === "abertas")) return true;
+  if (payload.followUpAt) return tabs.includes("resolvidos");
+  if (payload.status === "RESOLVED" || payload.closedAt) {
+    return tabs.includes("finalizados");
+  }
+  if (payload.assignedToId === null) return tabs.includes("entrada");
+  return (
+    tabs.includes("esperando") ||
+    tabs.includes("respondidas") ||
+    tabs.includes("entrada") ||
+    tabs.includes("agente_ia") ||
+    tabs.includes("ligar") ||
+    tabs.includes("automacao")
+  );
+}

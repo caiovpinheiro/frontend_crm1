@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { ConversationListRow } from "../api";
 import {
+  conversationUpdatedLikelyOnTabs,
   inboxQueueSectionFor,
   inboxQueueTabFor,
+  newMessageLikelyOnTabs,
   rowBelongsToInboxTab,
 } from "../inbox-queue-tab";
 
@@ -145,5 +147,48 @@ describe("inboxQueueSectionFor", () => {
         ["entrada", "esperando"],
       ),
     ).toBe("entrada");
+  });
+});
+
+describe("newMessageLikelyOnTabs", () => {
+  it("na aba Aguardando ignora outbound e Entrada", () => {
+    expect(
+      newMessageLikelyOnTabs(["esperando"], {
+        direction: "out",
+        assignedToId: "u1",
+      }),
+    ).toBe(false);
+    expect(
+      newMessageLikelyOnTabs(["esperando"], {
+        direction: "in",
+        assignedToId: null,
+      }),
+    ).toBe(false);
+    expect(
+      newMessageLikelyOnTabs(["esperando"], {
+        direction: "in",
+        assignedToId: "u1",
+      }),
+    ).toBe(true);
+  });
+
+  it("Todas hidrata qualquer direção", () => {
+    expect(
+      newMessageLikelyOnTabs(["todos"], {
+        direction: "out",
+        assignedToId: "u1",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("conversationUpdatedLikelyOnTabs", () => {
+  it("encerrado não hidrata Aguardando", () => {
+    expect(
+      conversationUpdatedLikelyOnTabs(["esperando"], { status: "RESOLVED" }),
+    ).toBe(false);
+    expect(
+      conversationUpdatedLikelyOnTabs(["finalizados"], { status: "RESOLVED" }),
+    ).toBe(true);
   });
 });
