@@ -26,7 +26,7 @@ import { EmailRulesModal } from "./email-rules-modal";
 import { EmailForwardDialog } from "./email-forward-dialog";
 import { ComposeView } from "./compose-view";
 import { useEmailAccounts, useEmailCustomFolders, useEmailDetail, useEmails } from "../hooks";
-import { bulkMoveEmails, deleteEmail, moveEmail } from "../api/emails";
+import { bulkMoveEmails, deleteEmail, markEmailsAsSpam, moveEmail } from "../api/emails";
 import type { EmailAccount, EmailCustomFolder, EmailFolder } from "../api/types";
 import {
   buildComposeDraft,
@@ -43,6 +43,7 @@ function folderUnreadFor(account: EmailAccount, folder: EmailFolder): number {
   if (!counts) return folder === "INBOX" ? account.unreadCount : 0;
   if (folder === "INBOX") return counts.inbox;
   if (folder === "SENT") return counts.sent;
+  if (folder === "SPAM") return counts.spam ?? 0;
   return counts.trash;
 }
 
@@ -418,9 +419,50 @@ export function EmailClient() {
   }
 
   async function handleBulkInbox(ids: string[]) {
+    if (selectedFolder === "SPAM") return handleNotSpam(ids);
     await runBulk(ids, { systemFolder: "INBOX", customFolderId: null }, (n) =>
       n === 1 ? "1 e-mail voltou para a caixa de entrada." : `${n} e-mails voltaram para a caixa de entrada.`,
     );
+  }
+
+  async function runSpam(ids: string[], undo: boolean) {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const updated = await markEmailsAsSpam(unique, undo);
+      if (selectedEmailId && unique.includes(selectedEmailId)) {
+        setSelectedEmailId(null);
+        if (isMobile) setMobilePane("list");
+      }
+      refreshEmails();
+      refreshUnreadCounts();
+      if (updated > 0) {
+        toast.success(
+          undo
+            ? updated === 1
+              ? "Marcado como não é spam. O remetente volta para a caixa de entrada."
+              : `${updated} e-mails saíram do Spam.`
+            : updated === 1
+              ? "Marcado como spam. Novas mensagens deste remetente irão para Spam."
+              : `${updated} e-mails foram para Spam. Novas mensagens desses remetentes serão filtradas.`,
+        );
+      } else {
+        toast.error("Nenhum e-mail foi atualizado.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar spam.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleMarkSpam(ids: string[]) {
+    await runSpam(ids, false);
+  }
+
+  async function handleNotSpam(ids: string[]) {
+    await runSpam(ids, true);
   }
 
   async function handleBulkTrash(ids: string[]) {
@@ -456,7 +498,9 @@ export function EmailClient() {
   }
 
   async function handleDropToSystemFolder(emailIds: string[], folder: EmailFolder) {
+    if (folder === "SPAM") return handleMarkSpam(emailIds);
     if (folder === "TRASH") return handleBulkTrash(emailIds);
+    if (folder === "INBOX" && selectedFolder === "SPAM") return handleNotSpam(emailIds);
     await runBulk(emailIds, { systemFolder: folder, customFolderId: null }, (n) =>
       n === 1 ? "1 e-mail movido." : `${n} e-mails movidos.`,
     );
@@ -489,6 +533,7 @@ export function EmailClient() {
     }
     if (selectedFolder === "INBOX") return "Caixa de entrada";
     if (selectedFolder === "SENT") return "Enviados";
+    if (selectedFolder === "SPAM") return "Spam";
     return "Excluídos";
   }, [selectedFolder, selectedCustomFolderId, customFolders, searching, debouncedSearch]);
 
@@ -650,12 +695,16 @@ export function EmailClient() {
                   onTrash={handleDelete}
                   onRestore={handleRestore}
                   onDeletePermanent={handleDeletePermanent}
+                  onMarkSpam={(id) => void handleMarkSpam([id])}
+                  onNotSpam={(id) => void handleNotSpam([id])}
                   onMoveToCustomFolder={handleMoveToCustomFolder}
                   onRemoveFromCustomFolder={handleRemoveFromCustomFolder}
                   onToggleRead={handleToggleRead}
                   onBulkMove={handleBulkMove}
                   onBulkInbox={handleBulkInbox}
                   onBulkTrash={handleBulkTrash}
+                  onBulkSpam={handleMarkSpam}
+                  onBulkNotSpam={handleNotSpam}
                   bulkBusy={bulkBusy}
                 />
               )}
@@ -688,6 +737,16 @@ export function EmailClient() {
                 }}
                 onReply={handleReply}
                 onForward={handleForward}
+                onMarkSpam={
+                  selectedEmailId && emailDetail?.folder !== "SENT" && emailDetail?.folder !== "SPAM"
+                    ? () => void handleMarkSpam([selectedEmailId])
+                    : undefined
+                }
+                onNotSpam={
+                  selectedEmailId && emailDetail?.folder === "SPAM"
+                    ? () => void handleNotSpam([selectedEmailId])
+                    : undefined
+                }
                 onDelete={
                   selectedEmailId
                     ? () => {

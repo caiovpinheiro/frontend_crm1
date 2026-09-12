@@ -76,9 +76,11 @@ interface Props {
   onReply?: () => void;
   onForward?: () => void;
   onDelete?: () => void;
+  onMarkSpam?: () => void;
+  onNotSpam?: () => void;
 }
 
-export function EmailReader({ email, loading, onBack, onReply, onForward, onDelete }: Props) {
+export function EmailReader({ email, loading, onBack, onReply, onForward, onDelete, onMarkSpam, onNotSpam }: Props) {
   if (loading || !email) {
     return (
       <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -111,6 +113,11 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
           <div className="flex shrink-0 items-center gap-1.5">
             <IconBtn onClick={onReply} label="Responder"><IcoReply /></IconBtn>
             <IconBtn onClick={onForward} label="Encaminhar"><IcoForward /></IconBtn>
+            {onNotSpam ? (
+              <IconBtn onClick={onNotSpam} label="Não é spam"><IconShield /></IconBtn>
+            ) : onMarkSpam ? (
+              <IconBtn onClick={onMarkSpam} label="Marcar como spam"><IconShield /></IconBtn>
+            ) : null}
             <IconBtn onClick={onDelete} label="Excluir" danger><IcoTrash /></IconBtn>
           </div>
         </div>
@@ -137,12 +144,20 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
                 "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
                 email.folder === "TRASH"
                   ? "bg-destructive/20 text-destructive-foreground"
-                  : email.folder === "SENT"
-                    ? "bg-success text-success-foreground"
-                    : "bg-accent text-accent-foreground",
+                  : email.folder === "SPAM"
+                    ? "bg-accent text-accent-foreground"
+                    : email.folder === "SENT"
+                      ? "bg-success text-success-foreground"
+                      : "bg-accent text-accent-foreground",
               )}
             >
-              {email.folder === "SENT" ? "Enviado" : email.folder === "TRASH" ? "Excluído" : "Recebido"}
+              {email.folder === "SENT"
+                ? "Enviado"
+                : email.folder === "TRASH"
+                  ? "Excluído"
+                  : email.folder === "SPAM"
+                    ? "Spam"
+                    : "Recebido"}
             </span>
           </div>
 

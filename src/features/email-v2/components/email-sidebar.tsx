@@ -29,6 +29,13 @@ const IcoSent = () => (
     <path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>
   </svg>
 );
+const IcoSpam = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3 3 8v8l9 5 9-5V8Z"/>
+    <path d="M12 8v5"/>
+    <path d="M12 16h.01"/>
+  </svg>
+);
 const IcoTrash = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>
@@ -59,6 +66,7 @@ const IcoX = () => (
 const SYSTEM_FOLDERS: { key: EmailFolder; label: string; icon: React.ReactNode }[] = [
   { key: "INBOX", label: "Caixa de entrada", icon: <IcoInbox /> },
   { key: "SENT", label: "Enviados", icon: <IcoSent /> },
+  { key: "SPAM", label: "Spam", icon: <IcoSpam /> },
   { key: "TRASH", label: "Excluídos", icon: <IcoTrash /> },
 ];
 
@@ -106,6 +114,7 @@ function folderUnreadFor(account: EmailAccount, folder: EmailFolder): number {
   if (!counts) return folder === "INBOX" ? account.unreadCount : 0;
   if (folder === "INBOX") return counts.inbox;
   if (folder === "SENT") return counts.sent;
+  if (folder === "SPAM") return counts.spam ?? 0;
   return counts.trash;
 }
 

@@ -17,6 +17,14 @@ const IcoMailEmpty = () => (
   </svg>
 );
 
+const IcoSpam = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3 3 8v8l9 5 9-5V8Z"/>
+    <path d="M12 8v5"/>
+    <path d="M12 16h.01"/>
+  </svg>
+);
+
 const IcoTrash = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>
@@ -41,6 +49,8 @@ interface Props {
   onTrash?: (id: string) => void;
   onRestore?: (id: string) => void;
   onDeletePermanent?: (id: string) => void;
+  onMarkSpam?: (id: string) => void;
+  onNotSpam?: (id: string) => void;
   /** Move o e-mail para uma pasta custom (drag-drop ou menu de contexto). */
   onMoveToCustomFolder?: (emailId: string, folderId: string) => void;
   /** Tira o e-mail de qualquer pasta custom (volta pra INBOX). */
@@ -50,6 +60,8 @@ interface Props {
   onBulkMove?: (ids: string[], folderId: string) => void | Promise<void>;
   onBulkInbox?: (ids: string[]) => void | Promise<void>;
   onBulkTrash?: (ids: string[]) => void | Promise<void>;
+  onBulkSpam?: (ids: string[]) => void | Promise<void>;
+  onBulkNotSpam?: (ids: string[]) => void | Promise<void>;
   bulkBusy?: boolean;
 }
 
@@ -65,12 +77,16 @@ export function EmailList({
   onTrash,
   onRestore,
   onDeletePermanent,
+  onMarkSpam,
+  onNotSpam,
   onMoveToCustomFolder,
   onRemoveFromCustomFolder,
   onToggleRead,
   onBulkMove,
   onBulkInbox,
   onBulkTrash,
+  onBulkSpam,
+  onBulkNotSpam,
   bulkBusy = false,
 }: Props) {
   const [checkedIds, setCheckedIds] = React.useState<Set<string>>(new Set());
@@ -113,7 +129,7 @@ export function EmailList({
     return (
       <div className="flex flex-col items-center justify-center h-52 gap-2.5 text-[var(--text-muted)]">
         <IcoMailEmpty />
-        <p className="text-[13px]">Nenhuma mensagem.</p>
+        <p className="text-[13px]">{folder === "SPAM" ? "Nenhum spam." : "Nenhuma mensagem."}</p>
       </div>
     );
   }
@@ -125,6 +141,8 @@ export function EmailList({
   const moveFolders = customFolders.filter((f) => selectedAccountIds.has(f.accountId));
   const canInbox = selectedEmails.some((e) => e.folder !== "INBOX" || e.customFolderId);
   const inTrashView = folder === "TRASH" || selectedEmails.every((e) => e.folder === "TRASH");
+  const inSpamView = folder === "SPAM" || selectedEmails.every((e) => e.folder === "SPAM");
+  const canMarkSpam = selectedEmails.some((e) => e.folder !== "SENT" && e.folder !== "SPAM");
 
   function toggleChecked(id: string, next: boolean) {
     setCheckedIds((prev) => {
@@ -151,11 +169,15 @@ export function EmailList({
         moveFolders={moveFolders}
         canInbox={canInbox}
         inTrash={inTrashView}
+        inSpam={inSpamView}
+        canMarkSpam={canMarkSpam}
         busy={bulkBusy}
         onToggleAll={toggleAll}
         onMove={(folderId) => void onBulkMove?.(checkedList, folderId)}
         onInbox={() => void onBulkInbox?.(checkedList)}
         onTrash={() => void onBulkTrash?.(checkedList)}
+        onSpam={() => void onBulkSpam?.(checkedList)}
+        onNotSpam={() => void onBulkNotSpam?.(checkedList)}
       />
       {emails.map((email) => (
         <EmailRow
@@ -173,6 +195,8 @@ export function EmailList({
           onTrash={onTrash}
           onRestore={onRestore}
           onDeletePermanent={onDeletePermanent}
+          onMarkSpam={onMarkSpam}
+          onNotSpam={onNotSpam}
           onContextMenu={openMenu}
         />
       ))}
@@ -188,6 +212,8 @@ export function EmailList({
           onTrash={onTrash}
           onRestore={onRestore}
           onDeletePermanent={onDeletePermanent}
+          onMarkSpam={onMarkSpam}
+          onNotSpam={onNotSpam}
           onMoveToCustomFolder={onMoveToCustomFolder}
           onRemoveFromCustomFolder={onRemoveFromCustomFolder}
         />
@@ -211,11 +237,15 @@ function BulkBar({
   moveFolders,
   canInbox,
   inTrash,
+  inSpam,
+  canMarkSpam,
   busy,
   onToggleAll,
   onMove,
   onInbox,
   onTrash,
+  onSpam,
+  onNotSpam,
 }: {
   allChecked: boolean;
   someChecked: boolean;
@@ -224,11 +254,15 @@ function BulkBar({
   moveFolders: EmailCustomFolder[];
   canInbox: boolean;
   inTrash: boolean;
+  inSpam: boolean;
+  canMarkSpam: boolean;
   busy: boolean;
   onToggleAll: (next: boolean) => void;
   onMove: (folderId: string) => void;
   onInbox: () => void;
   onTrash: () => void;
+  onSpam: () => void;
+  onNotSpam: () => void;
 }) {
   const moveOptions = [
     ...(canInbox ? [{ value: "__inbox", label: "Caixa de entrada" }] : []),
@@ -264,6 +298,27 @@ function BulkBar({
               }}
             />
           ) : null}
+          {inSpam ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onNotSpam}
+              className="inline-flex h-8 items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2.5 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-40"
+            >
+              <IcoUndo />
+              Não é spam
+            </button>
+          ) : canMarkSpam ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onSpam}
+              className="inline-flex h-8 items-center gap-1 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2.5 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--warning)] hover:text-[var(--warning)] disabled:opacity-40"
+            >
+              <IcoSpam />
+              Spam
+            </button>
+          ) : null}
           <button
             type="button"
             disabled={busy}
@@ -293,6 +348,8 @@ function EmailRow({
   onTrash,
   onRestore,
   onDeletePermanent,
+  onMarkSpam,
+  onNotSpam,
   onContextMenu,
 }: {
   email: EmailListItem;
@@ -308,6 +365,8 @@ function EmailRow({
   onTrash?: (id: string) => void;
   onRestore?: (id: string) => void;
   onDeletePermanent?: (id: string) => void;
+  onMarkSpam?: (id: string) => void;
+  onNotSpam?: (id: string) => void;
   onContextMenu?: (email: EmailListItem, x: number, y: number) => void;
 }) {
   const displayName =
@@ -315,6 +374,7 @@ function EmailRow({
   const avatarSrc = folder === "SENT" ? email.toAddress : email.fromAddress;
   const preview = email.bodyText ? decodeIfQuotedPrintable(email.bodyText).slice(0, 110) : "";
   const inTrash = email.folder === "TRASH";
+  const inSpam = email.folder === "SPAM";
   const folderTone = customFolder ? resolveFolderTone(customFolder.color, customFolder.name) : null;
 
   function handleDragStart(e: React.DragEvent) {
@@ -449,14 +509,32 @@ function EmailRow({
             )}
           </>
         ) : (
-          onTrash && (
-            <RowAction
-              label="Mover para lixeira"
-              onClick={(e) => { e.stopPropagation(); onTrash(email.id); }}
-            >
-              <IcoTrash />
-            </RowAction>
-          )
+          <>
+            {inSpam && onNotSpam ? (
+              <RowAction
+                label="Não é spam"
+                onClick={(e) => { e.stopPropagation(); onNotSpam(email.id); }}
+              >
+                <IcoUndo />
+              </RowAction>
+            ) : null}
+            {!inSpam && email.folder !== "SENT" && onMarkSpam ? (
+              <RowAction
+                label="Marcar como spam"
+                onClick={(e) => { e.stopPropagation(); onMarkSpam(email.id); }}
+              >
+                <IcoSpam />
+              </RowAction>
+            ) : null}
+            {onTrash ? (
+              <RowAction
+                label="Mover para lixeira"
+                onClick={(e) => { e.stopPropagation(); onTrash(email.id); }}
+              >
+                <IcoTrash />
+              </RowAction>
+            ) : null}
+          </>
         )}
       </div>
     </div>
@@ -502,6 +580,8 @@ function ContextMenu({
   onTrash,
   onRestore,
   onDeletePermanent,
+  onMarkSpam,
+  onNotSpam,
   onMoveToCustomFolder,
   onRemoveFromCustomFolder,
 }: {
@@ -514,6 +594,8 @@ function ContextMenu({
   onTrash?: (id: string) => void;
   onRestore?: (id: string) => void;
   onDeletePermanent?: (id: string) => void;
+  onMarkSpam?: (id: string) => void;
+  onNotSpam?: (id: string) => void;
   onMoveToCustomFolder?: (id: string, folderId: string) => void;
   onRemoveFromCustomFolder?: (id: string) => void;
 }) {
@@ -549,6 +631,7 @@ function ContextMenu({
   }, [x, y]);
 
   const inTrash = email.folder === "TRASH";
+  const inSpam = email.folder === "SPAM";
   const inCustomFolder = !!email.customFolderId;
 
   function run(fn?: () => void) {
@@ -600,6 +683,18 @@ function ContextMenu({
       )}
 
       <MenuSep />
+
+      {!inTrash && !inSpam && email.folder !== "SENT" && onMarkSpam && (
+        <MenuItem onClick={() => run(() => onMarkSpam(email.id))}>
+          Marcar como spam
+        </MenuItem>
+      )}
+
+      {inSpam && onNotSpam && (
+        <MenuItem onClick={() => run(() => onNotSpam(email.id))}>
+          Não é spam
+        </MenuItem>
+      )}
 
       {!inTrash && onTrash && (
         <MenuItem onClick={() => run(() => onTrash(email.id))} danger>

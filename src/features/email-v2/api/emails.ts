@@ -70,6 +70,16 @@ export async function moveEmail(
   }
 }
 
+export async function markEmailsAsSpam(ids: string[], undo = false): Promise<number> {
+  const res = await apiFetch("/api/emails/spam", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, undo }),
+  });
+  const data = await parseApiResponse<{ updated?: number }>(res, "Erro ao atualizar spam.");
+  return data.updated ?? 0;
+}
+
 export async function deleteEmail(id: string): Promise<void> {
   const res = await fetch(apiUrl(`/api/emails/${id}`), { method: "DELETE" });
   if (!res.ok) {

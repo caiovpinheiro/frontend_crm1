@@ -38,6 +38,7 @@ export const FOLDER_TONE: Record<
 export const SYSTEM_FOLDER_TONE: Record<EmailFolder, FolderTone> = {
   INBOX: "blue",
   SENT: "green",
+  SPAM: "amber",
   TRASH: "rose",
 };
 

@@ -32,7 +32,7 @@ const FIELD_OPTIONS: { value: EmailRuleField; label: string }[] = [
 const ACTION_OPTIONS: { value: EmailRuleAction; label: string }[] = [
   { value: "MOVE", label: "Mover para pasta" },
   { value: "TRASH", label: "Enviar para lixeira" },
-  { value: "SPAM", label: "Tratar como spam" },
+  { value: "SPAM", label: "Mover para Spam" },
   { value: "FORWARD", label: "Encaminhar para" },
   { value: "REPLY", label: "Responder automaticamente" },
   { value: "MARK_READ", label: "Marcar como lida" },
@@ -454,7 +454,7 @@ export function EmailRulesModal({
 
 function describeAction(action: EmailRuleAction, folderName: string | undefined, target: string | null) {
   if (action === "TRASH") return "Lixeira";
-  if (action === "SPAM") return "Spam (lixeira)";
+  if (action === "SPAM") return "Spam";
   if (action === "FORWARD") return `Encaminhar para ${target || "…"}`;
   if (action === "REPLY") return "Resposta automática";
   if (action === "MARK_READ") return "Marcar como lida";
