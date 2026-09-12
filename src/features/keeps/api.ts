@@ -1,4 +1,14 @@
 import { apiUrl, parseApiResponse } from "@/lib/api";
+import { isPageMockMode } from "@/lib/page-mock-mode";
+import {
+  mockCreateKeepNote,
+  mockDeleteKeepNote,
+  mockImportGoogleKeepZip,
+  mockListKeepNotes,
+  mockPatchKeepNote,
+  mockReorderKeepNotes,
+  mockUploadKeepAttachment,
+} from "./mock-store";
 import type { KeepDoc, KeepFolder, KeepNote } from "./types";
 
 async function json<T>(res: Promise<Response>, fallback: string): Promise<T> {
@@ -6,12 +16,14 @@ async function json<T>(res: Promise<Response>, fallback: string): Promise<T> {
 }
 
 export async function listKeepNotes(folder: KeepFolder, q: string): Promise<{ items: KeepNote[] }> {
+  if (isPageMockMode()) return mockListKeepNotes(folder, q);
   const params = new URLSearchParams({ folder });
   if (q.trim()) params.set("q", q.trim());
   return json(fetch(apiUrl(`/api/keeps?${params}`), { credentials: "include" }), "Não foi possível carregar as notas.");
 }
 
 export async function createKeepNote(input: { title?: string; content?: KeepDoc }): Promise<{ note: KeepNote }> {
+  if (isPageMockMode()) return mockCreateKeepNote(input);
   return json(
     fetch(apiUrl("/api/keeps"), {
       method: "POST",
@@ -27,6 +39,7 @@ export async function patchKeepNote(
   id: string,
   patch: Partial<{ title: string; content: KeepDoc; pinned: boolean; archived: boolean; trashed: boolean }>,
 ): Promise<{ note: KeepNote }> {
+  if (isPageMockMode()) return mockPatchKeepNote(id, patch);
   return json(
     fetch(apiUrl(`/api/keeps/${id}`), {
       method: "PATCH",
@@ -39,6 +52,10 @@ export async function patchKeepNote(
 }
 
 export async function deleteKeepNote(id: string, forever = false): Promise<void> {
+  if (isPageMockMode()) {
+    mockDeleteKeepNote(id, forever);
+    return;
+  }
   const qs = forever ? "?forever=1" : "";
   await parseApiResponse(
     await fetch(apiUrl(`/api/keeps/${id}${qs}`), { method: "DELETE", credentials: "include" }),
@@ -47,6 +64,7 @@ export async function deleteKeepNote(id: string, forever = false): Promise<void>
 }
 
 export async function uploadKeepAttachment(noteId: string, file: File): Promise<{ attachment: KeepNote["attachments"][number] }> {
+  if (isPageMockMode()) return mockUploadKeepAttachment(noteId, file);
   const form = new FormData();
   form.append("file", file);
   return json(
@@ -60,6 +78,7 @@ export async function uploadKeepAttachment(noteId: string, file: File): Promise<
 }
 
 export async function importGoogleKeepZip(file: File): Promise<{ imported: number; batchId: string }> {
+  if (isPageMockMode()) return mockImportGoogleKeepZip();
   const form = new FormData();
   form.append("file", file);
   return json(
@@ -75,6 +94,10 @@ export async function importGoogleKeepZip(file: File): Promise<{ imported: numbe
 export async function reorderKeepNotes(
   items: Array<{ id: string; pinned: boolean; position: number }>,
 ): Promise<void> {
+  if (isPageMockMode()) {
+    mockReorderKeepNotes(items);
+    return;
+  }
   await parseApiResponse(
     await fetch(apiUrl("/api/keeps/reorder"), {
       method: "PATCH",
