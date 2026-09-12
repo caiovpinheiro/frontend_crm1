@@ -45,7 +45,7 @@ export default function DemandsClientPage({
   const canEdit = useCan("demand:edit");
   const { confirm, dialog: confirmDialog } = useConfirm();
 
-  const boardsQuery = useDemandBoards(status === "authenticated");
+  const boardsQuery = useDemandBoards(status !== "unauthenticated");
   const boards = boardsQuery.data?.boards ?? [];
   const [boardId, setBoardId] = React.useState<string | null>(null);
   const activeId = boardId ?? boards[0]?.id ?? null;

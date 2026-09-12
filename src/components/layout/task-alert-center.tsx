@@ -66,12 +66,12 @@ function formatScheduledAt(iso: string): string {
 
 export function TaskAlertCenter() {
   const { status } = useSession();
-  const authenticated = status === "authenticated";
+  const canFetch = status !== "unauthenticated";
   const router = useRouter();
   const qc = useQueryClient();
 
   const idle = useIdleEnabled();
-  const { data } = useActivityAlert(authenticated && idle);
+  const { data } = useActivityAlert(canFetch && idle);
   const dismissMutation = useDismissActivityAlert();
   const snoozeMutation = useSnoozeActivityAlert();
 
@@ -125,7 +125,7 @@ export function TaskAlertCenter() {
     }
   }, [alert, busy, handleActionError, snoozeMutation]);
 
-  if (!authenticated || !alert) return null;
+  if (!canFetch || !alert) return null;
 
   return (
     <div

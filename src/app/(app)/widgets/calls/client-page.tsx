@@ -40,8 +40,8 @@ interface CallsClientPageProps {
 
 export default function CallsClientPage({ navRail }: CallsClientPageProps = {}) {
   const { status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
-  const callsWidget = useCallsWidget(isAuthenticated);
+  const canFetch = sessionStatus !== "unauthenticated";
+  const callsWidget = useCallsWidget(canFetch);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");

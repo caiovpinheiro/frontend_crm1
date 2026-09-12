@@ -38,10 +38,10 @@ export default function WidgetsClientPage({
   navRail,
 }: WidgetsClientPageProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
-  const isAuthenticated = sessionStatus === "authenticated";
+  const canFetch = sessionStatus !== "unauthenticated";
   const canManage = session?.user?.role === "ADMIN";
 
-  const widgetsQuery = useWidgets(isAuthenticated);
+  const widgetsQuery = useWidgets(canFetch);
   const installMutation = useInstallWidget();
   const uninstallMutation = useUninstallWidget();
 

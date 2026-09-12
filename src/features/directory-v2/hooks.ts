@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useDocumentVisible } from "@/hooks/use-document-visible";
+
 import {
   addContactNote,
   addContactTag,
@@ -572,11 +574,12 @@ export { ACTIVITY_ALERT_KEY };
  * `enabled` deve refletir sessão autenticada no shell.
  */
 export function useActivityAlert(enabled = true) {
+  const visible = useDocumentVisible();
   return useQuery<ActivityAlertResponse>({
     queryKey: ACTIVITY_ALERT_KEY,
     queryFn: fetchActivityAlert,
     enabled: resolveEnabled(enabled),
-    refetchInterval: 120_000,
+    refetchInterval: visible ? 120_000 : false,
     refetchIntervalInBackground: false,
     retry: false,
     staleTime: 60_000,
