@@ -30,6 +30,7 @@ export function DataView({
   children,
   className,
   style,
+  fitViewport = false,
 }: {
   view: CardsTableView
   columnClass: string
@@ -37,6 +38,8 @@ export function DataView({
   children: ReactNode
   className?: string
   style?: CSSProperties
+  /** Cabe na coluna da página; células truncam em vez de abrir scroll-X. */
+  fitViewport?: boolean
 }) {
   const isTabela = view === "tabela"
 
@@ -49,8 +52,8 @@ export function DataView({
             // list-col-head (bg canvas) “corta” os cantos da borda.
             ? "overflow-hidden rounded-xl border border-border bg-card"
             : LIST_CARD_STACK_CLASS,
+          fitViewport ? "w-full min-w-0 max-w-full" : "w-full min-w-max",
           className,
-          "w-full min-w-max",
         )}
       >
         <div
