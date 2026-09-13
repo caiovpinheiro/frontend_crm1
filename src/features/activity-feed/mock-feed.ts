@@ -299,6 +299,14 @@ const DEFS: MockDef[] = [
     actorLabel: "Bruno Lima",
   },
   {
+    type: "CONVERSATION_TABULATED",
+    entityType: "CONVERSATION",
+    entityLabel: "WhatsApp — Diego Reis",
+    meta: { tabulationName: "Dúvida acadêmica", tabulationNumber: 12 },
+    actorType: "HUMAN",
+    actorLabel: "Bruno Lima",
+  },
+  {
     type: "CONVERSATION_REOPENED",
     entityType: "CONVERSATION",
     entityLabel: "WhatsApp — Diego Reis",

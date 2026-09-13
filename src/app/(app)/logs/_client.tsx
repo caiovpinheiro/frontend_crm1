@@ -87,6 +87,10 @@ import {
 } from "@/components/crm/feed";
 import { useActivityFeed } from "@/features/activity-feed/use-activity-feed";
 import type { ActivityFeedFilters } from "@/features/activity-feed/api";
+import {
+  getTabulations,
+  type TabulationNode,
+} from "@/features/inbox-v2/api/conversations";
 import { useActivityStats } from "@/features/activity-feed/use-activity-stats";
 import { MOCK_FEED } from "@/features/activity-feed/mock-feed";
 import { shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
@@ -258,7 +262,7 @@ function resolveOrigin(ev: FeedEvent): OriginInfo {
 
 export default function LogsClientPage() {
   const { ready, isManagerUp } = useRequireManager();
-  const { status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = React.useState(0);
   const [view, setView] = useCardsTableView();
@@ -383,6 +387,8 @@ export default function LogsClientPage() {
   const [stagePipelineId, setStagePipelineId] = React.useState<string | null>(null);
   const [stageFrom, setStageFrom] = React.useState<string[]>([]);
   const [stageTo, setStageTo] = React.useState<string[]>([]);
+  const [tabulatedOnly, setTabulatedOnly] = React.useState(false);
+  const [tabulationIds, setTabulationIds] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     const t = setTimeout(() => setQDebounced(q), 350);
@@ -403,9 +409,22 @@ export default function LogsClientPage() {
       stagePipelineId: stagePipelineId || undefined,
       stageFrom: stageFrom.length ? stageFrom : undefined,
       stageTo: stageTo.length ? stageTo : undefined,
+      tabulated: tabulatedOnly || tabulationIds.length > 0 || undefined,
+      tabulationIds: tabulationIds.length ? tabulationIds : undefined,
       limit,
     }),
-    [entity, actor, qDebounced, feedPeriod, stagePipelineId, stageFrom, stageTo, limit],
+    [
+      entity,
+      actor,
+      qDebounced,
+      feedPeriod,
+      stagePipelineId,
+      stageFrom,
+      stageTo,
+      tabulatedOnly,
+      tabulationIds,
+      limit,
+    ],
   );
 
   const filterKey = React.useMemo(
@@ -419,6 +438,8 @@ export default function LogsClientPage() {
         stagePipelineId: filters.stagePipelineId,
         stageFrom: filters.stageFrom,
         stageTo: filters.stageTo,
+        tabulated: filters.tabulated,
+        tabulationIds: filters.tabulationIds,
       }),
     [filters],
   );
@@ -451,7 +472,9 @@ export default function LogsClientPage() {
     feedPeriod.preset !== "30d" ||
     Boolean(stagePipelineId) ||
     stageFrom.length > 0 ||
-    stageTo.length > 0;
+    stageTo.length > 0 ||
+    tabulatedOnly ||
+    tabulationIds.length > 0;
 
   // Modo demonstração: ativo manualmente OU automaticamente quando não há
   // eventos reais e nenhum filtro aplicado (para visualizar todos os tipos).
@@ -589,6 +612,11 @@ export default function LogsClientPage() {
                 onStageFromChange={setStageFrom}
                 stageTo={stageTo}
                 onStageToChange={setStageTo}
+                tabulatedOnly={tabulatedOnly}
+                onTabulatedOnlyChange={setTabulatedOnly}
+                tabulationIds={tabulationIds}
+                onTabulationIdsChange={setTabulationIds}
+                catalogUserId={session?.user?.id ?? null}
               />
             ) : isCalls && callsWidget.enabled === true ? (
               <div data-tour="logs-calls-search" className="w-full">
@@ -1416,7 +1444,7 @@ function EventDate({ iso }: { iso: string }) {
 
 // ── Feed: busca + popover de filtros (padrão Contatos/Empresas) ─────────────
 
-type FeedFilterTab = "entidade" | "ator" | "transicao";
+type FeedFilterTab = "entidade" | "ator" | "transicao" | "tabulacao";
 
 const FEED_FILTER_TABS: {
   id: FeedFilterTab;
@@ -1434,7 +1462,26 @@ const FEED_FILTER_TABS: {
     label: "Fase",
     icon: <IconArrowsExchange size={14} stroke={2.2} />,
   },
+  {
+    id: "tabulacao",
+    label: "Tabulação",
+    icon: <IconClipboardList size={14} stroke={2.2} />,
+  },
 ];
+
+function flattenTabulationLeaves(
+  nodes: TabulationNode[],
+  prefix = "",
+): { id: string; label: string }[] {
+  const out: { id: string; label: string }[] = [];
+  for (const node of nodes) {
+    if (node.active === false) continue;
+    const label = prefix ? `${prefix} / ${node.name}` : node.name;
+    if (!node.children?.length) out.push({ id: node.id, label });
+    else out.push(...flattenTabulationLeaves(node.children, label));
+  }
+  return out;
+}
 
 type PipelineWithStagesLite = {
   id: string;
@@ -1468,6 +1515,11 @@ function FeedSearchFilterBar({
   onStageFromChange,
   stageTo,
   onStageToChange,
+  tabulatedOnly,
+  onTabulatedOnlyChange,
+  tabulationIds,
+  onTabulationIdsChange,
+  catalogUserId,
 }: {
   search: string;
   onSearch: (v: string) => void;
@@ -1481,19 +1533,42 @@ function FeedSearchFilterBar({
   onStageFromChange: (v: string[]) => void;
   stageTo: string[];
   onStageToChange: (v: string[]) => void;
+  tabulatedOnly: boolean;
+  onTabulatedOnlyChange: (v: boolean) => void;
+  tabulationIds: string[];
+  onTabulationIdsChange: (v: string[]) => void;
+  catalogUserId: string | null;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
 
   const stageTransitionActive =
     Boolean(stagePipelineId) || stageFrom.length > 0 || stageTo.length > 0;
+  const tabulationActive = tabulatedOnly || tabulationIds.length > 0;
 
   const activeCount =
     (entity !== "ALL" ? 1 : 0) +
     (actor !== "ALL" ? 1 : 0) +
-    (stageTransitionActive ? 1 : 0);
+    (stageTransitionActive ? 1 : 0) +
+    (tabulationActive ? 1 : 0);
 
   const { data: pipelines = [] } = usePipelinesLite(open);
+  const { data: tabCatalog } = useQuery({
+    queryKey: ["logs-tabulations-catalog", catalogUserId],
+    queryFn: () => getTabulations({ userId: catalogUserId }),
+    enabled: open && Boolean(catalogUserId),
+    staleTime: 60_000,
+  });
+  const tabulationLeaves = React.useMemo(() => {
+    const groups = tabCatalog?.groups ?? [];
+    if (groups.length > 1) {
+      return groups.flatMap((g) =>
+        flattenTabulationLeaves(g.tree, g.departmentName),
+      );
+    }
+    const tree = groups[0]?.tree ?? tabCatalog?.tree ?? [];
+    return flattenTabulationLeaves(tree);
+  }, [tabCatalog]);
   const currentPipeline = React.useMemo(
     () => pipelines.find((p) => p.id === stagePipelineId) ?? null,
     [pipelines, stagePipelineId],
@@ -1514,6 +1589,8 @@ function FeedSearchFilterBar({
     onStagePipelineChange(null);
     onStageFromChange([]);
     onStageToChange([]);
+    onTabulatedOnlyChange(false);
+    onTabulationIdsChange([]);
   }
 
   return (
@@ -1541,6 +1618,17 @@ function FeedSearchFilterBar({
             : []),
           ...(stageTo.length
             ? [{ id: "to", title: "Para", count: stageTo.length, onRemove: () => onStageToChange([]) }]
+            : []),
+          ...(tabulationActive
+            ? [{
+                id: "tab",
+                title: tabulationIds.length ? "Tabulação" : "Tabuladas",
+                count: tabulationIds.length || 1,
+                onRemove: () => {
+                  onTabulatedOnlyChange(false);
+                  onTabulationIdsChange([]);
+                },
+              }]
             : []),
         ]}
       />
@@ -1637,6 +1725,64 @@ function FeedSearchFilterBar({
               Selecione um funil para escolher origem e destino.
             </p>
           ) : null}
+        </FilterCategoryColumn>
+        <FilterCategoryColumn
+          title="Tabulação"
+          hint="Eventos de conversa tabulada"
+          icon={FEED_FILTER_TABS[3].icon}
+          stacked
+        >
+          <div className="flex flex-wrap gap-2">
+            <FilterChip
+              tone="fill"
+              selected={!tabulationActive}
+              onClick={() => {
+                onTabulatedOnlyChange(false);
+                onTabulationIdsChange([]);
+              }}
+            >
+              Todas
+            </FilterChip>
+            <FilterChip
+              tone="fill"
+              selected={tabulatedOnly && tabulationIds.length === 0}
+              onClick={() => {
+                onTabulatedOnlyChange(true);
+                onTabulationIdsChange([]);
+              }}
+            >
+              Só tabuladas
+            </FilterChip>
+          </div>
+          {tabulationLeaves.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-muted-foreground">
+                Motivo
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {tabulationLeaves.map((leaf) => (
+                  <FilterChip
+                    key={leaf.id}
+                    tone="fill"
+                    selected={tabulationIds.includes(leaf.id)}
+                    onClick={() => {
+                      const next = tabulationIds.includes(leaf.id)
+                        ? tabulationIds.filter((id) => id !== leaf.id)
+                        : [...tabulationIds, leaf.id];
+                      onTabulationIdsChange(next);
+                      onTabulatedOnlyChange(next.length > 0 || tabulatedOnly);
+                    }}
+                  >
+                    {leaf.label}
+                  </FilterChip>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border bg-secondary px-3 py-3 text-sm text-muted-foreground">
+              Nenhum motivo de tabulação cadastrado.
+            </p>
+          )}
         </FilterCategoryColumn>
       </FilterColumnsModal>
     </div>

@@ -18,6 +18,10 @@ export type ActivityFeedFilters = {
   stagePipelineId?: string | null;
   stageFrom?: string[];
   stageTo?: string[];
+  /** Só eventos CONVERSATION_TABULATED. */
+  tabulated?: boolean;
+  /** Folhas de tabulação (`meta.tabulationId`). */
+  tabulationIds?: string[];
   limit?: number;
 };
 
@@ -49,6 +53,10 @@ function buildQuery(filters: ActivityFeedFilters, cursor: string | null): string
   if (filters.stagePipelineId) sp.set("stagePipelineId", filters.stagePipelineId);
   if (filters.stageFrom?.length) sp.set("stageFrom", filters.stageFrom.join(","));
   if (filters.stageTo?.length) sp.set("stageTo", filters.stageTo.join(","));
+  if (filters.tabulated || filters.tabulationIds?.length) sp.set("tabulated", "1");
+  if (filters.tabulationIds?.length) {
+    sp.set("tabulationId", filters.tabulationIds.join(","));
+  }
   return sp.toString();
 }
 
