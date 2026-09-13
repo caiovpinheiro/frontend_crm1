@@ -1773,7 +1773,7 @@ export default function InboxV2ClientPage({
           trigger={
             firstDealDetail?.owner?.name ? (
               <span
-                className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] py-px pl-px pr-2 transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[var(--glass-bg-base)]"
+                className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full bg-white py-px pl-px pr-2 text-[#2e3b6e] shadow-sm transition-colors hover:bg-white/90"
                 title={firstDealDetail.owner.name}
               >
                 <UserAvatar
@@ -1781,7 +1781,7 @@ export default function InboxV2ClientPage({
                   imageUrl={firstDealDetail.owner.avatarUrl ?? null}
                   size={20}
                 />
-                <span className="min-w-0 truncate font-display text-[10.5px] font-semibold text-[var(--text-secondary)]">
+                <span className="min-w-0 truncate font-display text-[10.5px] font-semibold text-[#2e3b6e]">
                   {firstDealDetail.owner.name}
                 </span>
               </span>

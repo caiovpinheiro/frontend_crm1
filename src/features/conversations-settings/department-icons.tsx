@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { cn } from "@/lib/utils";
 import {
   IconBuilding,
   IconChartBar,
@@ -122,5 +123,42 @@ export function DeptGlyph({
       className={className}
       style={color ? { color } : undefined}
     />
+  );
+}
+
+const DEFAULT_DEPT_COLOR = "#6366f1";
+
+/** Pill compacta: glifo + nome na cor do departamento. */
+export function DepartmentChip({
+  name,
+  icon,
+  color,
+  className,
+  surface = "tint",
+}: {
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+  className?: string;
+  /** `solid` = fundo branco (hero escuro). `tint` = fundo na cor do depto. */
+  surface?: "tint" | "solid";
+}) {
+  const fg = color?.trim() || DEFAULT_DEPT_COLOR;
+  return (
+    <span
+      className={cn(
+        "inline-flex min-w-0 max-w-[7.5rem] items-center gap-1 truncate rounded-full px-1.5 py-px font-display text-[10px] font-semibold",
+        className,
+      )}
+      style={
+        surface === "solid"
+          ? { color: fg, backgroundColor: "#fff" }
+          : { color: fg, backgroundColor: `${fg}1f` }
+      }
+      title={name}
+    >
+      <DeptGlyph icon={icon} size={12} color={fg} className="shrink-0" />
+      <span className="truncate">{name}</span>
+    </span>
   );
 }
