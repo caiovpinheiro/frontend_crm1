@@ -36,6 +36,13 @@ import {
   triggerBindsInboundChannel,
   triggerTypeLabel,
 } from "@/lib/automation-workflow";
+import {
+  clearGhostRootNext,
+  migrateLegacyLinearNext,
+  needsLegacyLinearMigration,
+  NONE_STEP_ID,
+  stepUsesRootNextStepId,
+} from "@/lib/automation-ghost-next";
 import { ALIGN_TRIGGER_POS, estimateStepNodeSize } from "@/lib/automation-layout";
 import { useConnectedStepChannels } from "./step-channel-picker";
 import {
@@ -197,6 +204,7 @@ const TERMINAL_STEP_TYPES = new Set([
   "finish",
   "stop_automation",
   "transfer_automation",
+  "finish_conversation",
 ]);
 
 /**
@@ -682,27 +690,13 @@ function WorkflowCanvasInner({
   const migratedRef = useRef(false);
   useEffect(() => {
     if (migratedRef.current || steps.length === 0) return;
-    const alreadyMigrated = steps.some((s) => {
-      const c = s.config as Record<string, unknown> | null;
-      return c && c.__hasExplicitEdges === true;
-    });
-    if (alreadyMigrated) {
-      migratedRef.current = true;
-      return;
-    }
     migratedRef.current = true;
-    const migrated = steps.map((s, i) => {
-      const cfg = { ...(s.config as Record<string, unknown>) };
-      // Condition multi-branch / round_robin controlam destino nas
-      // próprias branches/opções — não inventa nextStepId raiz pra eles.
-      if (s.type !== "condition" && s.type !== "round_robin") {
-        const next = steps[i + 1];
-        cfg.nextStepId = next ? next.id : NONE;
-      }
-      cfg.__hasExplicitEdges = true;
-      return { ...s, config: cfg };
-    });
-    onStepsChange(migrated);
+    const needsLegacy = needsLegacyLinearMigration(steps);
+    const base = needsLegacy ? migrateLegacyLinearNext(steps) : steps;
+    const repaired = clearGhostRootNext(base);
+    if (needsLegacy || repaired.changed) {
+      onStepsChange(repaired.steps);
+    }
   }, [steps, onStepsChange]);
 
   const onStepLogsOpenRef = useRef(onStepLogsOpen);
@@ -1534,7 +1528,7 @@ function WorkflowCanvasInner({
             gotoStepId: target,
           }));
           cfg[key] = buttons;
-          cfg.nextStepId = target;
+          cfg.nextStepId = NONE_STEP_ID;
           cfg.__hasExplicitEdges = true;
           onStepsChange(cur.map((s) => s.id === source ? { ...s, config: cfg } : s));
           return;
@@ -1623,10 +1617,10 @@ function WorkflowCanvasInner({
         }
       }
 
-      // Condition multi-branch / round_robin não aceitam `nextStepId`
-      // raiz — os destinos saem pelos handles `branch:<id>`/`else` ou
-      // `option:<id>` acima.
-      if (srcStep.type === "condition" || srcStep.type === "round_robin") return;
+      // Condition / interactive / close não aceitam `nextStepId` raiz —
+      // os destinos saem pelos handles (btn/else/timeout) ou o passo
+      // encerra o ramo.
+      if (!stepUsesRootNextStepId(srcStep.type)) return;
 
       const cfg = { ...srcStep.config } as Record<string, unknown>;
       cfg.nextStepId = target;
@@ -1742,7 +1736,7 @@ function WorkflowCanvasInner({
             gotoStepId: id,
           }));
           cfg[key] = buttons;
-          cfg.nextStepId = id;
+          cfg.nextStepId = NONE_STEP_ID;
           cfg.__hasExplicitEdges = true;
           const updated = cur.map((s) =>
             s.id === sourceId ? { ...s, config: cfg } : s

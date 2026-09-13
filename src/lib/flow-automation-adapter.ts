@@ -34,6 +34,7 @@ import {
   triggerTypeLabel,
   type ActionStepType,
 } from "./automation-workflow"
+import { clearGhostRootNext } from "./automation-ghost-next"
 import { layoutFlow, NODE_WIDTH, type LayoutDirection } from "./layout"
 
 export const TRIGGER_NODE_ID = "trigger"
@@ -302,11 +303,13 @@ export function flowGraphToAutomation(
     if (idx > 0) ordered.unshift(...ordered.splice(idx, 1))
   }
 
-  const steps = ordered.map((node) => ({
-    id: node.id,
-    type: resolveStepType(node.data),
-    config: withRfPos(node.data.config, node.position),
-  }))
+  const steps = clearGhostRootNext(
+    ordered.map((node) => ({
+      id: node.id,
+      type: resolveStepType(node.data),
+      config: withRfPos(node.data.config, node.position),
+    })),
+  ).steps
 
   const triggerNode = byId.get(TRIGGER_NODE_ID)
   const baseTrigger = asRecord(source.triggerConfig)
