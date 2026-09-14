@@ -380,13 +380,14 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/api/health") ||
       pathname.startsWith("/api/cron") ||
       pathname.startsWith("/uploads/") ||
+      pathname.startsWith("/tutorials/") ||
       pathname.startsWith("/_next") ||
       pathname.startsWith("/favicon.ico")
     ) {
       return nextWithTenant();
     }
 
-    if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname)) {
+    if (/\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|webm|ogv)$/i.test(pathname)) {
       return nextWithTenant();
     }
 
