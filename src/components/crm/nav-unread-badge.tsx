@@ -31,7 +31,7 @@ export function NavUnreadBadge({
       {count > 0 ? (
         <span
           className={cn(
-            "relative flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 font-display text-[10px] font-bold leading-none tabular-nums",
+            "relative flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 font-display text-[10px] font-bold leading-none tabular-nums ring-2 ring-[var(--nav-bg)]",
             contrast
               ? "bg-sidebar-primary-foreground text-sidebar-primary"
               : "bg-primary text-primary-foreground",
@@ -42,7 +42,7 @@ export function NavUnreadBadge({
       ) : (
         <span
           className={cn(
-            "relative block h-2.5 w-2.5 rounded-full",
+            "relative block h-2.5 w-2.5 rounded-full ring-2 ring-[var(--nav-bg)]",
             contrast ? "bg-sidebar-primary-foreground" : "bg-primary",
           )}
         />

@@ -606,7 +606,8 @@ export function NavRailV2({ className }: { className?: string }) {
                 <NavUnreadBadge
                   count={alert.count}
                   pulse={alert.pulse}
-                  className="pointer-events-none absolute right-1 top-1 z-10"
+                  contrast={isActive}
+                  className="pointer-events-none absolute right-0 top-0 z-20"
                 />
               </div>
             );

@@ -16,7 +16,12 @@ import { usePathname } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
 
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
-import { incrementRoomUnreadInCache, useTeamChatRooms } from "@/features/team-chat/hooks";
+import {
+  incrementRoomUnreadInCache,
+  upsertTeamChatMessage,
+  useTeamChatRooms,
+} from "@/features/team-chat/hooks";
+import type { TeamChatMessage } from "@/features/team-chat/types";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
@@ -180,13 +185,10 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
   const meId = (session?.user as { id?: string } | undefined)?.id ?? "";
 
   const ready = status === "authenticated";
-  const canChat =
-    ready &&
-    (canSeeNav("nav:team-chat", myPerms?.permissions, isSuperAdmin) ||
-      Boolean(myPerms?.permissions?.includes("team_chat:view")));
   const canEmail = ready && canSeeNav("nav:email", myPerms?.permissions, isSuperAdmin);
 
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [liveUnreads, setLiveUnreads] = useState<Record<string, number>>({});
   const [soundMuted, setMutedState] = useState(false);
   const [chatPulse, setChatPulse] = useState(false);
   const [emailPulse, setEmailPulse] = useState(false);
@@ -201,11 +203,20 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
   const emailPulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const emailBaseline = useRef<number | null>(null);
 
-  const roomsQuery = useTeamChatRooms(canChat);
-  const chatUnread = useMemo(
-    () => (roomsQuery.data?.rooms ?? []).reduce((n, room) => n + (room.unread || 0), 0),
-    [roomsQuery.data?.rooms],
-  );
+  const roomsQuery = useTeamChatRooms(ready);
+  const chatUnread = useMemo(() => {
+    const rooms = roomsQuery.data?.rooms ?? [];
+    const seen = new Set<string>();
+    let total = 0;
+    for (const room of rooms) {
+      seen.add(room.id);
+      total += Math.max(room.unread || 0, liveUnreads[room.id] || 0);
+    }
+    for (const [roomId, count] of Object.entries(liveUnreads)) {
+      if (!seen.has(roomId)) total += count;
+    }
+    return total;
+  }, [liveUnreads, roomsQuery.data?.rooms]);
 
   const emailQuery = useQuery({
     queryKey: ["nav-email-accounts"],
@@ -252,7 +263,7 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (!canChat) return;
+    if (!ready) return;
     return subscribeSSEEvents("/api/sse/messages", {
       team_chat_room_updated: () => {
         void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
@@ -261,7 +272,7 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
         const data = raw as {
           roomId?: string;
           memberIds?: string[];
-          message?: { authorId?: string | null; kind?: string };
+          message?: TeamChatMessage;
         };
         const myId = meRef.current;
         const members = data.memberIds;
@@ -270,11 +281,11 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
           data.roomId && knownRooms?.rooms.some((room) => room.id === data.roomId),
         );
         const isMember = Array.isArray(members)
-          ? Boolean(myId && members.includes(myId))
-          : inCachedRoom;
+          ? !myId || members.includes(myId)
+          : inCachedRoom || !members;
         if (!isMember) return;
 
-        const isOwn = Boolean(data.message?.authorId && data.message.authorId === myId);
+        const isOwn = Boolean(myId && data.message?.authorId && data.message.authorId === myId);
         const isSystem = data.message?.kind === "SYSTEM";
         const viewingActiveRoom =
           Boolean(data.roomId) &&
@@ -282,12 +293,22 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
           pathnameRef.current.startsWith("/bwipo-chat") &&
           document.visibilityState === "visible";
 
+        if (data.message?.id) {
+          upsertTeamChatMessage(qc, {
+            ...data.message,
+            roomId: data.message.roomId || data.roomId || "",
+          });
+        }
+
         if (data.roomId && !isOwn && !isSystem && !viewingActiveRoom) {
           incrementRoomUnreadInCache(qc, data.roomId);
+          setLiveUnreads((prev) => ({
+            ...prev,
+            [data.roomId!]: (prev[data.roomId!] || 0) + 1,
+          }));
         }
         void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
 
-        if (!Array.isArray(members) && !inCachedRoom) return;
         if (!data.message || isSystem) return;
         if (isOwn) return;
 
@@ -300,7 +321,7 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
         flash("team-chat");
       },
     });
-  }, [canChat, flash, qc]);
+  }, [flash, qc, ready]);
 
   useEffect(() => {
     if (!canEmail || emailQuery.data === undefined) return;
@@ -330,6 +351,17 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     setMutedState(muted);
   }, []);
 
+  const setActiveTeamChatRoom = useCallback((id: string | null) => {
+    setActiveRoomId(id);
+    if (!id) return;
+    setLiveUnreads((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
   const value = useMemo<AlertsValue>(
     () => ({
       chatUnread,
@@ -338,9 +370,9 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
       emailPulse,
       soundMuted,
       setSoundMuted,
-      setActiveTeamChatRoom: setActiveRoomId,
+      setActiveTeamChatRoom,
     }),
-    [chatUnread, emailUnread, chatPulse, emailPulse, soundMuted, setSoundMuted],
+    [chatUnread, emailUnread, chatPulse, emailPulse, soundMuted, setSoundMuted, setActiveTeamChatRoom],
   );
 
   return <NavMessageAlertsContext.Provider value={value}>{children}</NavMessageAlertsContext.Provider>;
