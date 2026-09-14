@@ -96,6 +96,13 @@ export async function updateTeamChatRoom(
   );
 }
 
+export async function deleteTeamChatRoom(roomId: string): Promise<{ ok: true }> {
+  return json(
+    apiFetch(`/api/team-chat/rooms/${roomId}`, { method: "DELETE" }),
+    "Não foi possível excluir o grupo.",
+  );
+}
+
 export async function addTeamChatMembers(roomId: string, memberIds: string[]): Promise<TeamChatRoom> {
   return json(
     apiFetch(`/api/team-chat/rooms/${roomId}/members`, {
