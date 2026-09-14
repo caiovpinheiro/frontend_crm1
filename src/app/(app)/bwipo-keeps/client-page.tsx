@@ -16,18 +16,27 @@ import { KeepCard } from "@/features/keeps/keep-card";
 import { KeepBoard } from "@/features/keeps/keep-board";
 import { KeepComposer } from "@/features/keeps/keep-composer";
 import { KeepEditorDialog } from "@/features/keeps/keep-editor-dialog";
+import { KeepColorSwatches } from "@/features/keeps/keep-color-swatches";
+import { KEEP_NOTE_COLORS, type KeepNoteColorId } from "@/features/keeps/colors";
 import { useKeepMutations, useKeepNotes } from "@/features/keeps/hooks";
 import { EMPTY_KEEP_DOC, type KeepFolder, type KeepNote } from "@/features/keeps/types";
 
 export default function BwipoKeepsClientPage() {
   const [folder, setFolder] = useState<KeepFolder>("notes");
   const [q, setQ] = useState("");
+  const [colorFilter, setColorFilter] = useState<string[]>([]);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [active, setActive] = useState<KeepNote | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const notesQuery = useKeepNotes(folder, q);
-  const mut = useKeepMutations(folder, q);
+  const notesQuery = useKeepNotes(folder, q, colorFilter);
+  const mut = useKeepMutations(folder, q, colorFilter);
 
   const items = notesQuery.data?.items ?? [];
+  const usedColors = (notesQuery.data?.usedColors ?? []).filter((c): c is KeepNoteColorId =>
+    KEEP_NOTE_COLORS.includes(c as KeepNoteColorId),
+  );
+  const hasUncolored = Boolean(notesQuery.data?.hasUncolored);
+  const showColorFilter = usedColors.length > 0 || hasUncolored;
   const pinned = useMemo(() => items.filter((n) => n.pinned), [items]);
   const rest = useMemo(() => items.filter((n) => !n.pinned), [items]);
 
@@ -88,9 +97,38 @@ export default function BwipoKeepsClientPage() {
                     value={q}
                     onChange={setQ}
                     placeholder="Pesquisar notas..."
-                    withFilter={false}
+                    withFilter={showColorFilter}
+                    filterOpen={filterOpen}
+                    activeCount={colorFilter.length}
+                    onFilterClick={() => setFilterOpen((v) => !v)}
                     className="w-full"
-                  />
+                  >
+                    {filterOpen && showColorFilter ? (
+                      <div className="absolute right-0 top-12 z-30 w-[min(100%,20rem)] rounded-2xl border border-border bg-card p-3 shadow-lg">
+                        <p className="mb-2 text-xs font-semibold text-muted-foreground">Cor</p>
+                        <KeepColorSwatches
+                          selected={colorFilter}
+                          showDefault={hasUncolored}
+                          colors={usedColors}
+                          onChange={(color) => {
+                            const key = color ?? "none";
+                            setColorFilter((prev) =>
+                              prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
+                            );
+                          }}
+                        />
+                        {colorFilter.length > 0 ? (
+                          <button
+                            type="button"
+                            className="mt-2 text-xs font-semibold text-primary"
+                            onClick={() => setColorFilter([])}
+                          >
+                            Limpar cores
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </SearchFilterBar>
                 </div>
               </div>
             </div>
@@ -118,8 +156,8 @@ export default function BwipoKeepsClientPage() {
         ) : items.length === 0 ? (
           <EmptyState
             icon={<Lightbulb className="size-7" />}
-            title={q ? "Nenhuma nota encontrada" : folder === "trash" ? "Lixeira vazia" : folder === "archive" ? "Nada no arquivo" : "Nenhuma nota ainda"}
-            description={q ? "Tente outro termo." : "Crie uma nota ou importe o ZIP do Google Keep."}
+            title={q || colorFilter.length ? "Nenhuma nota encontrada" : folder === "trash" ? "Lixeira vazia" : folder === "archive" ? "Nada no arquivo" : "Nenhuma nota ainda"}
+            description={q || colorFilter.length ? "Tente outro termo ou limpe o filtro de cor." : "Crie uma nota ou importe o ZIP do Google Keep."}
           />
         ) : folder === "notes" ? (
           <KeepBoard
@@ -129,6 +167,7 @@ export default function BwipoKeepsClientPage() {
             onPin={(note) => mut.patch.mutate({ id: note.id, patch: { pinned: !note.pinned } })}
             onArchive={(note) => mut.patch.mutate({ id: note.id, patch: { archived: true } })}
             onTrash={(note) => mut.remove.mutate({ id: note.id })}
+            onColor={(note, color) => mut.patch.mutate({ id: note.id, patch: { color } })}
             onReorder={(items) => {
               mut.reorder.mutate(items, {
                 onError: (err) =>
@@ -160,6 +199,7 @@ export default function BwipoKeepsClientPage() {
                         ? () => mut.remove.mutate({ id: note.id, forever: true })
                         : () => mut.remove.mutate({ id: note.id })
                     }
+                    onColor={(color) => mut.patch.mutate({ id: note.id, patch: { color } })}
                   />
                 ))}
               </div>
@@ -177,6 +217,11 @@ export default function BwipoKeepsClientPage() {
         onSave={async (patch) => {
           if (!active) return;
           await mut.patch.mutateAsync({ id: active.id, patch });
+        }}
+        onColor={(color) => {
+          if (!active) return;
+          mut.patch.mutate({ id: active.id, patch: { color } });
+          setActive((prev) => (prev ? { ...prev, color } : prev));
         }}
         onAttach={async (file) => {
           if (!active) return;

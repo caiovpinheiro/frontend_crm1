@@ -63,6 +63,7 @@ export function KeepBoard({
   onArchive,
   onTrash,
   onReorder,
+  onColor,
 }: {
   pinned: KeepNote[];
   rest: KeepNote[];
@@ -71,6 +72,7 @@ export function KeepBoard({
   onArchive: (note: KeepNote) => void;
   onTrash: (note: KeepNote) => void;
   onReorder: (items: Array<{ id: string; pinned: boolean; position: number }>) => void;
+  onColor: (note: KeepNote, color: string | null) => void;
 }) {
   const [livePinned, setPinned] = useState(pinned);
   const [liveRest, setRest] = useState(rest);
@@ -208,6 +210,7 @@ export function KeepBoard({
               onPin={() => onPin(note)}
               onArchive={() => onArchive(note)}
               onTrash={() => onTrash(note)}
+              onColor={(color) => onColor(note, color)}
               onMovePointerDown={(e) => onCardPointerDown(note, e)}
             />
           ))}
@@ -227,6 +230,7 @@ export function KeepBoard({
               onPin={() => onPin(note)}
               onArchive={() => onArchive(note)}
               onTrash={() => onTrash(note)}
+              onColor={(color) => onColor(note, color)}
               onMovePointerDown={(e) => onCardPointerDown(note, e)}
             />
           ))}

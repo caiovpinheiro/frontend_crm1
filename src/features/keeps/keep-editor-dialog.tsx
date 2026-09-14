@@ -17,6 +17,7 @@ import {
   KeepChecklist,
   type KeepCheckItem,
 } from "./keep-checklist";
+import { KeepColorSwatches } from "./keep-color-swatches";
 import type { KeepDoc, KeepNote } from "./types";
 import { EMPTY_KEEP_DOC } from "./types";
 
@@ -26,17 +27,20 @@ export function KeepEditorDialog({
   onOpenChange,
   onSave,
   onAttach,
+  onColor,
 }: {
   note: KeepNote | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (patch: { title: string; content: KeepDoc }) => Promise<void>;
   onAttach: (file: File) => Promise<void>;
+  onColor?: (color: string | null) => void;
 }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState<KeepDoc>(EMPTY_KEEP_DOC);
   const [items, setItems] = useState<KeepCheckItem[]>([]);
   const [checklist, setChecklist] = useState(false);
+  const [color, setColor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -48,6 +52,7 @@ export function KeepEditorDialog({
     const parsed = checklistFromDoc(next);
     setChecklist(Boolean(parsed));
     setItems(parsed ?? []);
+    setColor(note.color);
   }, [note]);
 
   async function handleSave() {
@@ -109,6 +114,17 @@ export function KeepEditorDialog({
       ) : (
         <KeepRichEditor content={content} onChange={setContent} />
       )}
+      {note ? (
+        <div className="mt-3">
+          <KeepColorSwatches
+            value={color}
+            onChange={(next) => {
+              setColor(next);
+              onColor?.(next);
+            }}
+          />
+        </div>
+      ) : null}
       {note && note.attachments.length > 0 ? (
         <ul className="mt-4 space-y-1.5">
           {note.attachments.map((a) => (
