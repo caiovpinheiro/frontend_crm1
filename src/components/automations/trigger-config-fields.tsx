@@ -662,6 +662,15 @@ export function TriggerConfigFields({ triggerType, value, onChange, stacked }: P
               onChange={(v) => set("channel", v)}
             />
           ) : null}
+          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--brand-primary)]"
+              checked={value.skipIfAckOrGreeting === true}
+              onChange={(e) => patch({ skipIfAckOrGreeting: e.target.checked })}
+            />
+            <span>Não disparar se o inbound for só ack ou cumprimento</span>
+          </label>
         </div>
       );
     case "whatsapp_session_expiring": {

@@ -206,6 +206,16 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "text", key: "footer", label: "Rodapé", optional: true, placeholder: "Texto abaixo da mensagem" },
     { kind: "builder", builder: "buttonsTitle", key: "buttons", label: "Opções (até 3 = botões, 4–10 = lista)" },
     { kind: "step", key: "elseGotoStepId", label: "Se resposta não bater → ir para", optional: true },
+    {
+      kind: "select",
+      key: "onNonText",
+      label: "Mídia / mensagem sem texto",
+      optional: true,
+      options: [
+        { value: "stay", label: "Permanecer no passo (não reenviar menu)" },
+        { value: "else", label: "Tratar como resposta que não bateu" },
+      ],
+    },
     { kind: "text", key: "saveToVariable", label: "Salvar resposta em variável", optional: true, placeholder: "ex.: resposta" },
     { kind: "duration", key: "timeoutMs", label: "Sem resposta em" },
     {
@@ -290,6 +300,16 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
       label: "Itens da lista (máx. 10)",
     },
     { kind: "step", key: "elseGotoStepId", label: "Se resposta não bater → ir para", optional: true },
+    {
+      kind: "select",
+      key: "onNonText",
+      label: "Mídia / mensagem sem texto",
+      optional: true,
+      options: [
+        { value: "stay", label: "Permanecer no passo (não reenviar menu)" },
+        { value: "else", label: "Tratar como resposta que não bateu" },
+      ],
+    },
     { kind: "text", key: "saveToVariable", label: "Salvar resposta em variável", optional: true },
     { kind: "duration", key: "timeoutMs", label: "Sem resposta em" },
     {
@@ -318,6 +338,16 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "builder", builder: "buttons", key: "buttons", label: "Botões de resposta" },
     { kind: "text", key: "saveToVariable", label: "Salvar resposta em variável", optional: true },
     { kind: "step", key: "elseGotoStepId", label: "Se não bater com botão → ir para", optional: true },
+    {
+      kind: "select",
+      key: "onNonText",
+      label: "Mídia / mensagem sem texto",
+      optional: true,
+      options: [
+        { value: "stay", label: "Permanecer no passo (não reenviar menu)" },
+        { value: "else", label: "Tratar como resposta que não bateu" },
+      ],
+    },
     { kind: "hours", key: "timeoutMs", label: "Timeout (horas)" },
     { kind: "select", key: "timeoutAction", label: "Ação ao expirar", options: TIMEOUT_ACTIONS },
     { kind: "step", key: "timeoutGotoStepId", label: "Ir para (no timeout)", optional: true },
@@ -423,6 +453,8 @@ export const CONDITION_FIELDS: Opt[] = [
   { value: "conversation.isClosed", label: "Conversa encerrada", group: "Conversa" },
   { value: "conversation.hasAgentReply", label: "Teve resposta do agente", group: "Conversa" },
   { value: "conversation.hasError", label: "Conversa com erro", group: "Conversa" },
+  { value: "data.content", label: "Texto do inbound (abertura)", group: "Mensagem" },
+  { value: "data.isAckOrGreeting", label: "Inbound é ack/cumprimento", group: "Mensagem" },
   // Sistema (pseudo-fields — não vêm do runtime, são avaliados por operador)
   { value: "system.now", label: "Momento atual (expediente)", group: "Sistema" },
 ]
@@ -432,6 +464,7 @@ export const CONDITION_BOOL_FIELDS = new Set<string>([
   "conversation.isClosed",
   "conversation.hasAgentReply",
   "conversation.hasError",
+  "data.isAckOrGreeting",
 ])
 
 export const BOOL_OPTS: Opt[] = [
