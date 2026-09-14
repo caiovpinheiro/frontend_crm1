@@ -59,7 +59,9 @@ export function RecordCard({
         {value ? ` · ${value}` : ""}
       </p>
       {clickable ? (
-        <span className="mt-1.5 inline-flex text-[12px] font-semibold text-primary">Abrir aqui</span>
+        <span className="mt-1.5 inline-flex text-[12px] font-semibold text-primary">
+          {card.type === "conversation" ? "Abrir atendimento" : "Abrir"}
+        </span>
       ) : null}
     </>
   );
