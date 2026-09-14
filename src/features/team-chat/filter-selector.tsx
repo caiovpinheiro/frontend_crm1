@@ -16,7 +16,7 @@ export function FilterSelector({ selectedId, counts, onChange }: FilterSelectorP
       role="tablist"
       aria-label="Filtrar conversas"
       data-tour="bwipo-chat-filters"
-      className="flex gap-1 rounded-[10px] bg-[var(--orbita-field)] p-1"
+      className="flex gap-1 overflow-x-auto rounded-[10px] bg-[var(--orbita-field)] p-1"
     >
       {TEAM_CHAT_LIST_TABS.map((tab) => {
         const active = selectedId === tab.id;
@@ -29,7 +29,7 @@ export function FilterSelector({ selectedId, counts, onChange }: FilterSelectorP
             aria-selected={active}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[12px] font-semibold outline-none transition-colors",
+              "flex min-w-[4.5rem] shrink-0 flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[12px] font-semibold outline-none transition-colors",
               "focus-visible:ring-2 focus-visible:ring-primary/40",
               active
                 ? "bg-card text-foreground shadow-sm"

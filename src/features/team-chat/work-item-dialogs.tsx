@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DatePicker } from "@/components/ui/date-picker";
+import { dateKey } from "@/lib/activities-data";
 import {
   FormDialog,
   FormDialogIcon,
@@ -52,10 +54,54 @@ function agendaNoun(item: WorkItem) {
   return "ata";
 }
 
+export function workItemNoun(item: WorkItem) {
+  if (item.type === "checklist") return "checklist";
+  if (item.type === "feedback") return "feedback";
+  return agendaNoun(item);
+}
+
 function agendaEditTitle(item: WorkItem) {
   if (item.type === "meeting") return "Editar reunião";
   if (item.type === "pauta") return "Editar pauta";
+  if (item.type === "checklist") return "Editar checklist";
+  if (item.type === "feedback") return "Editar feedback";
   return "Editar ata";
+}
+
+export function dueAtToDateKey(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return dateKey(d);
+}
+
+export function dateKeyToDueAt(value: string) {
+  if (!value) return null;
+  const local = new Date(`${value}T09:00:00`);
+  if (Number.isNaN(local.getTime())) return null;
+  return local.toISOString();
+}
+
+export function WorkItemDeadlineField({
+  value,
+  onChange,
+  disabled,
+  compact,
+}: {
+  value?: string | null;
+  onChange: (iso: string | null) => void;
+  disabled?: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <DatePicker
+      value={dueAtToDateKey(value)}
+      onChange={(day) => onChange(dateKeyToDueAt(day))}
+      placeholder="Prazo"
+      disabled={disabled}
+      triggerClassName={compact ? "h-8 w-[7.5rem] rounded-xl px-2 text-[11px]" : undefined}
+    />
+  );
 }
 
 function toLocalInput(iso: string | null) {
@@ -76,6 +122,7 @@ type DraftLine = {
   text: string;
   assigneeId: string | null;
   assigneeName: string | null;
+  dueAt: string | null;
 };
 
 export function CreateWorkItemDialog({
@@ -97,10 +144,12 @@ export function CreateWorkItemDialog({
   const [body, setBody] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [callUrl, setCallUrl] = useState("");
+  const [dueAt, setDueAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setDueAt(null);
     const raw = seedText?.trim() ?? "";
     if (!raw) {
       setTitle("");
@@ -123,7 +172,10 @@ export function CreateWorkItemDialog({
         originType: "room",
         originId: roomId,
         roomId,
-        entries: extracted.entries,
+        entries: extracted.entries.map((entry) => ({
+          ...entry,
+          dueAt: type === "meeting" ? entry.dueAt : dueAt,
+        })),
         startsAt: type === "meeting" && startsAt ? new Date(startsAt).toISOString() : null,
         callUrl: type === "meeting" ? callUrl.trim() || null : null,
       });
@@ -142,7 +194,7 @@ export function CreateWorkItemDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={type === "meeting" ? "Nova reunião" : "Novo checklist"}
-      description="Os itens ficam no card. Concluir um item não cria mensagem nova."
+      description="Os itens ficam no card. Um prazo vira tarefa no calendário."
       icon={
         <FormDialogIcon>
           <CheckSquare className="size-4" />
@@ -178,6 +230,12 @@ export function CreateWorkItemDialog({
           />
           <span className={cn(formLabelClass, "mt-3")}>Link da chamada</span>
           <input value={callUrl} onChange={(e) => setCallUrl(e.target.value)} className={formControlClass} />
+        </>
+      )}
+      {type !== "meeting" && (
+        <>
+          <span className={cn(formLabelClass, "mt-3")}>Prazo</span>
+          <WorkItemDeadlineField value={dueAt} onChange={setDueAt} />
         </>
       )}
       <span className={cn(formLabelClass, "mt-3")}>Itens</span>
@@ -362,6 +420,7 @@ export function EditWorkItemDialog({
         text: entry.text,
         assigneeId: entry.assigneeId,
         assigneeName: entry.assigneeName,
+        dueAt: entry.dueAt,
       })),
     );
   }, [open, item]);
@@ -388,9 +447,10 @@ export function EditWorkItemDialog({
         if (!text) continue;
         if (line.id) {
           const prev = item.entries.find((entry) => entry.id === line.id);
-          const patch: { text?: string; assigneeId?: string | null } = {};
+          const patch: { text?: string; assigneeId?: string | null; dueAt?: string | null } = {};
           if (prev && prev.text !== text) patch.text = text;
           if (prev && prev.assigneeId !== line.assigneeId) patch.assigneeId = line.assigneeId;
+          if (prev && prev.dueAt !== line.dueAt) patch.dueAt = line.dueAt;
           if (Object.keys(patch).length > 0) {
             latest = await updateWorkItemEntry(item.id, line.id, patch);
           }
@@ -398,6 +458,7 @@ export function EditWorkItemDialog({
           latest = await addWorkItemEntry(item.id, {
             text,
             assigneeId: line.assigneeId,
+            dueAt: line.dueAt,
           });
         }
       }
@@ -416,7 +477,7 @@ export function EditWorkItemDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={agendaEditTitle(item)}
-      description="Título, horário, tópicos e responsável de cada linha."
+      description="Título, prazo, tópicos e responsável de cada linha."
       icon={
         <FormDialogIcon>
           <Pencil className="size-4" />
@@ -474,6 +535,15 @@ export function EditWorkItemDialog({
               }
               className={cn(formControlClass, "min-w-[10rem] flex-1")}
             />
+            <WorkItemDeadlineField
+              compact
+              value={line.dueAt}
+              onChange={(next) =>
+                setLines((prev) =>
+                  prev.map((row) => (row.key === line.key ? { ...row, dueAt: next } : row)),
+                )
+              }
+            />
             <TopicAssigneePicker
               assigneeId={line.assigneeId}
               assigneeName={line.assigneeName}
@@ -502,7 +572,7 @@ export function EditWorkItemDialog({
           onClick={() =>
             setLines((prev) => [
               ...prev,
-              { key: draftKey(), text: "", assigneeId: null, assigneeName: null },
+              { key: draftKey(), text: "", assigneeId: null, assigneeName: null, dueAt: null },
             ])
           }
           className="self-start text-[12px] font-semibold text-primary hover:underline"
@@ -527,8 +597,7 @@ export function WorkItemManageButtons({
 }) {
   const { confirm, dialog } = useConfirm();
   const [editing, setEditing] = useState(false);
-  if (!isAgendaWorkItem(item)) return null;
-  const noun = agendaNoun(item);
+  const noun = workItemNoun(item);
 
   return (
     <div className={cn("flex shrink-0 items-center gap-0.5", className)}>

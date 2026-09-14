@@ -157,6 +157,12 @@ export function formatDayLabel(iso: string) {
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   if (same(d, today)) return "Hoje";
   if (same(d, yest)) return "Ontem";
+  const weekAgo = new Date();
+  weekAgo.setDate(today.getDate() - 6);
+  if (d > weekAgo) {
+    const weekday = d.toLocaleDateString("pt-BR", { weekday: "long" });
+    return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  }
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
@@ -227,6 +233,23 @@ export function saveOrbitaFavorites(ids: string[]) {
 
 export function favoriteKey(row: { roomId?: string | null; personId?: string | null }) {
   return row.roomId || (row.personId ? `person:${row.personId}` : "");
+}
+
+const ARCHIVED_KEY = "orbita-chat-archived";
+
+export function loadOrbitaArchived(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(ARCHIVED_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveOrbitaArchived(ids: string[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ARCHIVED_KEY, JSON.stringify(ids));
 }
 
 export function parseQuotedContent(content: string): {

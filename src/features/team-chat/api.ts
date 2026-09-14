@@ -1,5 +1,6 @@
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import type {
+  ChatDestination,
   RecordSearchHit,
   TeamChatAttachment,
   TeamChatDepartment,
@@ -100,6 +101,61 @@ export async function deleteTeamChatRoom(roomId: string): Promise<{ ok: true }> 
   return json(
     apiFetch(`/api/team-chat/rooms/${roomId}`, { method: "DELETE" }),
     "Não foi possível excluir o grupo.",
+  );
+}
+
+export async function updateTeamChatRoomPrefs(
+  roomId: string,
+  input: { muted?: boolean },
+): Promise<TeamChatRoom> {
+  return json(
+    apiFetch(`/api/team-chat/rooms/${roomId}/prefs`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível atualizar a conversa.",
+  );
+}
+
+export async function leaveTeamChatRoom(roomId: string): Promise<{ ok: true; left?: boolean }> {
+  return json(
+    apiFetch(`/api/team-chat/rooms/${roomId}/members`, { method: "DELETE" }),
+    "Não foi possível sair do grupo.",
+  );
+}
+
+export async function deleteTeamChatMessage(roomId: string, messageId: string): Promise<{ ok: true }> {
+  return json(
+    apiFetch(`/api/team-chat/rooms/${roomId}/messages/${messageId}`, { method: "DELETE" }),
+    "Não foi possível apagar a mensagem.",
+  );
+}
+
+export async function listTeamChatDestinations(q?: string): Promise<{ destinations: ChatDestination[] }> {
+  const suffix = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+  return json(
+    apiFetch(`/api/team-chat/destinations${suffix}`),
+    "Não foi possível carregar os destinos.",
+  );
+}
+
+export async function forwardTeamChatMessage(input: {
+  sourceRoomId: string;
+  sourceMessageId: string;
+  excerpt: string;
+  note: string;
+  type: "correcao" | "atencao" | "reconhecimento";
+  destRoomId?: string;
+  destPersonId?: string;
+}): Promise<unknown> {
+  return json(
+    apiFetch("/api/team-chat/forwards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível encaminhar.",
   );
 }
 

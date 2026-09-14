@@ -27,6 +27,8 @@ export type TeamChatRoom = {
   lastPreview: string | null;
   createdAt: string;
   unread: number;
+  muted?: boolean;
+  createdById?: string | null;
   peer: TeamChatPerson | null;
   members: TeamChatPerson[];
   memberCount: number;
@@ -62,6 +64,26 @@ export type TeamChatMessage = {
   createdAt: string;
   author: TeamChatPerson | null;
   workItemId?: string | null;
+  forward?: {
+    id: string;
+    type: string;
+    excerpt: string;
+    note: string;
+    fromUserId: string;
+    fromUserName: string | null;
+    respondedAt: string | null;
+    responseNote: string | null;
+  } | null;
+};
+
+export type ChatDestination = {
+  roomId: string | null;
+  personId: string | null;
+  kind: TeamChatKind;
+  section: "people" | "groups" | "channels";
+  name: string;
+  memberCount: number;
+  lastMessageAt: string;
 };
 
 export type CrmAnchorType = "deal" | "conversation" | "contact";

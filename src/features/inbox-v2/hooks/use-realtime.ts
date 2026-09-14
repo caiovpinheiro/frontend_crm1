@@ -136,11 +136,16 @@ function patchInboxConversationCard(
           unreadCount: (conv.unreadCount ?? 0) + 1,
         }
       : {}),
-    // Outbound humano/agente: sem isto Entrada (hasHumanReply=false) não
-    // promove para Respondidas — card sobe e fica como não respondido.
-    ...(direction === "out"
-      ? { hasHumanReply: true, hasAgentReply: true }
-      : {}),
+    ...(data.card
+      ? {
+          hasHumanReply: data.card.hasHumanReply ?? conv.hasHumanReply,
+          hasAgentReply: data.card.hasAgentReply ?? conv.hasAgentReply,
+          hasActiveAutomation:
+            data.card.hasActiveAutomation ?? conv.hasActiveAutomation,
+        }
+      : direction === "out"
+        ? { hasAgentReply: true }
+        : {}),
     ...(data.assignedToId !== undefined
       ? { assignedToId: data.assignedToId }
       : {}),

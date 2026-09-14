@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, Fragment } from "react";
-import { CheckSquare, ChevronDown, Copy, Download, FileText, Pin, PinOff, Reply, Smile, X } from "lucide-react";
+import { CheckSquare, ChevronDown, Copy, Download, FileText, Forward, Pin, PinOff, Reply, Smile, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -17,7 +17,7 @@ import { WorkItemCard } from "./work-item-card";
 
 function formatChatText(text: string, mine: boolean): ReactNode {
   if (!text) return text;
-  const tokenRe = /(==[^=\n]+==|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|`[^`\n]+`)/g;
+  const tokenRe = /(@all\b|@[^\s@]{1,40}|==[^=\n]+==|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|`[^`\n]+`)/gi;
   const parts: ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -25,7 +25,19 @@ function formatChatText(text: string, mine: boolean): ReactNode {
   while ((m = tokenRe.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     const tok = m[0];
-    if (tok.startsWith("==")) {
+    if (tok.startsWith("@")) {
+      parts.push(
+        <span
+          key={key++}
+          className={cn(
+            "rounded-sm px-0.5 font-semibold",
+            mine ? "bg-white/20 text-inherit" : "bg-primary/10 text-primary",
+          )}
+        >
+          {tok}
+        </span>,
+      );
+    } else if (tok.startsWith("==")) {
       parts.push(
         <mark
           key={key++}
@@ -103,6 +115,8 @@ export function MessageList({
   onWorkItemDeleted,
   onLinkRecord,
   onToChecklist,
+  onForward,
+  onDelete,
 }: {
   room: TeamChatRoom;
   messages: TeamChatMessage[];
@@ -118,6 +132,8 @@ export function MessageList({
   onWorkItemDeleted?: (id: string) => void;
   onLinkRecord?: (item: WorkItem) => void;
   onToChecklist?: (message: TeamChatMessage) => void;
+  onForward?: (message: TeamChatMessage) => void;
+  onDelete?: (message: TeamChatMessage) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -304,6 +320,8 @@ export function MessageList({
                       onWorkItemDeleted={onWorkItemDeleted}
                       onLinkRecord={onLinkRecord}
                       onToChecklist={onToChecklist}
+                      onForward={onForward}
+                      onDelete={onDelete}
                     />
                   </Fragment>
                 );
@@ -337,8 +355,8 @@ export function MessageList({
   );
 }
 
-function bubbleRadius(_first: boolean, _mine: boolean) {
-  return "rounded-[16px]";
+function bubbleRadius(_first: boolean, mine: boolean) {
+  return mine ? "rounded-2xl rounded-br-sm" : "rounded-2xl rounded-bl-sm";
 }
 
 function tickStatus(mine: boolean, peerOnline: boolean, createdAt: string): DeliveryTickStatus | undefined {
@@ -366,6 +384,8 @@ function MessageRow({
   onWorkItemDeleted,
   onLinkRecord,
   onToChecklist,
+  onForward,
+  onDelete,
 }: {
   message: TeamChatMessage;
   meId: string;
@@ -384,6 +404,8 @@ function MessageRow({
   onWorkItemDeleted?: (id: string) => void;
   onLinkRecord?: (item: WorkItem) => void;
   onToChecklist?: (message: TeamChatMessage) => void;
+  onForward?: (message: TeamChatMessage) => void;
+  onDelete?: (message: TeamChatMessage) => void;
 }) {
   const [, bumpTick] = useState(0);
   const reactions = message.reactions ?? [];
@@ -471,6 +493,8 @@ function MessageRow({
                 onTogglePin={onTogglePin}
                 onReply={onReply}
                 onToChecklist={onToChecklist}
+                onForward={onForward}
+                onDelete={onDelete}
               />
             )}
           </div>
@@ -487,6 +511,8 @@ function BubbleHoverActions({
   onTogglePin,
   onReply,
   onToChecklist,
+  onForward,
+  onDelete,
 }: {
   message: TeamChatMessage;
   mine: boolean;
@@ -494,6 +520,8 @@ function BubbleHoverActions({
   onTogglePin: (id: string) => void;
   onReply?: (message: TeamChatMessage) => void;
   onToChecklist?: (message: TeamChatMessage) => void;
+  onForward?: (message: TeamChatMessage) => void;
+  onDelete?: (message: TeamChatMessage) => void;
 }) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -567,6 +595,39 @@ function BubbleHoverActions({
                 </button>
               </TooltipGlass>
             )}
+            <TooltipGlass label="Copiar" side="bottom">
+              <button
+                type="button"
+                onClick={() => {
+                  const parsed = parseQuotedContent(message.content);
+                  const text = parsed.body.trim() || parsed.quote?.excerpt || message.content;
+                  void navigator.clipboard.writeText(text).then(
+                    () => toast.success("Copiado."),
+                    () => toast.error("Não foi possível copiar."),
+                  );
+                  setOpen(false);
+                }}
+                aria-label="Copiar texto"
+                className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </TooltipGlass>
+            {onForward && (
+              <TooltipGlass label="Encaminhar" side="bottom">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onForward(message);
+                    setOpen(false);
+                  }}
+                  aria-label="Encaminhar"
+                  className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Forward className="h-3.5 w-3.5" />
+                </button>
+              </TooltipGlass>
+            )}
             {onReply && (
               <TooltipGlass label="Responder" side="bottom">
                 <button
@@ -613,6 +674,21 @@ function BubbleHoverActions({
                 {message.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
               </button>
             </TooltipGlass>
+            {mine && onDelete && (
+              <TooltipGlass label="Apagar" side="bottom">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDelete(message);
+                    setOpen(false);
+                  }}
+                  aria-label="Apagar mensagem"
+                  className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </TooltipGlass>
+            )}
           </div>
         </div>
       ) : null}
@@ -728,6 +804,9 @@ function MessageBody({
               <Pin className="h-2.5 w-2.5" />
             </span>
           )}
+          {message.forward ? (
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Encaminhada</p>
+          ) : null}
           {parsed.quote ? (
             <div
               className={cn(
