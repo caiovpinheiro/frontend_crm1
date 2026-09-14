@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 
 import { Avatar, GroupGlyph } from "./avatar";
 import { dayKey, formatClock, formatDayLabel, getOrbitaNameColor, parseQuotedContent, REACTION_EMOJIS, toPerson } from "./helpers";
-import type { TeamChatAttachment, TeamChatMessage, TeamChatReaction, TeamChatRoom, WorkItem } from "./types";
+import { LinkedRecordCard } from "./record-card";
+import type { OpenCrmCard, TeamChatAttachment, TeamChatMessage, TeamChatReaction, TeamChatRoom, WorkItem } from "./types";
 import { WorkItemCard } from "./work-item-card";
 
 function formatChatText(text: string, mine: boolean): ReactNode {
@@ -117,6 +118,7 @@ export function MessageList({
   onToChecklist,
   onForward,
   onDelete,
+  onOpenRecord,
 }: {
   room: TeamChatRoom;
   messages: TeamChatMessage[];
@@ -134,6 +136,7 @@ export function MessageList({
   onToChecklist?: (message: TeamChatMessage) => void;
   onForward?: (message: TeamChatMessage) => void;
   onDelete?: (message: TeamChatMessage) => void;
+  onOpenRecord?: (card: OpenCrmCard) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -322,6 +325,7 @@ export function MessageList({
                       onToChecklist={onToChecklist}
                       onForward={onForward}
                       onDelete={onDelete}
+                      onOpenRecord={onOpenRecord}
                     />
                   </Fragment>
                 );
@@ -386,6 +390,7 @@ function MessageRow({
   onToChecklist,
   onForward,
   onDelete,
+  onOpenRecord,
 }: {
   message: TeamChatMessage;
   meId: string;
@@ -406,6 +411,7 @@ function MessageRow({
   onToChecklist?: (message: TeamChatMessage) => void;
   onForward?: (message: TeamChatMessage) => void;
   onDelete?: (message: TeamChatMessage) => void;
+  onOpenRecord?: (card: OpenCrmCard) => void;
 }) {
   const [, bumpTick] = useState(0);
   const reactions = message.reactions ?? [];
@@ -449,6 +455,7 @@ function MessageRow({
                 onChange={onWorkItemChange}
                 onDeleted={onWorkItemDeleted}
                 onLinkRecord={onLinkRecord}
+                onOpenRecord={onOpenRecord}
               />
             ) : (
             <MessageBody
@@ -458,6 +465,7 @@ function MessageRow({
               pinned={message.pinned}
               time={formatClock(message.createdAt)}
               tick={tick}
+              onOpenRecord={onOpenRecord}
             />
             )}
             {reactions.length > 0 && (
@@ -703,6 +711,7 @@ function MessageBody({
   pinned,
   time,
   tick,
+  onOpenRecord,
 }: {
   message: TeamChatMessage;
   mine: boolean;
@@ -710,6 +719,7 @@ function MessageBody({
   pinned: boolean;
   time: string;
   tick?: DeliveryTickStatus;
+  onOpenRecord?: (card: OpenCrmCard) => void;
 }) {
   const attachments = message.attachments ?? [];
   const stickers = attachments.filter((a) => a.kind === "sticker");
@@ -717,6 +727,9 @@ function MessageBody({
   const parsed = parseQuotedContent(message.content);
   const bodyText = parsed.body.trim();
   const hasText = Boolean(bodyText || parsed.quote);
+  const showCard = Boolean(
+    message.card || (message.anchorRef && message.anchorRef.type !== "work_item"),
+  );
   const radius = bubbleRadius(first, mine);
   const bubbleCls = cn(
     "relative w-fit max-w-full",
@@ -825,6 +838,16 @@ function MessageBody({
           <span className="absolute bottom-[5px] right-[8px]">{meta}</span>
         </div>
       )}
+      {showCard ? (
+        <div className={cn("w-full", !hasText && "relative")}>
+          <LinkedRecordCard
+            card={message.card}
+            anchorRef={message.anchorRef}
+            onOpen={onOpenRecord}
+          />
+          {!hasText ? <span className="mt-1 flex justify-end">{meta}</span> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -16,7 +16,7 @@ import {
 } from "./api";
 import { RecordCard } from "./record-card";
 import { TopicAssigneePicker } from "./topic-assignee";
-import type { WorkItem } from "./types";
+import type { OpenCrmCard, WorkItem } from "./types";
 import { WorkItemDeadlineField, WorkItemManageButtons } from "./work-item-dialogs";
 
 const TYPE_LABEL: Record<WorkItem["type"], string> = {
@@ -52,12 +52,14 @@ export function WorkItemCard({
   onChange,
   onLinkRecord,
   onDeleted,
+  onOpenRecord,
 }: {
   item: WorkItem;
   meId?: string;
   onChange?: (next: WorkItem) => void;
   onLinkRecord?: (item: WorkItem) => void;
   onDeleted?: (id: string) => void;
+  onOpenRecord?: (card: OpenCrmCard) => void;
 }) {
   const [adding, setAdding] = useState("");
   const [addingAssignee, setAddingAssignee] = useState<{ id: string | null; name: string | null }>({
@@ -295,7 +297,7 @@ export function WorkItemCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-2">
         {item.crmCard ? (
-          <RecordCard card={item.crmCard} />
+          <RecordCard card={item.crmCard} onOpen={onOpenRecord} />
         ) : (
           <button
             type="button"
