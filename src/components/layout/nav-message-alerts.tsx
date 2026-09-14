@@ -16,7 +16,7 @@ import { usePathname } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
 
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
-import { useTeamChatRooms } from "@/features/team-chat/hooks";
+import { incrementRoomUnreadInCache, useTeamChatRooms } from "@/features/team-chat/hooks";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
@@ -180,7 +180,10 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
   const meId = (session?.user as { id?: string } | undefined)?.id ?? "";
 
   const ready = status === "authenticated";
-  const canChat = ready && canSeeNav("nav:team-chat", myPerms?.permissions, isSuperAdmin);
+  const canChat =
+    ready &&
+    (canSeeNav("nav:team-chat", myPerms?.permissions, isSuperAdmin) ||
+      Boolean(myPerms?.permissions?.includes("team_chat:view")));
   const canEmail = ready && canSeeNav("nav:email", myPerms?.permissions, isSuperAdmin);
 
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -262,7 +265,7 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
         };
         const myId = meRef.current;
         const members = data.memberIds;
-        const knownRooms = qc.getQueryData<{ rooms: { id: string }[] }>(["team-chat-rooms"]);
+        const knownRooms = qc.getQueryData<{ rooms: { id: string; muted?: boolean }[] }>(["team-chat-rooms"]);
         const inCachedRoom = Boolean(
           data.roomId && knownRooms?.rooms.some((room) => room.id === data.roomId),
         );
@@ -271,17 +274,27 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
           : inCachedRoom;
         if (!isMember) return;
 
-        void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
-
-        if (!Array.isArray(members)) return;
-        if (!data.message || data.message.kind === "SYSTEM") return;
-        if (data.message.authorId && data.message.authorId === myId) return;
-
+        const isOwn = Boolean(data.message?.authorId && data.message.authorId === myId);
+        const isSystem = data.message?.kind === "SYSTEM";
         const viewingActiveRoom =
           Boolean(data.roomId) &&
           data.roomId === activeRoomRef.current &&
           pathnameRef.current.startsWith("/bwipo-chat") &&
           document.visibilityState === "visible";
+
+        if (data.roomId && !isOwn && !isSystem && !viewingActiveRoom) {
+          incrementRoomUnreadInCache(qc, data.roomId);
+        }
+        void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
+
+        if (!Array.isArray(members) && !inCachedRoom) return;
+        if (!data.message || isSystem) return;
+        if (isOwn) return;
+
+        const mutedRoom = Boolean(
+          data.roomId && knownRooms?.rooms.some((room) => room.id === data.roomId && room.muted),
+        );
+        if (mutedRoom) return;
         if (viewingActiveRoom) return;
 
         flash("team-chat");

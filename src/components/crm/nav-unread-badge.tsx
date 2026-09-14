@@ -12,7 +12,7 @@ export function NavUnreadBadge({
   contrast?: boolean;
   className?: string;
 }) {
-  if (count <= 0) return null;
+  if (count <= 0 && !pulse) return null;
   const label = count > 99 ? "99+" : String(count);
 
   return (
@@ -28,16 +28,25 @@ export function NavUnreadBadge({
           )}
         />
       ) : null}
-      <span
-        className={cn(
-          "relative flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 font-display text-[10px] font-bold leading-none tabular-nums",
-          contrast
-            ? "bg-sidebar-primary-foreground text-sidebar-primary"
-            : "bg-primary text-primary-foreground",
-        )}
-      >
-        {label}
-      </span>
+      {count > 0 ? (
+        <span
+          className={cn(
+            "relative flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 font-display text-[10px] font-bold leading-none tabular-nums",
+            contrast
+              ? "bg-sidebar-primary-foreground text-sidebar-primary"
+              : "bg-primary text-primary-foreground",
+          )}
+        >
+          {label}
+        </span>
+      ) : (
+        <span
+          className={cn(
+            "relative block h-2.5 w-2.5 rounded-full",
+            contrast ? "bg-sidebar-primary-foreground" : "bg-primary",
+          )}
+        />
+      )}
     </span>
   );
 }

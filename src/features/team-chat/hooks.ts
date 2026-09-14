@@ -11,9 +11,10 @@ import {
   addTeamChatMembers,
   addTeamChatNote,
   createTeamChatRoom,
+  deleteTeamChatMessage,
   deleteTeamChatNote,
   deleteTeamChatRoom,
-  updateTeamChatRoom,
+  leaveTeamChatRoom,
   listMyWorkItems,
   listRoomWorkItems,
   listTeamChatColleagues,
@@ -25,8 +26,10 @@ import {
   pinTeamChatNote,
   reactTeamChatMessage,
   sendTeamChatMessage,
+  updateTeamChatRoom,
+  updateTeamChatRoomPrefs,
 } from "./api";
-import { loadOrbitaFavorites, saveOrbitaFavorites } from "./helpers";
+import { loadOrbitaArchived, loadOrbitaFavorites, saveOrbitaArchived, saveOrbitaFavorites } from "./helpers";
 import type { TeamChatAttachment, TeamChatMessage, TeamChatNote, TeamChatRoom, WorkItem } from "./types";
 
 export function useOrbitaFavorites() {
@@ -48,12 +51,53 @@ export function useOrbitaFavorites() {
   return { favorites, toggleFavorite };
 }
 
+export function useOrbitaArchived() {
+  const [archived, setArchived] = useState<string[]>([]);
+
+  useEffect(() => {
+    setArchived(loadOrbitaArchived());
+  }, []);
+
+  function toggleArchived(id: string) {
+    if (!id) return;
+    setArchived((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      saveOrbitaArchived(next);
+      return next;
+    });
+  }
+
+  return { archived, toggleArchived };
+}
+
 const ROOMS_KEY = "team-chat-rooms";
 const MESSAGES_KEY = "team-chat-messages";
 const PEOPLE_KEY = "team-chat-colleagues";
 const NOTES_KEY = "team-chat-notes";
 const MY_WORK_ITEMS_KEY = "team-chat-work-items-mine";
 const ROOM_WORK_ITEMS_KEY = "team-chat-work-items";
+
+export function incrementRoomUnreadInCache(
+  qc: ReturnType<typeof useQueryClient>,
+  roomId: string,
+  preview?: string | null,
+) {
+  qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+    if (!prev) return prev;
+    let found = false;
+    const rooms = prev.rooms.map((r) => {
+      if (r.id !== roomId) return r;
+      found = true;
+      return {
+        ...r,
+        unread: (r.unread || 0) + 1,
+        lastPreview: preview?.trim() || r.lastPreview,
+        lastMessageAt: new Date().toISOString(),
+      };
+    });
+    return found ? { rooms } : prev;
+  });
+}
 
 export function markRoomReadInCache(
   qc: ReturnType<typeof useQueryClient>,
@@ -235,6 +279,37 @@ export function useTeamChatMutations() {
       qc.invalidateQueries({ queryKey: [ROOMS_KEY] });
     },
   });
+  const setRoomMuted = useMutation({
+    mutationFn: ({ roomId, muted }: { roomId: string; muted: boolean }) =>
+      updateTeamChatRoomPrefs(roomId, { muted }),
+    onSuccess: (room) => {
+      qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+        if (!prev) return prev;
+        return { rooms: prev.rooms.map((r) => (r.id === room.id ? { ...r, ...room } : r)) };
+      });
+    },
+  });
+  const leaveRoom = useMutation({
+    mutationFn: (roomId: string) => leaveTeamChatRoom(roomId),
+    onSuccess: (_ok, roomId) => {
+      qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+        if (!prev) return prev;
+        return { rooms: prev.rooms.filter((r) => r.id !== roomId) };
+      });
+      qc.removeQueries({ queryKey: [MESSAGES_KEY, roomId] });
+    },
+  });
+  const removeMessage = useMutation({
+    mutationFn: ({ roomId, messageId }: { roomId: string; messageId: string }) =>
+      deleteTeamChatMessage(roomId, messageId),
+    onSuccess: (_ok, vars) => {
+      qc.setQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, vars.roomId], (prev) => {
+        if (!prev) return prev;
+        return { messages: prev.messages.filter((m) => m.id !== vars.messageId) };
+      });
+      qc.invalidateQueries({ queryKey: [ROOMS_KEY] });
+    },
+  });
   const removeRoom = useMutation({
     mutationFn: (roomId: string) => deleteTeamChatRoom(roomId),
     onSuccess: (_ok, roomId) => {
@@ -284,7 +359,21 @@ export function useTeamChatMutations() {
       }));
     },
   });
-  return { createRoom, send, addMembers, updateRoom, removeRoom, react, pin, addNote, toggleNotePin, removeNote };
+  return {
+    createRoom,
+    send,
+    addMembers,
+    updateRoom,
+    setRoomMuted,
+    leaveRoom,
+    removeMessage,
+    removeRoom,
+    react,
+    pin,
+    addNote,
+    toggleNotePin,
+    removeNote,
+  };
 }
 
 export type TeamChatTypingMap = Record<string, { userId: string; name: string }>;
@@ -375,7 +464,15 @@ export function useTeamChatRealtime(activeRoomId: string | null, enabled = true)
         bumpRooms();
       },
       team_chat_message: (raw) => {
-        const data = raw as { roomId?: string; message?: TeamChatMessage };
+        const data = raw as { roomId?: string; message?: TeamChatMessage; deleted?: boolean; messageId?: string };
+        if (data.deleted && data.roomId && data.messageId) {
+          qc.setQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, data.roomId], (prev) => {
+            if (!prev) return prev;
+            return { messages: prev.messages.filter((m) => m.id !== data.messageId) };
+          });
+          bumpRooms();
+          return;
+        }
         if (data.message) patchMessage(qc, data.message);
         if (data.roomId && data.roomId === activeRef.current) {
           markRoomReadInCache(qc, data.roomId);

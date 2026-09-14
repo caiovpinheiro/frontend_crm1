@@ -118,32 +118,25 @@ export function ChatHeader({
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
+          <button
+            type="button"
+            onClick={onToggleDetails}
+            aria-label="Abrir dados da conversa"
+            className="flex min-w-0 items-center gap-3 rounded-[var(--orbita-radius-inner)] text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          >
           {isDirect && lead ? (
             <div className="shrink-0">
               <Avatar person={lead} size="sm" showPresence />
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={onAddMembers}
-              aria-label="Editar grupo"
-              className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
+            <span className="shrink-0">
               <GroupGlyph seed={room.id} size={36} imageUrl={room.avatarUrl} name={room.name} />
-            </button>
+            </span>
           )}
           <div className="min-w-0">
-            {isDirect ? (
-              <h2 className="truncate text-[15px] font-semibold text-[var(--orbita-text)]">{room.name}</h2>
-            ) : (
-              <button
-                type="button"
-                onClick={onAddMembers}
-                className="block max-w-full truncate text-left text-[15px] font-semibold text-[var(--orbita-text)] hover:underline"
-              >
-                #{room.name}
-              </button>
-            )}
+            <h2 className="truncate text-[15px] font-semibold text-[var(--orbita-text)]">
+              {isDirect ? room.name : `#${room.name}`}
+            </h2>
             {typingLabel ? (
               <span className="truncate text-[12px] font-medium text-[var(--orbita-selected)]">
                 {typingLabel}
@@ -162,6 +155,7 @@ export function ChatHeader({
               </div>
             )}
           </div>
+          </button>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {isGroupRoom(room) && (

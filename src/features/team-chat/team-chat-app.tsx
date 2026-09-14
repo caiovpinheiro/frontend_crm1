@@ -15,6 +15,7 @@ import { ChatHeader } from "./chat-header";
 import { AddMembersDialog, ComposeDialog } from "./compose-dialogs";
 import { Composer } from "./composer";
 import { DetailsPanel } from "./details-panel";
+import { ForwardDialog } from "./forward-dialog";
 import { MessageList } from "./message-list";
 import { Sidebar } from "./sidebar";
 import {
@@ -22,6 +23,7 @@ import {
   patchRoomWorkItem,
   removeRoomWorkItem,
   usePingTeamChatTyping,
+  useOrbitaArchived,
   useOrbitaFavorites,
   useRoomWorkItems,
   useTeamChatColleagues,
@@ -54,6 +56,8 @@ export function TeamChatApp() {
   const roomsQuery = useTeamChatRooms(ready, selectedId);
   const peopleQuery = useTeamChatColleagues(ready);
   const { favorites, toggleFavorite } = useOrbitaFavorites();
+  const { archived, toggleArchived } = useOrbitaArchived();
+  const { createRoom, setRoomMuted, leaveRoom, removeRoom } = useTeamChatMutations();
   const typing = useTeamChatTyping(meId, ready);
   const rooms = roomsQuery.data?.rooms ?? [];
   const colleagues = peopleQuery.data?.colleagues ?? [];
@@ -73,8 +77,6 @@ export function TeamChatApp() {
     }
     if (roomsQuery.data) knownRoomIds.current = ids;
   }, [selectedId, roomsQuery.data]);
-
-  const { createRoom } = useTeamChatMutations();
 
   const directs = useMemo<DirectRow[]>(() => {
     const dms = rooms.filter((r) => r.kind === "DM");
@@ -151,7 +153,7 @@ export function TeamChatApp() {
     <div className="team-chat-shell flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
       <div
         className={cn(
-          "orbita-block flex h-full min-h-0 w-full shrink-0 flex-col md:w-[min(30%,26rem)] md:min-w-[20rem] md:max-w-[26rem]",
+          "orbita-block flex h-full min-h-0 w-full shrink-0 flex-col md:w-[min(32%,30rem)] md:min-w-[24rem] md:max-w-[30rem]",
           selected ? "hidden md:flex" : "flex",
         )}
       >
@@ -162,7 +164,15 @@ export function TeamChatApp() {
           loading={listBootstrapping}
           error={directs.length === 0 && groups.length === 0 ? loadError : null}
           favorites={favorites}
+          archived={archived}
           onToggleFavorite={toggleFavorite}
+          onToggleArchived={toggleArchived}
+          onToggleMute={(roomId, muted) =>
+            setRoomMuted.mutate(
+              { roomId, muted: !muted },
+              { onError: (e: Error) => toast.error(e.message) },
+            )
+          }
           onSelectRoom={(id) => {
             setSelectedId(id);
             markRoomReadInCache(qc, id);
@@ -224,19 +234,87 @@ export function TeamChatApp() {
         <>
           <div className="orbita-block hidden h-full w-[320px] shrink-0 md:block">
             <DetailsHost
+              room={selected}
               roomId={selected.id}
               meId={meId}
               notes={notes}
               workItems={roomWorkItems}
+              favorited={favorites.includes(
+                favoriteKey({ roomId: selected.id, personId: selected.peer?.id }),
+              )}
+              onToggleFavorite={() =>
+                toggleFavorite(favoriteKey({ roomId: selected.id, personId: selected.peer?.id }))
+              }
+              onToggleMute={() =>
+                setRoomMuted.mutate(
+                  { roomId: selected.id, muted: !selected.muted },
+                  { onError: (e: Error) => toast.error(e.message) },
+                )
+              }
+              onLeave={() =>
+                leaveRoom.mutate(selected.id, {
+                  onSuccess: () => {
+                    setSelectedId(null);
+                    setDetailsOpen(false);
+                    toast.success("Você saiu do grupo.");
+                  },
+                  onError: (e: Error) => toast.error(e.message),
+                })
+              }
+              onDeleteGroup={() =>
+                removeRoom.mutate(selected.id, {
+                  onSuccess: () => {
+                    setSelectedId(null);
+                    setDetailsOpen(false);
+                    toast.success("Grupo excluído.");
+                  },
+                  onError: (e: Error) => toast.error(e.message),
+                })
+              }
+              onAddMembers={() => setAddOpen(true)}
               onClose={() => setDetailsOpen(false)}
             />
           </div>
           <div className="absolute inset-0 z-20 md:hidden">
             <DetailsHost
+              room={selected}
               roomId={selected.id}
               meId={meId}
               notes={notes}
               workItems={roomWorkItems}
+              favorited={favorites.includes(
+                favoriteKey({ roomId: selected.id, personId: selected.peer?.id }),
+              )}
+              onToggleFavorite={() =>
+                toggleFavorite(favoriteKey({ roomId: selected.id, personId: selected.peer?.id }))
+              }
+              onToggleMute={() =>
+                setRoomMuted.mutate(
+                  { roomId: selected.id, muted: !selected.muted },
+                  { onError: (e: Error) => toast.error(e.message) },
+                )
+              }
+              onLeave={() =>
+                leaveRoom.mutate(selected.id, {
+                  onSuccess: () => {
+                    setSelectedId(null);
+                    setDetailsOpen(false);
+                    toast.success("Você saiu do grupo.");
+                  },
+                  onError: (e: Error) => toast.error(e.message),
+                })
+              }
+              onDeleteGroup={() =>
+                removeRoom.mutate(selected.id, {
+                  onSuccess: () => {
+                    setSelectedId(null);
+                    setDetailsOpen(false);
+                    toast.success("Grupo excluído.");
+                  },
+                  onError: (e: Error) => toast.error(e.message),
+                })
+              }
+              onAddMembers={() => setAddOpen(true)}
               onClose={() => setDetailsOpen(false)}
             />
           </div>
@@ -272,26 +350,47 @@ export function TeamChatApp() {
 }
 
 function DetailsHost({
+  room,
   roomId,
   meId,
   notes,
   workItems,
+  favorited,
+  onToggleFavorite,
+  onToggleMute,
+  onLeave,
+  onDeleteGroup,
+  onAddMembers,
   onClose,
 }: {
+  room: TeamChatRoom;
   roomId: string;
   meId: string;
   notes: { id: string; text: string; pinned: boolean; createdAt: string }[];
   workItems: WorkItem[];
+  favorited: boolean;
+  onToggleFavorite: () => void;
+  onToggleMute: () => void;
+  onLeave: () => void;
+  onDeleteGroup: () => void;
+  onAddMembers: () => void;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
   const { addNote, toggleNotePin, removeNote } = useTeamChatMutations();
   return (
     <DetailsPanel
+      room={room}
       roomId={roomId}
       meId={meId}
       notes={notes}
       workItems={workItems}
+      favorited={favorited}
+      onToggleFavorite={onToggleFavorite}
+      onToggleMute={onToggleMute}
+      onLeave={isGroupRoom(room) ? onLeave : undefined}
+      onDeleteGroup={isGroupRoom(room) ? onDeleteGroup : undefined}
+      onAddMembers={isGroupRoom(room) ? onAddMembers : undefined}
       onAddNote={(text) =>
         addNote.mutate({ roomId, content: text }, { onError: (e: Error) => toast.error(e.message) })
       }
@@ -334,7 +433,7 @@ function Thread({
   const qc = useQueryClient();
   const { data, isError, error, refetch } = useTeamChatMessages(room.id);
   const workItemsQuery = useRoomWorkItems(room.id);
-  const { send, react, pin } = useTeamChatMutations();
+  const { send, react, pin, removeMessage } = useTeamChatMutations();
   const messages = data?.messages ?? [];
   const workItems = workItemsQuery.data?.items ?? [];
   const messagesError =
@@ -344,6 +443,7 @@ function Thread({
   const [createType, setCreateType] = useState<WorkItemType | null>(null);
   const [toChecklist, setToChecklist] = useState<TeamChatMessage | null>(null);
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
+  const [forwardMsg, setForwardMsg] = useState<TeamChatMessage | null>(null);
   const pingTyping = usePingTeamChatTyping(room.id);
 
   useEffect(() => {
@@ -352,6 +452,7 @@ function Thread({
     setCreateType(null);
     setToChecklist(null);
     setLinkItemId(null);
+    setForwardMsg(null);
   }, [room.id]);
 
   function onWorkItemReady(item: WorkItem) {
@@ -409,11 +510,19 @@ function Thread({
           onWorkItemDeleted={(id) => removeRoomWorkItem(qc, room.id, id)}
           onLinkRecord={(item) => setLinkItemId(item.id)}
           onToChecklist={(msg) => setToChecklist(msg)}
+          onForward={(msg) => setForwardMsg(msg)}
+          onDelete={(msg) =>
+            removeMessage.mutate(
+              { roomId: room.id, messageId: msg.id },
+              { onError: (e: Error) => toast.error(e.message) },
+            )
+          }
         />
-        <div className="relative z-20 shrink-0 overflow-visible border-t border-border bg-[var(--orbita-block)] px-3 pb-3 pt-2 md:px-4" data-tour="bwipo-chat-composer">
-          <div className="w-full overflow-visible rounded-[16px] border border-border bg-[var(--orbita-block)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
+        <div className="relative z-20 shrink-0 overflow-visible border-t border-[var(--orbita-divider)] bg-[var(--orbita-chrome)] px-2 py-2 md:px-3" data-tour="bwipo-chat-composer">
+          <div className="w-full overflow-visible">
             <Composer
               roomId={room.id}
+              mentionPeople={room.members}
               placeholder="Digite uma mensagem"
               quote={quote}
               onTyping={pingTyping}
@@ -456,6 +565,14 @@ function Thread({
         }}
         workItemId={linkItemId}
         onLinked={onWorkItemReady}
+      />
+      <ForwardDialog
+        open={forwardMsg !== null}
+        onOpenChange={(v) => {
+          if (!v) setForwardMsg(null);
+        }}
+        roomId={room.id}
+        message={forwardMsg}
       />
     </div>
   );

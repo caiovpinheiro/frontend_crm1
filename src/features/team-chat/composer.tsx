@@ -26,7 +26,7 @@ import { EmojiPicker } from "@/components/inbox/emoji-picker";
 import { cn } from "@/lib/utils";
 
 import { uploadTeamChatAttachment } from "./api";
-import type { TeamChatAttachment } from "./types";
+import type { TeamChatAttachment, TeamChatPerson } from "./types";
 
 const MAX_FILES = 8;
 const MAX_BYTES = 16 * 1024 * 1024;
@@ -110,6 +110,7 @@ export function Composer({
   onTyping,
   onClearQuote,
   onCreateWorkItem,
+  mentionPeople = [],
 }: {
   roomId: string;
   placeholder: string;
@@ -118,6 +119,7 @@ export function Composer({
   onTyping?: () => void;
   onClearQuote?: () => void;
   onCreateWorkItem?: (type: "checklist" | "meeting") => void;
+  mentionPeople?: TeamChatPerson[];
 }) {
   const [value, setValue] = useState("");
   const [pending, setPending] = useState<Staged[]>([]);
@@ -444,6 +446,21 @@ export function Composer({
     }
   }
 
+  const mentionMatch = value.match(/(^|\s)@([^\s@]*)$/);
+  const mentionQuery = mentionMatch ? mentionMatch[2].toLowerCase() : null;
+  const mentionHits =
+    mentionQuery === null
+      ? []
+      : [
+          { id: "all", name: "all" },
+          ...mentionPeople,
+        ].filter((p) => p.name.toLowerCase().includes(mentionQuery)).slice(0, 6);
+
+  function insertMention(name: string) {
+    setValue((prev) => prev.replace(/(^|\s)@([^\s@]*)$/, `$1@${name} `));
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }
+
   const canSend = value.trim().length > 0 || pending.length > 0;
   const recording = rec !== "idle";
 
@@ -474,7 +491,7 @@ export function Composer({
     "grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-[var(--orbita-block-soft)] hover:text-foreground";
 
   return (
-    <div className="relative px-2 py-2" ref={rootRef} onPaste={handlePaste}>
+    <div className="relative" ref={rootRef} onPaste={handlePaste}>
       <div className="w-full">
         {pending.length > 0 && (
           <div className="mb-1.5 flex flex-wrap gap-1.5">
@@ -802,6 +819,26 @@ export function Composer({
                         <Highlighter className="h-3.5 w-3.5" />
                       </button>
                     </TooltipGlass>
+                  </div>
+                )}
+                {mentionHits.length > 0 && (
+                  <div
+                    role="listbox"
+                    aria-label="Menções"
+                    className="absolute bottom-full left-12 z-30 mb-1 min-w-[12rem] overflow-hidden rounded-xl border border-border bg-[var(--orbita-block)] py-1 shadow-lg"
+                  >
+                    {mentionHits.map((person) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        role="option"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => insertMention(person.name)}
+                        className="flex w-full px-3 py-1.5 text-left text-[13px] hover:bg-[var(--orbita-field)]"
+                      >
+                        @{person.name}
+                      </button>
+                    ))}
                   </div>
                 )}
                 <textarea
