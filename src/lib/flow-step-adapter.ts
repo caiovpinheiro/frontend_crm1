@@ -80,7 +80,7 @@ export function nodeFamily(type: string): NodeFamily {
   if (type === "execute_distribution" || type === "distribution") return "distribution"
   if (CONDITION_TYPES.has(type as ActionStepType) || type === "condition") return "condition"
   if (FINISH_TYPES.has(type as ActionStepType) || type === "finish") return "finish"
-  if (MESSAGE_TYPES.has(type as ActionStepType) || INTERACTIVE_TYPES.has(type as ActionStepType) || type === "wait_for_reply") {
+  if (MESSAGE_TYPES.has(type as ActionStepType) || INTERACTIVE_TYPES.has(type as ActionStepType) || type === "wait_for_reply" || type === "closing_protocol") {
     return "message"
   }
   return "action"
@@ -111,6 +111,7 @@ export function isMessageStepType(type: string | undefined): boolean {
     MESSAGE_TYPES.has(type as ActionStepType) ||
     INTERACTIVE_TYPES.has(type as ActionStepType) ||
     type === "wait_for_reply" ||
+    type === "closing_protocol" ||
     type === "template" ||
     type === "media" ||
     type === "interactive" ||
@@ -122,7 +123,7 @@ export function stepTypeToNodeKind(type: ActionStepType): NodeKind {
   if (type === "send_whatsapp_template") return "template"
   if (type === "send_whatsapp_media") return "media"
   if (INTERACTIVE_TYPES.has(type)) return "interactive"
-  if (type === "send_whatsapp_message" || type === "send_product" || type === "send_email" || type === "wait_for_reply") {
+  if (type === "send_whatsapp_message" || type === "send_product" || type === "send_email" || type === "wait_for_reply" || type === "closing_protocol") {
     return "message"
   }
   if (type === "execute_distribution") return "distribution"
@@ -216,6 +217,13 @@ export function outputsFromStepConfig(
     return [
       { key: "received", label: "Quando responder", kind: "response", target: t("received", cfg.receivedGotoStepId) ?? t("next", cfg.receivedGotoStepId) },
       { key: "timeout", label: "Caso o contato não responda", kind: "error", target: t("timeout", cfg.timeoutGotoStepId) },
+    ]
+  }
+  if (type === "closing_protocol") {
+    return [
+      { key: "received", label: "Demanda (continua)", kind: "response", target: t("received", cfg.receivedGotoStepId) },
+      { key: "encerrar", label: "Encerrar", kind: "error", target: t("encerrar", cfg.encerrarStepId) },
+      { key: "devolver", label: "Devolver", kind: "navigation", target: t("devolver", cfg.devolverStepId) },
     ]
   }
   if (type === "webhook") {
@@ -465,6 +473,16 @@ export function applyHandleToConfig(
     return rec as NodeConfig
   }
 
+  if (handle === "encerrar") {
+    rec.encerrarStepId = targetId
+    return rec as NodeConfig
+  }
+
+  if (handle === "devolver") {
+    rec.devolverStepId = targetId
+    return rec as NodeConfig
+  }
+
   if (handle === "failure") {
     rec.failureAction = "goto"
     rec.failureGotoStepId = targetId
@@ -541,6 +559,16 @@ export function clearHandleFromConfig(
 
   if (handle === "received" || (handle === "next" && type === "wait_for_reply")) {
     delete rec.receivedGotoStepId
+    return rec as NodeConfig
+  }
+
+  if (handle === "encerrar") {
+    delete rec.encerrarStepId
+    return rec as NodeConfig
+  }
+
+  if (handle === "devolver") {
+    delete rec.devolverStepId
     return rec as NodeConfig
   }
 

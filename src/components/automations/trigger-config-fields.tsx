@@ -703,6 +703,15 @@ export function TriggerConfigFields({ triggerType, value, onChange, stacked }: P
             />
             <span>Não disparar se o inbound for só ack ou cumprimento</span>
           </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--brand-primary)]"
+              checked={value.skipIfNoInbound === true}
+              onChange={(e) => patch({ skipIfNoInbound: e.target.checked })}
+            />
+            <span>Não disparar se o ticket abriu sem mensagem do contato</span>
+          </label>
         </div>
       );
     case "whatsapp_session_expiring": {
@@ -938,6 +947,17 @@ export function TriggerConfigFields({ triggerType, value, onChange, stacked }: P
       );
     case "conversation_tabulated":
       return <ConversationTabulatedFields value={value} patch={patch} />;
+    case "attendance_closing":
+      return (
+        <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 text-sm text-foreground">
+          <p className="font-semibold">Atendimento sendo encerrado</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Dispara quando o passo Encerramento esgota a espera sem resposta.
+            Use para avisar o contato e deixar um agente ler o contexto.
+            Encerrar e Devolver saem do passo no canvas — o destino é do fluxo.
+          </p>
+        </div>
+      );
     default:
       return (
         <p className="text-sm text-muted-foreground">Selecione um tipo de gatilho.</p>

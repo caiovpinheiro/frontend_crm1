@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { Position, type Node, type NodeProps } from "@xyflow/react";
 import { CustomHandle } from "./custom-handle";
-import { IconArrowsLeftRight as ArrowRightLeft, IconRobot as Bot, IconRobotFace as BotMessageSquare, IconBriefcase as Briefcase, IconCalendarPlus as CalendarPlus, IconCircleCheck as CheckCircle2, IconChecklist as Checklist, IconClipboardList as ClipboardList, IconCircleX as CircleX, IconClock as Clock, IconCornerDownRight as CornerDownRight, IconFileText as FileText, IconGitBranch as GitBranch, IconGlobe as Globe, IconPhoto as Image, IconListDetails as ListDetails, IconMail as Mail, IconMessageQuestion as MessageCircleQuestion, IconMessage as MessageSquare, IconClick as MousePointerClick, IconPackageOff as PackageMinus, IconPlayerPause as Pause, IconPencil as Pencil, IconPlus as Plus, IconRefresh as RefreshCw, IconRepeat as Repeat, IconRoute as Route, IconShoppingBag as ShoppingBag, IconSquare as Square, IconPlayerStop as StopCircle, IconTag as Tag, IconClock as Timer, IconTrendingUp as TrendingUp, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserPlus as UserPlus, IconUsersGroup as UsersGroup, IconVariable as Variable } from "@tabler/icons-react";
+import { IconArrowsLeftRight as ArrowRightLeft, IconRobot as Bot, IconRobotFace as BotMessageSquare, IconBriefcase as Briefcase, IconCalendarPlus as CalendarPlus, IconCircleCheck as CheckCircle2, IconChecklist as Checklist, IconClipboardList as ClipboardList, IconCircleX as CircleX, IconClock as Clock, IconCornerDownRight as CornerDownRight, IconFileText as FileText, IconGitBranch as GitBranch, IconGlobe as Globe, IconHourglass as Hourglass, IconPhoto as Image, IconListDetails as ListDetails, IconMail as Mail, IconMessageQuestion as MessageCircleQuestion, IconMessage as MessageSquare, IconClick as MousePointerClick, IconPackageOff as PackageMinus, IconPlayerPause as Pause, IconPencil as Pencil, IconPlus as Plus, IconRefresh as RefreshCw, IconRepeat as Repeat, IconRoute as Route, IconShoppingBag as ShoppingBag, IconSquare as Square, IconPlayerStop as StopCircle, IconTag as Tag, IconClock as Timer, IconTrendingUp as TrendingUp, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserPlus as UserPlus, IconUsersGroup as UsersGroup, IconVariable as Variable } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";
@@ -36,6 +36,7 @@ export const stepIcon: Record<string, ComponentType<{ className?: string; stroke
   update_lead_score: TrendingUp,
   question: MessageCircleQuestion,
   wait_for_reply: Pause,
+  closing_protocol: Hourglass,
   set_variable: Variable,
   goto: CornerDownRight,
   transfer_automation: Repeat,
@@ -80,6 +81,8 @@ export const stepDescription: Record<string, string> = {
   update_lead_score: "Soma ou subtrai pontos no lead score.",
   question: "Faz uma pergunta com opcoes de resposta.",
   wait_for_reply: "Aguarda o contato responder antes de seguir.",
+  closing_protocol:
+    "Aguarda resposta; sem resposta inicia encerramento. Agente lê o contexto e sai em Encerrar ou Devolver.",
   set_variable: "Cria ou atualiza uma variavel do fluxo.",
   goto: "Salta para outro passo do fluxo.",
   transfer_automation: "Transfere o contato para outra automacao.",
@@ -125,6 +128,7 @@ export const stepColor: Record<string, string> = {
   update_lead_score: "text-[var(--color-pink)]",
   question: "text-[var(--color-info)]",
   wait_for_reply: "text-[var(--color-warning)]",
+  closing_protocol: "text-[var(--color-warning)]",
   set_variable: "text-[var(--color-fuchsia)]",
   goto: "text-[var(--color-sky)]",
   transfer_automation: "text-[var(--brand-primary)]",
@@ -173,7 +177,7 @@ export const STEP_GROUPS: StepGroup[] = [
   },
   {
     title: "Salesbot",
-    items: ["question", "wait_for_reply", "set_variable", "goto", "transfer_automation", "finish"],
+    items: ["question", "wait_for_reply", "closing_protocol", "set_variable", "goto", "transfer_automation", "finish"],
   },
   {
     title: "Ações",
