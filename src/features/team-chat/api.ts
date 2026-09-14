@@ -1,6 +1,8 @@
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import type {
   ChatDestination,
+  CrmAnchorType,
+  CrmCard,
   RecordSearchHit,
   TeamChatAttachment,
   TeamChatDepartment,
@@ -371,6 +373,47 @@ export async function messageToChecklist(
       body: JSON.stringify(input),
     }),
     "Não foi possível criar o checklist.",
+  );
+}
+
+export async function previewTeamChatRecord(
+  type: CrmAnchorType,
+  id: string,
+): Promise<{ card: CrmCard }> {
+  return json(
+    apiFetch(`/api/team-chat/records/preview?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`),
+    "Não foi possível carregar o preview.",
+  );
+}
+
+export async function shareAccessWarning(
+  type: CrmAnchorType,
+  id: string,
+  roomIds: string[],
+): Promise<{
+  rooms: { name: string; memberCount: number; withoutAccess: number }[];
+}> {
+  const q = new URLSearchParams({ type, id, roomIds: roomIds.join(",") });
+  return json(
+    apiFetch(`/api/team-chat/share/access?${q}`),
+    "Não foi possível verificar o acesso.",
+  );
+}
+
+export async function shareRecordToChat(input: {
+  type: CrmAnchorType;
+  id: string;
+  roomIds: string[];
+  personIds: string[];
+  content: string;
+}): Promise<{ count: number }> {
+  return json(
+    apiFetch("/api/team-chat/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível enviar para o chat.",
   );
 }
 

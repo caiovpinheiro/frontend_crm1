@@ -407,6 +407,7 @@ export function DealWorkspace({
             }
             overflowMenu={
               <DealWorkspaceToolbarMenuItems
+                dealId={deal.id}
                 conversationId={selectedConv?.id ?? null}
                 conversationChannel={selectedConv?.channel ?? null}
                 hasCalling={conversationHasCallingHint(selectedConv)}

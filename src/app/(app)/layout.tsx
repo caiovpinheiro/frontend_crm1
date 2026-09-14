@@ -30,6 +30,7 @@ import { NavMessageAlertsProvider } from "@/components/layout/nav-message-alerts
 import { TaskAlertCenter } from "@/components/layout/task-alert-center";
 import { SettingsDrawerProvider } from "@/features/settings/settings-drawer-context";
 import { AgentStatusProvider } from "@/components/crm/agent-status-context";
+import { SendToChatProvider } from "@/features/team-chat/send-to-chat-dialog";
 
 // O TooltipProvider (Radix) é provido uma única vez na raiz (app/providers.tsx),
 // cobrindo tanto os TooltipGlass quanto os TooltipContent/TooltipHost. Não é
@@ -43,6 +44,7 @@ export default function AppLayout({
     <SettingsDrawerProvider>
       <AgentStatusProvider>
       <NavMessageAlertsProvider>
+      <SendToChatProvider>
       <ChatThemeApplier />
       <SystemPresenceHeartbeat />
       <InboxConversationsPrefetch />
@@ -68,6 +70,7 @@ export default function AppLayout({
         <MobileBottomNav />
       </div>
       <BiometricLockGate />
+      </SendToChatProvider>
       </NavMessageAlertsProvider>
       </AgentStatusProvider>
     </SettingsDrawerProvider>

@@ -23,6 +23,8 @@ import {
   WhatsappCallChip,
 } from "@/components/inbox/whatsapp-call-chip";
 
+import { RequirePermission } from "@/components/auth/require-permission";
+import { useSendToChat } from "@/features/team-chat/send-to-chat-dialog";
 import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
 import {
   DropdownMenu,
@@ -307,6 +309,7 @@ export function DealHeaderWorkspaceOutcomes({
 }
 
 export type DealWorkspaceToolbarMenuItemsProps = {
+  dealId?: string | null;
   conversationId: string | null;
   conversationChannel: string | null;
   hasCalling?: boolean;
@@ -326,6 +329,7 @@ export type DealWorkspaceToolbarMenuItemsProps = {
 
 /** Conteúdo do menu ⋮ — reutilizado pelo `ConversationHeader` (sem trigger próprio). */
 export function DealWorkspaceToolbarMenuItems({
+  dealId,
   conversationId,
   conversationChannel,
   hasCalling = false,
@@ -342,6 +346,8 @@ export function DealWorkspaceToolbarMenuItems({
   onEdit,
   onDelete,
 }: DealWorkspaceToolbarMenuItemsProps) {
+  const { openShare } = useSendToChat();
+  const shareId = conversationId || dealId || null;
   const showCall = !!conversationId;
   const showTransfer =
     !!conversationId &&
@@ -398,6 +404,25 @@ export function DealWorkspaceToolbarMenuItems({
             </button>
           </TagPopover>
         </div>
+      ) : null}
+      {shareId ? (
+        <RequirePermission permission="team_chat:send">
+          <DropdownMenuItem
+            className="gap-2 px-2 py-1.5 text-[13px] hover:bg-[var(--glass-bg-subtle)] focus:bg-[var(--glass-bg-subtle)]"
+            onClick={() =>
+              openShare({
+                type: conversationId ? "conversation" : "deal",
+                id: shareId,
+                attendanceNames: teamUsers
+                  .filter((u) => u.id === currentAssigneeId)
+                  .map((u) => u.name)
+                  .filter(Boolean),
+              })
+            }
+          >
+            Enviar para o Bwipo Chat
+          </DropdownMenuItem>
+        </RequirePermission>
       ) : null}
       {onEdit ? (
         <DropdownMenuItem

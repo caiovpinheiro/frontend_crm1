@@ -1928,6 +1928,7 @@ export default function InboxV2ClientPage({
               contactId={activeContactId}
               isResolved={activeRow.status === "RESOLVED"}
               assigneeId={activeRow.assignedTo?.id ?? null}
+              assigneeName={activeRow.assignedTo?.name ?? null}
               assigneeType={activeRow.assignedTo?.type ?? null}
               aiHandoffContext={{
                 deals: (contactAsideView?.deals ?? []).map((d) => ({
