@@ -20,10 +20,15 @@ export function insertComposerText(text: string) {
   if (!value.trim()) return;
 
   pendingInsertText = value;
-  window.dispatchEvent(
-    new CustomEvent(COMPOSER_INSERT_EVENT, { detail: { text: value } }),
-  );
   window.dispatchEvent(new CustomEvent(COMPOSER_FOCUS_CHAT_EVENT));
+  const payload = value;
+  // Mobile: o Chat só monta depois do FOCUS. Atrasa o evento para o
+  // composer já existir; se ainda não existir, o mount usa takePending.
+  requestAnimationFrame(() => {
+    window.dispatchEvent(
+      new CustomEvent(COMPOSER_INSERT_EVENT, { detail: { text: payload } }),
+    );
+  });
 }
 
 /** Consome texto pendente (ex.: Composer acabou de montar após trocar pra Chat). */

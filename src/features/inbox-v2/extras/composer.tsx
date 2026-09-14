@@ -468,9 +468,9 @@ export function Composer({
     }> | null,
   ) {
     const list = media && media.length > 0 ? media : [];
-    const base = value;
+    const base = draftRef.current || value;
     const next = base.trim()
-      ? `${base}${base.endsWith("\n") ? "" : "\n"}${text}`
+      ? `${base}${base.endsWith("\n") ? "" : "\n\n"}${text}`
       : text;
 
     if (list.length > 0 && mediaNeedsSequence(list) && conversationId) {
@@ -521,6 +521,12 @@ export function Composer({
   useEffect(() => {
     function applyInsert(text: string) {
       if (!text.trim()) return;
+      const current = (draftRef.current || "").trimEnd();
+      const incoming = text.trim();
+      if (current === incoming || current.endsWith(incoming)) {
+        clearPendingComposerInsert();
+        return;
+      }
       clearPendingComposerInsert();
       insertTemplateTextRef.current(text);
     }

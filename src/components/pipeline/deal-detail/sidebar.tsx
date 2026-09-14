@@ -690,8 +690,7 @@ export function DealProductsSection({
   async function loadCourseOfferMessage(item: DealProductItem): Promise<string | null> {
     const res = await fetch(apiUrl(`/api/products/${item.productId}`));
     if (!res.ok) {
-      toast.error(`Não foi possível carregar os dados de ${item.productName}.`);
-      return null;
+      return buildSimpleProductMessage(item);
     }
     const data = (await res.json()) as {
       product?: Parameters<typeof normalizeCoursePricingOptions>[0] & {
@@ -744,28 +743,39 @@ export function DealProductsSection({
     });
   }
 
+  function usesCourseOfferCopy(item: DealProductItem) {
+    return item.productKind === "COURSE" && item.productType !== "SERVICE";
+  }
+
+  async function messageForProductItem(item: DealProductItem): Promise<string> {
+    if (usesCourseOfferCopy(item)) {
+      try {
+        const message = await loadCourseOfferMessage(item);
+        if (message?.trim()) return message;
+      } catch {
+        // cai no bloco simples abaixo
+      }
+    }
+    return buildSimpleProductMessage(item);
+  }
+
   async function handleSendCourseOffers(targets: DealProductItem[]) {
     const list = targets;
     if (list.length === 0 || sendingCourseOfferId) return;
     setSendingCourseOfferId(list[0].id);
     try {
-      const parts: string[] = [];
-      for (const item of list) {
-        const message =
-          item.productKind === "COURSE"
-            ? await loadCourseOfferMessage(item)
-            : buildSimpleProductMessage(item);
-        if (message) parts.push(message);
-      }
+      const parts = (await Promise.all(list.map(messageForProductItem)))
+        .map((part) => part.trim())
+        .filter(Boolean);
       if (parts.length === 0) return;
       insertComposerText(parts.join("\n\n"));
       toast.success(
         parts.length > 1
-          ? "Mensagens dos cursos prontas no chat — confira e envie."
-          : "Mensagem do curso pronta no chat — confira e envie.",
+          ? "Mensagens dos produtos prontas no chat — confira e envie."
+          : "Mensagem do produto pronta no chat — confira e envie.",
       );
     } catch {
-      toast.error("Falha ao preparar a mensagem do curso.");
+      toast.error("Falha ao preparar a mensagem dos produtos.");
     } finally {
       setSendingCourseOfferId(null);
     }
@@ -1191,6 +1201,10 @@ export function DealProductsSection({
                 type="button"
                 disabled={sendingCourseOfferId != null || items.length === 0}
                 onClick={() => {
+                  if (canSelectProducts && selectedItems.length === 0) {
+                    toast.error("Selecione pelo menos um produto pelo ícone ao lado do nome.");
+                    return;
+                  }
                   const targets =
                     selectedItems.length > 0
                       ? selectedItems
