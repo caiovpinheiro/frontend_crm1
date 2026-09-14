@@ -27,16 +27,16 @@ export const bwipoChatTour: PageTour = {
     },
     {
       element: "bwipo-chat-new",
-      title: "Nova conversa",
+      title: "Nova conversa ou grupo",
       description:
-        "Comece uma conversa direta com um colega ou monte um grupo com vários. O menu ⋯ ao lado leva ao mesmo lugar.",
+        "O lápis abre conversa direta. O ícone de pessoas cria um grupo (nome, colegas e, em seguida, foto e dados). O menu ⋯ tem as duas opções.",
       side: "bottom",
     },
     {
       element: "bwipo-chat-header",
       title: "O cabeçalho da conversa",
       description:
-        "Presença do colega, busca dentro do chat, favorito, notas internas e — em grupos — adicionar membros.",
+        "Presença ou “digitando…”, busca no chat, favorito e o painel Detalhes (atividades e notas). Em grupos, o nome ou o ícone abre os dados do grupo (foto, tópico e membros).",
       side: "bottom",
       fallback: "bwipo-chat-thread",
     },

@@ -84,7 +84,7 @@ export async function uploadTeamChatAttachment(
 
 export async function updateTeamChatRoom(
   roomId: string,
-  input: { avatarUrl: string | null },
+  input: { avatarUrl?: string | null; name?: string; topic?: string | null },
 ): Promise<TeamChatRoom> {
   return json(
     apiFetch(`/api/team-chat/rooms/${roomId}`, {
@@ -206,6 +206,13 @@ export async function createTeamChatWorkItem(input: {
   );
 }
 
+export async function deleteTeamChatWorkItem(id: string): Promise<{ ok: boolean }> {
+  return json(
+    apiFetch(`/api/team-chat/work-items/${id}`, { method: "DELETE" }),
+    "Não foi possível excluir o item.",
+  );
+}
+
 export async function updateTeamChatWorkItem(
   id: string,
   input: {
@@ -235,6 +242,13 @@ export async function addWorkItemEntry(id: string, input: WorkItemEntryInput): P
       body: JSON.stringify(input),
     }),
     "Não foi possível adicionar o item.",
+  );
+}
+
+export async function deleteWorkItemEntry(id: string, entryId: string): Promise<WorkItem> {
+  return json(
+    apiFetch(`/api/team-chat/work-items/${id}/entries/${entryId}`, { method: "DELETE" }),
+    "Não foi possível remover o item.",
   );
 }
 

@@ -13,11 +13,13 @@ import { cn } from "@/lib/utils";
 import { ChatHeader } from "./chat-header";
 import { AddMembersDialog, ComposeDialog } from "./compose-dialogs";
 import { Composer } from "./composer";
+import { DetailsPanel } from "./details-panel";
 import { MessageList } from "./message-list";
-import { NotesPanel } from "./notes-panel";
 import { Sidebar } from "./sidebar";
 import {
+  markRoomReadInCache,
   patchRoomWorkItem,
+  removeRoomWorkItem,
   usePingTeamChatTyping,
   useOrbitaFavorites,
   useRoomWorkItems,
@@ -29,7 +31,7 @@ import {
   useTeamChatRooms,
   useTeamChatTyping,
 } from "./hooks";
-import { favoriteKey, isGroupRoom } from "./helpers";
+import { favoriteKey, isGroupRoom, parseQuotedContent } from "./helpers";
 import type { DirectRow, TeamChatMessage, TeamChatRoom, WorkItem, WorkItemType } from "./types";
 import {
   CreateWorkItemDialog,
@@ -42,11 +44,13 @@ export function TeamChatApp() {
   const meId = (session?.user as { id?: string } | undefined)?.id ?? "";
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeIntent, setComposeIntent] = useState<"dm" | "group">("dm");
   const [addOpen, setAddOpen] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const qc = useQueryClient();
 
   const ready = status !== "unauthenticated";
-  const roomsQuery = useTeamChatRooms(ready);
+  const roomsQuery = useTeamChatRooms(ready, selectedId);
   const peopleQuery = useTeamChatColleagues(ready);
   const { favorites, toggleFavorite } = useOrbitaFavorites();
   const typing = useTeamChatTyping(meId, ready);
@@ -82,13 +86,21 @@ export function TeamChatApp() {
 
   const groups = rooms.filter((r) => isGroupRoom(r));
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
-  const notesQuery = useTeamChatNotes(selectedId, notesOpen || !!selectedId);
+  const notesQuery = useTeamChatNotes(selectedId, detailsOpen || !!selectedId);
   const notes = notesQuery.data?.notes ?? [];
+  const roomWorkItemsQuery = useRoomWorkItems(selectedId, !!selectedId);
+  const roomWorkItems = roomWorkItemsQuery.data?.items ?? [];
+  const openEntryCount = roomWorkItems.reduce(
+    (n, item) => n + item.entries.filter((entry) => entry.status === "open").length,
+    0,
+  );
+  const detailsBadge = openEntryCount + notes.length;
 
   function openPerson(personId: string) {
     const existing = rooms.find((r) => r.kind === "DM" && r.peer?.id === personId);
     if (existing) {
       setSelectedId(existing.id);
+      markRoomReadInCache(qc, existing.id);
       return;
     }
     createRoom.mutate(
@@ -137,13 +149,21 @@ export function TeamChatApp() {
           onToggleFavorite={toggleFavorite}
           onSelectRoom={(id) => {
             setSelectedId(id);
-            setNotesOpen(false);
+            markRoomReadInCache(qc, id);
+            setDetailsOpen(false);
           }}
           onSelectPerson={(id) => {
-            setNotesOpen(false);
+            setDetailsOpen(false);
             openPerson(id);
           }}
-          onNew={() => setComposeOpen(true)}
+          onNew={() => {
+            setComposeIntent("dm");
+            setComposeOpen(true);
+          }}
+          onNewGroup={() => {
+            setComposeIntent("group");
+            setComposeOpen(true);
+          }}
           typing={typing}
         />
       </div>
@@ -166,13 +186,14 @@ export function TeamChatApp() {
           <Thread
             room={selected}
             meId={meId}
-            notesOpen={notesOpen}
-            noteCount={notes.length}
+            detailsOpen={detailsOpen}
+            detailsBadge={detailsBadge}
+            typing={typing[selected.id] ?? null}
             favorited={favorites.includes(
               favoriteKey({ roomId: selected.id, personId: selected.peer?.id }),
             )}
             onBack={() => setSelectedId(null)}
-            onToggleNotes={() => setNotesOpen((v) => !v)}
+            onToggleDetails={() => setDetailsOpen((v) => !v)}
             onToggleFavorite={() =>
               toggleFavorite(favoriteKey({ roomId: selected.id, personId: selected.peer?.id }))
             }
@@ -183,13 +204,25 @@ export function TeamChatApp() {
         )}
       </section>
 
-      {selected && notesOpen && (
+      {selected && detailsOpen && (
         <>
           <div className="orbita-block hidden h-full w-[320px] shrink-0 lg:block">
-            <NotesHost roomId={selected.id} notes={notes} onClose={() => setNotesOpen(false)} />
+            <DetailsHost
+              roomId={selected.id}
+              meId={meId}
+              notes={notes}
+              workItems={roomWorkItems}
+              onClose={() => setDetailsOpen(false)}
+            />
           </div>
           <div className="absolute inset-0 z-20 lg:hidden">
-            <NotesHost roomId={selected.id} notes={notes} onClose={() => setNotesOpen(false)} />
+            <DetailsHost
+              roomId={selected.id}
+              meId={meId}
+              notes={notes}
+              workItems={roomWorkItems}
+              onClose={() => setDetailsOpen(false)}
+            />
           </div>
         </>
       )}
@@ -198,9 +231,11 @@ export function TeamChatApp() {
         open={composeOpen}
         onOpenChange={setComposeOpen}
         meId={meId}
+        intent={composeIntent}
         onCreated={(id) => {
           setSelectedId(id);
           setComposeOpen(false);
+          if (composeIntent === "group") setAddOpen(true);
         }}
       />
       {selected && isGroupRoom(selected) && (
@@ -215,28 +250,38 @@ export function TeamChatApp() {
   );
 }
 
-function NotesHost({
+function DetailsHost({
   roomId,
+  meId,
   notes,
+  workItems,
   onClose,
 }: {
   roomId: string;
+  meId: string;
   notes: { id: string; text: string; pinned: boolean; createdAt: string }[];
+  workItems: WorkItem[];
   onClose: () => void;
 }) {
+  const qc = useQueryClient();
   const { addNote, toggleNotePin, removeNote } = useTeamChatMutations();
   return (
-    <NotesPanel
+    <DetailsPanel
+      roomId={roomId}
+      meId={meId}
       notes={notes}
-      onAdd={(text) =>
+      workItems={workItems}
+      onAddNote={(text) =>
         addNote.mutate({ roomId, content: text }, { onError: (e: Error) => toast.error(e.message) })
       }
-      onTogglePin={(id) =>
+      onToggleNotePin={(id) =>
         toggleNotePin.mutate({ noteId: id, roomId }, { onError: (e: Error) => toast.error(e.message) })
       }
-      onDelete={(id) =>
+      onDeleteNote={(id) =>
         removeNote.mutate({ noteId: id, roomId }, { onError: (e: Error) => toast.error(e.message) })
       }
+      onWorkItemChange={(item) => patchRoomWorkItem(qc, item)}
+      onWorkItemDeleted={(id) => removeRoomWorkItem(qc, roomId, id)}
       onClose={onClose}
     />
   );
@@ -245,21 +290,23 @@ function NotesHost({
 function Thread({
   room,
   meId,
-  notesOpen,
-  noteCount,
+  detailsOpen,
+  detailsBadge,
+  typing,
   favorited,
   onBack,
-  onToggleNotes,
+  onToggleDetails,
   onToggleFavorite,
   onAddMembers,
 }: {
   room: TeamChatRoom;
   meId: string;
-  notesOpen: boolean;
-  noteCount: number;
+  detailsOpen: boolean;
+  detailsBadge: number;
+  typing?: { userId: string; name: string } | null;
   favorited: boolean;
   onBack: () => void;
-  onToggleNotes: () => void;
+  onToggleDetails: () => void;
   onToggleFavorite: () => void;
   onAddMembers: () => void;
 }) {
@@ -297,13 +344,14 @@ function Thread({
       <div data-tour="bwipo-chat-header">
         <ChatHeader
           room={room}
-          notesOpen={notesOpen}
-          noteCount={noteCount}
+          detailsOpen={detailsOpen}
+          detailsBadge={detailsBadge}
           searchQuery={chatQuery}
           favorited={favorited}
+          typing={typing}
           onSearchChange={setChatQuery}
           onBack={onBack}
-          onToggleNotes={onToggleNotes}
+          onToggleDetails={onToggleDetails}
           onToggleFavorite={onToggleFavorite}
           onAddMembers={onAddMembers}
         />
@@ -325,13 +373,19 @@ function Thread({
           onTogglePin={(id) =>
             pin.mutate({ roomId: room.id, messageId: id }, { onError: (e: Error) => toast.error(e.message) })
           }
-          onReply={(msg) =>
+          onReply={(msg) => {
+            const parsed = parseQuotedContent(msg.content);
             setQuote({
               author: msg.author?.name ?? "Colega",
-              text: msg.content.trim() || (msg.attachments?.[0]?.name ?? "Anexo"),
-            })
-          }
+              text:
+                parsed.body.trim() ||
+                parsed.quote?.excerpt ||
+                msg.attachments?.[0]?.name ||
+                "Anexo",
+            });
+          }}
           onWorkItemChange={onWorkItemReady}
+          onWorkItemDeleted={(id) => removeRoomWorkItem(qc, room.id, id)}
           onLinkRecord={(item) => setLinkItemId(item.id)}
           onToChecklist={(msg) => setToChecklist(msg)}
         />

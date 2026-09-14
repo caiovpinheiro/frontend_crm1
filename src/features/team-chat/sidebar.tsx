@@ -1,30 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreVertical, Search, SquarePen, Star } from "lucide-react";
+import { MoreVertical, Search, SquarePen, Star, Users } from "lucide-react";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { AppLoading } from "@/components/crm/app-loading";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
-import { QueueSection } from "@/features/inbox-v2/extras/queue-section";
 import { PageTourButton } from "@/features/product-tour";
 import { cn } from "@/lib/utils";
 
 import { Avatar, GroupGlyph } from "./avatar";
 import {
-  DEFAULT_TEAM_CHAT_QUEUES,
-  sanitizeTeamChatQueues,
-  TEAM_CHAT_QUEUES,
-  teamChatQueueById,
-  type TeamChatQueueId,
+  DEFAULT_TEAM_CHAT_LIST_TAB,
+  emptyListLabel,
+  isTeamChatListTab,
+  type TeamChatListTab,
 } from "./filter-catalog";
 import { FilterSelector } from "./filter-selector";
 import { favoriteKey, formatListTime, toPerson } from "./helpers";
 import { MyPendenciesButton, MyPendenciesPanel } from "./my-pendencies";
 import type { DirectRow, TeamChatRoom } from "./types";
 
-const QUEUES_STORAGE_KEY = "bwipo-chat-queues";
+const TAB_STORAGE_KEY = "bwipo-chat-list-tab";
 
 type ChatListItem =
   | {
@@ -98,74 +96,84 @@ function ChatRow({
   const unread = item.unread;
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "group flex min-h-[76px] w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors",
+        "group flex min-h-[76px] w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
         active ? "orbita-item-selected" : "hover:bg-[var(--orbita-field)]",
       )}
     >
-      <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        {item.kind === "dm" ? (
-          <div className="shrink-0">
-            <Avatar person={toPerson(item.row.person)} size="md" showPresence />
-          </div>
-        ) : (
-          <GroupGlyph seed={item.room.id} size={40} imageUrl={item.room.avatarUrl} name={item.room.name} />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-1">
-            <span
-              className={cn(
-                "truncate text-[14px] leading-tight",
-                active ? "text-[var(--orbita-list-selected-name)]" : "text-[var(--orbita-text)]",
-                unread > 0 || active ? "font-semibold" : "font-medium",
-              )}
-            >
-              {item.kind === "group" ? `#${item.name}` : item.name}
-            </span>
-            {favorited && (
-              <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" aria-hidden />
-            )}
-            {item.time && (
-              <span
-                className={cn(
-                  "ml-auto shrink-0 text-[11px]",
-                  active
-                    ? "text-[var(--orbita-list-selected-time)]"
-                    : "text-[var(--orbita-text-tertiary)]",
-                )}
-              >
-                {item.time}
-              </span>
-            )}
-          </div>
-          <div className="mt-0.5 flex items-center gap-1">
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-[12px] leading-snug",
-                item.typing
-                  ? "font-medium text-[var(--orbita-selected)]"
-                  : active
-                    ? "text-[var(--orbita-list-selected-preview)]"
-                    : unread > 0
-                      ? "font-medium text-[var(--orbita-text)]"
-                      : "text-[var(--orbita-text-secondary)]",
-              )}
-            >
-              {item.typing ? "Digitando..." : item.preview}
-            </span>
-            {!active && <UnreadPill count={unread} />}
-          </div>
+      {item.kind === "dm" ? (
+        <div className="shrink-0">
+          <Avatar person={toPerson(item.row.person)} size="md" showPresence />
         </div>
-      </button>
+      ) : (
+        <GroupGlyph seed={item.room.id} size={40} imageUrl={item.room.avatarUrl} name={item.room.name} />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-1">
+          <span
+            className={cn(
+              "truncate text-[14px] leading-tight",
+              active ? "text-[var(--orbita-list-selected-name)]" : "text-[var(--orbita-text)]",
+              unread > 0 || active ? "font-semibold" : "font-medium",
+            )}
+          >
+            {item.kind === "group" ? `#${item.name}` : item.name}
+          </span>
+          {favorited && (
+            <Star className="h-3 w-3 shrink-0 fill-warning text-warning" aria-hidden />
+          )}
+          {item.time && (
+            <span
+              className={cn(
+                "ml-auto shrink-0 text-[11px]",
+                active
+                  ? "text-[var(--orbita-list-selected-time)]"
+                  : "text-[var(--orbita-text-tertiary)]",
+              )}
+            >
+              {item.time}
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-1">
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-[12px] leading-snug",
+              item.typing
+                ? "font-medium text-[var(--orbita-selected)]"
+                : active
+                  ? "text-[var(--orbita-list-selected-preview)]"
+                  : unread > 0
+                    ? "font-medium text-[var(--orbita-text)]"
+                    : "text-[var(--orbita-text-secondary)]",
+            )}
+          >
+            {item.typing ? "Digitando..." : item.preview}
+          </span>
+          {!active && <UnreadPill count={unread} />}
+        </div>
+      </div>
       <TooltipGlass label={favorited ? "Remover dos favoritos" : "Favoritar"} side="left">
         <button
           type="button"
-          onClick={onToggleFavorite}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
           aria-label={favorited ? "Remover dos favoritos" : "Favoritar"}
           className={cn(
             "grid h-6 w-6 shrink-0 place-items-center rounded-full",
             favorited
-              ? "text-[var(--orbita-text)]"
+              ? "text-warning"
               : "text-[var(--orbita-text-tertiary)] opacity-50 hover:bg-[var(--orbita-field)] group-hover:opacity-100",
           )}
         >
@@ -176,28 +184,21 @@ function ChatRow({
   );
 }
 
-function readStoredQueues(): TeamChatQueueId[] {
-  if (typeof window === "undefined") return DEFAULT_TEAM_CHAT_QUEUES;
+function readStoredTab(): TeamChatListTab {
+  if (typeof window === "undefined") return DEFAULT_TEAM_CHAT_LIST_TAB;
   try {
-    const raw = localStorage.getItem(QUEUES_STORAGE_KEY);
-    if (!raw) return DEFAULT_TEAM_CHAT_QUEUES;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return DEFAULT_TEAM_CHAT_QUEUES;
-    return sanitizeTeamChatQueues(parsed);
+    const raw = localStorage.getItem(TAB_STORAGE_KEY);
+    if (isTeamChatListTab(raw)) return raw;
   } catch {
-    return DEFAULT_TEAM_CHAT_QUEUES;
+    /* ignore */
   }
+  return DEFAULT_TEAM_CHAT_LIST_TAB;
 }
 
-function itemMatchesQueue(
-  item: ChatListItem,
-  queueId: TeamChatQueueId,
-  favorites: string[],
-): boolean {
-  if (queueId === "directs") return item.kind === "dm";
-  if (queueId === "groups") return item.kind === "group";
-  if (queueId === "unread") return item.unread > 0;
-  return favorites.includes(item.favId);
+function itemMatchesTab(item: ChatListItem, tab: TeamChatListTab, favorites: string[]): boolean {
+  if (tab === "unread") return item.unread > 0;
+  if (tab === "favorites") return favorites.includes(item.favId);
+  return true;
 }
 
 export function Sidebar({
@@ -211,6 +212,7 @@ export function Sidebar({
   onSelectRoom,
   onSelectPerson,
   onNew,
+  onNewGroup,
   typing = {},
 }: {
   directs: DirectRow[];
@@ -223,18 +225,18 @@ export function Sidebar({
   onSelectRoom: (id: string) => void;
   onSelectPerson: (personId: string) => void;
   onNew: () => void;
+  onNewGroup: () => void;
   typing?: Record<string, { userId: string; name: string }>;
 }) {
   const [query, setQuery] = useState("");
-  const [selectedQueues, setSelectedQueues] = useState<TeamChatQueueId[]>(DEFAULT_TEAM_CHAT_QUEUES);
-  const [collapsedQueues, setCollapsedQueues] = useState<Set<string>>(() => new Set());
+  const [tab, setTab] = useState<TeamChatListTab>(DEFAULT_TEAM_CHAT_LIST_TAB);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendenciesOpen, setPendenciesOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const q = query.trim().toLowerCase();
 
   useEffect(() => {
-    setSelectedQueues(readStoredQueues());
+    setTab(readStoredTab());
   }, []);
 
   useEffect(() => {
@@ -287,54 +289,26 @@ export function Sidebar({
 
   const counts = useMemo(
     () => ({
-      directs: items.filter((item) => item.kind === "dm").length,
-      groups: items.filter((item) => item.kind === "group").length,
+      all: items.length,
       unread: items.filter((item) => item.unread > 0).length,
       favorites: items.filter((item) => favorites.includes(item.favId)).length,
     }),
     [items, favorites],
   );
 
-  const selectedOrdered = TEAM_CHAT_QUEUES.filter((queue) => selectedQueues.includes(queue.id));
-  const isMulti = selectedOrdered.length >= 2;
+  const visibleItems = useMemo(
+    () => items.filter((item) => itemMatchesTab(item, tab, favorites) && matchesSearch(item)),
+    [items, tab, favorites, q],
+  );
 
-  const sections = useMemo(() => {
-    return selectedOrdered.map((queue) => ({
-      queue,
-      items: items.filter((item) => itemMatchesQueue(item, queue.id, favorites) && matchesSearch(item)),
-    }));
-  }, [selectedOrdered, items, favorites, q]);
-
-  const flatItems = sections[0]?.items ?? [];
-
-  function persistQueues(ids: TeamChatQueueId[]) {
-    setSelectedQueues(ids);
+  function persistTab(next: TeamChatListTab) {
+    setTab(next);
     try {
-      localStorage.setItem(QUEUES_STORAGE_KEY, JSON.stringify(ids));
+      localStorage.setItem(TAB_STORAGE_KEY, next);
     } catch {
       /* ignore */
     }
   }
-
-  function toggleCollapsed(id: string) {
-    setCollapsedQueues((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function collapseAll() {
-    setCollapsedQueues(new Set(selectedOrdered.map((queue) => queue.id)));
-  }
-
-  function expandAll() {
-    setCollapsedQueues(new Set());
-  }
-
-  const allCollapsed =
-    isMulti && selectedOrdered.every((queue) => collapsedQueues.has(queue.id));
 
   function renderRow(item: ChatListItem) {
     return (
@@ -361,9 +335,12 @@ export function Sidebar({
             <BwipoWordmark />
           </h1>
           <PageTourButton tourId="bwipo-chat" size="sm" />
-          <div data-tour="bwipo-chat-new" className="shrink-0">
+          <div data-tour="bwipo-chat-new" className="flex shrink-0 items-center">
             <HeaderIcon label="Nova conversa" onClick={onNew}>
               <SquarePen className="h-[18px] w-[18px]" />
+            </HeaderIcon>
+            <HeaderIcon label="Novo grupo" onClick={onNewGroup}>
+              <Users className="h-[18px] w-[18px]" />
             </HeaderIcon>
           </div>
           <div className="relative" ref={menuRef}>
@@ -371,7 +348,7 @@ export function Sidebar({
               <MoreVertical className="h-5 w-5" />
             </HeaderIcon>
             {menuOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-[var(--orbita-radius-inner)] border border-border bg-[var(--orbita-block)] py-1 shadow-lg">
+              <div className="absolute right-0 top-full z-20 mt-1 w-52 overflow-hidden rounded-[var(--orbita-radius-inner)] border border-border bg-[var(--orbita-block)] py-1 shadow-lg">
                 <button
                   type="button"
                   onClick={() => {
@@ -382,6 +359,17 @@ export function Sidebar({
                 >
                   <SquarePen className="h-4 w-4 text-muted-foreground" />
                   Nova conversa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onNewGroup();
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[14px] text-foreground hover:bg-[var(--orbita-block-soft)]"
+                >
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  Novo grupo
                 </button>
               </div>
             )}
@@ -399,7 +387,7 @@ export function Sidebar({
         </div>
 
         <div className="mt-3">
-          <FilterSelector selectedIds={selectedQueues} counts={counts} onChange={persistQueues} />
+          <FilterSelector selectedId={tab} counts={counts} onChange={persistTab} />
         </div>
       </div>
 
@@ -423,59 +411,12 @@ export function Sidebar({
           <div className={cn(CARD_SURFACE_CLASS, "mx-4 mt-6 px-4 py-8 text-center")}>
             <p className="text-sm text-destructive">{error}</p>
           </div>
-        ) : selectedOrdered.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className={cn(CARD_SURFACE_CLASS, "mx-2 mt-6 border border-border px-4 py-8 text-center")}>
-            <p className="text-sm text-muted-foreground">
-              Selecione pelo menos uma fila para ver as conversas.
-            </p>
+            <p className="text-sm text-muted-foreground">{emptyListLabel(tab, Boolean(q))}</p>
           </div>
         ) : (
-          <>
-            {isMulti ? (
-              <div className="mb-1 flex items-center justify-end px-1">
-                <button
-                  type="button"
-                  onClick={allCollapsed ? expandAll : collapseAll}
-                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
-                >
-                  {allCollapsed ? "Expandir todas" : "Recolher todas"}
-                </button>
-              </div>
-            ) : null}
-
-            {isMulti ? (
-              <div className="flex flex-col gap-1">
-                {sections.map(({ queue, items: sectionItems }) => {
-                  const meta = teamChatQueueById(queue.id) ?? queue;
-                  return (
-                    <QueueSection
-                      key={queue.id}
-                      id={queue.id}
-                      label={meta.label}
-                      count={sectionItems.length}
-                      collapsed={collapsedQueues.has(queue.id)}
-                      onToggle={() => toggleCollapsed(queue.id)}
-                      Icon={meta.Icon}
-                      iconBg={meta.iconBg}
-                      iconFg={meta.iconFg}
-                    >
-                      <div className="divide-y divide-border">
-                        {sectionItems.map(renderRow)}
-                      </div>
-                    </QueueSection>
-                  );
-                })}
-              </div>
-            ) : flatItems.length === 0 ? (
-              <div className={cn(CARD_SURFACE_CLASS, "mx-2 mt-6 border border-border px-4 py-8 text-center")}>
-                <p className="text-sm text-muted-foreground">
-                  {q ? "Nenhuma conversa encontrada." : "Nenhuma conversa nesta fila."}
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border">{flatItems.map(renderRow)}</div>
-            )}
-          </>
+          <div className="divide-y divide-border">{visibleItems.map(renderRow)}</div>
         )}
       </nav>
       )}

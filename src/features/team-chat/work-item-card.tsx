@@ -14,7 +14,9 @@ import {
   updateWorkItemEntry,
 } from "./api";
 import { RecordCard } from "./record-card";
+import { TopicAssigneePicker } from "./topic-assignee";
 import type { WorkItem } from "./types";
+import { WorkItemManageButtons } from "./work-item-dialogs";
 
 const TYPE_LABEL: Record<WorkItem["type"], string> = {
   checklist: "Checklist",
@@ -45,14 +47,22 @@ function isDueSoon(iso: string | null) {
 
 export function WorkItemCard({
   item,
+  meId,
   onChange,
   onLinkRecord,
+  onDeleted,
 }: {
   item: WorkItem;
+  meId?: string;
   onChange?: (next: WorkItem) => void;
   onLinkRecord?: (item: WorkItem) => void;
+  onDeleted?: (id: string) => void;
 }) {
   const [adding, setAdding] = useState("");
+  const [addingAssignee, setAddingAssignee] = useState<{ id: string | null; name: string | null }>({
+    id: null,
+    name: null,
+  });
   const [busy, setBusy] = useState(false);
   const pct = item.total > 0 ? Math.round((item.done / item.total) * 100) : 0;
   const statusLabel =
@@ -74,13 +84,26 @@ export function WorkItemCard({
     if (!text) return;
     setBusy(true);
     try {
-      const next = await addWorkItemEntry(item.id, { text });
+      const next = await addWorkItemEntry(item.id, {
+        text,
+        assigneeId: addingAssignee.id,
+      });
       setAdding("");
+      setAddingAssignee({ id: null, name: null });
       onChange?.(next);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível adicionar.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function setAssignee(entryId: string, assigneeId: string | null) {
+    try {
+      const next = await updateWorkItemEntry(item.id, entryId, { assigneeId });
+      onChange?.(next);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível atribuir.");
     }
   }
 
@@ -119,6 +142,7 @@ export function WorkItemCard({
             </p>
           )}
         </div>
+        <WorkItemManageButtons item={item} onUpdated={onChange} onDeleted={onDeleted} />
       </div>
 
       {item.callUrl && (
@@ -146,8 +170,19 @@ export function WorkItemCard({
       )}
 
       <ul className="mt-3 space-y-1.5">
-        {item.entries.map((entry) => (
-          <li key={entry.id} className="flex items-start gap-2">
+        {[...item.entries]
+          .sort((a, b) => {
+            if (!meId) return 0;
+            return Number(b.assigneeId === meId) - Number(a.assigneeId === meId);
+          })
+          .map((entry) => (
+          <li
+            key={entry.id}
+            className={cn(
+              "flex items-start gap-2 rounded-lg px-1 py-0.5",
+              meId && entry.assigneeId === meId && "bg-primary/8",
+            )}
+          >
             <button
               type="button"
               aria-label={entry.status === "done" ? "Reabrir item" : "Concluir item"}
@@ -170,7 +205,7 @@ export function WorkItemCard({
               >
                 {entry.text}
               </p>
-              {(entry.assigneeName || entry.dueAt) && (
+              {entry.dueAt ? (
                 <p
                   className={cn(
                     "text-[11px]",
@@ -179,18 +214,20 @@ export function WorkItemCard({
                       : "text-muted-foreground",
                   )}
                 >
-                  {entry.assigneeName}
-                  {entry.dueAt
-                    ? `${entry.assigneeName ? " · " : ""}até ${formatWhen(entry.dueAt)}`
-                    : ""}
+                  até {formatWhen(entry.dueAt)}
                 </p>
-              )}
+              ) : null}
             </div>
+            <TopicAssigneePicker
+              assigneeId={entry.assigneeId}
+              assigneeName={entry.assigneeName}
+              onChange={(next) => void setAssignee(entry.id, next.id)}
+            />
           </li>
         ))}
       </ul>
 
-      <div className="mt-2 flex gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <input
           value={adding}
           onChange={(e) => setAdding(e.target.value)}
@@ -201,7 +238,12 @@ export function WorkItemCard({
             }
           }}
           placeholder="Novo item"
-          className="h-8 flex-1 rounded-xl border border-border bg-card px-2.5 text-[13px] outline-none"
+          className="h-8 min-w-0 flex-1 rounded-xl border border-border bg-card px-2.5 text-[13px] outline-none"
+        />
+        <TopicAssigneePicker
+          assigneeId={addingAssignee.id}
+          assigneeName={addingAssignee.name}
+          onChange={setAddingAssignee}
         />
         <ButtonGlass type="button" variant="glass" disabled={busy} onClick={() => void addLine()}>
           Adicionar

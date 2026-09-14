@@ -1,11 +1,16 @@
 "use client";
 
 import { CheckSquare, X } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 import { cn } from "@/lib/utils";
 
 import { useMyWorkItems } from "./hooks";
 import type { WorkItem } from "./types";
+
+function sessionUserId(session: ReturnType<typeof useSession>["data"]) {
+  return (session?.user as { id?: string } | undefined)?.id ?? "";
+}
 
 export function MyPendenciesButton({
   open,
@@ -14,9 +19,14 @@ export function MyPendenciesButton({
   open: boolean;
   onToggle: () => void;
 }) {
+  const { data: session } = useSession();
+  const meId = sessionUserId(session);
   const { data } = useMyWorkItems(true);
   const openCount =
-    data?.items.reduce((n, item) => n + item.entries.filter((e) => e.status === "open").length, 0) ?? 0;
+    data?.items.reduce(
+      (n, item) => n + item.entries.filter((e) => e.status === "open" && e.assigneeId === meId).length,
+      0,
+    ) ?? 0;
   return (
     <button
       type="button"
@@ -45,8 +55,13 @@ export function MyPendenciesPanel({
   onOpenRoom: (roomId: string) => void;
   onClose: () => void;
 }) {
+  const { data: session } = useSession();
+  const meId = sessionUserId(session);
   const { data, isLoading } = useMyWorkItems(true);
-  const items = (data?.items ?? []).filter((item) => item.entries.some((e) => e.status === "open"));
+  const items = (data?.items ?? [])
+    .filter((item) => item.entries.some((e) => e.status === "open"))
+    .slice()
+    .sort((a, b) => mineOpenCount(b, meId) - mineOpenCount(a, meId));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--orbita-divider)]">
@@ -62,27 +77,50 @@ export function MyPendenciesPanel({
           <p className="px-1 py-3 text-[13px] text-muted-foreground">Nada pendente.</p>
         )}
         {items.map((item) => (
-          <PendencyRow key={item.id} item={item} onOpenRoom={onOpenRoom} />
+          <PendencyRow key={item.id} item={item} meId={meId} onOpenRoom={onOpenRoom} />
         ))}
       </div>
     </div>
   );
 }
 
-function PendencyRow({ item, onOpenRoom }: { item: WorkItem; onOpenRoom: (roomId: string) => void }) {
+function mineOpenCount(item: WorkItem, meId: string) {
+  if (!meId) return 0;
+  return item.entries.filter((e) => e.status === "open" && e.assigneeId === meId).length;
+}
+
+function PendencyRow({
+  item,
+  meId,
+  onOpenRoom,
+}: {
+  item: WorkItem;
+  meId: string;
+  onOpenRoom: (roomId: string) => void;
+}) {
   const open = item.entries.filter((e) => e.status === "open");
+  const mine = open.filter((e) => e.assigneeId === meId);
+  const mineFirst = mine.length > 0;
   return (
     <button
       type="button"
       disabled={!item.roomId}
       onClick={() => item.roomId && onOpenRoom(item.roomId)}
-      className="mb-1.5 w-full rounded-xl border border-border bg-card px-3 py-2 text-left disabled:opacity-70"
+      className={cn(
+        "mb-1.5 w-full rounded-xl border px-3 py-2 text-left disabled:opacity-70",
+        mineFirst ? "border-primary/25 bg-primary/8" : "border-border bg-card",
+      )}
     >
       <p className="truncate text-[13px] font-semibold text-foreground">{item.title}</p>
       <p className="text-[12px] text-muted-foreground">
-        {open.length} aberto{open.length === 1 ? "" : "s"}
+        {mine.length > 0
+          ? `${mine.length} com você${open.length > mine.length ? ` · ${open.length - mine.length} outros` : ""}`
+          : `${open.length} aberto${open.length === 1 ? "" : "s"}`}
         {item.originLabel ? ` · ${item.originLabel}` : ""}
       </p>
+      {mine[0] ? (
+        <p className="mt-0.5 truncate text-[12px] text-foreground">{mine[0].text}</p>
+      ) : null}
     </button>
   );
 }

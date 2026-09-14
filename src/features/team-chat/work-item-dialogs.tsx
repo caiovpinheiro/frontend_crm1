@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckSquare } from "lucide-react";
+import { CheckSquare, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   FormDialog,
   FormDialogIcon,
@@ -16,13 +18,65 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
+  addWorkItemEntry,
   createTeamChatWorkItem,
+  deleteTeamChatWorkItem,
+  deleteWorkItemEntry,
   extractWorkItemEntries,
   messageToChecklist,
   searchTeamChatRecords,
   updateTeamChatWorkItem,
+  updateWorkItemEntry,
 } from "./api";
+import { TopicAssigneePicker } from "./topic-assignee";
 import type { RecordSearchHit, WorkItem, WorkItemType } from "./types";
+
+export function isAgendaWorkItem(item: WorkItem) {
+  return (
+    item.type === "meeting" ||
+    item.type === "ata" ||
+    item.type === "pauta" ||
+    item.originType === "meeting"
+  );
+}
+
+export function agendaKindLabel(item: WorkItem) {
+  if (item.type === "meeting") return "Reunião";
+  if (item.type === "pauta") return "Pauta";
+  return "Ata";
+}
+
+function agendaNoun(item: WorkItem) {
+  if (item.type === "meeting") return "reunião";
+  if (item.type === "pauta") return "pauta";
+  return "ata";
+}
+
+function agendaEditTitle(item: WorkItem) {
+  if (item.type === "meeting") return "Editar reunião";
+  if (item.type === "pauta") return "Editar pauta";
+  return "Editar ata";
+}
+
+function toLocalInput(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function draftKey() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+type DraftLine = {
+  key: string;
+  id?: string;
+  text: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+};
 
 export function CreateWorkItemDialog({
   open,
@@ -274,5 +328,250 @@ export function LinkRecordDialog({
         ))}
       </div>
     </FormDialog>
+  );
+}
+
+export function EditWorkItemDialog({
+  open,
+  onOpenChange,
+  item,
+  onUpdated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  item: WorkItem;
+  onUpdated?: (item: WorkItem) => void;
+}) {
+  const [title, setTitle] = useState(item.title);
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [callUrl, setCallUrl] = useState("");
+  const [lines, setLines] = useState<DraftLine[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle(item.title);
+    setStartsAt(toLocalInput(item.startsAt));
+    setEndsAt(toLocalInput(item.endsAt));
+    setCallUrl(item.callUrl ?? "");
+    setLines(
+      item.entries.map((entry) => ({
+        key: entry.id,
+        id: entry.id,
+        text: entry.text,
+        assigneeId: entry.assigneeId,
+        assigneeName: entry.assigneeName,
+      })),
+    );
+  }, [open, item]);
+
+  async function submit() {
+    const nextTitle = title.trim();
+    if (!nextTitle) return;
+    setBusy(true);
+    try {
+      let latest = await updateTeamChatWorkItem(item.id, {
+        title: nextTitle,
+        startsAt: item.type === "meeting" ? (startsAt ? new Date(startsAt).toISOString() : null) : undefined,
+        endsAt: item.type === "meeting" ? (endsAt ? new Date(endsAt).toISOString() : null) : undefined,
+        callUrl: item.type === "meeting" ? callUrl.trim() || null : undefined,
+      });
+      const keep = new Set(lines.filter((line) => line.id && line.text.trim()).map((line) => line.id));
+      for (const entry of item.entries) {
+        if (!keep.has(entry.id)) {
+          latest = await deleteWorkItemEntry(item.id, entry.id);
+        }
+      }
+      for (const line of lines) {
+        const text = line.text.trim();
+        if (!text) continue;
+        if (line.id) {
+          const prev = item.entries.find((entry) => entry.id === line.id);
+          const patch: { text?: string; assigneeId?: string | null } = {};
+          if (prev && prev.text !== text) patch.text = text;
+          if (prev && prev.assigneeId !== line.assigneeId) patch.assigneeId = line.assigneeId;
+          if (Object.keys(patch).length > 0) {
+            latest = await updateWorkItemEntry(item.id, line.id, patch);
+          }
+        } else {
+          latest = await addWorkItemEntry(item.id, {
+            text,
+            assigneeId: line.assigneeId,
+          });
+        }
+      }
+      toast.success("Alterações salvas.");
+      onUpdated?.(latest);
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível salvar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={agendaEditTitle(item)}
+      description="Título, horário, tópicos e responsável de cada linha."
+      icon={
+        <FormDialogIcon>
+          <Pencil className="size-4" />
+        </FormDialogIcon>
+      }
+      footer={
+        <>
+          <ButtonGlass type="button" variant="glass" className={formDialogCancelClass} onClick={() => onOpenChange(false)}>
+            Cancelar
+          </ButtonGlass>
+          <ButtonGlass
+            type="button"
+            variant="primary"
+            className={formDialogPrimaryClass}
+            disabled={busy || !title.trim()}
+            onClick={() => void submit()}
+          >
+            Salvar
+          </ButtonGlass>
+        </>
+      }
+    >
+      <span className={formLabelClass}>Título *</span>
+      <input value={title} onChange={(e) => setTitle(e.target.value)} className={formControlClass} />
+      {item.type === "meeting" && (
+        <>
+          <span className={cn(formLabelClass, "mt-3")}>Início</span>
+          <input
+            type="datetime-local"
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+            className={formControlClass}
+          />
+          <span className={cn(formLabelClass, "mt-3")}>Fim</span>
+          <input
+            type="datetime-local"
+            value={endsAt}
+            onChange={(e) => setEndsAt(e.target.value)}
+            className={formControlClass}
+          />
+          <span className={cn(formLabelClass, "mt-3")}>Link da chamada</span>
+          <input value={callUrl} onChange={(e) => setCallUrl(e.target.value)} className={formControlClass} />
+        </>
+      )}
+      <span className={cn(formLabelClass, "mt-3")}>Tópicos</span>
+      <div className="mt-1 flex flex-col gap-1.5">
+        {lines.map((line) => (
+          <div key={line.key} className="flex flex-wrap items-center gap-1.5">
+            <input
+              value={line.text}
+              onChange={(e) =>
+                setLines((prev) =>
+                  prev.map((row) => (row.key === line.key ? { ...row, text: e.target.value } : row)),
+                )
+              }
+              className={cn(formControlClass, "min-w-[10rem] flex-1")}
+            />
+            <TopicAssigneePicker
+              assigneeId={line.assigneeId}
+              assigneeName={line.assigneeName}
+              onChange={(next) =>
+                setLines((prev) =>
+                  prev.map((row) =>
+                    row.key === line.key
+                      ? { ...row, assigneeId: next.id, assigneeName: next.name }
+                      : row,
+                  ),
+                )
+              }
+            />
+            <button
+              type="button"
+              aria-label="Remover tópico"
+              onClick={() => setLines((prev) => prev.filter((row) => row.key !== line.key))}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            setLines((prev) => [
+              ...prev,
+              { key: draftKey(), text: "", assigneeId: null, assigneeName: null },
+            ])
+          }
+          className="self-start text-[12px] font-semibold text-primary hover:underline"
+        >
+          Adicionar tópico
+        </button>
+      </div>
+    </FormDialog>
+  );
+}
+
+export function WorkItemManageButtons({
+  item,
+  onUpdated,
+  onDeleted,
+  className,
+}: {
+  item: WorkItem;
+  onUpdated?: (item: WorkItem) => void;
+  onDeleted?: (id: string) => void;
+  className?: string;
+}) {
+  const { confirm, dialog } = useConfirm();
+  const [editing, setEditing] = useState(false);
+  if (!isAgendaWorkItem(item)) return null;
+  const noun = agendaNoun(item);
+
+  return (
+    <div className={cn("flex shrink-0 items-center gap-0.5", className)}>
+      <TooltipGlass label="Editar" side="top">
+        <button
+          type="button"
+          aria-label={`Editar ${noun}`}
+          onClick={() => setEditing(true)}
+          className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      </TooltipGlass>
+      <TooltipGlass label="Excluir" side="top">
+        <button
+          type="button"
+          aria-label={`Excluir ${noun}`}
+          onClick={() =>
+            void confirm({
+              title: `Excluir ${noun}?`,
+              description: `“${item.title}” sai desta conversa. Esta ação não pode ser desfeita.`,
+              confirmLabel: "Excluir",
+              pendingLabel: "Excluindo…",
+              destructive: true,
+              action: async () => {
+                try {
+                  await deleteTeamChatWorkItem(item.id);
+                  onDeleted?.(item.id);
+                  toast.success("Excluído.");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Não foi possível excluir.");
+                  throw err;
+                }
+              },
+            })
+          }
+          className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      </TooltipGlass>
+      <EditWorkItemDialog open={editing} onOpenChange={setEditing} item={item} onUpdated={onUpdated} />
+      {dialog}
+    </div>
   );
 }

@@ -54,6 +54,22 @@ const NOTES_KEY = "team-chat-notes";
 const MY_WORK_ITEMS_KEY = "team-chat-work-items-mine";
 const ROOM_WORK_ITEMS_KEY = "team-chat-work-items";
 
+export function markRoomReadInCache(
+  qc: ReturnType<typeof useQueryClient>,
+  roomId: string,
+) {
+  qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+    if (!prev) return prev;
+    let changed = false;
+    const rooms = prev.rooms.map((r) => {
+      if (r.id !== roomId || r.unread === 0) return r;
+      changed = true;
+      return { ...r, unread: 0 };
+    });
+    return changed ? { rooms } : prev;
+  });
+}
+
 function patchMessage(qc: ReturnType<typeof useQueryClient>, msg: TeamChatMessage) {
   qc.setQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, msg.roomId], (prev) => {
     if (!prev) return { messages: [msg] };
@@ -70,7 +86,7 @@ function retryUnlessTimeout(count: number, err: Error) {
   return count < 2;
 }
 
-export function useTeamChatRooms(enabled = true) {
+export function useTeamChatRooms(enabled = true, activeRoomId: string | null = null) {
   const visible = useDocumentVisible();
   return useQuery({
     queryKey: [ROOMS_KEY],
@@ -79,14 +95,29 @@ export function useTeamChatRooms(enabled = true) {
     refetchInterval: visible ? 120_000 : false,
     refetchIntervalInBackground: false,
     retry: retryUnlessTimeout,
+    select: (data) => {
+      if (!activeRoomId || !data.rooms.some((r) => r.id === activeRoomId && r.unread > 0)) {
+        return data;
+      }
+      return {
+        rooms: data.rooms.map((r) =>
+          r.id === activeRoomId && r.unread > 0 ? { ...r, unread: 0 } : r,
+        ),
+      };
+    },
   });
 }
 
 export function useTeamChatMessages(roomId: string | null) {
+  const qc = useQueryClient();
   const visible = useDocumentVisible();
   return useQuery({
     queryKey: [MESSAGES_KEY, roomId],
-    queryFn: () => listTeamChatMessages(roomId as string),
+    queryFn: async () => {
+      const data = await listTeamChatMessages(roomId as string);
+      markRoomReadInCache(qc, roomId as string);
+      return data;
+    },
     enabled: !!roomId,
     refetchInterval: visible ? 120_000 : false,
     refetchIntervalInBackground: false,
@@ -131,6 +162,19 @@ export function useRoomWorkItems(roomId: string | null, enabled = true) {
   });
 }
 
+export function removeRoomWorkItem(
+  qc: ReturnType<typeof useQueryClient>,
+  roomId: string | null,
+  itemId: string,
+) {
+  qc.setQueryData<{ items: WorkItem[] }>([ROOM_WORK_ITEMS_KEY, roomId], (prev) => {
+    if (!prev) return prev;
+    return { items: prev.items.filter((w) => w.id !== itemId) };
+  });
+  qc.invalidateQueries({ queryKey: [MY_WORK_ITEMS_KEY] });
+  if (roomId) qc.invalidateQueries({ queryKey: [MESSAGES_KEY, roomId] });
+}
+
 export function patchRoomWorkItem(qc: ReturnType<typeof useQueryClient>, item: WorkItem) {
   qc.setQueryData<{ items: WorkItem[] }>([ROOM_WORK_ITEMS_KEY, item.roomId], (prev) => {
     if (!prev) return { items: [item] };
@@ -173,8 +217,15 @@ export function useTeamChatMutations() {
     },
   });
   const updateRoom = useMutation({
-    mutationFn: ({ roomId, avatarUrl }: { roomId: string; avatarUrl: string | null }) =>
-      updateTeamChatRoom(roomId, { avatarUrl }),
+    mutationFn: ({
+      roomId,
+      ...input
+    }: {
+      roomId: string;
+      avatarUrl?: string | null;
+      name?: string;
+      topic?: string | null;
+    }) => updateTeamChatRoom(roomId, input),
     onSuccess: (room) => {
       qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
         if (!prev) return prev;
@@ -299,12 +350,24 @@ export function useTeamChatRealtime(activeRoomId: string | null, enabled = true)
       team_chat_room_updated: () => bumpRooms(),
       team_chat_message: (raw) => {
         const data = raw as { roomId?: string; message?: TeamChatMessage };
+        if (data.message) patchMessage(qc, data.message);
+        if (data.roomId && data.roomId === activeRef.current) {
+          markRoomReadInCache(qc, data.roomId);
+          void qc.invalidateQueries({ queryKey: [MESSAGES_KEY, data.roomId] });
+        }
         bumpRooms();
-        if (!data.message) return;
-        patchMessage(qc, data.message);
       },
       team_chat_work_item_updated: (raw) => {
-        const data = raw as { roomId?: string; workItem?: WorkItem };
+        const data = raw as {
+          roomId?: string;
+          workItem?: WorkItem;
+          deleted?: boolean;
+          workItemId?: string;
+        };
+        if (data.deleted && data.workItemId) {
+          removeRoomWorkItem(qc, data.roomId ?? null, data.workItemId);
+          return;
+        }
         if (data.workItem) patchRoomWorkItem(qc, data.workItem);
         else if (data.roomId) qc.invalidateQueries({ queryKey: [ROOM_WORK_ITEMS_KEY, data.roomId] });
         qc.invalidateQueries({ queryKey: [MY_WORK_ITEMS_KEY] });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, Fragment } from "react";
-import { CheckSquare, Copy, Download, FileText, Pin, PinOff, Reply, SmilePlus, X } from "lucide-react";
+import { CheckSquare, Copy, Download, FileText, Pin, PinOff, Reply, Smile, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -11,7 +11,7 @@ import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { cn } from "@/lib/utils";
 
 import { Avatar, GroupGlyph } from "./avatar";
-import { dayKey, formatClock, formatDayLabel, getOrbitaNameColor, REACTION_EMOJIS, toPerson } from "./helpers";
+import { dayKey, formatClock, formatDayLabel, getOrbitaNameColor, parseQuotedContent, REACTION_EMOJIS, toPerson } from "./helpers";
 import type { TeamChatAttachment, TeamChatMessage, TeamChatReaction, TeamChatRoom, WorkItem } from "./types";
 import { WorkItemCard } from "./work-item-card";
 
@@ -100,6 +100,7 @@ export function MessageList({
   onTogglePin,
   onReply,
   onWorkItemChange,
+  onWorkItemDeleted,
   onLinkRecord,
   onToChecklist,
 }: {
@@ -114,6 +115,7 @@ export function MessageList({
   onTogglePin: (id: string) => void;
   onReply?: (message: TeamChatMessage) => void;
   onWorkItemChange?: (item: WorkItem) => void;
+  onWorkItemDeleted?: (id: string) => void;
   onLinkRecord?: (item: WorkItem) => void;
   onToChecklist?: (message: TeamChatMessage) => void;
 }) {
@@ -172,7 +174,7 @@ export function MessageList({
           onRetry={onRetry}
         />
       ) : (
-      <div className="chat-scroll flex-1 overflow-y-auto px-4 py-3 md:px-10">
+      <div className="chat-scroll flex-1 overflow-x-hidden overflow-y-auto px-4 py-3 md:px-10">
         <div className="flex min-h-full w-full flex-col">
           <div className="mb-4 flex justify-center">
             <div className="flex max-w-sm flex-col items-center rounded-2xl border border-border bg-[var(--orbita-block)] px-6 py-5 text-center">
@@ -244,6 +246,7 @@ export function MessageList({
                       onTogglePin={onTogglePin}
                       onReply={onReply}
                       onWorkItemChange={onWorkItemChange}
+                      onWorkItemDeleted={onWorkItemDeleted}
                       onLinkRecord={onLinkRecord}
                       onToChecklist={onToChecklist}
                     />
@@ -286,6 +289,7 @@ function MessageRow({
   onTogglePin,
   onReply,
   onWorkItemChange,
+  onWorkItemDeleted,
   onLinkRecord,
   onToChecklist,
 }: {
@@ -303,10 +307,10 @@ function MessageRow({
   onTogglePin: (id: string) => void;
   onReply?: (message: TeamChatMessage) => void;
   onWorkItemChange?: (item: WorkItem) => void;
+  onWorkItemDeleted?: (id: string) => void;
   onLinkRecord?: (item: WorkItem) => void;
   onToChecklist?: (message: TeamChatMessage) => void;
 }) {
-  const [picker, setPicker] = useState(false);
   const [, bumpTick] = useState(0);
   const reactions = message.reactions ?? [];
   const tick = tickStatus(mine, peerOnline, message.createdAt);
@@ -319,11 +323,11 @@ function MessageRow({
     return () => window.clearTimeout(t);
   }, [mine, message.createdAt]);
   return (
-    <div className={cn("flex w-full flex-col", mine ? "items-end" : "items-start", first ? "mt-3" : "mt-[2px]")}>
+    <div className={cn("isolate flex w-full flex-col", mine ? "items-end" : "items-start", first ? "mt-3" : "mt-[2px]")}>
       <div
         className={cn(
-          "group/msg flex items-end gap-1.5",
-          workItem ? "max-w-[26rem]" : "max-w-[65%]",
+          "flex items-end gap-1.5",
+          workItem ? "max-w-[26rem]" : "max-w-[min(65%,28rem)]",
           mine ? "flex-row-reverse" : "flex-row",
         )}
       >
@@ -341,11 +345,13 @@ function MessageRow({
               {authorName}
             </span>
           )}
-          <div className={cn("relative w-fit max-w-full", reactions.length > 0 && "mb-3")}>
+          <div className={cn("group/bubble relative w-fit max-w-full", reactions.length > 0 && "mb-3")}>
             {workItem ? (
               <WorkItemCard
                 item={workItem}
+                meId={meId}
                 onChange={onWorkItemChange}
+                onDeleted={onWorkItemDeleted}
                 onLinkRecord={onLinkRecord}
               />
             ) : (
@@ -374,7 +380,7 @@ function MessageRow({
                       "flex items-center gap-0.5 rounded-full px-1.5 py-px text-[12px]",
                       reactionMine(r, meId)
                         ? "bg-[var(--orbita-selected)] text-[var(--orbita-unread-fg)]"
-                        : "bg-[var(--orbita-block)] text-[var(--orbita-text)]",
+                        : "bg-card text-card-foreground",
                     )}
                   >
                     <span>{r.emoji}</span>
@@ -383,101 +389,159 @@ function MessageRow({
                 ))}
               </div>
             )}
-            <div
-              className={cn(
-                "absolute top-0 z-10 -translate-y-full items-center rounded-full bg-[var(--orbita-block)] pb-1 shadow-sm",
-                mine ? "right-0" : "left-0",
-                picker ? "flex" : "hidden group-hover/msg:flex",
-              )}
-            >
-              {(message.attachments ?? []).length > 0 && (
-                <TooltipGlass label="Copiar" side="top">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const firstAtt = message.attachments![0];
-                      void copyAttachment(firstAtt).catch(() => toast.error("Não foi possível copiar."));
-                    }}
-                    aria-label="Copiar"
-                    className="grid h-7 w-7 place-items-center text-muted-foreground hover:text-foreground"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipGlass>
-              )}
-              {onReply && (
-                <TooltipGlass label="Responder" side="top">
-                  <button
-                    type="button"
-                    onClick={() => onReply(message)}
-                    aria-label="Responder"
-                    className="grid h-7 w-7 place-items-center text-muted-foreground hover:text-foreground"
-                  >
-                    <Reply className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipGlass>
-              )}
-              {onToChecklist && !message.workItemId && (
-                <TooltipGlass label="Transformar em checklist" side="top">
-                  <button
-                    type="button"
-                    onClick={() => onToChecklist(message)}
-                    aria-label="Transformar em checklist"
-                    className="grid h-7 w-7 place-items-center text-muted-foreground hover:text-foreground"
-                  >
-                    <CheckSquare className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipGlass>
-              )}
-              <TooltipGlass label="Reagir" side="top">
-                <button
-                  type="button"
-                  onClick={() => setPicker((v) => !v)}
-                  aria-label="Reagir"
-                  className="grid h-7 w-7 place-items-center text-muted-foreground hover:text-foreground"
-                >
-                  <SmilePlus className="h-3.5 w-3.5" />
-                </button>
-              </TooltipGlass>
-              <TooltipGlass label={message.pinned ? "Remover destaque" : "Destacar"} side="top">
-                <button
-                  type="button"
-                  onClick={() => onTogglePin(message.id)}
-                  aria-label={message.pinned ? "Remover destaque" : "Destacar"}
-                  className={cn(
-                    "grid h-7 w-7 place-items-center hover:text-foreground",
-                    message.pinned ? "text-[var(--orbita-selected)]" : "text-muted-foreground",
-                  )}
-                >
-                  {message.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                </button>
-              </TooltipGlass>
-              {picker && (
-                <div
-                  className={cn(
-                    "absolute bottom-full z-20 mb-1 flex gap-0.5 rounded-full bg-[var(--orbita-block)] p-1 shadow-lg",
-                    mine ? "right-0" : "left-0",
-                  )}
-                >
-                  {REACTION_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => {
-                        onToggleReaction(message.id, emoji);
-                        setPicker(false);
-                      }}
-                      className="grid h-7 w-7 place-items-center rounded-full text-base hover:bg-[var(--orbita-block-soft)]"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {!workItem && (
+              <BubbleHoverActions
+                message={message}
+                mine={mine}
+                onToggleReaction={onToggleReaction}
+                onTogglePin={onTogglePin}
+                onReply={onReply}
+                onToChecklist={onToChecklist}
+              />
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function BubbleHoverActions({
+  message,
+  mine,
+  onToggleReaction,
+  onTogglePin,
+  onReply,
+  onToChecklist,
+}: {
+  message: TeamChatMessage;
+  mine: boolean;
+  onToggleReaction: (id: string, emoji: string) => void;
+  onTogglePin: (id: string) => void;
+  onReply?: (message: TeamChatMessage) => void;
+  onToChecklist?: (message: TeamChatMessage) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: PointerEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDoc);
+    return () => document.removeEventListener("pointerdown", onDoc);
+  }, [open]);
+
+  return (
+    <div
+      ref={boxRef}
+      className={cn(
+        "absolute top-1/2 z-20 -translate-y-1/2",
+        mine ? "right-full mr-1" : "left-full ml-1",
+        open ? "flex" : "hidden group-hover/bubble:flex",
+      )}
+    >
+      <TooltipGlass label="Reagir" side="top">
+        <button
+          type="button"
+          aria-label="Reagir"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-[0_4px_16px_rgba(15,23,42,0.12)] hover:bg-muted hover:text-foreground"
+        >
+          <Smile className="h-4 w-4" />
+        </button>
+      </TooltipGlass>
+      {open ? (
+        <div
+          className={cn(
+            "absolute top-full z-30 mt-1 min-w-[12.5rem] rounded-2xl border border-border bg-card p-1 shadow-[0_8px_24px_rgba(15,23,42,0.16)]",
+            mine ? "right-0" : "left-0",
+          )}
+        >
+          <div className="flex items-center justify-center gap-0.5 px-0.5 py-0.5">
+            {REACTION_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  onToggleReaction(message.id, emoji);
+                  setOpen(false);
+                }}
+                aria-label={`Reagir com ${emoji}`}
+                className="grid h-8 w-8 place-items-center rounded-full text-[18px] leading-none hover:bg-muted hover:scale-110"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+          <div className="mt-0.5 flex items-center gap-0.5 border-t border-border px-0.5 pt-1">
+            {(message.attachments ?? []).length > 0 && (
+              <TooltipGlass label="Copiar" side="bottom">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const firstAtt = message.attachments![0];
+                    void copyAttachment(firstAtt).catch(() => toast.error("Não foi possível copiar."));
+                    setOpen(false);
+                  }}
+                  aria-label="Copiar"
+                  className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </TooltipGlass>
+            )}
+            {onReply && (
+              <TooltipGlass label="Responder" side="bottom">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onReply(message);
+                    setOpen(false);
+                  }}
+                  aria-label="Responder"
+                  className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Reply className="h-3.5 w-3.5" />
+                </button>
+              </TooltipGlass>
+            )}
+            {onToChecklist && (
+              <TooltipGlass label="Transformar em checklist" side="bottom">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToChecklist(message);
+                    setOpen(false);
+                  }}
+                  aria-label="Transformar em checklist"
+                  className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                </button>
+              </TooltipGlass>
+            )}
+            <TooltipGlass label={message.pinned ? "Remover destaque" : "Destacar"} side="bottom">
+              <button
+                type="button"
+                onClick={() => {
+                  onTogglePin(message.id);
+                  setOpen(false);
+                }}
+                aria-label={message.pinned ? "Remover destaque" : "Destacar"}
+                className={cn(
+                  "grid h-7 w-7 place-items-center rounded-full hover:bg-muted hover:text-foreground",
+                  message.pinned ? "text-primary" : "text-muted-foreground",
+                )}
+              >
+                {message.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+              </button>
+            </TooltipGlass>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -500,7 +564,9 @@ function MessageBody({
   const attachments = message.attachments ?? [];
   const stickers = attachments.filter((a) => a.kind === "sticker");
   const media = attachments.filter((a) => a.kind !== "sticker");
-  const hasText = message.content.trim().length > 0;
+  const parsed = parseQuotedContent(message.content);
+  const bodyText = parsed.body.trim();
+  const hasText = Boolean(bodyText || parsed.quote);
   const radius = bubbleRadius(first, mine);
   const bubbleCls = cn(
     "relative w-fit max-w-full",
@@ -554,14 +620,28 @@ function MessageBody({
           )}
         </button>
       ))}
-      {media.map((att, i) => (
-        <div key={`${att.url}-${i}`} className={cn(bubbleCls, "overflow-hidden p-1")}>
-          <MediaChip att={att} />
-          {!hasText && i === media.length - 1 && (
-            <span className="absolute bottom-1.5 right-2 drop-shadow">{meta}</span>
-          )}
-        </div>
-      ))}
+      {media.map((att, i) => {
+        const audio = att.kind === "audio";
+        const showMeta = !hasText && i === media.length - 1;
+        return (
+          <div
+            key={`${att.url}-${i}`}
+            className={cn(
+              bubbleCls,
+              audio
+                ? "flex min-w-[16rem] flex-col gap-1 overflow-visible px-2.5 pb-1.5 pt-2"
+                : "overflow-hidden p-1",
+            )}
+          >
+            <MediaChip att={att} />
+            {showMeta && audio ? (
+              <span className="flex justify-end pr-0.5">{meta}</span>
+            ) : showMeta ? (
+              <span className="absolute bottom-1.5 right-2 drop-shadow">{meta}</span>
+            ) : null}
+          </div>
+        );
+      })}
       {hasText && (
         <div className={cn(bubbleCls, "px-3 pb-2 pt-2")}>
           {pinned && (
@@ -574,8 +654,19 @@ function MessageBody({
               <Pin className="h-2.5 w-2.5" />
             </span>
           )}
+          {parsed.quote ? (
+            <div
+              className={cn(
+                "mb-1.5 border-l-2 px-2 py-1",
+                mine ? "border-primary-foreground/50" : "border-primary/50",
+              )}
+            >
+              <p className="truncate text-[12px] font-semibold">{parsed.quote.author}</p>
+              <p className="truncate text-[12px] opacity-80">{parsed.quote.excerpt}</p>
+            </div>
+          ) : null}
           <p className="whitespace-pre-wrap break-words text-[14.5px] leading-[20px]">
-            {formatChatText(message.content, mine)}
+            {bodyText ? formatChatText(bodyText, mine) : null}
             <span className={cn("inline-block", mine ? "w-[72px]" : "w-[46px]")} aria-hidden />
           </p>
           <span className="absolute bottom-[5px] right-[8px]">{meta}</span>
@@ -623,9 +714,9 @@ function MediaChip({ att }: { att: TeamChatAttachment }) {
 
   if (att.kind === "audio") {
     return (
-      <div className="min-w-[220px] px-2 py-1">
+      <div className="min-w-[220px] px-0.5 py-0.5">
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-        <audio src={att.url} controls className="h-9 w-full" />
+        <audio src={att.url} controls className="w-full max-w-full" />
       </div>
     );
   }
