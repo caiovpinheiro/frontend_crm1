@@ -18,6 +18,7 @@ import {
 } from "../inbox-queue-tab";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 import {
+  applyActiveAutomationToContactCaches,
   findCachedConversationRow,
   patchInboxTabCounts,
 } from "./apply-outbound-inbox-card";
@@ -1248,8 +1249,14 @@ export function useInboxRealtime(options: {
         try {
           const data = raw as {
             contactId?: string;
+            active?: boolean;
+            status?: string;
           };
           if (data.contactId) {
+            const active =
+              data.active ??
+              (data.status === "RUNNING" || data.status === "PAUSED");
+            applyActiveAutomationToContactCaches(qc, data.contactId, active);
             qc.invalidateQueries({
               queryKey: ["active-automations-contact", data.contactId],
             });

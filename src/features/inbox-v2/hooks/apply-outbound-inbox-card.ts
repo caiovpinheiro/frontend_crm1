@@ -89,6 +89,29 @@ export function patchInboxTabCounts(
   }
 }
 
+/** Marca/desmarca robô vivo em todos os cards cacheados do contato. */
+export function applyActiveAutomationToContactCaches(
+  qc: QueryClient,
+  contactId: string,
+  hasActiveAutomation: boolean,
+): void {
+  if (!contactId) return;
+  const seen = new Set<string>();
+  const entries = qc.getQueriesData<InboxListCache>({
+    queryKey: ["inbox-conversations"],
+  });
+  for (const [, cached] of entries) {
+    for (const page of cached?.pages ?? []) {
+      for (const row of page?.items ?? []) {
+        if (row.contact?.id !== contactId || seen.has(row.id)) continue;
+        if (row.hasActiveAutomation === hasActiveAutomation) continue;
+        seen.add(row.id);
+        applyConversationFieldsToInboxCaches(qc, row.id, { hasActiveAutomation });
+      }
+    }
+  }
+}
+
 export function findCachedConversationRow(
   qc: QueryClient,
   conversationId: string,
