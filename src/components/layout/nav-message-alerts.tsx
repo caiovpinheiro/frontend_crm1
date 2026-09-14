@@ -16,7 +16,12 @@ import { usePathname } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
 
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
-import { incrementRoomUnreadInCache, useTeamChatRooms } from "@/features/team-chat/hooks";
+import {
+  incrementRoomUnreadInCache,
+  upsertTeamChatMessage,
+  useTeamChatRooms,
+} from "@/features/team-chat/hooks";
+import type { TeamChatMessage } from "@/features/team-chat/types";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
@@ -267,7 +272,7 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
         const data = raw as {
           roomId?: string;
           memberIds?: string[];
-          message?: { authorId?: string | null; kind?: string };
+          message?: TeamChatMessage;
         };
         const myId = meRef.current;
         const members = data.memberIds;
@@ -287,6 +292,13 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
           data.roomId === activeRoomRef.current &&
           pathnameRef.current.startsWith("/bwipo-chat") &&
           document.visibilityState === "visible";
+
+        if (data.message?.id) {
+          upsertTeamChatMessage(qc, {
+            ...data.message,
+            roomId: data.message.roomId || data.roomId || "",
+          });
+        }
 
         if (data.roomId && !isOwn && !isSystem && !viewingActiveRoom) {
           incrementRoomUnreadInCache(qc, data.roomId);

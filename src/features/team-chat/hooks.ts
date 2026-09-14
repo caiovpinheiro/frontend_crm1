@@ -115,15 +115,39 @@ export function markRoomReadInCache(
   });
 }
 
-function patchMessage(qc: ReturnType<typeof useQueryClient>, msg: TeamChatMessage) {
-  qc.setQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, msg.roomId], (prev) => {
-    if (!prev) return { messages: [msg] };
-    const idx = prev.messages.findIndex((m) => m.id === msg.id);
-    if (idx === -1) return { messages: [...prev.messages, msg] };
-    const next = [...prev.messages];
-    next[idx] = msg;
+function mergeMessageLists(cached: TeamChatMessage[] | undefined, fetched: TeamChatMessage[]) {
+  if (!cached?.length) return fetched;
+  const byId = new Map(fetched.map((m) => [m.id, m]));
+  const newest = fetched[fetched.length - 1]?.createdAt;
+  for (const msg of cached) {
+    if (byId.has(msg.id)) continue;
+    if (newest && msg.createdAt >= newest) byId.set(msg.id, msg);
+  }
+  return [...byId.values()].sort((a, b) => {
+    if (a.createdAt === b.createdAt) return a.id.localeCompare(b.id);
+    return a.createdAt.localeCompare(b.createdAt);
+  });
+}
+
+export function upsertTeamChatMessage(
+  qc: ReturnType<typeof useQueryClient>,
+  msg: TeamChatMessage,
+  roomId = msg.roomId,
+) {
+  if (!roomId || !msg.id) return;
+  const nextMsg = { ...msg, roomId };
+  qc.setQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, roomId], (prev) => {
+    const list = prev?.messages ?? [];
+    const idx = list.findIndex((m) => m.id === nextMsg.id);
+    if (idx === -1) return { messages: [...list, nextMsg] };
+    const next = [...list];
+    next[idx] = { ...next[idx], ...nextMsg };
     return { messages: next };
   });
+}
+
+function patchMessage(qc: ReturnType<typeof useQueryClient>, msg: TeamChatMessage) {
+  upsertTeamChatMessage(qc, msg);
 }
 
 function retryUnlessTimeout(count: number, err: Error) {
@@ -161,10 +185,11 @@ export function useTeamChatMessages(roomId: string | null) {
     queryFn: async () => {
       const data = await listTeamChatMessages(roomId as string);
       markRoomReadInCache(qc, roomId as string);
-      return data;
+      const prev = qc.getQueryData<{ messages: TeamChatMessage[] }>([MESSAGES_KEY, roomId]);
+      return { messages: mergeMessageLists(prev?.messages, data.messages) };
     },
     enabled: !!roomId,
-    refetchInterval: visible ? 120_000 : false,
+    refetchInterval: visible ? 8_000 : false,
     refetchIntervalInBackground: false,
     retry: retryUnlessTimeout,
   });
@@ -473,9 +498,13 @@ export function useTeamChatRealtime(activeRoomId: string | null, enabled = true)
           bumpRooms();
           return;
         }
-        if (data.message) patchMessage(qc, data.message);
+        const incoming = data.message
+          ? { ...data.message, roomId: data.message.roomId || data.roomId || "" }
+          : null;
+        if (incoming?.id) upsertTeamChatMessage(qc, incoming);
         if (data.roomId && data.roomId === activeRef.current) {
           markRoomReadInCache(qc, data.roomId);
+        } else if (data.roomId && !incoming?.id) {
           void qc.invalidateQueries({ queryKey: [MESSAGES_KEY, data.roomId] });
         }
         bumpRooms();
