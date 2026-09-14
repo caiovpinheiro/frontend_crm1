@@ -467,8 +467,10 @@ export function summarizeTriggerConfig(
       ].filter(Boolean);
       return parts.length ? parts.join(" · ") : "Novo contato";
     }
-    case "conversation_created":
-      return summarizeTriggerChannelScope(c, lookup);
+    case "conversation_created": {
+      const base = summarizeTriggerChannelScope(c, lookup);
+      return c.skipIfAckOrGreeting === true ? `${base} · sem ack/cumprimento` : base;
+    }
     case "whatsapp_session_expiring":
       return `${String(c.hoursBeforeExpiry ?? 1)}h antes do encerramento`;
     case "lifecycle_changed": {
@@ -849,7 +851,7 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
     case "send_whatsapp_interactive":
       return {
         body: "", buttons: [], header: "", footer: "",
-        elseGotoStepId: "", saveToVariable: "",
+        elseGotoStepId: "", onNonText: "stay", saveToVariable: "",
         timeoutMs: 86_400_000, timeoutAction: "continue", timeoutGotoStepId: "",
         failureAction: "stop",
       };
@@ -862,6 +864,7 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
         header: "",
         footer: "",
         elseGotoStepId: "",
+        onNonText: "stay",
         saveToVariable: "",
         timeoutMs: 86_400_000,
         timeoutAction: "continue",
@@ -909,7 +912,7 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
       return {
         message: "", buttons: [], saveToVariable: "",
         timeoutMs: 86_400_000, timeoutAction: "continue",
-        timeoutGotoStepId: "", elseGotoStepId: "",
+        timeoutGotoStepId: "", elseGotoStepId: "", onNonText: "stay",
         failureAction: "stop",
       };
     case "wait_for_reply":
@@ -1115,7 +1118,7 @@ export function defaultTriggerConfig(triggerType: string): Record<string, unknow
     case "contact_created":
       return { pipelineId: "", stageId: "" };
     case "conversation_created":
-      return { channel: "", channelIds: [], channelScope: "all" };
+      return { channel: "", channelIds: [], channelScope: "all", skipIfAckOrGreeting: false };
     case "lifecycle_changed":
       return { fromLifecycle: "", toLifecycle: "" };
     case "agent_changed":

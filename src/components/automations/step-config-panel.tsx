@@ -2118,6 +2118,7 @@ const CONDITION_FIELD_GROUPS: FieldGroup[] = [
     label: "Mensagem / Evento",
     options: [
       { value: "data.content", label: "Conteúdo da mensagem" },
+      { value: "data.isAckOrGreeting", label: "Inbound é ack/cumprimento", hint: "sim / não" },
       { value: "data.text", label: "Texto" },
       { value: "data.direction", label: "Direção", hint: "in / out" },
       { value: "data.messageType", label: "Tipo da mensagem" },
@@ -2371,7 +2372,8 @@ function ConditionValueInput({
   if (
     field === "conversation.isClosed" ||
     field === "conversation.hasError" ||
-    field === "conversation.hasAgentReply"
+    field === "conversation.hasAgentReply" ||
+    field === "data.isAckOrGreeting"
   ) {
     return (
       <DropdownGlass
