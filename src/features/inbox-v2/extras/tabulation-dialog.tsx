@@ -171,6 +171,8 @@ type Props = {
   submitting?: boolean;
   /** ADMIN: mostra opção para encerrar sem disparar automações. */
   allowSkipAutomations?: boolean;
+  /** ADMIN (encerrar em massa): Finalizar sem escolher folha. */
+  allowCloseWithoutTabulation?: boolean;
 };
 
 /**
@@ -186,6 +188,7 @@ export function TabulationDialog({
   optional,
   submitting,
   allowSkipAutomations,
+  allowCloseWithoutTabulation,
 }: Props) {
   const query = useQuery({
     queryKey: ["inbox-tabulations", departmentId ?? "", userId ?? ""],
@@ -288,7 +291,9 @@ export function TabulationDialog({
     query.isSuccess && forest.length === 0 && path.length === 0;
   const canConfirm =
     !submitting &&
-    (isLeafSelected || (emptyForest && !requireOnClose));
+    (isLeafSelected ||
+      (emptyForest && !requireOnClose) ||
+      Boolean(allowCloseWithoutTabulation));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -445,7 +450,9 @@ export function TabulationDialog({
               </Button>
             ) : (
               <p className="font-body text-[12.5px] text-[var(--text-muted)]">
-                Selecione um motivo para continuar
+                {allowCloseWithoutTabulation && !isLeafSelected
+                  ? "Admin: pode finalizar sem tabular"
+                  : "Selecione um motivo para continuar"}
               </p>
             )}
           </div>
@@ -475,7 +482,7 @@ export function TabulationDialog({
                   onConfirm(leaf.id, extra);
                   return;
                 }
-                if (emptyForest && !requireOnClose) {
+                if (allowCloseWithoutTabulation || (emptyForest && !requireOnClose)) {
                   onConfirm("", extra);
                 }
               }}

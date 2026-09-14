@@ -1546,9 +1546,10 @@ export default function InboxV2ClientPage({
             userId={bulkTabulationUserId}
             submitting={bulkAction.isPending}
             allowSkipAutomations={canSkipAutomations}
+            allowCloseWithoutTabulation={canSkipAutomations}
             onConfirm={(tabulationId, extra) => {
               executeBulkResolve({
-                tabulationId,
+                tabulationId: tabulationId.trim() || undefined,
                 skipAutomations:
                   canSkipAutomations && extra?.skipAutomations ? true : undefined,
               });
