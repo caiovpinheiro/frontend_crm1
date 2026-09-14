@@ -2,8 +2,6 @@
 
 import * as React from "react";
 
-import { defaultAcademicSteeringRules } from "@/lib/ai-agents/academic-atendimento-prompt";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
 
@@ -39,36 +37,26 @@ export function RulesSection({
       />
 
       <div>
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <label htmlFor="ag-steering" className={formLabelClass}>
-            Regras de atendimento
-          </label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="rounded-full"
-            onClick={() =>
-              onSteeringRulesChange(
-                archetype === "ATENDIMENTO"
-                  ? defaultAcademicSteeringRules()
-                  : "",
-              )
-            }
-          >
-            {archetype === "ATENDIMENTO"
-              ? "Carregar regras acadêmicas"
-              : "Limpar regras"}
-          </Button>
-        </div>
+        <label htmlFor="ag-steering" className={formLabelClass}>
+          Regras de atendimento
+        </label>
         <Textarea
           id="ag-steering"
           value={steeringRules}
           onChange={(e) => onSteeringRulesChange(e.target.value)}
           rows={7}
-          placeholder="Regras específicas deste agente. Somadas ao modelo base. Vazio = só o template do arquétipo."
+          placeholder={
+            archetype === "ATENDIMENTO"
+              ? "Vazio = regras acadêmicas padrão (portal, departamentos, o que dizer / não dizer)."
+              : "Regras específicas deste agente. Somadas ao modelo base."
+          }
           className="min-h-[140px] resize-y rounded-xl font-mono text-[12px] leading-relaxed"
         />
+        <FieldHelp>
+          {steeringRules.trim()
+            ? "Com texto aqui, o agente segue só este texto — nada do padrão é somado."
+            : "Vazio, o agente segue o texto padrão do arquétipo. O que você escrever passa a valer no lugar dele."}
+        </FieldHelp>
       </div>
 
       <div>

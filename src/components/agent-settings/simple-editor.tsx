@@ -278,7 +278,11 @@ export function applySimpleSaveDefaults(
   const ask = hasCancelReasonRule(form.systemPromptOverride);
   return {
     systemPromptOverride: form.systemPromptOverride,
-    steeringRules: "",
+    // Fixo em "" aqui zerava as Regras de atendimento em TODO salvamento,
+    // inclusive no modo avançado onde o operador digita nesse campo — o
+    // diálogo aplica estes defaults sempre. Quem limpa é o editor simples,
+    // nos handlers que trocam as regras pelo override.
+    steeringRules: form.steeringRules,
     piloting: {
       ...form.piloting,
       keywordHandoffs: ask

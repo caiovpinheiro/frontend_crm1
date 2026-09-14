@@ -250,11 +250,15 @@ export function isAutoCloseMode(v: unknown): v is AutoCloseMode {
 export type AutoClosePolicy = {
   mode: AutoCloseMode;
   keywords: string[];
+  /// Texto enviado ao encerrar depois de o cliente fechar o assunto.
   message: string | null;
+  /// Texto enviado ao encerrar por silêncio (sem resposta ao check-in).
+  /// Vazio = encerra sem avisar.
+  idleMessage: string | null;
 };
 
 export function defaultAutoClosePolicy(): AutoClosePolicy {
-  return { mode: "understood", keywords: [], message: null };
+  return { mode: "understood", keywords: [], message: null, idleMessage: null };
 }
 
 export function normalizeAutoClosePolicy(v: unknown): AutoClosePolicy {
@@ -275,6 +279,10 @@ export function normalizeAutoClosePolicy(v: unknown): AutoClosePolicy {
     message:
       typeof r.message === "string" && r.message.trim()
         ? r.message.trim()
+        : null,
+    idleMessage:
+      typeof r.idleMessage === "string" && r.idleMessage.trim()
+        ? r.idleMessage.trim()
         : null,
   };
 }
