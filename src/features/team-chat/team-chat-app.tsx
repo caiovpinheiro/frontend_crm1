@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
@@ -35,7 +36,6 @@ import {
   useTeamChatTyping,
 } from "./hooks";
 import { favoriteKey, isGroupRoom, parseQuotedContent } from "./helpers";
-import { RecordPeek } from "./record-peek";
 import type { DirectRow, OpenCrmCard, TeamChatMessage, TeamChatRoom, WorkItem, WorkItemType } from "./types";
 import {
   CreateWorkItemDialog,
@@ -432,6 +432,7 @@ function Thread({
   onAddMembers: () => void;
 }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const { data, isError, error, refetch } = useTeamChatMessages(room.id);
   const workItemsQuery = useRoomWorkItems(room.id);
   const { send, react, pin, removeMessage } = useTeamChatMutations();
@@ -445,7 +446,6 @@ function Thread({
   const [toChecklist, setToChecklist] = useState<TeamChatMessage | null>(null);
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const [forwardMsg, setForwardMsg] = useState<TeamChatMessage | null>(null);
-  const [peekCard, setPeekCard] = useState<OpenCrmCard | null>(null);
   const pingTyping = usePingTeamChatTyping(room.id);
 
   useEffect(() => {
@@ -455,13 +455,16 @@ function Thread({
     setToChecklist(null);
     setLinkItemId(null);
     setForwardMsg(null);
-    setPeekCard(null);
   }, [room.id]);
 
   function onWorkItemReady(item: WorkItem) {
     patchRoomWorkItem(qc, item);
     void qc.invalidateQueries({ queryKey: ["team-chat-messages", room.id] });
     void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
+  }
+
+  function openCrmRecord(card: OpenCrmCard) {
+    router.push(card.href);
   }
 
   return (
@@ -520,7 +523,7 @@ function Thread({
               { onError: (e: Error) => toast.error(e.message) },
             )
           }
-          onOpenRecord={setPeekCard}
+          onOpenRecord={openCrmRecord}
         />
         <div className="relative z-20 shrink-0 overflow-visible border-t border-border bg-[var(--orbita-block)] px-3 pb-3 pt-2 md:px-4" data-tour="bwipo-chat-composer">
           <div className="w-full overflow-visible rounded-[16px] border border-border bg-[var(--orbita-block)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
@@ -578,7 +581,6 @@ function Thread({
         roomId={room.id}
         message={forwardMsg}
       />
-      <RecordPeek card={peekCard} onClose={() => setPeekCard(null)} />
     </div>
   );
 }
