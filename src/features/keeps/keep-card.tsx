@@ -1,11 +1,14 @@
 "use client";
 
-import { Archive, Paperclip, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { Archive, Palette, Paperclip, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
+import { useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { cn } from "@/lib/utils";
 import type { KeepNote } from "./types";
+import { keepPreviewText } from "./preview";
+import { KeepColorSwatches } from "./keep-color-swatches";
+import type { KeepNoteColorId } from "./colors";
 
 export function KeepCard({
   note,
@@ -14,6 +17,7 @@ export function KeepCard({
   onArchive,
   onTrash,
   onRestore,
+  onColor,
   onMovePointerDown,
   ghost,
   floating,
@@ -24,20 +28,23 @@ export function KeepCard({
   onArchive?: () => void;
   onTrash?: () => void;
   onRestore?: () => void;
+  onColor?: (color: KeepNoteColorId | null) => void;
   onMovePointerDown?: (event: ReactPointerEvent) => void;
   ghost?: boolean;
   floating?: boolean;
 }) {
-  const preview = note.plainText.slice(0, 280);
+  const preview = keepPreviewText(note).slice(0, 280);
   const image = note.attachments.find((a) => a.mimeType.startsWith("image/"));
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
     <article
       data-keep-id={note.id}
+      data-keep-color={note.color || undefined}
       onPointerDown={onMovePointerDown}
       className={cn(
         CARD_SURFACE_CLASS,
-        "w-full p-4 text-left shadow-none transition-colors hover:border-primary/40",
+        "keep-note-card w-full p-4 text-left shadow-none transition-colors hover:border-primary/40",
         onMovePointerDown && "cursor-grab touch-none active:cursor-grabbing",
         ghost && "opacity-40",
         floating && "rotate-1 border-primary/40 shadow-lg",
@@ -69,6 +76,17 @@ export function KeepCard({
             aria-label={note.pinned ? "Desafixar" : "Fixar"}
           >
             {note.pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+          </button>
+        ) : null}
+        {onColor ? (
+          <button
+            type="button"
+            onClick={() => setPaletteOpen((v) => !v)}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            aria-label="Cor da nota"
+            aria-expanded={paletteOpen}
+          >
+            <Palette className="size-3.5" />
           </button>
         ) : null}
         {onArchive ? (
@@ -108,6 +126,17 @@ export function KeepCard({
           </span>
         ) : null}
       </div>
+      {onColor && paletteOpen ? (
+        <div className="mt-2">
+          <KeepColorSwatches
+            value={note.color}
+            onChange={(color) => {
+              onColor(color);
+              setPaletteOpen(false);
+            }}
+          />
+        </div>
+      ) : null}
     </article>
   );
 }

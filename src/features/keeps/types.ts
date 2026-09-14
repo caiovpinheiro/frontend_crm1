@@ -23,6 +23,7 @@ export type KeepNote = {
   trashed: boolean;
   trashedAt: string | null;
   source: string;
+  color: string | null;
   importBatchId: string | null;
   position: number;
   createdAt: string;

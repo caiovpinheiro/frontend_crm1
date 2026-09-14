@@ -5,9 +5,14 @@ async function json<T>(res: Promise<Response>, fallback: string): Promise<T> {
   return parseApiResponse<T>(await res, fallback);
 }
 
-export async function listKeepNotes(folder: KeepFolder, q: string): Promise<{ items: KeepNote[] }> {
+export async function listKeepNotes(
+  folder: KeepFolder,
+  q: string,
+  colors: string[] = [],
+): Promise<{ items: KeepNote[]; usedColors: string[]; hasUncolored: boolean }> {
   const params = new URLSearchParams({ folder });
   if (q.trim()) params.set("q", q.trim());
+  for (const c of colors) params.append("color", c);
   return json(fetch(apiUrl(`/api/keeps?${params}`), { credentials: "include" }), "Não foi possível carregar as notas.");
 }
 
@@ -25,7 +30,7 @@ export async function createKeepNote(input: { title?: string; content?: KeepDoc 
 
 export async function patchKeepNote(
   id: string,
-  patch: Partial<{ title: string; content: KeepDoc; pinned: boolean; archived: boolean; trashed: boolean }>,
+  patch: Partial<{ title: string; content: KeepDoc; pinned: boolean; archived: boolean; trashed: boolean; color: string | null }>,
 ): Promise<{ note: KeepNote }> {
   return json(
     fetch(apiUrl(`/api/keeps/${id}`), {

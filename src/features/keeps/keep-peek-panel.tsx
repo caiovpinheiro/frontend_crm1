@@ -19,6 +19,17 @@ import { formDialogCancelClass } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
 import { useKeepNotes } from "./hooks";
 import type { KeepNote } from "./types";
+import { keepPreviewText } from "./preview";
+
+async function copyKeepPlainText(note: KeepNote) {
+  const text = keepPreviewText(note).trim();
+  try {
+    await navigator.clipboard.writeText(text || " ");
+    toast.success("Texto copiado");
+  } catch {
+    toast.error("Não foi possível copiar.");
+  }
+}
 
 export function KeepPeekPanel({ className }: { className?: string }) {
   const [q, setQ] = useState("");
@@ -46,19 +57,42 @@ export function KeepPeekPanel({ className }: { className?: string }) {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {items.map((note) => (
-              <button
+              <div
                 key={note.id}
-                type="button"
-                onClick={() => setOpen(note)}
-                className={cn(CARD_SURFACE_CLASS, "p-3 text-left shadow-none transition-colors hover:border-primary/40")}
+                className={cn(
+                  CARD_SURFACE_CLASS,
+                  "keep-note-card flex items-start gap-1 p-3 shadow-none transition-colors hover:border-primary/40",
+                )}
+                data-keep-color={note.color || undefined}
               >
-                <h3 className="mb-1 truncate text-sm font-semibold text-foreground">
-                  {note.title.trim() || "Sem título"}
-                </h3>
-                <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                  {note.plainText.trim() || "Nota vazia"}
-                </p>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setOpen(note)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <h3 className="mb-1 truncate pr-1 text-sm font-semibold text-foreground">
+                    {note.title.trim() || "Sem título"}
+                  </h3>
+                  <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                    {keepPreviewText(note).trim() || "Nota vazia"}
+                  </p>
+                </button>
+                <ButtonGlass
+                  type="button"
+                  variant="icon"
+                  size="icon"
+                  title="Copiar texto"
+                  tooltipSide="bottom"
+                  className="size-8 shrink-0 text-muted-foreground"
+                  aria-label="Copiar texto"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void copyKeepPlainText(note);
+                  }}
+                >
+                  <Copy className="size-3.5" />
+                </ButtonGlass>
+              </div>
             ))}
           </div>
         )}
@@ -73,13 +107,7 @@ function KeepPeekDialog({ note, onClose }: { note: KeepNote | null; onClose: () 
 
   async function copyText() {
     if (!note) return;
-    const text = note.plainText.trim();
-    try {
-      await navigator.clipboard.writeText(text || " ");
-      toast.success("Texto copiado");
-    } catch {
-      toast.error("Não foi possível copiar.");
-    }
+    await copyKeepPlainText(note);
   }
 
   return (
@@ -97,7 +125,7 @@ function KeepPeekDialog({ note, onClose }: { note: KeepNote | null; onClose: () 
             <img key={img.id} src={img.url} alt="" className="mb-3 max-h-64 w-full rounded-xl object-contain" />
           ))}
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-            {note?.plainText.trim() || "Nota vazia"}
+            {note ? keepPreviewText(note).trim() || "Nota vazia" : "Nota vazia"}
           </p>
         </div>
         <DialogFooter>

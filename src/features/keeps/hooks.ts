@@ -13,17 +13,18 @@ import {
 } from "./api";
 import type { KeepDoc, KeepFolder, KeepNote } from "./types";
 
-export const keepsKey = (folder: KeepFolder, q: string) => ["keeps", folder, q] as const;
+export const keepsKey = (folder: KeepFolder, q: string, colors: string[]) =>
+  ["keeps", folder, q, [...colors].sort().join(",")] as const;
 
-export function useKeepNotes(folder: KeepFolder, q: string) {
+export function useKeepNotes(folder: KeepFolder, q: string, colors: string[] = []) {
   return useQuery({
-    queryKey: keepsKey(folder, q),
-    queryFn: () => listKeepNotes(folder, q),
+    queryKey: keepsKey(folder, q, colors),
+    queryFn: () => listKeepNotes(folder, q, colors),
     staleTime: 8_000,
   });
 }
 
-export function useKeepMutations(folder: KeepFolder, q: string) {
+export function useKeepMutations(folder: KeepFolder, q: string, colors: string[] = []) {
   const qc = useQueryClient();
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["keeps"] });
 
