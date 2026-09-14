@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreVertical, Search, SquarePen, Star, Users } from "lucide-react";
+import { Archive, Bell, BellOff, ChevronDown, MoreVertical, Pin, Search, SquarePen, Users } from "lucide-react";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { AppLoading } from "@/components/crm/app-loading";
@@ -36,6 +36,8 @@ type ChatListItem =
       preview: string;
       time: string;
       typing: boolean;
+      muted: boolean;
+      roomId: string | null;
     }
   | {
       key: string;
@@ -48,6 +50,8 @@ type ChatListItem =
       preview: string;
       time: string;
       typing: boolean;
+      muted: boolean;
+      roomId: string | null;
     };
 
 function HeaderIcon({
@@ -84,14 +88,20 @@ function ChatRow({
   item,
   active,
   favorited,
+  archived,
   onClick,
   onToggleFavorite,
+  onToggleArchived,
+  onToggleMute,
 }: {
   item: ChatListItem;
   active: boolean;
   favorited: boolean;
+  archived: boolean;
   onClick: () => void;
   onToggleFavorite: () => void;
+  onToggleArchived: () => void;
+  onToggleMute?: () => void;
 }) {
   const unread = item.unread;
   return (
@@ -129,7 +139,10 @@ function ChatRow({
             {item.kind === "group" ? `#${item.name}` : item.name}
           </span>
           {favorited && (
-            <Star className="h-3 w-3 shrink-0 fill-warning text-warning" aria-hidden />
+            <Pin className="h-3 w-3 shrink-0 text-[var(--orbita-selected)]" aria-hidden />
+          )}
+          {item.muted && (
+            <BellOff className="h-3 w-3 shrink-0 text-[var(--orbita-text-tertiary)]" aria-hidden />
           )}
           {item.time && (
             <span
@@ -162,24 +175,52 @@ function ChatRow({
           {!active && <UnreadPill count={unread} />}
         </div>
       </div>
-      <TooltipGlass label={favorited ? "Remover dos favoritos" : "Favoritar"} side="left">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite();
-          }}
-          aria-label={favorited ? "Remover dos favoritos" : "Favoritar"}
-          className={cn(
-            "grid h-6 w-6 shrink-0 place-items-center rounded-full",
-            favorited
-              ? "text-warning"
-              : "text-[var(--orbita-text-tertiary)] opacity-50 hover:bg-[var(--orbita-field)] group-hover:opacity-100",
-          )}
-        >
-          <Star className={cn("h-3 w-3", favorited && "fill-current")} />
-        </button>
-      </TooltipGlass>
+      <div className="flex shrink-0 flex-col items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+        <TooltipGlass label={favorited ? "Desafixar" : "Fixar"} side="left">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            aria-label={favorited ? "Desafixar conversa" : "Fixar conversa"}
+            className={cn(
+              "grid h-6 w-6 place-items-center rounded-full",
+              favorited ? "text-[var(--orbita-selected)]" : "text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]",
+            )}
+          >
+            <Pin className={cn("h-3 w-3", favorited && "fill-current")} />
+          </button>
+        </TooltipGlass>
+        <TooltipGlass label={archived ? "Desarquivar" : "Arquivar"} side="left">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleArchived();
+            }}
+            aria-label={archived ? "Desarquivar conversa" : "Arquivar conversa"}
+            className="grid h-6 w-6 place-items-center rounded-full text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]"
+          >
+            <Archive className="h-3 w-3" />
+          </button>
+        </TooltipGlass>
+        {onToggleMute ? (
+          <TooltipGlass label={item.muted ? "Ativar som" : "Silenciar"} side="left">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleMute();
+              }}
+              aria-label={item.muted ? "Ativar som desta conversa" : "Silenciar conversa"}
+              className="grid h-6 w-6 place-items-center rounded-full text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]"
+            >
+              {item.muted ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
+            </button>
+          </TooltipGlass>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -198,6 +239,7 @@ function readStoredTab(): TeamChatListTab {
 function itemMatchesTab(item: ChatListItem, tab: TeamChatListTab, favorites: string[]): boolean {
   if (tab === "unread") return item.unread > 0;
   if (tab === "favorites") return favorites.includes(item.favId);
+  if (tab === "groups") return item.kind === "group";
   return true;
 }
 
@@ -208,7 +250,10 @@ export function Sidebar({
   loading,
   error,
   favorites,
+  archived,
   onToggleFavorite,
+  onToggleArchived,
+  onToggleMute,
   onSelectRoom,
   onSelectPerson,
   onNew,
@@ -221,7 +266,10 @@ export function Sidebar({
   loading: boolean;
   error?: string | null;
   favorites: string[];
+  archived: string[];
   onToggleFavorite: (id: string) => void;
+  onToggleArchived: (id: string) => void;
+  onToggleMute?: (roomId: string, muted: boolean) => void;
   onSelectRoom: (id: string) => void;
   onSelectPerson: (personId: string) => void;
   onNew: () => void;
@@ -232,6 +280,7 @@ export function Sidebar({
   const [tab, setTab] = useState<TeamChatListTab>(DEFAULT_TEAM_CHAT_LIST_TAB);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pendenciesOpen, setPendenciesOpen] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const q = query.trim().toLowerCase();
 
@@ -263,6 +312,8 @@ export function Sidebar({
         preview: row.room?.lastPreview || "Enviar mensagem",
         time: row.room?.lastMessageAt ? formatListTime(row.room.lastMessageAt) : "",
         typing: Boolean(row.room?.id && typing[row.room.id]),
+        muted: Boolean(row.room?.muted),
+        roomId: row.room?.id ?? null,
       });
     }
     for (const room of groups) {
@@ -277,6 +328,8 @@ export function Sidebar({
         preview: room.lastPreview || "Comece a conversa",
         time: formatListTime(room.lastMessageAt),
         typing: Boolean(typing[room.id]),
+        muted: Boolean(room.muted),
+        roomId: room.id,
       });
     }
     return out.sort((a, b) => b.at - a.at || a.name.localeCompare(b.name, "pt-BR"));
@@ -289,16 +342,33 @@ export function Sidebar({
 
   const counts = useMemo(
     () => ({
-      all: items.length,
-      unread: items.filter((item) => item.unread > 0).length,
-      favorites: items.filter((item) => favorites.includes(item.favId)).length,
+      all: items.filter((item) => !archived.includes(item.key)).length,
+      unread: items.filter((item) => item.unread > 0 && !archived.includes(item.key)).length,
+      favorites: items.filter((item) => favorites.includes(item.favId) && !archived.includes(item.key)).length,
+      groups: items.filter((item) => item.kind === "group" && !archived.includes(item.key)).length,
     }),
-    [items, favorites],
+    [items, favorites, archived],
   );
 
   const visibleItems = useMemo(
-    () => items.filter((item) => itemMatchesTab(item, tab, favorites) && matchesSearch(item)),
-    [items, tab, favorites, q],
+    () =>
+      items.filter(
+        (item) =>
+          !archived.includes(item.key) && itemMatchesTab(item, tab, favorites) && matchesSearch(item),
+      ),
+    [items, tab, favorites, archived, q],
+  );
+  const pinnedItems = useMemo(
+    () => visibleItems.filter((item) => favorites.includes(item.favId)),
+    [visibleItems, favorites],
+  );
+  const regularItems = useMemo(
+    () => visibleItems.filter((item) => !favorites.includes(item.favId)),
+    [visibleItems, favorites],
+  );
+  const archivedItems = useMemo(
+    () => items.filter((item) => archived.includes(item.key) && matchesSearch(item)),
+    [items, archived, q],
   );
 
   function persistTab(next: TeamChatListTab) {
@@ -317,13 +387,32 @@ export function Sidebar({
         item={item}
         active={item.kind === "dm" ? item.row.room?.id === activeId : item.room.id === activeId}
         favorited={favorites.includes(item.favId)}
+        archived={archived.includes(item.key)}
         onClick={() => {
           if (item.kind === "group") onSelectRoom(item.room.id);
           else if (item.row.room) onSelectRoom(item.row.room.id);
           else onSelectPerson(item.row.person.id);
         }}
         onToggleFavorite={() => onToggleFavorite(item.favId)}
+        onToggleArchived={() => onToggleArchived(item.key)}
+        onToggleMute={
+          item.roomId && onToggleMute
+            ? () => onToggleMute(item.roomId!, item.muted)
+            : undefined
+        }
       />
+    );
+  }
+
+  function renderSection(title: string, rows: ChatListItem[]) {
+    if (rows.length === 0) return null;
+    return (
+      <section className="mb-2">
+        <h2 className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--orbita-text-tertiary)]">
+          {title}
+        </h2>
+        <div className="divide-y divide-border">{rows.map(renderRow)}</div>
+      </section>
     );
   }
 
@@ -411,12 +500,31 @@ export function Sidebar({
           <div className={cn(CARD_SURFACE_CLASS, "mx-4 mt-6 px-4 py-8 text-center")}>
             <p className="text-sm text-destructive">{error}</p>
           </div>
-        ) : visibleItems.length === 0 ? (
+        ) : visibleItems.length === 0 && archivedItems.length === 0 ? (
           <div className={cn(CARD_SURFACE_CLASS, "mx-2 mt-6 border border-border px-4 py-8 text-center")}>
             <p className="text-sm text-muted-foreground">{emptyListLabel(tab, Boolean(q))}</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">{visibleItems.map(renderRow)}</div>
+          <>
+            {archivedItems.length > 0 ? (
+              <section className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => setArchivedOpen((v) => !v)}
+                  aria-expanded={archivedOpen}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold text-[var(--orbita-text-secondary)] hover:bg-[var(--orbita-field)]"
+                >
+                  <Archive className="h-3.5 w-3.5" />
+                  Arquivadas
+                  <span className="rounded-full bg-muted px-1.5 text-[10px] tabular-nums">{archivedItems.length}</span>
+                  <ChevronDown className={cn("ml-auto h-3.5 w-3.5 transition", archivedOpen && "rotate-180")} />
+                </button>
+                {archivedOpen ? <div className="divide-y divide-border">{archivedItems.map(renderRow)}</div> : null}
+              </section>
+            ) : null}
+            {renderSection("Fixadas", pinnedItems)}
+            {renderSection(pinnedItems.length > 0 ? "Conversas" : "Conversas", regularItems)}
+          </>
         )}
       </nav>
       )}

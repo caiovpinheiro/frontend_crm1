@@ -1,4 +1,4 @@
-export const TEAM_CHAT_LIST_TAB_IDS = ["all", "unread", "favorites"] as const;
+export const TEAM_CHAT_LIST_TAB_IDS = ["all", "unread", "favorites", "groups"] as const;
 export type TeamChatListTab = (typeof TEAM_CHAT_LIST_TAB_IDS)[number];
 
 export type TeamChatListTabItem = {
@@ -10,6 +10,7 @@ export const TEAM_CHAT_LIST_TABS: readonly TeamChatListTabItem[] = [
   { id: "all", label: "Tudo" },
   { id: "unread", label: "Não lidas" },
   { id: "favorites", label: "Favoritas" },
+  { id: "groups", label: "Grupos" },
 ];
 
 export const DEFAULT_TEAM_CHAT_LIST_TAB: TeamChatListTab = "all";
@@ -22,5 +23,6 @@ export function emptyListLabel(tab: TeamChatListTab, searching: boolean): string
   if (searching) return "Nenhuma conversa encontrada.";
   if (tab === "unread") return "Nenhuma conversa não lida.";
   if (tab === "favorites") return "Nenhuma conversa favorita.";
+  if (tab === "groups") return "Nenhum grupo.";
   return "Nenhuma conversa.";
 }
