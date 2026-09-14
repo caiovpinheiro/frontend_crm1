@@ -1077,9 +1077,9 @@ function CaptionText({
  * Layout: barra horizontal de reações rápidas (6 emojis) + lista vertical
  * de ações (Responder / Reagir / Encaminhar / Fixar / Favoritar / Copiar).
  * A carinha só aparece no mouse over da bolha (`group-hover`). Fica ao
- * lado (não em `-top-2` por cima do card anterior), pra o scroll do
- * chat não recortar. Menu aberto ou toque longo / clique direito
- * também mostram o gatilho, via estado controlado pelo pai.
+ * lado, numa faixa de hover que cobre o vão até o botão — senão o
+ * `group-hover` cai no caminho do mouse e a carinha some. Menu aberto
+ * ou toque longo / clique direito também mostram o gatilho.
  *
  * Renderização: `createPortal` no <body> com `position: fixed`, para
  * escapar de qualquer ancestral com `overflow: hidden` (o chat-area e a
@@ -1227,26 +1227,31 @@ function ReceivedMessageMenu({
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((v) => !v)
-        }}
-        aria-label="Reagir à mensagem"
-        title="Reagir"
-        aria-expanded={open}
-        className={cn(
-          "absolute left-full top-1 z-10 ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
-          open
-            ? "opacity-100"
-            : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100",
-        )}
-        style={{ background: "#ffffff", color: "#334155" }}
-      >
-        <IconMoodPlus size={16} stroke={2.1} />
-      </button>
+      {/* Ponte de hover: o botão fica fora da bolha (`left-full`). Sem
+          esta faixa o `ml-1` não recebe eventos, o `group-hover` cai e
+          o `pointer-events-none` esconde a carinha no caminho do mouse. */}
+      <div className="absolute left-full top-0 z-10 flex h-full min-h-8 w-10 items-start pt-1">
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpen((v) => !v)
+          }}
+          aria-label="Reagir à mensagem"
+          title="Reagir"
+          aria-expanded={open}
+          className={cn(
+            "ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
+            open
+              ? "opacity-100"
+              : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100",
+          )}
+          style={{ background: "#ffffff", color: "#334155" }}
+        >
+          <IconMoodPlus size={16} stroke={2.1} />
+        </button>
+      </div>
 
       {open && coords && typeof document !== "undefined"
         ? createPortal(
