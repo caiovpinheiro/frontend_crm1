@@ -1,6 +1,8 @@
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import type {
   ChatDestination,
+  CrmAnchorType,
+  CrmCard,
   RecordSearchHit,
   TeamChatAttachment,
   TeamChatDepartment,
@@ -371,6 +373,16 @@ export async function messageToChecklist(
       body: JSON.stringify(input),
     }),
     "Não foi possível criar o checklist.",
+  );
+}
+
+export async function previewTeamChatRecord(
+  type: CrmAnchorType,
+  id: string,
+): Promise<{ card: CrmCard }> {
+  return json(
+    apiFetch(`/api/team-chat/records/preview?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`),
+    "Não foi possível carregar o preview.",
   );
 }
 
