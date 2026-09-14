@@ -64,6 +64,8 @@ export type TeamChatMessage = {
   createdAt: string;
   author: TeamChatPerson | null;
   workItemId?: string | null;
+  card?: CrmCard | null;
+  anchorRef?: { type: string; id: string } | null;
   forward?: {
     id: string;
     type: string;
@@ -115,6 +117,8 @@ export type CrmCard =
       type: CrmAnchorType;
       typeLabel: string;
     };
+
+export type OpenCrmCard = Extract<CrmCard, { restricted: false }>;
 
 export type RecordSearchHit = {
   type: CrmAnchorType;

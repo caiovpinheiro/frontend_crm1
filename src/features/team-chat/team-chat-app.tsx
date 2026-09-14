@@ -35,7 +35,8 @@ import {
   useTeamChatTyping,
 } from "./hooks";
 import { favoriteKey, isGroupRoom, parseQuotedContent } from "./helpers";
-import type { DirectRow, TeamChatMessage, TeamChatRoom, WorkItem, WorkItemType } from "./types";
+import { RecordPeek } from "./record-peek";
+import type { DirectRow, OpenCrmCard, TeamChatMessage, TeamChatRoom, WorkItem, WorkItemType } from "./types";
 import {
   CreateWorkItemDialog,
   LinkRecordDialog,
@@ -444,6 +445,7 @@ function Thread({
   const [toChecklist, setToChecklist] = useState<TeamChatMessage | null>(null);
   const [linkItemId, setLinkItemId] = useState<string | null>(null);
   const [forwardMsg, setForwardMsg] = useState<TeamChatMessage | null>(null);
+  const [peekCard, setPeekCard] = useState<OpenCrmCard | null>(null);
   const pingTyping = usePingTeamChatTyping(room.id);
 
   useEffect(() => {
@@ -453,6 +455,7 @@ function Thread({
     setToChecklist(null);
     setLinkItemId(null);
     setForwardMsg(null);
+    setPeekCard(null);
   }, [room.id]);
 
   function onWorkItemReady(item: WorkItem) {
@@ -517,6 +520,7 @@ function Thread({
               { onError: (e: Error) => toast.error(e.message) },
             )
           }
+          onOpenRecord={setPeekCard}
         />
         <div className="relative z-20 shrink-0 overflow-visible border-t border-[var(--orbita-divider)] bg-[var(--orbita-chrome)] px-2 py-2 md:px-3" data-tour="bwipo-chat-composer">
           <div className="w-full overflow-visible">
@@ -574,6 +578,7 @@ function Thread({
         roomId={room.id}
         message={forwardMsg}
       />
+      <RecordPeek card={peekCard} onClose={() => setPeekCard(null)} />
     </div>
   );
 }
