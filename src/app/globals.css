@@ -1448,8 +1448,8 @@
   outline: none;
 }
 
-/* Responsive: on mobile, sidebar blocks stack vertically */
-@media (max-width: 1023px) {
+/* Mobile: lista e conversa se revezam em tela cheia. md+ fica lado a lado. */
+@media (max-width: 767px) {
   .team-chat-shell {
     flex-direction: column;
   }
