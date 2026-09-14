@@ -72,6 +72,8 @@ type NewMessagePayload = {
   content?: string;
   timestamp?: string;
   messageType?: string;
+  /** Slim list row from the bus (`InboxSseCard`). */
+  card?: ConversationListRow;
 };
 
 /**
