@@ -5,9 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { IconLoader2 as Loader2 } from "@tabler/icons-react";
 
-import { AuthPageShell, AuthSurface } from "@/components/ui/auth-surface";
+import { AuthSurface } from "@/components/ui/auth-surface";
 import { BlurText } from "@/components/ui/blur-text";
 import { Button } from "@/components/ui/button";
+import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isMarketingApexHost } from "@/lib/tenant-host";
@@ -108,7 +109,8 @@ function ForgotForm() {
   }
 
   return (
-    <AuthPageShell>
+    <HeroGeometric color1="#a78bfa" color2="#f472b6" speed={1}>
+      <div className="flex min-h-screen items-center justify-center p-6">
         <AuthSurface>
           <div>
             <h1 className="text-xl font-bold text-foreground">
@@ -172,7 +174,8 @@ function ForgotForm() {
             </Link>
           </p>
         </AuthSurface>
-    </AuthPageShell>
+      </div>
+    </HeroGeometric>
   );
 }
 
