@@ -86,6 +86,19 @@ describe("inboxQueueTabFor", () => {
     ).toBe("entrada");
   });
 
+  it("automação viva vai para Automação mesmo com dono e outbound", () => {
+    expect(
+      inboxQueueTabFor(
+        row({
+          hasActiveAutomation: true,
+          hasHumanReply: true,
+          hasAgentReply: true,
+          lastMessageDirection: "out",
+        }),
+      ),
+    ).toBe("automacao");
+  });
+
   it("assignee humano sem reply contável fica em Entrada mesmo com inbound", () => {
     expect(
       inboxQueueTabFor(

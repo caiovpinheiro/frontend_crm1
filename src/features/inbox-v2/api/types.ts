@@ -92,6 +92,8 @@ export interface ConversationListRow {
   hasHumanReply?: boolean | null;
   /** Reply de agente/automação (`Conversation.hasAgentReply`). */
   hasAgentReply?: boolean | null;
+  /** Contexto RUNNING/PAUSED no contato — fila Automação. */
+  hasActiveAutomation?: boolean | null;
   /**
    * Fila de origem quando a lista veio de fetch por aba (multi-queue).
    * Tem prioridade sobre heurística ao montar seções.

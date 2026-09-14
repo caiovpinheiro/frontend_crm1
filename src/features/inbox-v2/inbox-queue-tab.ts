@@ -46,6 +46,7 @@ export function inboxQueueTabFor(row: ConversationListRow): InboxTab {
   // Responsável IA tem fila própria (`agente_ia`), tenha o aluno respondido
   // ou não — espelha `tabToWhere` no backend.
   if (assigneeType === "AI") return "agente_ia";
+  if (row.hasActiveAutomation) return "automacao";
   if (!row.assignedToId) return "entrada";
 
   // Entrada (backend): assignee HUMANO ainda sem reply contável — o cliente
@@ -84,7 +85,10 @@ export function rowBelongsToInboxTab(
   if (tab === "ligar") {
     return row.channel === "whatsapp" && row.whatsappCallConsentStatus === "GRANTED";
   }
-  if (tab === "automacao") return false;
+  if (tab === "automacao") {
+    const assigneeType = (row.assignedTo?.type ?? "").toUpperCase();
+    return Boolean(row.hasActiveAutomation) && assigneeType !== "AI";
+  }
 
   const canonical = inboxQueueTabFor(row);
   if (tab === "entrada") {
@@ -148,9 +152,12 @@ export function applyTabCountMove(
   return next;
 }
 
-/** Card já listado em Automação permanece até haver dono, inbound ou encerrar. */
+/** Card já listado em Automação permanece enquanto o contexto estiver vivo. */
 export function rowStaysOnAutomacaoTab(row: ConversationListRow): boolean {
   if (row.status === "RESOLVED" || row.closedAt || row.hasError) return false;
+  if ((row.assignedTo?.type ?? "").toUpperCase() === "AI") return false;
+  if (row.hasActiveAutomation === true) return true;
+  if (row.hasActiveAutomation === false) return false;
   if (row.assignedToId || row.lastInboundAt) return false;
   return true;
 }
@@ -181,12 +188,12 @@ export function rowBelongsToAnyInboxTab(
  */
 export const INBOX_QUEUE_SECTION_ORDER: readonly InboxTab[] = [
   "ligar",
+  "automacao",
+  "agente_ia",
   "entrada",
   "esperando",
   "respondidas",
   "resolvidos",
-  "agente_ia",
-  "automacao",
   "finalizados",
   "erro",
 ];
