@@ -1,4 +1,4 @@
-export type TourId = "pipeline" | "automations" | "contacts";
+export type TourId = "pipeline" | "automations" | "contacts" | "bwipo-chat";
 
 export type TourSide = "top" | "right" | "bottom" | "left";
 
@@ -11,9 +11,11 @@ export type PageTourStep = {
   title: string;
   description: string;
   side?: TourSide;
+  fallback?: string;
 };
 
 export type PageTour = {
   id: TourId;
   steps: PageTourStep[];
+  skipMissingElement?: boolean;
 };
