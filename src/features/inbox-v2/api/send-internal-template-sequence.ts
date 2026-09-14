@@ -3,6 +3,8 @@
  * intercaladas (`messageBefore`). Compartilhado entre o picker de modelos
  * (menu "+"), o slash "/" e o park+Enter do composer — garante SEMPRE a
  * mesma ordem: content → (texto do passo + arquivo, se houver) × N.
+ * Cada POST espera o worker Meta (`waitUntilSent`) para a Graph não
+ * entregar todos os textos (fila outbound) antes das imagens (fila attach).
  *
  * Sequencial (await em loop) — NUNCA Promise.all — pra não estourar o rate
  * limit do canal quando o modelo tem vários arquivos. Falhas intermediárias
@@ -109,7 +111,11 @@ export async function sendInternalTemplateSequence({
   const trimmedContent = (content ?? "").trim();
   if (trimmedContent) {
     try {
-      await sendMessage(conversationId, { content: trimmedContent, channelId });
+      await sendMessage(conversationId, {
+        content: trimmedContent,
+        channelId,
+        waitUntilSent: true,
+      });
     } catch (err) {
       toastSendError(err, "Falha ao enviar mensagem do modelo");
     }
@@ -121,6 +127,7 @@ export async function sendInternalTemplateSequence({
         await sendMessage(conversationId, {
           content: att.messageBefore.trim(),
           channelId,
+          waitUntilSent: true,
         });
       } catch (err) {
         toastSendError(err, "Falha ao enviar mensagem da sequência");
@@ -135,6 +142,7 @@ export async function sendInternalTemplateSequence({
         fileName: att.name ?? undefined,
         mimeType: att.mimeType ?? undefined,
         channelId,
+        waitUntilSent: true,
       });
     } catch (err) {
       if (isVideoTooLarge(err)) {
