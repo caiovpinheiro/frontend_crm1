@@ -1,4 +1,24 @@
-import type { DirectRow, TeamChatDepartment, TeamChatKind, TeamChatPerson } from "./types";
+import type { DirectRow, TeamChatDepartment, TeamChatKind, TeamChatPerson, WorkItemEntryInput } from "./types";
+
+export function extractEntriesFromText(raw: string): { title: string; entries: WorkItemEntryInput[] } {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const items: WorkItemEntryInput[] = [];
+  let title = "Checklist";
+  for (const line of lines) {
+    const m = line.match(/^(?:[-*•]|\d+[.)]|\[(?: |x|X)\])\s+(.*)$/);
+    if (m?.[1]) {
+      items.push({ text: m[1].replace(/^\[(?: |x|X)\]\s*/, "").trim() });
+    } else if (items.length === 0 && line.length < 80) {
+      title = line.replace(/^#+\s*/, "");
+    } else {
+      items.push({ text: line });
+    }
+  }
+  return { title, entries: items.slice(0, 40) };
+}
 
 export function isGroupRoom(room: { kind: TeamChatKind | string }) {
   return room.kind === "GROUP" || room.kind === "CHANNEL";
