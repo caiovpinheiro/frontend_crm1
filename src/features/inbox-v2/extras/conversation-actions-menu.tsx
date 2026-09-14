@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
@@ -19,6 +19,7 @@ import {
   IconUser,
   IconEye,
   IconEyeOff,
+  IconMessagePlus,
 } from "@tabler/icons-react";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -38,7 +39,30 @@ import {
   normalizeInboxPolicy,
   type InboxPolicy,
 } from "@/lib/ai-agents/steering";
+import { useSendToChat } from "@/features/team-chat/send-to-chat-dialog";
+import { messagesKey } from "@/features/inbox-v2/hooks/use-messages";
+import type { MessagesResponse } from "@/features/inbox-v2/api/types";
 import { useResolveConversationFlow } from "./use-resolve-conversation-flow";
+
+function attendanceNamesFromThread(
+  data: MessagesResponse | undefined,
+  assigneeName?: string | null,
+): string[] {
+  const names = new Set<string>();
+  const assignee = assigneeName?.trim();
+  if (assignee) names.add(assignee);
+  for (const m of data?.messages ?? []) {
+    if (m.direction !== "out") continue;
+    if (m.authorType === "bot" || m.authorType === "system") continue;
+    if (m.sender?.kind === "BOT" || m.sender?.kind === "SYSTEM" || m.sender?.kind === "CONTACT") {
+      continue;
+    }
+    const name = (m.sender?.name || m.senderName || "").trim();
+    if (!name || name === "Automação") continue;
+    names.add(name);
+  }
+  return [...names];
+}
 
 interface ConversationActionsMenuProps {
   conversationId: string | null;
@@ -76,6 +100,7 @@ interface ConversationActionsMenuProps {
     requireTabulationOnClose: boolean;
   }) => void;
   assigneeId?: string | null;
+  assigneeName?: string | null;
   assigneeType?: string | null;
   /**
    * Contexto para a policy do agente (funil/etapa/aliases). Sem regex
@@ -104,12 +129,15 @@ export function ConversationActionsMenu({
   requireTabulationOnClose,
   onDepartmentChanged,
   assigneeId: _assigneeId,
+  assigneeName,
   assigneeType,
   aiHandoffContext,
 }: ConversationActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [deptMenuOpen, setDeptMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const qc = useQueryClient();
+  const { openShare } = useSendToChat();
   const { data: session } = useSession();
   const currentUserId =
     (session?.user as { id?: string } | undefined)?.id ?? null;
@@ -255,6 +283,23 @@ export function ConversationActionsMenu({
     } catch {
       toast.error("Não foi possível copiar o link.");
     }
+  }
+
+  function handleSendToChat() {
+    const shareId = conversationId ?? dealId;
+    if (!shareId) {
+      toast.error("Nada para enviar.");
+      return;
+    }
+    setOpen(false);
+    const thread = conversationId
+      ? qc.getQueryData<MessagesResponse>(messagesKey(conversationId))
+      : undefined;
+    openShare({
+      type: conversationId ? "conversation" : "deal",
+      id: shareId,
+      attendanceNames: attendanceNamesFromThread(thread, assigneeName),
+    });
   }
 
   function handleDistributeToDepartment(dept: {
@@ -451,6 +496,18 @@ export function ConversationActionsMenu({
             <IconLink size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
             <span>Copiar link da conversa</span>
           </button>
+
+          <RequirePermission permission="team_chat:send">
+            <button
+              type="button"
+              onClick={handleSendToChat}
+              disabled={!conversationId && !dealId}
+              className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-50"
+            >
+              <IconMessagePlus size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
+              <span>Enviar para o Bwipo Chat</span>
+            </button>
+          </RequirePermission>
 
           {onOpenFavorites && (
             <button

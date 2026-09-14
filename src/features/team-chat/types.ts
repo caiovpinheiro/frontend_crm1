@@ -88,6 +88,13 @@ export type ChatDestination = {
 
 export type CrmAnchorType = "deal" | "conversation" | "contact";
 
+export type ShareTarget = {
+  type: CrmAnchorType;
+  id: string;
+  /** Quem passou pelo atendimento — entra no texto enviado. */
+  attendanceNames?: string[];
+};
+
 export type CrmCard =
   | {
       kind: "crm";
