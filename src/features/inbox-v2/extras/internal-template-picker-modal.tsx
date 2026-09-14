@@ -26,6 +26,7 @@ import { sendInternalTemplateSequence } from "@/features/inbox-v2/api";
 import { applyOutboundPreviewToInboxCaches, messagesKey } from "@/features/inbox-v2/hooks";
 import {
   interpolateInternalTemplate,
+  interpolateInternalTemplateAttachments,
   type InternalTemplateContext,
 } from "@/lib/internal-template-variables";
 import { apiUrl } from "@/lib/api";
@@ -130,12 +131,14 @@ function getTemplateAttachments(
   messageBefore: string | null;
 }> {
   if (Array.isArray(tpl.attachments) && tpl.attachments.length > 0) {
-    return tpl.attachments.map((a) => ({
-      url: a.url,
-      name: a.name ?? null,
-      mimeType: a.mimeType ?? tpl.mediaType ?? null,
-      messageBefore: a.messageBefore ?? null,
-    }));
+    return tpl.attachments
+      .filter((a) => Boolean(a.url?.trim()) || Boolean(a.messageBefore?.trim()))
+      .map((a) => ({
+        url: a.url ?? "",
+        name: a.name ?? null,
+        mimeType: a.mimeType ?? tpl.mediaType ?? null,
+        messageBefore: a.messageBefore ?? null,
+      }));
   }
   if (tpl.mediaUrl) {
     return [
@@ -213,7 +216,10 @@ export function InternalTemplatePickerModal({
   const sendMutation = useMutation({
     mutationFn: async (tpl: InternalTemplate) => {
       const text = interpolateInternalTemplate(tpl.content, templateContext ?? {});
-      const attachments = getTemplateAttachments(tpl);
+      const attachments = interpolateInternalTemplateAttachments(
+        getTemplateAttachments(tpl),
+        templateContext ?? {},
+      );
       await sendInternalTemplateSequence({ conversationId, content: text, attachments });
       return text;
     },
@@ -257,7 +263,10 @@ export function InternalTemplatePickerModal({
   function handlePick(tpl: InternalTemplate) {
     if (sendMutation.isPending) return;
     if (onPick) {
-      const media = getTemplateAttachments(tpl);
+      const media = interpolateInternalTemplateAttachments(
+        getTemplateAttachments(tpl),
+        templateContext ?? {},
+      );
       onPick(
         interpolateInternalTemplate(tpl.content, templateContext ?? {}),
         media.length > 0 ? media : null,

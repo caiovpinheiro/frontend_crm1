@@ -2,7 +2,7 @@
  * Envio sequencial de modelo interno com múltiplos anexos + mensagens
  * intercaladas (`messageBefore`). Compartilhado entre o picker de modelos
  * (menu "+"), o slash "/" e o park+Enter do composer — garante SEMPRE a
- * mesma ordem: content → anexo1 → messageBefore(anexo2) → anexo2 → ...
+ * mesma ordem: content → (texto do passo + arquivo, se houver) × N.
  *
  * Sequencial (await em loop) — NUNCA Promise.all — pra não estourar o rate
  * limit do canal quando o modelo tem vários arquivos. Falhas intermediárias
@@ -79,17 +79,18 @@ export interface InternalTemplateSequenceAttachment {
   url: string;
   name: string | null;
   mimeType?: string | null;
-  /** Texto enviado ANTES deste arquivo. Só faz sentido para índice >= 1. */
+  /** Texto deste passo (antes do arquivo, se houver). */
   messageBefore?: string | null;
 }
 
-/** Multi-anexo ou `messageBefore` no 2º+ exige a sequência imediata. */
+/** Mais de um passo, texto extra ou item só de texto → envio em sequência. */
 export function mediaNeedsSequence(
   media: Array<{ url: string; name: string | null; messageBefore?: string | null }>,
 ): boolean {
   return (
     media.length > 1 ||
-    media.some((m, i) => i >= 1 && !!m.messageBefore?.trim())
+    media.some((m) => !!m.messageBefore?.trim()) ||
+    media.some((m) => !String(m.url ?? "").trim())
   );
 }
 
@@ -114,21 +115,19 @@ export async function sendInternalTemplateSequence({
     }
   }
 
-  for (let i = 0; i < attachments.length; i++) {
-    const att = attachments[i];
-
-    // A partir do 2º anexo, `messageBefore` (se preenchido) sai como
-    // mensagem de texto própria imediatamente antes do arquivo correspondente.
-    if (i > 0 && att.messageBefore?.trim()) {
+  for (const att of attachments) {
+    if (att.messageBefore?.trim()) {
       try {
         await sendMessage(conversationId, {
           content: att.messageBefore.trim(),
           channelId,
         });
       } catch (err) {
-        toastSendError(err, "Falha ao enviar mensagem antes do anexo");
+        toastSendError(err, "Falha ao enviar mensagem da sequência");
       }
     }
+
+    if (!att.url?.trim()) continue;
 
     try {
       await sendAttachmentReuse(conversationId, {

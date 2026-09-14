@@ -913,7 +913,7 @@ export function Composer({
       {pendingMediaList.length > 0 && (
         <div className="mb-2 flex flex-col gap-1.5">
           {pendingMediaList.map((media, i) => {
-            const before = i > 0 ? media.messageBefore?.trim() : "";
+            const before = media.messageBefore?.trim();
             return (
               <div
                 key={`${media.url}-${i}`}

@@ -235,6 +235,16 @@ export function interpolateInternalTemplate(
   });
 }
 
+export function interpolateInternalTemplateAttachments<
+  T extends { messageBefore?: string | null },
+>(attachments: T[], ctx: InternalTemplateContext): T[] {
+  return attachments.map((a) => {
+    const raw = a.messageBefore;
+    if (typeof raw !== "string" || !raw.trim()) return a;
+    return { ...a, messageBefore: interpolateInternalTemplate(raw, ctx) };
+  });
+}
+
 /** Lista todos os tokens conhecidos pelo catálogo (útil pra validação). */
 export function getKnownInternalTemplateTokens(): string[] {
   return INTERNAL_TEMPLATE_VARIABLE_OPTIONS.map((o) => o.token);

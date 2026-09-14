@@ -37,7 +37,7 @@ type TemplateAttachment = {
   url: string;
   mimeType?: string | null;
   name?: string | null;
-  /** Texto enviado ANTES deste arquivo (só faz sentido para índice >= 1). */
+  /** Texto enviado ANTES deste arquivo (índice >= 1) ou passo só de texto (url vazio). */
   messageBefore?: string | null;
 };
 
@@ -57,6 +57,8 @@ type TemplateRow = {
 };
 
 const MAX_TEMPLATE_ATTACHMENTS = 5;
+const MAX_EXTRA_TEXTS = 5;
+const MAX_SEQUENCE_ITEMS = 10;
 
 const CHANNEL_LABELS: Record<string, string> = {
   WHATSAPP: "WhatsApp",
@@ -402,6 +404,11 @@ function TemplateForm({
   });
   const [uploading, setUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const extraTextRefs = React.useRef<Record<number, HTMLTextAreaElement | null>>({});
+  const [activeField, setActiveField] = React.useState<"content" | number>("content");
+
+  const fileCount = attachments.filter((a) => a.url?.trim()).length;
+  const extraTextCount = attachments.filter((a) => !a.url?.trim()).length;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -442,23 +449,52 @@ function TemplateForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !content.trim()) return;
-    const first = attachments[0] ?? null;
+    const cleaned = attachments.filter(
+      (a) => a.url?.trim() || a.messageBefore?.trim(),
+    );
+    const firstFile = cleaned.find((a) => a.url?.trim()) ?? null;
     onSubmit({
       name: name.trim(),
       content: content.trim(),
       category: category.trim() || undefined,
       language,
       channelType: channelType || undefined,
-      mediaUrl: first?.url ?? null,
-      mediaType: first?.mimeType ?? null,
-      mediaName: first?.name ?? null,
-      attachments,
+      mediaUrl: firstFile?.url ?? null,
+      mediaType: firstFile?.mimeType ?? null,
+      mediaName: firstFile?.name ?? null,
+      attachments: cleaned,
     });
   };
 
-  // Insere o token na posição do cursor da textarea — preserva o que
-  // já foi digitado e move o cursor pro fim do token inserido.
+  const addExtraText = () => {
+    if (extraTextCount >= MAX_EXTRA_TEXTS) return;
+    setAttachments((prev) => {
+      const next = [...prev, { url: "", messageBefore: "" }];
+      const idx = next.length - 1;
+      setActiveField(idx);
+      requestAnimationFrame(() => extraTextRefs.current[idx]?.focus());
+      return next;
+    });
+  };
+
   const insertToken = (token: string) => {
+    if (typeof activeField === "number") {
+      const idx = activeField;
+      const att = attachments[idx];
+      if (!att) return;
+      const el = extraTextRefs.current[idx];
+      const current = att.messageBefore ?? "";
+      const start = el?.selectionStart ?? current.length;
+      const end = el?.selectionEnd ?? current.length;
+      const nextText = current.slice(0, start) + token + current.slice(end);
+      updateMessageBefore(idx, nextText);
+      requestAnimationFrame(() => {
+        el?.focus();
+        const pos = start + token.length;
+        el?.setSelectionRange(pos, pos);
+      });
+      return;
+    }
     const el = contentRef.current;
     const start = el?.selectionStart ?? content.length;
     const end = el?.selectionEnd ?? content.length;
@@ -529,6 +565,7 @@ function TemplateForm({
               ref={contentRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              onFocus={() => setActiveField("content")}
               placeholder="Olá {{contato.primeiroNome}}, tudo bem? Vi seu interesse no negócio {{negocio.titulo}}..."
               rows={5}
               required
@@ -547,9 +584,8 @@ function TemplateForm({
         </div>
       </div>
 
-      {/* Media upload */}
       <div className="flex min-w-0 flex-col gap-1.5" data-tour="internal-create-files">
-        <label className={FIELD_LABEL_CLASS}>Anexar arquivo (imagem/vídeo)</label>
+        <label className={FIELD_LABEL_CLASS}>Sequência (textos e arquivos)</label>
         <input
           ref={fileInputRef}
           type="file"
@@ -559,64 +595,95 @@ function TemplateForm({
         />
         {attachments.length > 0 ? (
           <div className="flex flex-col gap-1.5">
-            {attachments.map((att, i) => (
-              <React.Fragment key={`${att.url}-${i}`}>
-                {i >= 1 ? (
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <label htmlFor={`tpl-msg-before-${i}`} className={FIELD_LABEL_CLASS}>
-                      {i + 1}° mensagem
-                    </label>
-                    <textarea
-                      id={`tpl-msg-before-${i}`}
-                      value={att.messageBefore ?? ""}
-                      onChange={(e) => updateMessageBefore(i, e.target.value)}
-                      placeholder="Texto opcional enviado antes deste arquivo…"
-                      rows={2}
-                      className="min-h-[52px] w-full min-w-0 max-w-full resize-y rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/10"
-                    />
-                  </div>
-                ) : null}
-                <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2">
-                  <Paperclip className="size-4 shrink-0 text-[var(--brand-primary)]" />
-                  <span className="min-w-0 flex-1 truncate font-body text-[12px] text-[var(--text-primary)]">
-                    {att.name || att.url}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeAttachment(i)}
-                    className="shrink-0 rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
-                    aria-label="Remover arquivo"
-                  >
-                    <XIcon className="size-3.5" />
-                  </button>
-                </div>
-              </React.Fragment>
-            ))}
+            {attachments.map((att, i) => {
+              const hasFile = Boolean(att.url?.trim());
+              const showText = !hasFile || Boolean(att.messageBefore);
+              return (
+                <React.Fragment key={`step-${i}`}>
+                  {showText ? (
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <label htmlFor={`tpl-msg-before-${i}`} className={FIELD_LABEL_CLASS}>
+                        {attachments.slice(0, i).filter((a) => !a.url?.trim() || Boolean(a.messageBefore)).length + 2}ª mensagem
+                      </label>
+                      <div className="flex items-start gap-2">
+                        <textarea
+                          id={`tpl-msg-before-${i}`}
+                          ref={(el) => {
+                            extraTextRefs.current[i] = el;
+                          }}
+                          value={att.messageBefore ?? ""}
+                          onChange={(e) => updateMessageBefore(i, e.target.value)}
+                          onFocus={() => setActiveField(i)}
+                          placeholder="Texto enviado nesta ordem, antes do arquivo se houver…"
+                          rows={2}
+                          className="min-h-[52px] w-full min-w-0 max-w-full resize-y rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2 font-body text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/10"
+                        />
+                        {!hasFile ? (
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(i)}
+                            className="mt-1 shrink-0 rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
+                            aria-label="Remover texto"
+                          >
+                            <XIcon className="size-3.5" />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  {hasFile ? (
+                    <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2">
+                      <Paperclip className="size-4 shrink-0 text-[var(--brand-primary)]" />
+                      <span className="min-w-0 flex-1 truncate font-body text-[12px] text-[var(--text-primary)]">
+                        {att.name || att.url}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(i)}
+                        className="shrink-0 rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--color-danger)]/10 hover:text-[var(--color-danger)]"
+                        aria-label="Remover arquivo"
+                      >
+                        <XIcon className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : null}
+                </React.Fragment>
+              );
+            })}
           </div>
         ) : null}
-        {attachments.length > 1 ? (
-          <p className="font-body text-[11px] text-[var(--text-muted)]">
-            A 2ª mensagem é enviada antes do 2º arquivo, e assim por diante.
-          </p>
-        ) : null}
-        {attachments.length < MAX_TEMPLATE_ATTACHMENTS ? (
-          <ButtonGlass
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="w-full justify-start gap-2 text-[13px]"
-          >
-            {uploading ? (
-              <><Loader2 className="size-4 animate-spin" /> Enviando…</>
-            ) : attachments.length === 0 ? (
-              <><Paperclip className="size-4" /> Selecionar arquivo</>
-            ) : (
-              <><Plus className="size-4" /> Novo arquivo</>
-            )}
-          </ButtonGlass>
-        ) : null}
         <p className="font-body text-[11px] text-[var(--text-muted)]">
-          Até {MAX_TEMPLATE_ATTACHMENTS} arquivos. Aceita: JPG, PNG, WEBP, GIF, MP4, WEBM — máx. 16 MB cada.
+          Novo texto entra na sequência depois da última mensagem. Novo arquivo é anexado depois do último texto.
+        </p>
+        <div className="flex flex-col gap-1.5 sm:flex-row">
+          {extraTextCount < MAX_EXTRA_TEXTS && attachments.length < MAX_SEQUENCE_ITEMS ? (
+            <ButtonGlass
+              type="button"
+              onClick={addExtraText}
+              className="w-full justify-start gap-2 text-[13px]"
+            >
+              <Plus className="size-4" /> Novo texto
+            </ButtonGlass>
+          ) : null}
+          {fileCount < MAX_TEMPLATE_ATTACHMENTS && attachments.length < MAX_SEQUENCE_ITEMS ? (
+            <ButtonGlass
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full justify-start gap-2 text-[13px]"
+            >
+              {uploading ? (
+                <><Loader2 className="size-4 animate-spin" /> Enviando…</>
+              ) : fileCount === 0 ? (
+                <><Paperclip className="size-4" /> Selecionar arquivo</>
+              ) : (
+                <><Plus className="size-4" /> Novo arquivo</>
+              )}
+            </ButtonGlass>
+          ) : null}
+        </div>
+        <p className="font-body text-[11px] text-[var(--text-muted)]">
+          Até {MAX_EXTRA_TEXTS} textos extras e {MAX_TEMPLATE_ATTACHMENTS} arquivos. Aceita: JPG, PNG, WEBP, GIF, MP4, WEBM — máx. 16 MB cada.
         </p>
       </div>
 
@@ -666,16 +733,23 @@ function InternalTemplatePreview({
             {name.trim() || "Novo modelo"}
           </span>
         </div>
-        {/* Sequência de envio: 1ª mensagem (`content`) → Arquivo 1 →
-            (2ª mensagem / messageBefore) → Arquivo 2 → … */}
+        {/* Sequência: 1ª mensagem (`content`) → texto extra e/ou arquivo, na ordem. */}
         <div className="min-w-0 max-h-[360px] space-y-2.5 overflow-y-auto p-3">
           <PreviewMessageBlock label="1ª mensagem" text={content} />
           {attachments.map((att, i) => (
-            <React.Fragment key={`${att.url}-${i}`}>
-              {i >= 1 ? (
-                <PreviewMessageBlock label={`${i + 1}ª mensagem`} text={att.messageBefore ?? ""} />
+            <React.Fragment key={`preview-${i}`}>
+              {att.messageBefore || !att.url?.trim() ? (
+                <PreviewMessageBlock
+                  label={`${attachments.slice(0, i).filter((a) => a.messageBefore || !a.url?.trim()).length + 2}ª mensagem`}
+                  text={att.messageBefore ?? ""}
+                />
               ) : null}
-              <PreviewAttachmentBlock label={`Arquivo ${i + 1}`} attachment={att} />
+              {att.url?.trim() ? (
+                <PreviewAttachmentBlock
+                  label={`Arquivo ${attachments.slice(0, i + 1).filter((a) => a.url?.trim()).length}`}
+                  attachment={att}
+                />
+              ) : null}
             </React.Fragment>
           ))}
         </div>

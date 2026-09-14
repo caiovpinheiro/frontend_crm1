@@ -49,6 +49,7 @@ import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   interpolateInternalTemplate,
+  interpolateInternalTemplateAttachments,
   type InternalTemplateContext,
 } from "@/lib/internal-template-variables";
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
@@ -867,14 +868,21 @@ export function useSlashMenu({
       // `attachments` (multi-arquivo + messageBefore); legado cai em mediaUrl.
       if (item.kind === "internal-template") {
         const fromAtt = Array.isArray(item.attachments)
-          ? item.attachments
-              .filter((a) => typeof a?.url === "string" && a.url.trim())
-              .map((a) => ({
-                url: a.url.trim(),
-                name: a.name ?? null,
-                mimeType: a.mimeType ?? item.mediaType ?? null,
-                messageBefore: a.messageBefore ?? null,
-              }))
+          ? interpolateInternalTemplateAttachments(
+              item.attachments
+                .filter(
+                  (a) =>
+                    (typeof a?.url === "string" && a.url.trim()) ||
+                    Boolean(a?.messageBefore?.trim()),
+                )
+                .map((a) => ({
+                  url: (a.url ?? "").trim(),
+                  name: a.name ?? null,
+                  mimeType: a.mimeType ?? item.mediaType ?? null,
+                  messageBefore: a.messageBefore ?? null,
+                })),
+              templateContext ?? {},
+            )
           : [];
         if (fromAtt.length > 0) {
           onInsertMedia?.(fromAtt);
