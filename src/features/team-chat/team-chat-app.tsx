@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -63,6 +63,16 @@ export function TeamChatApp() {
     setActiveTeamChatRoom(selectedId);
     return () => setActiveTeamChatRoom(null);
   }, [selectedId, setActiveTeamChatRoom]);
+  const knownRoomIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = new Set((roomsQuery.data?.rooms ?? []).map((r) => r.id));
+    if (selectedId && knownRoomIds.current.has(selectedId) && !ids.has(selectedId)) {
+      setSelectedId(null);
+      setAddOpen(false);
+      setDetailsOpen(false);
+    }
+    if (roomsQuery.data) knownRoomIds.current = ids;
+  }, [selectedId, roomsQuery.data]);
 
   const { createRoom } = useTeamChatMutations();
 
@@ -250,6 +260,11 @@ export function TeamChatApp() {
           onOpenChange={setAddOpen}
           room={selected}
           meId={meId}
+          onDeleted={(id) => {
+            setAddOpen(false);
+            setSelectedId((cur) => (cur === id ? null : cur));
+            setDetailsOpen(false);
+          }}
         />
       )}
     </div>

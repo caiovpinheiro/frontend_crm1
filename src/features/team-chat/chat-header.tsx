@@ -126,7 +126,7 @@ export function ChatHeader({
             <button
               type="button"
               onClick={onAddMembers}
-              aria-label="Dados do grupo"
+              aria-label="Editar grupo"
               className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <GroupGlyph seed={room.id} size={36} imageUrl={room.avatarUrl} name={room.name} />
@@ -165,7 +165,7 @@ export function ChatHeader({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {isGroupRoom(room) && (
-            <HeaderAction label="Dados do grupo" onClick={onAddMembers}>
+            <HeaderAction label="Editar grupo" onClick={onAddMembers}>
               <Users className="h-[18px] w-[18px]" />
             </HeaderAction>
           )}
