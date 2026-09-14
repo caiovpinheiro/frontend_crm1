@@ -24,12 +24,12 @@ import {
   createTeamChatWorkItem,
   deleteTeamChatWorkItem,
   deleteWorkItemEntry,
-  extractWorkItemEntries,
   messageToChecklist,
   searchTeamChatRecords,
   updateTeamChatWorkItem,
   updateWorkItemEntry,
 } from "./api";
+import { extractEntriesFromText } from "./helpers";
 import { TopicAssigneePicker } from "./topic-assignee";
 import type { RecordSearchHit, WorkItem, WorkItemType } from "./types";
 
@@ -156,16 +156,15 @@ export function CreateWorkItemDialog({
       setBody("");
       return;
     }
-    void extractWorkItemEntries(raw).then((r) => {
-      setTitle(r.title);
-      setBody(r.entries.map((e) => `- ${e.text}`).join("\n"));
-    });
+    const parsed = extractEntriesFromText(raw);
+    setTitle(parsed.title);
+    setBody(parsed.entries.map((e) => `- ${e.text}`).join("\n"));
   }, [open, seedText]);
 
   async function submit() {
     setBusy(true);
     try {
-      const extracted = await extractWorkItemEntries(body || title);
+      const extracted = extractEntriesFromText(body || title);
       const item = await createTeamChatWorkItem({
         type,
         title: title.trim() || extracted.title,
@@ -269,7 +268,7 @@ export function MessageToChecklistDialog({
 
   useEffect(() => {
     if (!open) return;
-    void extractWorkItemEntries(seedText).then((r) => setTitle(r.title));
+    setTitle(extractEntriesFromText(seedText).title);
   }, [open, seedText]);
 
   return (
