@@ -104,6 +104,8 @@ export async function sendMessage(
      * conversa não é alterado pelo override.
      */
     channelId?: string | null;
+    /** Espera o worker Meta marcar sent/failed (sequência texto+imagem). */
+    waitUntilSent?: boolean;
   },
 ): Promise<{ message: InboxMessageDto; metaError?: string }> {
   const body: Record<string, unknown> = payload.asNote
@@ -112,6 +114,7 @@ export async function sendMessage(
   if (payload.replyToId) body.replyToId = payload.replyToId;
   // Override só faz sentido fora do modo nota (notas internas não saem por canal).
   if (!payload.asNote && payload.channelId) body.channelId = payload.channelId;
+  if (payload.waitUntilSent) body.waitUntilSent = true;
   const res = await fetch(apiUrl(`/api/conversations/${conversationId}/messages`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -191,6 +194,7 @@ export async function sendAttachmentReuse(
     mimeType?: string;
     caption?: string;
     channelId?: string | null;
+    waitUntilSent?: boolean;
   },
 ): Promise<{
   message: InboxMessageDto;
@@ -208,9 +212,10 @@ export async function sendAttachmentReuse(
         ...(options.mimeType ? { mimeType: options.mimeType } : {}),
         ...(options.caption ? { caption: options.caption } : {}),
         ...(options.channelId ? { channelId: options.channelId } : {}),
+        ...(options.waitUntilSent ? { waitUntilSent: true } : {}),
       }),
     },
-    20_000,
+    options.waitUntilSent ? 50_000 : 20_000,
   );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
