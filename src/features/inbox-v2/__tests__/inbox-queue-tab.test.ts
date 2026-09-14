@@ -86,6 +86,19 @@ describe("inboxQueueTabFor", () => {
     ).toBe("entrada");
   });
 
+  it("nos primeiros 15s o robô ainda não vai para Automação", () => {
+    expect(
+      inboxQueueTabFor(
+        row({
+          hasActiveAutomation: false,
+          hasHumanReply: false,
+          hasAgentReply: true,
+          lastMessageDirection: "out",
+        }),
+      ),
+    ).toBe("respondidas");
+  });
+
   it("automação viva vai para Automação mesmo com dono e outbound", () => {
     expect(
       inboxQueueTabFor(

@@ -1,5 +1,8 @@
 import type { ConversationListRow, InboxTab, TabCounts } from "./api";
 
+/** Espelha `AUTOMATION_QUEUE_DELAY_MS` do backend. */
+export const AUTOMATION_QUEUE_DELAY_MS = 15_000;
+
 function normalizeMessageDirection(
   raw: string | null | undefined,
 ): "in" | "out" | null {
@@ -27,6 +30,14 @@ function hasCountableReply(row: ConversationListRow): boolean | null {
   return null;
 }
 
+/** Espelha `inAutomationQueueWhere` do backend — o delay de 15s
+ *  já vem no `hasActiveAutomation` da API. */
+function rowInAutomationQueue(row: ConversationListRow): boolean {
+  const assigneeType = (row.assignedTo?.type ?? "").toUpperCase();
+  if (assigneeType === "AI") return false;
+  return row.hasActiveAutomation === true;
+}
+
 /**
  * Fila canônica da conversa (a mais específica). Usado ao abrir um hit
  * da busca para mudar a aba da inbox junto com o ticket.
@@ -46,7 +57,7 @@ export function inboxQueueTabFor(row: ConversationListRow): InboxTab {
   // Responsável IA tem fila própria (`agente_ia`), tenha o aluno respondido
   // ou não — espelha `tabToWhere` no backend.
   if (assigneeType === "AI") return "agente_ia";
-  if (row.hasActiveAutomation) return "automacao";
+  if (rowInAutomationQueue(row)) return "automacao";
   if (!row.assignedToId) return "entrada";
 
   // Entrada (backend): assignee HUMANO ainda sem reply contável — o cliente
@@ -86,8 +97,7 @@ export function rowBelongsToInboxTab(
     return row.channel === "whatsapp" && row.whatsappCallConsentStatus === "GRANTED";
   }
   if (tab === "automacao") {
-    const assigneeType = (row.assignedTo?.type ?? "").toUpperCase();
-    return Boolean(row.hasActiveAutomation) && assigneeType !== "AI";
+    return rowInAutomationQueue(row);
   }
 
   const canonical = inboxQueueTabFor(row);
@@ -155,11 +165,7 @@ export function applyTabCountMove(
 /** Card já listado em Automação permanece enquanto o contexto estiver vivo. */
 export function rowStaysOnAutomacaoTab(row: ConversationListRow): boolean {
   if (row.status === "RESOLVED" || row.closedAt || row.hasError) return false;
-  if ((row.assignedTo?.type ?? "").toUpperCase() === "AI") return false;
-  if (row.hasActiveAutomation === true) return true;
-  if (row.hasActiveAutomation === false) return false;
-  if (row.assignedToId || row.lastInboundAt) return false;
-  return true;
+  return rowInAutomationQueue(row);
 }
 
 export function pickVisibleInboxTab(

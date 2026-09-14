@@ -18,9 +18,9 @@ import {
 } from "../inbox-queue-tab";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 import {
-  applyActiveAutomationToContactCaches,
   findCachedConversationRow,
   patchInboxTabCounts,
+  scheduleActiveAutomationQueue,
 } from "./apply-outbound-inbox-card";
 import {
   getConversation,
@@ -141,11 +141,16 @@ function patchInboxConversationCard(
           unreadCount: (conv.unreadCount ?? 0) + 1,
         }
       : {}),
-    // Outbound humano/agente: sem isto Entrada (hasHumanReply=false) não
-    // promove para Respondidas — card sobe e fica como não respondido.
-    ...(direction === "out"
-      ? { hasHumanReply: true, hasAgentReply: true }
-      : {}),
+    ...(data.card
+      ? {
+          hasHumanReply: data.card.hasHumanReply ?? conv.hasHumanReply,
+          hasAgentReply: data.card.hasAgentReply ?? conv.hasAgentReply,
+          hasActiveAutomation:
+            data.card.hasActiveAutomation ?? conv.hasActiveAutomation,
+        }
+      : direction === "out"
+        ? { hasAgentReply: true }
+        : {}),
     ...(data.assignedToId !== undefined
       ? { assignedToId: data.assignedToId }
       : {}),
@@ -1251,12 +1256,18 @@ export function useInboxRealtime(options: {
             contactId?: string;
             active?: boolean;
             status?: string;
+            createdAt?: string | null;
           };
           if (data.contactId) {
             const active =
               data.active ??
               (data.status === "RUNNING" || data.status === "PAUSED");
-            applyActiveAutomationToContactCaches(qc, data.contactId, active);
+            scheduleActiveAutomationQueue(
+              qc,
+              data.contactId,
+              active,
+              data.createdAt,
+            );
             qc.invalidateQueries({
               queryKey: ["active-automations-contact", data.contactId],
             });
