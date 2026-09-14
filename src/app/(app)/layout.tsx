@@ -26,6 +26,7 @@ import { MobileStartRoute } from "@/components/layout/mobile-start-route";
 import { SystemPresenceHeartbeat } from "@/components/layout/system-presence-heartbeat";
 import { InboxConversationsPrefetch } from "@/components/layout/inbox-conversations-prefetch";
 import { NativeFcmBootstrap } from "@/components/layout/native-fcm-bootstrap";
+import { NavMessageAlertsProvider } from "@/components/layout/nav-message-alerts";
 import { TaskAlertCenter } from "@/components/layout/task-alert-center";
 import { SettingsDrawerProvider } from "@/features/settings/settings-drawer-context";
 import { AgentStatusProvider } from "@/components/crm/agent-status-context";
@@ -41,6 +42,7 @@ export default function AppLayout({
   return (
     <SettingsDrawerProvider>
       <AgentStatusProvider>
+      <NavMessageAlertsProvider>
       <ChatThemeApplier />
       <SystemPresenceHeartbeat />
       <InboxConversationsPrefetch />
@@ -66,6 +68,7 @@ export default function AppLayout({
         <MobileBottomNav />
       </div>
       <BiometricLockGate />
+      </NavMessageAlertsProvider>
       </AgentStatusProvider>
     </SettingsDrawerProvider>
   );
