@@ -77,6 +77,28 @@ const NOTES_KEY = "team-chat-notes";
 const MY_WORK_ITEMS_KEY = "team-chat-work-items-mine";
 const ROOM_WORK_ITEMS_KEY = "team-chat-work-items";
 
+export function incrementRoomUnreadInCache(
+  qc: ReturnType<typeof useQueryClient>,
+  roomId: string,
+  preview?: string | null,
+) {
+  qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+    if (!prev) return prev;
+    let found = false;
+    const rooms = prev.rooms.map((r) => {
+      if (r.id !== roomId) return r;
+      found = true;
+      return {
+        ...r,
+        unread: (r.unread || 0) + 1,
+        lastPreview: preview?.trim() || r.lastPreview,
+        lastMessageAt: new Date().toISOString(),
+      };
+    });
+    return found ? { rooms } : prev;
+  });
+}
+
 export function markRoomReadInCache(
   qc: ReturnType<typeof useQueryClient>,
   roomId: string,
