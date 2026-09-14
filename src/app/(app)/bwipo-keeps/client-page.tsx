@@ -5,29 +5,22 @@ import { Archive, CirclePlay, Lightbulb, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/crm/empty-state";
-import { ButtonGlass } from "@/components/crm/button-glass";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { PageChrome } from "@/components/crm/page-header";
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { AppLoading } from "@/components/crm/app-loading";
-import {
-  FormDialog,
-  FormDialogIcon,
-  formDialogCancelClass,
-} from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
 import { KeepCard } from "@/features/keeps/keep-card";
 import { KeepBoard } from "@/features/keeps/keep-board";
 import { KeepComposer } from "@/features/keeps/keep-composer";
 import { KeepEditorDialog } from "@/features/keeps/keep-editor-dialog";
+import { GOOGLE_KEEP_TUTORIAL_PLAYER } from "@/features/keeps/keep-import-tutorial";
 import { KeepColorSwatches } from "@/features/keeps/keep-color-swatches";
 import { KEEP_NOTE_COLORS, type KeepNoteColorId } from "@/features/keeps/colors";
 import { useKeepMutations, useKeepNotes } from "@/features/keeps/hooks";
 import { EMPTY_KEEP_DOC, type KeepFolder, type KeepNote } from "@/features/keeps/types";
-
-const GOOGLE_KEEP_TUTORIAL_SRC = "/tutorials/como-importar-google-keep.mp4";
 
 export default function BwipoKeepsClientPage() {
   const [folder, setFolder] = useState<KeepFolder>("notes");
@@ -35,7 +28,6 @@ export default function BwipoKeepsClientPage() {
   const [colorFilter, setColorFilter] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [active, setActive] = useState<KeepNote | null>(null);
-  const [tutorialOpen, setTutorialOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const notesQuery = useKeepNotes(folder, q, colorFilter);
   const mut = useKeepMutations(folder, q, colorFilter);
@@ -99,7 +91,9 @@ export default function BwipoKeepsClientPage() {
                       {
                         icon: <CirclePlay size={14} />,
                         label: "Como importar Keeps",
-                        onClick: () => setTutorialOpen(true),
+                        onClick: () => {
+                          window.open(GOOGLE_KEEP_TUTORIAL_PLAYER, "_blank", "noopener,noreferrer");
+                        },
                       },
                     ]}
                   />
@@ -221,41 +215,6 @@ export default function BwipoKeepsClientPage() {
           </div>
         )}
       </PageChrome>
-
-      <FormDialog
-        open={tutorialOpen}
-        onOpenChange={setTutorialOpen}
-        title="Como importar Keeps"
-        description="Veja como exportar o ZIP no Google Keep e trazer as notas para o Bwipo."
-        icon={
-          <FormDialogIcon>
-            <CirclePlay className="size-4" />
-          </FormDialogIcon>
-        }
-        size="xl"
-        footer={
-          <ButtonGlass
-            type="button"
-            variant="glass"
-            className={formDialogCancelClass}
-            onClick={() => setTutorialOpen(false)}
-          >
-            Fechar
-          </ButtonGlass>
-        }
-      >
-        {tutorialOpen ? (
-          <video
-            className="aspect-video w-full rounded-xl bg-foreground/90"
-            controls
-            playsInline
-            preload="metadata"
-            src={GOOGLE_KEEP_TUTORIAL_SRC}
-          >
-            Seu navegador não reproduz este vídeo.
-          </video>
-        ) : null}
-      </FormDialog>
 
       <KeepEditorDialog
         note={active}
