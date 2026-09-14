@@ -433,6 +433,7 @@ export function DealProductsSection({
   const [loadingEditId, setLoadingEditId] = React.useState<string | null>(null);
   /** id do line-item cujo "enviar mensagem" está em andamento (null = idle). */
   const [sendingCourseOfferId, setSendingCourseOfferId] = React.useState<string | null>(null);
+  const [selectedCourseIds, setSelectedCourseIds] = React.useState<string[]>([]);
 
   const itemsKey = ["deal-products", dealId] as const;
 
@@ -649,74 +650,108 @@ export function DealProductsSection({
   };
 
   const courseItems = items.filter((i) => i.productKind === "COURSE");
+  const selectedCourseItems = courseItems.filter((i) => selectedCourseIds.includes(i.id));
 
-  async function handleSendCourseOffer(item: DealProductItem) {
-    if (!item || sendingCourseOfferId) return;
-    setSendingCourseOfferId(item.id);
-    try {
-      const res = await fetch(apiUrl(`/api/products/${item.productId}`));
-      if (!res.ok) {
-        toast.error("Não foi possível carregar os dados do curso.");
-        return;
-      }
-      const data = (await res.json()) as {
-        product?: Parameters<typeof normalizeCoursePricingOptions>[0] & {
-          name?: string;
-          courseConfig?: {
-            level?: CourseLevel | null;
-            grau?: string | null;
-            mode?: CourseMode | null;
-            semester?: number | null;
-          } | null;
-        };
+  React.useEffect(() => {
+    const live = new Set(items.filter((i) => i.productKind === "COURSE").map((i) => i.id));
+    setSelectedCourseIds((prev) => {
+      const next = prev.filter((id) => live.has(id));
+      if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev;
+      return next;
+    });
+  }, [items]);
+
+  function toggleCourseSelect(item: DealProductItem) {
+    if (item.productKind !== "COURSE") return;
+    setSelectedCourseIds((prev) =>
+      prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id],
+    );
+  }
+
+  async function loadCourseOfferMessage(item: DealProductItem): Promise<string | null> {
+    const res = await fetch(apiUrl(`/api/products/${item.productId}`));
+    if (!res.ok) {
+      toast.error(`Não foi possível carregar os dados de ${item.productName}.`);
+      return null;
+    }
+    const data = (await res.json()) as {
+      product?: Parameters<typeof normalizeCoursePricingOptions>[0] & {
+        name?: string;
+        courseConfig?: {
+          level?: CourseLevel | null;
+          grau?: string | null;
+          mode?: CourseMode | null;
+          semester?: number | null;
+        } | null;
       };
-      const product = data.product;
-      if (!product?.courseConfig) {
-        toast.error("Este produto não tem configuração de curso.");
-        return;
-      }
-      const cc = product.courseConfig;
-      const level = cc.level ? COURSE_LEVEL_LABEL[cc.level] : "—";
-      const mode = cc.mode ? COURSE_MODE_LABEL[cc.mode] : "—";
-      const grau = cc.grau?.trim() || "—";
-      const matched =
-        cc.level === "POSTGRADUATE"
-          ? matchCoursePricingOption(
-              normalizeCoursePricingOptions(product),
-              Number(item.unitPrice) || 0,
-              Number(item.discount) || 0,
-            )
-          : null;
-      const semesterLabel =
-        cc.level === "POSTGRADUATE" && matched?.months != null
-          ? `${matched.months} meses`
-          : cc.semester != null && Number.isFinite(Number(cc.semester))
-            ? cc.level === "POSTGRADUATE"
-              ? `${cc.semester} meses`
-              : `${cc.semester}º semestre`
-            : "—";
-      const basePrice = Number(item.unitPrice) || 0;
-      const promoPrice =
-        basePrice * (1 - Math.min(100, Math.max(0, Number(item.discount) || 0)) / 100);
+    };
+    const product = data.product;
+    if (!product?.courseConfig) {
+      toast.error(`${item.productName} não tem configuração de curso.`);
+      return null;
+    }
+    const cc = product.courseConfig;
+    const level = cc.level ? COURSE_LEVEL_LABEL[cc.level] : "—";
+    const mode = cc.mode ? COURSE_MODE_LABEL[cc.mode] : "—";
+    const grau = cc.grau?.trim() || "—";
+    const matched =
+      cc.level === "POSTGRADUATE"
+        ? matchCoursePricingOption(
+            normalizeCoursePricingOptions(product),
+            Number(item.unitPrice) || 0,
+            Number(item.discount) || 0,
+          )
+        : null;
+    const semesterLabel =
+      cc.level === "POSTGRADUATE" && matched?.months != null
+        ? `${matched.months} meses`
+        : cc.semester != null && Number.isFinite(Number(cc.semester))
+          ? cc.level === "POSTGRADUATE"
+            ? `${cc.semester} meses`
+            : `${cc.semester}º semestre`
+          : "—";
+    const basePrice = Number(item.unitPrice) || 0;
+    const promoPrice =
+      basePrice * (1 - Math.min(100, Math.max(0, Number(item.discount) || 0)) / 100);
 
-      const message = buildCourseOfferMessage({
-        name: product.name ?? item.productName,
-        levelLabel: level,
-        grau,
-        modeLabel: mode,
-        semesterLabel,
-        basePrice,
-        promoPrice,
-        installments:
-          cc.level === "POSTGRADUATE" ? matched?.installments ?? null : null,
-      });
-      insertComposerText(message);
-      toast.success("Mensagem do curso pronta no chat — confira e envie.");
+    return buildCourseOfferMessage({
+      name: product.name ?? item.productName,
+      levelLabel: level,
+      grau,
+      modeLabel: mode,
+      semesterLabel,
+      basePrice,
+      promoPrice,
+      installments: cc.level === "POSTGRADUATE" ? matched?.installments ?? null : null,
+    });
+  }
+
+  async function handleSendCourseOffers(targets: DealProductItem[]) {
+    const list = targets.filter((i) => i.productKind === "COURSE");
+    if (list.length === 0 || sendingCourseOfferId) return;
+    setSendingCourseOfferId(list[0].id);
+    try {
+      const parts: string[] = [];
+      for (const item of list) {
+        const message = await loadCourseOfferMessage(item);
+        if (message) parts.push(message);
+      }
+      if (parts.length === 0) return;
+      insertComposerText(parts.join("\n\n"));
+      toast.success(
+        parts.length > 1
+          ? "Mensagens dos cursos prontas no chat — confira e envie."
+          : "Mensagem do curso pronta no chat — confira e envie.",
+      );
     } catch {
       toast.error("Falha ao preparar a mensagem do curso.");
     } finally {
       setSendingCourseOfferId(null);
     }
+  }
+
+  function handleSendCourseOffer(item: DealProductItem) {
+    void handleSendCourseOffers([item]);
   }
 
   return (
@@ -1003,9 +1038,30 @@ export function DealProductsSection({
                 /* Modo visualização */
                 <div className="flex items-center gap-3">
                   {/* Ícone tile */}
-                  <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]">
-                    <Package className="size-[18px]" strokeWidth={1.8} />
-                  </div>
+                  {item.productKind === "COURSE" ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleCourseSelect(item)}
+                      aria-pressed={selectedCourseIds.includes(item.id)}
+                      aria-label={
+                        selectedCourseIds.includes(item.id)
+                          ? `Desmarcar ${item.productName}`
+                          : `Selecionar ${item.productName}`
+                      }
+                      className={cn(
+                        "grid size-9 shrink-0 place-items-center rounded-xl transition-colors",
+                        selectedCourseIds.includes(item.id)
+                          ? "bg-primary/15 text-primary ring-2 ring-primary ring-offset-2 ring-offset-background"
+                          : "bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)] hover:brightness-95",
+                      )}
+                    >
+                      <Package className="size-[18px]" strokeWidth={1.8} />
+                    </button>
+                  ) : (
+                    <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]">
+                      <Package className="size-[18px]" strokeWidth={1.8} />
+                    </div>
+                  )}
 
                   {/* Nome + subtítulo */}
                   <div className="min-w-0 flex-1">
@@ -1114,17 +1170,22 @@ export function DealProductsSection({
                 type="button"
                 disabled={sendingCourseOfferId != null || !courseItems[0]}
                 onClick={() => {
-                  if (courseItems[0]) void handleSendCourseOffer(courseItems[0]);
+                  const targets =
+                    selectedCourseItems.length > 0 ? selectedCourseItems : courseItems[0] ? [courseItems[0]] : [];
+                  void handleSendCourseOffers(targets);
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-3 py-2.5 text-[13px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
               >
                 <Send className="size-3.5" strokeWidth={2.4} />
-                {sendingCourseOfferId != null ? "Preparando…" : "Enviar produto"}
+                {sendingCourseOfferId != null
+                  ? "Preparando…"
+                  : selectedCourseItems.length > 1
+                    ? "Enviar produtos"
+                    : "Enviar produto"}
               </button>
               {courseItems.length > 1 ? (
-                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                  Com vários cursos, use o ícone de enviar em cada item — ou este
-                  botão envia o primeiro (“{courseItems[0].productName}”).
+                <p className="mt-1.5 text-center text-xs font-semibold text-foreground">
+                  Toque no ícone do curso para selecionar e enviar vários na mesma mensagem.
                 </p>
               ) : null}
             </div>
