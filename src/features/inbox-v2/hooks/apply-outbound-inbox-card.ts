@@ -11,6 +11,7 @@ import {
 } from "../api";
 import {
   applyTabCountMove,
+  AUTOMATION_QUEUE_DELAY_MS,
   inboxQueueTabFor,
   rowBelongsToAnyInboxTab,
   rowStaysOnAutomacaoTab,
@@ -87,6 +88,43 @@ export function patchInboxTabCounts(
     const next = applyTabCountMove(cached, from, to);
     if (next !== cached) qc.setQueryData(queryKey, next);
   }
+}
+
+const automationQueueTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * Aplica o flag da fila Automação. Se a execução acabou de começar
+ * (`createdAt` há menos de 15s), espera o restante e só então move o card.
+ */
+export function scheduleActiveAutomationQueue(
+  qc: QueryClient,
+  contactId: string,
+  active: boolean,
+  startedAt?: string | null,
+): void {
+  const prev = automationQueueTimers.get(contactId);
+  if (prev) {
+    clearTimeout(prev);
+    automationQueueTimers.delete(contactId);
+  }
+  if (!active) {
+    applyActiveAutomationToContactCaches(qc, contactId, false);
+    return;
+  }
+  const started = startedAt ? Date.parse(startedAt) : NaN;
+  const wait = Number.isFinite(started)
+    ? started + AUTOMATION_QUEUE_DELAY_MS - Date.now()
+    : AUTOMATION_QUEUE_DELAY_MS;
+  if (wait > 0) {
+    applyActiveAutomationToContactCaches(qc, contactId, false);
+    const t = setTimeout(() => {
+      automationQueueTimers.delete(contactId);
+      applyActiveAutomationToContactCaches(qc, contactId, true);
+    }, wait);
+    automationQueueTimers.set(contactId, t);
+    return;
+  }
+  applyActiveAutomationToContactCaches(qc, contactId, true);
 }
 
 /** Marca/desmarca robô vivo em todos os cards cacheados do contato. */
