@@ -59,6 +59,8 @@ export interface ConversationListRow {
    */
   number?: number | null;
   channel: Channel;
+  /** Conta do canal (WABA/página). Distingue dois WhatsApps do mesmo contato. */
+  channelId?: string | null;
   status: ConversationStatus;
   /**
    * Preenchido quando status = RESOLVED. Usado no card lateral para

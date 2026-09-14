@@ -93,7 +93,9 @@ function channelKey(c: ConversationListRow["channel"]) {
 }
 
 function groupKey(r: ConversationListRow) {
-  return r.contact?.id ? `c:${r.contact.id}::${channelKey(r.channel)}` : `id:${r.id}`;
+  return r.contact?.id
+    ? `c:${r.contact.id}::${channelKey(r.channel)}::${r.channelId ?? ""}`
+    : `id:${r.id}`;
 }
 
 /**
