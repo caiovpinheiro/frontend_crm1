@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, PanelRight, Phone, Search, Star, UserPlus, Video, X } from "lucide-react";
+import { ArrowLeft, PanelRight, Phone, Search, Star, Users, Video, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -73,24 +73,26 @@ function HeaderAction({
 
 export function ChatHeader({
   room,
-  notesOpen,
-  noteCount,
+  detailsOpen,
+  detailsBadge,
   searchQuery,
   favorited,
+  typing,
   onSearchChange,
   onBack,
-  onToggleNotes,
+  onToggleDetails,
   onToggleFavorite,
   onAddMembers,
 }: {
   room: TeamChatRoom;
-  notesOpen: boolean;
-  noteCount: number;
+  detailsOpen: boolean;
+  detailsBadge: number;
   searchQuery: string;
   favorited: boolean;
+  typing?: { userId: string; name: string } | null;
   onSearchChange: (value: string) => void;
   onBack: () => void;
-  onToggleNotes: () => void;
+  onToggleDetails: () => void;
   onToggleFavorite: () => void;
   onAddMembers: () => void;
 }) {
@@ -98,6 +100,11 @@ export function ChatHeader({
   const isDirect = room.kind === "DM";
   const lead = room.peer ? toPerson(room.peer) : null;
   const people = room.members.map(toPerson);
+  const typingLabel = typing
+    ? isDirect
+      ? "Digitando..."
+      : `${typing.name} está digitando...`
+    : null;
 
   return (
     <header className="shrink-0 border-b border-black/[0.06] bg-[var(--orbita-chrome)] dark:border-white/[0.06]">
@@ -119,17 +126,29 @@ export function ChatHeader({
             <button
               type="button"
               onClick={onAddMembers}
-              aria-label="Editar grupo"
+              aria-label="Dados do grupo"
               className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <GroupGlyph seed={room.id} size={36} imageUrl={room.avatarUrl} name={room.name} />
             </button>
           )}
           <div className="min-w-0">
-            <h2 className="truncate text-[15px] font-semibold text-[var(--orbita-text)]">
-              {isDirect ? room.name : `#${room.name}`}
-            </h2>
-            {isDirect && lead ? (
+            {isDirect ? (
+              <h2 className="truncate text-[15px] font-semibold text-[var(--orbita-text)]">{room.name}</h2>
+            ) : (
+              <button
+                type="button"
+                onClick={onAddMembers}
+                className="block max-w-full truncate text-left text-[15px] font-semibold text-[var(--orbita-text)] hover:underline"
+              >
+                #{room.name}
+              </button>
+            )}
+            {typingLabel ? (
+              <span className="truncate text-[12px] font-medium text-[var(--orbita-selected)]">
+                {typingLabel}
+              </span>
+            ) : isDirect && lead ? (
               <span className="text-[12px] font-medium" style={{ color: PRESENCE_TEXT[lead.presence] }}>
                 {presenceLabel[lead.presence]}
               </span>
@@ -146,8 +165,8 @@ export function ChatHeader({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {isGroupRoom(room) && (
-            <HeaderAction label="Adicionar membros" onClick={onAddMembers}>
-              <UserPlus className="h-[18px] w-[18px]" />
+            <HeaderAction label="Dados do grupo" onClick={onAddMembers}>
+              <Users className="h-[18px] w-[18px]" />
             </HeaderAction>
           )}
           <HeaderAction
@@ -185,9 +204,9 @@ export function ChatHeader({
           </HeaderAction>
           <HeaderAction
             label="Detalhes"
-            active={notesOpen}
-            badge={notesOpen ? undefined : noteCount}
-            onClick={onToggleNotes}
+            active={detailsOpen}
+            badge={detailsOpen ? undefined : detailsBadge}
+            onClick={onToggleDetails}
           >
             <PanelRight className="h-[18px] w-[18px]" />
           </HeaderAction>
@@ -211,7 +230,7 @@ export function ChatHeader({
               onSearchChange("");
             }}
             aria-label="Fechar pesquisa"
-            className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-white/50"
+            className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted"
           >
             <X className="h-4 w-4" />
           </button>

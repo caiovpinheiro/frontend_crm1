@@ -4,7 +4,7 @@ export function isGroupRoom(room: { kind: TeamChatKind | string }) {
   return room.kind === "GROUP" || room.kind === "CHANNEL";
 }
 
-export const REACTION_EMOJIS = ["🔥", "👍", "❤️", "🎉", "👏", "😂", "🙌", "👀"] as const;
+export const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const;
 
 const AVATAR_TONES = [
   { bg: "var(--orbita-avatar-1)", fg: "var(--orbita-avatar-1-fg)" },
@@ -227,6 +227,25 @@ export function saveOrbitaFavorites(ids: string[]) {
 
 export function favoriteKey(row: { roomId?: string | null; personId?: string | null }) {
   return row.roomId || (row.personId ? `person:${row.personId}` : "");
+}
+
+export function parseQuotedContent(content: string): {
+  quote: { author: string; excerpt: string } | null;
+  body: string;
+} {
+  const text = content ?? "";
+  const lines = text.split("\n");
+  const first = lines[0] ?? "";
+  if (!first.startsWith("> ")) return { quote: null, body: text };
+  const rest = first.slice(2);
+  const colon = rest.indexOf(": ");
+  if (colon <= 0) return { quote: null, body: text };
+  const author = rest.slice(0, colon).trim();
+  const excerpt = rest.slice(colon + 2).trim();
+  if (!author) return { quote: null, body: text };
+  let start = 1;
+  if (lines[1] === "") start = 2;
+  return { quote: { author, excerpt }, body: lines.slice(start).join("\n") };
 }
 
 export function meFromSession(
