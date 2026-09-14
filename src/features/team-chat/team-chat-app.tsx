@@ -151,8 +151,8 @@ export function TeamChatApp() {
     <div className="team-chat-shell flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
       <div
         className={cn(
-          "orbita-block flex h-full min-h-0 w-[340px] min-w-[320px] shrink-0 flex-col",
-          selected ? "hidden lg:flex" : "flex",
+          "orbita-block flex h-full min-h-0 w-full shrink-0 flex-col md:w-[min(30%,26rem)] md:min-w-[20rem] md:max-w-[26rem]",
+          selected ? "hidden md:flex" : "flex",
         )}
       >
         <Sidebar
@@ -188,7 +188,7 @@ export function TeamChatApp() {
         data-tour="bwipo-chat-stage"
         className={cn(
           "orbita-block relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
-          selected ? "flex" : "hidden lg:flex",
+          selected ? "flex" : "hidden md:flex",
         )}
       >
         {showBootGate ? (
@@ -222,7 +222,7 @@ export function TeamChatApp() {
 
       {selected && detailsOpen && (
         <>
-          <div className="orbita-block hidden h-full w-[320px] shrink-0 lg:block">
+          <div className="orbita-block hidden h-full w-[320px] shrink-0 md:block">
             <DetailsHost
               roomId={selected.id}
               meId={meId}
@@ -231,7 +231,7 @@ export function TeamChatApp() {
               onClose={() => setDetailsOpen(false)}
             />
           </div>
-          <div className="absolute inset-0 z-20 lg:hidden">
+          <div className="absolute inset-0 z-20 md:hidden">
             <DetailsHost
               roomId={selected.id}
               meId={meId}
@@ -410,8 +410,8 @@ function Thread({
           onLinkRecord={(item) => setLinkItemId(item.id)}
           onToChecklist={(msg) => setToChecklist(msg)}
         />
-        <div className="relative z-20 shrink-0 overflow-visible border-t border-border bg-[var(--orbita-block)] px-3 pb-4 pt-2" data-tour="bwipo-chat-composer">
-          <div className="overflow-visible rounded-[16px] border border-border bg-[var(--orbita-block)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
+        <div className="relative z-20 shrink-0 overflow-visible border-t border-border bg-[var(--orbita-block)] px-3 pb-3 pt-2 md:px-4" data-tour="bwipo-chat-composer">
+          <div className="w-full overflow-visible rounded-[16px] border border-border bg-[var(--orbita-block)] shadow-[0_8px_24px_rgba(91,111,245,0.08)]">
             <Composer
               roomId={room.id}
               placeholder="Digite uma mensagem"

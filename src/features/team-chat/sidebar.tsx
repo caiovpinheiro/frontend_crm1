@@ -424,7 +424,7 @@ export function Sidebar({
         data-tour="bwipo-chat-list"
       >
         {loading ? (
-          <AppLoading variant="inline" className="min-h-0 flex-1 lg:hidden" />
+          <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : error ? (
           <div className={cn(CARD_SURFACE_CLASS, "mx-4 mt-6 px-4 py-8 text-center")}>
             <p className="text-sm text-destructive">{error}</p>
