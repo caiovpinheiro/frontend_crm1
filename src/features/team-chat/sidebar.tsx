@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MoreVertical, Search, SquarePen, Star, Users } from "lucide-react";
+import { Bell, BellOff, MoreVertical, Search, SquarePen, Star, Users } from "lucide-react";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { AppLoading } from "@/components/crm/app-loading";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import { NavAlertSoundToggle, useNavMessageAlerts } from "@/components/layout/nav-message-alerts";
 import { PageTourButton } from "@/features/product-tour";
 import { cn } from "@/lib/utils";
 
@@ -228,6 +229,7 @@ export function Sidebar({
   onNewGroup: () => void;
   typing?: Record<string, { userId: string; name: string }>;
 }) {
+  const { soundMuted, setSoundMuted } = useNavMessageAlerts();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<TeamChatListTab>(DEFAULT_TEAM_CHAT_LIST_TAB);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -335,6 +337,7 @@ export function Sidebar({
             <BwipoWordmark />
           </h1>
           <PageTourButton tourId="bwipo-chat" size="sm" />
+          <NavAlertSoundToggle className="grid h-8 w-8 place-items-center rounded-[var(--orbita-radius-inner)] text-[var(--orbita-text-secondary)] hover:bg-[var(--orbita-field)] hover:text-[var(--orbita-text)]" />
           <div data-tour="bwipo-chat-new" className="flex shrink-0 items-center">
             <HeaderIcon label="Nova conversa" onClick={onNew}>
               <SquarePen className="h-[18px] w-[18px]" />
@@ -370,6 +373,21 @@ export function Sidebar({
                 >
                   <Users className="h-4 w-4 text-muted-foreground" />
                   Novo grupo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setSoundMuted(!soundMuted);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[14px] text-foreground hover:bg-[var(--orbita-block-soft)]"
+                >
+                  {soundMuted ? (
+                    <BellOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Bell className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  {soundMuted ? "Ativar som de mensagens" : "Desligar som de mensagens"}
                 </button>
               </div>
             )}

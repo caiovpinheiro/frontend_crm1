@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { FilterApplyButton, FilterCheckRow } from "@/components/crm/filter-popover";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
+import { NavAlertSoundToggle } from "@/components/layout/nav-message-alerts";
 import { PageHeader } from "@/components/crm/page-header";
 import { PagePrimaryButton } from "@/components/crm/page-toolbar";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
@@ -568,15 +569,18 @@ export function EmailClient() {
             />
           }
           actions={
-            <PagePrimaryButton
-              type="button"
-              onClick={() => openCompose()}
-              disabled={accounts.length === 0}
-            >
-              <IcoCompose />
-              <span className="hidden sm:inline">Novo e-mail</span>
-              <span className="sm:hidden">Nova</span>
-            </PagePrimaryButton>
+            <div className="flex items-center gap-2">
+              <NavAlertSoundToggle className="grid h-9 w-9 place-items-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)]" />
+              <PagePrimaryButton
+                type="button"
+                onClick={() => openCompose()}
+                disabled={accounts.length === 0}
+              >
+                <IcoCompose />
+                <span className="hidden sm:inline">Novo e-mail</span>
+                <span className="sm:hidden">Nova</span>
+              </PagePrimaryButton>
+            </div>
           }
         />
 

@@ -60,6 +60,11 @@ import {
   type OrgBrandCache,
 } from "@/hooks/use-organization";
 import { SoftphoneNavIcon } from "@/features/softphone/components/softphone-nav-icon";
+import { NavUnreadBadge } from "@/components/crm/nav-unread-badge";
+import {
+  navAlertForKey,
+  useNavMessageAlerts,
+} from "@/components/layout/nav-message-alerts";
 
 /**
  * Cache local da preferencia da sidebar. O react-query perde o cache a cada
@@ -138,6 +143,7 @@ export function NavRailV2({ className }: { className?: string }) {
   const { role, isSuperAdmin, isManagerUp } = useUserRole();
   const { data: prefs } = useSidebarPreferences();
   const { data: myPerms } = useMyPermissions();
+  const navAlerts = useNavMessageAlerts();
   const { data: organization } = useOrganization();
   const {
     onGearEnter,
@@ -567,30 +573,42 @@ export function NavRailV2({ className }: { className?: string }) {
           return navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeHrefs.has(item.href);
+            const alert = navAlertForKey(item.key, navAlerts);
+            const alertTitle =
+              alert.count > 0
+                ? `${item.title} (${alert.count} não lida${alert.count === 1 ? "" : "s"})`
+                : item.title;
             if (expanded) {
               return (
                 <Link
                   key={item.key}
                   href={item.href}
                   prefetch={false}
-                  aria-label={item.title}
+                  aria-label={alertTitle}
                   className={cn(expandedItemBase, isActive ? expandedItemActive : expandedItemIdle)}
                 >
                   <Icon size={20} className="shrink-0" />
-                  <span className="truncate">{item.title}</span>
+                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                  <NavUnreadBadge count={alert.count} pulse={alert.pulse} contrast={isActive} />
                 </Link>
               );
             }
             return (
-              <DockButton
-                key={item.key}
-                href={item.href}
-                title={item.title}
-                active={isActive}
-                disablePop
-              >
-                <Icon size={20} />
-              </DockButton>
+              <div key={item.key} className="relative">
+                <DockButton
+                  href={item.href}
+                  title={alertTitle}
+                  active={isActive}
+                  disablePop
+                >
+                  <Icon size={20} />
+                </DockButton>
+                <NavUnreadBadge
+                  count={alert.count}
+                  pulse={alert.pulse}
+                  className="pointer-events-none absolute -right-0.5 -top-0.5"
+                />
+              </div>
             );
           });
         })()}

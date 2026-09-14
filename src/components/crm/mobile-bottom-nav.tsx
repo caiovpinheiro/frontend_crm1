@@ -28,6 +28,11 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { isModuleAllowedForRole, MOBILE_MODULES } from "@/lib/mobile-layout";
 import { isPreviewMode, PREVIEW_USER } from "@/lib/preview-mode";
 import { cn } from "@/lib/utils";
+import { NavUnreadBadge } from "@/components/crm/nav-unread-badge";
+import {
+  navAlertForHref,
+  useNavMessageAlerts,
+} from "@/components/layout/nav-message-alerts";
 
 const MOBILE_MODULE_MAP = new Map(MOBILE_MODULES.map((m) => [m.id, m] as const));
 
@@ -85,6 +90,7 @@ function MobileBottomNavClassic() {
   const [displayName, setDisplayName] = useState("Usuário");
   const [email, setEmail] = useState<string | null>(null);
 
+  const navAlerts = useNavMessageAlerts();
   const agentStatus = useSharedAgentStatus();
   const [statusPopupOpen, setStatusPopupOpen] = useState(false);
   useAgentStatusAutoPrompt(agentStatus, () => setStatusPopupOpen(true));
@@ -260,20 +266,33 @@ function MobileBottomNavClassic() {
             {items.map((item) => {
               const path = modulePath(item.href);
               const isActive = activeHrefs.has(path);
+              const alert = navAlertForHref(item.href, navAlerts);
+              const alertLabel =
+                alert.count > 0
+                  ? `${item.label} (${alert.count} não lida${alert.count === 1 ? "" : "s"})`
+                  : item.label;
               return (
                 <Link
                   key={item.id}
                   href={item.href}
                   prefetch={false}
-                  aria-label={item.label}
+                  aria-label={alertLabel}
                   aria-current={isActive ? "page" : undefined}
                   className={itemClass(isActive)}
                 >
-                  <MobileModuleIcon
-                    name={item.iconName}
-                    className="size-5"
-                    strokeWidth={isActive ? 2.2 : 1.8}
-                  />
+                  <span className="relative">
+                    <MobileModuleIcon
+                      name={item.iconName}
+                      className="size-5"
+                      strokeWidth={isActive ? 2.2 : 1.8}
+                    />
+                    <NavUnreadBadge
+                      count={alert.count}
+                      pulse={alert.pulse}
+                      contrast={isActive}
+                      className="pointer-events-none absolute -right-2.5 -top-1.5"
+                    />
+                  </span>
                   <span className="max-w-[4.5rem] truncate">{item.label}</span>
                 </Link>
               );

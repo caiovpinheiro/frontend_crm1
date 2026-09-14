@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { AppLoading } from "@/components/crm/app-loading";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
+import { useNavMessageAlerts } from "@/components/layout/nav-message-alerts";
 import { cn } from "@/lib/utils";
 
 import { ChatHeader } from "./chat-header";
@@ -57,6 +58,11 @@ export function TeamChatApp() {
   const rooms = roomsQuery.data?.rooms ?? [];
   const colleagues = peopleQuery.data?.colleagues ?? [];
   useTeamChatRealtime(selectedId, ready);
+  const { setActiveTeamChatRoom } = useNavMessageAlerts();
+  useEffect(() => {
+    setActiveTeamChatRoom(selectedId);
+    return () => setActiveTeamChatRoom(null);
+  }, [selectedId, setActiveTeamChatRoom]);
 
   const { createRoom } = useTeamChatMutations();
 
