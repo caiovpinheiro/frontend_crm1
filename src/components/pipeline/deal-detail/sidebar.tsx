@@ -395,6 +395,24 @@ function buildCourseOfferMessage(input: {
   return lines.join("\n");
 }
 
+function buildSimpleProductMessage(item: DealProductItem): string {
+  const base = Number(item.unitPrice) || 0;
+  const promo =
+    base * (1 - Math.min(100, Math.max(0, Number(item.discount) || 0)) / 100);
+  const qty = Number(item.quantity) || 1;
+  const unit = item.unit?.trim() || "un.";
+  const lines = [`📦 ${item.productName}`, "", `Quantidade: ${qty} ${unit}`];
+  if (item.discount > 0) {
+    lines.push(
+      `Valor original: ~R$ ${formatMoneyPlain(base)}~`,
+      `Valor promocional: R$ ${formatMoneyPlain(promo)}`,
+    );
+  } else {
+    lines.push(`Valor: R$ ${formatMoneyPlain(Number(item.total) || promo)}`);
+  }
+  return lines.join("\n");
+}
+
 type ProductCustomFieldValue = { fieldId: string; label: string; value: string };
 
 export function DealProductsSection({
@@ -650,10 +668,11 @@ export function DealProductsSection({
   };
 
   const courseItems = items.filter((i) => i.productKind === "COURSE");
-  const selectedCourseItems = courseItems.filter((i) => selectedCourseIds.includes(i.id));
+  const canSelectProducts = items.length >= 2;
+  const selectedItems = items.filter((i) => selectedCourseIds.includes(i.id));
 
   React.useEffect(() => {
-    const live = new Set(items.filter((i) => i.productKind === "COURSE").map((i) => i.id));
+    const live = new Set(items.map((i) => i.id));
     setSelectedCourseIds((prev) => {
       const next = prev.filter((id) => live.has(id));
       if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev;
@@ -662,7 +681,7 @@ export function DealProductsSection({
   }, [items]);
 
   function toggleCourseSelect(item: DealProductItem) {
-    if (item.productKind !== "COURSE") return;
+    if (!canSelectProducts) return;
     setSelectedCourseIds((prev) =>
       prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id],
     );
@@ -687,8 +706,7 @@ export function DealProductsSection({
     };
     const product = data.product;
     if (!product?.courseConfig) {
-      toast.error(`${item.productName} não tem configuração de curso.`);
-      return null;
+      return buildSimpleProductMessage(item);
     }
     const cc = product.courseConfig;
     const level = cc.level ? COURSE_LEVEL_LABEL[cc.level] : "—";
@@ -727,13 +745,16 @@ export function DealProductsSection({
   }
 
   async function handleSendCourseOffers(targets: DealProductItem[]) {
-    const list = targets.filter((i) => i.productKind === "COURSE");
+    const list = targets;
     if (list.length === 0 || sendingCourseOfferId) return;
     setSendingCourseOfferId(list[0].id);
     try {
       const parts: string[] = [];
       for (const item of list) {
-        const message = await loadCourseOfferMessage(item);
+        const message =
+          item.productKind === "COURSE"
+            ? await loadCourseOfferMessage(item)
+            : buildSimpleProductMessage(item);
         if (message) parts.push(message);
       }
       if (parts.length === 0) return;
@@ -1038,7 +1059,7 @@ export function DealProductsSection({
                 /* Modo visualização */
                 <div className="flex items-center gap-3">
                   {/* Ícone tile */}
-                  {item.productKind === "COURSE" ? (
+                  {canSelectProducts ? (
                     <button
                       type="button"
                       onClick={() => toggleCourseSelect(item)}
@@ -1164,14 +1185,18 @@ export function DealProductsSection({
           )}
 
           {/* Enviar oferta do curso → preenche o composer (só kind=COURSE) */}
-          {courseItems.length > 0 && (
+          {(courseItems.length > 0 || canSelectProducts) && (
             <div className="border-t border-border px-4 py-3">
               <button
                 type="button"
-                disabled={sendingCourseOfferId != null || !courseItems[0]}
+                disabled={sendingCourseOfferId != null || items.length === 0}
                 onClick={() => {
                   const targets =
-                    selectedCourseItems.length > 0 ? selectedCourseItems : courseItems[0] ? [courseItems[0]] : [];
+                    selectedItems.length > 0
+                      ? selectedItems
+                      : courseItems[0]
+                        ? [courseItems[0]]
+                        : items.slice(0, 1);
                   void handleSendCourseOffers(targets);
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-3 py-2.5 text-[13px] font-semibold text-white transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
@@ -1179,13 +1204,13 @@ export function DealProductsSection({
                 <Send className="size-3.5" strokeWidth={2.4} />
                 {sendingCourseOfferId != null
                   ? "Preparando…"
-                  : selectedCourseItems.length > 1
+                  : selectedItems.length > 1
                     ? "Enviar produtos"
                     : "Enviar produto"}
               </button>
-              {courseItems.length > 1 ? (
+              {canSelectProducts ? (
                 <p className="mt-1.5 text-center text-xs font-semibold text-foreground">
-                  Toque no ícone do curso para selecionar e enviar vários na mesma mensagem.
+                  Toque no ícone do produto para selecionar e enviar vários na mesma mensagem.
                 </p>
               ) : null}
             </div>
