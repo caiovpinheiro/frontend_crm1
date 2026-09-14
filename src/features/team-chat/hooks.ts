@@ -12,6 +12,7 @@ import {
   addTeamChatNote,
   createTeamChatRoom,
   deleteTeamChatNote,
+  deleteTeamChatRoom,
   updateTeamChatRoom,
   listMyWorkItems,
   listRoomWorkItems,
@@ -234,6 +235,20 @@ export function useTeamChatMutations() {
       qc.invalidateQueries({ queryKey: [ROOMS_KEY] });
     },
   });
+  const removeRoom = useMutation({
+    mutationFn: (roomId: string) => deleteTeamChatRoom(roomId),
+    onSuccess: (_ok, roomId) => {
+      qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+        if (!prev) return prev;
+        return { rooms: prev.rooms.filter((r) => r.id !== roomId) };
+      });
+      qc.removeQueries({ queryKey: [MESSAGES_KEY, roomId] });
+      qc.removeQueries({ queryKey: [NOTES_KEY, roomId] });
+      qc.removeQueries({ queryKey: [ROOM_WORK_ITEMS_KEY, roomId] });
+      qc.invalidateQueries({ queryKey: [ROOMS_KEY] });
+      qc.invalidateQueries({ queryKey: [MY_WORK_ITEMS_KEY] });
+    },
+  });
   const react = useMutation({
     mutationFn: ({ roomId, messageId, emoji }: { roomId: string; messageId: string; emoji: string }) =>
       reactTeamChatMessage(roomId, messageId, emoji),
@@ -269,7 +284,7 @@ export function useTeamChatMutations() {
       }));
     },
   });
-  return { createRoom, send, addMembers, updateRoom, react, pin, addNote, toggleNotePin, removeNote };
+  return { createRoom, send, addMembers, updateRoom, removeRoom, react, pin, addNote, toggleNotePin, removeNote };
 }
 
 export type TeamChatTypingMap = Record<string, { userId: string; name: string }>;
@@ -347,7 +362,18 @@ export function useTeamChatRealtime(activeRoomId: string | null, enabled = true)
     };
 
     return subscribeSSEEvents("/api/sse/messages", {
-      team_chat_room_updated: () => bumpRooms(),
+      team_chat_room_updated: (raw) => {
+        const data = raw as { roomId?: string; deleted?: boolean };
+        if (data.deleted && data.roomId) {
+          qc.setQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY], (prev) => {
+            if (!prev) return prev;
+            return { rooms: prev.rooms.filter((r) => r.id !== data.roomId) };
+          });
+          qc.removeQueries({ queryKey: [MESSAGES_KEY, data.roomId] });
+          return;
+        }
+        bumpRooms();
+      },
       team_chat_message: (raw) => {
         const data = raw as { roomId?: string; message?: TeamChatMessage };
         if (data.message) patchMessage(qc, data.message);

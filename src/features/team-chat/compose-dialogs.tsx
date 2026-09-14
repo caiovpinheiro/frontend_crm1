@@ -5,6 +5,7 @@ import { Camera, Hash, MessagesSquare, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   FormDialog,
   formControlClass,
@@ -132,14 +133,17 @@ export function AddMembersDialog({
   onOpenChange,
   room,
   meId,
+  onDeleted,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   room: TeamChatRoom;
   meId: string;
+  onDeleted?: (roomId: string) => void;
 }) {
   const { data } = useTeamChatColleagues(open);
-  const { addMembers, updateRoom } = useTeamChatMutations();
+  const { addMembers, updateRoom, removeRoom } = useTeamChatMutations();
+  const { confirm, dialog } = useConfirm();
   const [picked, setPicked] = useState<string[]>([]);
   const [name, setName] = useState(room.name);
   const [topic, setTopic] = useState(room.topic ?? "");
@@ -187,8 +191,8 @@ export function AddMembersDialog({
         if (!v) setPicked([]);
         onOpenChange(v);
       }}
-      title="Dados do grupo"
-      description="Foto, nome, tópico e quem participa — como no WhatsApp."
+      title="Editar grupo"
+      description="Altere foto, nome, tópico e participantes, ou exclua o grupo."
       icon={<Hash className="h-5 w-5" />}
       size="md"
       footer={
@@ -318,6 +322,36 @@ export function AddMembersDialog({
         Adicionar participantes
       </p>
       <PeoplePicker people={people} picked={picked} onToggle={(id) => setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))} />
+
+      <div className="mt-5 border-t border-border pt-4">
+        <ButtonGlass
+          type="button"
+          variant="danger"
+          disabled={removeRoom.isPending}
+          onClick={() => {
+            void confirm({
+              title: "Excluir grupo?",
+              description: `“${room.name}” some para todos os participantes. Mensagens e notas deste grupo serão apagadas. Esta ação não pode ser desfeita.`,
+              confirmLabel: "Excluir grupo",
+              pendingLabel: "Excluindo…",
+              destructive: true,
+              action: async () => {
+                try {
+                  await removeRoom.mutateAsync(room.id);
+                  toast.success("Grupo excluído");
+                  onDeleted?.(room.id);
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Não foi possível excluir o grupo.");
+                  throw err;
+                }
+              },
+            });
+          }}
+        >
+          Excluir grupo
+        </ButtonGlass>
+      </div>
+      {dialog}
     </FormDialog>
   );
 }
