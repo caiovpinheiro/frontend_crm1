@@ -137,6 +137,16 @@ html.light {
   --color-sidebar-active-fg:          var(--primary-foreground);
   --color-sidebar-hover:              color-mix(in oklch, var(--panel-foreground) 8%, var(--panel));
 
+  /* ── Bwipo Keeps — post-it (escolha do usuário, fora do chrome) ─ */
+  --keep-swatch-default: var(--card);
+  --keep-swatch-yellow: #fff4bf;
+  --keep-swatch-orange: #fde4c8;
+  --keep-swatch-coral: #ffd4d0;
+  --keep-swatch-green: #d4f0d4;
+  --keep-swatch-teal: #c8efe8;
+  --keep-swatch-blue: #d4e3fb;
+  --keep-swatch-lavender: #e4d9fb;
+
   /* ── Chat ───────────────────────────────────────────────────── */
   --color-chat-sent:            rgba(91, 111, 245, 0.18);
   --color-chat-sent-foreground: #1e2a3b;
