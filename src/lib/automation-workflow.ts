@@ -27,6 +27,7 @@ export type AutomationTriggerType =
   | "call_made"
   | "call_permission_granted"
   | "conversation_tabulated"
+  | "attendance_closing"
   | "whatsapp_session_expiring"
   | "lead_distributed"
   | "manual";
@@ -54,6 +55,7 @@ export const AUTOMATION_TRIGGER_TYPES: AutomationTriggerType[] = [
   "call_made",
   "call_permission_granted",
   "conversation_tabulated",
+  "attendance_closing",
   "whatsapp_session_expiring",
   "lead_distributed",
   "manual",
@@ -83,6 +85,7 @@ export const ACTION_STEP_TYPES = [
   "update_lead_score",
   "question",
   "wait_for_reply",
+  "closing_protocol",
   "set_variable",
   "goto",
   "transfer_automation",
@@ -228,6 +231,7 @@ export function triggerTypeLabel(t: string): string {
     call_made: "Ligação realizada",
     call_permission_granted: "Permissão de ligação concedida",
     conversation_tabulated: "Conversa encerrada",
+    attendance_closing: "Atendimento sendo encerrado",
     whatsapp_session_expiring: "Sessão do WhatsApp prestes a encerrar",
     lead_distributed: "Lead distribuído (consultor humano)",
     manual: "Manual (executar pela conversa)",
@@ -260,6 +264,7 @@ export function stepTypeLabel(t: string): string {
     update_lead_score: "Atualizar lead score",
     question: "Pergunta ao lead",
     wait_for_reply: "Aguardar resposta",
+    closing_protocol: "Encerramento (aguardar + agente)",
     set_variable: "Definir variável",
     goto: "Ir para (Goto)",
     transfer_automation: "Transferir automação",
@@ -469,7 +474,9 @@ export function summarizeTriggerConfig(
     }
     case "conversation_created": {
       const base = summarizeTriggerChannelScope(c, lookup);
-      return c.skipIfAckOrGreeting === true ? `${base} · sem ack/cumprimento` : base;
+      const skipAck = c.skipIfAckOrGreeting === true ? " · sem ack/cumprimento" : "";
+      const skipOut = c.skipIfNoInbound === true ? " · só inbound" : "";
+      return `${base}${skipAck}${skipOut}`;
     }
     case "whatsapp_session_expiring":
       return `${String(c.hoursBeforeExpiry ?? 1)}h antes do encerramento`;
@@ -538,6 +545,8 @@ export function summarizeTriggerConfig(
       if (c.requireTabulation === true) return "Qualquer encerramento tabulado";
       return "Qualquer encerramento";
     }
+    case "attendance_closing":
+      return "Sem resposta no aguardo — protocolo de encerramento";
     default:
       return "—";
   }
@@ -653,6 +662,15 @@ export function summarizeStepConfig(stepType: string, config: unknown, lookup?: 
         else if (timeoutMs >= 60_000) parts.push(`⏱ ${timeoutMs / 60_000}min`);
         else parts.push(`⏱ ${timeoutMs / 1000}s`);
       }
+      return parts.join(" · ");
+    }
+    case "closing_protocol": {
+      const waitMs = Number(c.waitMs ?? c.timeoutMs ?? 0);
+      const closeMs = Number(c.closingWaitMs ?? 0);
+      const parts = ["Aguardar → encerrar/devolver"];
+      if (waitMs >= 3_600_000) parts.push(`${waitMs / 3_600_000}h`);
+      else if (waitMs >= 60_000) parts.push(`${waitMs / 60_000}min`);
+      if (closeMs >= 60_000) parts.push(`fecha ${closeMs / 60_000}min`);
       return parts.join(" · ");
     }
     case "finish":
@@ -919,6 +937,14 @@ export function defaultStepConfig(stepType: string): Record<string, unknown> {
       return {
         timeoutMs: 60_000, receivedGotoStepId: "", timeoutGotoStepId: "", saveToVariable: "",
       };
+    case "closing_protocol":
+      return {
+        waitMs: 3_600_000,
+        closingWaitMs: 900_000,
+        receivedGotoStepId: "",
+        encerrarStepId: "",
+        devolverStepId: "",
+      };
     case "finish":
       return { action: "stop" };
     case "set_variable":
@@ -1118,7 +1144,13 @@ export function defaultTriggerConfig(triggerType: string): Record<string, unknow
     case "contact_created":
       return { pipelineId: "", stageId: "" };
     case "conversation_created":
-      return { channel: "", channelIds: [], channelScope: "all", skipIfAckOrGreeting: false };
+      return {
+        channel: "",
+        channelIds: [],
+        channelScope: "all",
+        skipIfAckOrGreeting: false,
+        skipIfNoInbound: false,
+      };
     case "lifecycle_changed":
       return { fromLifecycle: "", toLifecycle: "" };
     case "agent_changed":

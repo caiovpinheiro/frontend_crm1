@@ -14,6 +14,8 @@ export interface InboxSettings {
   requireSignature: boolean;
   keepAgentOnEnd: boolean;
   keepDepartmentOnEnd: boolean;
+  /** Protocolo aguardar + encerramento com agente (saídas no canvas). */
+  closingProtocolEnabled: boolean;
   audioTranscription: "none" | "all" | "on_demand";
   transcriptionLanguage: "pt-BR" | "en-US" | "es-ES";
   /**
@@ -40,6 +42,7 @@ const DEFAULTS: InboxSettings = {
   requireSignature: false,
   keepAgentOnEnd: false,
   keepDepartmentOnEnd: false,
+  closingProtocolEnabled: false,
   audioTranscription: "none",
   transcriptionLanguage: "pt-BR",
   showInboundSignal: true,
@@ -73,6 +76,7 @@ export async function fetchInboxSettings(): Promise<InboxSettings> {
     requireSignature: data["conversation.requireSignature"] === "true",
     keepAgentOnEnd: data["conversation.keepAgentOnEnd"] === "true",
     keepDepartmentOnEnd: data["conversation.keepDepartmentOnEnd"] === "true",
+    closingProtocolEnabled: data["conversation.closingProtocolEnabled"] === "true",
     audioTranscription: (data["conversation.audioTranscription"] as InboxSettings["audioTranscription"]) ?? "none",
     transcriptionLanguage: (data["conversation.transcriptionLanguage"] as InboxSettings["transcriptionLanguage"]) ?? "pt-BR",
     // Default ligado: ausência da chave mantém o comportamento atual.

@@ -170,6 +170,7 @@ const apiTypeToBlockKey: Record<string, string> = {
   condition: "condition",
   question: "ask-lead",
   wait_for_reply: "wait-reply",
+  closing_protocol: "wait-reply",
   set_variable: "set-variable",
   goto: "goto",
   transfer_automation: "transfer-automation",
