@@ -2,6 +2,8 @@
 
 import { Position, type Node, type NodeProps } from "@xyflow/react";
 import {
+  IconArrowBackUp as ArrowBack,
+  IconCheck as Check,
   IconClock as Clock,
   IconMessageCircle as MessageCircle,
   IconPlayerPause as Pause,
@@ -56,7 +58,11 @@ export function WaitNode({ data, selected }: NodeProps<WaitRF>) {
       <div className="wf-node__outs">
         <div className="wf-node__out wf-node__out--ok fx-out fx-out--cond">
           <MessageCircle className="size-3 shrink-0" strokeWidth={2.4} />
-          <span className="fx-out__label flex-1">Mensagem recebida</span>
+          <span className="fx-out__label flex-1">
+            {data.stepType === "closing_protocol"
+              ? "Demanda (continua)"
+              : "Mensagem recebida"}
+          </span>
           <CustomHandle
             type="source"
             position={Position.Right}
@@ -65,19 +71,46 @@ export function WaitNode({ data, selected }: NodeProps<WaitRF>) {
             className="fx-port--cond"
           />
         </div>
-        <div className="wf-node__out fx-out fx-out--error">
-          <Clock className="size-3 shrink-0" strokeWidth={2.4} />
-          <span className="fx-out__label flex-1">
-            {data.timeoutLabel || "Caso o contato não responda"}
-          </span>
-          <CustomHandle
-            type="source"
-            position={Position.Right}
-            id="timeout"
-            connectionLimit={1}
-            className="fx-port--error"
-          />
-        </div>
+        {data.stepType === "closing_protocol" ? (
+          <>
+            <div className="wf-node__out fx-out fx-out--error">
+              <Check className="size-3 shrink-0" strokeWidth={2.4} />
+              <span className="fx-out__label flex-1">Encerrar</span>
+              <CustomHandle
+                type="source"
+                position={Position.Right}
+                id="encerrar"
+                connectionLimit={1}
+                className="fx-port--error"
+              />
+            </div>
+            <div className="wf-node__out fx-out fx-out--cond">
+              <ArrowBack className="size-3 shrink-0" strokeWidth={2.4} />
+              <span className="fx-out__label flex-1">Devolver</span>
+              <CustomHandle
+                type="source"
+                position={Position.Right}
+                id="devolver"
+                connectionLimit={1}
+                className="fx-port--cond"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="wf-node__out fx-out fx-out--error">
+            <Clock className="size-3 shrink-0" strokeWidth={2.4} />
+            <span className="fx-out__label flex-1">
+              {data.timeoutLabel || "Caso o contato não responda"}
+            </span>
+            <CustomHandle
+              type="source"
+              position={Position.Right}
+              id="timeout"
+              connectionLimit={1}
+              className="fx-port--error"
+            />
+          </div>
+        )}
       </div>
       <NodeInlineConfig
         selected={selected}

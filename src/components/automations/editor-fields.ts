@@ -359,6 +359,13 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "step", key: "receivedGotoStepId", label: "Mensagem recebida → ir para", optional: true },
     { kind: "step", key: "timeoutGotoStepId", label: "Sem resposta (timeout) → ir para", optional: true },
   ],
+  closing_protocol: [
+    { kind: "duration", key: "waitMs", label: "Aguardar resposta" },
+    { kind: "duration", key: "closingWaitMs", label: "Janela do encerramento" },
+    { kind: "step", key: "receivedGotoStepId", label: "Demanda (continua) → ir para", optional: true },
+    { kind: "step", key: "encerrarStepId", label: "Encerrar → ir para", optional: true },
+    { kind: "step", key: "devolverStepId", label: "Devolver → ir para", optional: true },
+  ],
   set_variable: [
     { kind: "text", key: "variableName", label: "Nome da variável", placeholder: "ex.: resposta" },
     { kind: "text", key: "value", label: "Valor", variables: true, placeholder: "Texto ou { para variáveis" },

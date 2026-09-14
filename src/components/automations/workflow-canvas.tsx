@@ -144,7 +144,7 @@ function rfNodeType(stepType: string): keyof typeof nodeTypes {
   if (stepType === "question") return "interactive";
   if (stepType === "send_whatsapp_interactive") return "interactive";
   if (stepType === "send_whatsapp_list") return "interactive";
-  if (stepType === "wait_for_reply") return "wait";
+  if (stepType === "wait_for_reply" || stepType === "closing_protocol") return "wait";
   if (stepType === "set_variable") return "variable";
   if (stepType === "goto") return "goto";
   if (stepType === "finish") return "finish";
@@ -479,6 +479,36 @@ function buildEdges(steps: AutomationStep[], triggerDisconnected = false): Edge[
           source: a.id, target: cfg.elseStepId,
           sourceHandle: "false",
           animated: false, data: EDGE_DATA_ELSE, type: EDGE_TYPE,
+          interactionWidth: INTERACT_W, ...DELETE_LABEL_PROPS,
+        });
+      }
+    }
+
+    if (a.type === "closing_protocol") {
+      if (typeof cfg.receivedGotoStepId === "string" && cfg.receivedGotoStepId && stepIds.has(cfg.receivedGotoStepId)) {
+        out.push({
+          id: `${a.id}-received-${cfg.receivedGotoStepId}`,
+          source: a.id, target: cfg.receivedGotoStepId,
+          sourceHandle: "received",
+          animated: false, data: EDGE_DATA_BUTTON, type: EDGE_TYPE,
+          interactionWidth: INTERACT_W, ...DELETE_LABEL_PROPS,
+        });
+      }
+      if (typeof cfg.encerrarStepId === "string" && cfg.encerrarStepId && stepIds.has(cfg.encerrarStepId)) {
+        out.push({
+          id: `${a.id}-encerrar-${cfg.encerrarStepId}`,
+          source: a.id, target: cfg.encerrarStepId,
+          sourceHandle: "encerrar",
+          animated: false, data: EDGE_DATA_ELSE, type: EDGE_TYPE,
+          interactionWidth: INTERACT_W, ...DELETE_LABEL_PROPS,
+        });
+      }
+      if (typeof cfg.devolverStepId === "string" && cfg.devolverStepId && stepIds.has(cfg.devolverStepId)) {
+        out.push({
+          id: `${a.id}-devolver-${cfg.devolverStepId}`,
+          source: a.id, target: cfg.devolverStepId,
+          sourceHandle: "devolver",
+          animated: false, data: EDGE_DATA_BUTTON, type: EDGE_TYPE,
           interactionWidth: INTERACT_W, ...DELETE_LABEL_PROPS,
         });
       }
@@ -906,9 +936,9 @@ function WorkflowCanvasInner({
           };
         }
 
-        if (step.type === "wait_for_reply") {
+        if (step.type === "wait_for_reply" || step.type === "closing_protocol") {
           const cfg = step.config as Record<string, unknown>;
-          const tMs = Number(cfg.timeoutMs ?? 0);
+          const tMs = Number(cfg.waitMs ?? cfg.timeoutMs ?? 0);
           let timeoutLabel = "Cronômetro";
           if (tMs > 0) {
             const h = Math.floor(tMs / 3_600_000);
@@ -1079,8 +1109,8 @@ function WorkflowCanvasInner({
           if (step.type === "round_robin") {
             data.options = normalizeRoundRobinConfig(next).options;
           }
-          if (step.type === "wait_for_reply") {
-            const tMs = Number(next.timeoutMs ?? 0);
+          if (step.type === "wait_for_reply" || step.type === "closing_protocol") {
+            const tMs = Number(next.waitMs ?? next.timeoutMs ?? 0);
             let timeoutLabel = "Cronômetro";
             if (tMs > 0) {
               const h = Math.floor(tMs / 3_600_000);
@@ -1118,6 +1148,8 @@ function WorkflowCanvasInner({
         if (cfg.elseStepId === id) { delete cfg.elseStepId; changed = true; }
         if (cfg.timeoutGotoStepId === id) { delete cfg.timeoutGotoStepId; changed = true; }
         if (cfg.receivedGotoStepId === id) { delete cfg.receivedGotoStepId; changed = true; }
+        if (cfg.encerrarStepId === id) { delete cfg.encerrarStepId; changed = true; }
+        if (cfg.devolverStepId === id) { delete cfg.devolverStepId; changed = true; }
         if (cfg.failureGotoStepId === id) {
           delete cfg.failureGotoStepId;
           cfg.failureAction = "stop";
@@ -1199,6 +1231,14 @@ function WorkflowCanvasInner({
           }
           if (cfg.receivedGotoStepId === id) {
             delete cfg.receivedGotoStepId;
+            changed = true;
+          }
+          if (cfg.encerrarStepId === id) {
+            delete cfg.encerrarStepId;
+            changed = true;
+          }
+          if (cfg.devolverStepId === id) {
+            delete cfg.devolverStepId;
             changed = true;
           }
           if (cfg.failureGotoStepId === id) {
@@ -1606,8 +1646,20 @@ function WorkflowCanvasInner({
           return;
         }
 
-        if (sourceHandle === "received" && srcStep.type === "wait_for_reply") {
+        if (sourceHandle === "received" && (srcStep.type === "wait_for_reply" || srcStep.type === "closing_protocol")) {
           const cfg = { ...srcStep.config, receivedGotoStepId: target };
+          onStepsChange(cur.map((s) => s.id === source ? { ...s, config: cfg } : s));
+          return;
+        }
+
+        if (sourceHandle === "encerrar" && srcStep.type === "closing_protocol") {
+          const cfg = { ...srcStep.config, encerrarStepId: target };
+          onStepsChange(cur.map((s) => s.id === source ? { ...s, config: cfg } : s));
+          return;
+        }
+
+        if (sourceHandle === "devolver" && srcStep.type === "closing_protocol") {
+          const cfg = { ...srcStep.config, devolverStepId: target };
           onStepsChange(cur.map((s) => s.id === source ? { ...s, config: cfg } : s));
           return;
         }
@@ -1834,8 +1886,26 @@ function WorkflowCanvasInner({
           return;
         }
 
-        if (sourceHandle === "received" && srcStep.type === "wait_for_reply") {
+        if (sourceHandle === "received" && (srcStep.type === "wait_for_reply" || srcStep.type === "closing_protocol")) {
           const cfg = { ...srcStep.config, receivedGotoStepId: id };
+          const updated = cur.map((s) =>
+            s.id === sourceId ? { ...s, config: cfg } : s
+          );
+          onStepsChange([...updated, step]);
+          return;
+        }
+
+        if (sourceHandle === "encerrar" && srcStep.type === "closing_protocol") {
+          const cfg = { ...srcStep.config, encerrarStepId: id };
+          const updated = cur.map((s) =>
+            s.id === sourceId ? { ...s, config: cfg } : s
+          );
+          onStepsChange([...updated, step]);
+          return;
+        }
+
+        if (sourceHandle === "devolver" && srcStep.type === "closing_protocol") {
+          const cfg = { ...srcStep.config, devolverStepId: id };
           const updated = cur.map((s) =>
             s.id === sourceId ? { ...s, config: cfg } : s
           );
@@ -2106,9 +2176,23 @@ function WorkflowCanvasInner({
         return;
       }
 
-      if (sourceHandle === "received" && srcStep.type === "wait_for_reply") {
+      if (sourceHandle === "received" && (srcStep.type === "wait_for_reply" || srcStep.type === "closing_protocol")) {
         const cfg = { ...srcStep.config } as Record<string, unknown>;
         delete cfg.receivedGotoStepId;
+        onStepsChange(cur.map((s) => s.id === sourceId ? { ...s, config: cfg } : s));
+        return;
+      }
+
+      if (sourceHandle === "encerrar" && srcStep.type === "closing_protocol") {
+        const cfg = { ...srcStep.config } as Record<string, unknown>;
+        delete cfg.encerrarStepId;
+        onStepsChange(cur.map((s) => s.id === sourceId ? { ...s, config: cfg } : s));
+        return;
+      }
+
+      if (sourceHandle === "devolver" && srcStep.type === "closing_protocol") {
+        const cfg = { ...srcStep.config } as Record<string, unknown>;
+        delete cfg.devolverStepId;
         onStepsChange(cur.map((s) => s.id === sourceId ? { ...s, config: cfg } : s));
         return;
       }

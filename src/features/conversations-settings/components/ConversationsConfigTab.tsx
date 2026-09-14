@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   IconArrowRight,
+  IconHourglass,
   IconMail,
   IconMicrophone,
   IconPencil,
@@ -184,6 +185,14 @@ export function ConversationsConfigTab() {
             description="O departamento permanece vinculado à conversa mesmo após ela ser finalizada."
             checked={settings.keepDepartmentOnEnd}
             onChange={(v) => save("keepDepartmentOnEnd", v)}
+            disabled={busy}
+          />
+          <ToggleRow
+            icon={<IconHourglass size={20} />}
+            label="Protocolo de encerramento"
+            description="Liga o motor: aguardar resposta, sem resposta inicia encerramento e um agente lê o contexto. As saídas Encerrar e Devolver ficam no passo do canvas — o destino é do fluxo."
+            checked={settings.closingProtocolEnabled}
+            onChange={(v) => save("closingProtocolEnabled", v)}
             disabled={busy}
           />
         </div>
