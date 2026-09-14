@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, Fragment } from "react";
-import { CheckSquare, Copy, Download, FileText, Pin, PinOff, Reply, Smile, X } from "lucide-react";
+import { CheckSquare, ChevronDown, Copy, Download, FileText, Pin, PinOff, Reply, Smile, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -120,6 +120,12 @@ export function MessageList({
   onToChecklist?: (message: TeamChatMessage) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
+  const prevRoomId = useRef(room.id);
+  const prevCount = useRef(messages.length);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [unseen, setUnseen] = useState(0);
   const isDirect = room.kind === "DM";
   const q = query.trim().toLowerCase();
   const pinned = messages.filter((m) => m.pinned);
@@ -130,14 +136,63 @@ export function MessageList({
     );
   }, [messages, q]);
 
+  const nearBottom = (el: HTMLElement) =>
+    el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    stickToBottom.current = true;
+    setShowScrollDown(false);
+    setUnseen(0);
+  };
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, room.id]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const near = nearBottom(el);
+      stickToBottom.current = near;
+      if (near) {
+        setShowScrollDown(false);
+        setUnseen(0);
+      } else {
+        setShowScrollDown(true);
+      }
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [room.id]);
+
+  useEffect(() => {
+    prevRoomId.current = room.id;
+    stickToBottom.current = true;
+    prevCount.current = messages.length;
+    setShowScrollDown(false);
+    setUnseen(0);
+    requestAnimationFrame(() => scrollToBottom("auto"));
+    // só ao trocar de sala
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.id]);
+
+  const lastMessage = messages[messages.length - 1];
+  useEffect(() => {
+    const grew = messages.length > prevCount.current;
+    prevCount.current = messages.length;
+    if (!grew) return;
+    if (stickToBottom.current || lastMessage?.authorId === meId) {
+      requestAnimationFrame(() => scrollToBottom("smooth"));
+      return;
+    }
+    setShowScrollDown(true);
+    setUnseen((n) => n + 1);
+  }, [lastMessage?.authorId, lastMessage?.id, meId, messages.length]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {pinned.length > 0 && (
-        <div className="sticky top-0 z-10 shrink-0 bg-[var(--orbita-block-soft)] px-4 py-2">
+        <div className="sticky top-0 z-10 shrink-0 bg-[var(--orbita-block-soft)] px-3 py-2 md:px-6">
           <div className="flex w-full items-start gap-2">
             <Pin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--orbita-text-secondary)]" />
             <div className="min-w-0 flex-1 space-y-1">
@@ -174,9 +229,9 @@ export function MessageList({
           onRetry={onRetry}
         />
       ) : (
-      <div className="chat-scroll flex-1 overflow-x-hidden overflow-y-auto px-4 py-3 md:px-10">
-        <div className="flex min-h-full w-full flex-col">
-          <div className="mb-4 flex justify-center">
+      <div ref={scrollRef} className="chat-scroll flex-1 overflow-x-hidden overflow-y-auto">
+        <div className="flex min-h-full w-full flex-col justify-end px-3 py-3 md:px-10">
+          <div className="mb-3 flex justify-center">
             <div className="flex max-w-sm flex-col items-center rounded-2xl border border-border bg-[var(--orbita-block)] px-6 py-5 text-center">
               {isDirect && room.peer ? (
                 <Avatar person={toPerson(room.peer)} size="lg" showPresence />
@@ -259,6 +314,25 @@ export function MessageList({
         </div>
       </div>
       )}
+      {showScrollDown ? (
+        <button
+          type="button"
+          onClick={() => scrollToBottom("smooth")}
+          aria-label={
+            unseen > 0
+              ? `${unseen} mensagens novas — ir para o fim`
+              : "Ir para a última mensagem"
+          }
+          className="absolute bottom-3 right-4 z-20 grid size-10 place-items-center rounded-full border border-border bg-[var(--orbita-block)] text-[var(--orbita-text-secondary)] shadow-md"
+        >
+          <ChevronDown className="h-5 w-5" />
+          {unseen > 0 ? (
+            <span className="absolute -right-1 -top-1.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--orbita-unread-bg)] px-1 py-0.5 text-[10px] font-bold leading-none text-[var(--orbita-unread-fg)] tabular-nums">
+              {unseen > 99 ? "99+" : unseen}
+            </span>
+          ) : null}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -327,7 +401,7 @@ function MessageRow({
       <div
         className={cn(
           "flex items-end gap-1.5",
-          workItem ? "max-w-[26rem]" : "max-w-[min(65%,28rem)]",
+          workItem ? "max-w-[min(65%,28rem)]" : "w-fit max-w-[min(65%,42rem)]",
           mine ? "flex-row-reverse" : "flex-row",
         )}
       >

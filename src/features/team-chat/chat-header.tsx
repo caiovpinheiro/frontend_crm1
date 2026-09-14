@@ -114,7 +114,7 @@ export function ChatHeader({
             type="button"
             onClick={onBack}
             aria-label="Voltar para a lista"
-            className="grid h-9 w-9 place-items-center rounded-[var(--orbita-radius-inner)] text-[var(--orbita-text-secondary)] hover:bg-[var(--orbita-field)] hover:text-[var(--orbita-text)] lg:hidden"
+            className="grid h-9 w-9 place-items-center rounded-[var(--orbita-radius-inner)] text-[var(--orbita-text-secondary)] hover:bg-[var(--orbita-field)] hover:text-[var(--orbita-text)] md:hidden"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
