@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { RefreshCw, Send, UsersRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, Columns3, Inbox, RefreshCw, Send, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -13,6 +14,7 @@ import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { SectionHeader } from "@/components/crm/section-header";
 import {
   useWhatsAppGroup,
+  useWhatsAppGroupMessages,
   useWhatsAppGroupMutations,
   useWhatsAppGroups,
 } from "@/features/whatsapp-groups/hooks";
@@ -25,6 +27,10 @@ export default function GruposWhatsAppClientPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [autoSynced, setAutoSynced] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
+  const router = useRouter();
+  const threadRef = useRef<HTMLDivElement | null>(null);
 
   const groups = list.data?.groups ?? [];
   const connected = list.data?.connected === true;
@@ -51,7 +57,20 @@ export default function GruposWhatsAppClientPage() {
   }, [autoSynced, connected, groups.length, list.isLoading, mut.sync]);
 
   const detail = useWhatsAppGroup(connected ? selectedId : null);
+  const thread = useWhatsAppGroupMessages(connected ? selectedId : null);
   const group = detail.data?.group;
+  const messages = thread.data?.messages ?? [];
+
+  useEffect(() => {
+    setMembersOpen(false);
+    setActiveMemberId(null);
+  }, [selectedId]);
+
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length, selectedId]);
 
   return (
     <div className={cn("v2-screen v2-screen-fill grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-hidden bg-background")}>
@@ -148,7 +167,7 @@ export default function GruposWhatsAppClientPage() {
                 <EmptyState
                   icon={<UsersRound className="size-7" />}
                   title="Selecione um grupo"
-                  description="Escolha um grupo à esquerda para ver os participantes e enviar mensagem."
+                  description="Escolha um grupo à esquerda para ver as mensagens e enviar."
                 />
               ) : detail.isLoading ? (
                 <AppLoading variant="inline" className="min-h-0 flex-1" />
@@ -170,32 +189,152 @@ export default function GruposWhatsAppClientPage() {
                       </p>
                     ) : null}
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                    <p className="mb-2 font-display text-[12px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                      Participantes ({group.members.length})
-                    </p>
-                    <ul className="flex flex-col gap-1.5">
-                      {group.members.map((m) => (
-                        <li
-                          key={m.id}
-                          className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-body text-[13px] text-[var(--text-secondary)]">
-                              {m.name || m.phone || m.jid}
-                            </p>
-                            {m.phone && m.name ? (
-                              <p className="font-body text-[12px] text-[var(--text-muted)]">{m.phone}</p>
+                  <div className="border-b border-[var(--glass-border)] px-4 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setMembersOpen((v) => !v)}
+                      className="flex w-full items-center justify-between gap-2 py-1 text-left"
+                    >
+                      <span className="font-display text-[12px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        Participantes ({group.members.length})
+                      </span>
+                      <ChevronDown
+                        size={16}
+                        className={cn(
+                          "text-[var(--text-muted)] transition-transform",
+                          membersOpen ? "rotate-180" : "rotate-0",
+                        )}
+                      />
+                    </button>
+                    {membersOpen ? (
+                      <ul className="mt-1 max-h-48 overflow-y-auto">
+                        {group.members.map((m) => {
+                          const label = m.name || m.phone || m.jid;
+                          const open = activeMemberId === m.id;
+                          return (
+                            <li key={m.id} className="rounded-lg">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveMemberId((cur) => (cur === m.id ? null : m.id))
+                                }
+                                className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-[var(--glass-bg-overlay)]"
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate font-body text-[13px] text-[var(--text-secondary)]">
+                                    {label}
+                                  </p>
+                                  {m.phone && m.name ? (
+                                    <p className="font-body text-[12px] text-[var(--text-muted)]">
+                                      {m.phone}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                {m.isSuperAdmin || m.isAdmin ? (
+                                  <span className="shrink-0 rounded-full border border-[var(--glass-border)] px-2 py-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
+                                    {m.isSuperAdmin ? "Super admin" : "Admin"}
+                                  </span>
+                                ) : null}
+                              </button>
+                              {open ? (
+                                <div className="mb-1 flex flex-wrap gap-2 px-2 pb-2">
+                                  <PageGhostButton
+                                    type="button"
+                                    disabled={mut.openMember.isPending}
+                                    onClick={() => {
+                                      mut.openMember.mutate(
+                                        { groupId: group.id, memberId: m.id },
+                                        {
+                                          onSuccess: (data) =>
+                                            router.push(`/inbox?c=${encodeURIComponent(data.conversationId)}`),
+                                          onError: (err) =>
+                                            toast.error(
+                                              err instanceof Error
+                                                ? err.message
+                                                : "Não foi possível abrir no inbox",
+                                            ),
+                                        },
+                                      );
+                                    }}
+                                  >
+                                    <Inbox size={14} />
+                                    Inbox
+                                  </PageGhostButton>
+                                  <PageGhostButton
+                                    type="button"
+                                    disabled={mut.openMember.isPending}
+                                    onClick={() => {
+                                      mut.openMember.mutate(
+                                        { groupId: group.id, memberId: m.id },
+                                        {
+                                          onSuccess: (data) => {
+                                            if (data.dealId) {
+                                              router.push(`/pipeline?deal=${encodeURIComponent(data.dealId)}`);
+                                              return;
+                                            }
+                                            router.push(`/contacts/${encodeURIComponent(data.contactId)}`);
+                                            toast.message("Contato sem negócio aberto — abrindo a ficha.");
+                                          },
+                                          onError: (err) =>
+                                            toast.error(
+                                              err instanceof Error
+                                                ? err.message
+                                                : "Não foi possível abrir no pipeline",
+                                            ),
+                                        },
+                                      );
+                                    }}
+                                  >
+                                    <Columns3 size={14} />
+                                    Pipeline
+                                  </PageGhostButton>
+                                </div>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : null}
+                  </div>
+                  <div ref={threadRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                    {thread.isLoading ? (
+                      <AppLoading variant="inline" className="min-h-[120px]" />
+                    ) : messages.length === 0 ? (
+                      <p className="py-10 text-center font-body text-[13px] text-[var(--text-muted)]">
+                        As mensagens recentes do grupo aparecem aqui.
+                      </p>
+                    ) : (
+                      <ul className="flex flex-col gap-2">
+                        {messages.map((msg) => (
+                          <li
+                            key={msg.id}
+                            className={cn(
+                              "max-w-[85%] rounded-2xl px-3 py-2",
+                              msg.fromMe
+                                ? "ml-auto bg-[var(--brand-primary)]/15 text-[var(--text-primary)]"
+                                : "mr-auto bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)]",
+                            )}
+                          >
+                            {!msg.fromMe ? (
+                              <p className="mb-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
+                                {msg.fromName || msg.fromPhone || "Participante"}
+                              </p>
                             ) : null}
-                          </div>
-                          {m.isSuperAdmin || m.isAdmin ? (
-                            <span className="shrink-0 rounded-full border border-[var(--glass-border)] px-2 py-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)]">
-                              {m.isSuperAdmin ? "Super admin" : "Admin"}
-                            </span>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
+                            <p className="whitespace-pre-wrap break-words font-body text-[13px]">
+                              {msg.text}
+                            </p>
+                            <p className="mt-1 text-right font-body text-[10px] text-[var(--text-muted)]">
+                              {new Date(msg.createdAt).toLocaleString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <form
                     className="flex gap-2 border-t border-[var(--glass-border)] p-3"

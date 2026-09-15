@@ -2,6 +2,8 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 
 import type {
   WhatsAppGroupDetail,
+  WhatsAppGroupMemberOpen,
+  WhatsAppGroupMessage,
   WhatsAppGroupsListResponse,
 } from "./types";
 
@@ -31,12 +33,29 @@ export function syncWhatsAppGroups() {
 }
 
 export function sendWhatsAppGroupMessage(id: string, text: string) {
-  return json<{ ok: boolean }>(
+  return json<{ ok: boolean; message?: WhatsAppGroupMessage | null }>(
     apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
     }),
     "Não foi possível enviar a mensagem.",
+  );
+}
+
+export function listWhatsAppGroupMessages(id: string) {
+  return json<{ messages: WhatsAppGroupMessage[] }>(
+    apiFetch(`/api/whatsapp-groups/${encodeURIComponent(id)}/messages`),
+    "Não foi possível carregar as mensagens.",
+  );
+}
+
+export function openWhatsAppGroupMember(groupId: string, memberId: string) {
+  return json<WhatsAppGroupMemberOpen>(
+    apiFetch(
+      `/api/whatsapp-groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberId)}/open`,
+      { method: "POST" },
+    ),
+    "Não foi possível abrir este contato.",
   );
 }
