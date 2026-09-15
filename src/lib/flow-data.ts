@@ -74,6 +74,7 @@ export interface NodeConfig {
   languageCode?: string
   userId?: string
   userLabel?: string
+  userType?: "HUMAN" | "AI"
   departmentId?: string
   departmentName?: string
   assignAll?: boolean

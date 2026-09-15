@@ -30,7 +30,7 @@ export interface BoardDealDto {
     phone?: string | null;
     avatarUrl?: string | null;
   } | null;
-  owner: { id: string; name: string; avatarUrl?: string | null } | null;
+  owner: { id: string; name: string; avatarUrl?: string | null; type?: string | null } | null;
   lastMessage: {
     /** Id interno da Message — casa com `internalId` do SSE message_status. */
     id?: string;

@@ -2,6 +2,7 @@ import {
   createDefaultPiloting,
   type PilotingValue,
 } from "@/components/ai-agents/piloting-panel";
+import { ACADEMIC_ATENDIMENTO_RULES } from "@/lib/ai-agents/academic-atendimento-prompt";
 import { ARCHETYPES } from "@/lib/ai-agents/archetypes";
 import {
   defaultAttendanceScope,
@@ -149,8 +150,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
     "Priorize calouros e dúvidas de portal/Blackboard. Se o aluno pedir preço, turma ou desconto, transfira. Nunca invente data de início de aula.",
   systemPromptTemplate:
     ATENDIMENTO?.systemPromptTemplate ?? EMPTY_AGENT_SETTINGS.systemPromptTemplate,
-  steeringRules:
-    "Atenda aluno no WhatsApp. Nunca invente URL, prazo ou valor. Se não souber, transfira.",
+  steeringRules: ACADEMIC_ATENDIMENTO_RULES,
   productPolicy:
     "Ao falar de curso, use só o catálogo. Destaque carga horária, polo e modalidade. Preço só se vier da tool — senão, transfira.",
   toolConfig: {
@@ -183,6 +183,8 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
         department: null,
         message: null,
         tagName: null,
+        ownerUserId: null,
+        ownerLabel: null,
       },
       {
         id: "preview-cancelamento",
@@ -195,6 +197,8 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
         department: "Retenção",
         message: null,
         tagName: null,
+        ownerUserId: null,
+        ownerLabel: null,
       },
     ],
     interceptRetention: true,

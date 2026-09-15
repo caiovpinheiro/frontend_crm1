@@ -44,6 +44,16 @@ export function getInitials(name: string | null | undefined): string {
     .slice(0, 2);
 }
 
+/** Nome do responsável no chip do inbox/pipeline. Agente IA leva o sufixo da lista. */
+export function ownerLabel(
+  name: string | null | undefined,
+  type?: string | null,
+): string {
+  const n = (name ?? "").trim();
+  if (!n) return "";
+  return (type ?? "").toUpperCase() === "AI" ? `${n} (IA)` : n;
+}
+
 /** Valor monetário do negócio (API pode serializar Decimal como string). */
 export function dealNumericValue(value: number | string): number {
   const n = typeof value === "number" ? value : Number.parseFloat(String(value));

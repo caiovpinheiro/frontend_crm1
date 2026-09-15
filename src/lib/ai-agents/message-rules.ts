@@ -8,6 +8,7 @@ export type MessageRuleAction =
   | "answer_with_knowledge"
   | "transfer_department"
   | "transfer_human"
+  | "assign_owner"
   | "fixed_reply"
   | "add_tag";
 
@@ -15,6 +16,7 @@ export const MESSAGE_RULE_ACTIONS: MessageRuleAction[] = [
   "answer_with_knowledge",
   "transfer_department",
   "transfer_human",
+  "assign_owner",
   "fixed_reply",
   "add_tag",
 ];
@@ -29,8 +31,10 @@ export type MessageRule = {
   action: MessageRuleAction;
   department: string | null;
   message: string | null;
-  /// Só em `add_tag`: nome da tag, exatamente como está no CRM.
+  /// Opcional em qualquer ação; obrigatória só em `add_tag`.
   tagName: string | null;
+  ownerUserId: string | null;
+  ownerLabel: string | null;
 };
 
 /** Rótulos em linguagem de operador — nunca o nome técnico. */
@@ -49,6 +53,10 @@ export const MESSAGE_RULE_ACTION_LABELS: Record<
   transfer_human: {
     label: "Transferir para a fila de atendimento humano",
     hint: "Sem escolher departamento — entra na fila geral.",
+  },
+  assign_owner: {
+    label: "Transferir para",
+    hint: "Consultor ou agente de IA ligado. Aparece no inbox e no pipeline.",
   },
   fixed_reply: {
     label: "Responder com um texto fixo",
@@ -102,6 +110,8 @@ export function normalizeMessageRules(v: unknown): MessageRule[] {
       department: text(r.department),
       message: text(r.message),
       tagName: text(r.tagName),
+      ownerUserId: text(r.ownerUserId),
+      ownerLabel: text(r.ownerLabel),
     });
   }
   return out;
@@ -126,5 +136,7 @@ export function emptyMessageRule(): MessageRule {
     department: null,
     message: null,
     tagName: null,
+    ownerUserId: null,
+    ownerLabel: null,
   };
 }

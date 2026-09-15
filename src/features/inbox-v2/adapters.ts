@@ -15,6 +15,7 @@ import { classifyTimelineItem } from "@/components/crm/chat-timeline";
 import { normalizeDeliveryStatus } from "@/components/crm/status-ticks";
 import { avatarInitials as avatarInitialsFromLib } from "@/lib/avatar";
 import type { ConnectionRef } from "@/lib/connection-label";
+import { ownerLabel } from "@/lib/utils";
 import { sanitizeContactName } from "@/lib/display-name";
 
 import { agentNameFromWhatsappCallSender } from "@/lib/whatsapp-call-chat";
@@ -305,7 +306,7 @@ export function toConversationCard(
     status: deriveOnline(row.lastInboundAt),
     time: formatRelative(lastActivity),
     preview: previewText,
-    assignee: row.assignedTo?.name,
+    assignee: ownerLabel(row.assignedTo?.name, row.assignedTo?.type),
     // unreadCount alimenta o UnreadCountPill (pílula lilás) + rodapé "aguardando resposta".
     // `urgent` permanece para filtros/tabs (ex.: coluna "urgentes").
     unreadCount: row.unreadCount ?? 0,
@@ -955,7 +956,7 @@ export function toContactAside(
     connection: connection ?? null,
     contactId: contact?.id ?? row.contact?.id ?? row.id,
     contactNumber: (contact as { number?: number | null } | undefined)?.number ?? null,
-    assignee: row.assignedTo?.name,
+    assignee: ownerLabel(row.assignedTo?.name, row.assignedTo?.type),
     financialStatus: financial.status,
     financialLabel: financial.label,
     product: firstDeal?.productName ?? FALLBACK_FIELD,
