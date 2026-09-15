@@ -256,7 +256,6 @@ export default function AIAgentsPage({
           if (!open) setEditingId(null);
         }}
         onSaved={() => {
-          setEditingId(null);
           queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
         }}
       />

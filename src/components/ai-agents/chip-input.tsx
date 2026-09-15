@@ -42,6 +42,9 @@ export function ChipInput({
           value={draft}
           list={suggestions?.length ? listId : undefined}
           onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            if (draft.trim()) add(draft);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();

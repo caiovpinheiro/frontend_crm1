@@ -301,7 +301,7 @@ export function ToolPolicyForm({
             <Textarea
               value={policy.policyText ?? ""}
               onChange={(e) =>
-                onChange({ policyText: e.target.value.trim() || null })
+                onChange({ policyText: e.target.value || null })
               }
               rows={4}
               className="resize-y rounded-xl text-sm"
@@ -315,7 +315,7 @@ export function ToolPolicyForm({
             <Input
               value={policy.transferMessage ?? ""}
               onChange={(e) =>
-                onChange({ transferMessage: e.target.value.trim() || null })
+                onChange({ transferMessage: e.target.value || null })
               }
               placeholder="Vou te conectar com a equipe responsável…"
             />
@@ -330,7 +330,7 @@ export function ToolPolicyForm({
         <Textarea
           value={policy.argHints.geral ?? ""}
           onChange={(e) => {
-            const geral = e.target.value.trim();
+            const geral = e.target.value;
             const argHints = { ...policy.argHints };
             if (geral) argHints.geral = geral;
             else delete argHints.geral;

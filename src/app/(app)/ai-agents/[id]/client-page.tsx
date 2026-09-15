@@ -44,7 +44,9 @@ export default function EditAIAgentClientPage() {
           onOpenChange={(open) => {
             if (!open && settled.current) goBack();
           }}
-          onSaved={goBack}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+          }}
         />
       </div>
     </AppV2PageShell>
