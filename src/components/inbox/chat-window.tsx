@@ -67,6 +67,7 @@ import {
 } from "@/components/ui/tooltip";
 import { MotionDiv } from "@/components/ui/motion";
 import { agentNameFromWhatsappCallSender } from "@/lib/whatsapp-call-chat";
+import { stripChatInteractiveMarkers } from "@/lib/chat-interactive-markers";
 import {
   parseTemplateMeta,
   prettifyChatMessageBody,
@@ -79,7 +80,7 @@ import { DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm
 
 /** Texto da nota em uma linha (banner fixado estilo WhatsApp). */
 function notePreviewOneLine(content: string, maxChars = 140): string {
-  const t = prettifyChatMessageBody(content ?? "")
+  const t = stripChatInteractiveMarkers(prettifyChatMessageBody(content ?? ""))
     .replace(/\s+/g, " ")
     .trim();
   if (t.length <= maxChars) return t;

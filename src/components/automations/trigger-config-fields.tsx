@@ -729,6 +729,14 @@ export function TriggerConfigFields({ triggerType, value, onChange, stacked }: P
     case "message_sent":
       return (
         <div className="space-y-3">
+          {triggerType === "message_received" ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Cada mensagem do cliente dispara uma execução nova — inclusive o
+              toque num botão ou item de lista. Menu de boas-vindas deve usar o
+              gatilho &quot;Conversa criada&quot;; senão o fluxo recomeça no
+              meio do atendimento.
+            </p>
+          ) : null}
           <TriggerChannelScope
             id="tc-msg-ch"
             values={readTriggerChannelIds(value)}

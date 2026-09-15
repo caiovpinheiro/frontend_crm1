@@ -19,6 +19,7 @@ import {
   normalizeConditionConfig,
   type ConditionConfig,
 } from "@/lib/automation-condition";
+import { shouldClearGhostRootNext } from "@/lib/automation-ghost-next";
 import { isStepIncomplete, stepTypeLabel } from "@/lib/automation-workflow";
 
 export type AuditSeverity = "error" | "warning" | "info";
@@ -69,7 +70,12 @@ export type AutomationLike = {
  * um ramo desaguar num terminal; é problema um ramo NÃO-terminal
  * sem saída.
  */
-const TERMINAL_TYPES = new Set(["finish", "stop_automation", "transfer_automation"]);
+const TERMINAL_TYPES = new Set([
+  "finish",
+  "stop_automation",
+  "transfer_automation",
+  "finish_conversation",
+]);
 
 /**
  * Steps que pausam a execução esperando próxima mensagem do contato.
@@ -553,6 +559,34 @@ export function auditAutomation(automation: AutomationLike): AuditReport {
         // (não adiciona duplicado porque getStepOutgoing já resolveu o target)
       }
     }
+
+    if (shouldClearGhostRootNext(step.type, cfg) && strOrEmpty(cfg.nextStepId) && strOrEmpty(cfg.nextStepId) !== NONE_ID) {
+      const isClose = step.type === "finish_conversation" || step.type === "tabulate_conversation";
+      issues.push({
+        code: isClose ? "continues_after_close" : "interactive_ghost_next",
+        severity: "error",
+        message: isClose
+          ? `${label} ainda aponta para um próximo passo depois de encerrar a conversa.`
+          : `${label} tem um "próximo passo" invisível além das opções do menu.`,
+        stepId: step.id,
+        relatedStepIds: [String(cfg.nextStepId)],
+        hint: isClose
+          ? "Encerrar conversa deve ser o fim do ramo. Envie qualquer mensagem antes de encerrar — senão o cliente recebe o menu de novo com o ticket já fechado."
+          : "O canvas não mostra essa ligação, mas o executor pode segui-la junto com o botão/item tocado. O cliente escolhe uma opção e o fluxo recomeça. Apague o nextStepId raiz (salvar o fluxo no editor já limpa).",
+      });
+    }
+  }
+
+  const waitsForChoice = steps.some((s) =>
+    ["question", "send_whatsapp_interactive", "send_whatsapp_list", "wait_for_reply"].includes(s.type),
+  );
+  if (automation.triggerType === "message_received" && waitsForChoice) {
+    issues.push({
+      code: "message_received_reentry",
+      severity: "warning",
+      message: "Gatilho 'Mensagem recebida' com menu/pergunta: cada toque do cliente pode iniciar o fluxo outra vez.",
+      hint: "Use 'Conversa criada' no menu inicial, ou evite que esta automação dispare enquanto já houver execução aguardando resposta. Senão o cliente escolhe 'Falar com equipe' / 'Não' e o menu de boas-vindas volta.",
+    });
   }
 
   // Steps inalcançáveis (ilhas)
