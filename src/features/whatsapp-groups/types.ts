@@ -26,3 +26,19 @@ export type WhatsAppGroupsListResponse = {
   channel: { id: string; name: string; phoneNumber: string | null } | null;
   groups: WhatsAppGroupListItem[];
 };
+
+export type WhatsAppGroupMessage = {
+  id: string;
+  fromJid: string;
+  fromName: string | null;
+  fromPhone: string | null;
+  fromMe: boolean;
+  text: string;
+  createdAt: string;
+};
+
+export type WhatsAppGroupMemberOpen = {
+  contactId: string;
+  conversationId: string;
+  dealId: string | null;
+};
