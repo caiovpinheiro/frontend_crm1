@@ -1461,11 +1461,11 @@ html.light {
   scrollbar-color: color-mix(in oklch, var(--color-muted-foreground) 40%, transparent) transparent;
 }
 
-/* Órbita selected item — card de lista (rounded-xl), só no bWiPO Chat */
+/* Órbita selected item — lista estilo WhatsApp (linha cheia), só no bWiPO Chat */
 .orbita-item-selected {
   background: var(--orbita-list-selected-bg);
   color: var(--orbita-list-selected-name);
-  border-radius: var(--radius-xl);
+  border-radius: 0;
 }
 
 /* Focus visible for accessibility in Rely — not on the composer field */

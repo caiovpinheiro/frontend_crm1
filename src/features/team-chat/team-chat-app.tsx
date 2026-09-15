@@ -154,7 +154,7 @@ export function TeamChatApp() {
     <div className="team-chat-shell flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden">
       <div
         className={cn(
-          "orbita-block flex h-full min-h-0 w-full shrink-0 flex-col md:w-[min(30%,26rem)] md:min-w-[20rem] md:max-w-[26rem]",
+          "orbita-block flex h-full min-h-0 w-full shrink-0 flex-col md:w-[min(38%,28rem)] md:min-w-[26rem] md:max-w-[32rem]",
           selected ? "hidden md:flex" : "flex",
         )}
       >
