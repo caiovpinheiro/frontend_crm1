@@ -62,11 +62,11 @@ export function MultiSelectPopover({
   const visibleOptions = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return options;
-    return options.filter(
-      (opt) =>
-        opt.label.toLowerCase().includes(needle) ||
-        (opt.sub ?? "").toLowerCase().includes(needle),
-    );
+    return options.filter((opt) => {
+      const label = (opt.label ?? "").toLowerCase();
+      const sub = (opt.sub ?? "").toLowerCase();
+      return label.includes(needle) || sub.includes(needle);
+    });
   }, [options, query]);
 
   function toggleValue(value: string) {
@@ -139,6 +139,7 @@ export function MultiSelectPopover({
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
                   placeholder={`Buscar ${label.toLowerCase()}…`}
                   className="h-8 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                 />
