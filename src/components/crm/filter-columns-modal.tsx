@@ -180,7 +180,7 @@ export function FilterColumnsModal({
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <div
             ref={hScrollRef}
-            className="filter-columns-hscroll h-full min-h-0 w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            className="filter-columns-hscroll h-full min-h-0 w-full min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [touch-action:pan-x_pan-y]"
           >
             <div
               ref={hInnerRef}
@@ -190,28 +190,28 @@ export function FilterColumnsModal({
             </div>
           </div>
           {hMetrics.overflow && !hMetrics.atStart ? (
-            <button
-              type="button"
-              onClick={() => scrollColumns(-1)}
-              aria-label="Categorias anteriores"
-              className="absolute inset-y-0 left-0 z-10 flex w-14 items-center justify-start border-0 bg-gradient-to-r from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_80%,transparent)] to-transparent"
-            >
-              <span className="relative z-10 ml-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-14 items-center justify-start bg-gradient-to-r from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_80%,transparent)] to-transparent">
+              <button
+                type="button"
+                onClick={() => scrollColumns(-1)}
+                aria-label="Categorias anteriores"
+                className="pointer-events-auto relative z-10 ml-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm"
+              >
                 <ChevronLeft className="size-4" />
-              </span>
-            </button>
+              </button>
+            </div>
           ) : null}
           {hMetrics.overflow && !hMetrics.atEnd ? (
-            <button
-              type="button"
-              onClick={() => scrollColumns(1)}
-              aria-label="Próximas categorias"
-              className="absolute inset-y-0 right-0 z-10 flex w-14 items-center justify-end border-0 bg-gradient-to-l from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_80%,transparent)] to-transparent"
-            >
-              <span className="relative z-10 mr-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm">
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex w-14 items-center justify-end bg-gradient-to-l from-[var(--dropdown-solid-bg)] via-[color-mix(in_srgb,var(--dropdown-solid-bg)_80%,transparent)] to-transparent">
+              <button
+                type="button"
+                onClick={() => scrollColumns(1)}
+                aria-label="Próximas categorias"
+                className="pointer-events-auto relative z-10 mr-1.5 flex size-8 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-sm"
+              >
                 <ChevronRight className="size-4" />
-              </span>
-            </button>
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -248,8 +248,7 @@ export function FilterCategoryColumn({
   return (
     <section
       className={cn(
-        "flex min-h-0 w-[min(16rem,85vw)] shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
-        "max-h-[min(calc(84vh-11rem),36rem)]",
+        "flex h-[min(calc(84vh-11rem),36rem)] max-h-[min(calc(84vh-11rem),36rem)] min-h-0 w-[min(16rem,85vw)] shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
         className,
       )}
     >
@@ -268,7 +267,7 @@ export function FilterCategoryColumn({
         data-page-scroll
         data-filter-col-scroll
         className={cn(
-          "flex min-h-0 grow flex-col items-stretch overflow-x-hidden overflow-y-auto overscroll-y-contain",
+          "flex min-h-0 grow flex-col items-stretch overflow-x-hidden overflow-y-scroll overscroll-y-contain [touch-action:pan-y] [-webkit-overflow-scrolling:touch]",
           stacked ? "gap-3" : "gap-1.5",
           "[&>button]:w-full [&>button]:justify-start [&>button]:min-w-0",
         )}

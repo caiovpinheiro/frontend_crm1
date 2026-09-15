@@ -765,6 +765,8 @@ html[data-nav-expanded="true"] {
    Não setar scrollbar-width no Chromium — desativa ::-webkit-scrollbar. */
 .filter-columns-hscroll {
   scrollbar-gutter: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
 }
 .filter-columns-hscroll::-webkit-scrollbar {
   height: 8px;
@@ -795,6 +797,9 @@ html[data-nav-expanded="true"] {
 }
 [data-filter-col-scroll] {
   scrollbar-gutter: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 [data-filter-col-scroll]::-webkit-scrollbar {
   width: 5px;
