@@ -5,7 +5,6 @@ import { CheckSquare, ChevronDown, Copy, Download, FileText, Forward, Pin, PinOf
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
-import { ImageLightbox } from "@/components/crm/image-lightbox";
 import { StatusTicks, type DeliveryTickStatus } from "@/components/crm/status-ticks";
 
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -13,9 +12,14 @@ import { cn } from "@/lib/utils";
 
 import { Avatar, GroupGlyph } from "./avatar";
 import { dayKey, formatClock, formatDayLabel, getOrbitaNameColor, parseQuotedContent, REACTION_EMOJIS, toPerson } from "./helpers";
+import { TeamChatImageViewer } from "./image-viewer";
 import { LinkedRecordCard } from "./record-card";
 import type { OpenCrmCard, TeamChatAttachment, TeamChatMessage, TeamChatReaction, TeamChatRoom, WorkItem } from "./types";
 import { WorkItemCard } from "./work-item-card";
+
+function formatViewerWhen(iso: string) {
+  return `${formatDayLabel(iso)} às ${formatClock(iso)}`;
+}
 
 function formatChatText(text: string, mine: boolean): ReactNode {
   if (!text) return text;
@@ -509,7 +513,13 @@ function MessageRow({
               pinned={message.pinned}
               time={formatClock(message.createdAt)}
               tick={tick}
+              authorName={authorName}
+              author={author}
               onOpenRecord={onOpenRecord}
+              onToggleReaction={onToggleReaction}
+              onTogglePin={onTogglePin}
+              onForward={onForward}
+              onDelete={mine ? onDelete : undefined}
             />
             )}
             {reactions.length > 0 && (
@@ -770,7 +780,13 @@ function MessageBody({
   pinned,
   time,
   tick,
+  authorName,
+  author,
   onOpenRecord,
+  onToggleReaction,
+  onTogglePin,
+  onForward,
+  onDelete,
 }: {
   message: TeamChatMessage;
   mine: boolean;
@@ -778,11 +794,20 @@ function MessageBody({
   pinned: boolean;
   time: string;
   tick?: DeliveryTickStatus;
+  authorName: string;
+  author: ReturnType<typeof toPerson> | null;
   onOpenRecord?: (card: OpenCrmCard) => void;
+  onToggleReaction: (id: string, emoji: string) => void;
+  onTogglePin: (id: string) => void;
+  onForward?: (message: TeamChatMessage) => void;
+  onDelete?: (message: TeamChatMessage) => void;
 }) {
   const attachments = message.attachments ?? [];
   const stickers = attachments.filter((a) => a.kind === "sticker");
   const media = attachments.filter((a) => a.kind !== "sticker");
+  const images = media.filter((a) => a.kind === "image");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const parsed = parseQuotedContent(message.content);
   const bodyText = parsed.body.trim();
   const hasText = Boolean(bodyText || parsed.quote);
@@ -807,6 +832,12 @@ function MessageBody({
       {tick && <StatusTicks status={tick} />}
     </span>
   );
+
+  function openImage(att: TeamChatAttachment) {
+    const idx = images.findIndex((a) => a === att);
+    setViewerIndex(idx >= 0 ? idx : 0);
+    setViewerOpen(true);
+  }
 
   return (
     <div className={cn("flex flex-col gap-1", mine ? "items-end" : "items-start")}>
@@ -855,7 +886,7 @@ function MessageBody({
                 : "overflow-hidden p-1",
             )}
           >
-            <MediaChip att={att} />
+            <MediaChip att={att} onOpenImage={att.kind === "image" ? () => openImage(att) : undefined} />
             {showMeta && audio ? (
               <span className="flex justify-end pr-0.5">{meta}</span>
             ) : showMeta ? (
@@ -907,12 +938,34 @@ function MessageBody({
           {!hasText ? <span className="mt-1 flex justify-end">{meta}</span> : null}
         </div>
       ) : null}
+      {images.length > 0 ? (
+        <TeamChatImageViewer
+          open={viewerOpen}
+          onOpenChange={setViewerOpen}
+          images={images.map((a) => ({ url: a.url, name: a.name }))}
+          index={viewerIndex}
+          onIndexChange={setViewerIndex}
+          authorName={authorName}
+          author={author}
+          whenLabel={formatViewerWhen(message.createdAt)}
+          pinned={pinned}
+          onTogglePin={() => onTogglePin(message.id)}
+          onToggleReaction={(emoji) => onToggleReaction(message.id, emoji)}
+          onForward={onForward ? () => onForward(message) : undefined}
+          onDelete={onDelete ? () => onDelete(message) : undefined}
+        />
+      ) : null}
     </div>
   );
 }
 
-function MediaChip({ att }: { att: TeamChatAttachment }) {
-  const [lightboxOpen, setLightboxOpen] = useState(false);
+function MediaChip({
+  att,
+  onOpenImage,
+}: {
+  att: TeamChatAttachment;
+  onOpenImage?: () => void;
+}) {
   const copy = () =>
     void copyAttachment(att).catch(() =>
       toast.error("Não foi possível copiar. Tente de novo ou baixe o arquivo."),
@@ -920,53 +973,45 @@ function MediaChip({ att }: { att: TeamChatAttachment }) {
 
   if (att.kind === "image") {
     return (
-      <>
-        <div
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
-              e.preventDefault();
-              copy();
-            }
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              setLightboxOpen(true);
-            }
-          }}
-          className="group/media relative w-fit overflow-hidden rounded-[var(--orbita-radius-inner)] outline-none"
+      <div
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+            e.preventDefault();
+            copy();
+          }
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpenImage?.();
+          }
+        }}
+        className="group/media relative w-fit overflow-hidden rounded-[var(--orbita-radius-inner)] outline-none"
+      >
+        <button
+          type="button"
+          onClick={() => onOpenImage?.()}
+          aria-label={`Ampliar ${att.name || "imagem"}`}
+          className="block cursor-zoom-in"
         >
-          <button
-            type="button"
-            onClick={() => setLightboxOpen(true)}
-            aria-label={`Ampliar ${att.name || "imagem"}`}
-            className="block cursor-zoom-in"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={att.url}
-              alt={att.name}
-              className="max-h-80 max-w-[min(22rem,70vw)] object-cover transition-opacity hover:opacity-95"
-            />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              copy();
-            }}
-            aria-label="Copiar imagem"
-            className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100"
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <ImageLightbox
-          src={att.url}
-          alt={att.name}
-          open={lightboxOpen}
-          onOpenChange={setLightboxOpen}
-        />
-      </>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={att.url}
+            alt={att.name}
+            className="max-h-80 max-w-[min(22rem,70vw)] object-cover transition-opacity hover:opacity-95"
+          />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            copy();
+          }}
+          aria-label="Copiar imagem"
+          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100"
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </button>
+      </div>
     );
   }
 
