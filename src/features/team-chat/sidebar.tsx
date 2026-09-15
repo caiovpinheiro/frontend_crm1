@@ -79,7 +79,7 @@ function HeaderIcon({
 function UnreadPill({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="ml-auto flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full bg-[var(--orbita-unread-bg)] px-1.5 text-[11px] font-semibold text-[var(--orbita-unread-fg)]">
+    <span className="flex h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full bg-[var(--orbita-unread-bg)] px-1.5 text-[12px] font-semibold text-[var(--orbita-unread-fg)]">
       {count > 99 ? "99+" : count}
     </span>
   );
@@ -105,6 +105,7 @@ function ChatRow({
   onToggleMute?: () => void;
 }) {
   const unread = item.unread;
+  const preview = item.typing ? "Digitando..." : item.preview || " ";
   return (
     <div
       role="button"
@@ -117,63 +118,70 @@ function ChatRow({
         }
       }}
       className={cn(
-        "group flex min-h-[84px] w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        "group flex min-h-[88px] w-full cursor-pointer items-center gap-3.5 px-4 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        "border-b border-[var(--orbita-divider)]",
         active ? "orbita-item-selected" : "hover:bg-[var(--orbita-field)]",
       )}
     >
       {item.kind === "dm" ? (
         <div className="shrink-0">
-          <Avatar person={toPerson(item.row.person)} size="md" showPresence />
+          <Avatar person={toPerson(item.row.person)} size="lg" showPresence />
         </div>
       ) : (
-        <GroupGlyph seed={item.room.id} size={40} imageUrl={item.room.avatarUrl} name={item.room.name} />
+        <GroupGlyph seed={item.room.id} size={52} imageUrl={item.room.avatarUrl} name={item.room.name} />
       )}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-1">
+      <div className="min-w-0 flex-1 self-stretch py-0.5">
+        <div className="flex items-baseline gap-2">
           <span
             className={cn(
-              "truncate text-[15px] leading-tight",
+              "min-w-0 flex-1 truncate text-[17px] leading-tight",
               active ? "text-[var(--orbita-list-selected-name)]" : "text-[var(--orbita-text)]",
-              unread > 0 || active ? "font-semibold" : "font-medium",
+              unread > 0 ? "font-semibold" : "font-medium",
             )}
           >
             {item.kind === "group" ? `#${item.name}` : item.name}
           </span>
-          {favorited && (
-            <Pin className="h-3 w-3 shrink-0 text-[var(--orbita-selected)]" aria-hidden />
-          )}
-          {item.muted && (
-            <BellOff className="h-3 w-3 shrink-0 text-[var(--orbita-text-tertiary)]" aria-hidden />
-          )}
-          {item.time && (
+          {item.time ? (
             <span
               className={cn(
-                "ml-auto shrink-0 text-[12px]",
-                active
-                  ? "text-[var(--orbita-list-selected-time)]"
-                  : "text-[var(--orbita-text-tertiary)]",
+                "shrink-0 text-[13px] tabular-nums",
+                unread > 0
+                  ? "font-medium text-[var(--orbita-unread-bg)]"
+                  : active
+                    ? "text-[var(--orbita-list-selected-time)]"
+                    : "text-[var(--orbita-text-tertiary)]",
               )}
             >
               {item.time}
             </span>
-          )}
+          ) : null}
         </div>
-        <div className="mt-0.5 flex items-center gap-1">
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-[13.5px] leading-snug",
-              item.typing
-                ? "font-medium text-[var(--orbita-selected)]"
-                : active
-                  ? "text-[var(--orbita-list-selected-preview)]"
-                  : unread > 0
-                    ? "font-medium text-[var(--orbita-text)]"
-                    : "text-[var(--orbita-text-secondary)]",
-            )}
-          >
-            {item.typing ? "Digitando..." : item.preview}
-          </span>
-          {!active && <UnreadPill count={unread} />}
+        <div className="mt-1 flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <p
+              className={cn(
+                "line-clamp-2 text-[14.5px] leading-[1.35]",
+                item.typing
+                  ? "font-medium text-[var(--orbita-selected)]"
+                  : active
+                    ? "text-[var(--orbita-list-selected-preview)]"
+                    : unread > 0
+                      ? "font-medium text-[var(--orbita-text)]"
+                      : "text-[var(--orbita-text-secondary)]",
+              )}
+            >
+              {favorited ? (
+                <Pin className="mr-1 inline size-3.5 -translate-y-px text-[var(--orbita-selected)]" aria-hidden />
+              ) : null}
+              {item.muted ? (
+                <BellOff className="mr-1 inline size-3.5 -translate-y-px text-[var(--orbita-text-tertiary)]" aria-hidden />
+              ) : null}
+              {preview}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1 pb-0.5">
+            {!active ? <UnreadPill count={unread} /> : null}
+          </div>
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
@@ -186,11 +194,11 @@ function ChatRow({
             }}
             aria-label={favorited ? "Desafixar conversa" : "Fixar conversa"}
             className={cn(
-              "grid h-6 w-6 place-items-center rounded-full",
+              "grid h-7 w-7 place-items-center rounded-full",
               favorited ? "text-[var(--orbita-selected)]" : "text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]",
             )}
           >
-            <Pin className={cn("h-3 w-3", favorited && "fill-current")} />
+            <Pin className={cn("h-3.5 w-3.5", favorited && "fill-current")} />
           </button>
         </TooltipGlass>
         <TooltipGlass label={archived ? "Desarquivar" : "Arquivar"} side="left">
@@ -201,9 +209,9 @@ function ChatRow({
               onToggleArchived();
             }}
             aria-label={archived ? "Desarquivar conversa" : "Arquivar conversa"}
-            className="grid h-6 w-6 place-items-center rounded-full text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]"
+            className="grid h-7 w-7 place-items-center rounded-full text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]"
           >
-            <Archive className="h-3 w-3" />
+            <Archive className="h-3.5 w-3.5" />
           </button>
         </TooltipGlass>
         {onToggleMute ? (
@@ -215,9 +223,9 @@ function ChatRow({
                 onToggleMute();
               }}
               aria-label={item.muted ? "Ativar som desta conversa" : "Silenciar conversa"}
-              className="grid h-6 w-6 place-items-center rounded-full text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]"
+              className="grid h-7 w-7 place-items-center rounded-full text-[var(--orbita-text-tertiary)] hover:bg-[var(--orbita-field)]"
             >
-              {item.muted ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
+              {item.muted ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
             </button>
           </TooltipGlass>
         ) : null}
@@ -410,10 +418,10 @@ export function Sidebar({
     if (rows.length === 0) return null;
     return (
       <section className="mb-2">
-        <h2 className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--orbita-text-tertiary)]">
+        <h2 className="px-4 pb-1.5 pt-3 text-[12px] font-semibold uppercase tracking-wide text-[var(--orbita-text-tertiary)]">
           {title}
         </h2>
-        <div className="divide-y divide-border">{rows.map(renderRow)}</div>
+        <div>{rows.map(renderRow)}</div>
       </section>
     );
   }
@@ -508,7 +516,7 @@ export function Sidebar({
         />
       ) : (
       <nav
-        className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1.5"
+        className="chat-scroll flex min-h-0 flex-1 flex-col overflow-y-auto py-0"
         aria-label="Conversas"
         data-tour="bwipo-chat-list"
       >
@@ -530,14 +538,14 @@ export function Sidebar({
                   type="button"
                   onClick={() => setArchivedOpen((v) => !v)}
                   aria-expanded={archivedOpen}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold text-[var(--orbita-text-secondary)] hover:bg-[var(--orbita-field)]"
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13.5px] font-semibold text-[var(--orbita-text-secondary)] hover:bg-[var(--orbita-field)]"
                 >
-                  <Archive className="h-3.5 w-3.5" />
+                  <Archive className="h-4 w-4" />
                   Arquivadas
-                  <span className="rounded-full bg-muted px-1.5 text-[10px] tabular-nums">{archivedItems.length}</span>
+                  <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums">{archivedItems.length}</span>
                   <ChevronDown className={cn("ml-auto h-3.5 w-3.5 transition", archivedOpen && "rotate-180")} />
                 </button>
-                {archivedOpen ? <div className="divide-y divide-border">{archivedItems.map(renderRow)}</div> : null}
+                {archivedOpen ? <div>{archivedItems.map(renderRow)}</div> : null}
               </section>
             ) : null}
             {renderSection("Fixadas", pinnedItems)}
