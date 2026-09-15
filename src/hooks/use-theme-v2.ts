@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { apiUrl } from "@/lib/api";
+import { syncNativeStatusBar } from "@/lib/native/capacitor";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { fetchSidebarPreferences } from "@/features/sidebar/api";
 import { SIDEBAR_PREFS_KEY } from "@/features/sidebar/hooks";
@@ -42,6 +43,11 @@ function applyTheme(t: ThemeV2) {
   // Mantém form controls/scrollbars nativos (checkbox, select, etc.) coerentes
   // com o tema — mesmo valor que o script anti-FOUC em layout.tsx já seta.
   document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+  const c = isDark ? "#0d1b3e" : "#f4f6fb";
+  document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+    meta.setAttribute("content", c);
+  });
+  syncNativeStatusBar(isDark);
 }
 
 /**

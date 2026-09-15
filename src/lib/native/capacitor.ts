@@ -118,3 +118,20 @@ export function getNativeAppPlugin(): NativeAppPlugin | undefined {
 export function getAppUpdatePlugin(): NativeAppUpdatePlugin | undefined {
   return getCapacitorPlugins()?.AppUpdate;
 }
+
+type NativeStatusBarPlugin = {
+  setOverlaysWebView?: (options: { overlay: boolean }) => Promise<void>;
+  setBackgroundColor?: (options: { color: string }) => Promise<void>;
+  setStyle?: (options: { style: string }) => Promise<void>;
+};
+
+/** Status bar do SO acima do WebView (faixa do WhatsApp), cor alinhada ao tema. */
+export function syncNativeStatusBar(isDark: boolean): void {
+  if (!isNativePlatform()) return;
+  const bar = getCapacitorPlugins()?.StatusBar as NativeStatusBarPlugin | undefined;
+  if (!bar) return;
+  const color = isDark ? "#0d1b3e" : "#f4f6fb";
+  void bar.setOverlaysWebView?.({ overlay: false });
+  void bar.setBackgroundColor?.({ color });
+  void bar.setStyle?.({ style: isDark ? "LIGHT" : "DARK" });
+}

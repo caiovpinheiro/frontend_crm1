@@ -37,14 +37,12 @@ export const metadata: Metadata = {
   title: "Bwipo",
   description: "CRM para gestão de relacionamento com clientes",
   applicationName: "Bwipo",
-  // PWA / iOS standalone — quando instalado na home, abre fullscreen
-  // com a barra de status preta translucida (Safari respeita "default"
-  // mais "black-translucent": o conteudo passa por baixo da status bar
-  // e aproveitamos o env(safe-area-inset-top) pra empurrar o conteudo).
+  // PWA / iOS: `default` reserva a faixa do relógio/wifi (como o WhatsApp).
+  // `black-translucent` desenhava o CRM por baixo e tapava o título.
   appleWebApp: {
     capable: true,
     title: "Bwipo",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
   formatDetection: {
     telephone: false,
@@ -130,6 +128,12 @@ export default async function RootLayout({
     var metas = document.querySelectorAll('meta[name="theme-color"]');
     if (metas.length) {
       for (var i = 0; i < metas.length; i++) metas[i].setAttribute("content", c);
+    }
+    var bar = cap && cap.Plugins && cap.Plugins.StatusBar;
+    if (bar) {
+      if (bar.setOverlaysWebView) bar.setOverlaysWebView({ overlay: false });
+      if (bar.setBackgroundColor) bar.setBackgroundColor({ color: c });
+      if (bar.setStyle) bar.setStyle({ style: dark ? "LIGHT" : "DARK" });
     }
   } catch (e) {}
 })();`,
