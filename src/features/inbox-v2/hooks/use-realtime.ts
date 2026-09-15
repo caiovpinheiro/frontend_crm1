@@ -16,6 +16,10 @@ import {
   rowStaysOnAutomacaoTab,
   tabMoved,
 } from "../inbox-queue-tab";
+import {
+  mergeInboxCardRow,
+  sameInboxCardGroup,
+} from "../inbox-card-group";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 import {
   findCachedConversationRow,
@@ -760,6 +764,8 @@ function invalidateInboxQueriesTouching(
  * Substitui / remove / prepend o card nas páginas já cacheadas.
  * Sem search/filtros de servidor, um ticket novo entra no topo da aba
  * certa. Com filtro opaco, invalida só aquela query — nunca a inbox toda.
+ * Também remove irmãos do mesmo contato+canal (órfã SSE sem channelId
+ * vs ticket já listado) para não duplicar o card.
  */
 function applyConversationRowToInboxCaches(
   qc: QueryClient,
@@ -768,19 +774,17 @@ function applyConversationRowToInboxCaches(
   const prev = findCachedConversationRow(qc, row.id);
   const fromTab = prev ? inboxQueueTabFor(prev) : null;
   const toTab = inboxQueueTabFor(row);
+  const mergedRow = prev ? mergeInboxCardRow(prev, row) : row;
 
-  qc.setQueryData(
-    ["inbox-conversation", row.id],
-    prev ? { ...prev, ...row } : row,
-  );
-  if (row.number != null) {
+  qc.setQueryData(["inbox-conversation", mergedRow.id], mergedRow);
+  if (mergedRow.number != null) {
     const prevByNum = qc.getQueryData<ConversationListRow>([
       "inbox-conversation",
-      String(row.number),
+      String(mergedRow.number),
     ]);
     qc.setQueryData(
-      ["inbox-conversation", String(row.number)],
-      prevByNum ? { ...prevByNum, ...row } : row,
+      ["inbox-conversation", String(mergedRow.number)],
+      prevByNum ? mergeInboxCardRow(prevByNum, mergedRow) : mergedRow,
     );
   }
 
@@ -798,22 +802,50 @@ function applyConversationRowToInboxCaches(
       if (!items) return page;
       const idx = items.findIndex(
         (c) =>
-          conversationMatchesId(c, row.id) ||
-          (row.number != null && conversationMatchesId(c, String(row.number))),
+          conversationMatchesId(c, mergedRow.id) ||
+          (mergedRow.number != null &&
+            conversationMatchesId(c, String(mergedRow.number))),
       );
       if (idx < 0) return page;
       found = true;
       const nextItems = items.slice();
-      nextItems[idx] = { ...items[idx], ...row };
+      nextItems[idx] = mergeInboxCardRow(items[idx]!, mergedRow);
       return { ...page, items: nextItems };
     });
 
     const belongs =
-      rowFitsCachedQuery(row, tabs, found) &&
-      !rowKnownToMissFilters(row, inboxFiltersFromQueryKey(queryKey));
+      rowFitsCachedQuery(mergedRow, tabs, found) &&
+      !rowKnownToMissFilters(mergedRow, inboxFiltersFromQueryKey(queryKey));
 
     if (found && belongs) {
-      qc.setQueryData(queryKey, { ...cached, pages: pagesAfterPatch });
+      let siblingRemoved = 0;
+      const pages = pagesAfterPatch.map((page) => {
+        const items = page?.items;
+        if (!items?.length) return page;
+        const nextItems = items.filter((c) => {
+          if (
+            conversationMatchesId(c, mergedRow.id) ||
+            (mergedRow.number != null &&
+              conversationMatchesId(c, String(mergedRow.number)))
+          ) {
+            return true;
+          }
+          if (sameInboxCardGroup(c, mergedRow)) {
+            siblingRemoved += 1;
+            return false;
+          }
+          return true;
+        });
+        if (nextItems.length === items.length) return page;
+        return { ...page, items: nextItems };
+      });
+      qc.setQueryData(queryKey, {
+        ...cached,
+        pages:
+          siblingRemoved > 0
+            ? bumpPageTotals(pages, -siblingRemoved)
+            : pages,
+      });
       continue;
     }
 
@@ -823,8 +855,11 @@ function applyConversationRowToInboxCaches(
         if (!items?.length) return page;
         const nextItems = items.filter(
           (c) =>
-            !conversationMatchesId(c, row.id) &&
-            !(row.number != null && conversationMatchesId(c, String(row.number))),
+            !conversationMatchesId(c, mergedRow.id) &&
+            !(
+              mergedRow.number != null &&
+              conversationMatchesId(c, String(mergedRow.number))
+            ),
         );
         if (nextItems.length === items.length) return page;
         return { ...page, items: nextItems };
@@ -836,16 +871,25 @@ function applyConversationRowToInboxCaches(
       continue;
     }
 
-    if (!found && belongs && canSafelyPrependToQuery(row, queryKey)) {
-      const pages = cached.pages.slice();
-      const first = pages[0] ?? { items: [] };
-      pages[0] = {
-        ...first,
-        items: [row, ...(first.items ?? [])],
-      };
+    if (!found && belongs && canSafelyPrependToQuery(mergedRow, queryKey)) {
+      let siblingRemoved = 0;
+      const pages = cached.pages.map((page, pageIdx) => {
+        const items = page?.items ?? [];
+        const rest = items.filter((c) => {
+          if (sameInboxCardGroup(c, mergedRow)) {
+            siblingRemoved += 1;
+            return false;
+          }
+          return true;
+        });
+        if (pageIdx === 0) {
+          return { ...page, items: [mergedRow, ...rest] };
+        }
+        return rest.length === items.length ? page : { ...page, items: rest };
+      });
       qc.setQueryData(queryKey, {
         ...cached,
-        pages: bumpPageTotals(pages, 1),
+        pages: bumpPageTotals(pages, 1 - siblingRemoved),
       });
       continue;
     }

@@ -16,6 +16,7 @@ import {
   rowBelongsToAnyInboxTab,
   rowStaysOnAutomacaoTab,
 } from "../inbox-queue-tab";
+import { mergeInboxCardRow, sameInboxCardGroup } from "../inbox-card-group";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 
 /**
@@ -197,7 +198,7 @@ function applyRowToInboxListCaches(
       if (idx < 0) return page;
       found = true;
       const nextItems = items.slice();
-      nextItems[idx] = { ...items[idx], ...row };
+      nextItems[idx] = mergeInboxCardRow(items[idx]!, row);
       return { ...page, items: nextItems };
     });
 
@@ -209,7 +210,33 @@ function applyRowToInboxListCaches(
           : rowBelongsToAnyInboxTab(row, tabs);
 
     if (found && belongs) {
-      qc.setQueryData(queryKey, { ...cached, pages: pagesAfterPatch });
+      let siblingRemoved = 0;
+      const pages = pagesAfterPatch.map((page) => {
+        const items = page?.items;
+        if (!items?.length) return page;
+        const nextItems = items.filter((c) => {
+          if (
+            conversationMatchesId(c, row.id) ||
+            (row.number != null && conversationMatchesId(c, String(row.number)))
+          ) {
+            return true;
+          }
+          if (sameInboxCardGroup(c, row)) {
+            siblingRemoved += 1;
+            return false;
+          }
+          return true;
+        });
+        if (nextItems.length === items.length) return page;
+        return { ...page, items: nextItems };
+      });
+      qc.setQueryData(queryKey, {
+        ...cached,
+        pages:
+          siblingRemoved > 0
+            ? bumpPageTotals(pages, -siblingRemoved)
+            : pages,
+      });
       continue;
     }
 
@@ -235,15 +262,24 @@ function applyRowToInboxListCaches(
     if (!found && belongs) {
       if (inboxSearchFromQueryKey(queryKey)) continue;
       if (hasInboxServerFilters(inboxFiltersFromQueryKey(queryKey))) continue;
-      const pages = cached.pages.slice();
-      const first = pages[0] ?? { items: [] };
-      pages[0] = {
-        ...first,
-        items: [row, ...(first.items ?? [])],
-      };
+      let siblingRemoved = 0;
+      const pages = cached.pages.map((page, pageIdx) => {
+        const items = page?.items ?? [];
+        const rest = items.filter((c) => {
+          if (sameInboxCardGroup(c, row)) {
+            siblingRemoved += 1;
+            return false;
+          }
+          return true;
+        });
+        if (pageIdx === 0) {
+          return { ...page, items: [row, ...rest] };
+        }
+        return rest.length === items.length ? page : { ...page, items: rest };
+      });
       qc.setQueryData(queryKey, {
         ...cached,
-        pages: bumpPageTotals(pages, 1),
+        pages: bumpPageTotals(pages, 1 - siblingRemoved),
       });
     }
   }
