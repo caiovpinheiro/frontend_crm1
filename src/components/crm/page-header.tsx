@@ -107,23 +107,22 @@ export type PageHeaderBack = {
  * Cabeçalho de página DS v2 — identidade (ícone tile 44px + título 22px bold)
  * à esquerda; busca + Filtrar + calendário + hamburger sempre à direita.
  *
- * Uma única faixa `flex-wrap`: se o cluster não couber, ele desce para a
- * segunda linha alinhado ao fim (`ml-auto` / `justify-end`) — não como bloco
- * `w-full` à esquerda sob o título. A pílula tem altura `h-10` e largura
- * canônica `32rem` (encolhe antes de recortar as ações).
+ * Desktop: identidade à esquerda, cluster à direita na mesma faixa.
+ * Mobile (< md): identidade em linha própria; busca + ações na linha de
+ * baixo (`basis-full`) para o título/ícone não serem recortados.
  *
  * Um único mount (sem duplicar desktop `lg:flex` + mobile `lg:hidden`) para
  * portais de menu no `actions` / `menuSlot` não duplicarem.
  * Descrições de página foram removidas do padrão NavRail.
  */
 
-/** Cluster de busca + ações — encolhe a pílula; o título não some. */
+/** Cluster de busca + ações. No mobile ocupa a 2ª linha inteira. */
 export const PAGE_HEADER_CONTROLS_CLASS =
-  "ml-auto flex min-w-0 flex-1 items-center justify-end gap-2"
+  "flex w-full min-w-0 basis-full items-center justify-end gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:ml-auto md:w-auto md:flex-1 md:basis-auto md:overflow-visible"
 
-/** Slot da busca — até 32rem, mas cede espaço antes de esmagar a identidade. */
+/** Slot da busca — até 32rem; no mobile cede espaço às ações, sem encobrir o título. */
 export const PAGE_HEADER_SEARCH_SLOT_CLASS =
-  "min-w-0 flex-1 w-full max-w-[32rem] [&_.relative]:w-full"
+  "min-w-[7.5rem] flex-1 w-full max-w-[32rem] [&_.relative]:w-full"
 
 interface PageHeaderProps {
   icon: React.ReactNode
@@ -211,7 +210,7 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="shrink-0">
+      <div className="min-w-0 max-md:w-full md:shrink-0">
         <Identity icon={icon} title={title} back={back} titleAccessory={titleAccessory} />
       </div>
       {hasControls ? (
