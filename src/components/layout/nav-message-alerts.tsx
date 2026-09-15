@@ -287,11 +287,13 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
 
         const isOwn = Boolean(myId && data.message?.authorId && data.message.authorId === myId);
         const isSystem = data.message?.kind === "SYSTEM";
+        const onChatPage =
+          pathnameRef.current.startsWith("/bwipo-chat") &&
+          document.visibilityState === "visible";
         const viewingActiveRoom =
           Boolean(data.roomId) &&
           data.roomId === activeRoomRef.current &&
-          pathnameRef.current.startsWith("/bwipo-chat") &&
-          document.visibilityState === "visible";
+          onChatPage;
 
         if (data.message?.id) {
           upsertTeamChatMessage(qc, {
@@ -316,7 +318,7 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
           data.roomId && knownRooms?.rooms.some((room) => room.id === data.roomId && room.muted),
         );
         if (mutedRoom) return;
-        if (viewingActiveRoom) return;
+        if (onChatPage) return;
 
         flash("team-chat");
       },
@@ -362,17 +364,18 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     });
   }, []);
 
+  const onChatPage = pathname.startsWith("/bwipo-chat");
   const value = useMemo<AlertsValue>(
     () => ({
-      chatUnread,
+      chatUnread: onChatPage ? 0 : chatUnread,
       emailUnread,
-      chatPulse,
+      chatPulse: onChatPage ? false : chatPulse,
       emailPulse,
       soundMuted,
       setSoundMuted,
       setActiveTeamChatRoom,
     }),
-    [chatUnread, emailUnread, chatPulse, emailPulse, soundMuted, setSoundMuted, setActiveTeamChatRoom],
+    [onChatPage, chatUnread, emailUnread, chatPulse, emailPulse, soundMuted, setSoundMuted, setActiveTeamChatRoom],
   );
 
   return <NavMessageAlertsContext.Provider value={value}>{children}</NavMessageAlertsContext.Provider>;
