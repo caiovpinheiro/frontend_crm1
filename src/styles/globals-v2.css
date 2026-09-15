@@ -444,6 +444,17 @@ html[data-nav-expanded="true"] {
   background: var(--bg-base);
 }
 
+/* iPhone: `zoom` no Safari não aplica, mas a altura `100dvh / 0.93` sim —
+   sobra faixa vazia. Escala 1 só no WebKit móvel (Android Chrome segue 0.93). */
+@media (max-width: 767px) {
+  @supports (-webkit-touch-callout: none) {
+    .v2-root {
+      --v2-scale: 1;
+      zoom: 1;
+    }
+  }
+}
+
 /* NavRail persistente no layout `(app)`: colada à esquerda, altura total.
    O arredondamento à direita vive no componente (`rounded-r-[32px]`). */
 .v2-nav-rail-fixed {
@@ -487,6 +498,17 @@ html[data-nav-expanded="true"] {
   padding-right: 0;
   padding-left: 0;
   column-gap: 0;
+}
+
+@media (max-width: 767px) {
+  @supports (-webkit-touch-callout: none) {
+    .v2-root .v2-screen {
+      padding-top: max(var(--nav-rail-inset, 0.75rem), env(safe-area-inset-top, 0px));
+    }
+    .v2-root .v2-screen.v2-screen-fill {
+      padding-top: env(safe-area-inset-top, 0px);
+    }
+  }
 }
 
 /* Listas (contatos, empresas, automações…): a página inteira rola e a

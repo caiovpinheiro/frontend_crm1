@@ -78,7 +78,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: "oklch(0.973 0.005 262)",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f6fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d1b3e" },
+  ],
 };
 
 export default async function RootLayout({
@@ -119,6 +122,11 @@ export default async function RootLayout({
     el.classList.toggle("v2-dark", dark);
     el.classList.toggle("dark", dark);
     el.style.colorScheme = dark ? "dark" : "light";
+    var c = dark ? "#0d1b3e" : "#f4f6fb";
+    var metas = document.querySelectorAll('meta[name="theme-color"]');
+    if (metas.length) {
+      for (var i = 0; i < metas.length; i++) metas[i].setAttribute("content", c);
+    }
   } catch (e) {}
 })();`,
           }}
