@@ -14,7 +14,6 @@ import {
   IconUsers as Users,
   IconDirections as Signpost,
   IconTag as Tag,
-  IconUser as User,
 } from "@tabler/icons-react";
 import * as React from "react";
 
