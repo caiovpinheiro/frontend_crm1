@@ -32,17 +32,17 @@ export function CheckboxGlass({
         onChange?.(!checked);
       }}
       className={cn(
-        "flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border transition-all",
+        "flex h-[20px] w-[20px] shrink-0 cursor-pointer items-center justify-center rounded-md border transition-all duration-200 shadow-sm",
         active
-          ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
-          : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-transparent hover:border-[var(--brand-primary)]",
+          ? "border-primary bg-primary text-primary-foreground shadow-md"
+          : "border-border bg-background text-transparent hover:border-primary hover:bg-secondary hover:shadow-md",
         className,
       )}
     >
       {indeterminate ? (
-        <IconMinus size={13} strokeWidth={3} />
+        <IconMinus size={14} strokeWidth={3.5} />
       ) : (
-        <IconCheck size={13} strokeWidth={3} />
+        <IconCheck size={14} strokeWidth={3.5} />
       )}
     </button>
   );

@@ -170,15 +170,15 @@ function Identity({
       ) : null}
 
       {/* Glifo solto — sem slot/tile/borda/fundo. */}
-      <span className="inline-flex shrink-0 border-0 bg-transparent text-primary shadow-none outline-none ring-0 [&>svg]:size-[22px]">
+      <span className="inline-flex shrink-0 border-0 bg-transparent text-primary shadow-none outline-none ring-0 [&>svg]:size-[24px]">
         {icon}
       </span>
 
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center gap-3">
         <div
           role="heading"
           aria-level={1}
-          className="truncate font-display text-[22px] font-bold leading-tight tracking-tight text-[var(--text-primary)]"
+          className="truncate font-display text-[24px] font-bold leading-tight tracking-tight text-foreground"
         >
           {title}
         </div>
@@ -207,7 +207,7 @@ export function PageHeader({
       data-sticky-page-header=""
       className={cn(
         PAGE_HEADER_STICKY_CLASS,
-        "flex flex-wrap items-center gap-x-4 gap-y-2 px-1 pb-2",
+        "flex flex-wrap items-center gap-x-4 gap-y-2 px-2 pb-3 bg-card rounded-2xl shadow-sm",
         className,
       )}
     >

@@ -173,7 +173,7 @@ export function DatePicker({
                 visibility: coords ? "visible" : "hidden",
               }}
               className={cn(
-                "z-(--z-radix) w-[17.5rem] overflow-visible border border-border bg-[var(--dropdown-solid-bg)] p-3 text-foreground shadow-lg",
+                "z-(--z-radix) w-[17.5rem] overflow-visible border border-border bg-background p-3 text-foreground shadow-xl",
                 soft ? "rounded-2xl p-4" : "rounded-xl",
               )}
             >
@@ -182,12 +182,12 @@ export function DatePicker({
                   type="button"
                   onClick={() => setVisibleMonth((current) => subMonths(current, 1))}
                   className={cn(
-                    "inline-flex size-8 items-center justify-center text-muted-foreground transition hover:bg-primary/10 hover:text-primary",
+                    "inline-flex size-9 items-center justify-center text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-primary hover:shadow-sm",
                     soft ? "rounded-full" : "rounded-lg",
                   )}
                   aria-label="Mês anterior"
                 >
-                  <ChevronLeft className="size-4" />
+                  <ChevronLeft className="size-5" />
                 </button>
                 <div className="font-display text-sm font-semibold capitalize text-foreground">
                   {format(visibleMonth, "MMMM yyyy", { locale: ptBR })}
@@ -196,12 +196,12 @@ export function DatePicker({
                   type="button"
                   onClick={() => setVisibleMonth((current) => addMonths(current, 1))}
                   className={cn(
-                    "inline-flex size-8 items-center justify-center text-muted-foreground transition hover:bg-primary/10 hover:text-primary",
+                    "inline-flex size-9 items-center justify-center text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-primary hover:shadow-sm",
                     soft ? "rounded-full" : "rounded-lg",
                   )}
                   aria-label="Próximo mês"
                 >
-                  <ChevronRight className="size-4" />
+                  <ChevronRight className="size-5" />
                 </button>
               </div>
 
@@ -225,11 +225,11 @@ export function DatePicker({
                         setOpen(false);
                       }}
                       className={cn(
-                        "flex size-8 items-center justify-center text-xs font-medium transition",
+                        "flex size-9 items-center justify-center text-sm font-medium transition-all duration-200",
                         soft ? "rounded-full" : "rounded-lg",
-                        isSelected && "bg-primary text-primary-foreground shadow-sm",
-                        !isSelected && inMonth && "text-foreground hover:bg-primary/10 hover:text-primary",
-                        !inMonth && "text-muted-foreground opacity-40 hover:bg-primary/10",
+                        isSelected && "bg-primary text-primary-foreground shadow-md",
+                        !isSelected && inMonth && "text-foreground hover:bg-secondary hover:text-primary hover:shadow-sm",
+                        !inMonth && "text-muted-foreground opacity-40 hover:bg-secondary hover:shadow-sm",
                       )}
                     >
                       {format(day, "d")}

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
  */
 
 export const FILTER_POPOVER_PANEL_CLASS =
-  "absolute inset-x-0 top-[calc(100%+8px)] z-(--z-popover) flex max-h-[min(78vh,560px)] w-full flex-col overflow-hidden rounded-[22px] border border-border bg-[var(--dropdown-solid-bg)] text-left text-foreground shadow-lg opacity-100 backdrop-blur-none"
+  "absolute inset-x-0 top-[calc(100%+8px)] z-(--z-popover) flex max-h-[min(78vh,560px)] w-full flex-col overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-left text-foreground shadow-xl opacity-100 backdrop-blur-none"
 
 export function FilterPopoverPanel({
   className,
@@ -48,9 +48,9 @@ export function FilterPopoverHeader({
   clearDisabled?: boolean
 }) {
   return (
-    <div className="flex items-center justify-between px-4 pb-2 pt-3.5">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-bold text-foreground">{title}</span>
+    <div className="flex items-center justify-between px-5 pb-3 pt-4">
+      <div className="flex items-center gap-2.5">
+        <span className="text-base font-bold text-foreground">{title}</span>
         <FilterCountBadge count={count} />
       </div>
       {onClear ? (
@@ -58,9 +58,9 @@ export function FilterPopoverHeader({
           type="button"
           onClick={onClear}
           disabled={clearDisabled}
-          className="flex items-center gap-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+          className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-all duration-200 hover:text-foreground hover:shadow-sm disabled:opacity-40 rounded-lg px-2 py-1"
         >
-          <RotateCw className="size-3.5" aria-hidden="true" /> Limpar
+          <RotateCw className="size-4" aria-hidden="true" /> Limpar
         </button>
       ) : null}
     </div>
@@ -82,7 +82,7 @@ export function FilterSegmentedTablist<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="flex items-center gap-0.5 overflow-x-auto rounded-full bg-secondary p-1 [-webkit-overflow-scrolling:touch]"
+      className="flex items-center gap-1 overflow-x-auto rounded-full bg-secondary p-1.5 [-webkit-overflow-scrolling:touch]"
     >
       {tabs.map((t) => {
         const active = value === t.id
@@ -94,10 +94,10 @@ export function FilterSegmentedTablist<T extends string>({
             aria-selected={active}
             onClick={() => onChange(t.id)}
             className={cn(
-              "flex shrink-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-bold transition-colors",
+              "flex shrink-0 flex-1 items-center justify-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition-all duration-200",
               active
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-card text-foreground shadow-md"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent hover:shadow-sm",
             )}
           >
             {t.icon ? (
@@ -105,7 +105,7 @@ export function FilterSegmentedTablist<T extends string>({
             ) : null}
             {t.label}
             {(t.badge ?? 0) > 0 ? (
-              <span className="flex size-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+              <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[11px] text-primary-foreground">
                 {t.badge}
               </span>
             ) : null}

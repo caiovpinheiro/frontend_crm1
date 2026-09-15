@@ -33,37 +33,37 @@ export interface DropdownOption {
  */
 export const FILTER_FIELD_TRIGGER_CLASS = cn(
   "group inline-flex h-9 w-full items-center gap-2 rounded-lg px-3",
-  "border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] shadow-none",
-  "font-display text-[12.5px] font-semibold transition-colors",
-  "text-[var(--text-muted)]",
-  "hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/40",
-  "data-[state=open]:bg-[var(--color-primary-soft)] data-[state=open]:text-[var(--brand-primary)] data-[state=open]:ring-2 data-[state=open]:ring-[var(--brand-primary)]/40",
+  "border border-border bg-background shadow-sm",
+  "font-display text-[13px] font-semibold transition-all duration-200",
+  "text-muted-foreground",
+  "hover:bg-secondary hover:text-foreground hover:shadow-md",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+  "data-[state=open]:bg-secondary data-[state=open]:text-foreground data-[state=open]:ring-2 data-[state=open]:ring-primary/40",
   "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
 )
 
 /** Input de texto/número/data nativo nos painéis de filtro. */
 export const FILTER_FIELD_INPUT_CLASS = cn(
-  "h-9 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-modal,#fff)] px-3",
-  "font-body text-[13px] text-[var(--text-primary)] shadow-none outline-none transition-colors",
-  "placeholder:text-[var(--text-muted)]",
-  "hover:bg-[var(--color-primary-soft)]",
-  "focus:border-[var(--brand-primary)]/40 focus:ring-2 focus:ring-[var(--brand-primary)]/20",
+  "h-9 w-full rounded-lg border border-border bg-background px-3",
+  "font-body text-[14px] text-foreground shadow-sm outline-none transition-all duration-200",
+  "placeholder:text-muted-foreground",
+  "hover:bg-secondary hover:shadow-md",
+  "focus:border-primary/40 focus:ring-2 focus:ring-primary/20",
 )
 
 /** Painel da lista do dropdown (filtros / segmentos). */
 export const FILTER_FIELD_MENU_CLASS = cn(
-  "z-50 overflow-hidden rounded-xl border border-[var(--glass-border)] p-1.5",
-  "bg-[var(--dropdown-solid-bg,var(--glass-bg-modal,#fff))] shadow-[0_8px_28px_rgba(15,23,42,0.13)]",
+  "z-50 overflow-hidden rounded-xl border border-border p-1.5",
+  "bg-background shadow-lg",
   "max-h-[min(320px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto",
 )
 
 /** Item da lista — hover azul como o hambúrguer da Pipeline. */
 export const FILTER_FIELD_ITEM_CLASS = cn(
-  "flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2",
-  "font-display text-[13px] font-semibold outline-none transition-colors",
-  "text-[var(--text-secondary)]",
-  "data-[highlighted]:bg-[var(--color-primary-soft)] data-[highlighted]:text-[var(--brand-primary)]",
+  "flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5",
+  "font-display text-[14px] font-semibold outline-none transition-all duration-200",
+  "text-foreground",
+  "data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary data-[highlighted]:shadow-sm",
   "data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
 )
 

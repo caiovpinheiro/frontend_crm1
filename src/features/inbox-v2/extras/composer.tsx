@@ -58,6 +58,8 @@ import {
   isChannelMismatch,
 } from "./channel-switch-confirm";
 import { ComposerMenu } from "./composer-menu";
+import { QuickReplyPopover } from "./quick-reply-popover";
+import type { QuickReplyCatalogItem } from "./quick-reply-catalog";
 import { ConversationResolveButton } from "./conversation-resolve-button";
 import { ProofreadDialog } from "./proofread-dialog";
 import {
@@ -72,6 +74,7 @@ import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
  * Composer completo para o ChatArea. Substitui o footer estático
  * do v0 via prop `composerSlot`. Reúne:
  *  - ComposerMenu ("+" — anexo, template, nota, agendar, tarefa, resolver)
+ *  - QuickReplyPopover (raio — preenche a frase; o envio é o botão Enviar)
  *  - input controlado (com modo "nota interna")
  *  - Slash command menu — digitar "/" abre lista de modelos internos e
  *    templates WhatsApp.
@@ -766,6 +769,21 @@ export function Composer({
     performSend();
   }
 
+  function insertQuickReply(item: QuickReplyCatalogItem) {
+    const trimmed = item.content.trim();
+    if (!trimmed || busy) return;
+    if (inputDisabled) {
+      warnOutboundBlocked();
+      return;
+    }
+    insertTemplateText(
+      trimmed,
+      item.attachmentUrl
+        ? [{ url: item.attachmentUrl, name: null, mimeType: null, messageBefore: null }]
+        : null,
+    );
+  }
+
   // Extensão de arquivo a partir do mime da imagem colada.
   function imageExtFromMime(mime: string): string {
     const map: Record<string, string> = {
@@ -1254,6 +1272,17 @@ export function Composer({
                 </div>
               )}
             </div>
+            <QuickReplyPopover
+              disabled={busy}
+              sending={busy}
+              onSend={insertQuickReply}
+              onOpenChange={(next) => {
+                if (next) {
+                  setEmojiOpen(false);
+                  setNoteMode(false);
+                }
+              }}
+            />
           </>
         )}
 

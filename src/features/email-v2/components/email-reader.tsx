@@ -105,24 +105,24 @@ export function EmailReader({ email, loading, onBack, onReply, onForward, onDele
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {onBack ? <ReaderBackBar onBack={onBack} /> : null}
 
-      <div className="flex min-w-0 shrink-0 flex-col gap-3 border-b border-border px-5 pt-5 pb-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <h2 className="min-w-0 flex-1 text-lg font-bold tracking-normal break-words [overflow-wrap:anywhere] line-clamp-3 text-foreground">
+      <div className="flex min-w-0 shrink-0 flex-col gap-4 border-b border-border px-6 pt-6 pb-5 bg-card rounded-t-2xl shadow-sm">
+        <div className="flex min-w-0 items-start gap-4">
+          <h2 className="min-w-0 flex-1 text-xl font-bold tracking-normal break-words [overflow-wrap:anywhere] line-clamp-3 text-foreground">
             {email.subject ?? "(sem assunto)"}
           </h2>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <IconBtn onClick={onReply} label="Responder"><IcoReply /></IconBtn>
-            <IconBtn onClick={onForward} label="Encaminhar"><IcoForward /></IconBtn>
+          <div className="flex shrink-0 items-center gap-2">
+            <IconBtn onClick={onReply} label="Responder" className="rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all duration-300"><IcoReply /></IconBtn>
+            <IconBtn onClick={onForward} label="Encaminhar" className="rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground shadow-md hover:shadow-lg transition-all duration-300"><IcoForward /></IconBtn>
             {onNotSpam ? (
-              <IconBtn onClick={onNotSpam} label="Não é spam"><IconShield /></IconBtn>
+              <IconBtn onClick={onNotSpam} label="Não é spam" className="rounded-full bg-accent hover:bg-accent/80 text-accent-foreground shadow-md hover:shadow-lg transition-all duration-300"><IconShield /></IconBtn>
             ) : onMarkSpam ? (
-              <IconBtn onClick={onMarkSpam} label="Marcar como spam"><IconShield /></IconBtn>
+              <IconBtn onClick={onMarkSpam} label="Marcar como spam" className="rounded-full bg-warning hover:bg-warning/80 text-warning-foreground shadow-md hover:shadow-lg transition-all duration-300"><IconShield /></IconBtn>
             ) : null}
-            <IconBtn onClick={onDelete} label="Excluir" danger><IcoTrash /></IconBtn>
+            <IconBtn onClick={onDelete} label="Excluir" danger className="rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-md hover:shadow-lg transition-all duration-300"><IcoTrash /></IconBtn>
           </div>
         </div>
 
-        <aside className="flex min-w-0 flex-col gap-4 rounded-3xl bg-panel p-5 text-panel-foreground">
+        <aside className="flex min-w-0 flex-col gap-5 rounded-2xl bg-panel p-6 text-panel-foreground shadow-sm">
           <div className="flex min-w-0 flex-wrap items-start gap-3">
             <IdentityAvatar
               name={email.fromName}

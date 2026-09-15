@@ -137,13 +137,13 @@ export function ComposeModal({
         bodyClassName="flex min-h-0 flex-1 flex-col p-0 gap-0"
       >
         {/* Barra de título */}
-        <div className="flex shrink-0 items-center justify-between border-b border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 className="font-display text-[15px] font-bold text-[var(--text-primary)]">
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-5 py-4 rounded-t-2xl">
+          <div className="flex min-w-0 items-center gap-3">
+            <h3 className="font-display text-[16px] font-bold text-foreground">
               {title}
             </h3>
             {fromAccount ? (
-              <span className="truncate rounded-full bg-[var(--glass-bg-strong)] px-2.5 py-0.5 font-body text-[11px] text-[var(--text-secondary)]">
+              <span className="truncate rounded-full bg-secondary px-3 py-1 font-body text-[12px] text-secondary-foreground shadow-sm">
                 {fromAccount.email}
               </span>
             ) : null}
@@ -152,10 +152,10 @@ export function ComposeModal({
             type="button"
             onClick={resetAndClose}
             disabled={loading}
-            className="rounded-[var(--radius-sm)] p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
+            className="rounded-full p-2 text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground hover:shadow-md"
             aria-label="Fechar"
           >
-            <IconX size={16} />
+            <IconX size={18} />
           </button>
         </div>
 
@@ -168,10 +168,10 @@ export function ComposeModal({
                 value={accountId}
                 onValueChange={setAccountId}
                 matchTriggerWidth
-                triggerClassName="h-8 border-0 bg-transparent shadow-none"
+                triggerClassName="h-9 border-0 bg-transparent shadow-none rounded-lg"
               />
               {errors.accountId ? (
-                <span className="text-xs text-destructive">{errors.accountId}</span>
+                <span className="text-sm text-destructive">{errors.accountId}</span>
               ) : null}
             </HeaderField>
           ) : null}
@@ -185,9 +185,9 @@ export function ComposeModal({
                 if (errors.to) setErrors((p) => { const n = { ...p }; delete n.to; return n; });
               }}
               autoFocus={mode !== "new" || Boolean(draft?.to)}
-              className="h-8 border-0 bg-transparent px-0 font-body text-[13px] shadow-none focus-visible:ring-0"
+              className="h-9 border-0 bg-transparent px-0 font-body text-[14px] shadow-none focus-visible:ring-0 rounded-lg"
             />
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-2">
               {!showCc ? (
                 <MetaToggle onClick={() => setShowCc(true)}>CC</MetaToggle>
               ) : null}
@@ -196,7 +196,7 @@ export function ComposeModal({
               ) : null}
             </div>
             {errors.to ? (
-              <span className="shrink-0 text-xs text-destructive">{errors.to}</span>
+              <span className="shrink-0 text-sm text-destructive">{errors.to}</span>
             ) : null}
           </HeaderField>
 
@@ -206,14 +206,14 @@ export function ComposeModal({
                 placeholder="copia@email.com"
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
-                className="h-8 border-0 bg-transparent px-0 font-body text-[13px] shadow-none focus-visible:ring-0"
+                className="h-9 border-0 bg-transparent px-0 font-body text-[14px] shadow-none focus-visible:ring-0 rounded-lg"
               />
               <button
                 type="button"
                 onClick={() => { setShowCc(false); setCc(""); }}
-                className="shrink-0 text-[var(--text-muted)] hover:text-destructive"
+                className="shrink-0 text-[var(--text-muted)] hover:text-destructive transition-colors"
               >
-                <IconX size={13} />
+                <IconX size={14} />
               </button>
             </HeaderField>
           ) : null}
@@ -224,14 +224,14 @@ export function ComposeModal({
                 placeholder="copia-oculta@email.com"
                 value={bcc}
                 onChange={(e) => setBcc(e.target.value)}
-                className="h-8 border-0 bg-transparent px-0 font-body text-[13px] shadow-none focus-visible:ring-0"
+                className="h-9 border-0 bg-transparent px-0 font-body text-[14px] shadow-none focus-visible:ring-0 rounded-lg"
               />
               <button
                 type="button"
                 onClick={() => { setShowBcc(false); setBcc(""); }}
-                className="shrink-0 text-[var(--text-muted)] hover:text-destructive"
+                className="shrink-0 text-[var(--text-muted)] hover:text-destructive transition-colors"
               >
-                <IconX size={13} />
+                <IconX size={14} />
               </button>
             </HeaderField>
           ) : null}
@@ -241,7 +241,7 @@ export function ComposeModal({
               placeholder="(sem assunto)"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="h-8 border-0 bg-transparent px-0 font-body text-[13px] shadow-none focus-visible:ring-0"
+              className="h-9 border-0 bg-transparent px-0 font-body text-[14px] shadow-none focus-visible:ring-0 rounded-lg"
             />
           </HeaderField>
         </div>
@@ -278,13 +278,14 @@ export function ComposeModal({
             <span className="flex-1" />
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <ButtonGlass
               type="button"
               variant="glass"
               size="sm"
               onClick={resetAndClose}
               disabled={loading}
+              className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
             >
               Descartar
             </ButtonGlass>
@@ -294,6 +295,7 @@ export function ComposeModal({
               size="sm"
               onClick={() => void handleSend()}
               disabled={loading}
+              className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
             >
               {loading ? (
                 <>
@@ -320,8 +322,8 @@ function HeaderField({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2">
-      <span className="w-14 shrink-0 text-right font-display text-[12px] font-semibold text-[var(--text-muted)]">
+    <div className="flex items-center gap-4 px-5 py-2.5">
+      <span className="w-14 shrink-0 text-right font-display text-[13px] font-semibold text-[var(--text-muted)]">
         {label}
       </span>
       {children}
@@ -340,7 +342,7 @@ function MetaToggle({
     <button
       type="button"
       onClick={onClick}
-      className="rounded px-1.5 py-0.5 font-display text-[11px] font-semibold text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-secondary)]"
+      className="rounded-lg px-2 py-1 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-all duration-200 hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-secondary)] hover:shadow-sm"
     >
       {children}
     </button>

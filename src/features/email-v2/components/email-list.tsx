@@ -448,11 +448,11 @@ function EmailRow({
     >
       <div
         className={cn(
-          "flex w-full items-center gap-2 rounded-2xl border border-border bg-card pr-3 text-left transition-colors",
+          "flex w-full items-center gap-3 rounded-xl border border-border bg-card pr-4 text-left transition-all duration-200 hover:shadow-md",
           selected
-            ? "border-primary bg-primary/5 ring-1 ring-primary"
+            ? "border-primary bg-primary/10 shadow-md ring-1 ring-primary"
             : checked
-              ? "border-primary/40 bg-primary/5"
+              ? "border-primary/40 bg-primary/5 shadow-sm"
               : "hover:bg-muted/50",
         )}
       >
@@ -466,7 +466,7 @@ function EmailRow({
         <button
           type="button"
           onClick={() => onSelect(email.id)}
-          className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left"
+          className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left transition-colors duration-200 hover:bg-muted/30 rounded-lg px-2"
         >
         <IdentityAvatar
           name={folder === "SENT" ? displayName : email.fromName}

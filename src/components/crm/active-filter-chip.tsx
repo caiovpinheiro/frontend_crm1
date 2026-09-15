@@ -28,13 +28,13 @@ export function ActiveFilterChip({
       }}
       aria-label={`Remover filtro ${label}`}
       className={cn(
-        "inline-flex h-7 shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2.5",
-        "font-body text-[11px] font-medium leading-none text-foreground",
-        "transition-colors hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive",
+        "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-secondary px-3",
+        "font-body text-[12px] font-medium leading-none text-foreground shadow-sm",
+        "transition-all duration-200 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive hover:shadow-md",
       )}
     >
       <span className="whitespace-nowrap">{label}</span>
-      <X className="size-3 shrink-0 opacity-70" aria-hidden="true" />
+      <X className="size-3.5 shrink-0 opacity-80" aria-hidden="true" />
     </button>
   )
 }

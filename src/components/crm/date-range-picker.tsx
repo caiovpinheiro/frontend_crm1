@@ -180,22 +180,22 @@ export function DateRangePicker({
                 onClick={() => handleDayClick(day)}
                 onMouseEnter={() => pendingFrom && setHovered(day)}
                 className={cn(
-                  "relative flex h-8 items-center justify-center font-display text-[12px] font-semibold transition-colors",
+                  "relative flex h-9 items-center justify-center font-display text-[13px] font-semibold transition-all duration-200",
                   // Cantos arredondados nas extremidades do intervalo.
-                  inRange && "bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)] rounded-none",
-                  isFrom && "rounded-l-[var(--radius-md)]",
-                  isTo && "rounded-r-[var(--radius-md)]",
+                  inRange && "bg-primary/10 text-primary rounded-none",
+                  isFrom && "rounded-l-lg",
+                  isTo && "rounded-r-lg",
                   isEndpoint &&
-                    "z-10 rounded-[var(--radius-md)] bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]",
+                    "z-10 rounded-lg bg-primary text-primary-foreground shadow-md",
                   !isEndpoint && !inRange && inMonth &&
-                    "rounded-[var(--radius-md)] text-[var(--text-secondary)] hover:bg-[var(--color-enterprise-bg)]",
+                    "rounded-lg text-foreground hover:bg-secondary hover:shadow-sm",
                   !inMonth && !isEndpoint && !inRange &&
-                    "rounded-[var(--radius-md)] text-[var(--text-muted)]/40 hover:bg-[var(--color-enterprise-bg)]",
+                    "rounded-lg text-muted-foreground/40 hover:bg-secondary hover:shadow-sm",
                 )}
               >
                 {format(day, "d")}
                 {isToday && !isEndpoint && (
-                  <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[var(--brand-primary)]" />
+                  <span className="absolute bottom-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
                 )}
               </button>
             );
@@ -229,9 +229,9 @@ export function DateRangePicker({
               onChange({ from: null, to: null });
               setPendingFrom(null);
             }}
-            className="ml-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[var(--brand-primary)] transition-colors hover:bg-[var(--brand-primary)]/15"
+            className="ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-primary transition-all duration-200 hover:bg-primary/15 hover:shadow-sm"
           >
-            <IconX size={12} />
+            <IconX size={13} />
           </span>
         )}
       </button>
@@ -251,7 +251,7 @@ export function DateRangePicker({
                   setPendingFrom(null);
                   setOpen(false);
                 }}
-                className="shrink-0 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--color-enterprise-bg)] hover:text-[var(--brand-primary)]"
+                className="shrink-0 rounded-lg px-3 py-2 text-left font-display text-[13px] font-semibold text-foreground transition-all duration-200 hover:bg-secondary hover:text-primary hover:shadow-sm"
               >
                 {preset.label}
               </button>
@@ -265,9 +265,9 @@ export function DateRangePicker({
                 type="button"
                 aria-label="Mês anterior"
                 onClick={() => setLeftMonth((m) => subMonths(m, 1))}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--color-enterprise-bg)] hover:text-[var(--brand-primary)]"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-primary hover:shadow-sm"
               >
-                <IconChevronLeft size={18} />
+                <IconChevronLeft size={20} />
               </button>
               <div className="flex min-w-0 flex-1 items-center justify-around gap-6">
                 <span className="font-display text-[13px] font-bold capitalize text-[var(--text-primary)]">
@@ -281,9 +281,9 @@ export function DateRangePicker({
                 type="button"
                 aria-label="Próximo mês"
                 onClick={() => setLeftMonth((m) => addMonths(m, 1))}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--color-enterprise-bg)] hover:text-[var(--brand-primary)]"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-primary hover:shadow-sm"
               >
-                <IconChevronRight size={18} />
+                <IconChevronRight size={20} />
               </button>
             </div>
             <div className="flex gap-5">

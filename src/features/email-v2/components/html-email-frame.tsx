@@ -140,7 +140,7 @@ export function HtmlEmailFrame({ html }: { html: string }) {
       onLoad={handleLoad}
       sandbox="allow-same-origin allow-popups"
       title="Conteúdo do e-mail"
-      className="w-full border-0 block"
+      className="w-full border-0 block rounded-lg border border-border shadow-sm"
       style={{ height }}
     />
   );

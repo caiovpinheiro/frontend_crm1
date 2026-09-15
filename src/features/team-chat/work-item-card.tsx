@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, CheckSquare, Link2, Video } from "lucide-react";
+import { Calendar, CheckSquare, Link2, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 import {
   addWorkItemEntry,
+  deleteWorkItemEntry,
   generateChecklistFromMeeting,
   updateTeamChatWorkItem,
   updateWorkItemEntry,
@@ -16,7 +17,7 @@ import {
 import { RecordCard } from "./record-card";
 import { TopicAssigneePicker } from "./topic-assignee";
 import type { OpenCrmCard, WorkItem } from "./types";
-import { WorkItemManageButtons } from "./work-item-dialogs";
+import { WorkItemDeadlineField, WorkItemManageButtons } from "./work-item-dialogs";
 
 const TYPE_LABEL: Record<WorkItem["type"], string> = {
   checklist: "Checklist",
@@ -65,6 +66,7 @@ export function WorkItemCard({
     id: null,
     name: null,
   });
+  const [addingDueAt, setAddingDueAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const pct = item.total > 0 ? Math.round((item.done / item.total) * 100) : 0;
   const statusLabel =
@@ -89,9 +91,11 @@ export function WorkItemCard({
       const next = await addWorkItemEntry(item.id, {
         text,
         assigneeId: addingAssignee.id,
+        dueAt: addingDueAt,
       });
       setAdding("");
       setAddingAssignee({ id: null, name: null });
+      setAddingDueAt(null);
       onChange?.(next);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível adicionar.");
@@ -106,6 +110,25 @@ export function WorkItemCard({
       onChange?.(next);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível atribuir.");
+    }
+  }
+
+  async function setDueAt(entryId: string, dueAt: string | null) {
+    try {
+      const next = await updateWorkItemEntry(item.id, entryId, { dueAt });
+      onChange?.(next);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível definir o prazo.");
+    }
+  }
+
+  async function removeEntry(entryId: string) {
+    try {
+      const next = await deleteWorkItemEntry(item.id, entryId);
+      onChange?.(next);
+      toast.success("Atividade excluída.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível excluir.");
     }
   }
 
@@ -207,24 +230,32 @@ export function WorkItemCard({
               >
                 {entry.text}
               </p>
-              {entry.dueAt ? (
-                <p
-                  className={cn(
-                    "text-[11px]",
-                    entry.status !== "done" && isDueSoon(entry.dueAt)
-                      ? "text-destructive"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  até {formatWhen(entry.dueAt)}
-                </p>
-              ) : null}
+              <div
+                className={cn(
+                  "mt-1",
+                  entry.status !== "done" && isDueSoon(entry.dueAt) && "[&_button]:text-destructive",
+                )}
+              >
+                <WorkItemDeadlineField
+                  compact
+                  value={entry.dueAt}
+                  onChange={(next) => void setDueAt(entry.id, next)}
+                />
+              </div>
             </div>
             <TopicAssigneePicker
               assigneeId={entry.assigneeId}
               assigneeName={entry.assigneeName}
               onChange={(next) => void setAssignee(entry.id, next.id)}
             />
+            <button
+              type="button"
+              aria-label="Excluir atividade"
+              onClick={() => void removeEntry(entry.id)}
+              className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
           </li>
         ))}
       </ul>
@@ -242,6 +273,7 @@ export function WorkItemCard({
           placeholder="Novo item"
           className="h-8 min-w-0 flex-1 rounded-xl border border-border bg-card px-2.5 text-[13px] outline-none"
         />
+        <WorkItemDeadlineField compact value={addingDueAt} onChange={setAddingDueAt} />
         <TopicAssigneePicker
           assigneeId={addingAssignee.id}
           assigneeName={addingAssignee.name}

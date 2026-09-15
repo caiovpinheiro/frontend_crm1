@@ -193,9 +193,9 @@ export function EmailSidebar({
   const activeAccount = accounts.find((a) => a.id === selectedAccountId);
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-3">
-      <div className="mb-3 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-2.5">
-        <p className="mb-1.5 px-0.5 font-display text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
+    <div className="flex h-full flex-col overflow-y-auto p-4 bg-card rounded-2xl shadow-sm">
+      <div className="mb-4 rounded-xl border border-border bg-background p-3 shadow-sm">
+        <p className="mb-2 px-1 font-display text-[12px] font-bold uppercase tracking-wide text-muted-foreground">
           Conta
         </p>
         <DropdownGlass
@@ -233,11 +233,11 @@ export function EmailSidebar({
               onClick={() => onSelectFolder(f.key)}
               {...(canDrop ? dropHandlers(dropKey, (emailIds) => onDropToSystemFolder!(emailIds, f.key)) : {})}
               className={[
-                "flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 font-display text-[12.5px] font-semibold transition-colors",
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2 font-display text-[13px] font-semibold transition-all duration-200 hover:shadow-sm",
                 isDropOver
-                  ? "bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)]/40"
+                  ? "bg-[var(--brand-primary)] text-white shadow-md"
                   : active
-                    ? "bg-primary/5 text-primary ring-1 ring-primary/40"
+                    ? "bg-primary/10 text-primary shadow-sm"
                     : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
               ].join(" ")}
             >
@@ -262,11 +262,11 @@ export function EmailSidebar({
             <div
               key={cf.id}
               className={[
-                "group relative flex items-center rounded-[var(--radius-md)] pr-1",
+                "group relative flex items-center rounded-lg pr-2 transition-all duration-200 hover:shadow-sm",
                 isDropOver
-                  ? "bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)]/40"
+                  ? "bg-[var(--brand-primary)] text-white shadow-md"
                   : active
-                    ? "bg-primary/5 text-primary ring-1 ring-primary/40"
+                    ? "bg-primary/10 text-primary shadow-sm"
                     : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-overlay)]",
               ].join(" ")}
               onMouseEnter={() => setHoveredFolder(cf.id)}
@@ -390,7 +390,7 @@ function NewFolderInput({
         type="button"
         disabled={disabled}
         onClick={() => setEditing(true)}
-        className="mt-0.5 flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)] disabled:opacity-40"
+        className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 font-display text-[13px] font-semibold text-[var(--text-muted)] transition-all duration-200 hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)] hover:shadow-sm disabled:opacity-40"
       >
         <IcoPlus />
         <span>Nova pasta</span>

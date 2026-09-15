@@ -202,26 +202,52 @@ export function EmailRulesModal({
       footer={
         tab === "ooo" ? (
           <>
-            <ButtonGlass type="button" variant="glass" size="sm" onClick={() => onOpenChange(false)}>
+            <ButtonGlass 
+              type="button" 
+              variant="glass" 
+              size="sm" 
+              onClick={() => onOpenChange(false)}
+              className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+            >
               Fechar
             </ButtonGlass>
-            <ButtonGlass type="button" variant="primary" size="sm" disabled={oooSaving} onClick={() => void handleSaveOoo()}>
+            <ButtonGlass 
+              type="button" 
+              variant="primary" 
+              size="sm" 
+              disabled={oooSaving} 
+              onClick={() => void handleSaveOoo()}
+              className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+            >
               {oooSaving ? <><IconLoader2 size={14} className="animate-spin" /> Salvando…</> : "Salvar ausência"}
             </ButtonGlass>
           </>
         ) : (
           <>
-            <ButtonGlass type="button" variant="glass" size="sm" onClick={() => onOpenChange(false)}>
+            <ButtonGlass 
+              type="button" 
+              variant="glass" 
+              size="sm" 
+              onClick={() => onOpenChange(false)}
+              className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+            >
               Fechar
             </ButtonGlass>
-            <ButtonGlass type="submit" form="email-rules-form" variant="primary" size="sm" disabled={saving}>
+            <ButtonGlass 
+              type="submit" 
+              form="email-rules-form" 
+              variant="primary" 
+              size="sm" 
+              disabled={saving}
+              className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+            >
               {saving ? <><IconLoader2 size={14} className="animate-spin" /> Salvando…</> : "Adicionar regra"}
             </ButtonGlass>
           </>
         )
       }
     >
-      <div className="mb-4 flex gap-1 rounded-full bg-secondary p-1">
+      <div className="mb-5 flex gap-1 rounded-full bg-secondary p-1 shadow-inner">
         <TabBtn active={tab === "rules"} onClick={() => setTab("rules")}>
           Regras
         </TabBtn>
@@ -283,16 +309,16 @@ export function EmailRulesModal({
         </div>
       ) : (
         <form id="email-rules-form" onSubmit={handleCreate} className="flex flex-col gap-4">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => applyPreset(preset)}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors",
+                  "rounded-full border px-4 py-1.5 text-[13px] font-semibold transition-all duration-200 hover:shadow-sm",
                   conditionField === preset.field && action === preset.action
-                    ? "border-primary bg-primary/10 text-foreground"
+                    ? "border-primary bg-primary/10 text-foreground shadow-sm"
                     : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground",
                 )}
               >
@@ -489,8 +515,8 @@ function TabBtn({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex-1 rounded-full px-3 py-1.5 text-[12px] font-bold transition-colors",
-        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+        "flex-1 rounded-full px-4 py-2 text-[13px] font-bold transition-all duration-200",
+        active ? "bg-card text-foreground shadow-md" : "text-muted-foreground hover:text-foreground hover:shadow-sm",
       )}
     >
       {children}
@@ -507,7 +533,7 @@ function FieldRow({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="font-display text-[12px] font-semibold text-muted-foreground">{label}</span>
+      <span className="font-display text-[13px] font-semibold text-muted-foreground">{label}</span>
       {children}
     </label>
   );

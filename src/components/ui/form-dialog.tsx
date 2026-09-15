@@ -46,7 +46,7 @@ type FormDialogSize = "sm" | "md" | "lg" | "xl" | "2xl";
 /** Badge circular do header — círculo primary suave, ícone primary. */
 export function FormDialogIcon({ children }: { children: React.ReactNode }) {
   return (
-    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+    <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary shadow-sm">
       {children}
     </span>
   );
@@ -57,26 +57,26 @@ export function FormDialogGlyphPlus({ children }: { children: React.ReactNode })
   return (
     <span className="relative inline-flex size-4 items-center justify-center">
       {children}
-      <Plus className="absolute -right-1.5 -top-0.5 size-2.5" strokeWidth={2.75} aria-hidden />
+      <Plus className="absolute -right-1.5 -top-0.5 size-2.5" strokeWidth={3} aria-hidden />
     </span>
   );
 }
 
 /** Labels de FormDialog: small, ALL-CAPS, muted. Listas continuam sentence-case. */
 export const formLabelClass =
-  "mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+  "mb-2 block text-[12px] font-medium uppercase tracking-wide text-muted-foreground";
 
 /** Inputs / pickers / busca de tags: raio xl, borda muted, fundo card. */
 export const formControlClass =
-  "h-11 w-full rounded-xl border border-border bg-card px-3.5";
+  "h-11 w-full rounded-xl border border-border bg-card px-3.5 shadow-sm transition-all duration-200 focus:shadow-md";
 
 /** Cancelar: pill branco com borda. Não é botão-texto. */
 export const formDialogCancelClass =
-  "rounded-full border border-border bg-card px-4 text-foreground shadow-none hover:bg-secondary";
+  "rounded-full border border-border bg-card px-4 py-2 font-medium text-foreground shadow-sm hover:bg-secondary hover:shadow-md transition-all duration-200";
 
 /** Criar / Salvar: pill primary. Sem `text-white`. */
 export const formDialogPrimaryClass =
-  "rounded-full bg-primary px-4 text-primary-foreground shadow-none hover:bg-primary/90 hover:translate-y-0";
+  "rounded-full bg-primary px-4 py-2 font-medium text-primary-foreground shadow-md hover:bg-primary/90 hover:shadow-lg transition-all duration-200";
 
 /** Mapeia os tamanhos legados para presets do Dialog. */
 const SIZE_TO_DIALOG: Record<FormDialogSize, DialogSize> = {

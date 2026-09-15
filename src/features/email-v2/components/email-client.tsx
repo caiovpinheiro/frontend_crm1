@@ -575,6 +575,7 @@ export function EmailClient() {
                 type="button"
                 onClick={() => openCompose()}
                 disabled={accounts.length === 0}
+                className="rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all duration-300 ease-in-out transform hover:-translate-y-0.5"
               >
                 <IcoCompose />
                 <span className="hidden sm:inline">Novo e-mail</span>
@@ -886,6 +887,7 @@ function EmailSearchFilterBar({
         filterLabel={false}
         filterOpen={open}
         activeCount={activeCount}
+        className="rounded-full border border-border shadow-sm hover:shadow-md transition-shadow duration-200"
         filterSlot={
           <button
             type="button"
@@ -898,10 +900,10 @@ function EmailSearchFilterBar({
               setOpen((o) => !o);
             }}
             className={cn(
-              "absolute right-1.5 top-1/2 z-20 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
+              "absolute right-1.5 top-1/2 z-20 flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-all duration-200",
               open || activeCount > 0
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                ? "bg-primary text-primary-foreground shadow-md"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground hover:shadow-sm",
             )}
           >
             <SlidersHorizontal className="size-4" aria-hidden="true" />

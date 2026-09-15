@@ -57,7 +57,13 @@ function AlertDialogFooter({ children, ...props }: React.ComponentProps<typeof D
 
 function AlertDialogCancel({ children, onClick, ...props }: React.ComponentProps<typeof Button>) {
   return (
-    <Button type="button" variant="outline" onClick={onClick} {...props}>
+    <Button 
+      type="button" 
+      variant="outline" 
+      onClick={onClick} 
+      className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+      {...props}
+    >
       {children}
     </Button>
   );
@@ -65,7 +71,12 @@ function AlertDialogCancel({ children, onClick, ...props }: React.ComponentProps
 
 function AlertDialogAction({ children, onClick, ...props }: React.ComponentProps<typeof Button>) {
   return (
-    <Button type="button" onClick={onClick} {...props}>
+    <Button 
+      type="button" 
+      onClick={onClick} 
+      className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+      {...props}
+    >
       {children}
     </Button>
   );

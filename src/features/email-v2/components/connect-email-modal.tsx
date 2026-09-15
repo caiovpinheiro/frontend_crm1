@@ -190,7 +190,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
             <Mail className="size-5 text-brand-foreground" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <DialogTitle className="truncate">{title}</DialogTitle>
+            <DialogTitle className="truncate text-lg font-bold">{title}</DialogTitle>
             <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
           </div>
           <button
@@ -198,9 +198,9 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
             onClick={resetAndClose}
             disabled={loading}
             aria-label="Fechar"
-            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-40"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-40"
           >
-            <X className="size-4" />
+            <X className="size-5" />
           </button>
         </header>
 
@@ -477,7 +477,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                   type="button"
                   onClick={() => setStep(1)}
                   disabled={loading}
-                  className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-40"
                 >
                   <ArrowLeft className="size-4" aria-hidden />
                   Voltar
@@ -486,7 +486,7 @@ export function ConnectEmailModal({ open, onOpenChange, onSuccess }: Props) {
                   type="button"
                   onClick={() => void handleConnect()}
                   disabled={loading}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand to-accent-violet px-5 py-2 text-sm font-semibold text-brand-foreground shadow-lg shadow-brand/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-70"
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand to-accent-violet px-5 py-2.5 text-sm font-semibold text-brand-foreground shadow-lg shadow-brand/30 transition-all duration-200 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-70"
                 >
                   {loading ? (
                     <>

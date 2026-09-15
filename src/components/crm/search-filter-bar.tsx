@@ -23,10 +23,10 @@ import { cn } from "@/lib/utils"
  * Filtrar permanece DENTRO da pílula; calendário fica FORA.
  */
 export const SEARCH_PILL_INPUT_CLASS =
-  "h-10 w-full rounded-full border border-border bg-card pl-9 font-body text-[13px] text-foreground shadow-none outline-none placeholder:text-muted-foreground"
+  "h-10 w-full rounded-full border border-border bg-card pl-9 font-body text-[14px] text-foreground shadow-none outline-none placeholder:text-muted-foreground"
 
 export const SEARCH_FILTER_BTN_CLASS =
-  "absolute right-1.5 top-1/2 z-20 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold leading-none transition-colors"
+  "absolute right-1.5 top-1/2 z-20 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold leading-none transition-all duration-200 hover:shadow-sm"
 
 function SearchPillChipScroll({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -225,7 +225,7 @@ export function SearchFilterBar({
       )}
       <div
         className={cn(
-          "pointer-events-none flex h-10 w-full min-w-0 items-center overflow-hidden rounded-full border border-border bg-card shadow-none",
+          "pointer-events-none flex h-10 w-full min-w-0 items-center overflow-hidden rounded-full border border-border bg-card shadow-sm hover:shadow-md transition-all duration-200",
           hasChips ? "pl-3" : "pl-9",
           padRight,
         )}

@@ -54,14 +54,14 @@ export function buttonGlassClassName({
   className?: string
 }) {
   return cn(
-    "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full font-display font-semibold outline-none transition-all duration-150 disabled:pointer-events-auto disabled:opacity-50 disabled:hover:translate-y-0",
-    variant === 'primary' && "bg-primary text-primary-foreground hover:bg-primary-dark",
-    variant === 'glass' && "bg-[var(--glass-bg-strong)] backdrop-blur-md border border-[var(--glass-border)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] hover:bg-[var(--glass-bg-overlay)]",
-    variant === 'danger' && "bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] shadow-[0_4px_14px_rgba(239,68,68,0.35)] hover:bg-[color-mix(in_srgb,var(--color-destructive)_88%,black)] hover:-translate-y-0.5",
-    variant === 'icon' && "bg-transparent text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)] hover:text-[var(--brand-primary)]",
-    size === 'default' && "px-4.5 py-2 text-[13px]",
-    size === 'sm' && "px-3 py-1.5 text-xs",
-    size === 'icon' && "h-9 w-9 p-0 rounded-[var(--radius-md)] text-[17px]",
+    "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full font-display font-semibold outline-none transition-all duration-200 disabled:pointer-events-auto disabled:opacity-50 hover:shadow-md",
+    variant === 'primary' && "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg",
+    variant === 'glass' && "bg-card border border-border text-foreground shadow-sm hover:bg-muted",
+    variant === 'danger' && "bg-destructive text-destructive-foreground shadow-md hover:bg-destructive/90 hover:shadow-lg",
+    variant === 'icon' && "bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground",
+    size === 'default' && "px-5 py-2.5 text-[14px]",
+    size === 'sm' && "px-3.5 py-1.5 text-xs",
+    size === 'icon' && "h-10 w-10 p-0 rounded-full text-[18px]",
     className,
   )
 }

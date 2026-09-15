@@ -254,7 +254,7 @@ const DialogContent = React.forwardRef<HTMLDialogElement, DialogContentProps>(
             // a scrollbar — que e um retangulo reto — vazaria pelos cantos
             // superior/inferior direito, parecendo estar "fora" da modal.
             // O scroll real acontece no wrapper interno abaixo.
-            "relative z-50 mx-auto my-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-[var(--radius-2xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] text-[var(--text-primary)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl transition-[opacity,transform] duration-200",
+            "relative z-50 mx-auto my-auto flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-border bg-background text-foreground shadow-2xl backdrop-blur-xl transition-[opacity,transform] duration-200",
             DIALOG_SIZE_CLASS[size],
             panelClassName
           )}

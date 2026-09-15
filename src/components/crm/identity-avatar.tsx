@@ -43,7 +43,7 @@ export function IdentityAvatar({
     <span className={cn("relative inline-flex shrink-0", className)}>
       <span
         className={cn(
-          "flex items-center justify-center overflow-hidden rounded-full font-bold uppercase",
+          "flex items-center justify-center overflow-hidden rounded-full font-bold uppercase shadow-sm",
           px == null && tokenClass,
         )}
         style={{
@@ -69,7 +69,7 @@ export function IdentityAvatar({
       {online ? (
         <span
           aria-hidden
-          className="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-background bg-channel-online"
+          className="absolute right-0 bottom-0 size-3 rounded-full border-2 border-background bg-channel-online shadow-sm"
         />
       ) : null}
     </span>

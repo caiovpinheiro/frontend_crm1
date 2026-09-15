@@ -32,7 +32,7 @@ const PRESETS: { id: Exclude<SystemUsagePreset, "custom">; label: string; days: 
 ]
 
 const DATE_TRIGGER_CLASS =
-  "h-9 rounded-xl border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-none hover:bg-secondary hover:text-foreground"
+  "h-9 rounded-lg border border-border bg-background text-foreground shadow-sm hover:bg-secondary hover:text-foreground hover:shadow-md transition-all duration-200"
 
 export function rangeFromDays(days: number): DateRange {
   return {

@@ -81,10 +81,24 @@ export function EmailForwardDialog({
       description="Envie agora para um endereço ou abra o editor para ajustar o texto."
       footer={
         <>
-          <ButtonGlass type="button" variant="glass" size="sm" onClick={onCompose} disabled={sending}>
+          <ButtonGlass 
+            type="button" 
+            variant="glass" 
+            size="sm" 
+            onClick={onCompose} 
+            disabled={sending}
+            className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+          >
             Abrir editor
           </ButtonGlass>
-          <ButtonGlass type="submit" form="email-forward-form" variant="primary" size="sm" disabled={sending}>
+          <ButtonGlass 
+            type="submit" 
+            form="email-forward-form" 
+            variant="primary" 
+            size="sm" 
+            disabled={sending}
+            className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
+          >
             {sending ? (
               <>
                 <IconLoader2 size={14} className="animate-spin" /> Enviando…
@@ -100,14 +114,14 @@ export function EmailForwardDialog({
     >
       <form id="email-forward-form" onSubmit={handleSend} className="flex flex-col gap-3">
         <p className="truncate text-sm font-semibold">{email?.subject ?? "(sem assunto)"}</p>
-        <label className="block space-y-1.5">
-          <span className="text-[12px] font-semibold text-muted-foreground">Para</span>
+        <label className="block space-y-2">
+          <span className="text-[13px] font-semibold text-muted-foreground">Para</span>
           <Input
             type="email"
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder="destino@empresa.com"
-            className="h-9"
+            className="h-10 rounded-lg"
             required
           />
         </label>

@@ -111,7 +111,7 @@ export function useConfirm() {
         <AlertDialogFooter>
           <AlertDialogCancel
             disabled={pending}
-            className={formDialogCancelClass}
+            className={cn(formDialogCancelClass, "rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md")}
             onClick={() => handleClose(false)}
           >
             {state?.cancelLabel ?? "Cancelar"}
@@ -120,7 +120,7 @@ export function useConfirm() {
             disabled={pending}
             onClick={() => void handleConfirm()}
             variant={state?.destructive ? "destructive" : "default"}
-            className="rounded-full"
+            className="rounded-full px-4 py-2 font-medium transition-all duration-200 hover:shadow-md"
           >
             {pending
               ? (state?.pendingLabel ?? "Aguarde…")

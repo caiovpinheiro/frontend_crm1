@@ -102,10 +102,10 @@ export function ColumnResizer({
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none rounded-full transition-colors",
+          "pointer-events-none rounded-full transition-all duration-200",
           dragging
-            ? "h-8 w-[3px] bg-primary"
-            : "h-4 w-px bg-transparent group-hover/resize:bg-primary",
+            ? "h-8 w-1 bg-primary"
+            : "h-4 w-px bg-transparent group-hover/resize:bg-primary group-hover/resize:w-1",
         )}
       />
     </button>

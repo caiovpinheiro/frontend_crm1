@@ -34,24 +34,24 @@ export function EmailDetailSheet({ email, loading, open, onOpenChange }: Props) 
 
         {!loading && email && (
           <>
-            <SheetHeader className="border-b border-[var(--glass-border)] pb-4">
-              <SheetTitle className="text-base font-semibold text-[var(--text-primary)] leading-snug">
+            <SheetHeader className="border-b border-border pb-5 bg-card rounded-t-2xl">
+              <SheetTitle className="text-lg font-bold text-foreground leading-snug">
                 {email.subject ?? "(sem assunto)"}
               </SheetTitle>
 
-              <div className="space-y-1.5 mt-2">
+              <div className="space-y-2 mt-3">
                 <MetaRow label="De">
-                  <span className="text-sm text-[var(--text-primary)]">
+                  <span className="text-[14px] text-foreground">
                     {email.fromName
                       ? `${email.fromName} <${email.fromAddress}>`
                       : email.fromAddress}
                   </span>
                 </MetaRow>
                 <MetaRow label="Para">
-                  <span className="text-sm text-[var(--text-secondary)]">{email.toAddress}</span>
+                  <span className="text-[14px] text-foreground">{email.toAddress}</span>
                 </MetaRow>
                 <MetaRow label="Data">
-                  <span className="text-sm text-[var(--text-muted)]">
+                  <span className="text-[14px] text-foreground">
                     {formatFullDate(email.receivedAt)}
                   </span>
                 </MetaRow>
@@ -59,30 +59,30 @@ export function EmailDetailSheet({ email, loading, open, onOpenChange }: Props) 
                   <MetaRow label="Contato">
                     <a
                       href={`/contacts/${email.contact.id}`}
-                      className="inline-flex items-center gap-1 text-sm text-[var(--brand-primary)] hover:underline"
+                      className="inline-flex items-center gap-1.5 text-[14px] text-brand hover:underline transition-colors"
                     >
-                      <IconUser size={13} />
+                      <IconUser size={14} />
                       {email.contact.name}
-                      <IconExternalLink size={11} className="opacity-60" />
+                      <IconExternalLink size={12} className="opacity-70" />
                     </a>
                   </MetaRow>
                 )}
                 <MetaRow label="Conta">
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-xs rounded-full px-3 py-1">
                     {email.account.email}
                     {email.account.visibility === "PERSONAL" && (
-                      <span className="ml-1 opacity-60">· pessoal</span>
+                      <span className="ml-1.5 opacity-70">· pessoal</span>
                     )}
                   </Badge>
                 </MetaRow>
               </div>
             </SheetHeader>
 
-            <ScrollArea className="flex-1 mt-4">
+            <ScrollArea className="flex-1 mt-5 p-4 bg-background">
               {email.bodyHtml ? (
                 <HtmlEmailFrame html={email.bodyHtml} />
               ) : (
-                <pre className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap font-sans leading-relaxed">
+                <pre className="text-[14px] text-foreground whitespace-pre-wrap font-sans leading-relaxed">
                   {email.bodyText ? decodeIfQuotedPrintable(email.bodyText) : "(sem conteúdo)"}
                 </pre>
               )}
