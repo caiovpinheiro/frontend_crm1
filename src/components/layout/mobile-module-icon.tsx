@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MessageSquare,
+  MessagesSquare,
   Settings,
   Shuffle,
   SquareCheck,
@@ -27,6 +28,7 @@ import {
 const REGISTRY: Record<string, LucideIcon> = {
   LayoutDashboard,
   MessageSquare,
+  MessagesSquare,
   Kanban,
   CheckSquare: SquareCheck,
   Users,

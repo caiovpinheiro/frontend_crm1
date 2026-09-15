@@ -10,6 +10,7 @@ import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
 import { AppLoading } from "@/components/crm/app-loading";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { useNavMessageAlerts } from "@/components/layout/nav-message-alerts";
+import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome";
 import { cn } from "@/lib/utils";
 
 import { ChatHeader } from "./chat-header";
@@ -105,6 +106,7 @@ export function TeamChatApp() {
 
   const groups = rooms.filter((r) => isGroupRoom(r));
   const selected = rooms.find((r) => r.id === selectedId) ?? null;
+  useMobileChatChrome(!!selected);
   const notesQuery = useTeamChatNotes(selectedId, detailsOpen || !!selectedId);
   const notes = notesQuery.data?.notes ?? [];
   const roomWorkItemsQuery = useRoomWorkItems(selectedId, !!selectedId);
