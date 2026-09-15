@@ -912,6 +912,7 @@ function Shell({
         <SectionHeader
           icon={LayoutDashboard}
           title={title}
+          stackSearchOnMobile
           search
           searchPlaceholder={searchPlaceholder}
           searchValue={search}
