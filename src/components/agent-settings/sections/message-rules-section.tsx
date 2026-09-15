@@ -377,18 +377,35 @@ function RuleDialog({
   // Tags existentes: a regra marca tag, não cria. Tag inventada não é
   // gatilho de automação nenhuma, então a escolha é fechada na lista.
   const { data: tags = [] } = useQuery({
-    queryKey: ["ai-agent-tags"],
+    // Chave própria: a aba Escopo cacheia `["ai-agent-tags"]` como string[]
+    // (só o nome). Reusar essa chave fazia cada opção nascer sem label —
+    // bolinha vazia — e o filtro quebrava ao digitar (fecha o diálogo).
+    queryKey: ["ai-agent-tags", "with-color"],
     queryFn: async (): Promise<TagOption[]> => {
       const res = await fetch(apiUrl("/api/tags"));
       if (!res.ok) return [];
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.tags ?? []);
-      return (list as Array<{ name?: string; color?: string }>)
-        .filter((t) => t?.name)
-        .map((t) => ({ name: t.name as string, color: t.color }))
-        .sort((a, b) =>
-          a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
-        );
+      const parsed: TagOption[] = [];
+      for (const raw of list) {
+        if (typeof raw === "string" && raw.trim()) {
+          parsed.push({ name: raw.trim() });
+          continue;
+        }
+        if (!raw || typeof raw !== "object") continue;
+        const name = String(
+          (raw as { name?: unknown }).name ?? "",
+        ).trim();
+        if (!name) continue;
+        const color = (raw as { color?: unknown }).color;
+        parsed.push({
+          name,
+          color: typeof color === "string" ? color : undefined,
+        });
+      }
+      return parsed.sort((a, b) =>
+        a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
+      );
     },
     staleTime: 60_000,
   });
