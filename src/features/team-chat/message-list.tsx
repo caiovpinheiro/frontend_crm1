@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode, Fragment } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode, Fragment } from "react";
+import { createPortal } from "react-dom";
 import { CheckSquare, ChevronDown, Copy, Download, FileText, Forward, Pin, PinOff, Reply, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -300,8 +301,8 @@ export function MessageList({
                 return (
                   <Fragment key={msg.id}>
                     {showDay && (
-                      <div className="sticky top-2 z-[2] my-3.5 flex justify-center">
-                        <span className="rounded-full border border-border bg-[var(--orbita-block)] px-3.5 py-1 text-[13px] font-medium text-muted-foreground">
+                      <div className="pointer-events-none sticky top-2 z-[2] my-3.5 flex justify-center">
+                        <span className="pointer-events-auto rounded-full border border-border bg-[var(--orbita-block)] px-3.5 py-1 text-[13px] font-medium text-muted-foreground">
                           {formatDayLabel(msg.createdAt)}
                         </span>
                       </div>
@@ -448,7 +449,16 @@ function MessageRow({
   useEffect(() => () => clearLongPress(), []);
 
   return (
-    <div className={cn("isolate flex w-full flex-col", mine ? "items-end" : "items-start", first ? "mt-2.5" : "mt-[3px]")}>
+    <div
+      className={cn(
+        // Sem isolate permanente: o menu do balão precisa pintar acima das linhas seguintes.
+        // Com menu aberto, eleva a linha inteira no stacking da thread.
+        "relative flex w-full flex-col",
+        menuOpen && "z-50",
+        mine ? "items-end" : "items-start",
+        first ? "mt-2.5" : "mt-[3px]",
+      )}
+    >
       <div
         className={cn(
           "flex items-end gap-2",
@@ -595,12 +605,43 @@ function BubbleHoverActions({
   onDelete?: (message: TeamChatMessage) => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null);
+      return;
+    }
+    const place = () => {
+      const btn = boxRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const menuW = 15.5 * 16;
+      const gap = 4;
+      const left = mine
+        ? Math.min(Math.max(8, r.left), window.innerWidth - menuW - 8)
+        : Math.min(Math.max(8, r.right - menuW), window.innerWidth - menuW - 8);
+      const top = Math.min(r.bottom + gap, window.innerHeight - 8);
+      setMenuPos({ top, left });
+    };
+    place();
+    window.addEventListener("resize", place);
+    // scroll da thread (capture) reposiciona / fecha visual inconsistente
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, mine]);
 
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: PointerEvent) => {
       if (Date.now() < ignoreCloseUntil.current) return;
-      if (!boxRef.current?.contains(e.target as Node)) onOpenChange(false);
+      const t = e.target as Node;
+      if (boxRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      onOpenChange(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onOpenChange(false);
@@ -646,11 +687,111 @@ function BubbleHoverActions({
     );
   }
 
+  const menu =
+    open && menuPos
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[80] w-[15.5rem] overflow-hidden rounded-2xl border border-border bg-card py-1 shadow-[0_10px_32px_rgba(15,23,42,0.18)]"
+            style={{ top: menuPos.top, left: menuPos.left }}
+            role="menu"
+          >
+            <div className="mx-1.5 mb-1 flex items-center justify-between gap-0.5 rounded-full bg-muted/70 px-1 py-1">
+              {REACTION_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    onToggleReaction(message.id, emoji);
+                    onOpenChange(false);
+                  }}
+                  aria-label={`Reagir com ${emoji}`}
+                  className="grid size-8 place-items-center rounded-full text-[18px] leading-none transition-transform hover:scale-110 hover:bg-card"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+            {onReply ? (
+              <MenuItem
+                label="Responder"
+                icon={<Reply className="h-4 w-4" />}
+                onClick={() => onReply(message)}
+              />
+            ) : null}
+            <MenuItem
+              label="Copiar"
+              icon={<Copy className="h-4 w-4" />}
+              onClick={() => {
+                const parsed = parseQuotedContent(message.content);
+                const text = parsed.body.trim() || parsed.quote?.excerpt || message.content;
+                const firstAtt = message.attachments?.[0];
+                if (!text.trim() && firstAtt) {
+                  void copyAttachment(firstAtt).catch(() => toast.error("Não foi possível copiar."));
+                  return;
+                }
+                void navigator.clipboard.writeText(text).then(
+                  () => toast.success("Copiado."),
+                  () => toast.error("Não foi possível copiar."),
+                );
+              }}
+            />
+            {(message.attachments ?? []).some((a) => a.url) ? (
+              <MenuItem
+                label="Baixar"
+                icon={<Download className="h-4 w-4" />}
+                onClick={() => {
+                  const att = message.attachments!.find((a) => a.url);
+                  if (!att?.url) return;
+                  const a = document.createElement("a");
+                  a.href = att.url;
+                  a.download = att.name || "arquivo";
+                  a.target = "_blank";
+                  a.rel = "noopener noreferrer";
+                  a.click();
+                }}
+              />
+            ) : null}
+            {onForward ? (
+              <MenuItem
+                label="Encaminhar"
+                icon={<Forward className="h-4 w-4" />}
+                onClick={() => onForward(message)}
+              />
+            ) : null}
+            <MenuItem
+              label={message.pinned ? "Remover destaque" : "Destacar"}
+              icon={message.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              onClick={() => onTogglePin(message.id)}
+            />
+            {onToChecklist ? (
+              <MenuItem
+                label="Transformar em checklist"
+                icon={<CheckSquare className="h-4 w-4" />}
+                onClick={() => onToChecklist(message)}
+              />
+            ) : null}
+            {mine && onDelete ? (
+              <>
+                <div className="my-1 border-t border-border" />
+                <MenuItem
+                  label="Apagar"
+                  icon={<Trash2 className="h-4 w-4" />}
+                  danger
+                  onClick={() => onDelete(message)}
+                />
+              </>
+            ) : null}
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div
       ref={boxRef}
       className={cn(
-        "absolute top-1 z-30",
+        "pointer-events-auto absolute top-1 z-30",
         mine ? "left-1" : "right-1",
       )}
     >
@@ -661,6 +802,11 @@ function BubbleHoverActions({
         onClick={(e) => {
           e.stopPropagation();
           onOpenChange(!open);
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpenChange(true);
         }}
         className={cn(
           "grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm",
@@ -673,102 +819,7 @@ function BubbleHoverActions({
       >
         <ChevronDown className="h-4 w-4" />
       </button>
-      {open ? (
-        <div
-          className={cn(
-            "absolute z-40 mt-1 w-[15.5rem] overflow-hidden rounded-2xl border border-border bg-card py-1 shadow-[0_10px_32px_rgba(15,23,42,0.18)]",
-            mine ? "left-0" : "right-0",
-          )}
-          role="menu"
-        >
-          <div className="mx-1.5 mb-1 flex items-center justify-between gap-0.5 rounded-full bg-muted/70 px-1 py-1">
-            {REACTION_EMOJIS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => {
-                  onToggleReaction(message.id, emoji);
-                  onOpenChange(false);
-                }}
-                aria-label={`Reagir com ${emoji}`}
-                className="grid size-8 place-items-center rounded-full text-[18px] leading-none transition-transform hover:scale-110 hover:bg-card"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-          {onReply ? (
-            <MenuItem
-              label="Responder"
-              icon={<Reply className="h-4 w-4" />}
-              onClick={() => onReply(message)}
-            />
-          ) : null}
-          <MenuItem
-            label="Copiar"
-            icon={<Copy className="h-4 w-4" />}
-            onClick={() => {
-              const parsed = parseQuotedContent(message.content);
-              const text = parsed.body.trim() || parsed.quote?.excerpt || message.content;
-              const firstAtt = message.attachments?.[0];
-              if (!text.trim() && firstAtt) {
-                void copyAttachment(firstAtt).catch(() => toast.error("Não foi possível copiar."));
-                return;
-              }
-              void navigator.clipboard.writeText(text).then(
-                () => toast.success("Copiado."),
-                () => toast.error("Não foi possível copiar."),
-              );
-            }}
-          />
-          {(message.attachments ?? []).some((a) => a.url) ? (
-            <MenuItem
-              label="Baixar"
-              icon={<Download className="h-4 w-4" />}
-              onClick={() => {
-                const att = message.attachments!.find((a) => a.url);
-                if (!att?.url) return;
-                const a = document.createElement("a");
-                a.href = att.url;
-                a.download = att.name || "arquivo";
-                a.target = "_blank";
-                a.rel = "noopener noreferrer";
-                a.click();
-              }}
-            />
-          ) : null}
-          {onForward ? (
-            <MenuItem
-              label="Encaminhar"
-              icon={<Forward className="h-4 w-4" />}
-              onClick={() => onForward(message)}
-            />
-          ) : null}
-          <MenuItem
-            label={message.pinned ? "Remover destaque" : "Destacar"}
-            icon={message.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-            onClick={() => onTogglePin(message.id)}
-          />
-          {onToChecklist ? (
-            <MenuItem
-              label="Transformar em checklist"
-              icon={<CheckSquare className="h-4 w-4" />}
-              onClick={() => onToChecklist(message)}
-            />
-          ) : null}
-          {mine && onDelete ? (
-            <>
-              <div className="my-1 border-t border-border" />
-              <MenuItem
-                label="Apagar"
-                icon={<Trash2 className="h-4 w-4" />}
-                danger
-                onClick={() => onDelete(message)}
-              />
-            </>
-          ) : null}
-        </div>
-      ) : null}
+      {menu}
     </div>
   );
 }
@@ -1007,7 +1058,7 @@ function MediaChip({
             copy();
           }}
           aria-label="Copiar imagem"
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100"
+          className="pointer-events-none absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 group-hover/media:pointer-events-auto group-hover/media:opacity-100"
         >
           <Copy className="h-3.5 w-3.5" />
         </button>
