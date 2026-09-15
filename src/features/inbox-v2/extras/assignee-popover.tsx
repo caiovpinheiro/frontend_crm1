@@ -56,8 +56,22 @@ export function AssigneePopover({
 
   function handleSelect(userId: string | null) {
     if (!conversationId) return;
+    const user = userId
+      ? users.find((u) => u.id === userId) ?? filtered.find((u) => u.id === userId)
+      : null;
     assign.mutate(
-      { conversationId, assignedToId: userId },
+      {
+        conversationId,
+        assignedToId: userId,
+        assignedTo: user
+          ? {
+              id: user.id,
+              name: user.name?.trim() || user.email || "",
+              avatarUrl: user.avatarUrl ?? null,
+              type: user.type ?? "HUMAN",
+            }
+          : null,
+      },
       {
         onSuccess: () => {
           close();
