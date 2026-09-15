@@ -10,6 +10,8 @@ import {
   BOTTOM_NAV_MAX,
   DEFAULT_BOTTOM_NAV,
   DEFAULT_ENABLED,
+  ensureEnabledModules,
+  ensurePinnedBottomNav,
   type MobileLayoutConfigDto,
   sanitizeModuleIds,
 } from "@/lib/mobile-layout";
@@ -38,11 +40,15 @@ async function fetchMobileLayout(): Promise<MobileLayoutConfigDto> {
   }
   const json = (await res.json()) as MobileLayoutConfigDto;
   return {
-    bottomNav: sanitizeModuleIds(json.bottomNav, {
-      ensureRequired: true,
-      maxItems: BOTTOM_NAV_MAX,
-    }),
-    enabled: sanitizeModuleIds(json.enabled, { ensureRequired: true }),
+    bottomNav: ensurePinnedBottomNav(
+      sanitizeModuleIds(json.bottomNav, {
+        ensureRequired: true,
+        maxItems: BOTTOM_NAV_MAX,
+      }),
+    ),
+    enabled: ensureEnabledModules(
+      sanitizeModuleIds(json.enabled, { ensureRequired: true }),
+    ),
     startRoute: json.startRoute || "/dashboard",
     brandColor: json.brandColor ?? null,
     version: json.version ?? 0,
