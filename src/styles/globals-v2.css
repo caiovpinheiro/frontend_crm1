@@ -457,14 +457,6 @@ html[data-nav-expanded="true"] {
   background: var(--bg-base);
 }
 
-/* Mobile: faixa do sistema (relógio, wifi, bateria) no próprio .v2-root.
-   Assim o `p-4` das páginas não zera o inset (especificidade do utilitário). */
-@media (max-width: 767px) {
-  .v2-root {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-}
-
 /* iPhone: `zoom` no Safari não aplica, mas a altura `100dvh / 0.93` sim —
    sobra faixa vazia. Escala 1 só no WebKit móvel (Android Chrome segue 0.93). */
 @media (max-width: 767px) {
