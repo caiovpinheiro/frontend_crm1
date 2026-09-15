@@ -12,6 +12,7 @@ import {
   Rocket,
   Shuffle,
   Users,
+  UsersRound,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -128,6 +129,15 @@ export const SIDEBAR_CATALOG: readonly SidebarCatalogItem[] = [
     description: "Notas pessoais, listas e anexos.",
     locked: false,
     requiredPermission: "nav:bwipo-keeps",
+  },
+  {
+    key: "whatsapp-groups",
+    title: "Grupos WhatsApp",
+    href: "/grupos-whatsapp",
+    icon: UsersRound,
+    description: "Grupos da conta WhatsApp QR Code.",
+    locked: false,
+    requiredPermission: "nav:whatsapp-groups",
   },
   {
     key: "activities",
