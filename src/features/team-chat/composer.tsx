@@ -531,7 +531,7 @@ export function Composer({
           <div
             data-orbita-picker
             onMouseDown={(e) => e.stopPropagation()}
-            className="absolute inset-x-2 bottom-full z-40 mb-1 overflow-hidden rounded-[var(--orbita-radius-block)] bg-[var(--orbita-block)] shadow-lg ring-1 ring-black/5"
+            className="absolute inset-x-2 bottom-full z-50 mb-1 overflow-hidden rounded-[var(--orbita-radius-block)] bg-[var(--orbita-block)] shadow-lg ring-1 ring-black/5"
           >
             <div className="flex bg-[var(--orbita-block-soft)]">
               <button
@@ -668,7 +668,7 @@ export function Composer({
                 </button>
               </TooltipGlass>
                 {plusOpen && (
-                  <div className="absolute bottom-full left-0 z-20 mb-1 w-48 overflow-hidden rounded-[var(--orbita-radius-inner)] bg-[var(--orbita-block)] py-1 shadow-lg">
+                  <div className="absolute bottom-full left-0 z-50 mb-1 w-48 overflow-hidden rounded-[var(--orbita-radius-inner)] bg-[var(--orbita-block)] py-1 shadow-lg">
                     <button
                       type="button"
                       onClick={() => {

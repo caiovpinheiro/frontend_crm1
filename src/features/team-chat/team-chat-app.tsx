@@ -198,7 +198,8 @@ export function TeamChatApp() {
       <section
         data-tour="bwipo-chat-stage"
         className={cn(
-          "orbita-block relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
+          // orbita-block--float: overflow visible p/ menus do composer (+ / emoji) abrirem acima
+          "orbita-block orbita-block--float relative flex h-full min-h-0 min-w-0 flex-1 flex-col",
           selected ? "flex" : "hidden md:flex",
         )}
       >
@@ -484,7 +485,7 @@ function Thread({
           onAddMembers={onAddMembers}
         />
       </div>
-      <div className="chat-thread-texture relative flex min-h-0 flex-1 flex-col overflow-hidden" data-wa-thread data-tour="bwipo-chat-messages">
+      <div className="chat-thread-texture relative flex min-h-0 flex-1 flex-col overflow-x-hidden" data-wa-thread data-tour="bwipo-chat-messages">
         <MessageList
           room={room}
           messages={messages}
