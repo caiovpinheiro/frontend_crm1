@@ -39,8 +39,15 @@ import {
 import { cn, ownerLabel } from "@/lib/utils";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 
+import {
+  MultiSelectPopover,
+  type MultiSelectOption,
+} from "@/features/dashboard-v2/components/multi-select-popover";
+
 import { ChipInput } from "../chip-input";
 import { FieldHelp, SectionHeader } from "../section-header";
+
+type TagOption = { name: string; color?: string };
 
 const ACTION_ICON: Record<MessageRuleAction, React.ElementType> = {
   answer_with_knowledge: BookOpen,
@@ -371,17 +378,37 @@ function RuleDialog({
   // gatilho de automação nenhuma, então a escolha é fechada na lista.
   const { data: tags = [] } = useQuery({
     queryKey: ["ai-agent-tags"],
-    queryFn: async (): Promise<string[]> => {
+    queryFn: async (): Promise<TagOption[]> => {
       const res = await fetch(apiUrl("/api/tags"));
       if (!res.ok) return [];
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.tags ?? []);
-      return (list as Array<{ name?: string }>)
-        .map((t) => t.name)
-        .filter((n): n is string => Boolean(n));
+      return (list as Array<{ name?: string; color?: string }>)
+        .filter((t) => t?.name)
+        .map((t) => ({ name: t.name as string, color: t.color }))
+        .sort((a, b) =>
+          a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }),
+        );
     },
     staleTime: 60_000,
   });
+
+  const tagOptions = React.useMemo(() => {
+    const opts: MultiSelectOption[] = tags.map((t) => ({
+      value: t.name,
+      label: t.name,
+      color: t.color,
+    }));
+    if (rule.tagName && !tags.some((t) => t.name === rule.tagName)) {
+      opts.unshift({
+        value: rule.tagName,
+        label: rule.tagName,
+        color: undefined,
+        sub: "não existe mais no CRM",
+      });
+    }
+    return opts;
+  }, [tags, rule.tagName]);
 
   const { data: users = [], isLoading: loadingUsers } = useTeamUsersQuery(
     true,
@@ -578,29 +605,20 @@ function RuleDialog({
         )}
 
         <div>
-          <label className={formLabelClass} htmlFor="rule-tag">
-            Adicionar tag
-          </label>
-          <select
-            id="rule-tag"
-            value={rule.tagName ?? ""}
-            onChange={(e) =>
-              onChange({ ...rule, tagName: e.target.value || null })
-            }
-            className={cn(formControlClass, "w-full px-3")}
-          >
-            <option value="">Nenhuma</option>
-            {tags.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-            {rule.tagName && !tags.includes(rule.tagName) && (
-              <option value={rule.tagName}>
-                {rule.tagName} (não existe mais no CRM)
-              </option>
-            )}
-          </select>
+          <label className={formLabelClass}>Adicionar tag</label>
+          <MultiSelectPopover
+            label="Tags"
+            triggerClassName="w-full justify-between"
+            searchable
+            emptyLabel="Nenhuma tag cadastrada no CRM."
+            options={tagOptions}
+            selected={rule.tagName ? [rule.tagName] : []}
+            onChange={(next) => {
+              const picked =
+                next.length === 0 ? null : next[next.length - 1] ?? null;
+              onChange({ ...rule, tagName: picked });
+            }}
+          />
           <FieldHelp>
             Opcional. A tag precisa já existir no CRM. Pode ir junto de
             atender ou de transferir — o sistema marca na hora, sem automação.

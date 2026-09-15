@@ -35,6 +35,10 @@ interface MultiSelectPopoverProps {
   emptyLabel?: string;
   disabled?: boolean;
   width?: number;
+  /** Classes extras no gatilho (ex.: `w-full` em formulário). */
+  triggerClassName?: string;
+  /** Força o campo de busca. Sem isso, só aparece com mais de 8 opções. */
+  searchable?: boolean;
 }
 
 export function MultiSelectPopover({
@@ -46,6 +50,8 @@ export function MultiSelectPopover({
   emptyLabel = "Nenhuma opção disponível",
   disabled,
   width = 264,
+  triggerClassName,
+  searchable,
 }: MultiSelectPopoverProps) {
   const { open, rect, triggerRef, popoverRef, toggle, close } =
     usePortalPopover();
@@ -85,6 +91,7 @@ export function MultiSelectPopover({
           count > 0
             ? "border-[var(--brand-primary)]/50 text-[var(--text-primary)] ring-1 ring-[var(--brand-primary)]/25"
             : "border-[var(--glass-border)] text-[var(--text-secondary)] hover:border-[var(--brand-primary)]/35",
+          triggerClassName,
         )}
       >
         {icon && <span className="text-[var(--text-muted)]">{icon}</span>}
@@ -126,7 +133,7 @@ export function MultiSelectPopover({
               )}
             </div>
 
-            {options.length > 8 ? (
+            {(searchable ?? options.length > 8) ? (
               <div className="border-b border-[var(--glass-border-subtle)] px-2 py-1.5">
                 <input
                   type="search"
