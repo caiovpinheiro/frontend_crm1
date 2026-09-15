@@ -129,7 +129,7 @@ export function HeaderTabs<T extends string>({
 }) {
   return (
     <nav
-      className="toolbar-hscroll min-w-0 w-full max-w-full overflow-x-auto overscroll-x-contain"
+      className="toolbar-hscroll min-w-0 w-max max-w-full shrink-0 overflow-x-auto overscroll-x-contain"
       style={{ WebkitOverflowScrolling: "touch" }}
     >
       <div className="inline-flex w-max flex-nowrap items-center gap-1 rounded-full border border-border bg-card p-1">
