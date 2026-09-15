@@ -30,8 +30,11 @@ import {
 import { isPreviewMode } from "@/lib/preview-mode";
 import {
   INBOX_QUEUE_SECTION_ORDER,
-  inboxQueueSectionPriority,
 } from "../inbox-queue-tab";
+import {
+  collapseInboxCardRows,
+  sameInboxCardGroup,
+} from "../inbox-card-group";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
 /**
@@ -88,16 +91,6 @@ function activityTs(r: ConversationListRow) {
   return new Date(r.lastMessageAt ?? r.lastInboundAt ?? r.updatedAt ?? 0).getTime();
 }
 
-function channelKey(c: ConversationListRow["channel"]) {
-  return typeof c === "string" ? c : JSON.stringify(c ?? "");
-}
-
-function groupKey(r: ConversationListRow) {
-  return r.contact?.id
-    ? `c:${r.contact.id}::${channelKey(r.channel)}::${r.channelId ?? ""}`
-    : `id:${r.id}`;
-}
-
 /**
  * Uma página por fila em paralelo, tag `queueTab`, claim exclusivo
  * (ligar → entrada → …) para a lista multi-seção não misturar buckets.
@@ -127,20 +120,21 @@ async function listConversationsTaggedByTab(args: {
   ];
 
   const claimed = new Map<string, ConversationListRow>();
-  const claimedGroups = new Set<string>();
+  const claimedRows: ConversationListRow[] = [];
   for (const tab of claimOrder) {
     const pack = pages.find((p) => p.tab === tab);
     if (!pack) continue;
     for (const row of pack.res.items ?? []) {
       if (!row?.id) continue;
-      const gk = groupKey(row);
-      if (claimed.has(row.id) || claimedGroups.has(gk)) continue;
-      claimed.set(row.id, { ...row, queueTab: tab });
-      claimedGroups.add(gk);
+      if (claimed.has(row.id)) continue;
+      if (claimedRows.some((c) => sameInboxCardGroup(c, row))) continue;
+      const next = { ...row, queueTab: tab };
+      claimed.set(row.id, next);
+      claimedRows.push(next);
     }
   }
 
-  const items = [...claimed.values()].sort((a, b) => activityTs(b) - activityTs(a));
+  const items = claimedRows.sort((a, b) => activityTs(b) - activityTs(a));
   const hasMore = pages.some((p) => {
     const perPage = p.res.perPage ?? PAGE_SIZE;
     const n = p.res.items?.length ?? 0;
@@ -296,39 +290,14 @@ export function useConversations(params: {
     const flat = pages
       .flatMap((p) => p?.items ?? [])
       .filter(Boolean) as ConversationListRow[];
-    // Colapsa por CONTATO+CANAL (não por `id`): no modelo de ticket, reabrir
+    // Colapsa por CONTATO+CANAL(+conta): no modelo de ticket, reabrir
     // uma conversa encerrada gera um NOVO id (ticket B), e o ticket A
     // (RESOLVED) continuava aparecendo como um segundo card do mesmo número.
     // Regra do operador: 1 card por número — o histórico dos tickets antigos
     // fica acessível na timeline contínua do chat (separadores de ticket),
-    // não como cards separados. Mantemos, por contato+canal, o ticket com
-    // atividade mais recente (o ativo; os resolvidos ficam congelados pois
-    // qualquer nova mensagem reabre como ticket novo). Também cobre o dedupe
-    // antigo por `id` (mesma conversa repetida entre páginas do infinite
-    // scroll quando ela "pula" de página no servidor).
-    const byGroup = new Map<string, ConversationListRow>();
-    for (const row of flat) {
-      if (!row?.id) continue;
-      const key = groupKey(row);
-      const prev = byGroup.get(key);
-      if (!prev) {
-        byGroup.set(key, row);
-        continue;
-      }
-      const prevPri = inboxQueueSectionPriority(prev.queueTab ?? undefined);
-      const nextPri = inboxQueueSectionPriority(row.queueTab ?? undefined);
-      if (nextPri < prevPri) {
-        byGroup.set(key, row);
-        continue;
-      }
-      if (nextPri === prevPri && activityTs(row) >= activityTs(prev)) {
-        byGroup.set(key, {
-          ...row,
-          queueTab: row.queueTab ?? prev.queueTab,
-        });
-      }
-    }
-    const items: ConversationListRow[] = [...byGroup.values()];
+    // não como cards separados. Também cobre dedupe por `id` entre páginas
+    // e órfã SSE sem `channelId` vs ticket GET com conta preenchida.
+    const items = collapseInboxCardRows(flat);
     const last = pages[pages.length - 1];
     const anyMore = pages.some((p) => p?.hasMore === true);
     return {
