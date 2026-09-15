@@ -343,6 +343,7 @@ export default function V2AutomationsClientPage() {
         <SectionHeader
           icon={Bot}
           title="Automações"
+          stackSearchOnMobile
           searchSlot={
             <AutomationsSearchFilterBar
               search={query}
