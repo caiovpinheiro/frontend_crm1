@@ -466,6 +466,10 @@ html[data-nav-expanded="true"] {
       zoom: 1;
     }
   }
+  html.plt-native .v2-root {
+    --v2-scale: 1;
+    zoom: 1;
+  }
 }
 
 /* NavRail persistente no layout `(app)`: colada à esquerda, altura total.
@@ -521,6 +525,12 @@ html[data-nav-expanded="true"] {
     .v2-root .v2-screen.v2-screen-fill {
       padding-top: env(safe-area-inset-top, 0px);
     }
+  }
+  html.plt-native .v2-root .v2-screen {
+    padding-top: max(var(--nav-rail-inset, 0.75rem), env(safe-area-inset-top, 0px));
+  }
+  html.plt-native .v2-root .v2-screen.v2-screen-fill {
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 

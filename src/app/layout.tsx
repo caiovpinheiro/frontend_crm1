@@ -119,6 +119,10 @@ export default async function RootLayout({
     }
     var dark = t === "dark";
     var el = document.documentElement;
+    var cap = window.Capacitor;
+    if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
+      el.classList.add("plt-native");
+    }
     el.classList.toggle("v2-dark", dark);
     el.classList.toggle("dark", dark);
     el.style.colorScheme = dark ? "dark" : "light";
