@@ -26,7 +26,7 @@ import {
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
-import { cn } from "@/lib/utils";
+import { cn, ownerLabel } from "@/lib/utils";
 import {
   pathForPipelineView,
   writePipelineViewPreference,
@@ -2001,7 +2001,9 @@ function DroppableColumn({
                         <AssigneePopover
                           dealId={deal.id}
                           currentOwnerId={raw?.owner?.id ?? null}
-                          currentOwnerName={raw?.owner?.name ?? null}
+                          currentOwnerName={
+                            ownerLabel(raw?.owner?.name, raw?.owner?.type) || null
+                          }
                           pipelineId={pipelineId}
                           statusFilter={statusFilter}
                           trigger={
@@ -2010,7 +2012,7 @@ function DroppableColumn({
                               // do brand + foto do perfil; iniciais como fallback).
                               <span
                                 className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] py-px pl-px pr-2 transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[var(--glass-bg-base)]"
-                                title={raw.owner.name}
+                                title={ownerLabel(raw.owner.name, raw.owner.type)}
                               >
                                 <UserAvatar
                                   name={raw.owner.name}
@@ -2018,7 +2020,7 @@ function DroppableColumn({
                                   size={22}
                                 />
                                 <span className="min-w-0 truncate font-display text-[10.5px] font-semibold text-[var(--text-secondary)]">
-                                  {raw.owner.name}
+                                  {ownerLabel(raw.owner.name, raw.owner.type)}
                                 </span>
                               </span>
                             ) : (

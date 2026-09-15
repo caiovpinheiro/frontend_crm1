@@ -42,6 +42,7 @@ export interface DealListItemDto {
     name: string;
     email: string | null;
     avatarUrl: string | null;
+    type?: string | null;
   } | null;
 }
 

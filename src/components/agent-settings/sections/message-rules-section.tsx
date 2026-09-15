@@ -10,12 +10,16 @@ import {
   IconPencil as Pencil,
   IconPlus as Plus,
   IconTrash as Trash2,
+  IconUser as User,
   IconUsers as Users,
   IconDirections as Signpost,
+  IconTag as Tag,
+  IconUser as User,
 } from "@tabler/icons-react";
 import * as React from "react";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,13 +32,13 @@ import {
   formLabelClass,
 } from "@/components/ui/form-dialog";
 import {
-  MESSAGE_RULE_ACTIONS,
   MESSAGE_RULE_ACTION_LABELS,
   emptyMessageRule,
   type MessageRule,
   type MessageRuleAction,
 } from "@/lib/ai-agents/message-rules";
-import { cn } from "@/lib/utils";
+import { cn, ownerLabel } from "@/lib/utils";
+import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 
 import { ChipInput } from "../chip-input";
 import { FieldHelp, SectionHeader } from "../section-header";
@@ -43,8 +47,19 @@ const ACTION_ICON: Record<MessageRuleAction, React.ElementType> = {
   answer_with_knowledge: BookOpen,
   transfer_department: Signpost,
   transfer_human: Users,
+  assign_owner: User,
   fixed_reply: MessageSquare,
+  add_tag: Tag,
 };
+
+/** Tag é campo à parte; não aparece como único “o que fazer”. */
+const STEP_ACTIONS: MessageRuleAction[] = [
+  "answer_with_knowledge",
+  "transfer_department",
+  "transfer_human",
+  "assign_owner",
+  "fixed_reply",
+];
 
 type Department = { id: string; name: string };
 
@@ -92,6 +107,9 @@ export function MessageRulesSection({
       department:
         rule.action === "transfer_department" ? rule.department : null,
       message: rule.action === "answer_with_knowledge" ? null : rule.message,
+      tagName: rule.tagName?.trim() || null,
+      ownerUserId: rule.action === "assign_owner" ? rule.ownerUserId : null,
+      ownerLabel: rule.action === "assign_owner" ? rule.ownerLabel : null,
     };
     onChange(
       isNew
@@ -197,6 +215,8 @@ export function MessageRulesSection({
                       <span className="truncate">
                         {MESSAGE_RULE_ACTION_LABELS[rule.action].label}
                         {rule.department ? ` · ${rule.department}` : ""}
+                        {rule.ownerLabel ? ` · ${rule.ownerLabel}` : ""}
+                        {rule.tagName ? ` · tag ${rule.tagName}` : ""}
                       </span>
                     </p>
                   </div>
@@ -348,10 +368,36 @@ function RuleDialog({
   onChange: (next: MessageRule) => void;
   onSave: (rule: MessageRule) => void;
 }) {
+  // Tags existentes: a regra marca tag, não cria. Tag inventada não é
+  // gatilho de automação nenhuma, então a escolha é fechada na lista.
+  const { data: tags = [] } = useQuery({
+    queryKey: ["ai-agent-tags"],
+    queryFn: async (): Promise<string[]> => {
+      const res = await fetch(apiUrl("/api/tags"));
+      if (!res.ok) return [];
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : (data.tags ?? []);
+      return (list as Array<{ name?: string }>)
+        .map((t) => t.name)
+        .filter((n): n is string => Boolean(n));
+    },
+    staleTime: 60_000,
+  });
+
+  const { data: users = [], isLoading: loadingUsers } = useTeamUsersQuery(
+    true,
+    { includeAi: true },
+  );
+
+  const stepActions: MessageRuleAction[] =
+    rule.action === "add_tag" ? [...STEP_ACTIONS, "add_tag"] : STEP_ACTIONS;
+
   const invalid =
     rule.anyOf.length === 0 ||
     (rule.action === "transfer_department" && !rule.department) ||
-    (rule.action === "fixed_reply" && !rule.message?.trim());
+    (rule.action === "assign_owner" && !rule.ownerUserId) ||
+    (rule.action === "fixed_reply" && !rule.message?.trim()) ||
+    (rule.action === "add_tag" && !rule.tagName?.trim());
 
   return (
     <FormDialog
@@ -438,7 +484,7 @@ function RuleDialog({
         <div>
           <label className={formLabelClass}>O que fazer *</label>
           <div className="mt-1 grid gap-2">
-            {MESSAGE_RULE_ACTIONS.map((action) => {
+            {stepActions.map((action) => {
               const meta = MESSAGE_RULE_ACTION_LABELS[action];
               const on = rule.action === action;
               return (
@@ -493,12 +539,83 @@ function RuleDialog({
           </div>
         )}
 
+        {rule.action === "assign_owner" && (
+          <div>
+            <label className={formLabelClass}>Pessoa ou agente *</label>
+            {loadingUsers ? (
+              <p className="text-xs text-muted-foreground">Carregando…</p>
+            ) : (
+              <DropdownGlass
+                triggerClassName="w-full"
+                searchable
+                searchPlaceholder="Buscar consultor ou agente…"
+                placeholder="Selecione quem recebe a conversa"
+                value={rule.ownerUserId ?? ""}
+                options={users.map((u) => ({
+                  value: u.id,
+                  label: ownerLabel(u.name ?? u.email, u.type) || u.id,
+                  description:
+                    (u.type ?? "").toUpperCase() === "AI"
+                      ? "Agentes IA"
+                      : "Consultores",
+                  searchText: `${u.name ?? ""} ${u.email ?? ""}`,
+                }))}
+                onValueChange={(id) => {
+                  const u = users.find((row) => row.id === id);
+                  onChange({
+                    ...rule,
+                    ownerUserId: id || null,
+                    ownerLabel:
+                      ownerLabel(u?.name ?? u?.email, u?.type) || null,
+                  });
+                }}
+              />
+            )}
+            <FieldHelp>
+              A conversa e o negócio passam para essa pessoa. Agentes ligados
+              aparecem na lista.
+            </FieldHelp>
+          </div>
+        )}
+
+        <div>
+          <label className={formLabelClass} htmlFor="rule-tag">
+            Adicionar tag
+          </label>
+          <select
+            id="rule-tag"
+            value={rule.tagName ?? ""}
+            onChange={(e) =>
+              onChange({ ...rule, tagName: e.target.value || null })
+            }
+            className={cn(formControlClass, "w-full px-3")}
+          >
+            <option value="">Nenhuma</option>
+            {tags.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+            {rule.tagName && !tags.includes(rule.tagName) && (
+              <option value={rule.tagName}>
+                {rule.tagName} (não existe mais no CRM)
+              </option>
+            )}
+          </select>
+          <FieldHelp>
+            Opcional. A tag precisa já existir no CRM. Pode ir junto de
+            atender ou de transferir — o sistema marca na hora, sem automação.
+          </FieldHelp>
+        </div>
+
         {rule.action !== "answer_with_knowledge" && (
           <div>
             <label className={formLabelClass} htmlFor="rule-message">
               {rule.action === "fixed_reply"
                 ? "Texto que o agente envia *"
-                : "Mensagem antes de transferir"}
+                : rule.action === "assign_owner"
+                  ? "Mensagem ao transferir"
+                  : "Mensagem antes de transferir"}
             </label>
             <Textarea
               id="rule-message"
@@ -514,7 +631,9 @@ function RuleDialog({
               placeholder={
                 rule.action === "fixed_reply"
                   ? "Ex.: Nosso polo funciona de 8h às 18h."
-                  : "Vazio = o agente usa o texto de fila da Pilotagem."
+                  : rule.action === "assign_owner"
+                    ? "Vazio = se for um agente IA, ele assume e cumprimenta."
+                    : "Vazio = o agente usa o texto de fila da Pilotagem."
               }
             />
           </div>

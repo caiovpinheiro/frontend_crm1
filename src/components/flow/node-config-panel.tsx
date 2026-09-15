@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useMemo, useCallback, useEffect } from "react"
 import { useReactFlow, useNodes, type Node } from "@xyflow/react"
@@ -28,7 +28,13 @@ import {
 } from "@/components/automations/trigger-config-fields"
 import { STEP_FIELDS, type EditorField } from "@/components/automations/editor-fields"
 import { NodeConfigEditor } from "@/components/automations/inline-editor"
-import { useConditionNameLookup, useDepartmentOptions, useUserOptions } from "@/components/automations/editor-data"
+import {
+  useAiAgentOptions,
+  useConditionNameLookup,
+  useDepartmentOptions,
+  useUserOptions,
+} from "@/components/automations/editor-data"
+import { isTabulationArchetype } from "@/lib/ai-agents/archetypes"
 import { FlowConditionConfig } from "./flow-condition-config"
 import { FlowRoundRobinConfig } from "./flow-round-robin-config"
 import { cn } from "@/lib/utils"
@@ -88,6 +94,7 @@ export function NodeConfigPanel({ id, data }: { id: string; data: FlowNodeData }
   const isFinish = (stepType === "finish" || stepType === "stop_automation") && !catalogFields
   const isAssignOwner = stepType === "assign_owner"
   const { options: userOptions, isLoading: loadingUsers } = useUserOptions()
+  const { records: agentRecords, isLoading: loadingAgents } = useAiAgentOptions("userId")
   const { options: deptOptions, isLoading: loadingDepts } = useDepartmentOptions()
   const triggerLookup = useTriggerNameLookup()
   const conditionLookup = useConditionNameLookup()
@@ -214,8 +221,9 @@ export function NodeConfigPanel({ id, data }: { id: string; data: FlowNodeData }
           cfg={cfg}
           onChange={(patch) => commitConfig({ ...cfg, ...patch })}
           users={userOptions}
+          agents={agentRecords}
           departments={deptOptions}
-          loading={loadingUsers || loadingDepts}
+          loading={loadingUsers || loadingDepts || loadingAgents}
         />
       )}
 
@@ -257,12 +265,14 @@ function AssignOwnerFields({
   cfg,
   onChange,
   users,
+  agents,
   departments,
   loading,
 }: {
   cfg: NodeConfig
   onChange: (patch: Partial<NodeConfig>) => void
   users: { value: string; label: string }[]
+  agents: { userId: string; name: string; active?: boolean; archetype?: string }[]
   departments: { value: string; label: string }[]
   loading: boolean
 }) {
@@ -277,6 +287,12 @@ function AssignOwnerFields({
   const selected = cfg.departmentId
     ? `${DEPT_PREFIX}${cfg.departmentId}`
     : (cfg.userId ?? "")
+  const assignableAgents = agents.filter(
+    (a) =>
+      a.active !== false &&
+      a.userId &&
+      (!isTabulationArchetype(a.archetype) || a.userId === selected),
+  )
 
   return (
     <section className="space-y-3">
@@ -288,7 +304,7 @@ function AssignOwnerFields({
           <DropdownGlass
             triggerClassName="w-full"
             searchable
-            searchPlaceholder="Buscar departamento ou usuário…"
+            searchPlaceholder="Buscar departamento, usuário ou agente…"
             placeholder="Selecione…"
             value={selected}
             options={[
@@ -305,12 +321,19 @@ function AssignOwnerFields({
                 description: "Usuários",
                 searchText: u.label,
               })),
+              ...assignableAgents.map((a) => ({
+                value: a.userId,
+                label: `🤖 ${a.name}`,
+                description: "Agentes IA",
+                searchText: a.name,
+              })),
             ]}
             onValueChange={(v) => {
               if (!v) {
                 onChange({
                   userId: "",
                   userLabel: "",
+                  userType: "HUMAN",
                   departmentId: undefined,
                   departmentName: undefined,
                 })
@@ -324,6 +347,23 @@ function AssignOwnerFields({
                   departmentName: dept?.label,
                   userId: "",
                   userLabel: "",
+                  userType: "HUMAN",
+                })
+                return
+              }
+              const agent = assignableAgents.find((a) => a.userId === v)
+              if (agent) {
+                onChange({
+                  userId: agent.userId,
+                  userLabel: agent.name,
+                  userType: "AI",
+                  departmentId: undefined,
+                  departmentName: undefined,
+                  // Deal + contato + conversa: o nome aparece no inbox e no
+                  // kanban, igual a um consultor.
+                  target: "both",
+                  assignAll: true,
+                  assignTo: "all",
                 })
                 return
               }
@@ -331,6 +371,7 @@ function AssignOwnerFields({
               onChange({
                 userId: v,
                 userLabel: user?.label,
+                userType: "HUMAN",
                 departmentId: undefined,
                 departmentName: undefined,
               })

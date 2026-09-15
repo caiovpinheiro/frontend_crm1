@@ -145,19 +145,26 @@ export function useUserOptions() {
   return { options, isLoading: q.isLoading }
 }
 
-type RawAgent = { id: string; userId: string; name: string; active?: boolean }
+export type RawAiAgent = {
+  id: string
+  userId: string
+  name: string
+  active?: boolean
+  archetype?: string
+}
 
 /** Agentes IA ativos. `by="userId"` para ações que transferem o atendimento. */
 export function useAiAgentOptions(by: "id" | "userId" = "id") {
   const q = useQuery({
     queryKey: ["editor-ai-agents"],
     staleTime: STALE,
-    queryFn: async (): Promise<RawAgent[]> => asArray(await getJson("/api/ai-agents")) as RawAgent[],
+    queryFn: async (): Promise<RawAiAgent[]> => asArray(await getJson("/api/ai-agents")) as RawAiAgent[],
   })
-  const options: Opt[] = (q.data ?? [])
+  const records = q.data ?? []
+  const options: Opt[] = records
     .filter((a) => a.active !== false)
     .map((a) => ({ value: by === "userId" ? a.userId : a.id, label: `🤖 ${a.name}` }))
-  return { options, isLoading: q.isLoading }
+  return { options, records, isLoading: q.isLoading }
 }
 
 type RawTag = { id: string; name: string; color?: string }

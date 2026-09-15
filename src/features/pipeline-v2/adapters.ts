@@ -17,6 +17,7 @@ import {
   formatRelative,
 } from "@/features/inbox-v2/adapters";
 import { normalizeDeliveryStatus } from "@/components/crm/status-ticks";
+import { ownerLabel } from "@/lib/utils";
 import { personNameFromDealTitle, sanitizeContactName } from "@/lib/display-name";
 
 // ─────────────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ export function toDealCard(deal: BoardDealDto): Deal {
     sanitizeContactName(deal.contact?.name) ||
     personNameFromDealTitle(deal.title) ||
     "Sem nome";
-  const ownerName = deal.owner?.name?.trim() || "Sem responsavel";
+  const ownerName = ownerLabel(deal.owner?.name, deal.owner?.type) || "Sem responsavel";
   // Prefere lastMessage do board (já filtrado no BE). Defesa: se ainda vier
   // nota/distribuição, omite o preview em vez de poluir o card.
   const lastMessage =
@@ -272,7 +273,7 @@ export function toDealListRow(deal: DealListItemDto): DealListRow {
     sanitizeContactName(deal.contact?.name) ||
     personNameFromDealTitle(deal.title) ||
     "Sem nome";
-  const ownerName = deal.owner?.name?.trim() || null;
+  const ownerName = ownerLabel(deal.owner?.name, deal.owner?.type) || null;
   return {
     id: deal.id,
     dealTitle: deal.title || `Negócio #${deal.number ?? deal.id.slice(0, 4)}`,

@@ -27,7 +27,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, ownerLabel } from "@/lib/utils";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
@@ -1743,7 +1743,12 @@ export default function InboxV2ClientPage({
         <DealOwnerPopover
           dealId={firstDealId}
           currentOwnerId={firstDealDetail?.owner?.id ?? null}
-          currentOwnerName={firstDealDetail?.owner?.name ?? null}
+          currentOwnerName={
+            ownerLabel(
+              firstDealDetail?.owner?.name,
+              (firstDealDetail?.owner as { type?: string | null } | undefined)?.type,
+            ) || null
+          }
           pipelineId={firstDealPipelineId}
           conversationId={conversationApiId}
           conversationAssigneeId={activeRow?.assignedTo?.id ?? null}
@@ -1776,7 +1781,10 @@ export default function InboxV2ClientPage({
             firstDealDetail?.owner?.name ? (
               <span
                 className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full bg-white py-px pl-px pr-2 text-[#2e3b6e] shadow-sm transition-colors hover:bg-white/90"
-                title={firstDealDetail.owner.name}
+                title={ownerLabel(
+                  firstDealDetail.owner.name,
+                  (firstDealDetail.owner as { type?: string | null }).type,
+                )}
               >
                 <UserAvatar
                   name={firstDealDetail.owner.name}
@@ -1784,7 +1792,10 @@ export default function InboxV2ClientPage({
                   size={20}
                 />
                 <span className="min-w-0 truncate font-display text-[10.5px] font-semibold text-[#2e3b6e]">
-                  {firstDealDetail.owner.name}
+                  {ownerLabel(
+                    firstDealDetail.owner.name,
+                    (firstDealDetail.owner as { type?: string | null }).type,
+                  )}
                 </span>
               </span>
             ) : (
