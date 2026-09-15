@@ -134,21 +134,21 @@ export function ChatHeader({
             </span>
           )}
           <div className="min-w-0">
-            <h2 className="truncate text-[15px] font-semibold text-[var(--orbita-text)]">
+            <h2 className="truncate text-[16px] font-semibold text-[var(--orbita-text)]">
               {isDirect ? room.name : `#${room.name}`}
             </h2>
             {typingLabel ? (
-              <span className="truncate text-[12px] font-medium text-[var(--orbita-selected)]">
+              <span className="truncate text-[13px] font-medium text-[var(--orbita-selected)]">
                 {typingLabel}
               </span>
             ) : isDirect && lead ? (
-              <span className="text-[12px] font-medium" style={{ color: PRESENCE_TEXT[lead.presence] }}>
+              <span className="text-[13px] font-medium" style={{ color: PRESENCE_TEXT[lead.presence] }}>
                 {presenceLabel[lead.presence]}
               </span>
             ) : (
               <div className="flex items-center gap-2">
                 <AvatarStack people={people} />
-                <span className="truncate text-[12px] text-[var(--orbita-text-secondary)]">
+                <span className="truncate text-[13px] text-[var(--orbita-text-secondary)]">
                   {room.topic ? `${room.topic} · ` : ""}
                   {room.memberCount} membros
                 </span>
