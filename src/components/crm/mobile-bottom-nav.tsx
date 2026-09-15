@@ -254,7 +254,10 @@ function MobileBottomNavClassic() {
         className={cn(
           "fixed inset-x-0 bottom-0 z-(--z-popover) md:hidden",
           "border-t border-[var(--nav-border)] bg-[var(--nav-bg)]/95 backdrop-blur-[16px]",
-          "pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.28)]",
+          /* iPhone: o inset do home indicator (~34px) virava faixa vazia.
+             Recua um pouco para os rótulos chegarem mais perto da borda,
+             ainda fora da área do gesto. Android (inset menor) não muda. */
+          "pb-[max(0.35rem,calc(env(safe-area-inset-bottom,0px)-0.85rem))] shadow-[0_-8px_24px_rgba(0,0,0,0.28)]",
           "transition-transform duration-200 ease-out",
           visible ? "translate-y-0" : "translate-y-full",
         )}
