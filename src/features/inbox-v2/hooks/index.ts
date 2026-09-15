@@ -10,3 +10,4 @@ export * from "./use-inbox-sound";
 export * from "./use-permissions";
 export * from "./use-conversation-features";
 export * from "./use-channels";
+export * from "./use-proofread";
