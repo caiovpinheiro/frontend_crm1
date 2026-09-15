@@ -210,6 +210,7 @@ export function PipelineHeader({
         titleAccessory={titleAccessory}
         search={Boolean(center)}
         searchSlot={center}
+        stackSearchOnMobile
         period={period}
         actions={actionButtons}
         menu={Boolean(menuSlot)}
