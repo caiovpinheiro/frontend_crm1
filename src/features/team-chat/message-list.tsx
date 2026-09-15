@@ -5,6 +5,7 @@ import { CheckSquare, ChevronDown, Copy, Download, FileText, Forward, Pin, PinOf
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
+import { ImageLightbox } from "@/components/crm/image-lightbox";
 import { StatusTicks, type DeliveryTickStatus } from "@/components/crm/status-ticks";
 
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -215,12 +216,12 @@ export function MessageList({
           <div className="flex w-full items-start gap-2">
             <Pin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--orbita-text-secondary)]" />
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--orbita-text-secondary)]">
+              <p className="text-[12px] font-semibold uppercase tracking-wide text-[var(--orbita-text-secondary)]">
                 Destacadas
               </p>
               {pinned.map((m) => (
                 <div key={m.id} className="flex items-center gap-2">
-                  <p className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+                  <p className="min-w-0 flex-1 truncate text-[14px] text-foreground">
                     <span className="font-semibold">{m.author?.name ?? "Colega"}</span>
                     <span className="text-muted-foreground"> · {m.content || "Anexo"}</span>
                   </p>
@@ -249,18 +250,18 @@ export function MessageList({
         />
       ) : (
       <div ref={scrollRef} className="chat-scroll flex-1 overflow-x-hidden overflow-y-auto">
-        <div className="flex min-h-full w-full flex-col justify-end px-4 py-3 md:px-16 lg:px-24">
-          <div className="mb-3 flex justify-center">
-            <div className="flex max-w-sm flex-col items-center rounded-2xl border border-border bg-[var(--orbita-block)] px-5 py-3 text-center">
+        <div className="mx-auto flex min-h-full w-full max-w-[56rem] flex-col justify-end px-3 py-4 md:px-6">
+          <div className="mb-4 flex justify-center">
+            <div className="flex max-w-md flex-col items-center rounded-2xl border border-border bg-[var(--orbita-block)] px-6 py-4 text-center">
               {isDirect && room.peer ? (
                 <Avatar person={toPerson(room.peer)} size="md" showPresence />
               ) : (
-                <GroupGlyph seed={room.id} size={44} imageUrl={room.avatarUrl} name={room.name} />
+                <GroupGlyph seed={room.id} size={48} imageUrl={room.avatarUrl} name={room.name} />
               )}
-              <p className="mt-3 text-[15px] font-semibold text-[var(--orbita-text)]">
+              <p className="mt-3 text-[16px] font-semibold text-[var(--orbita-text)]">
                 {isDirect ? room.name : `#${room.name}`}
               </p>
-              <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--orbita-text-secondary)]">
+              <p className="mt-1 text-[13.5px] leading-relaxed text-[var(--orbita-text-secondary)]">
                 {isDirect
                   ? "Este é o início da sua conversa."
                   : room.topic || `Este é o início do canal #${room.name}.`}
@@ -268,14 +269,14 @@ export function MessageList({
             </div>
           </div>
           {q && visible.every((m) => m.kind === "SYSTEM") && !visible.some((m) => m.content.toLowerCase().includes(q)) ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma mensagem nesta conversa.</p>
+            <p className="py-10 text-center text-[15px] text-muted-foreground">Nenhuma mensagem nesta conversa.</p>
           ) : (
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-0.5">
               {visible.map((msg, i) => {
                 if (msg.kind === "SYSTEM") {
                   return (
                     <div key={msg.id} className="my-2 flex justify-center">
-                      <span className="rounded-[var(--orbita-radius-inner)] border border-border bg-[var(--orbita-block-soft)] px-3 py-1 text-[12px] text-muted-foreground">
+                      <span className="rounded-[var(--orbita-radius-inner)] border border-border bg-[var(--orbita-block-soft)] px-3.5 py-1.5 text-[13px] text-muted-foreground">
                         {msg.content}
                       </span>
                     </div>
@@ -295,8 +296,8 @@ export function MessageList({
                 return (
                   <Fragment key={msg.id}>
                     {showDay && (
-                      <div className="sticky top-2 z-[2] my-3 flex justify-center">
-                        <span className="rounded-full border border-border bg-[var(--orbita-block)] px-3 py-1 text-[12px] font-medium text-muted-foreground">
+                      <div className="sticky top-2 z-[2] my-3.5 flex justify-center">
+                        <span className="rounded-full border border-border bg-[var(--orbita-block)] px-3.5 py-1 text-[13px] font-medium text-muted-foreground">
                           {formatDayLabel(msg.createdAt)}
                         </span>
                       </div>
@@ -425,23 +426,23 @@ function MessageRow({
     return () => window.clearTimeout(t);
   }, [mine, message.createdAt]);
   return (
-    <div className={cn("isolate flex w-full flex-col", mine ? "items-end" : "items-start", first ? "mt-3" : "mt-[2px]")}>
+    <div className={cn("isolate flex w-full flex-col", mine ? "items-end" : "items-start", first ? "mt-2.5" : "mt-[3px]")}>
       <div
         className={cn(
-          "flex items-end gap-1.5",
-          workItem ? "max-w-[min(75%,32rem)]" : "w-fit max-w-[min(75%,56rem)]",
+          "flex items-end gap-2",
+          workItem ? "max-w-[min(92%,36rem)]" : "w-fit max-w-[min(92%,40rem)]",
           mine ? "flex-row-reverse" : "flex-row",
         )}
       >
         {!mine && (
-          <div className="flex w-7 shrink-0 justify-center self-end">
+          <div className="flex w-8 shrink-0 justify-center self-end">
             {last && author ? <Avatar person={author} size="xs" /> : null}
           </div>
         )}
         <div className={cn("flex min-w-0 flex-col", mine ? "items-end" : "items-start")}>
           {first && showName && !mine && (
             <span
-              className="mb-0.5 px-1 text-[12.5px] font-medium"
+              className="mb-0.5 px-1.5 text-[13.5px] font-semibold"
               style={{ color: author ? getOrbitaNameColor(author.id) : "var(--orbita-text)" }}
             >
               {authorName}
@@ -739,7 +740,7 @@ function MessageBody({
     pinned && "ring-1 ring-[var(--orbita-selected)]/35",
   );
   const timeCls = cn(
-    "select-none text-[11px] leading-none tabular-nums",
+    "select-none text-[12px] leading-none tabular-nums",
     mine ? "text-[var(--orbita-bubble-sent-meta)]" : "text-[var(--orbita-text-tertiary)]",
   );
   const meta = (
@@ -806,7 +807,7 @@ function MessageBody({
         );
       })}
       {hasText && (
-        <div className={cn(bubbleCls, "px-3 pb-2 pt-2")}>
+        <div className={cn(bubbleCls, "px-3.5 pb-2.5 pt-2.5")}>
           {pinned && (
             <span
               className={cn(
@@ -818,24 +819,24 @@ function MessageBody({
             </span>
           )}
           {message.forward ? (
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Encaminhada</p>
+            <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide opacity-70">Encaminhada</p>
           ) : null}
           {parsed.quote ? (
             <div
               className={cn(
-                "mb-1.5 border-l-2 px-2 py-1",
+                "mb-1.5 border-l-2 px-2.5 py-1.5",
                 mine ? "border-primary-foreground/50" : "border-primary/50",
               )}
             >
-              <p className="truncate text-[12px] font-semibold">{parsed.quote.author}</p>
-              <p className="truncate text-[12px] opacity-80">{parsed.quote.excerpt}</p>
+              <p className="truncate text-[13px] font-semibold">{parsed.quote.author}</p>
+              <p className="truncate text-[13px] opacity-80">{parsed.quote.excerpt}</p>
             </div>
           ) : null}
-          <p className="whitespace-pre-wrap break-words text-[14.5px] leading-[20px]">
+          <p className="whitespace-pre-wrap break-words text-[16px] leading-[22px]">
             {bodyText ? formatChatText(bodyText, mine) : null}
-            <span className={cn("inline-block", mine ? "w-[72px]" : "w-[46px]")} aria-hidden />
+            <span className={cn("inline-block", mine ? "w-[78px]" : "w-[52px]")} aria-hidden />
           </p>
-          <span className="absolute bottom-[5px] right-[8px]">{meta}</span>
+          <span className="absolute bottom-[6px] right-[10px]">{meta}</span>
         </div>
       )}
       {showCard ? (
@@ -853,6 +854,7 @@ function MessageBody({
 }
 
 function MediaChip({ att }: { att: TeamChatAttachment }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const copy = () =>
     void copyAttachment(att).catch(() =>
       toast.error("Não foi possível copiar. Tente de novo ou baixe o arquivo."),
@@ -860,37 +862,63 @@ function MediaChip({ att }: { att: TeamChatAttachment }) {
 
   if (att.kind === "image") {
     return (
-      <div
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
-            e.preventDefault();
-            copy();
-          }
-        }}
-        className="group/media relative w-fit overflow-hidden rounded-[var(--orbita-radius-inner)] outline-none"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={att.url} alt={att.name} className="max-h-72 max-w-[18rem] object-cover" />
-        <button
-          type="button"
-          onClick={copy}
-          aria-label="Copiar imagem"
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100"
+      <>
+        <div
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+              e.preventDefault();
+              copy();
+            }
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setLightboxOpen(true);
+            }
+          }}
+          className="group/media relative w-fit overflow-hidden rounded-[var(--orbita-radius-inner)] outline-none"
         >
-          <Copy className="h-3.5 w-3.5" />
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            aria-label={`Ampliar ${att.name || "imagem"}`}
+            className="block cursor-zoom-in"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={att.url}
+              alt={att.name}
+              className="max-h-80 max-w-[min(22rem,70vw)] object-cover transition-opacity hover:opacity-95"
+            />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              copy();
+            }}
+            aria-label="Copiar imagem"
+            className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <ImageLightbox
+          src={att.url}
+          alt={att.name}
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+        />
+      </>
     );
   }
 
   if (att.kind === "video") {
-    return <video src={att.url} controls className="max-h-72 max-w-[18rem] rounded-[var(--orbita-radius-inner)] bg-black" />;
+    return <video src={att.url} controls className="max-h-80 max-w-[min(22rem,70vw)] rounded-[var(--orbita-radius-inner)] bg-black" />;
   }
 
   if (att.kind === "audio") {
     return (
-      <div className="min-w-[220px] px-0.5 py-0.5">
+      <div className="min-w-[240px] px-0.5 py-0.5">
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <audio src={att.url} controls className="w-full max-w-full" />
       </div>
@@ -906,10 +934,10 @@ function MediaChip({ att }: { att: TeamChatAttachment }) {
           copy();
         }
       }}
-      className="flex w-fit items-center gap-2 px-2 py-1.5 outline-none"
+      className="flex w-fit items-center gap-2 px-2.5 py-2 outline-none"
     >
       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span className="max-w-[180px] truncate text-[13px]">{att.name}</span>
+      <span className="max-w-[200px] truncate text-[14px]">{att.name}</span>
       <button
         type="button"
         onClick={copy}

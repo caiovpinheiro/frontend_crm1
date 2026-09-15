@@ -857,7 +857,7 @@ export function Composer({
                   onSelect={syncSelection}
                   placeholder={placeholder}
                   disabled={busy}
-                  className="max-h-40 min-h-12 min-w-0 flex-1 resize-none bg-transparent py-3 text-[15px] leading-snug text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]"
+                  className="max-h-40 min-h-12 min-w-0 flex-1 resize-none bg-transparent py-3 text-[16px] leading-snug text-[var(--orbita-text)] outline-none placeholder:text-[var(--orbita-text-tertiary)]"
                 />
               </div>
               <TooltipGlass label="Imagem" side="top">

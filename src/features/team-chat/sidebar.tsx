@@ -117,7 +117,7 @@ function ChatRow({
         }
       }}
       className={cn(
-        "group flex min-h-[76px] w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        "group flex min-h-[84px] w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3.5 text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
         active ? "orbita-item-selected" : "hover:bg-[var(--orbita-field)]",
       )}
     >
@@ -132,7 +132,7 @@ function ChatRow({
         <div className="flex items-baseline gap-1">
           <span
             className={cn(
-              "truncate text-[14px] leading-tight",
+              "truncate text-[15px] leading-tight",
               active ? "text-[var(--orbita-list-selected-name)]" : "text-[var(--orbita-text)]",
               unread > 0 || active ? "font-semibold" : "font-medium",
             )}
@@ -148,7 +148,7 @@ function ChatRow({
           {item.time && (
             <span
               className={cn(
-                "ml-auto shrink-0 text-[11px]",
+                "ml-auto shrink-0 text-[12px]",
                 active
                   ? "text-[var(--orbita-list-selected-time)]"
                   : "text-[var(--orbita-text-tertiary)]",
@@ -161,7 +161,7 @@ function ChatRow({
         <div className="mt-0.5 flex items-center gap-1">
           <span
             className={cn(
-              "min-w-0 flex-1 truncate text-[12px] leading-snug",
+              "min-w-0 flex-1 truncate text-[13.5px] leading-snug",
               item.typing
                 ? "font-medium text-[var(--orbita-selected)]"
                 : active
