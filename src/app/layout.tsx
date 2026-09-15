@@ -131,7 +131,7 @@ export default async function RootLayout({
     }
     var bar = cap && cap.Plugins && cap.Plugins.StatusBar;
     if (bar) {
-      if (bar.setOverlaysWebView) bar.setOverlaysWebView({ overlay: false });
+      if (bar.setOverlaysWebView) bar.setOverlaysWebView({ overlay: true });
       if (bar.setBackgroundColor) bar.setBackgroundColor({ color: c });
       if (bar.setStyle) bar.setStyle({ style: dark ? "LIGHT" : "DARK" });
     }

@@ -125,13 +125,13 @@ type NativeStatusBarPlugin = {
   setStyle?: (options: { style: string }) => Promise<void>;
 };
 
-/** Status bar do SO acima do WebView (faixa do WhatsApp), cor alinhada ao tema. */
+/** Status bar sobre a faixa nativa reservada no APK; não usar overlay:false no SDK 35. */
 export function syncNativeStatusBar(isDark: boolean): void {
   if (!isNativePlatform()) return;
   const bar = getCapacitorPlugins()?.StatusBar as NativeStatusBarPlugin | undefined;
   if (!bar) return;
   const color = isDark ? "#0d1b3e" : "#f4f6fb";
-  void bar.setOverlaysWebView?.({ overlay: false });
+  void bar.setOverlaysWebView?.({ overlay: true });
   void bar.setBackgroundColor?.({ color });
   void bar.setStyle?.({ style: isDark ? "LIGHT" : "DARK" });
 }
