@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { subscribeSSEEvents } from "@/hooks/use-sse";
-import { useInboxMessageToast } from "@/features/inbox-v2/context/message-toast-context";
+import { useMessageToast } from "@/features/inbox-v2/context/message-toast-context";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import { isSseMessageStubId, messagesKey } from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
@@ -872,7 +872,7 @@ export function useInboxRealtime(options: {
   activeRef.current = activeConversationId;
   const userIdRef = useRef(currentUserId);
   userIdRef.current = currentUserId;
-  const { registerActiveConversation, notifyMessage } = useInboxMessageToast();
+  const { registerActiveConversation } = useMessageToast();
 
   useEffect(() => {
     registerActiveConversation(activeConversationId);
@@ -981,7 +981,6 @@ export function useInboxRealtime(options: {
           const data = raw as NewMessagePayload;
           if (shouldPlayInboundPing(qc, userIdRef.current, data)) {
             playInboxPing();
-            notifyMessage(data);
           }
           if (data.conversationId) {
             if (data.direction === "in") {

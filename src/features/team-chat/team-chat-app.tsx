@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { BwipoWordmark } from "@/components/bwipo/bwipo-logo";
@@ -47,7 +47,9 @@ import {
 export function TeamChatApp() {
   const { data: session, status } = useSession();
   const meId = (session?.user as { id?: string } | undefined)?.id ?? "";
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const roomFromUrl = searchParams.get("room");
+  const [selectedId, setSelectedId] = useState<string | null>(roomFromUrl);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeIntent, setComposeIntent] = useState<"dm" | "group">("dm");
   const [addOpen, setAddOpen] = useState(false);
@@ -63,7 +65,7 @@ export function TeamChatApp() {
   const typing = useTeamChatTyping(meId, ready);
   const rooms = roomsQuery.data?.rooms ?? [];
   const colleagues = peopleQuery.data?.colleagues ?? [];
-  useTeamChatRealtime(selectedId, ready);
+  useTeamChatRealtime(selectedId, meId, ready);
   const { setActiveTeamChatRoom } = useNavMessageAlerts();
   useEffect(() => {
     setActiveTeamChatRoom(selectedId);

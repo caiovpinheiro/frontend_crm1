@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 import { subscribeSSEEvents } from "@/hooks/use-sse";
+import { useMessageToast } from "@/features/inbox-v2/context/message-toast-context";
 import { ApiError } from "@/lib/api";
 import {
   addTeamChatMembers,
@@ -460,10 +461,20 @@ export function usePingTeamChatTyping(roomId: string | null) {
   };
 }
 
-export function useTeamChatRealtime(activeRoomId: string | null, enabled = true) {
+export function useTeamChatRealtime(
+  activeRoomId: string | null,
+  currentUserId?: string | null,
+  enabled = true,
+) {
   const qc = useQueryClient();
   const activeRef = useRef(activeRoomId);
   activeRef.current = activeRoomId;
+  const { registerActiveTeamChatRoom, notifyTeamChatMessage } = useMessageToast();
+
+  useEffect(() => {
+    registerActiveTeamChatRoom(activeRoomId);
+    return () => registerActiveTeamChatRoom(null);
+  }, [registerActiveTeamChatRoom, activeRoomId]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -506,6 +517,24 @@ export function useTeamChatRealtime(activeRoomId: string | null, enabled = true)
           markRoomReadInCache(qc, data.roomId);
         } else if (data.roomId && !incoming?.id) {
           void qc.invalidateQueries({ queryKey: [MESSAGES_KEY, data.roomId] });
+        }
+        // Notificação toast para mensagens de outras salas do Bwipo Chat.
+        if (
+          data.roomId &&
+          data.roomId !== activeRef.current &&
+          incoming &&
+          incoming.authorId &&
+          incoming.authorId !== currentUserId &&
+          incoming.kind !== "SYSTEM"
+        ) {
+          const roomsData = qc.getQueryData<{ rooms: TeamChatRoom[] }>([ROOMS_KEY]);
+          const room = roomsData?.rooms.find((r) => r.id === data.roomId);
+          notifyTeamChatMessage({
+            roomId: data.roomId,
+            roomName: room?.name ?? null,
+            roomAvatarUrl: room?.avatarUrl ?? null,
+            message: incoming,
+          });
         }
         bumpRooms();
       },
