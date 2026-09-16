@@ -5,7 +5,7 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
-import { messagesKey } from "./use-messages";
+import { isSseMessageStubId, messagesKey } from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { playInboxPing } from "./use-inbox-sound";
 import {
@@ -32,7 +32,9 @@ import {
   hasInboxServerFilters,
   type ConversationListRow,
   type InboxFilters,
+  type InboxMessageDto,
   type InboxTab,
+  type MessagesResponse,
 } from "../api";
 
 /**
@@ -51,8 +53,9 @@ import {
  *    no cache de todo mundo. 404 memo ~60s bloqueia até o aberto.
  *  - message_status NÃO invalida lista/counts (só ticks da bolha) — evita
  *    refetch storm em cold-load / rajadas de delivery receipts.
- *  - new_message / whatsapp_call invalidam mensagens da conversa
- *    ativa quando o conversationId casa.
+ *  - new_message da conversa aberta (ou do mesmo card: contato+canal)
+ *    appenda a bolha no cache na hora — igual o preview do card. GET
+ *    /messages hidrata id/mídia depois; stub `sse:` some no merge.
  *  - contact_updated NÃO invalida a lista (só sidebar do contato).
  *  - Sem timer de lista/counts. Relist só: card fora do cache e ?ids=
  *    falhou, troca de aba/filtro, refresh explícito, reconnect com gap.
@@ -71,6 +74,7 @@ type InfiniteInboxPage = {
 
 type NewMessagePayload = {
   conversationId?: string;
+  contactId?: string;
   direction?: string;
   assignedToId?: string | null;
   content?: string;
@@ -474,25 +478,88 @@ function eventTouchesOpenConversation(
   eventConversationId: string,
   activeId: string | null,
   eventCard?: ConversationListRow | null,
+  eventContactId?: string | null,
 ): boolean {
   if (!activeId) return false;
   if (eventConversationId === activeId) return true;
   const open = findCachedConversationRow(qc, activeId);
   if (!open) return false;
-  // Mesmo contato+canal em conversa ativa diferente = mesma timeline unificada.
+  if (conversationMatchesId(open, eventConversationId)) return true;
+  const eventRow = eventCard ?? findCachedConversationRow(qc, eventConversationId);
+  if (eventRow) {
+    if (conversationMatchesId(eventRow, activeId)) return true;
+    // 1 card / contato+plataforma: o SSE pode ser do ticket irmão (outra WABA).
+    if (sameInboxCardGroup(open, eventRow)) return true;
+  }
+  const contactId = eventContactId || eventCard?.contact?.id;
   if (
     open.contact?.id &&
-    eventCard?.contact?.id &&
-    open.contact.id === eventCard.contact.id &&
-    open.channel &&
-    eventCard.channel &&
-    String(open.channel) === String(eventCard.channel)
+    contactId &&
+    open.contact.id === contactId &&
+    eventCard?.channel &&
+    sameInboxCardGroup(open, eventCard)
   ) {
     return true;
   }
-  if (conversationMatchesId(open, eventConversationId)) return true;
-  const eventRow = eventCard ?? findCachedConversationRow(qc, eventConversationId);
-  return Boolean(eventRow && conversationMatchesId(eventRow, activeId));
+  return false;
+}
+
+function sseMessageAlreadyInThread(
+  messages: InboxMessageDto[],
+  stub: InboxMessageDto,
+): boolean {
+  const stubTs = Date.parse(stub.createdAt);
+  return messages.some((m) => {
+    if (String(m.id) === stub.id) return true;
+    if (!(stub.content ?? "").trim()) return false;
+    if (m.direction !== stub.direction) return false;
+    if ((m.content ?? "") !== (stub.content ?? "")) return false;
+    if (!m.createdAt || !Number.isFinite(stubTs)) return true;
+    const dt = Math.abs(Date.parse(m.createdAt) - stubTs);
+    return !Number.isFinite(dt) || dt < 8_000;
+  });
+}
+
+/** Bolha imediata no chat aberto — mesmo payload que já patcha o card. */
+function appendSseMessageToOpenChat(
+  qc: QueryClient,
+  activeId: string,
+  data: NewMessagePayload,
+): void {
+  if (isEventMessageType(data.messageType)) return;
+  const direction =
+    data.direction === "in" || data.direction === "out" ? data.direction : null;
+  if (!direction) return;
+  const ts =
+    typeof data.timestamp === "string" && data.timestamp
+      ? data.timestamp
+      : new Date().toISOString();
+  const content = typeof data.content === "string" ? data.content : "";
+  const stub: InboxMessageDto = {
+    id: `sse:${data.conversationId ?? activeId}:${ts}:${content.slice(0, 80)}`,
+    conversationId: data.conversationId ?? activeId,
+    direction,
+    content,
+    messageType: data.messageType || "text",
+    createdAt: ts,
+    channelId: data.card?.channelId ?? null,
+  };
+  qc.setQueryData<MessagesResponse>(messagesKey(activeId), (old) => {
+    if (!old?.messages) return old;
+    if (sseMessageAlreadyInThread(old.messages, stub)) return old;
+    return {
+      ...old,
+      messages: [...old.messages, stub],
+      session:
+        direction === "in"
+          ? {
+              active: true,
+              lastInboundAt: ts,
+              expiresAt: old.session?.expiresAt ?? null,
+            }
+          : old.session,
+    };
+  });
 }
 
 function shouldGetConversationOnUpdated(
@@ -890,17 +957,21 @@ export function useInboxRealtime(options: {
                 queryKey: ["channel-session", data.conversationId],
               });
             }
+            const openId = activeRef.current;
             if (
+              openId &&
               eventTouchesOpenConversation(
                 qc,
                 data.conversationId,
-                activeRef.current,
+                openId,
                 data.card,
+                data.contactId,
               )
             ) {
-              // Conversa aberta: refetch imediato para exibir a mensagem.
-              qc.invalidateQueries({ queryKey: messagesKey(activeRef.current) });
-              if (activeRef.current !== data.conversationId) {
+              appendSseMessageToOpenChat(qc, openId, data);
+              // Hidrata id/mídia; mergeTail preserva stub sse: se o GET vier velho.
+              qc.invalidateQueries({ queryKey: messagesKey(openId) });
+              if (openId !== data.conversationId) {
                 qc.invalidateQueries({ queryKey: messagesKey(data.conversationId) });
               }
             } else {

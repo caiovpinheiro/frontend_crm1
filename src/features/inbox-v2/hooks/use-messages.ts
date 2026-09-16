@@ -53,6 +53,22 @@ function inferHasMore(page: MessagesResponse, limit: number): boolean {
   return real.length >= limit;
 }
 
+export function isSseMessageStubId(id: string): boolean {
+  return id.startsWith("sse:");
+}
+
+function serverHasSameMessage(page: InboxMessageDto[], stub: InboxMessageDto): boolean {
+  const stubTs = Date.parse(stub.createdAt);
+  return page.some((n) => {
+    if (!(stub.content ?? "").trim()) return false;
+    if (n.direction !== stub.direction) return false;
+    if ((n.content ?? "") !== (stub.content ?? "")) return false;
+    if (!Number.isFinite(stubTs) || !n.createdAt) return true;
+    const dt = Math.abs(Date.parse(n.createdAt) - stubTs);
+    return !Number.isFinite(dt) || dt < 8_000;
+  });
+}
+
 function mergeTail(
   prev: MessagesResponse | undefined,
   next: MessagesResponse,
@@ -71,7 +87,13 @@ function mergeTail(
     };
   }
   const incomingIds = new Set(next.messages.map((m) => String(m.id)));
-  const kept = prev.messages.filter((m) => !incomingIds.has(String(m.id)));
+  const kept = prev.messages.filter((m) => {
+    const id = String(m.id);
+    if (isSseMessageStubId(id)) {
+      return !serverHasSameMessage(next.messages, m);
+    }
+    return !incomingIds.has(id);
+  });
   return {
     ...next,
     messages: [...kept, ...next.messages],

@@ -88,6 +88,20 @@ const serwist = new Serwist({
   ],
 });
 
+// Serwist registra um fetch listener que faz respondWith mesmo quando
+// nenhuma regra casa — no Chrome isso vira 2 linhas no HAR (página +
+// worker) e pode bufferizar text/event-stream. Para API/SSE o browser
+// fala com a rede direto.
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (
+    url.pathname.startsWith("/api/") ||
+    isSseRequest(url.pathname, event.request)
+  ) {
+    event.stopImmediatePropagation();
+  }
+});
+
 serwist.addEventListeners();
 
 /**
