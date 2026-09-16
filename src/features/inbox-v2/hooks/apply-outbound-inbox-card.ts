@@ -16,7 +16,11 @@ import {
   rowBelongsToAnyInboxTab,
   rowStaysOnAutomacaoTab,
 } from "../inbox-queue-tab";
-import { mergeInboxCardRow, sameInboxCardGroup } from "../inbox-card-group";
+import {
+  isClosedInboxRow,
+  mergeInboxCardRow,
+  sameInboxCardGroup,
+} from "../inbox-card-group";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 
 /**
@@ -174,6 +178,26 @@ export function findCachedConversationRow(
   return null;
 }
 
+/** Ticket OPEN do mesmo contato+plataforma — o card visível no modelo de ticket. */
+export function findOpenInboxGroupSibling(
+  qc: QueryClient,
+  row: ConversationListRow,
+): ConversationListRow | null {
+  const entries = qc.getQueriesData<InboxListCache>({
+    queryKey: ["inbox-conversations"],
+  });
+  for (const [, cached] of entries) {
+    for (const page of cached?.pages ?? []) {
+      for (const item of page?.items ?? []) {
+        if (!item?.id || item.id === row.id) continue;
+        if (isClosedInboxRow(item)) continue;
+        if (sameInboxCardGroup(item, row)) return item;
+      }
+    }
+  }
+  return null;
+}
+
 function applyRowToInboxListCaches(
   qc: QueryClient,
   row: ConversationListRow,
@@ -262,6 +286,7 @@ function applyRowToInboxListCaches(
     if (!found && belongs) {
       if (inboxSearchFromQueryKey(queryKey)) continue;
       if (hasInboxServerFilters(inboxFiltersFromQueryKey(queryKey))) continue;
+      if (isClosedInboxRow(row) && !tabs.every((t) => t === "finalizados")) continue;
       let siblingRemoved = 0;
       const pages = cached.pages.map((page, pageIdx) => {
         const items = page?.items ?? [];
