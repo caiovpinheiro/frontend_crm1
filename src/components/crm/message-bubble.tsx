@@ -2107,6 +2107,30 @@ export function ChannelSeparator({
   )
 }
 
+/** Chip discreto de canal — usado no rodapé de cada mensagem quando a
+ *  conversa tem mensagens de mais de uma conta (WABA/página). */
+export function ChannelLabel({
+  channel,
+  className,
+}: {
+  channel: ConnectionRef | null | undefined
+  className?: string
+}) {
+  if (!channel) return null
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-[8rem] items-center gap-1 truncate text-[10px] font-medium text-[var(--color-ink-muted)]",
+        className,
+      )}
+      title={`via ${channelLabel(channel.type)} · ${channel.name}${channel.phoneNumber ? ` · ${formatPhoneDisplay(channel.phoneNumber)}` : ""}`}
+    >
+      <IconArrowsExchange className="size-2.5 shrink-0 text-blue-500" />
+      <span className="truncate">{channel.name}</span>
+    </span>
+  )
+}
+
 /** Atributo nas linhas da timeline p/ o pill sticky rastrear o dia visível. */
 export const DAY_LABEL_ATTR = "data-day-label"
 
