@@ -739,8 +739,6 @@ export function Composer({
   }
 
   async function flushOutbound(text: string | null) {
-    // Produto / mídia marcada: imagem antes do texto. Demais anexos depois.
-    await flushPendingMedia(true);
     if (text) {
       try {
         await Promise.resolve(onSend(text));
