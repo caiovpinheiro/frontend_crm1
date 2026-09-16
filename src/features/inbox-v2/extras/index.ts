@@ -5,6 +5,7 @@ export {
   WhatsappTemplatePickerModal,
 } from "./template-picker-popover";
 export { ComposerMenu } from "./composer-menu";
+export { QuickReplyPopover } from "./quick-reply-popover";
 export { Composer } from "./composer";
 export { ProofreadDialog } from "./proofread-dialog";
 export { ChannelSelector } from "./channel-selector";

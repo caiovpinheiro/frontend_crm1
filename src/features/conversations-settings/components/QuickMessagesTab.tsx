@@ -312,7 +312,7 @@ export function CreateQuickReplyModal({
 
 // ─── Main component ─────────────────────────────────────────────────────────────
 
-export function QuickMessagesTab() {
+export function QuickMessagesTab({ embedded = false }: { embedded?: boolean } = {}) {
   const [rawSearch, setRawSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [showCreate, setShowCreate] = React.useState(false);

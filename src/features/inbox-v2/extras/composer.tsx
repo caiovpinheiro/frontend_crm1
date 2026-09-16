@@ -38,7 +38,6 @@ import {
 import { getContact } from "@/features/inbox-v2/api/misc";
 import {
   sendAttachment,
-  sendAttachmentReuse,
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
@@ -59,6 +58,8 @@ import {
   isChannelMismatch,
 } from "./channel-switch-confirm";
 import { ComposerMenu } from "./composer-menu";
+import { QuickReplyPopover } from "./quick-reply-popover";
+import type { QuickReplyCatalogItem } from "./quick-reply-catalog";
 import { ConversationResolveButton } from "./conversation-resolve-button";
 import { ProofreadDialog } from "./proofread-dialog";
 import {
@@ -73,6 +74,7 @@ import { useProofreadSendGate } from "@/features/inbox-v2/hooks/use-proofread";
  * Composer completo para o ChatArea. Substitui o footer estático
  * do v0 via prop `composerSlot`. Reúne:
  *  - ComposerMenu ("+" — anexo, template, nota, agendar, tarefa, resolver)
+ *  - QuickReplyPopover (raio — preenche a frase; o envio é o botão Enviar)
  *  - input controlado (com modo "nota interna")
  *  - Slash command menu — digitar "/" abre lista de modelos internos e
  *    templates WhatsApp.
@@ -264,7 +266,6 @@ export function Composer({
       name: string | null;
       mimeType?: string | null;
       messageBefore?: string | null;
-      sendBeforeText?: boolean;
     }>
   >([]);
   // Ref espelhando `pendingMediaList` — evita stale closure no flush do
@@ -470,9 +471,9 @@ export function Composer({
     }> | null,
   ) {
     const list = media && media.length > 0 ? media : [];
-    const base = draftRef.current || value;
+    const base = value;
     const next = base.trim()
-      ? `${base}${base.endsWith("\n") ? "" : "\n\n"}${text}`
+      ? `${base}${base.endsWith("\n") ? "" : "\n"}${text}`
       : text;
 
     if (list.length > 0 && mediaNeedsSequence(list) && conversationId) {
@@ -514,54 +515,22 @@ export function Composer({
     });
   }
 
-  // Ponte: botões da lateral (ex. "Enviar produto") empurram texto (+ mídia)
+  // Ponte: botões da lateral (ex. "Enviar produto" de curso) empurram texto
   // pra cá sem prop-drilling pelo ContactAside.
   // No mobile o Chat pode estar desmontado (aba Negócio) — nesse caso o
-  // payload fica em `takePendingComposerInsert` e é aplicado ao montar.
+  // texto fica em `takePendingComposerInsert` e é aplicado ao montar.
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
   useEffect(() => {
-    function applyInsert(payload: { text?: string; media?: Array<{
-      url: string;
-      name?: string | null;
-      mimeType?: string | null;
-      sendBeforeText?: boolean;
-    }> }) {
-      const text = typeof payload?.text === "string" ? payload.text : "";
-      const media = Array.isArray(payload?.media)
-        ? payload.media
-            .filter((m) => typeof m?.url === "string" && m.url.trim())
-            .map((m) => ({
-              url: m.url.trim(),
-              name: m.name ?? null,
-              mimeType: m.mimeType ?? null,
-              sendBeforeText: Boolean(m.sendBeforeText),
-            }))
-        : [];
-      if (!text.trim() && media.length === 0) return;
-      if (text.trim()) {
-        const current = (draftRef.current || "").trimEnd();
-        const incoming = text.trim();
-        if (!(current === incoming || current.endsWith(incoming))) {
-          insertTemplateTextRef.current(text);
-        }
-      }
-      if (media.length > 0) {
-        setPendingMediaList((prev) => [...prev, ...media]);
-      }
+    function applyInsert(text: string) {
+      if (!text.trim()) return;
       clearPendingComposerInsert();
+      insertTemplateTextRef.current(text);
     }
     function onInsert(e: Event) {
-      const detail = (e as CustomEvent<{
-        text?: string;
-        media?: Array<{
-          url: string;
-          name?: string | null;
-          mimeType?: string | null;
-          sendBeforeText?: boolean;
-        }>;
-      }>).detail;
-      applyInsert(detail ?? {});
+      const detail = (e as CustomEvent<{ text?: string }>).detail;
+      const text = typeof detail?.text === "string" ? detail.text : "";
+      applyInsert(text);
     }
     window.addEventListener(COMPOSER_INSERT_EVENT, onInsert as EventListener);
     const pending = takePendingComposerInsert();
@@ -713,15 +682,15 @@ export function Composer({
     );
   }
 
-  // Envia os anexos encostados (mídia de modelo/mensagem rápida) — via o
-  // helper compartilhado (SEQUENCIAL). `beforeText` filtra o lote.
-  async function flushPendingMedia(beforeText: boolean) {
-    const all = pendingMediaListRef.current;
-    const list = all.filter((m) => Boolean(m.sendBeforeText) === beforeText);
+  // Envia os anexos encostados (mídia de modelo/mensagem rápida) logo após o
+  // texto do Enter — via o helper compartilhado (SEQUENCIAL, com toast em
+  // falha intermediária). Lê de `pendingMediaListRef` (não do state direto)
+  // pra evitar stale closure entre o render que agendou e o flush em si.
+  async function flushPendingMedia() {
+    const list = pendingMediaListRef.current;
     if (list.length === 0 || !conversationId) return;
-    const remaining = all.filter((m) => Boolean(m.sendBeforeText) !== beforeText);
-    setPendingMediaList(remaining);
-    pendingMediaListRef.current = remaining;
+    setPendingMediaList([]);
+    pendingMediaListRef.current = [];
     await sendInternalTemplateSequence({ conversationId, content: "", attachments: list });
   }
 
@@ -746,71 +715,15 @@ export function Composer({
     files.forEach((f) => URL.revokeObjectURL(f.previewUrl));
   }
 
-  // Limite de caption de imagem na WhatsApp Cloud API.
-  const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
-
   async function flushOutbound(text: string | null) {
-    const all = pendingMediaListRef.current;
-    const before = all.filter((m) => Boolean(m.sendBeforeText));
-    const captionText = text?.trim() ?? "";
-    const canCaption =
-      Boolean(conversationId) &&
-      before.length > 0 &&
-      captionText.length > 0 &&
-      captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
-
-    if (canCaption && conversationId) {
-      // Uma mensagem: 1ª imagem + caption (texto do composer). Demais capas sem legenda.
-      const remaining = all.filter((m) => !m.sendBeforeText);
-      setPendingMediaList(remaining);
-      pendingMediaListRef.current = remaining;
-      onChange("");
-      draftRef.current = "";
-      setSequenceSending(true);
+    if (text) {
       try {
-        const [first, ...rest] = before;
-        await sendAttachmentReuse(conversationId, {
-          reuseUrl: first.url,
-          fileName: first.name ?? undefined,
-          mimeType: first.mimeType ?? undefined,
-          caption: captionText,
-          channelId: selectedChannelId,
-          waitUntilSent: true,
-        });
-        for (const m of rest) {
-          await sendAttachmentReuse(conversationId, {
-            reuseUrl: m.url,
-            fileName: m.name ?? undefined,
-            mimeType: m.mimeType ?? undefined,
-            channelId: selectedChannelId,
-            waitUntilSent: true,
-          });
-        }
-        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-        applyOutboundPreviewToInboxCaches(qc, conversationId, {
-          content: captionText,
-        });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Falha ao enviar imagem com legenda.");
-      } finally {
-        setSequenceSending(false);
-      }
-    } else {
-      if (before.length > 0 && captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
-        toast.message(
-          "Texto longo demais para legenda do WhatsApp; enviando imagem e texto separados.",
-        );
-      }
-      await flushPendingMedia(true);
-      if (text) {
-        try {
-          await Promise.resolve(onSend(text));
-        } catch {
-          /* texto falhou; ainda tenta anexos se o caller não bloqueou */
-        }
+        await Promise.resolve(onSend(text));
+      } catch {
+        /* texto falhou; ainda tenta anexos se o caller não bloqueou */
       }
     }
-    await flushPendingMedia(false);
+    await flushPendingMedia();
     await flushPendingFiles();
   }
 
@@ -833,8 +746,8 @@ export function Composer({
       return;
     }
     if (!(await confirmChannelSwitchIfNeeded())) return;
-    // Capa de produto (sendBeforeText): tenta 1 mensagem imagem+caption;
-    // se o texto passar de 1024 chars, cai no fallback imagem → texto.
+    // Aguarda o texto sair antes dos anexos — evita race (arquivo aparecer
+    // antes da 1ª mensagem) e garante ordem: texto → arq1 → msg2 → arq2…
     if (trimmed) {
       const gated = await proofread.gate(trimmed);
       if (gated.status === "block") return;
@@ -854,6 +767,21 @@ export function Composer({
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     performSend();
+  }
+
+  function insertQuickReply(item: QuickReplyCatalogItem) {
+    const trimmed = item.content.trim();
+    if (!trimmed || busy) return;
+    if (inputDisabled) {
+      warnOutboundBlocked();
+      return;
+    }
+    insertTemplateText(
+      trimmed,
+      item.attachmentUrl
+        ? [{ url: item.attachmentUrl, name: null, mimeType: null, messageBefore: null }]
+        : null,
+    );
   }
 
   // Extensão de arquivo a partir do mime da imagem colada.
@@ -997,7 +925,7 @@ export function Composer({
       {pendingMediaList.length > 0 && (
         <div className="mb-2 flex flex-col gap-1.5">
           {pendingMediaList.map((media, i) => {
-            const before = media.messageBefore?.trim();
+            const before = i > 0 ? media.messageBefore?.trim() : "";
             return (
               <div
                 key={`${media.url}-${i}`}
@@ -1344,6 +1272,17 @@ export function Composer({
                 </div>
               )}
             </div>
+            <QuickReplyPopover
+              disabled={busy}
+              sending={busy}
+              onSend={insertQuickReply}
+              onOpenChange={(next) => {
+                if (next) {
+                  setEmojiOpen(false);
+                  setNoteMode(false);
+                }
+              }}
+            />
           </>
         )}
 
