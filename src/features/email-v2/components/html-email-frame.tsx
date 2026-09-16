@@ -65,6 +65,27 @@ export function decodeIfQuotedPrintable(input: string): string {
 }
 
 /**
+ * Substitui imagens com `cid:` (anexos inline ainda não baixados) por um
+ * placeholder visual, evitando o ícone de imagem quebrada no iframe.
+ * Imagens externas permanecem como estão; o navegador as carrega ou mostra
+ * o fallback nativo caso estejam bloqueadas.
+ */
+function replaceBrokenImages(html: string): string {
+  return html.replace(
+    /<img\b[^>]*src=["']cid:[^"']*["'][^>]*>/gi,
+    '<div style="border:1px dashed #d1d5db;border-radius:6px;padding:12px 16px;color:#6b7280;font-size:13px;background:#f9fafb;max-width:100%;margin:8px 0;min-height:44px;display:flex;align-items:center;gap:8px"><span>🖼️</span><span>Anexo inline não disponível</span></div>',
+  );
+}
+
+/**
+ * Pipeline de preparação do HTML bruto: decodifica QP, sanitiza e
+ * substitui anexos inline por placeholders antes de renderizar no iframe.
+ */
+export function prepareEmailHtml(html: string): string {
+  return replaceBrokenImages(sanitizeHtml(decodeIfQuotedPrintable(html)));
+}
+
+/**
  * Renderiza HTML de e-mail dentro de um iframe sandboxed (srcdoc) — mesmo
  * padrão usado por Gmail/Outlook. O CSS do e-mail fica isolado e não vaza
  * para o app, e classes de typography (prose etc.) não destroem layouts
@@ -109,8 +130,8 @@ export function HtmlEmailFrame({ html }: { html: string }) {
         pre { padding: 10px; overflow: auto; }
       </style>
     `;
-    const fixed = decodeIfQuotedPrintable(html);
-    return `<!doctype html><html><head>${baseStyles}</head><body>${sanitizeHtml(fixed)}</body></html>`;
+    const fixed = prepareEmailHtml(html);
+    return `<!doctype html><html><head>${baseStyles}</head><body>${fixed}</body></html>`;
   }, [html]);
 
   const measure = React.useCallback(() => {
