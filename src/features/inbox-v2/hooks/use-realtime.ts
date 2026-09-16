@@ -1164,11 +1164,18 @@ export function useInboxRealtime(options: {
       "/api/sse/messages",
       {
       new_message: (raw: unknown) => {
+        const data = raw as NewMessagePayload;
         try {
-          const data = raw as NewMessagePayload;
           if (shouldPlayInboundPing(qc, userIdRef.current, data)) {
             playInboxPing();
           }
+        } catch (e) {
+          console.error("[sse] inbound ping failed", e);
+        }
+
+        // Atualização do chat aberto: isola da lista para que um erro
+        // no merge do thread não quebre o preview do card.
+        try {
           if (data.conversationId) {
             if (data.direction === "in") {
               // Janela 24h é por canal; o composer lê `channel-session`
@@ -1179,7 +1186,7 @@ export function useInboxRealtime(options: {
               });
             }
             const openId = activeRef.current;
-            if (
+            const touchesOpen =
               openId &&
               eventTouchesOpenConversation(
                 qc,
@@ -1187,13 +1194,21 @@ export function useInboxRealtime(options: {
                 openId,
                 data.card,
                 data.contactId,
-              )
-            ) {
-              appendSseMessageToOpenChat(qc, openId, data);
-              // Hidrata id/mídia; mergeTail preserva stub sse: se o GET vier velho.
-              qc.invalidateQueries({ queryKey: messagesKey(openId) });
+              );
+            if (touchesOpen) {
+              try {
+                appendSseMessageToOpenChat(qc, openId, data);
+              } catch (e) {
+                console.error("[sse] appendSseMessageToOpenChat failed", e);
+              }
+              // Hidrata id/mídia; refetch imediato como fallback caso o
+              // setQueryData/merge tenham falhado ou a query esteja fresh.
+              qc.refetchQueries({ queryKey: messagesKey(openId) });
               if (openId !== data.conversationId) {
-                qc.invalidateQueries({ queryKey: messagesKey(data.conversationId) });
+                qc.invalidateQueries({
+                  queryKey: messagesKey(data.conversationId),
+                  refetchType: "none",
+                });
               }
             } else {
               // Outra conversa: marca stale sem refetch imediato.
@@ -1204,9 +1219,14 @@ export function useInboxRealtime(options: {
               });
             }
           }
-          // Card na lista: patch in-place, zero GET. Fora da página:
-          // snapshot `card` entra no cache sem GET. Sem snapshot,
-          // GET ?ids= só se o evento puder cair na query ativa.
+        } catch (e) {
+          console.error("[sse] new_message chat update failed", e);
+        }
+
+        // Card na lista: patch in-place, zero GET. Fora da página:
+        // snapshot `card` entra no cache sem GET. Sem snapshot,
+        // GET ?ids= só se o evento puder cair na query ativa.
+        try {
           const patch = patchInboxConversationCard(qc, data);
           if (patch.found) {
             // Preview in-place; badges ±1 se tabMoved. Sem GET counts/lista.
@@ -1244,8 +1264,8 @@ export function useInboxRealtime(options: {
           if (!isEventMessageType(data.messageType)) {
             scheduleDailyStatsRefresh();
           }
-        } catch {
-          /* ignore */
+        } catch (e) {
+          console.error("[sse] new_message card patch failed", e);
         }
       },
 
