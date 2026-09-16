@@ -23,7 +23,9 @@ import {
   type SlashItem,
 } from "@/components/inbox/slash-command-menu";
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
+import type { ConnectionRef } from "@/features/inbox-v2/api/types";
 import { getContact } from "@/features/inbox-v2/api/misc";
+import { formatPhoneDisplay } from "@/lib/phone";
 import {
   mediaNeedsSequence,
   sendInternalTemplateSequence,
@@ -32,6 +34,7 @@ import {
   emitConversationReopened,
   messagesKey as inboxMessagesKey,
 } from "@/features/inbox-v2/hooks";
+import { findLastPublicMessageChannelId } from "@/features/inbox-v2/hooks/use-channels";
 import {
   isImmediateMediaSrc,
   LazyChatDocument,
@@ -77,7 +80,7 @@ import { dt } from "@/lib/design-tokens";
 import { cn } from "@/lib/utils";
 import { MetaSendErrorBalloon } from "@/components/crm/meta-send-error-balloon";
 import { EventRow, classifyTimelineItem, isRedundantOpenStatusEvent } from "@/components/crm/chat-timeline";
-import { DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
+import { ChannelSeparator, DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
 
 /** Texto da nota em uma linha (banner fixado estilo WhatsApp). */
 function notePreviewOneLine(content: string, maxChars = 140): string {
@@ -157,12 +160,14 @@ async function postMessage(
   conversationId: string,
   content: string,
   asNote: boolean,
+  channelId: string | null,
   replyToId?: string | null,
 ) {
   const payload: Record<string, unknown> = asNote
     ? { content, messageType: "note", private: true }
     : { content };
   if (replyToId) payload.replyToId = replyToId;
+  if (!asNote && channelId) payload.channelId = channelId;
   const res = await fetch(apiUrl(`/api/conversations/${conversationId}/messages`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -180,6 +185,7 @@ async function postAttachment(
   file: File | Blob,
   caption: string,
   fileName?: string,
+  channelId?: string | null,
 ) {
   const form = new FormData();
   form.append(
@@ -188,6 +194,7 @@ async function postAttachment(
     fileName ?? (file instanceof File ? file.name : "audio.ogg"),
   );
   if (caption) form.append("caption", caption);
+  if (channelId) form.append("channelId", channelId);
   const res = await fetch(apiUrl(`/api/conversations/${conversationId}/attachments`), {
     method: "POST",
     body: form,
@@ -707,6 +714,22 @@ export function ChatWindow({
   const sessionActive = sessionInfo?.active ?? true;
   const isBaileysChannel = messagesData?.channelProvider === "BAILEYS_MD";
 
+  // Canal de envio: última mensagem pública do cliente/conversa. Se
+  // difere do canal "oficial" da conversation, alertamos o agente.
+  const conversationChannelId = messagesData?.channel?.id ?? null;
+  const lastPublicChannelId = findLastPublicMessageChannelId(messages);
+  const effectiveSendChannelId =
+    noteMode || !lastPublicChannelId
+      ? conversationChannelId
+      : lastPublicChannelId;
+  const effectiveSendChannel = effectiveSendChannelId
+    ? messagesData?.channels?.[effectiveSendChannelId] ?? messagesData?.channel
+    : messagesData?.channel;
+  const channelOverrideActive =
+    !noteMode &&
+    !!effectiveSendChannelId &&
+    effectiveSendChannelId !== conversationChannelId;
+
   const [taskTitle, setTaskTitle] = React.useState("");
   const [taskType, setTaskType] = React.useState("TASK");
   const [taskScheduled, setTaskScheduled] = React.useState("");
@@ -1102,7 +1125,7 @@ export function ChatWindow({
       content: string;
       asNote: boolean;
       replyId?: string | null;
-    }) => postMessage(conversationId!, content, asNote, replyId),
+    }) => postMessage(conversationId!, content, asNote, effectiveSendChannelId, replyId),
     onMutate: async ({ content, asNote, replyId }) => {
       await queryClient.cancelQueries({ queryKey: messagesKey });
       const previous = queryClient.getQueryData<MessagesResponse>(messagesKey);
@@ -1153,7 +1176,7 @@ export function ChatWindow({
       file: File | Blob;
       caption: string;
       fileName?: string;
-    }) => postAttachment(conversationId!, file, caption, fileName),
+    }) => postAttachment(conversationId!, file, caption, fileName, effectiveSendChannelId ?? undefined),
     onMutate: async ({ file, fileName }) => {
       await queryClient.cancelQueries({ queryKey: messagesKey });
       const previous = queryClient.getQueryData<MessagesResponse>(messagesKey);
@@ -2282,7 +2305,12 @@ export function ChatWindow({
           {messages.map((m, idx) => {
             const prev = idx > 0 ? messages[idx - 1] : null;
             const showDate = shouldShowDateSeparator(prev, m);
+            const showChannelSep = shouldShowChannelSeparator(prev, m);
             const dayLabel = chatDateLabel(m.createdAt) || undefined;
+            const channelRef =
+              showChannelSep && m.channelId
+                ? messagesData?.channels?.[m.channelId]
+                : null;
 
             {
               const mt = String(m.messageType ?? "").toLowerCase();
@@ -2420,6 +2448,7 @@ export function ChatWindow({
             return (
               <React.Fragment key={m.id}>
                 {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
+                {showChannelSep && <ChannelSeparator channel={channelRef} />}
                 <MotionDiv
                   data-msg-idx={idx} data-day-label={dayLabel}
                   initial={{ opacity: 0, y: 8 }}
@@ -3927,6 +3956,12 @@ export function ChatWindow({
             </p>
           </div>
         ) : null}
+        {!compactChrome && (
+          <ChannelOverrideBanner
+            active={channelOverrideActive}
+            channel={effectiveSendChannel}
+          />
+        )}
 
         {/* Composer — padrão completo (inbox) vs uma linha (DealWorkspace / compactChrome). */}
         {compactChrome ? (
@@ -3950,6 +3985,10 @@ export function ChatWindow({
                 </span>
               </div>
             ) : null}
+            <ChannelOverrideBanner
+              active={channelOverrideActive}
+              channel={effectiveSendChannel}
+            />
             <div
               className={cn(
                 rowMax,
@@ -4583,6 +4622,39 @@ function shouldShowDateSeparator(
   return (
     new Date(prev.createdAt).toDateString() !==
     new Date(curr.createdAt).toDateString()
+  );
+}
+
+function shouldShowChannelSeparator(
+  prev: InboxMessageDto | null,
+  curr: InboxMessageDto,
+): boolean {
+  if (!curr.channelId) return false;
+  if (!prev) return false;
+  return prev.channelId !== curr.channelId;
+}
+
+function ChannelOverrideBanner({
+  active,
+  channel,
+}: {
+  active: boolean;
+  channel: ConnectionRef | null | undefined;
+}) {
+  if (!active || !channel) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 border-b border-amber-100 bg-amber-50 py-1.5 text-[11px] font-medium text-amber-700">
+      <AlertTriangle className="size-3.5 shrink-0" strokeWidth={2} />
+      <span>
+        Enviando por <strong>{channel.name}</strong>
+        {channel.phoneNumber ? (
+          <>
+            {" "}·{" "}
+            <span className="font-normal">{formatPhoneDisplay(channel.phoneNumber)}</span>
+          </>
+        ) : null}
+      </span>
+    </div>
   );
 }
 
