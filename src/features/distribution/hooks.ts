@@ -93,6 +93,7 @@ export function useUpdateDistributionSettings() {
     onSuccess: (data) => {
       qc.setQueryData(DISTRIBUTION_SETTINGS_KEY, data);
       qc.invalidateQueries({ queryKey: DISTRIBUTION_PENDING_KEY });
+      void qc.invalidateQueries({ queryKey: ["distribution-leads-settings"] });
     },
   });
 }

@@ -48,6 +48,78 @@ function GlassSwitch({
   );
 }
 
+/** Escolhe o motor do bloco Executar distribuição: Inteligente ou Por Leads. */
+export function DistributionModeToggle() {
+  const settingsQuery = useDistributionSettings();
+  const updateSettings = useUpdateDistributionSettings();
+  const pendingMode = updateSettings.isPending
+    ? updateSettings.variables?.mode
+    : undefined;
+  const mode = pendingMode ?? settingsQuery.data?.mode ?? "smart";
+
+  return (
+    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
+      <div className="min-w-0">
+        <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
+          Modo de distribuição
+        </p>
+        <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
+          {mode === "leads"
+            ? "Por Leads: o bloco Executar distribuição usa peso 0–5, sem fila de espera."
+            : "Inteligente: o bloco Executar distribuição usa a regra atual (peso, presença, fila)."}
+        </p>
+      </div>
+      <div
+        className="flex shrink-0 items-center rounded-full border border-border bg-card p-0.5"
+        role="group"
+        aria-label="Modo de distribuição"
+      >
+        {(
+          [
+            { key: "smart", label: "Inteligente" },
+            { key: "leads", label: "Por Leads" },
+          ] as const
+        ).map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            disabled={updateSettings.isPending || settingsQuery.isLoading}
+            aria-pressed={mode === opt.key}
+            onClick={() => {
+              if (mode === opt.key) return;
+              updateSettings.mutate(
+                { mode: opt.key },
+                {
+                  onSuccess: (data) =>
+                    toast.success(
+                      data.mode === "leads"
+                        ? "Modo: Por Leads."
+                        : "Modo: Inteligente.",
+                    ),
+                  onError: (e) =>
+                    toast.error(
+                      e instanceof Error
+                        ? e.message
+                        : "Erro ao salvar o modo.",
+                    ),
+                },
+              );
+            }}
+            className={cn(
+              "h-7 cursor-pointer rounded-full px-3 text-[12px] font-semibold whitespace-nowrap transition-colors disabled:opacity-50",
+              mode === opt.key
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Liga/desliga o motor (inbound, drenagem, automação, IA). */
 export function DistributionEnabledToggle() {
   const settingsQuery = useDistributionSettings();

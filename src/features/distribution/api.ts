@@ -210,6 +210,8 @@ export function retryPending(): Promise<RetryResult> {
   );
 }
 
+export type OrgDistributionMode = "smart" | "leads";
+
 export interface DistributionSettings {
   respectDepartment: boolean;
   autoOnInbound: boolean;
@@ -220,6 +222,12 @@ export interface DistributionSettings {
    * `respectDepartment` ligado). null = distribui para todos os elegíveis.
    */
   fallbackDepartmentId: string | null;
+  /** Motor do bloco Executar distribuição. Default smart. */
+  mode: OrgDistributionMode;
+}
+
+function parseMode(value: unknown): OrgDistributionMode {
+  return value === "leads" ? "leads" : "smart";
 }
 
 export function fetchDistributionSettings(): Promise<DistributionSettings> {
@@ -231,6 +239,7 @@ export function fetchDistributionSettings(): Promise<DistributionSettings> {
     autoOnInbound: s.autoOnInbound !== false,
     enabled: s.enabled !== false,
     fallbackDepartmentId: s.fallbackDepartmentId ?? null,
+    mode: parseMode(s.mode),
   }));
 }
 
@@ -251,11 +260,17 @@ export async function updateDistributionSettings(
       "Backend ainda não suporta ligar/desligar a distribuição. Atualize a API.",
     );
   }
+  if (input.mode !== undefined && raw?.mode !== input.mode) {
+    throw new Error(
+      "Backend ainda não suporta o modo Por Leads. Atualize a API.",
+    );
+  }
   return {
     respectDepartment: Boolean(raw?.respectDepartment),
     autoOnInbound: raw?.autoOnInbound !== false,
     enabled: raw?.enabled !== false,
     fallbackDepartmentId: raw?.fallbackDepartmentId ?? null,
+    mode: parseMode(raw?.mode),
   };
 }
 
