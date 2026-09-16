@@ -74,76 +74,91 @@ function mergeTail(
   prev: MessagesResponse | undefined,
   next: MessagesResponse,
 ): MessagesResponse {
-  // Refetch vazio (timeout / 5xx parseado como []) não apaga o que já
-  // está na tela — era uma causa de painel branco depois do 1º load.
-  if (!next.messages.length && prev?.messages.length) {
-    return prev;
-  }
-  if (!prev?.messages?.length) {
+  try {
+    // Refetch vazio (timeout / 5xx parseado como []) não apaga o que já
+    // está na tela — era uma causa de painel branco depois do 1º load.
+    if (!next.messages.length && prev?.messages.length) {
+      return prev;
+    }
+    if (!prev?.messages?.length) {
+      return {
+        ...next,
+        hasMore: inferHasMore(next, MESSAGE_PAGE),
+        hasOlderTickets: next.hasOlderTickets === true,
+        historyLoaded: false,
+      };
+    }
+    const incomingIds = new Set(next.messages.map((m) => String(m.id)));
+    const kept = prev.messages.filter((m) => {
+      const id = String(m.id);
+      if (isSseMessageStubId(id)) {
+        return !serverHasSameMessage(next.messages, m);
+      }
+      return !incomingIds.has(id);
+    });
     return {
       ...next,
-      hasMore: inferHasMore(next, MESSAGE_PAGE),
-      hasOlderTickets: next.hasOlderTickets === true,
-      historyLoaded: false,
+      messages: [...kept, ...next.messages],
+      hasMore: prev.hasMore === true,
+      hasOlderTickets: prev.hasOlderTickets === true || next.hasOlderTickets === true,
+      historyLoaded: prev.historyLoaded === true,
     };
+  } catch (e) {
+    console.error("[mergeTail] failed", e);
+    return next;
   }
-  const incomingIds = new Set(next.messages.map((m) => String(m.id)));
-  const kept = prev.messages.filter((m) => {
-    const id = String(m.id);
-    if (isSseMessageStubId(id)) {
-      return !serverHasSameMessage(next.messages, m);
-    }
-    return !incomingIds.has(id);
-  });
-  return {
-    ...next,
-    messages: [...kept, ...next.messages],
-    hasMore: prev.hasMore === true,
-    hasOlderTickets: prev.hasOlderTickets === true || next.hasOlderTickets === true,
-    historyLoaded: prev.historyLoaded === true,
-  };
 }
 
 function mergeOlder(
   prev: MessagesResponse | undefined,
   page: MessagesResponse,
 ): MessagesResponse {
-  if (!prev) return { ...page, historyLoaded: false };
-  const existing = new Set(prev.messages.map((m) => String(m.id)));
-  const incoming = page.messages.filter((m) => !existing.has(String(m.id)));
-  return {
-    ...prev,
-    messages: [...incoming, ...prev.messages],
-    // Página vazia/duplicada (before ignorado ou fim do ticket) — para
-    // de paginar pra o próximo gesto pedir history=1.
-    hasMore: incoming.length === 0 ? false : inferHasMore(page, MESSAGE_PAGE),
-  };
+  try {
+    if (!prev) return { ...page, historyLoaded: false };
+    const existing = new Set(prev.messages.map((m) => String(m.id)));
+    const incoming = page.messages.filter((m) => !existing.has(String(m.id)));
+    return {
+      ...prev,
+      messages: [...incoming, ...prev.messages],
+      // Página vazia/duplicada (before ignorado ou fim do ticket) — para
+      // de paginar pra o próximo gesto pedir history=1.
+      hasMore: incoming.length === 0 ? false : inferHasMore(page, MESSAGE_PAGE),
+    };
+  } catch (e) {
+    console.error("[mergeOlder] failed", e);
+    return page;
+  }
 }
 
 function mergeHistory(
   prev: MessagesResponse | undefined,
   hist: MessagesResponse,
 ): MessagesResponse {
-  if (!prev) return { ...hist, hasMore: false, hasOlderTickets: false, historyLoaded: true };
-  const existing = new Set(prev.messages.map((m) => String(m.id)));
-  const incoming = hist.messages.filter((m) => !existing.has(String(m.id)));
-  // Prefetch/gesto vazio: encerra. Sem isto hasOlder fica true e o
-  // spinner "Carregando histórico…" não larga.
-  if (incoming.length === 0) {
+  try {
+    if (!prev) return { ...hist, hasMore: false, hasOlderTickets: false, historyLoaded: true };
+    const existing = new Set(prev.messages.map((m) => String(m.id)));
+    const incoming = hist.messages.filter((m) => !existing.has(String(m.id)));
+    // Prefetch/gesto vazio: encerra. Sem isto hasOlder fica true e o
+    // spinner "Carregando histórico…" não larga.
+    if (incoming.length === 0) {
+      return {
+        ...prev,
+        hasMore: false,
+        hasOlderTickets: false,
+        historyLoaded: true,
+      };
+    }
     return {
       ...prev,
+      messages: [...incoming, ...prev.messages],
       hasMore: false,
-      hasOlderTickets: false,
-      historyLoaded: true,
+      hasOlderTickets: hist.hasOlderTickets === true,
+      historyLoaded: hist.hasOlderTickets !== true,
     };
+  } catch (e) {
+    console.error("[mergeHistory] failed", e);
+    return hist;
   }
-  return {
-    ...prev,
-    messages: [...incoming, ...prev.messages],
-    hasMore: false,
-    hasOlderTickets: hist.hasOlderTickets === true,
-    historyLoaded: hist.hasOlderTickets !== true,
-  };
 }
 
 export function useMessages(conversationId: string | null) {
