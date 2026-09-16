@@ -3,18 +3,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  createKeepCategory,
   createKeepNote,
+  deleteKeepCategory,
   deleteKeepNote,
   importGoogleKeepZip,
+  listKeepCategories,
   listKeepNotes,
+  patchKeepCategory,
   patchKeepNote,
   reorderKeepNotes,
   uploadKeepAttachment,
 } from "./api";
-import type { KeepDoc, KeepFolder, KeepNote } from "./types";
+import type { KeepCategory, KeepDoc, KeepFolder, KeepNote } from "./types";
 
 export const keepsKey = (folder: KeepFolder, q: string, colors: string[]) =>
   ["keeps", folder, q, [...colors].sort().join(",")] as const;
+
+export const keepCategoriesKey = ["keeps", "categories"] as const;
 
 export function useKeepNotes(folder: KeepFolder, q: string, colors: string[] = []) {
   return useQuery({
@@ -24,13 +30,22 @@ export function useKeepNotes(folder: KeepFolder, q: string, colors: string[] = [
   });
 }
 
+export function useKeepCategories() {
+  return useQuery({
+    queryKey: keepCategoriesKey,
+    queryFn: listKeepCategories,
+    staleTime: 15_000,
+  });
+}
+
 export function useKeepMutations(folder: KeepFolder, q: string, colors: string[] = []) {
   const qc = useQueryClient();
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["keeps"] });
 
   return {
     create: useMutation({
-      mutationFn: (input: { title?: string; content?: KeepDoc }) => createKeepNote(input),
+      mutationFn: (input: { title?: string; content?: KeepDoc; categoryId?: string | null }) =>
+        createKeepNote(input),
       onSuccess: invalidate,
     }),
     patch: useMutation({
@@ -63,17 +78,41 @@ export function useKeepMutations(folder: KeepFolder, q: string, colors: string[]
             items: [...old.items]
               .map((n) => {
                 const u = map.get(n.id);
-                return u ? { ...n, pinned: u.pinned, position: u.position } : n;
+                if (!u) return n;
+                return {
+                  ...n,
+                  position: u.position,
+                  ...(u.pinned !== undefined ? { pinned: u.pinned } : {}),
+                  ...(u.categoryId !== undefined ? { categoryId: u.categoryId } : {}),
+                };
               })
-              .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.position - b.position),
+              .sort(
+                (a, b) =>
+                  Number(b.pinned) - Number(a.pinned) || a.position - b.position,
+              ),
           };
         });
       },
       onError: invalidate,
       onSettled: invalidate,
     }),
+    createCategory: useMutation({
+      mutationFn: (input: { name: string }) => createKeepCategory(input),
+      onSuccess: invalidate,
+    }),
+    patchCategory: useMutation({
+      mutationFn: (input: { id: string; patch: Partial<{ name: string; position: number }> }) =>
+        patchKeepCategory(input.id, input.patch),
+      onSuccess: invalidate,
+    }),
+    removeCategory: useMutation({
+      mutationFn: (id: string) => deleteKeepCategory(id),
+      onSuccess: invalidate,
+    }),
     invalidate,
     folder,
     q,
   };
 }
+
+export type { KeepCategory };
