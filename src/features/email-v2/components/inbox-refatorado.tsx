@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { IconMail } from "@tabler/icons-react";
+import { PageHeader } from "@/components/crm/page-header";
 
 /* ------------------------------------------------------------------
    Tokens — troque apenas estes valores para aplicar a marca do sistema.
@@ -787,10 +789,10 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 6,
-                  padding: "4px 10px",
+                  gap: 5,
+                  padding: "2px 8px",
                   borderRadius: 999,
-                  fontSize: 12.5,
+                  fontSize: 12,
                   fontWeight: on ? 600 : 500,
                   fontFamily: FONT,
                   cursor: "pointer",
@@ -806,11 +808,11 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    minWidth: 18,
-                    height: 18,
-                    padding: "0 5px",
+                    minWidth: 15,
+                    height: 15,
+                    padding: "0 3px",
                     borderRadius: 999,
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: 600,
                     color: on ? "#fff" : T.ink2,
                     background: on ? T.accent : T.lineSoft,
@@ -1340,24 +1342,11 @@ export default function InboxRefatorado() {
         WebkitFontSmoothing: "antialiased",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          height: 48,
-          padding: "0 16px",
-          borderBottom: `1px solid ${T.line}`,
-          background: T.surface,
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontSize: 14.5, fontWeight: 650, letterSpacing: -0.2 }}>E-mail</span>
-        <span style={{ fontSize: 12.5, color: T.muted }}>eduit.com.br</span>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: T.muted }}>
-          Use <kbd style={kbd}>J</kbd> <kbd style={kbd}>K</kbd> para navegar
-        </span>
-      </div>
+      <PageHeader
+        icon={<IconMail size={22} />}
+        title="E-mail"
+        className="rounded-none border-0 bg-transparent shadow-none"
+      />
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         <Sidebar folder={folder} setFolder={setFolder} counts={counts} />
@@ -1374,13 +1363,3 @@ export default function InboxRefatorado() {
     </div>
   );
 }
-
-const kbd: React.CSSProperties = {
-  border: `1px solid ${T.line}`,
-  borderRadius: 4,
-  padding: "1px 5px",
-  fontSize: 11,
-  fontFamily: "ui-monospace, SFMono-Regular, monospace",
-  color: T.ink2,
-  background: T.paper,
-};
