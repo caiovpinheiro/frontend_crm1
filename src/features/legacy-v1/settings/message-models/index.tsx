@@ -623,16 +623,6 @@ export default function MessageModelsHubPage() {
                 ]
               : []),
           ];
-    const tabTourId: TourId =
-      safeTab === "internal"
-        ? "message-models-internal"
-        : safeTab === "quick"
-          ? "message-models"
-          : safeTab === "whatsapp"
-            ? "message-models-whatsapp"
-            : safeTab === "flows"
-              ? "message-models-flows"
-              : "message-models";
     return (
       <div className="flex items-center gap-2">
         {tabBarNode}
