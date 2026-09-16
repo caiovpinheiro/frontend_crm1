@@ -484,6 +484,16 @@ function conversationRowFromUpdatedEvent(
   return { ...(r as unknown as ConversationListRow), id };
 }
 
+/** Snapshot `card` (bus) or a full row at the envelope root (legacy). */
+function conversationRowFromSsePayload(raw: unknown): ConversationListRow | null {
+  if (!raw || typeof raw !== "object") return null;
+  const nested = (raw as { card?: unknown }).card;
+  if (nested && typeof nested === "object") {
+    return conversationRowFromUpdatedEvent(nested);
+  }
+  return conversationRowFromUpdatedEvent(raw);
+}
+
 /** GET :id só para o ticket ABERTO (CUID ou número da URL). */
 function eventTouchesOpenConversation(
   qc: QueryClient,
