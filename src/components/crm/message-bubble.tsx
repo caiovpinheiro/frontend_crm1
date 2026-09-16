@@ -22,6 +22,8 @@ import { UserAvatar } from "@/components/crm/user-avatar"
 import { avatarInitials } from "@/lib/avatar"
 import { resolveChatMediaUrl } from "@/lib/chat-media-url"
 import { EventRow, NoteRow, type ConversationEventAction } from "@/components/crm/chat-timeline"
+import { formatPhoneDisplay } from "@/lib/phone"
+import type { ConnectionRef } from "@/features/inbox-v2/api/types"
 import { PhoneIncoming, PhoneOff, PhoneOutgoing } from "lucide-react"
 import {
   IconRobot,
@@ -2065,6 +2067,42 @@ export function DaySeparator({ date, sticky = false, occluded = false }: DaySepa
       )}
     >
       <span className={DAY_PILL_CLASS}>{date}</span>
+    </div>
+  )
+}
+
+function channelLabel(type: string): string {
+  const t = String(type ?? "").toLowerCase()
+  if (t.includes("whatsapp")) return "WhatsApp"
+  if (t.includes("instagram") || t.includes("facebook") || t.includes("messenger")) return "Instagram"
+  if (t.includes("email") || t.includes("smtp")) return "E-mail"
+  return type || "Canal"
+}
+
+export function ChannelSeparator({
+  channel,
+}: {
+  channel: ConnectionRef | null | undefined
+}) {
+  if (!channel) return null
+  return (
+    <div className="flex items-center justify-center gap-3 py-2">
+      <div className="h-px flex-1 bg-border/60" />
+      <div className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground shadow-sm"
+      )}>
+        <IconArrowsExchange className="size-3.5 shrink-0 text-blue-500" />
+        <span>via {channelLabel(channel.type)}</span>
+        <span className="text-muted-foreground">·</span>
+        <span className="max-w-[10rem] truncate">{channel.name}</span>
+        {channel.phoneNumber ? (
+          <>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{formatPhoneDisplay(channel.phoneNumber)}</span>
+          </>
+        ) : null}
+      </div>
+      <div className="h-px flex-1 bg-border/60" />
     </div>
   )
 }
