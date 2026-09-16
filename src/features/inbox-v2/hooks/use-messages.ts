@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 
 import {
   addNoteToLog,
@@ -244,6 +245,7 @@ export function useMessages(conversationId: string | null) {
 /** Mutation: enviar mensagem de texto ou nota interna. */
 export function useSendMessage(conversationId: string | null) {
   const qc = useQueryClient();
+  const { data: session } = useSession();
   return useMutation<
     {
       message: InboxMessageDto;
@@ -262,6 +264,22 @@ export function useSendMessage(conversationId: string | null) {
     mutationFn: (vars) =>
       sendMessage(conversationId as string, vars),
     onSuccess: (data, vars) => {
+      if (!vars.asNote && data.message && conversationId) {
+        const userImage = (session?.user as { image?: string | null } | undefined)
+          ?.image;
+        const optimistic: InboxMessageDto = {
+          ...data.message,
+          senderImageUrl: data.message.senderImageUrl ?? userImage ?? null,
+        };
+        qc.setQueryData<MessagesResponse>(messagesKey(conversationId), (old) => {
+          if (!old) return old;
+          const exists = old.messages.some(
+            (m) => String(m.id) === String(optimistic.id),
+          );
+          if (exists) return old;
+          return { ...old, messages: [...old.messages, optimistic] };
+        });
+      }
       qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
       // Reabriu como novo ticket: invalida também o histórico do id novo
       // para o chat carregar a linha do tempo já com a mensagem enviada.
