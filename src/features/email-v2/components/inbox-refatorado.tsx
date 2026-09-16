@@ -1,8 +1,35 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { IconMail } from "@tabler/icons-react";
+import { toast } from "sonner";
+
 import { PageHeader } from "@/components/crm/page-header";
+import {
+  useEmailAccounts,
+  useEmailCustomFolders,
+  useEmails,
+  useEmailDetail,
+} from "../hooks";
+import {
+  deleteEmail,
+  markEmailsAsSpam,
+  moveEmail,
+} from "../api/emails";
+import type {
+  EmailAccount,
+  EmailCustomFolder,
+  EmailDetail,
+  EmailFolder,
+  EmailListItem,
+} from "../api/types";
+import { ComposeView } from "./compose-view";
+import { EmailRulesModal } from "./email-rules-modal";
+import {
+  buildComposeDraft,
+  newComposeDraft,
+  type ComposeDraft,
+} from "../utils/compose-draft";
 
 /* ------------------------------------------------------------------
    Tokens — troque apenas estes valores para aplicar a marca do sistema.
@@ -22,9 +49,7 @@ const T = {
   amberSoft: "#F3EEFE",
 } as const;
 
-// Gradiente da marca: usado só no botão principal e no trilho de não lido.
 const BRAND_GRADIENT = "linear-gradient(135deg, #2B7FFF 0%, #6A45F0 55%, #C13BD9 100%)";
-
 const FONT =
   "'Inter var', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 const NUM = { fontVariantNumeric: "tabular-nums" } as const;
@@ -82,9 +107,6 @@ const IconForward = (p: IconProps) => (
 const IconArchive = (p: IconProps) => (
   <Ic {...p} d={<><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></>} />
 );
-const IconClip = (p: IconProps) => (
-  <Ic {...p} d={<path d="M16 7 9.5 13.5a2.5 2.5 0 0 0 3.5 3.5L19 11a4.5 4.5 0 0 0-6.5-6.5L6 11" />} />
-);
 const IconRefresh = (p: IconProps) => (
   <Ic {...p} d={<><path d="M20 11a8 8 0 0 0-13.7-5.3L4 8" /><path d="M4 4v4h4" /><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16" /><path d="M20 20v-4h-4" /></>} />
 );
@@ -95,178 +117,10 @@ const IconNote = (p: IconProps) => (
 );
 
 /* ------------------------------------------------------------------ */
-/* Dados de exemplo                                                    */
-/* ------------------------------------------------------------------ */
-const H = 36e5;
-const now = new Date("2026-09-15T12:00:00");
-const ago = (h: number) => new Date(now.getTime() - h * H);
-
-interface Message {
-  id: number;
-  from: string;
-  address: string;
-  to: string;
-  subject: string;
-  preview: string;
-  date: Date;
-  unread: boolean;
-  kind: "marketing" | "codigo" | "sistema" | "pessoa";
-  body?: string[];
-  attachment?: boolean;
-}
-
-const MESSAGES: Message[] = [
-  {
-    id: 1,
-    from: "Porto Seguro",
-    address: "comunicacao@novidades.portoseguro.com.br",
-    to: "financeiro@eduit.com.br",
-    subject: "10% OFF para proteger o futuro da sua empresa",
-    preview:
-      '<table class="container" cellpadding="0"><tr><td>Manter um negócio em crescimento exige planejamento e proteção contra qualquer imprevisto.</td></tr></table>',
-    date: ago(20),
-    unread: false,
-    kind: "marketing",
-    body: [
-      "Olá,",
-      "Manter um negócio em crescimento exige planejamento e proteção contra qualquer imprevisto. Na Semana do Cliente, a Porto Seguro preparou uma oportunidade especial para você proteger sua empresa.",
-      "Com o Seguro Empresarial, sua empresa conta com cobertura para incêndio, danos elétricos, vendaval e roubo, além de assistência 24 horas para reparos emergenciais.",
-      "A condição é válida para contratações feitas até 30/09.",
-    ],
-  },
-  {
-    id: 2,
-    from: "Caju Benefícios",
-    address: "atendimento@caju.com.br",
-    to: "financeiro@eduit.com.br",
-    subject: "Conversa com o time de suporte",
-    preview: "Olá, peço desculpas pela demora no retorno. Revisamos o cadastro dos cartões e a recarga já foi liberada.",
-    date: ago(20),
-    unread: true,
-    kind: "pessoa",
-    attachment: true,
-  },
-  {
-    id: 3,
-    from: "mfa@kommo.com",
-    address: "mfa@kommo.com",
-    to: "marcelo@eduit.com.br",
-    subject: "217296 é o seu código para logar na Kommo",
-    preview: "Use o código abaixo para concluir o acesso. Ele expira em 10 minutos.",
-    date: ago(18),
-    unread: false,
-    kind: "codigo",
-  },
-  {
-    id: 4,
-    from: "mfa@kommo.com",
-    address: "mfa@kommo.com",
-    to: "marcelo@eduit.com.br",
-    subject: "562186 é o seu código para logar na Kommo",
-    preview: "Use o código abaixo para concluir o acesso. Ele expira em 10 minutos.",
-    date: ago(18),
-    unread: false,
-    kind: "codigo",
-  },
-  {
-    id: 5,
-    from: "MadeiraMadeira",
-    address: "ofertas@madeiramadeira.com.br",
-    to: "marcelo@eduit.com.br",
-    subject: "Combo de vantagem: frete grátis e cashback",
-    preview: "Selecionamos móveis com até 45% de desconto para escritório e home office.",
-    date: ago(21),
-    unread: true,
-    kind: "marketing",
-  },
-  {
-    id: 6,
-    from: "Suporte Kommo",
-    address: "support@kommo.com",
-    to: "marcelo@eduit.com.br",
-    subject: "A Meta aprovou seu modelo do WhatsApp",
-    preview: "O modelo pedido_ligacao_processando foi aprovado e já pode ser usado nos disparos.",
-    date: ago(21),
-    unread: true,
-    kind: "sistema",
-  },
-  {
-    id: 7,
-    from: "GitHub Actions",
-    address: "noreply@github.com",
-    to: "marcelo@eduit.com.br",
-    subject: "frontend_crm: Run failed — Build & Deploy",
-    preview: "O job de build falhou no passo de testes. Veja o log completo da execução #482.",
-    date: ago(22),
-    unread: true,
-    kind: "sistema",
-  },
-  {
-    id: 8,
-    from: "GitHub Actions",
-    address: "noreply@github.com",
-    to: "marcelo@eduit.com.br",
-    subject: "backend_crm: Run failed — Build & Deploy",
-    preview: "O job de build falhou no passo de migração do banco. Veja o log da execução #311.",
-    date: ago(22),
-    unread: true,
-    kind: "sistema",
-  },
-  {
-    id: 9,
-    from: "Meta for Business",
-    address: "business@meta.com",
-    to: "marcelo@eduit.com.br",
-    subject: "A categoria do modelo pedido_ligacao_processando mudou",
-    preview: "Olá, Marcelo. A categoria do modelo foi atualizada para Utilidade e não haverá cobrança adicional.",
-    date: ago(22),
-    unread: true,
-    kind: "sistema",
-  },
-  {
-    id: 10,
-    from: "Carolina Alexandrino",
-    address: "carolina@nexadigital.com.br",
-    to: "marcelo@eduit.com.br",
-    subject: "Sua empresa conectada com mais velocidade",
-    preview: "Marcelo, montei uma proposta de link dedicado para as duas unidades. Posso ligar amanhã?",
-    date: ago(22),
-    unread: true,
-    kind: "pessoa",
-    attachment: true,
-  },
-  {
-    id: 11,
-    from: "Asaas",
-    address: "financeiro@asaas.com.br",
-    to: "financeiro@eduit.com.br",
-    subject: "Resumo de recebíveis de setembro",
-    preview: "Sua conta recebeu 14 pagamentos nas últimas 24 horas, totalizando R$ 18.430,00.",
-    date: ago(30),
-    unread: false,
-    kind: "sistema",
-  },
-  {
-    id: 12,
-    from: "Bruno Tavares",
-    address: "bruno@eduit.com.br",
-    to: "financeiro@eduit.com.br",
-    subject: "Fechamento do contrato Nexa — falta assinatura",
-    preview: "Mandei o contrato revisado. Só falta a assinatura do jurídico para liberar o faturamento.",
-    date: ago(34),
-    unread: false,
-    kind: "pessoa",
-    attachment: true,
-  },
-];
-
-/* ------------------------------------------------------------------ */
 /* Utilidades                                                          */
 /* ------------------------------------------------------------------ */
-
-// O preview cru do HTML vazava para a lista. Aqui o corpo é limpo antes de exibir.
-const stripHtml = (s: string): string =>
-  s
+const stripHtml = (s: string | null): string =>
+  (s ?? "")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
@@ -277,27 +131,38 @@ const sameDay = (a: Date, b: Date): boolean =>
   a.getMonth() === b.getMonth() &&
   a.getFullYear() === b.getFullYear();
 
-const shortTime = (d: Date): string => {
-  if (sameDay(d, now))
-    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  const yesterday = new Date(now.getTime() - 24 * H);
+const shortTime = (iso: string | null): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  if (sameDay(d, now)) return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   if (sameDay(d, yesterday)) return "Ontem";
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 };
 
-const groupLabel = (d: Date): string => {
+const groupLabel = (iso: string | null): string => {
+  if (!iso) return "Sem data";
+  const d = new Date(iso);
+  const now = new Date();
   if (sameDay(d, now)) return "Hoje";
-  if (sameDay(d, new Date(now.getTime() - 24 * H))) return "Ontem";
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  if (sameDay(d, yesterday)) return "Ontem";
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
 };
 
-const fullDate = (d: Date): string =>
-  d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) +
-  " às " +
-  d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const fullDate = (iso: string | null): string => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return (
+    d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }) +
+    " às " +
+    d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+  );
+};
 
-const initials = (name: string): string =>
-  name
+const initials = (name: string | null): string =>
+  (name ?? "")
     .replace(/[@].*/, "")
     .split(/[\s._]+/)
     .filter(Boolean)
@@ -306,7 +171,6 @@ const initials = (name: string): string =>
     .join("")
     .toUpperCase();
 
-// Cor derivada do remetente: estável, sem semântica inventada.
 const avatarTone = (name: string): [string, string] => {
   const tones: [string, string][] = [
     ["#E8EEFE", "#2F4FD8"],
@@ -320,33 +184,46 @@ const avatarTone = (name: string): [string, string] => {
   return tones[h % tones.length];
 };
 
-const KIND_LABEL = {
-  marketing: "Marketing",
-  codigo: "Código de acesso",
-  sistema: "Automático",
-  pessoa: null,
-} as const;
-
 /* ------------------------------------------------------------------ */
 /* Sidebar                                                             */
 /* ------------------------------------------------------------------ */
 interface SidebarProps {
-  folder: string;
-  setFolder: (folder: string) => void;
-  counts: { unread: number };
+  accounts: EmailAccount[];
+  folders: EmailCustomFolder[];
+  selectedAccountId?: string;
+  selectedFolder: EmailFolder;
+  selectedCustomFolderId: string | null;
+  counts: { inbox: number; sent: number; spam: number; trash: number };
+  onSelectAccount: (id?: string) => void;
+  onSelectFolder: (folder: EmailFolder) => void;
+  onSelectCustomFolder: (id: string | null) => void;
+  onOpenRules: () => void;
+  onRefresh: () => void;
+  onNew: () => void;
 }
 
-function Sidebar({ folder, setFolder, counts }: SidebarProps) {
+function Sidebar({
+  accounts,
+  folders,
+  selectedAccountId,
+  selectedFolder,
+  selectedCustomFolderId,
+  counts,
+  onSelectAccount,
+  onSelectFolder,
+  onSelectCustomFolder,
+  onOpenRules,
+  onRefresh,
+  onNew,
+}: SidebarProps) {
   const main = [
-    { id: "inbox", label: "Caixa de entrada", Icon: IconInbox, count: counts.unread },
-    { id: "sent", label: "Enviados", Icon: IconSent },
-    { id: "spam", label: "Spam", Icon: IconSpam },
-    { id: "trash", label: "Excluídos", Icon: IconTrash, count: 7, quiet: true },
+    { id: "INBOX", label: "Caixa de entrada", Icon: IconInbox, count: counts.inbox },
+    { id: "SENT", label: "Enviados", Icon: IconSent, count: counts.sent },
+    { id: "SPAM", label: "Spam", Icon: IconSpam, count: counts.spam },
+    { id: "TRASH", label: "Excluídos", Icon: IconTrash, count: counts.trash, quiet: true },
   ] as const;
-  const folders = [
-    { id: "meta", label: "WhatsApp Meta", count: 1 },
-    { id: "asaas", label: "DNA Asaas", count: 20 },
-  ] as const;
+
+  const activeSystem = selectedCustomFolderId === null;
 
   interface RowItem {
     id: string;
@@ -354,13 +231,21 @@ function Sidebar({ folder, setFolder, counts }: SidebarProps) {
     Icon?: React.ComponentType<IconProps>;
     count?: number;
     quiet?: boolean;
+    onClick?: () => void;
   }
 
-  const Row = ({ id, label, Icon, count, quiet }: RowItem) => {
-    const active = folder === id;
+  const Row = ({ id, label, Icon, count, quiet, onClick }: RowItem) => {
+    const active = activeSystem && selectedFolder === id;
     return (
       <button
-        onClick={() => setFolder(id)}
+        onClick={() => {
+          if (onClick) {
+            onClick();
+            return;
+          }
+          onSelectCustomFolder(null);
+          onSelectFolder(id as EmailFolder);
+        }}
         style={{
           display: "flex",
           alignItems: "center",
@@ -387,7 +272,7 @@ function Sidebar({ folder, setFolder, counts }: SidebarProps) {
           </span>
         )}
         <span style={{ flex: 1 }}>{label}</span>
-        {count ? (
+        {count !== undefined && count > 0 ? (
           <span
             style={{
               ...NUM,
@@ -417,6 +302,7 @@ function Sidebar({ folder, setFolder, counts }: SidebarProps) {
       }}
     >
       <button
+        onClick={onNew}
         style={{
           display: "flex",
           alignItems: "center",
@@ -441,7 +327,8 @@ function Sidebar({ folder, setFolder, counts }: SidebarProps) {
         </span>
         <div style={{ position: "relative" }}>
           <select
-            defaultValue="all"
+            value={selectedAccountId ?? "all"}
+            onChange={(e) => onSelectAccount(e.target.value === "all" ? undefined : e.target.value)}
             style={{
               width: "100%",
               appearance: "none",
@@ -457,8 +344,11 @@ function Sidebar({ folder, setFolder, counts }: SidebarProps) {
             }}
           >
             <option value="all">Todas as contas</option>
-            <option>marcelo@eduit.com.br</option>
-            <option>financeiro@eduit.com.br</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.email}
+              </option>
+            ))}
           </select>
           <span
             style={{
@@ -480,41 +370,43 @@ function Sidebar({ folder, setFolder, counts }: SidebarProps) {
         ))}
       </nav>
 
-      <div>
-        <div
+      {folders.length > 0 && (
+        <div>
+          <div style={{ fontSize: 12, color: T.muted, padding: "0 10px 6px" }}>Pastas</div>
+          <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {folders.map((f) => (
+              <Row
+                key={f.id}
+                id={f.id}
+                label={f.name}
+                count={f.unreadCount}
+                quiet
+              />
+            ))}
+          </nav>
+        </div>
+      )}
+
+      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+        <Row id="rules" label="Regras" Icon={IconRules} onClick={onOpenRules} />
+        <button
+          onClick={onRefresh}
           style={{
-            fontSize: 12,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "7px 10px",
+            border: "none",
+            background: "transparent",
             color: T.muted,
-            padding: "0 10px 6px",
+            fontSize: 13.5,
+            cursor: "pointer",
+            fontFamily: FONT,
+            textAlign: "left",
           }}
         >
-          Pastas
-        </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          {folders.map((f) => (
-            <Row key={f.id} {...f} />
-          ))}
-          <button
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "7px 10px",
-              border: "none",
-              background: "transparent",
-              color: T.muted,
-              fontSize: 13.5,
-              cursor: "pointer",
-              fontFamily: FONT,
-            }}
-          >
-            <IconPlus size={16} /> Nova pasta
-          </button>
-        </nav>
-      </div>
-
-      <div style={{ marginTop: "auto" }}>
-        <Row id="rules" label="Regras" Icon={IconRules} />
+          <IconRefresh size={17} /> Atualizar
+        </button>
       </div>
     </aside>
   );
@@ -524,7 +416,7 @@ function Sidebar({ folder, setFolder, counts }: SidebarProps) {
 /* Lista                                                               */
 /* ------------------------------------------------------------------ */
 interface MessageRowProps {
-  m: Message;
+  m: EmailListItem;
   active: boolean;
   selected: boolean;
   onOpen: () => void;
@@ -534,7 +426,8 @@ interface MessageRowProps {
 
 function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRowProps) {
   const [hover, setHover] = useState(false);
-  const [bg, fg] = avatarTone(m.from);
+  const fromName = m.fromName || m.fromAddress;
+  const [bg, fg] = avatarTone(fromName);
   const showCheck = hover || selected;
 
   return (
@@ -557,7 +450,6 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
         outline: "none",
       }}
     >
-      {/* trilho de não lido: substitui o badge "Novo" */}
       <span
         style={{
           position: "absolute",
@@ -565,7 +457,7 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
           top: 0,
           bottom: 0,
           width: 3,
-          background: m.unread ? BRAND_GRADIENT : "transparent",
+          background: !m.isRead ? BRAND_GRADIENT : "transparent",
         }}
       />
 
@@ -577,6 +469,17 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
             onClick={(e) => e.stopPropagation()}
             onChange={onToggle}
             style={{ width: 15, height: 15, accentColor: T.accent, cursor: "pointer", margin: "5px 0 0 3px" }}
+          />
+        ) : m.contact?.avatarUrl ? (
+          <img
+            src={m.contact.avatarUrl}
+            alt=""
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              objectFit: "cover",
+            }}
           />
         ) : (
           <span
@@ -594,7 +497,7 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
               letterSpacing: 0.2,
             }}
           >
-            {initials(m.from)}
+            {initials(fromName)}
           </span>
         )}
       </div>
@@ -604,20 +507,15 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
           <span
             style={{
               fontSize: 13.5,
-              fontWeight: m.unread ? 650 : 500,
-              color: m.unread ? T.ink : T.ink2,
+              fontWeight: !m.isRead ? 650 : 500,
+              color: !m.isRead ? T.ink : T.ink2,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}
           >
-            {m.from}
+            {fromName}
           </span>
-          {m.attachment && (
-            <span style={{ color: T.muted, display: "flex" }}>
-              <IconClip size={13} />
-            </span>
-          )}
           <span
             style={{
               ...NUM,
@@ -627,22 +525,22 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
               flexShrink: 0,
             }}
           >
-            {shortTime(m.date)}
+            {shortTime(m.receivedAt)}
           </span>
         </div>
 
         <div
           style={{
             fontSize: 13.5,
-            fontWeight: m.unread ? 600 : 450,
-            color: m.unread ? T.ink : T.ink2,
+            fontWeight: !m.isRead ? 600 : 450,
+            color: !m.isRead ? T.ink : T.ink2,
             marginTop: 1,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}
         >
-          {m.subject}
+          {m.subject || "(sem assunto)"}
         </div>
 
         {!dense && (
@@ -654,21 +552,6 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
               marginTop: 2,
             }}
           >
-            {KIND_LABEL[m.kind] && (
-              <span
-                style={{
-                  fontSize: 10.5,
-                  color: T.muted,
-                  border: `1px solid ${T.line}`,
-                  borderRadius: 4,
-                  padding: "0 4px",
-                  flexShrink: 0,
-                  lineHeight: "15px",
-                }}
-              >
-                {KIND_LABEL[m.kind]}
-              </span>
-            )}
             <span
               style={{
                 fontSize: 12.5,
@@ -678,7 +561,7 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
                 textOverflow: "ellipsis",
               }}
             >
-              {stripHtml(m.preview)}
+              {stripHtml(m.bodyText)}
             </span>
           </div>
         )}
@@ -687,39 +570,63 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
   );
 }
 
+type FilterKey = "todos" | "nao-lidos" | "pessoas";
+
 interface ListProps {
-  messages: Message[];
-  activeId: number;
-  setActiveId: (id: number) => void;
-  selected: number[];
-  setSelected: (ids: number[] | ((prev: number[]) => number[])) => void;
-  markRead: (id: number) => void;
+  emails: EmailListItem[];
+  activeId: string | null;
+  setActiveId: (id: string | null) => void;
+  selected: string[];
+  setSelected: (ids: string[] | ((prev: string[]) => string[])) => void;
+  folderLabel: string;
+  folderUnread: number;
+  loading: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  onRefresh: () => void;
+  search: string;
+  onSearch: (value: string) => void;
+  unreadOnly: boolean;
+  onUnreadOnly: (value: boolean) => void;
+  onArchive: () => void;
+  onSpam: () => void;
+  onTrash: () => void;
 }
 
-function List({ messages, activeId, setActiveId, selected, setSelected, markRead }: ListProps) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("todos");
+function List({
+  emails,
+  activeId,
+  setActiveId,
+  selected,
+  setSelected,
+  folderLabel,
+  folderUnread,
+  loading,
+  hasMore,
+  onLoadMore,
+  onRefresh,
+  search,
+  onSearch,
+  unreadOnly,
+  onUnreadOnly,
+  onArchive,
+  onSpam,
+  onTrash,
+}: ListProps) {
+  const [filter, setFilter] = useState<FilterKey>("todos");
   const [dense, setDense] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return messages.filter((m) => {
-      if (filter === "nao-lidos" && !m.unread) return false;
-      if (filter === "pessoas" && m.kind !== "pessoa") return false;
-      if (filter === "anexos" && !m.attachment) return false;
-      if (!q) return true;
-      return (
-        m.from.toLowerCase().includes(q) ||
-        m.subject.toLowerCase().includes(q) ||
-        stripHtml(m.preview).toLowerCase().includes(q)
-      );
-    });
-  }, [messages, query, filter]);
+    let out = emails;
+    if (filter === "pessoas") out = out.filter((m) => !!m.contact);
+    return out;
+  }, [emails, filter]);
 
   const groups = useMemo(() => {
-    const out: { label: string; items: Message[] }[] = [];
+    const out: { label: string; items: EmailListItem[] }[] = [];
     filtered.forEach((m) => {
-      const label = groupLabel(m.date);
+      const label = groupLabel(m.receivedAt);
       const last = out[out.length - 1];
       if (last && last.label === label) last.items.push(m);
       else out.push({ label, items: [m] });
@@ -727,14 +634,23 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
     return out;
   }, [filtered]);
 
-  const chips: [string, string, number][] = [
-    ["todos", "Tudo", messages.length],
-    ["nao-lidos", "Não lidos", messages.filter((m) => m.unread).length],
-    ["pessoas", "Pessoas", messages.filter((m) => m.kind === "pessoa").length],
-    ["anexos", "Com anexo", messages.filter((m) => m.attachment).length],
+  const chips: { id: FilterKey; label: string; count: number }[] = [
+    { id: "todos", label: "Tudo", count: emails.length },
+    { id: "nao-lidos", label: "Não lidos", count: folderUnread },
+    { id: "pessoas", label: "Pessoas", count: emails.filter((m) => !!m.contact).length },
   ];
 
   const anySelected = selected.length > 0;
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || !hasMore || loading) return;
+    const onScroll = () => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) onLoadMore();
+    };
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [hasMore, loading, onLoadMore]);
 
   return (
     <section
@@ -753,8 +669,8 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
             <IconSearch size={16} />
           </span>
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
             placeholder="Buscar por remetente, assunto ou conteúdo"
             style={{
               width: "100%",
@@ -776,16 +692,25 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 5,
             padding: "10px 0 9px",
           }}
         >
-          {chips.map(([id, label, count]) => {
-            const on = filter === id;
+          {chips.map(({ id, label, count }) => {
+            const on =
+              id === "nao-lidos" ? unreadOnly : id === "todos" ? !unreadOnly && filter === "todos" : filter === id && !unreadOnly;
             return (
               <button
                 key={id}
-                onClick={() => setFilter(id)}
+                onClick={() => {
+                  if (id === "nao-lidos") {
+                    onUnreadOnly(!unreadOnly);
+                    setFilter("todos");
+                  } else {
+                    onUnreadOnly(false);
+                    setFilter(id);
+                  }
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -832,7 +757,7 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
               background: "transparent",
               color: T.muted,
               cursor: "pointer",
-              fontSize: 12.5,
+              fontSize: 12,
               fontFamily: FONT,
             }}
           >
@@ -840,6 +765,7 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
           </button>
           <button
             title="Atualizar"
+            onClick={onRefresh}
             style={{ border: "none", background: "transparent", color: T.muted, cursor: "pointer", display: "flex" }}
           >
             <IconRefresh size={16} />
@@ -847,7 +773,6 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
         </div>
       </div>
 
-      {/* barra contextual: só aparece quando há seleção */}
       <div
         style={{
           display: "flex",
@@ -866,13 +791,13 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
               {selected.length} selecionados
             </span>
             {[
-              [IconArchive, "Arquivar"] as const,
-              [IconSpam, "Spam"] as const,
-              [IconTrash, "Excluir"] as const,
-            ].map(([I, label]) => (
+              [IconArchive, "Arquivar", onArchive] as const,
+              [IconSpam, "Spam", onSpam] as const,
+              [IconTrash, "Excluir", onTrash] as const,
+            ].map(([I, label, action]) => (
               <button
                 key={label}
-                onClick={() => setSelected([])}
+                onClick={action}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -906,22 +831,23 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
           </>
         ) : (
           <>
-            <span style={{ fontSize: 12.5, color: T.ink2, fontWeight: 600 }}>
-              Caixa de entrada
-            </span>
+            <span style={{ fontSize: 12.5, color: T.ink2, fontWeight: 600 }}>{folderLabel}</span>
             <span style={{ ...NUM, fontSize: 12.5, color: T.muted, marginLeft: 8 }}>
-              {filtered.filter((m) => m.unread).length} não lidos de {filtered.length}
+              {folderUnread} não lidos de {emails.length}
             </span>
           </>
         )}
       </div>
 
-      <div style={{ overflowY: "auto", flex: 1 }}>
-        {groups.length === 0 && (
+      <div ref={listRef} style={{ overflowY: "auto", flex: 1 }}>
+        {loading && emails.length === 0 && (
+          <div style={{ padding: 48, textAlign: "center", color: T.muted, fontSize: 13 }}>
+            Carregando e-mails…
+          </div>
+        )}
+        {!loading && groups.length === 0 && (
           <div style={{ padding: "48px 24px", textAlign: "center" }}>
-            <p style={{ fontSize: 14, color: T.ink2, margin: 0, fontWeight: 600 }}>
-              Nada por aqui
-            </p>
+            <p style={{ fontSize: 14, color: T.ink2, margin: 0, fontWeight: 600 }}>Nada por aqui</p>
             <p style={{ fontSize: 13, color: T.muted, margin: "6px 0 0", lineHeight: 1.5 }}>
               Ajuste a busca ou volte para o filtro Todos.
             </p>
@@ -951,13 +877,10 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
                 dense={dense}
                 active={m.id === activeId}
                 selected={selected.includes(m.id)}
-                onOpen={() => {
-                  setActiveId(m.id);
-                  markRead(m.id);
-                }}
+                onOpen={() => setActiveId(m.id)}
                 onToggle={() =>
                   setSelected((s) =>
-                    s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id]
+                    s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id],
                   )
                 }
               />
@@ -973,34 +896,68 @@ function List({ messages, activeId, setActiveId, selected, setSelected, markRead
 /* Leitura                                                             */
 /* ------------------------------------------------------------------ */
 interface ReaderProps {
-  m: Message | null;
+  email: EmailDetail | null;
+  loading: boolean;
+  folder: EmailFolder;
+  onReply: () => void;
+  onForward: () => void;
+  onArchive: () => void;
+  onSpam: () => void;
+  onTrash: () => void;
 }
 
-function Reader({ m }: ReaderProps) {
-  const [replying, setReplying] = useState(false);
+function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam, onTrash }: ReaderProps) {
   const [note, setNote] = useState("");
   const [noteOpen, setNoteOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setReplying(false);
     if (ref.current) ref.current.scrollTop = 0;
-  }, [m?.id]);
+  }, [email?.id]);
 
-  if (!m) return null;
-  const [bg, fg] = avatarTone(m.from);
+  if (loading) {
+    return (
+      <section style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", background: T.surface }}>
+        <span style={{ color: T.muted, fontSize: 13 }}>Carregando e-mail…</span>
+      </section>
+    );
+  }
+
+  if (!email) {
+    return (
+      <section
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          background: T.surface,
+          color: T.muted,
+          fontSize: 13,
+        }}
+      >
+        Selecione um e-mail para ler
+      </section>
+    );
+  }
+
+  const fromName = email.fromName || email.fromAddress;
+  const [bg, fg] = avatarTone(fromName);
 
   const Action = ({
     Icon,
     label,
     primary,
+    onClick,
   }: {
     Icon: React.ComponentType<IconProps>;
     label: string;
     primary?: boolean;
+    onClick?: () => void;
   }) => (
     <button
-      onClick={() => label === "Responder" && setReplying(true)}
+      onClick={onClick}
       style={{
         display: "flex",
         alignItems: "center",
@@ -1022,9 +979,10 @@ function Reader({ m }: ReaderProps) {
     </button>
   );
 
+  const bodyParagraphs = (email.bodyText ?? "(sem conteúdo)").split(/\n{2,}/);
+
   return (
     <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: T.surface }}>
-      {/* cabeçalho fixo: assunto + ações juntos, sem bloco escuro */}
       <header
         style={{
           padding: "14px 28px 12px",
@@ -1044,13 +1002,14 @@ function Reader({ m }: ReaderProps) {
               flex: 1,
             }}
           >
-            {m.subject}
+            {email.subject || "(sem assunto)"}
           </h1>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            <Action Icon={IconReply} label="Responder" primary />
-            <Action Icon={IconForward} label="Encaminhar" />
-            <Action Icon={IconArchive} label="Arquivar" />
-            <Action Icon={IconTrash} label="Excluir" />
+            <Action Icon={IconReply} label="Responder" primary onClick={onReply} />
+            <Action Icon={IconForward} label="Encaminhar" onClick={onForward} />
+            <Action Icon={IconArchive} label="Arquivar" onClick={onArchive} />
+            <Action Icon={IconTrash} label="Excluir" onClick={onTrash} />
+            <Action Icon={IconSpam} label={folder === "SPAM" ? "Não é spam" : "Spam"} onClick={onSpam} />
           </div>
         </div>
 
@@ -1069,15 +1028,14 @@ function Reader({ m }: ReaderProps) {
               fontWeight: 700,
             }}
           >
-            {initials(m.from)}
+            {initials(fromName)}
           </span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, color: T.ink, fontWeight: 600 }}>
-              {m.from}{" "}
-              <span style={{ fontWeight: 400, color: T.muted }}>&lt;{m.address}&gt;</span>
+              {fromName} <span style={{ fontWeight: 400, color: T.muted }}>&lt;{email.fromAddress}&gt;</span>
             </div>
             <div style={{ fontSize: 12.5, color: T.muted, marginTop: 1 }}>
-              para {m.to} · <span style={NUM}>{fullDate(m.date)}</span>
+              para {email.toAddress} · <span style={NUM}>{fullDate(email.receivedAt)}</span>
             </div>
           </div>
           <button
@@ -1136,7 +1094,7 @@ function Reader({ m }: ReaderProps) {
 
       <div ref={ref} style={{ flex: 1, overflowY: "auto", padding: "24px 28px 40px" }}>
         <div style={{ maxWidth: 660 }}>
-          {m.kind === "marketing" && (
+          {email.bodyHtml && (
             <div
               style={{
                 display: "flex",
@@ -1169,7 +1127,7 @@ function Reader({ m }: ReaderProps) {
             </div>
           )}
 
-          {(m.body || [stripHtml(m.preview)]).map((p, i) => (
+          {bodyParagraphs.map((p, i) => (
             <p
               key={i}
               style={{
@@ -1177,124 +1135,35 @@ function Reader({ m }: ReaderProps) {
                 fontSize: 14.5,
                 lineHeight: 1.65,
                 color: T.ink2,
+                whiteSpace: "pre-wrap",
               }}
             >
               {p}
             </p>
           ))}
-
-          {m.attachment && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginTop: 22,
-                border: `1px solid ${T.line}`,
-                borderRadius: 8,
-                padding: "10px 12px",
-                width: "fit-content",
-              }}
-            >
-              <span style={{ color: T.muted, display: "flex" }}>
-                <IconClip size={16} />
-              </span>
-              <div>
-                <div style={{ fontSize: 13, color: T.ink, fontWeight: 550 }}>proposta.pdf</div>
-                <div style={{ ...NUM, fontSize: 12, color: T.muted }}>248 KB</div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* resposta acontece no mesmo lugar da leitura */}
       <div style={{ borderTop: `1px solid ${T.line}`, padding: "12px 28px 16px", background: T.paper }}>
-        {replying ? (
-          <div
-            style={{
-              border: `1px solid ${T.line}`,
-              borderRadius: 10,
-              background: T.surface,
-              padding: 12,
-              maxWidth: 660,
-            }}
-          >
-            <div style={{ fontSize: 12.5, color: T.muted, marginBottom: 8 }}>
-              Respondendo para {m.address}
-            </div>
-            <textarea
-              autoFocus
-              rows={4}
-              placeholder="Escreva sua resposta"
-              style={{
-                width: "100%",
-                border: "none",
-                outline: "none",
-                resize: "vertical",
-                fontSize: 14,
-                lineHeight: 1.6,
-                fontFamily: FONT,
-                color: T.ink,
-                boxSizing: "border-box",
-              }}
-            />
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <button
-                style={{
-                  height: 32,
-                  padding: "0 16px",
-                  borderRadius: 7,
-                  border: "none",
-                  background: T.accent,
-                  color: "#fff",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  fontFamily: FONT,
-                  cursor: "pointer",
-                }}
-              >
-                Enviar resposta
-              </button>
-              <button
-                onClick={() => setReplying(false)}
-                style={{
-                  height: 32,
-                  padding: "0 12px",
-                  borderRadius: 7,
-                  border: `1px solid ${T.line}`,
-                  background: T.surface,
-                  color: T.ink2,
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  cursor: "pointer",
-                }}
-              >
-                Descartar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setReplying(true)}
-            style={{
-              width: "100%",
-              maxWidth: 660,
-              textAlign: "left",
-              height: 40,
-              padding: "0 14px",
-              borderRadius: 10,
-              border: `1px solid ${T.line}`,
-              background: T.surface,
-              color: T.muted,
-              fontSize: 13.5,
-              fontFamily: FONT,
-              cursor: "pointer",
-            }}
-          >
-            Responder para {m.from}
-          </button>
-        )}
+        <button
+          onClick={onReply}
+          style={{
+            width: "100%",
+            maxWidth: 660,
+            textAlign: "left",
+            height: 40,
+            padding: "0 14px",
+            borderRadius: 10,
+            border: `1px solid ${T.line}`,
+            background: T.surface,
+            color: T.muted,
+            fontSize: 13.5,
+            fontFamily: FONT,
+            cursor: "pointer",
+          }}
+        >
+          Responder para {fromName}
+        </button>
       </div>
     </section>
   );
@@ -1304,31 +1173,226 @@ function Reader({ m }: ReaderProps) {
 /* App                                                                 */
 /* ------------------------------------------------------------------ */
 export default function InboxRefatorado() {
-  const [messages, setMessages] = useState<Message[]>(MESSAGES);
-  const [activeId, setActiveId] = useState<number>(2);
-  const [selected, setSelected] = useState<number[]>([]);
-  const [folder, setFolder] = useState<string>("inbox");
+  const { accounts, loading: accountsLoading, reload: reloadAccounts, sync } = useEmailAccounts();
+  const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(undefined);
+  const [selectedFolder, setSelectedFolder] = useState<EmailFolder>("INBOX");
+  const [selectedCustomFolderId, setSelectedCustomFolderId] = useState<string | null>(null);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [composing, setComposing] = useState(false);
+  const [composeDraft, setComposeDraft] = useState<ComposeDraft>(newComposeDraft());
+  const [rulesOpen, setRulesOpen] = useState(false);
 
-  const markRead = (id: number) =>
-    setMessages((ms) => ms.map((m) => (m.id === id ? { ...m, unread: false } : m)));
-
-  // navegação por teclado: j / k para mover, r para responder
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-      if (e.key !== "j" && e.key !== "k") return;
-      const i = messages.findIndex((m) => m.id === activeId);
-      const next = e.key === "j" ? Math.min(i + 1, messages.length - 1) : Math.max(i - 1, 0);
-      setActiveId(messages[next].id);
-      markRead(messages[next].id);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [activeId, messages]);
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const active = messages.find((m) => m.id === activeId) || messages[0];
-  const counts = { unread: messages.filter((m) => m.unread).length };
+  const { folders: customFolders, reload: reloadCustomFolders } = useEmailCustomFolders(selectedAccountId);
+
+  const {
+    emails,
+    loading: emailsLoading,
+    hasMore,
+    loadMore,
+    refresh: refreshEmails,
+    markRead,
+  } = useEmails({
+    accountId: selectedAccountId,
+    folder: selectedCustomFolderId ? undefined : selectedFolder,
+    customFolderId: selectedCustomFolderId ?? undefined,
+    search: debouncedSearch || undefined,
+    unreadOnly,
+  });
+
+  const { email: emailDetail, loading: detailLoading } = useEmailDetail(
+    composing ? null : selectedEmailId,
+  );
+
+  useEffect(() => {
+    if (!selectedEmailId) return;
+    const email = emails.find((e) => e.id === selectedEmailId);
+    if (email && !email.isRead) {
+      void markRead(selectedEmailId, true);
+    }
+  }, [selectedEmailId, emails, markRead]);
+
+  const folderCounts = useMemo(() => {
+    if (selectedCustomFolderId) {
+      const folder = customFolders.find((f) => f.id === selectedCustomFolderId);
+      return { inbox: 0, sent: 0, spam: 0, trash: 0, custom: folder?.unreadCount ?? 0 };
+    }
+    if (selectedAccountId) {
+      const acc = accounts.find((a) => a.id === selectedAccountId);
+      if (!acc) return { inbox: 0, sent: 0, spam: 0, trash: 0 };
+      const c = acc.folderUnread;
+      return {
+        inbox: c?.inbox ?? acc.unreadCount,
+        sent: c?.sent ?? 0,
+        spam: c?.spam ?? 0,
+        trash: c?.trash ?? 0,
+      };
+    }
+    return accounts.reduce(
+      (s, a) => {
+        const c = a.folderUnread;
+        s.inbox += c?.inbox ?? a.unreadCount;
+        s.sent += c?.sent ?? 0;
+        s.spam += c?.spam ?? 0;
+        s.trash += c?.trash ?? 0;
+        return s;
+      },
+      { inbox: 0, sent: 0, spam: 0, trash: 0 },
+    );
+  }, [accounts, selectedAccountId, customFolders, selectedCustomFolderId]);
+
+  const folderLabel = useMemo(() => {
+    if (selectedCustomFolderId) {
+      return customFolders.find((f) => f.id === selectedCustomFolderId)?.name ?? "Pasta";
+    }
+    if (selectedFolder === "INBOX") return "Caixa de entrada";
+    if (selectedFolder === "SENT") return "Enviados";
+    if (selectedFolder === "SPAM") return "Spam";
+    return "Excluídos";
+  }, [selectedFolder, selectedCustomFolderId, customFolders]);
+
+  const folderUnread = useMemo(() => {
+    if (selectedCustomFolderId) return customFolders.find((f) => f.id === selectedCustomFolderId)?.unreadCount ?? 0;
+    if (selectedFolder === "INBOX") return folderCounts.inbox;
+    if (selectedFolder === "SENT") return folderCounts.sent;
+    if (selectedFolder === "SPAM") return folderCounts.spam;
+    return folderCounts.trash;
+  }, [folderCounts, selectedFolder, selectedCustomFolderId, customFolders]);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all(accounts.map((a) => sync(a.id).catch(() => ({}))));
+    refreshEmails();
+    reloadAccounts();
+    reloadCustomFolders();
+  }, [accounts, sync, refreshEmails, reloadAccounts, reloadCustomFolders]);
+
+  const runBulk = useCallback(
+    async (ids: string[], action: (id: string) => Promise<void>, okMsg: string) => {
+      const unique = [...new Set(ids.filter(Boolean))];
+      if (unique.length === 0) return;
+      await Promise.all(unique.map((id) => action(id).catch(() => {})));
+      toast.success(okMsg);
+      refreshEmails();
+      reloadAccounts();
+      if (selectedEmailId && unique.includes(selectedEmailId)) setSelectedEmailId(null);
+      setSelected([]);
+    },
+    [refreshEmails, reloadAccounts, selectedEmailId],
+  );
+
+  const handleTrash = useCallback(async () => {
+    const ids = selected.length > 0 ? selected : selectedEmailId ? [selectedEmailId] : [];
+    if (selectedFolder === "TRASH") {
+      await runBulk(ids, deleteEmail, ids.length === 1 ? "E-mail excluído." : `${ids.length} e-mails excluídos.`);
+    } else {
+      await runBulk(
+        ids,
+        (id) => moveEmail(id, { systemFolder: "TRASH", customFolderId: null }),
+        ids.length === 1 ? "E-mail movido para lixeira." : `${ids.length} e-mails movidos para lixeira.`,
+      );
+    }
+  }, [selected, selectedEmailId, selectedFolder, runBulk]);
+
+  const handleArchive = useCallback(async () => {
+    const ids = selected.length > 0 ? selected : selectedEmailId ? [selectedEmailId] : [];
+    await runBulk(
+      ids,
+      (id) => moveEmail(id, { systemFolder: "TRASH", customFolderId: null }),
+      ids.length === 1 ? "E-mail arquivado." : `${ids.length} e-mails arquivados.`,
+    );
+  }, [selected, selectedEmailId, runBulk]);
+
+  const handleSpam = useCallback(async () => {
+    const ids = selected.length > 0 ? selected : selectedEmailId ? [selectedEmailId] : [];
+    const undo = selectedFolder === "SPAM";
+    await runBulk(
+      ids,
+      (id) => markEmailsAsSpam([id], undo).then(() => {}),
+      undo
+        ? ids.length === 1
+          ? "Marcado como não é spam."
+          : `${ids.length} e-mails marcados como não spam.`
+        : ids.length === 1
+          ? "Marcado como spam."
+          : `${ids.length} e-mails marcados como spam.`,
+    );
+  }, [selected, selectedEmailId, selectedFolder, runBulk]);
+
+  const openCompose = useCallback((draft: ComposeDraft) => {
+    setComposeDraft(draft);
+    setComposing(true);
+  }, []);
+
+  const handleReply = useCallback(() => {
+    if (!emailDetail) return;
+    openCompose(buildComposeDraft(emailDetail, "reply"));
+  }, [emailDetail, openCompose]);
+
+  const handleForward = useCallback(() => {
+    if (!emailDetail) return;
+    openCompose(buildComposeDraft(emailDetail, "forward"));
+  }, [emailDetail, openCompose]);
+
+  const handleNew = useCallback(() => {
+    openCompose(newComposeDraft(selectedAccountId ?? accounts[0]?.id));
+  }, [openCompose, selectedAccountId, accounts]);
+
+  const handleSent = useCallback(
+    (id: string) => {
+      setComposing(false);
+      setSelectedEmailId(id);
+      setSelectedFolder("SENT");
+      setSelectedCustomFolderId(null);
+      refreshEmails();
+      reloadAccounts();
+      toast.success("E-mail enviado.");
+    },
+    [refreshEmails, reloadAccounts],
+  );
+
+  const handleSelectFolder = useCallback((folder: EmailFolder) => {
+    setSelectedFolder(folder);
+    setSelectedCustomFolderId(null);
+    setSelectedEmailId(null);
+    setSelected([]);
+  }, []);
+
+  const handleSelectCustomFolder = useCallback((id: string | null) => {
+    setSelectedCustomFolderId(id);
+    if (id) setSelectedFolder("INBOX");
+    setSelectedEmailId(null);
+    setSelected([]);
+  }, []);
+
+  const composeAccounts = selectedAccountId
+    ? accounts.filter((a) => a.id === selectedAccountId)
+    : accounts;
+
+  if (accountsLoading && accounts.length === 0) {
+    return (
+      <div
+        style={{
+          fontFamily: FONT,
+          color: T.ink,
+          background: T.paper,
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span style={{ color: T.muted, fontSize: 13 }}>Carregando contas…</span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1342,24 +1406,81 @@ export default function InboxRefatorado() {
         WebkitFontSmoothing: "antialiased",
       }}
     >
-      <PageHeader
-        icon={<IconMail size={22} />}
-        title="E-mail"
-        className="rounded-none border-0 bg-transparent shadow-none"
-      />
+      <PageHeader icon={<IconMail size={22} />} title="E-mail" className="rounded-none border-0 bg-transparent shadow-none" />
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <Sidebar folder={folder} setFolder={setFolder} counts={counts} />
+        <Sidebar
+          accounts={accounts}
+          folders={customFolders}
+          selectedAccountId={selectedAccountId}
+          selectedFolder={selectedFolder}
+          selectedCustomFolderId={selectedCustomFolderId}
+          counts={folderCounts}
+          onSelectAccount={(id) => {
+            setSelectedAccountId(id);
+            setSelectedEmailId(null);
+            setSelected([]);
+          }}
+          onSelectFolder={handleSelectFolder}
+          onSelectCustomFolder={handleSelectCustomFolder}
+          onOpenRules={() => setRulesOpen(true)}
+          onRefresh={refreshAll}
+          onNew={handleNew}
+        />
+
         <List
-          messages={messages}
-          activeId={activeId}
-          setActiveId={setActiveId}
+          emails={emails}
+          activeId={selectedEmailId}
+          setActiveId={setSelectedEmailId}
           selected={selected}
           setSelected={setSelected}
-          markRead={markRead}
+          folderLabel={folderLabel}
+          folderUnread={folderUnread}
+          loading={emailsLoading}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
+          onRefresh={refreshAll}
+          search={search}
+          onSearch={setSearch}
+          unreadOnly={unreadOnly}
+          onUnreadOnly={setUnreadOnly}
+          onArchive={handleArchive}
+          onSpam={handleSpam}
+          onTrash={handleTrash}
         />
-        <Reader m={active} />
+
+        {composing ? (
+          <ComposeView
+            accounts={composeAccounts.length > 0 ? composeAccounts : accounts}
+            draft={composeDraft}
+            onCancel={() => setComposing(false)}
+            onSent={handleSent}
+          />
+        ) : (
+          <Reader
+            email={emailDetail}
+            loading={detailLoading}
+            folder={selectedFolder}
+            onReply={handleReply}
+            onForward={handleForward}
+            onArchive={handleArchive}
+            onSpam={handleSpam}
+            onTrash={handleTrash}
+          />
+        )}
       </div>
+
+      <EmailRulesModal
+        open={rulesOpen}
+        onOpenChange={setRulesOpen}
+        accounts={accounts}
+        customFolders={customFolders}
+        defaultAccountId={selectedAccountId}
+        onAccountsChange={() => {
+          reloadAccounts();
+          reloadCustomFolders();
+        }}
+      />
     </div>
   );
 }
