@@ -80,7 +80,7 @@ import { dt } from "@/lib/design-tokens";
 import { cn } from "@/lib/utils";
 import { MetaSendErrorBalloon } from "@/components/crm/meta-send-error-balloon";
 import { EventRow, classifyTimelineItem, isRedundantOpenStatusEvent } from "@/components/crm/chat-timeline";
-import { ChannelLabel, ChannelSeparator, DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
+import { ChannelLabel, DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
 
 /** Texto da nota em uma linha (banner fixado estilo WhatsApp). */
 function notePreviewOneLine(content: string, maxChars = 140): string {
@@ -2325,12 +2325,7 @@ export function ChatWindow({
           {messages.map((m, idx) => {
             const prev = idx > 0 ? messages[idx - 1] : null;
             const showDate = shouldShowDateSeparator(prev, m);
-            const showChannelSep = shouldShowChannelSeparator(prev, m);
             const dayLabel = chatDateLabel(m.createdAt) || undefined;
-            const channelRef =
-              showChannelSep && m.channelId
-                ? messagesData?.channels?.[m.channelId]
-                : null;
 
             {
               const mt = String(m.messageType ?? "").toLowerCase();
@@ -2468,7 +2463,6 @@ export function ChatWindow({
             return (
               <React.Fragment key={m.id}>
                 {showDate && <DateSep date={m.createdAt} stickyLabel={stickyDayLabel} />}
-                {showChannelSep && <ChannelSeparator channel={channelRef} />}
                 <MotionDiv
                   data-msg-idx={idx} data-day-label={dayLabel}
                   initial={{ opacity: 0, y: 8 }}
@@ -4663,15 +4657,6 @@ function shouldShowDateSeparator(
     new Date(prev.createdAt).toDateString() !==
     new Date(curr.createdAt).toDateString()
   );
-}
-
-function shouldShowChannelSeparator(
-  prev: InboxMessageDto | null,
-  curr: InboxMessageDto,
-): boolean {
-  if (!curr.channelId) return false;
-  if (!prev) return false;
-  return prev.channelId !== curr.channelId;
 }
 
 function ChannelOverrideBanner({
