@@ -19,11 +19,13 @@ import { GlassCard } from "@/components/crm/glass-card";
 import { InputGlass } from "@/components/crm/input-glass";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { FormDialog } from "@/components/ui/form-dialog";
+import { DEFAULT_QUICK_REPLIES } from "@/features/inbox-v2/extras/quick-reply-catalog";
 import {
   useQuickReplies,
   useQuickReplyGroups,
   useCreateQuickReply,
   useCreateQuickReplyGroup,
+  useImportDefaultQuickReplies,
   useDeleteQuickReply,
   type QuickReply,
   type QuickReplyGroup,
@@ -383,6 +385,7 @@ export function QuickMessagesTab({ embedded = false }: { embedded?: boolean } = 
   const { data: replies = [], isLoading } = useQuickReplies(debouncedSearch);
   const { data: groups = [] } = useQuickReplyGroups();
   const deleteMutation = useDeleteQuickReply();
+  const importMutation = useImportDefaultQuickReplies();
 
   function handleDelete(id: string) {
     setDeletingId(id);
@@ -425,6 +428,28 @@ export function QuickMessagesTab({ embedded = false }: { embedded?: boolean } = 
               className="max-w-xs"
             />
           </div>
+          <ButtonGlass
+            variant="glass"
+            size="sm"
+            disabled={importMutation.isPending || hasAnyReplies}
+            onClick={() =>
+              importMutation.mutate(
+                DEFAULT_QUICK_REPLIES.map((item) => ({
+                  title: item.title,
+                  content: item.content,
+                  group: item.group,
+                })),
+              )
+            }
+            className="shrink-0 gap-1.5"
+          >
+            {importMutation.isPending ? (
+              <IconLoader2 size={14} className="animate-spin" />
+            ) : (
+              <IconBolt size={14} />
+            )}
+            Importar padrões
+          </ButtonGlass>
           <ButtonGlass
             variant="primary"
             size="sm"

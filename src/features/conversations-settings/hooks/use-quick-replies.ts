@@ -87,6 +87,50 @@ export function useCreateQuickReplyGroup() {
   });
 }
 
+export function useImportDefaultQuickReplies() {
+  const qc = useQueryClient();
+  const createGroup = useCreateQuickReplyGroup();
+  const createReply = useCreateQuickReply();
+
+  return useMutation({
+    mutationFn: async (
+      items: Array<{ title: string; content: string; group: string }>,
+    ) => {
+      const existingGroups =
+        qc.getQueryData<QuickReplyGroup[]>(GROUPS_QK) ?? [];
+      const groupMap = new Map<string, string>();
+      const groupNames = [...new Set(items.map((item) => item.group))];
+
+      for (const name of groupNames) {
+        const found = existingGroups.find((g) => g.name === name);
+        if (found) {
+          groupMap.set(name, found.id);
+        } else {
+          const created = await createGroup.mutateAsync(name);
+          groupMap.set(name, created.id);
+          existingGroups.push(created);
+        }
+      }
+
+      for (const item of items) {
+        await createReply.mutateAsync({
+          title: item.title,
+          content: item.content,
+          groupId: groupMap.get(item.group) ?? null,
+        });
+      }
+
+      return { count: items.length };
+    },
+    onSuccess: ({ count }) => {
+      qc.invalidateQueries({ queryKey: GROUPS_QK });
+      qc.invalidateQueries({ queryKey: REPLIES_QK });
+      toast.success(`${count} mensagens importadas.`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useDeleteQuickReply() {
   const qc = useQueryClient();
   return useMutation({
