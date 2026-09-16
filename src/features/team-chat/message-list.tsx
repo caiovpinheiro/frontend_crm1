@@ -791,8 +791,8 @@ function BubbleHoverActions({
     <div
       ref={boxRef}
       className={cn(
-        "pointer-events-auto absolute top-1 z-30",
-        mine ? "left-1" : "right-1",
+        "pointer-events-auto absolute -top-2 z-30",
+        mine ? "-right-2" : "-left-2",
       )}
     >
       <button
