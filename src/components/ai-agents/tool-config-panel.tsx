@@ -173,14 +173,18 @@ export function ToolPolicyForm({
   });
 
   const { data: departments = [] } = useQuery({
-    queryKey: ["ai-agent-departments"],
+    // Chave própria: a aba Assuntos cacheia `["ai-agent-departments"]` como
+    // {id,name}. Reusando a chave, a lista daqui recebia os objetos — as
+    // opções viravam "[object Object]" e o render quebrava ao filtrar,
+    // fechando o diálogo inteiro (todas as seções ficam montadas).
+    queryKey: ["ai-agent-departments", "names"],
     queryFn: async () => {
       const res = await fetch(apiUrl("/api/settings/departments"));
       if (!res.ok) return [];
       const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
+      const list = Array.isArray(data) ? data : (data.departments ?? []);
       return (list as Array<{ name?: string }>)
-        .map((d) => d.name)
+        .map((d) => d?.name)
         .filter((n): n is string => Boolean(n));
     },
     staleTime: 60_000,

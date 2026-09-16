@@ -69,6 +69,46 @@ const ARCHETYPE_MAP = Object.fromEntries(ARCHETYPES.map((a) => [a.id, a])) as Re
   (typeof ARCHETYPES)[number]
 >;
 
+/**
+ * Todas as seções ficam montadas, então um erro de render em qualquer uma
+ * derrubava o diálogo inteiro: a tela fechava no meio da digitação e o
+ * Salvar nunca rodava. Aqui o estrago fica na seção.
+ */
+class SectionErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error("[agent-settings] seção quebrou", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="space-y-2 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium text-destructive">
+            Esta seção não pôde ser exibida.
+          </p>
+          <p className="text-[12px] text-muted-foreground">
+            As outras abas e o Salvar continuam funcionando.
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ error: null })}
+            className="text-[12px] font-medium text-primary hover:underline"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /** Mantém a seção montada (rascunho, chips, tool selecionada) ao trocar de aba. */
 function SectionPane({
   active,
@@ -79,7 +119,7 @@ function SectionPane({
 }) {
   return (
     <div hidden={!active} className={active ? undefined : "hidden"}>
-      {children}
+      <SectionErrorBoundary>{children}</SectionErrorBoundary>
     </div>
   );
 }
@@ -503,12 +543,14 @@ export function AgentSettingsDialog({
             <ScrollArea className="min-h-0 flex-1 px-6 py-5 text-sm">
               <div hidden={advanced} className={advanced ? "hidden" : undefined}>
                 {id && (
-                  <SimpleEditor
-                    agentId={id}
-                    preview={preview}
-                    form={form}
-                    onChange={setForm}
-                  />
+                  <SectionErrorBoundary>
+                    <SimpleEditor
+                      agentId={id}
+                      preview={preview}
+                      form={form}
+                      onChange={setForm}
+                    />
+                  </SectionErrorBoundary>
                 )}
               </div>
               {advancedEver && (
