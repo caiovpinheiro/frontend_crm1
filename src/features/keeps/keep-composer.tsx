@@ -1,10 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ListChecks, Paperclip } from "lucide-react";
+import { Folder, ListChecks, Paperclip } from "lucide-react";
 
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   checklistToDoc,
@@ -12,7 +18,7 @@ import {
   type KeepCheckItem,
 } from "./keep-checklist";
 import { KeepRichEditor } from "./keep-editor";
-import { EMPTY_KEEP_DOC, type KeepDoc } from "./types";
+import { EMPTY_KEEP_DOC, type KeepCategory, type KeepDoc } from "./types";
 
 function emptyItems(): KeepCheckItem[] {
   return [{ id: `li-${Math.random().toString(36).slice(2, 9)}`, text: "", checked: false }];
@@ -21,17 +27,29 @@ function emptyItems(): KeepCheckItem[] {
 export function KeepComposer({
   onCreate,
   pending,
+  categories,
 }: {
-  onCreate: (input: { title: string; content: KeepDoc; file?: File }) => Promise<void>;
+  onCreate: (input: {
+    title: string;
+    content: KeepDoc;
+    file?: File;
+    categoryId?: string | null;
+  }) => Promise<void>;
   pending?: boolean;
+  /** Quando informado (modo Categorias), mostra o seletor no rodapé do composer. */
+  categories?: KeepCategory[];
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState<KeepDoc>(EMPTY_KEEP_DOC);
   const [checklist, setChecklist] = useState(false);
   const [items, setItems] = useState<KeepCheckItem[]>(emptyItems);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const fileHold = useRef<File | null>(null);
+
+  const showCategoryPicker = categories !== undefined;
+  const selectedCategory = categories?.find((c) => c.id === categoryId) ?? null;
 
   function reset() {
     setTitle("");
@@ -39,12 +57,18 @@ export function KeepComposer({
     setItems(emptyItems());
     fileHold.current = null;
     setChecklist(false);
+    setCategoryId(null);
     setOpen(false);
   }
 
   async function submit() {
     const doc = checklist ? checklistToDoc(items) : content;
-    await onCreate({ title, content: doc, file: fileHold.current ?? undefined });
+    await onCreate({
+      title,
+      content: doc,
+      file: fileHold.current ?? undefined,
+      ...(showCategoryPicker ? { categoryId } : {}),
+    });
     reset();
   }
 
@@ -114,22 +138,53 @@ export function KeepComposer({
               placeholder="Criar uma nota..."
             />
           )}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-              onClick={reset}
-            >
-              Fechar
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => void submit()}
-              className="rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground"
-            >
-              Salvar
-            </button>
+          <div className="flex items-center gap-2">
+            {showCategoryPicker ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex max-w-[12rem] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm",
+                      selectedCategory
+                        ? "bg-secondary font-semibold text-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
+                    aria-label="Categoria"
+                  >
+                    <Folder className="size-3.5 shrink-0" />
+                    <span className="truncate">{selectedCategory?.name ?? "Categoria"}</span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-[10rem]">
+                  <DropdownMenuItem onClick={() => setCategoryId(null)}>
+                    Sem categoria
+                  </DropdownMenuItem>
+                  {(categories ?? []).map((cat) => (
+                    <DropdownMenuItem key={cat.id} onClick={() => setCategoryId(cat.id)}>
+                      {cat.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            <div className="ml-auto flex gap-2">
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                onClick={reset}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => void submit()}
+                className="rounded-full bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground"
+              >
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       )}

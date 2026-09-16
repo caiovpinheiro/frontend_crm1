@@ -1,5 +1,5 @@
 import { apiUrl, parseApiResponse } from "@/lib/api";
-import type { KeepDoc, KeepFolder, KeepNote } from "./types";
+import type { KeepCategory, KeepDoc, KeepFolder, KeepNote } from "./types";
 
 async function json<T>(res: Promise<Response>, fallback: string): Promise<T> {
   return parseApiResponse<T>(await res, fallback);
@@ -16,7 +16,11 @@ export async function listKeepNotes(
   return json(fetch(apiUrl(`/api/keeps?${params}`), { credentials: "include" }), "Não foi possível carregar as notas.");
 }
 
-export async function createKeepNote(input: { title?: string; content?: KeepDoc }): Promise<{ note: KeepNote }> {
+export async function createKeepNote(input: {
+  title?: string;
+  content?: KeepDoc;
+  categoryId?: string | null;
+}): Promise<{ note: KeepNote }> {
   return json(
     fetch(apiUrl("/api/keeps"), {
       method: "POST",
@@ -30,7 +34,15 @@ export async function createKeepNote(input: { title?: string; content?: KeepDoc 
 
 export async function patchKeepNote(
   id: string,
-  patch: Partial<{ title: string; content: KeepDoc; pinned: boolean; archived: boolean; trashed: boolean; color: string | null }>,
+  patch: Partial<{
+    title: string;
+    content: KeepDoc;
+    pinned: boolean;
+    archived: boolean;
+    trashed: boolean;
+    color: string | null;
+    categoryId: string | null;
+  }>,
 ): Promise<{ note: KeepNote }> {
   return json(
     fetch(apiUrl(`/api/keeps/${id}`), {
@@ -78,7 +90,12 @@ export async function importGoogleKeepZip(file: File): Promise<{ imported: numbe
 }
 
 export async function reorderKeepNotes(
-  items: Array<{ id: string; pinned: boolean; position: number }>,
+  items: Array<{
+    id: string;
+    position: number;
+    pinned?: boolean;
+    categoryId?: string | null;
+  }>,
 ): Promise<void> {
   await parseApiResponse(
     await fetch(apiUrl("/api/keeps/reorder"), {
@@ -88,5 +105,49 @@ export async function reorderKeepNotes(
       body: JSON.stringify({ items }),
     }),
     "Não foi possível reordenar as notas.",
+  );
+}
+
+export async function listKeepCategories(): Promise<{ items: KeepCategory[] }> {
+  return json(
+    fetch(apiUrl("/api/keeps/categories"), { credentials: "include" }),
+    "Não foi possível carregar as categorias.",
+  );
+}
+
+export async function createKeepCategory(input: { name: string }): Promise<{ category: KeepCategory }> {
+  return json(
+    fetch(apiUrl("/api/keeps/categories"), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+    "Não foi possível criar a categoria.",
+  );
+}
+
+export async function patchKeepCategory(
+  id: string,
+  patch: Partial<{ name: string; position: number }>,
+): Promise<{ category: KeepCategory }> {
+  return json(
+    fetch(apiUrl(`/api/keeps/categories/${id}`), {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    }),
+    "Não foi possível atualizar a categoria.",
+  );
+}
+
+export async function deleteKeepCategory(id: string): Promise<void> {
+  await parseApiResponse(
+    await fetch(apiUrl(`/api/keeps/categories/${id}`), {
+      method: "DELETE",
+      credentials: "include",
+    }),
+    "Não foi possível excluir a categoria.",
   );
 }

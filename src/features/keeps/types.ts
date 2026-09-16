@@ -24,12 +24,23 @@ export type KeepNote = {
   trashedAt: string | null;
   source: string;
   color: string | null;
+  categoryId: string | null;
   importBatchId: string | null;
   position: number;
   createdAt: string;
   updatedAt: string;
   attachments: KeepAttachment[];
 };
+
+export type KeepCategory = {
+  id: string;
+  name: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KeepViewMode = "normal" | "categories";
 
 export const EMPTY_KEEP_DOC: KeepDoc = {
   type: "doc",

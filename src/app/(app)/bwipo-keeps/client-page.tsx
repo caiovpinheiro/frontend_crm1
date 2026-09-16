@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Archive, CirclePlay, Lightbulb, Trash2, Upload } from "lucide-react";
+import { Archive, CirclePlay, FolderPlus, Lightbulb, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/crm/empty-state";
@@ -13,26 +13,108 @@ import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { AppLoading } from "@/components/crm/app-loading";
 import { cn } from "@/lib/utils";
 import { KeepCard } from "@/features/keeps/keep-card";
-import { KeepBoard } from "@/features/keeps/keep-board";
+import { KeepBoard, type KeepBoardSection } from "@/features/keeps/keep-board";
 import { KeepComposer } from "@/features/keeps/keep-composer";
 import { KeepEditorDialog } from "@/features/keeps/keep-editor-dialog";
 import { GOOGLE_KEEP_TUTORIAL_PLAYER } from "@/features/keeps/keep-import-tutorial";
 import { KeepColorSwatches } from "@/features/keeps/keep-color-swatches";
 import { KEEP_NOTE_COLORS, type KeepNoteColorId } from "@/features/keeps/colors";
-import { useKeepMutations, useKeepNotes } from "@/features/keeps/hooks";
-import { EMPTY_KEEP_DOC, type KeepFolder, type KeepNote } from "@/features/keeps/types";
+import { useKeepCategories, useKeepMutations, useKeepNotes } from "@/features/keeps/hooks";
+import {
+  EMPTY_KEEP_DOC,
+  type KeepCategory,
+  type KeepFolder,
+  type KeepNote,
+  type KeepViewMode,
+} from "@/features/keeps/types";
+
+function CategorySectionHeader({
+  category,
+  onRename,
+  onDelete,
+  onAddNote,
+}: {
+  category: KeepCategory;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+  onAddNote: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(category.name);
+
+  return (
+    <div className="flex w-full min-w-0 items-center gap-2">
+      {editing ? (
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => {
+            const next = name.trim();
+            setEditing(false);
+            if (!next || next === category.name) {
+              setName(category.name);
+              return;
+            }
+            onRename(next);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") {
+              setName(category.name);
+              setEditing(false);
+            }
+          }}
+          className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-semibold text-foreground"
+        />
+      ) : (
+        <p className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">{category.name}</p>
+      )}
+      <button
+        type="button"
+        className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+        aria-label="Criar nota nesta categoria"
+        onClick={onAddNote}
+      >
+        <Plus className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+        aria-label="Renomear categoria"
+        onClick={() => {
+          setName(category.name);
+          setEditing(true);
+        }}
+      >
+        <Pencil className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-destructive"
+        aria-label="Excluir categoria"
+        onClick={onDelete}
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+    </div>
+  );
+}
 
 export default function BwipoKeepsClientPage() {
   const [folder, setFolder] = useState<KeepFolder>("notes");
+  const [viewMode, setViewMode] = useState<KeepViewMode>("normal");
   const [q, setQ] = useState("");
   const [colorFilter, setColorFilter] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [active, setActive] = useState<KeepNote | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const notesQuery = useKeepNotes(folder, q, colorFilter);
+  const categoriesQuery = useKeepCategories();
   const mut = useKeepMutations(folder, q, colorFilter);
 
   const items = notesQuery.data?.items ?? [];
+  const categories = categoriesQuery.data?.items ?? [];
   const usedColors = (notesQuery.data?.usedColors ?? []).filter((c): c is KeepNoteColorId =>
     KEEP_NOTE_COLORS.includes(c as KeepNoteColorId),
   );
@@ -40,6 +122,152 @@ export default function BwipoKeepsClientPage() {
   const showColorFilter = usedColors.length > 0 || hasUncolored;
   const pinned = useMemo(() => items.filter((n) => n.pinned), [items]);
   const rest = useMemo(() => items.filter((n) => !n.pinned), [items]);
+
+  const categoriesMode = folder === "notes" && viewMode === "categories";
+
+  const normalSections = useMemo<KeepBoardSection[]>(
+    () => [
+      {
+        key: "pinned",
+        label: "Fixadas",
+        notes: pinned,
+        showLabel: pinned.length > 0,
+      },
+      {
+        key: "others",
+        label: "Outras",
+        notes: rest,
+        showLabel: pinned.length > 0,
+      },
+    ],
+    [pinned, rest],
+  );
+
+  const categorySections = useMemo<KeepBoardSection[]>(() => {
+    const byCat = new Map<string, KeepNote[]>();
+    const uncategorized: KeepNote[] = [];
+    for (const note of items) {
+      if (note.categoryId) {
+        const list = byCat.get(note.categoryId) ?? [];
+        list.push(note);
+        byCat.set(note.categoryId, list);
+      } else {
+        uncategorized.push(note);
+      }
+    }
+    for (const list of byCat.values()) {
+      list.sort((a, b) => a.position - b.position);
+    }
+    uncategorized.sort((a, b) => a.position - b.position);
+
+    const sections: KeepBoardSection[] = categories.map((cat) => ({
+      key: cat.id,
+      label: cat.name,
+      notes: byCat.get(cat.id) ?? [],
+      alwaysShowLabel: true,
+      header: (
+        <CategorySectionHeader
+          category={cat}
+          onRename={(name) =>
+            mut.patchCategory.mutate(
+              { id: cat.id, patch: { name } },
+              {
+                onError: (err) =>
+                  toast.error(err instanceof Error ? err.message : "Não foi possível renomear."),
+              },
+            )
+          }
+          onDelete={() => {
+            if (!window.confirm(`Excluir a categoria "${cat.name}"? As notas vão para Sem categoria.`)) {
+              return;
+            }
+            mut.removeCategory.mutate(cat.id, {
+              onError: (err) =>
+                toast.error(err instanceof Error ? err.message : "Não foi possível excluir."),
+            });
+          }}
+          onAddNote={() => {
+            void (async () => {
+              try {
+                const created = await mut.create.mutateAsync({
+                  content: EMPTY_KEEP_DOC,
+                  categoryId: cat.id,
+                });
+                setActive(created.note);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Não foi possível criar a nota.");
+              }
+            })();
+          }}
+        />
+      ),
+    }));
+
+    sections.push({
+      key: "none",
+      label: "Sem categoria",
+      notes: uncategorized,
+      alwaysShowLabel: true,
+      header: (
+        <div className="flex w-full min-w-0 items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">
+            Sem categoria
+          </p>
+          <button
+            type="button"
+            className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            aria-label="Criar nota sem categoria"
+            onClick={() => {
+              void (async () => {
+                try {
+                  const created = await mut.create.mutateAsync({
+                    content: EMPTY_KEEP_DOC,
+                    categoryId: null,
+                  });
+                  setActive(created.note);
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Não foi possível criar a nota.");
+                }
+              })();
+            }}
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </div>
+      ),
+    });
+
+    return sections;
+  }, [categories, items, mut]);
+
+  function handleNormalReorder(secs: Array<{ key: string; notes: KeepNote[] }>) {
+    const pinnedIds = secs.find((s) => s.key === "pinned")?.notes.map((n) => n.id) ?? [];
+    const restIds = secs.find((s) => s.key === "others")?.notes.map((n) => n.id) ?? [];
+    mut.reorder.mutate(
+      [
+        ...pinnedIds.map((id, i) => ({ id, pinned: true, position: (i + 1) * 1000 })),
+        ...restIds.map((id, i) => ({ id, pinned: false, position: (i + 1) * 1000 })),
+      ],
+      {
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : "Não foi possível reordenar."),
+      },
+    );
+  }
+
+  function handleCategoryReorder(secs: Array<{ key: string; notes: KeepNote[] }>) {
+    const payload = secs.flatMap((s) =>
+      s.notes.map((n, i) => ({
+        id: n.id,
+        position: (i + 1) * 1000,
+        categoryId: s.key === "none" ? null : s.key,
+      })),
+    );
+    mut.reorder.mutate(payload, {
+      onError: (err) =>
+        toast.error(err instanceof Error ? err.message : "Não foi possível reordenar."),
+    });
+  }
 
   return (
     <div className={cn("v2-screen v2-screen-fill grid grid-cols-[var(--nav-rail-w,76px)_1fr] overflow-hidden bg-background")}>
@@ -69,15 +297,27 @@ export default function BwipoKeepsClientPage() {
                 title="Bwipo Keeps"
                 search={false}
                 actions={
-                  <HeaderPillToggle
-                    value={folder}
-                    onChange={setFolder}
-                    options={[
-                      { key: "notes", label: "Notas", icon: Lightbulb },
-                      { key: "archive", label: "Arquivo", icon: Archive },
-                      { key: "trash", label: "Lixeira", icon: Trash2 },
-                    ]}
-                  />
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {folder === "notes" ? (
+                      <HeaderPillToggle
+                        value={viewMode}
+                        onChange={setViewMode}
+                        options={[
+                          { key: "normal", label: "Keeps" },
+                          { key: "categories", label: "Categorias" },
+                        ]}
+                      />
+                    ) : null}
+                    <HeaderPillToggle
+                      value={folder}
+                      onChange={setFolder}
+                      options={[
+                        { key: "notes", label: "Notas", icon: Lightbulb },
+                        { key: "archive", label: "Arquivo", icon: Archive },
+                        { key: "trash", label: "Lixeira", icon: Trash2 },
+                      ]}
+                    />
+                  </div>
                 }
                 menuSlot={
                   <PageActionsMenu
@@ -147,9 +387,14 @@ export default function BwipoKeepsClientPage() {
         {folder === "notes" ? (
           <KeepComposer
             pending={mut.create.isPending}
-            onCreate={async ({ title, content, file }) => {
+            categories={categoriesMode ? categories : undefined}
+            onCreate={async ({ title, content, file, categoryId }) => {
               try {
-                const created = await mut.create.mutateAsync({ title, content: content ?? EMPTY_KEEP_DOC });
+                const created = await mut.create.mutateAsync({
+                  title,
+                  content: content ?? EMPTY_KEEP_DOC,
+                  ...(categoriesMode ? { categoryId: categoryId ?? null } : {}),
+                });
                 if (file) await mut.attach.mutateAsync({ noteId: created.note.id, file });
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : "Não foi possível salvar a nota.");
@@ -159,29 +404,53 @@ export default function BwipoKeepsClientPage() {
           />
         ) : null}
 
-        {notesQuery.isLoading ? (
+        {notesQuery.isLoading || (categoriesMode && categoriesQuery.isLoading) ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && !categoriesMode ? (
           <EmptyState
             icon={<Lightbulb className="size-7" />}
             title={q || colorFilter.length ? "Nenhuma nota encontrada" : folder === "trash" ? "Lixeira vazia" : folder === "archive" ? "Nada no arquivo" : "Nenhuma nota ainda"}
             description={q || colorFilter.length ? "Tente outro termo ou limpe o filtro de cor." : "Crie uma nota ou importe o ZIP do Google Keep."}
           />
+        ) : folder === "notes" && categoriesMode ? (
+          <div className="space-y-4">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted-foreground hover:border-primary hover:text-foreground"
+              onClick={() => {
+                const name = window.prompt("Nome da categoria");
+                if (!name?.trim()) return;
+                mut.createCategory.mutate(
+                  { name: name.trim() },
+                  {
+                    onError: (err) =>
+                      toast.error(err instanceof Error ? err.message : "Não foi possível criar."),
+                  },
+                );
+              }}
+            >
+              <FolderPlus className="size-4" />
+              Nova categoria
+            </button>
+            <KeepBoard
+              sections={categorySections}
+              onOpen={setActive}
+              onPin={(note) => mut.patch.mutate({ id: note.id, patch: { pinned: !note.pinned } })}
+              onArchive={(note) => mut.patch.mutate({ id: note.id, patch: { archived: true } })}
+              onTrash={(note) => mut.remove.mutate({ id: note.id })}
+              onColor={(note, color) => mut.patch.mutate({ id: note.id, patch: { color } })}
+              onReorder={handleCategoryReorder}
+            />
+          </div>
         ) : folder === "notes" ? (
           <KeepBoard
-            pinned={pinned}
-            rest={rest}
+            sections={normalSections}
             onOpen={setActive}
             onPin={(note) => mut.patch.mutate({ id: note.id, patch: { pinned: !note.pinned } })}
             onArchive={(note) => mut.patch.mutate({ id: note.id, patch: { archived: true } })}
             onTrash={(note) => mut.remove.mutate({ id: note.id })}
             onColor={(note, color) => mut.patch.mutate({ id: note.id, patch: { color } })}
-            onReorder={(items) => {
-              mut.reorder.mutate(items, {
-                onError: (err) =>
-                  toast.error(err instanceof Error ? err.message : "Não foi possível reordenar."),
-              });
-            }}
+            onReorder={handleNormalReorder}
           />
         ) : (
           <div className="space-y-6">

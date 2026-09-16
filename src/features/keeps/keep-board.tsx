@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { KeepCard } from "./keep-card";
@@ -8,7 +8,16 @@ import type { KeepNote } from "./types";
 
 const GRID = "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
 
-type Zone = "pinned" | "others";
+export type KeepBoardSection = {
+  key: string;
+  label: string;
+  notes: KeepNote[];
+  /** Controla o rótulo quando não há header custom. Default: há notas. */
+  showLabel?: boolean;
+  alwaysShowLabel?: boolean;
+  header?: ReactNode;
+  footer?: ReactNode;
+};
 
 type DragLive = {
   id: string;
@@ -21,12 +30,15 @@ type DragLive = {
   grabY: number;
 };
 
-function positions(ids: string[], pinned: boolean) {
-  return ids.map((id, i) => ({ id, pinned, position: (i + 1) * 1000 }));
-}
-
 function sameOrder(a: KeepNote[], b: KeepNote[]) {
   return a.length === b.length && a.every((n, i) => n.id === b[i]?.id);
+}
+
+function sameSections(
+  a: Array<{ key: string; notes: KeepNote[] }>,
+  b: Array<{ key: string; notes: KeepNote[] }>,
+) {
+  return a.length === b.length && a.every((s, i) => s.key === b[i]?.key && sameOrder(s.notes, b[i].notes));
 }
 
 /** Índice de inserção 2D (grade): slot sob o ponteiro, não só linha/coluna. */
@@ -46,80 +58,98 @@ function insertIndexAtPoint(x: number, y: number, els: HTMLElement[]): number {
   return els.length;
 }
 
-function zoneFromPoint(x: number, y: number, pinnedEl: HTMLElement | null, othersEl: HTMLElement | null): Zone {
-  const pr = pinnedEl?.getBoundingClientRect();
-  const or = othersEl?.getBoundingClientRect();
-  if (pr && x >= pr.left && x <= pr.right && y >= pr.top && y <= pr.bottom) return "pinned";
-  if (or && x >= or.left && x <= or.right && y >= or.top && y <= or.bottom) return "others";
-  if (pr && y < (or?.top ?? pr.bottom + 40)) return "pinned";
-  return "others";
+function sectionKeyFromPoint(
+  x: number,
+  y: number,
+  refs: Map<string, HTMLElement | null>,
+  order: string[],
+): string {
+  for (const key of order) {
+    const el = refs.get(key);
+    const r = el?.getBoundingClientRect();
+    if (r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return key;
+  }
+  let best = order[order.length - 1] ?? order[0];
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const key of order) {
+    const el = refs.get(key);
+    const r = el?.getBoundingClientRect();
+    if (!r) continue;
+    const cy = (r.top + r.bottom) / 2;
+    const dist = Math.abs(y - cy);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = key;
+    }
+  }
+  return best;
 }
 
 export function KeepBoard({
-  pinned,
-  rest,
+  sections,
   onOpen,
   onPin,
   onArchive,
   onTrash,
-  onReorder,
   onColor,
+  onReorder,
 }: {
-  pinned: KeepNote[];
-  rest: KeepNote[];
+  sections: KeepBoardSection[];
   onOpen: (note: KeepNote) => void;
-  onPin: (note: KeepNote) => void;
+  onPin?: (note: KeepNote) => void;
   onArchive: (note: KeepNote) => void;
   onTrash: (note: KeepNote) => void;
-  onReorder: (items: Array<{ id: string; pinned: boolean; position: number }>) => void;
+  onReorder: (sections: Array<{ key: string; notes: KeepNote[] }>) => void;
   onColor: (note: KeepNote, color: string | null) => void;
 }) {
-  const [livePinned, setPinned] = useState(pinned);
-  const [liveRest, setRest] = useState(rest);
+  const [live, setLive] = useState(sections);
   const [drag, setDrag] = useState<DragLive | null>(null);
   const skipOpen = useRef(false);
   const start = useRef<{ id: string; x: number; y: number } | null>(null);
-  const origin = useRef<{ pinned: KeepNote[]; rest: KeepNote[] } | null>(null);
-  const pinnedRef = useRef<HTMLDivElement>(null);
-  const othersRef = useRef<HTMLDivElement>(null);
-  const livePinnedRef = useRef(livePinned);
-  const liveRestRef = useRef(liveRest);
-  livePinnedRef.current = livePinned;
-  liveRestRef.current = liveRest;
+  const origin = useRef<Array<{ key: string; notes: KeepNote[] }> | null>(null);
+  const zoneRefs = useRef(new Map<string, HTMLElement | null>());
+  const liveRef = useRef(live);
+  liveRef.current = live;
 
   useEffect(() => {
     if (drag) return;
-    setPinned(pinned);
-    setRest(rest);
-  }, [pinned, rest, drag]);
+    setLive(sections);
+  }, [sections, drag]);
 
   function handleOpen(note: KeepNote) {
     if (skipOpen.current) return;
     onOpen(note);
   }
 
-  function placeAt(id: string, zone: Zone, index: number, lists: { pinned: KeepNote[]; rest: KeepNote[] }) {
-    const all = [...lists.pinned, ...lists.rest];
+  function placeAt(
+    id: string,
+    zoneKey: string,
+    index: number,
+    lists: Array<{ key: string; notes: KeepNote[]; meta?: KeepBoardSection }>,
+  ) {
+    const all = lists.flatMap((s) => s.notes);
     const note = all.find((n) => n.id === id);
     if (!note) return lists;
-    const nextPinned = lists.pinned.filter((n) => n.id !== id);
-    const nextRest = lists.rest.filter((n) => n.id !== id);
-    const dest = zone === "pinned" ? nextPinned : nextRest;
-    dest.splice(Math.max(0, Math.min(index, dest.length)), 0, note);
-    return { pinned: nextPinned, rest: nextRest };
+    return lists.map((s) => {
+      const nextNotes = s.notes.filter((n) => n.id !== id);
+      if (s.key === zoneKey) {
+        nextNotes.splice(Math.max(0, Math.min(index, nextNotes.length)), 0, note);
+      }
+      return { ...s, notes: nextNotes };
+    });
   }
 
   function applyPoint(id: string, x: number, y: number) {
-    const zone = zoneFromPoint(x, y, pinnedRef.current, othersRef.current);
-    const root = zone === "pinned" ? pinnedRef.current : othersRef.current;
+    const order = liveRef.current.map((s) => s.key);
+    const zoneKey = sectionKeyFromPoint(x, y, zoneRefs.current, order);
+    const root = zoneRefs.current.get(zoneKey) ?? null;
     const els = [...(root?.querySelectorAll<HTMLElement>("[data-keep-id]") ?? [])].filter(
       (el) => el.dataset.keepId !== id && !el.closest("[data-keep-float]"),
     );
     const index = insertIndexAtPoint(x, y, els);
-    const next = placeAt(id, zone, index, { pinned: livePinnedRef.current, rest: liveRestRef.current });
-    if (sameOrder(next.pinned, livePinnedRef.current) && sameOrder(next.rest, liveRestRef.current)) return;
-    setPinned(next.pinned);
-    setRest(next.rest);
+    const next = placeAt(id, zoneKey, index, liveRef.current);
+    if (sameSections(next, liveRef.current)) return;
+    setLive(next);
   }
 
   function onCardPointerDown(note: KeepNote, event: ReactPointerEvent) {
@@ -134,7 +164,7 @@ export function KeepBoard({
       if (!origin.current) {
         if (dx * dx + dy * dy < 64) return;
         skipOpen.current = true;
-        origin.current = { pinned: livePinnedRef.current, rest: liveRestRef.current };
+        origin.current = liveRef.current.map((sec) => ({ key: sec.key, notes: sec.notes }));
         document.body.style.userSelect = "none";
         const r = target.getBoundingClientRect();
         setDrag({
@@ -153,11 +183,7 @@ export function KeepBoard({
           /* ignore */
         }
       }
-      setDrag((d) =>
-        d
-          ? { ...d, x: e.clientX - d.grabX, y: e.clientY - d.grabY }
-          : d,
-      );
+      setDrag((d) => (d ? { ...d, x: e.clientX - d.grabX, y: e.clientY - d.grabY } : d));
       applyPoint(note.id, e.clientX, e.clientY);
     };
     const up = () => {
@@ -166,8 +192,7 @@ export function KeepBoard({
       window.removeEventListener("pointercancel", up);
       const started = Boolean(origin.current);
       const before = origin.current;
-      const afterPinned = livePinnedRef.current;
-      const afterRest = liveRestRef.current;
+      const after = liveRef.current.map((sec) => ({ key: sec.key, notes: sec.notes }));
       start.current = null;
       origin.current = null;
       document.body.style.userSelect = "";
@@ -177,17 +202,8 @@ export function KeepBoard({
         skipOpen.current = false;
       }, 160);
       if (!before) return;
-      if (sameOrder(before.pinned, afterPinned) && sameOrder(before.rest, afterRest)) return;
-      onReorder([
-        ...positions(
-          afterPinned.map((n) => n.id),
-          true,
-        ),
-        ...positions(
-          afterRest.map((n) => n.id),
-          false,
-        ),
-      ]);
+      if (sameSections(before, after)) return;
+      onReorder(after);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -196,46 +212,45 @@ export function KeepBoard({
 
   return (
     <div className="space-y-6">
-      <section>
-        {livePinned.length > 0 || drag ? (
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">Fixadas</p>
-        ) : null}
-        <div ref={pinnedRef} className={livePinned.length === 0 ? "min-h-10" : GRID}>
-          {livePinned.map((note) => (
-            <KeepCard
-              key={note.id}
-              note={note}
-              ghost={drag?.id === note.id}
-              onOpen={() => handleOpen(note)}
-              onPin={() => onPin(note)}
-              onArchive={() => onArchive(note)}
-              onTrash={() => onTrash(note)}
-              onColor={(color) => onColor(note, color)}
-              onMovePointerDown={(e) => onCardPointerDown(note, e)}
-            />
-          ))}
-        </div>
-      </section>
-      <section>
-        {livePinned.length > 0 ? (
-          <p className="mb-2 text-xs font-semibold text-muted-foreground">Outras</p>
-        ) : null}
-        <div ref={othersRef} className={liveRest.length === 0 ? "min-h-10" : GRID}>
-          {liveRest.map((note) => (
-            <KeepCard
-              key={note.id}
-              note={note}
-              ghost={drag?.id === note.id}
-              onOpen={() => handleOpen(note)}
-              onPin={() => onPin(note)}
-              onArchive={() => onArchive(note)}
-              onTrash={() => onTrash(note)}
-              onColor={(color) => onColor(note, color)}
-              onMovePointerDown={(e) => onCardPointerDown(note, e)}
-            />
-          ))}
-        </div>
-      </section>
+      {live.map((section) => {
+        const showLabel =
+          section.alwaysShowLabel ||
+          Boolean(section.header) ||
+          Boolean(drag) ||
+          (section.showLabel ?? section.notes.length > 0);
+        return (
+          <section key={section.key}>
+            {showLabel ? (
+              <div className="mb-2 flex min-h-6 items-center justify-between gap-2">
+                {section.header ?? (
+                  <p className="text-xs font-semibold text-muted-foreground">{section.label}</p>
+                )}
+              </div>
+            ) : null}
+            <div
+              ref={(el) => {
+                zoneRefs.current.set(section.key, el);
+              }}
+              className={section.notes.length === 0 ? "min-h-10" : GRID}
+            >
+              {section.notes.map((note) => (
+                <KeepCard
+                  key={note.id}
+                  note={note}
+                  ghost={drag?.id === note.id}
+                  onOpen={() => handleOpen(note)}
+                  onPin={onPin ? () => onPin(note) : undefined}
+                  onArchive={() => onArchive(note)}
+                  onTrash={() => onTrash(note)}
+                  onColor={(color) => onColor(note, color)}
+                  onMovePointerDown={(e) => onCardPointerDown(note, e)}
+                />
+              ))}
+            </div>
+            {section.footer}
+          </section>
+        );
+      })}
       {drag && typeof document !== "undefined"
         ? createPortal(
             <div
