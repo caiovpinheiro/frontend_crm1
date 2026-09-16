@@ -1450,31 +1450,33 @@ export default function InboxRefatorado() {
           onNew={handleNew}
         />
 
-        <List
-          emails={emails}
-          activeId={selectedEmailId}
-          setActiveId={setSelectedEmailId}
-          selected={selected}
-          setSelected={setSelected}
-          folderLabel={folderLabel}
-          folderUnread={folderUnread}
-          loading={emailsLoading}
-          hasMore={hasMore}
-          onLoadMore={loadMore}
-          onRefresh={refreshAll}
-          total={pagination?.total}
-          search={search}
-          onSearch={setSearch}
-          unreadOnly={unreadOnly}
-          onUnreadOnly={setUnreadOnly}
-          onOpenReply={handleOpenReply}
-          onArchive={handleArchive}
-          onSpam={handleSpam}
-          onTrash={handleTrash}
-        />
+        {!composing && (
+          <List
+            emails={emails}
+            activeId={selectedEmailId}
+            setActiveId={setSelectedEmailId}
+            selected={selected}
+            setSelected={setSelected}
+            folderLabel={folderLabel}
+            folderUnread={folderUnread}
+            loading={emailsLoading}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            onRefresh={refreshAll}
+            total={pagination?.total}
+            search={search}
+            onSearch={setSearch}
+            unreadOnly={unreadOnly}
+            onUnreadOnly={setUnreadOnly}
+            onOpenReply={handleOpenReply}
+            onArchive={handleArchive}
+            onSpam={handleSpam}
+            onTrash={handleTrash}
+          />
+        )}
 
         {composing ? (
-          <div style={{ flex: "1 0 520px", minWidth: 520, borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ flex: "1 0 720px", minWidth: 720, borderRadius: 14, overflow: "hidden" }}>
             <ComposeView
               accounts={composeAccounts.length > 0 ? composeAccounts : accounts}
               draft={composeDraft}
