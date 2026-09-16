@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { ensureNotificationPermission } from "@/lib/native/permissions";
 import type { TeamChatMessage } from "@/features/team-chat/types";
 
 export type InboxMessageToastPayload = {
@@ -59,6 +60,31 @@ export function useMessageToast() {
   const ctx = useContext(MessageToastContext);
   if (!ctx) throw new Error("useMessageToast must be used within MessageToastProvider");
   return ctx;
+}
+
+async function showNativeNotificationIfNeeded(
+  title: string,
+  options: NotificationOptions & { data?: Record<string, unknown> },
+) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (document.visibilityState === "visible") return;
+
+  if (Notification.permission === "default") {
+    const res = await ensureNotificationPermission();
+    if (!res.ok) return;
+  }
+  if (Notification.permission !== "granted") return;
+
+  try {
+    new Notification(title, {
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      requireInteraction: false,
+      ...options,
+    });
+  } catch {
+    // Fallback silencioso: o toast ainda está visível dentro do app.
+  }
 }
 
 function contactInitials(name?: string | null): string {
@@ -268,6 +294,16 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     const last = recentRef.current.get(dedupKey);
     if (last && now - last < 4000) return;
     recentRef.current.set(dedupKey, now);
+
+    // Notificação nativa do sistema quando a aba não está visível.
+    const authorName = payload.message.author?.name || "Bwipo Chat";
+    const roomName = payload.roomName || "Bwipo Chat";
+    void showNativeNotificationIfNeeded(`${authorName} · ${roomName}`, {
+      body: formatTeamChatPreview(payload.message),
+      tag: dedupKey,
+      data: { url: `/bwipo-chat?room=${roomId}` },
+      icon: payload.roomAvatarUrl || "/icon.svg",
+    });
 
     const id = `${dedupKey}:${now}`;
     setToasts((prev) => {
