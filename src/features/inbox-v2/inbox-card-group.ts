@@ -1,5 +1,8 @@
 import type { ConversationListRow } from "./api";
-import { inboxQueueSectionPriority } from "./inbox-queue-tab";
+import {
+  inboxQueueSectionPriority,
+  inboxQueueTabFor,
+} from "./inbox-queue-tab";
 
 /**
  * Agrupamento do card na inbox: 1 por contato + plataforma.
@@ -33,13 +36,25 @@ export function sameInboxCardGroup(
   return channelKey(a.channel) === channelKey(b.channel);
 }
 
+export function isClosedInboxRow(row: ConversationListRow): boolean {
+  return row.status === "RESOLVED" || Boolean(row.closedAt);
+}
+
 export function preferInboxCardRow(
   a: ConversationListRow,
   b: ConversationListRow,
 ): ConversationListRow {
-  const aPri = inboxQueueSectionPriority(a.queueTab ?? undefined);
-  const bPri = inboxQueueSectionPriority(b.queueTab ?? undefined);
-  let winner = bPri < aPri ? b : aPri < bPri ? a : activityTs(b) >= activityTs(a) ? b : a;
+  const aClosed = isClosedInboxRow(a);
+  const bClosed = isClosedInboxRow(b);
+  let winner: ConversationListRow;
+  if (aClosed !== bClosed) {
+    winner = aClosed ? b : a;
+  } else {
+    const aPri = inboxQueueSectionPriority(a.queueTab ?? inboxQueueTabFor(a));
+    const bPri = inboxQueueSectionPriority(b.queueTab ?? inboxQueueTabFor(b));
+    winner =
+      bPri < aPri ? b : aPri < bPri ? a : activityTs(b) >= activityTs(a) ? b : a;
+  }
   const loser = winner.id === a.id ? b : a;
   return {
     ...winner,
