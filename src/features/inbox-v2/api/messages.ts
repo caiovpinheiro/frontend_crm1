@@ -51,6 +51,7 @@ export async function getMessages(
   const q = params.size > 0 ? `?${params.toString()}` : "";
   const res = await fetch(
     apiUrl(`/api/conversations/${conversationId}/messages${q}`),
+    { cache: "no-store" },
   );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
