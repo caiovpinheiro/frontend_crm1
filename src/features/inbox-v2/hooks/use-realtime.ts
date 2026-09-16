@@ -17,12 +17,14 @@ import {
   tabMoved,
 } from "../inbox-queue-tab";
 import {
+  isClosedInboxRow,
   mergeInboxCardRow,
   sameInboxCardGroup,
 } from "../inbox-card-group";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
 import {
   findCachedConversationRow,
+  findOpenInboxGroupSibling,
   patchInboxTabCounts,
   scheduleActiveAutomationQueue,
 } from "./apply-outbound-inbox-card";
@@ -134,7 +136,17 @@ function patchInboxConversationCard(
       : new Date().toISOString();
   const content = typeof data.content === "string" ? data.content : "";
 
-  const conv = findCachedConversationRow(qc, data.conversationId);
+  let conv = findCachedConversationRow(qc, data.conversationId);
+  if (!conv && data.card?.id) {
+    conv = findCachedConversationRow(qc, data.card.id);
+  }
+  // Inbound/outbound num ticket já encerrado: o card visível é o OPEN
+  // do mesmo contato+canal. Sem isto o SSE prepende o encerrado em Todas.
+  if (conv && isClosedInboxRow(conv)) {
+    const live = findOpenInboxGroupSibling(qc, data.card ?? conv);
+    if (live) conv = live;
+    else return { found: true, tabMoved: false, fromTab: null, toTab: null };
+  }
   if (!conv) return { found: false, tabMoved: false, fromTab: null, toTab: null };
 
   const prevTab = inboxQueueTabFor(conv);
@@ -952,6 +964,9 @@ function applyConversationRowToInboxCaches(
     }
 
     if (!found && belongs && canSafelyPrependToQuery(mergedRow, queryKey)) {
+      if (isClosedInboxRow(mergedRow) && !tabs.every((t) => t === "finalizados")) {
+        continue;
+      }
       let siblingRemoved = 0;
       const pages = cached.pages.map((page, pageIdx) => {
         const items = page?.items ?? [];
@@ -1183,7 +1198,19 @@ export function useInboxRealtime(options: {
             // Timeline fora da 1ª página: não relista nem re-agrega.
           } else if (data.conversationId) {
             const snapshot = conversationRowFromSsePayload(raw);
-            if (snapshot) {
+            if (snapshot && isClosedInboxRow(snapshot)) {
+              const live = findOpenInboxGroupSibling(qc, snapshot);
+              if (live) {
+                applyConversationRowToInboxCaches(qc, {
+                  ...live,
+                  lastMessageAt: snapshot.lastMessageAt ?? live.lastMessageAt,
+                  lastMessagePreview:
+                    snapshot.lastMessagePreview ?? live.lastMessagePreview,
+                  lastMessageDirection:
+                    snapshot.lastMessageDirection ?? live.lastMessageDirection,
+                });
+              }
+            } else if (snapshot) {
               applyConversationRowToInboxCaches(qc, snapshot);
             } else if (newMessageLikelyOnTabs(activeInboxListTabs(qc), data)) {
               scheduleMissingCardHydrate(
