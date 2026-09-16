@@ -515,22 +515,56 @@ export function Composer({
     });
   }
 
-  // Ponte: botões da lateral (ex. "Enviar produto" de curso) empurram texto
+  // Ponte: botões da lateral (ex. "Enviar produto") empurram texto (+ mídia)
   // pra cá sem prop-drilling pelo ContactAside.
   // No mobile o Chat pode estar desmontado (aba Negócio) — nesse caso o
-  // texto fica em `takePendingComposerInsert` e é aplicado ao montar.
+  // payload fica em `takePendingComposerInsert` e é aplicado ao montar.
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
   useEffect(() => {
-    function applyInsert(text: string) {
-      if (!text.trim()) return;
+    function applyInsert(payload: {
+      text?: string;
+      media?: Array<{
+        url: string;
+        name?: string | null;
+        mimeType?: string | null;
+        sendBeforeText?: boolean;
+      }>;
+    }) {
+      const text = typeof payload?.text === "string" ? payload.text : "";
+      const media = Array.isArray(payload?.media)
+        ? payload.media
+            .filter((m) => typeof m?.url === "string" && m.url.trim())
+            .map((m) => ({
+              url: m.url.trim(),
+              name: m.name ?? null,
+              mimeType: m.mimeType ?? null,
+            }))
+        : [];
+      if (!text.trim() && media.length === 0) return;
+      if (text.trim()) {
+        const current = (draftRef.current || "").trimEnd();
+        const incoming = text.trim();
+        if (!(current === incoming || current.endsWith(incoming))) {
+          insertTemplateTextRef.current(text);
+        }
+      }
+      if (media.length > 0) {
+        setPendingMediaList((prev) => [...prev, ...media]);
+      }
       clearPendingComposerInsert();
-      insertTemplateTextRef.current(text);
     }
     function onInsert(e: Event) {
-      const detail = (e as CustomEvent<{ text?: string }>).detail;
-      const text = typeof detail?.text === "string" ? detail.text : "";
-      applyInsert(text);
+      const detail = (e as CustomEvent<{
+        text?: string;
+        media?: Array<{
+          url: string;
+          name?: string | null;
+          mimeType?: string | null;
+          sendBeforeText?: boolean;
+        }>;
+      }>).detail;
+      applyInsert(detail ?? {});
     }
     window.addEventListener(COMPOSER_INSERT_EVENT, onInsert as EventListener);
     const pending = takePendingComposerInsert();
