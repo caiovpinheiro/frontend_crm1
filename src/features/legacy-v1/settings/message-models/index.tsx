@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/api";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconUpload as Upload, IconHierarchy as Workflow, IconTool as Wrench } from "@tabler/icons-react";
+import { IconBolt as Bolt, IconCircleCheck as CheckCircle2, IconChevronRight as ChevronRight, IconClock as Clock, IconDownload as Download, IconFileText as FileText, IconInfoCircle as Info, IconTemplate as LayoutTemplate, IconLoader2 as Loader2, IconMessageCircle as MessageCircle, IconPlus as Plus, IconSearch as Search, IconTrash as Trash2, IconUpload as Upload, IconHierarchy as Workflow, IconTool as Wrench } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/form-dialog";
 import InternalTemplatesPage from "../templates";
 import WhatsAppTemplatesPage from "../whatsapp-templates";
+import { QuickMessagesTab } from "@/features/conversations-settings/components/QuickMessagesTab";
 import {
   HubCallout,
   HubPanel,
@@ -109,7 +110,9 @@ export default function MessageModelsHubPage() {
   const [repairResult, setRepairResult] = React.useState<RepairMediaResult | null>(null);
 
   const tab = searchParams.get("tab") ?? "overview";
-  const validTab = ["overview", "internal", "whatsapp", "flows"].includes(tab) ? tab : "overview";
+  const validTab = ["overview", "internal", "quick", "whatsapp", "flows"].includes(tab)
+    ? tab
+    : "overview";
 
   const { data: permissionsPanel } = useQuery<{ permissionKeys: string[] }>({
     queryKey: ["settings-permissions-panel"],
@@ -129,8 +132,28 @@ export default function MessageModelsHubPage() {
   const canSubmitMeta = isGestor || perms.has("*") || perms.has("template:submit_meta");
   const canViewTemplates = isGestor || perms.has("*") || perms.has("template:view");
 
+  const { data: quickReplies = [], isLoading: loadingQuick } = useQuery({
+    queryKey: ["settings", "quick-replies"],
+    queryFn: async () => {
+      const r = await fetch(apiUrl("/api/settings/quick-replies"));
+      if (!r.ok) throw new Error("Falha ao carregar mensagens rápidas");
+      return r.json() as Promise<
+        Array<{
+          id: string;
+          title: string;
+          content: string;
+          groupId: string | null;
+          group: { id: string; name: string } | null;
+          attachmentUrl: string | null;
+          position: number;
+        }>
+      >;
+    },
+  });
+
   const safeTab = React.useMemo(() => {
     if (validTab === "internal" && !canViewTemplates) return "overview";
+    if (validTab === "quick" && !canViewTemplates) return "overview";
     if ((validTab === "whatsapp" || validTab === "flows") && !canSubmitMeta) return "overview";
     return validTab;
   }, [validTab, canViewTemplates, canSubmitMeta]);
@@ -325,16 +348,17 @@ export default function MessageModelsHubPage() {
   });
 
   const [ovQuery, setOvQuery] = React.useState("");
-  const [ovFilter, setOvFilter] = React.useState<"all" | "interno" | "waba" | "flow">("all");
+  const [ovFilter, setOvFilter] = React.useState<"all" | "interno" | "quick" | "waba" | "flow">("all");
   const [flowQuery, setFlowQuery] = React.useState("");
   const [flowFilter, setFlowFilter] = React.useState<"all" | "PUBLISHED" | "DRAFT">("all");
 
   const metaRows = metaPage?.data ?? [];
   const metaLoaded = !!metaPage;
   const internalCount = internals.length;
+  const quickCount = quickReplies.length;
   const metaCount = metaRows.length;
   const flowCount = flows.length;
-  const totalCount = internalCount + metaCount + flowCount;
+  const totalCount = internalCount + quickCount + metaCount + flowCount;
   const metaApproved = metaRows.filter((r) => r.status === "APPROVED").length;
   const metaPending = metaRows.filter(
     (r) => r.status === "PENDING" || r.status === "PENDING_APPROVAL",
@@ -349,6 +373,7 @@ export default function MessageModelsHubPage() {
     ];
     if (canViewTemplates) {
       items.push({ key: "internal", label: "Internos", badge: internalCount });
+      items.push({ key: "quick", label: "Rápidas", badge: quickCount });
     }
     if (canSubmitMeta) {
       items.push({
@@ -359,13 +384,13 @@ export default function MessageModelsHubPage() {
       items.push({ key: "flows", label: "Flows", badge: flowCount });
     }
     return items;
-  }, [canViewTemplates, canSubmitMeta, totalCount, internalCount, metaLoaded, metaCount, flowCount]);
+  }, [canViewTemplates, canSubmitMeta, totalCount, internalCount, quickCount, metaLoaded, metaCount, flowCount]);
 
   const overviewRows = React.useMemo(() => {
     const q = ovQuery.trim().toLowerCase();
     type OvRow = {
       key: string;
-      type: "interno" | "waba" | "flow";
+      type: "interno" | "quick" | "waba" | "flow";
       name: string;
       preview: string;
       vars: string[];
@@ -387,6 +412,21 @@ export default function MessageModelsHubPage() {
           statusLabel: "Modelo interno",
           channel: [t.category, t.channelType].filter(Boolean).join(" · ") || "Interno · todos os canais",
           onOpen: () => setTab("internal"),
+        });
+      }
+    }
+    if (ovFilter === "all" || ovFilter === "quick") {
+      for (const q of quickReplies) {
+        out.push({
+          key: `quick-${q.id}`,
+          type: "quick",
+          name: q.title,
+          preview: q.content ?? "",
+          vars: [],
+          statusKind: "none",
+          statusLabel: "Mensagem rápida",
+          channel: q.group?.name ? `Rápida · ${q.group.name}` : "Rápida",
+          onOpen: () => setTab("quick"),
         });
       }
     }
@@ -430,7 +470,7 @@ export default function MessageModelsHubPage() {
     return out.filter(
       (r) => r.name.toLowerCase().includes(q) || r.preview.toLowerCase().includes(q),
     );
-  }, [internals, metaRows, flows, ovFilter, ovQuery, router, setTab]);
+  }, [internals, quickReplies, metaRows, flows, ovFilter, ovQuery, router, setTab]);
 
   const flowRows = React.useMemo(() => {
     const q = flowQuery.trim().toLowerCase();
@@ -480,6 +520,7 @@ export default function MessageModelsHubPage() {
               options: [
                 { value: "all", label: "Todos os canais", count: totalCount },
                 { value: "interno", label: "Interno", count: internalCount },
+                { value: "quick", label: "Rápidas", count: quickCount },
                 { value: "waba", label: "WhatsApp", count: metaCount },
                 { value: "flow", label: "Flow", count: flowCount },
               ],
@@ -528,6 +569,7 @@ export default function MessageModelsHubPage() {
     canSubmitMeta,
     totalCount,
     internalCount,
+    quickCount,
     metaCount,
     flowCount,
     flowPublished,
@@ -602,11 +644,13 @@ export default function MessageModelsHubPage() {
     const tabTourId: TourId =
       safeTab === "internal"
         ? "message-models-internal"
-        : safeTab === "whatsapp"
-          ? "message-models-whatsapp"
-          : safeTab === "flows"
-            ? "message-models-flows"
-            : "message-models";
+        : safeTab === "quick"
+          ? "message-models"
+          : safeTab === "whatsapp"
+            ? "message-models-whatsapp"
+            : safeTab === "flows"
+              ? "message-models-flows"
+              : "message-models";
     return (
       <div className="flex items-center gap-2">
         <PageTourButton tourId={tabTourId} />
@@ -645,6 +689,13 @@ export default function MessageModelsHubPage() {
       value: internalCount.toLocaleString("pt-BR"),
       icon: <FileText className="size-5" />,
       tone: "violet" as const,
+    },
+    {
+      key: "quick",
+      label: "Rápidas",
+      value: quickCount.toLocaleString("pt-BR"),
+      icon: <MessageCircle className="size-5" />,
+      tone: "warning" as const,
     },
     {
       key: "wa-approved",
@@ -756,7 +807,7 @@ export default function MessageModelsHubPage() {
             </div>
           </section>
 
-          {loadingInt || loadingMeta || loadingFlows ? (
+          {loadingInt || loadingQuick || loadingMeta || loadingFlows ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Skeleton className="h-[92px] w-full rounded-[var(--radius-lg)]" />
               <Skeleton className="h-[92px] w-full rounded-[var(--radius-lg)]" />
@@ -844,6 +895,13 @@ export default function MessageModelsHubPage() {
           <InternalTemplatesPage embedded />
         ) : (
           <p className="text-sm text-[var(--text-muted)]">Sem permissão para modelos internos.</p>
+        ))}
+
+      {safeTab === "quick" &&
+        (canViewTemplates ? (
+          <QuickMessagesTab embedded />
+        ) : (
+          <p className="text-sm text-[var(--text-muted)]">Sem permissão para mensagens rápidas.</p>
         ))}
 
       {safeTab === "whatsapp" &&
@@ -1202,6 +1260,12 @@ const OVERVIEW_GROUPS = [
     title: "Internos",
     icon: <FileText className="size-[17px]" />,
     badge: "bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]",
+  },
+  {
+    type: "quick",
+    title: "Rápidas",
+    icon: <Bolt className="size-[17px]" />,
+    badge: "bg-[var(--color-warn-bg)] text-[var(--color-warn)]",
   },
   {
     type: "waba",

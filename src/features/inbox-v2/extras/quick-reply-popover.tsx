@@ -13,20 +13,7 @@ import {
 } from "@/features/conversations-settings/hooks/use-quick-replies";
 import { cn } from "@/lib/utils";
 
-import {
-  DEFAULT_QUICK_REPLIES,
-  QUICK_REPLY_GROUP_ORDER,
-  QUICK_REPLY_PINNED_IDS,
-  normalizeQuickReplyKey,
-  type QuickReplyCatalogItem,
-} from "./quick-reply-catalog";
-
-const PINNED_CONTENT_KEYS = new Set(
-  QUICK_REPLY_PINNED_IDS.map((id) => {
-    const row = DEFAULT_QUICK_REPLIES.find((item) => item.id === id);
-    return normalizeQuickReplyKey(row?.content ?? "");
-  }).filter(Boolean),
-);
+import { type QuickReplyCatalogItem } from "./quick-reply-catalog";
 
 function fromSettings(row: QuickReply): QuickReplyCatalogItem | null {
   const content = (row.content ?? "").trim();
@@ -43,8 +30,7 @@ function fromSettings(row: QuickReply): QuickReplyCatalogItem | null {
 function groupOrder(name: string, groups: QuickReplyGroup[]): number {
   const fromSettingsOrder = groups.find((g) => g.name === name)?.order;
   if (typeof fromSettingsOrder === "number") return fromSettingsOrder;
-  const i = (QUICK_REPLY_GROUP_ORDER as readonly string[]).indexOf(name);
-  return i >= 0 ? i : QUICK_REPLY_GROUP_ORDER.length + 50;
+  return Number.MAX_SAFE_INTEGER;
 }
 
 export function QuickReplyPopover({
@@ -67,6 +53,7 @@ export function QuickReplyPopover({
       return value;
     });
   }
+
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -76,12 +63,13 @@ export function QuickReplyPopover({
   const groupsQ = useQuickReplyGroups();
   const settingGroups = groupsQ.data ?? [];
 
-  const items = useMemo(() => {
-    const fromOrg = (repliesQ.data ?? [])
-      .map(fromSettings)
-      .filter((item): item is QuickReplyCatalogItem => !!item);
-    return fromOrg.length > 0 ? fromOrg : DEFAULT_QUICK_REPLIES;
-  }, [repliesQ.data]);
+  const items = useMemo(
+    () =>
+      (repliesQ.data ?? [])
+        .map(fromSettings)
+        .filter((item): item is QuickReplyCatalogItem => !!item),
+    [repliesQ.data],
+  );
 
   const groups = useMemo(() => {
     const names = new Set<string>();
@@ -90,14 +78,6 @@ export function QuickReplyPopover({
       (a, b) => groupOrder(a, settingGroups) - groupOrder(b, settingGroups),
     );
   }, [items, settingGroups]);
-
-  const pinned = useMemo(
-    () =>
-      items
-        .filter((item) => PINNED_CONTENT_KEYS.has(normalizeQuickReplyKey(item.content)))
-        .slice(0, 4),
-    [items],
-  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -205,22 +185,6 @@ export function QuickReplyPopover({
             </label>
           </div>
 
-          {!query && !group && pinned.length > 0 && (
-            <div className="flex flex-wrap gap-1 border-b border-[var(--glass-border)] px-3 py-2">
-              {pinned.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  disabled={sending}
-                  onClick={() => void pick(item)}
-                  className="max-w-full truncate rounded-full bg-[var(--brand-primary)]/10 px-2.5 py-1 font-display text-[11.5px] font-semibold text-[var(--brand-primary)] transition-colors hover:bg-[var(--brand-primary)] hover:text-white disabled:opacity-50"
-                >
-                  {item.title}
-                </button>
-              ))}
-            </div>
-          )}
-
           <div className="flex gap-1 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Chip active={!group} onClick={() => setGroup(null)}>
               Todas
@@ -233,13 +197,13 @@ export function QuickReplyPopover({
           </div>
 
           <div className="max-h-64 overflow-y-auto px-1.5 pb-2">
-            {repliesQ.isLoading && items.length === 0 ? (
+            {repliesQ.isLoading ? (
               <p className="px-2 py-6 text-center font-body text-[12px] text-[var(--text-muted)]">
                 Carregando mensagens…
               </p>
             ) : grouped.length === 0 ? (
               <p className="px-2 py-6 text-center font-body text-[12px] text-[var(--text-muted)]">
-                Nenhuma frase cadastrada. Crie em Configurações → Mensagens rápidas.
+                Nenhuma mensagem cadastrada. Crie em Modelos → Rápidas.
               </p>
             ) : (
               grouped.map(([name, rows]) => (
