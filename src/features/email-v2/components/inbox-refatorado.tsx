@@ -792,6 +792,8 @@ function List({
           gap: 4,
           height: 36,
           padding: "0 14px",
+          overflowX: "auto",
+          flexWrap: "nowrap",
           borderTop: `1px solid ${T.lineSoft}`,
           borderBottom: `1px solid ${T.line}`,
           background: anySelected ? T.accentSoft : T.paper,
@@ -997,7 +999,7 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
   const hasText = Boolean(decodedBodyText.trim());
 
   return (
-    <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, border: `1px solid ${T.line}`, borderRadius: 14, overflow: "hidden", background: T.surface }}>
+    <section style={{ flex: "1 0 520px", display: "flex", flexDirection: "column", minWidth: 520, border: `1px solid ${T.line}`, borderRadius: 14, overflow: "hidden", background: T.surface }}>
       <header
         style={{
           padding: "14px 28px 12px",
@@ -1019,7 +1021,7 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
           >
             {email.subject || "(sem assunto)"}
           </h1>
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0, justifyContent: "flex-end" }}>
             <Action Icon={IconReply} label="Responder" primary onClick={onReply} />
             <Action Icon={IconForward} label="Encaminhar" onClick={onForward} />
             <Action Icon={IconArchive} label="Arquivar" onClick={onArchive} />
@@ -1428,7 +1430,7 @@ export default function InboxRefatorado() {
     >
       <PageHeader icon={<IconMail size={22} />} title="E-mail" className="rounded-none border-0 bg-transparent shadow-none" />
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0, gap: 12, padding: 12, background: T.paper }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, overflowX: "auto", gap: 12, padding: 12, background: T.paper }}>
         <Sidebar
           accounts={accounts}
           folders={customFolders}
@@ -1472,12 +1474,14 @@ export default function InboxRefatorado() {
         />
 
         {composing ? (
-          <ComposeView
-            accounts={composeAccounts.length > 0 ? composeAccounts : accounts}
-            draft={composeDraft}
-            onCancel={() => setComposing(false)}
-            onSent={handleSent}
-          />
+          <div style={{ flex: "1 0 520px", minWidth: 520, borderRadius: 14, overflow: "hidden" }}>
+            <ComposeView
+              accounts={composeAccounts.length > 0 ? composeAccounts : accounts}
+              draft={composeDraft}
+              onCancel={() => setComposing(false)}
+              onSent={handleSent}
+            />
+          </div>
         ) : (
           <Reader
             email={emailDetail}
