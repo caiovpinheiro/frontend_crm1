@@ -125,8 +125,8 @@ export function KeepBoard({
     id: string,
     zoneKey: string,
     index: number,
-    lists: Array<{ key: string; notes: KeepNote[]; meta?: KeepBoardSection }>,
-  ) {
+    lists: KeepBoardSection[],
+  ): KeepBoardSection[] {
     const all = lists.flatMap((s) => s.notes);
     const note = all.find((n) => n.id === id);
     if (!note) return lists;
