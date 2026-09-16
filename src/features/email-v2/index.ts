@@ -12,3 +12,4 @@ export * from "./components/compose-modal";
 export * from "./components/compose-view";
 export * from "./components/email-rich-editor";
 export * from "./components/email-rules-modal";
+export { default as InboxRefatorado } from "./components/inbox-refatorado";
