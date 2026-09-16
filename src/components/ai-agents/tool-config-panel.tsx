@@ -178,14 +178,18 @@ export function ToolPolicyForm({
   });
 
   const { data: departments = [] } = useQuery({
-    queryKey: ["ai-agent-departments"],
+    // Chave própria: a aba Assuntos cacheia `["ai-agent-departments"]` como
+    // {id,name}. Reusando a chave, a lista daqui recebia os objetos — as
+    // opções viravam "[object Object]" e o render quebrava ao filtrar,
+    // fechando o diálogo inteiro (todas as seções ficam montadas).
+    queryKey: ["ai-agent-departments", "names"],
     queryFn: async () => {
       const res = await fetch(apiUrl("/api/settings/departments"));
       if (!res.ok) return [];
       const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
+      const list = Array.isArray(data) ? data : (data.departments ?? []);
       return (list as Array<{ name?: string }>)
-        .map((d) => d.name)
+        .map((d) => d?.name)
         .filter((n): n is string => Boolean(n));
     },
     staleTime: 60_000,
@@ -362,7 +366,7 @@ export function ToolPolicyForm({
             <Textarea
               value={policy.policyText ?? ""}
               onChange={(e) =>
-                onChange({ policyText: e.target.value.trim() || null })
+                onChange({ policyText: e.target.value || null })
               }
               rows={4}
               className="resize-y rounded-xl text-sm"
@@ -376,7 +380,7 @@ export function ToolPolicyForm({
             <Input
               value={policy.transferMessage ?? ""}
               onChange={(e) =>
-                onChange({ transferMessage: e.target.value.trim() || null })
+                onChange({ transferMessage: e.target.value || null })
               }
               placeholder="Vou te conectar com a equipe responsável…"
             />
@@ -391,7 +395,9 @@ export function ToolPolicyForm({
         <Textarea
           value={policy.argHints.geral ?? ""}
           onChange={(e) => {
-            const geral = e.target.value.trim();
+            // Sem trim a cada tecla: o espaço no fim da palavra sumia
+            // antes de dar tempo de escrever a seguinte.
+            const geral = e.target.value;
             const argHints = { ...policy.argHints };
             if (geral) argHints.geral = geral;
             else delete argHints.geral;

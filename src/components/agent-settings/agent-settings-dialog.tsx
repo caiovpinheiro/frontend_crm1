@@ -1,24 +1,25 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, Loader2, X } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { type PilotingValue } from "@/components/ai-agents/piloting-panel";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-} from "@/components/ui/dialog";
-import {
   formDialogCancelClass,
   formDialogPrimaryClass,
 } from "@/components/ui/form-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ARCHETYPES } from "@/lib/ai-agents/archetypes";
+import {
+  ARCHETYPES,
+  isTabulationAllowedTool,
+  isTabulationArchetype,
+  sanitizeEnabledToolsForArchetype,
+} from "@/lib/ai-agents/archetypes";
 import {
   normalizeAutoClosePolicy,
   normalizeBusinessHours,
@@ -50,6 +51,10 @@ import {
   applySimpleSaveDefaults,
 } from "./simple-editor";
 import {
+  looksLikeOpenAiApiKey,
+  sanitizeOpenAiApiKey,
+} from "./openai-key-field";
+import {
   EMPTY_AGENT_SETTINGS,
   PREVIEW_AGENT_SETTINGS,
   isPreviewAgentId,
@@ -63,6 +68,61 @@ const ARCHETYPE_MAP = Object.fromEntries(ARCHETYPES.map((a) => [a.id, a])) as Re
   string,
   (typeof ARCHETYPES)[number]
 >;
+
+/**
+ * Todas as seções ficam montadas, então um erro de render em qualquer uma
+ * derrubava o diálogo inteiro: a tela fechava no meio da digitação e o
+ * Salvar nunca rodava. Aqui o estrago fica na seção.
+ */
+class SectionErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error("[agent-settings] seção quebrou", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="space-y-2 rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium text-destructive">
+            Esta seção não pôde ser exibida.
+          </p>
+          <p className="text-[12px] text-muted-foreground">
+            As outras abas e o Salvar continuam funcionando.
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ error: null })}
+            className="text-[12px] font-medium text-primary hover:underline"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/** Mantém a seção montada (rascunho, chips, tool selecionada) ao trocar de aba. */
+function SectionPane({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div hidden={!active} className={active ? undefined : "hidden"}>
+      <SectionErrorBoundary>{children}</SectionErrorBoundary>
+    </div>
+  );
+}
 
 function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
   const archetype = (
@@ -186,11 +246,23 @@ export function AgentSettingsDialog({
 }) {
   const open = id !== null;
   const preview = isPreviewAgentId(id);
+  const openedAtRef = React.useRef(0);
+  React.useLayoutEffect(() => {
+    if (open) openedAtRef.current = performance.now();
+  }, [open, id]);
+  const closeFromUser = (e?: { timeStamp?: number }) => {
+    // Clique do lápis (e o retarget dele) tem timeStamp anterior ao mount.
+    if (e?.timeStamp != null && e.timeStamp < openedAtRef.current) return;
+    onOpenChange(false);
+  };
   const [advanced, setAdvanced] = React.useState(false);
+  const [advancedEver, setAdvancedEver] = React.useState(false);
   const [section, setSection] = React.useState<AgentSectionId>("identity");
   const [form, setForm] = React.useState<AgentSettingsValues>(EMPTY_AGENT_SETTINGS);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const hydratedForIdRef = React.useRef<string | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["ai-agent", id],
@@ -208,23 +280,36 @@ export function AgentSettingsDialog({
     if (open) {
       setSection("identity");
       setAdvanced(false);
+      setAdvancedEver(false);
+    } else {
+      hydratedForIdRef.current = null;
     }
   }, [open, id]);
 
   React.useEffect(() => {
+    if (advanced) setAdvancedEver(true);
+  }, [advanced]);
+
+  React.useEffect(() => {
+    if (!open) return;
     if (preview) {
       setForm(structuredClone(PREVIEW_AGENT_SETTINGS));
+      hydratedForIdRef.current = "__preview__";
       return;
     }
-    if (!data) return;
+    if (!data || !id) return;
+    // Um refetch (foco da janela, outra query, save) não pode apagar o
+    // rascunho que o operador já fez em outra aba desta sessão.
+    if (hydratedForIdRef.current === id) return;
     try {
       setForm(hydrateFromApi(data));
+      hydratedForIdRef.current = id;
     } catch (err) {
       console.error("[agent-settings] hydrateFromApi", err);
       setError("Não foi possível ler a configuração do agente.");
       setForm(EMPTY_AGENT_SETTINGS);
     }
-  }, [preview, data]);
+  }, [open, preview, data, id]);
 
   const patch = <K extends keyof AgentSettingsValues>(
     key: K,
@@ -232,12 +317,18 @@ export function AgentSettingsDialog({
   ) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const toggleTool = (toolId: string) => {
-    setForm((prev) => ({
-      ...prev,
-      enabledTools: prev.enabledTools.includes(toolId)
-        ? prev.enabledTools.filter((t) => t !== toolId)
-        : [...prev.enabledTools, toolId],
-    }));
+    setForm((prev) => {
+      if (isTabulationArchetype(prev.archetype)) {
+        if (!isTabulationAllowedTool(toolId)) return prev;
+        if (prev.enabledTools.includes(toolId)) return prev;
+      }
+      return {
+        ...prev,
+        enabledTools: prev.enabledTools.includes(toolId)
+          ? prev.enabledTools.filter((t) => t !== toolId)
+          : [...prev.enabledTools, toolId],
+      };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -268,6 +359,23 @@ export function AgentSettingsDialog({
         useMessageModels: form.piloting.useMessageModels,
       });
       const simple = applySimpleSaveDefaults(form);
+      const sanitizedKey = sanitizeOpenAiApiKey(form.openaiApiKey);
+      let openaiApiKeyPayload: { openaiApiKey: string | null } | Record<
+        string,
+        never
+      > = {};
+      let skippedInvalidKey = false;
+      if (sanitizedKey) {
+        if (looksLikeOpenAiApiKey(sanitizedKey)) {
+          openaiApiKeyPayload = { openaiApiKey: sanitizedKey };
+        } else {
+          // Chave inválida não pode abortar o PUT inteiro — escopo, tools
+          // e o restante que o operador acabou de ajustar somem.
+          skippedInvalidKey = true;
+        }
+      } else if (form.clearOpenaiApiKey) {
+        openaiApiKeyPayload = { openaiApiKey: null };
+      }
       const res = await fetch(apiUrl(`/api/ai-agents/${id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -278,12 +386,11 @@ export function AgentSettingsDialog({
           model: form.model,
           temperature: form.temperature,
           dailyTokenCap: form.dailyTokenCap,
-          ...(form.openaiApiKey.trim()
-            ? { openaiApiKey: form.openaiApiKey.trim() }
-            : form.clearOpenaiApiKey
-              ? { openaiApiKey: null }
-              : {}),
-          enabledTools: form.enabledTools,
+          ...openaiApiKeyPayload,
+          enabledTools: sanitizeEnabledToolsForArchetype(
+            form.archetype,
+            form.enabledTools,
+          ),
           systemPromptOverride: simple.systemPromptOverride.trim() || null,
           systemPromptTemplate: form.systemPromptTemplate.trim() || undefined,
           steeringRules: simple.steeringRules.trim() || null,
@@ -326,13 +433,42 @@ export function AgentSettingsDialog({
       // sobrevive ao runtime (ex.: transferir sem o cliente pedir humano).
       const saved = (await res.json().catch(() => ({}))) as {
         warnings?: Array<{ message?: unknown }>;
+        hasOwnOpenaiKey?: unknown;
+        openaiApiKeyHint?: unknown;
       };
       toast.success("Agente salvo.");
+      if (skippedInvalidKey) {
+        toast.warning(
+          "A chave OpenAI não foi gravada — o formato não parece uma chave sk-…. O restante da configuração foi salvo.",
+          { duration: 12000 },
+        );
+      }
       for (const w of saved.warnings ?? []) {
         if (typeof w?.message === "string") {
           toast.warning(w.message, { duration: 12000 });
         }
       }
+      queryClient.setQueryData(["ai-agent", id], (old) => ({
+        ...(old && typeof old === "object" ? old : {}),
+        ...saved,
+      }));
+      setForm((prev) => {
+        const hasKey = saved.hasOwnOpenaiKey === true;
+        if (skippedInvalidKey) return prev;
+        return {
+          ...prev,
+          hasOwnOpenaiKey: hasKey,
+          openaiApiKeyHint:
+            typeof saved.openaiApiKeyHint === "string"
+              ? saved.openaiApiKeyHint
+              : hasKey
+                ? prev.openaiApiKeyHint
+                : null,
+          openaiApiKey: "",
+          clearOpenaiApiKey: false,
+        };
+      });
+      await queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro.");
@@ -405,15 +541,21 @@ export function AgentSettingsDialog({
           <div className="flex min-h-0 flex-1">
             {advanced && <SidebarNav active={section} onChange={setSection} />}
             <ScrollArea className="min-h-0 flex-1 px-6 py-5 text-sm">
-              {!advanced && id && (
-                <SimpleEditor
-                  agentId={id}
-                  preview={preview}
-                  form={form}
-                  onChange={setForm}
-                />
-              )}
-              {advanced && section === "identity" && (
+              <div hidden={advanced} className={advanced ? "hidden" : undefined}>
+                {id && (
+                  <SectionErrorBoundary>
+                    <SimpleEditor
+                      agentId={id}
+                      preview={preview}
+                      form={form}
+                      onChange={setForm}
+                    />
+                  </SectionErrorBoundary>
+                )}
+              </div>
+              {advancedEver && (
+                <>
+              <SectionPane active={advanced && section === "identity"}>
                 <IdentitySection
                   agentId={preview ? null : id}
                   name={form.name}
@@ -445,8 +587,8 @@ export function AgentSettingsDialog({
                   hasOwnOpenaiKey={form.hasOwnOpenaiKey}
                   openaiApiKeyHint={form.openaiApiKeyHint}
                 />
-              )}
-              {advanced && section === "rules" && (
+              </SectionPane>
+              <SectionPane active={advanced && section === "rules"}>
                 <RulesSection
                   archetype={form.archetype}
                   steeringRules={form.steeringRules}
@@ -456,8 +598,8 @@ export function AgentSettingsDialog({
                   template={form.systemPromptTemplate}
                   onTemplateChange={(v) => patch("systemPromptTemplate", v)}
                 />
-              )}
-              {advanced && section === "messageRules" && (
+              </SectionPane>
+              <SectionPane active={advanced && section === "messageRules"}>
                 <MessageRulesSection
                   agentId={preview ? null : id}
                   value={form.inboxPolicy.messageRules}
@@ -468,15 +610,15 @@ export function AgentSettingsDialog({
                     })
                   }
                 />
-              )}
-              {advanced && section === "scope" && (
+              </SectionPane>
+              <SectionPane active={advanced && section === "scope"}>
                 <ScopeSection
                   value={form.attendanceScope}
                   onChange={(v) => patch("attendanceScope", v)}
                   preview={preview}
                 />
-              )}
-              {advanced && section === "tools" && (
+              </SectionPane>
+              <SectionPane active={advanced && section === "tools"}>
                 <ToolsSection
                   enabledTools={form.enabledTools}
                   onToggleTool={toggleTool}
@@ -485,8 +627,8 @@ export function AgentSettingsDialog({
                   productPolicy={form.productPolicy}
                   onProductPolicyChange={(v) => patch("productPolicy", v)}
                 />
-              )}
-              {advanced && section === "crmFields" && (
+              </SectionPane>
+              <SectionPane active={advanced && section === "crmFields"}>
                 <CrmFieldsSection
                   agentId={preview ? null : id}
                   enabledTools={form.enabledTools}
@@ -494,21 +636,25 @@ export function AgentSettingsDialog({
                   toolConfig={form.toolConfig}
                   onToolConfigChange={(v) => patch("toolConfig", v)}
                 />
-              )}
-              {advanced && section === "piloting" && (
+              </SectionPane>
+              <SectionPane active={advanced && section === "piloting"}>
                 <PilotingSection
                   value={form.piloting}
                   onChange={(v) => patch("piloting", v)}
                 />
-              )}
-              {advanced && section === "inbox" && (
+              </SectionPane>
+              <SectionPane active={advanced && section === "inbox"}>
                 <InboxSection
                   value={form.inboxPolicy}
                   onChange={(v) => patch("inboxPolicy", v)}
                 />
-              )}
-              {advanced && section === "knowledge" && id && (
-                <KnowledgeSection agentId={id} preview={preview} />
+              </SectionPane>
+              {id ? (
+                <SectionPane active={advanced && section === "knowledge"}>
+                  <KnowledgeSection agentId={id} preview={preview} />
+                </SectionPane>
+              ) : null}
+                </>
               )}
             </ScrollArea>
           </div>
@@ -524,7 +670,7 @@ export function AgentSettingsDialog({
               type="button"
               variant="glass"
               className={formDialogCancelClass}
-              onClick={() => onOpenChange(false)}
+              onClick={closeFromUser}
             >
               Cancelar
             </ButtonGlass>
@@ -553,16 +699,67 @@ export function AgentSettingsDialog({
     return panel;
   }
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        size="2xl"
-        bodyClassName="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0"
-        panelClassName="h-[min(90dvh,52rem)]"
+    <AgentSettingsOverlay onClose={closeFromUser}>
+      {panel}
+    </AgentSettingsOverlay>
+  );
+}
+
+/**
+ * Overlay próprio — sem `<dialog>.showModal()` e sem fechar no backdrop.
+ * O HAR de produção mostrou GET /ai-agents/:id + /knowledge e a tela
+ * sumia: o mesmo pointerdown do lápis destrava o dismiss e cai no
+ * backdrop/Cancelar. Aqui só X, Cancelar e Esc fecham, e só se o
+ * evento nasceu depois do mount.
+ */
+function AgentSettingsOverlay({
+  children,
+  onClose,
+}: {
+  children: React.ReactNode;
+  onClose: (e?: { timeStamp?: number }) => void;
+}) {
+  const [mounted, setMounted] = React.useState(false);
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+
+  React.useEffect(() => {
+    setMounted(true);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseRef.current(e);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-md">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative flex h-[min(90dvh,52rem)] w-full max-w-6xl flex-col overflow-hidden rounded-[var(--radius-2xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] text-[var(--text-primary)] shadow-[var(--glass-shadow-lg)] backdrop-blur-xl"
       >
-        <DialogClose />
-        {open ? panel : null}
-      </DialogContent>
-    </Dialog>
+        <button
+          type="button"
+          aria-label="Fechar"
+          className="absolute end-4 top-4 z-10 rounded-sm text-muted-foreground opacity-70 hover:opacity-100"
+          onClick={onClose}
+        >
+          <X className="size-4" />
+        </button>
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }

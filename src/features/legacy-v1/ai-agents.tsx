@@ -284,8 +284,9 @@ export default function AIAgentsPage({
           if (!open && allowEditorClose.current) setEditingId(null);
         }}
         onSaved={() => {
-          allowEditorClose.current = true;
-          setEditingId(null);
+          // Salvar não fecha o editor: quem está configurando o agente
+          // ainda tem outras abas para ajustar, e a tela sumindo parecia
+          // que nada foi gravado.
           queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
         }}
       />

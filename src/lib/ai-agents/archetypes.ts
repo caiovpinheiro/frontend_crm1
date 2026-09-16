@@ -269,6 +269,28 @@ export function isTabulationArchetype(id: string | null | undefined): boolean {
 }
 
 /**
+ * O classificador só opera com as duas tools de tabulação: ligar tool de
+ * conversa (transfer, close, template) faz ele falar com o cliente, e
+ * desligar as dele deixa o agente sem como classificar.
+ */
+export function isTabulationAllowedTool(toolId: string): boolean {
+  return ARCHETYPE_MAP.TABULACAO.defaultTools.includes(toolId);
+}
+
+export function sanitizeEnabledToolsForArchetype(
+  archetype: string | null | undefined,
+  enabledTools: string[],
+): string[] {
+  if (!isTabulationArchetype(archetype)) return enabledTools;
+  return Array.from(
+    new Set([
+      ...enabledTools.filter(isTabulationAllowedTool),
+      ...ARCHETYPE_MAP.TABULACAO.defaultTools,
+    ]),
+  );
+}
+
+/**
  * `deal` chama assignDealOwner no runner. Tabulador só precisa da
  * conversa (`contact`) pra `maybeReplyAsAIAgent` classificar.
  */

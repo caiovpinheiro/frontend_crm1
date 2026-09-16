@@ -11,6 +11,26 @@ import { cn } from "@/lib/utils";
 import { FieldHelp } from "./section-header";
 
 /**
+ * Cópia de PDF, WhatsApp, `.env` ou gerenciador de senha traz lixo
+ * (aspas, `Bearer`, quebra de linha, hífen tipográfico). A chave real
+ * não tem espaço — limpamos isso antes de gravar.
+ */
+export function sanitizeOpenAiApiKey(raw: string): string {
+  return raw
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/^(?:Bearer\s+|OPENAI_API_KEY\s*=\s*)/i, "")
+    .replace(/^["']+|["']+$/g, "")
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[\s\r\n]+/g, "");
+}
+
+/** Aceita `sk-…`, `sk-proj-…` e `sk-svcacct-…`. */
+export function looksLikeOpenAiApiKey(raw: string): boolean {
+  const key = sanitizeOpenAiApiKey(raw);
+  return /^sk-[A-Za-z0-9._~+/-]{10,}$/.test(key);
+}
+
+/**
  * Campo da chave OpenAI do agente.
  *
  * O CRM é multi-tenant: cada agente usa a própria conta OpenAI, não há
