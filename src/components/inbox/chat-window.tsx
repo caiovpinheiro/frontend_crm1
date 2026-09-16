@@ -78,7 +78,7 @@ import { dt } from "@/lib/design-tokens";
 import { cn } from "@/lib/utils";
 import { MetaSendErrorBalloon } from "@/components/crm/meta-send-error-balloon";
 import { EventRow, classifyTimelineItem, isRedundantOpenStatusEvent } from "@/components/crm/chat-timeline";
-import { ChannelSeparator, DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
+import { ChannelLabel, ChannelSeparator, DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
 
 /** Texto da nota em uma linha (banner fixado estilo WhatsApp). */
 function notePreviewOneLine(content: string, maxChars = 140): string {
@@ -725,6 +725,15 @@ export function ChatWindow({
     !noteMode &&
     !!effectiveSendChannelId &&
     effectiveSendChannelId !== conversationChannelId;
+  const hasMultipleChannels = React.useMemo(() => {
+    const ids = new Set(
+      messages
+        .filter((m) => !m.isPrivate && m.messageType !== "note")
+        .map((m) => m.channelId)
+        .filter(Boolean),
+    );
+    return ids.size > 1;
+  }, [messages]);
 
   const [taskTitle, setTaskTitle] = React.useState("");
   const [taskType, setTaskType] = React.useState("TASK");
@@ -2002,6 +2011,10 @@ export function ChatWindow({
             : !out
               ? (m.senderName ?? undefined)
               : undefined;
+      const audioChannel =
+        hasMultipleChannels && m.channelId
+          ? messagesData?.channels?.[m.channelId]
+          : null;
       return (
         <AudioMessage
           url={url}
@@ -2012,6 +2025,7 @@ export function ChatWindow({
           senderLabel={audioSenderLabel}
           isCallRec={isCallRec}
           isUploading={isUploading}
+          channel={audioChannel}
           onRegisterTranscribe={
             isUploading || isCallRec
               ? undefined
@@ -2897,12 +2911,32 @@ export function ChatWindow({
                               ? { color: "var(--chat-bubble-sent-time)" }
                               : {}),
                           };
+                          const messageChannel =
+                            hasMultipleChannels && m.channelId
+                              ? messagesData?.channels?.[m.channelId]
+                              : null;
+                          const channelLabelEl = messageChannel ? (
+                            <ChannelLabel
+                              channel={messageChannel}
+                              className={
+                                out && !isNote
+                                  ? "text-[var(--chat-bubble-sent-time)]"
+                                  : undefined
+                              }
+                            />
+                          ) : null;
 
                           const timeInner = (
                             <span
                               className={cn(timeRowClass)}
                               style={timeRowStyle}
                             >
+                              {channelLabelEl}
+                              {channelLabelEl && (
+                                <span className="text-[var(--color-ink-muted)]">
+                                  ·
+                                </span>
+                              )}
                               <span className="cursor-default">{time}</span>
                               {isFailed ? (
                                 <Tooltip>
@@ -5093,6 +5127,8 @@ interface AudioMessageProps {
   isUploading?: boolean;
   /** Registra handler para o item "Transcrever áudio" do menu ⋯ da mensagem. */
   onRegisterTranscribe?: (handler: (() => void) | null) => void;
+  /** Canal da mensagem — exibido discreto no rodapé quando multi-canal. */
+  channel?: ConnectionRef | null;
 }
 
 /** Overlay translúcido com spinner — usado em previews de imagem/vídeo
@@ -5147,6 +5183,7 @@ function AudioMessage({
   isCallRec = false,
   isUploading = false,
   onRegisterTranscribe,
+  channel,
 }: AudioMessageProps) {
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = React.useState(false);
@@ -5491,8 +5528,12 @@ function AudioMessage({
             >
               <span>{currentLabel}</span>
               <span>{durationLabel}</span>
-              {time || showDeliveryCheck ? (
+              {time || showDeliveryCheck || channel ? (
                 <span className="flex items-center gap-0.5 font-bold">
+                  {channel ? <ChannelLabel channel={channel} /> : null}
+                  {channel && time ? (
+                    <span className="opacity-60">·</span>
+                  ) : null}
                   {time ? <span>{time}</span> : null}
                   {showDeliveryCheck ? (
                     <CheckCheck
