@@ -25,7 +25,7 @@ import type {
 } from "../api/types";
 import { ComposeView } from "./compose-view";
 import { EmailRulesModal } from "./email-rules-modal";
-import { HtmlEmailFrame } from "./html-email-frame";
+import { HtmlEmailFrame, decodeIfQuotedPrintable } from "./html-email-frame";
 import {
   buildComposeDraft,
   newComposeDraft,
@@ -121,7 +121,7 @@ const IconNote = (p: IconProps) => (
 /* Utilidades                                                          */
 /* ------------------------------------------------------------------ */
 const stripHtml = (s: string | null): string =>
-  (s ?? "")
+  decodeIfQuotedPrintable(s ?? "")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
@@ -986,8 +986,9 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
     </button>
   );
 
+  const decodedBodyText = decodeIfQuotedPrintable(email.bodyText ?? "");
   const hasHtml = Boolean(email.bodyHtml?.trim());
-  const hasText = Boolean(email.bodyText?.trim());
+  const hasText = Boolean(decodedBodyText.trim());
 
   return (
     <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, border: `1px solid ${T.line}`, borderRadius: 14, overflow: "hidden", background: T.surface }}>
@@ -1124,8 +1125,8 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
           {hasHtml ? (
             <HtmlEmailFrame html={email.bodyHtml ?? ""} />
           ) : hasText ? (
-            email.bodyText
-              ?.split(/\n{2,}/)
+            decodedBodyText
+              .split(/\n{2,}/)
               .map((p, i) => (
                 <p
                   key={i}
