@@ -263,6 +263,7 @@ export function Composer({
       name: string | null;
       mimeType?: string | null;
       messageBefore?: string | null;
+      sendBeforeText?: boolean;
     }>
   >([]);
   // Ref espelhando `pendingMediaList` — evita stale closure no flush do
@@ -512,28 +513,54 @@ export function Composer({
     });
   }
 
-  // Ponte: botões da lateral (ex. "Enviar produto" de curso) empurram texto
+  // Ponte: botões da lateral (ex. "Enviar produto") empurram texto (+ mídia)
   // pra cá sem prop-drilling pelo ContactAside.
   // No mobile o Chat pode estar desmontado (aba Negócio) — nesse caso o
-  // texto fica em `takePendingComposerInsert` e é aplicado ao montar.
+  // payload fica em `takePendingComposerInsert` e é aplicado ao montar.
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
   useEffect(() => {
-    function applyInsert(text: string) {
-      if (!text.trim()) return;
-      const current = (draftRef.current || "").trimEnd();
-      const incoming = text.trim();
-      if (current === incoming || current.endsWith(incoming)) {
-        clearPendingComposerInsert();
-        return;
+    function applyInsert(payload: { text?: string; media?: Array<{
+      url: string;
+      name?: string | null;
+      mimeType?: string | null;
+      sendBeforeText?: boolean;
+    }> }) {
+      const text = typeof payload?.text === "string" ? payload.text : "";
+      const media = Array.isArray(payload?.media)
+        ? payload.media
+            .filter((m) => typeof m?.url === "string" && m.url.trim())
+            .map((m) => ({
+              url: m.url.trim(),
+              name: m.name ?? null,
+              mimeType: m.mimeType ?? null,
+              sendBeforeText: Boolean(m.sendBeforeText),
+            }))
+        : [];
+      if (!text.trim() && media.length === 0) return;
+      if (text.trim()) {
+        const current = (draftRef.current || "").trimEnd();
+        const incoming = text.trim();
+        if (!(current === incoming || current.endsWith(incoming))) {
+          insertTemplateTextRef.current(text);
+        }
+      }
+      if (media.length > 0) {
+        setPendingMediaList((prev) => [...prev, ...media]);
       }
       clearPendingComposerInsert();
-      insertTemplateTextRef.current(text);
     }
     function onInsert(e: Event) {
-      const detail = (e as CustomEvent<{ text?: string }>).detail;
-      const text = typeof detail?.text === "string" ? detail.text : "";
-      applyInsert(text);
+      const detail = (e as CustomEvent<{
+        text?: string;
+        media?: Array<{
+          url: string;
+          name?: string | null;
+          mimeType?: string | null;
+          sendBeforeText?: boolean;
+        }>;
+      }>).detail;
+      applyInsert(detail ?? {});
     }
     window.addEventListener(COMPOSER_INSERT_EVENT, onInsert as EventListener);
     const pending = takePendingComposerInsert();
@@ -685,15 +712,15 @@ export function Composer({
     );
   }
 
-  // Envia os anexos encostados (mídia de modelo/mensagem rápida) logo após o
-  // texto do Enter — via o helper compartilhado (SEQUENCIAL, com toast em
-  // falha intermediária). Lê de `pendingMediaListRef` (não do state direto)
-  // pra evitar stale closure entre o render que agendou e o flush em si.
-  async function flushPendingMedia() {
-    const list = pendingMediaListRef.current;
+  // Envia os anexos encostados (mídia de modelo/mensagem rápida) — via o
+  // helper compartilhado (SEQUENCIAL). `beforeText` filtra o lote.
+  async function flushPendingMedia(beforeText: boolean) {
+    const all = pendingMediaListRef.current;
+    const list = all.filter((m) => Boolean(m.sendBeforeText) === beforeText);
     if (list.length === 0 || !conversationId) return;
-    setPendingMediaList([]);
-    pendingMediaListRef.current = [];
+    const remaining = all.filter((m) => Boolean(m.sendBeforeText) !== beforeText);
+    setPendingMediaList(remaining);
+    pendingMediaListRef.current = remaining;
     await sendInternalTemplateSequence({ conversationId, content: "", attachments: list });
   }
 
@@ -719,6 +746,8 @@ export function Composer({
   }
 
   async function flushOutbound(text: string | null) {
+    // Produto / mídia marcada: imagem antes do texto. Demais anexos depois.
+    await flushPendingMedia(true);
     if (text) {
       try {
         await Promise.resolve(onSend(text));
@@ -726,7 +755,7 @@ export function Composer({
         /* texto falhou; ainda tenta anexos se o caller não bloqueou */
       }
     }
-    await flushPendingMedia();
+    await flushPendingMedia(false);
     await flushPendingFiles();
   }
 

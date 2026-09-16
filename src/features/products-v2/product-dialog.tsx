@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { DropdownGlass, type DropdownOption } from "@/components/crm/dropdown-glass";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch, parseApiResponse } from "@/lib/api";
+import { apiFetch, apiUrl, parseApiResponse } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCan } from "@/hooks/use-my-permissions";
 import { useCatalogs } from "@/features/catalogs-v2/hooks";
@@ -165,6 +165,11 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
   const [unit, setUnit] = React.useState("un");
   const [isActive, setIsActive] = React.useState(true);
   const [catalogId, setCatalogId] = React.useState("");
+  const [imageUrl, setImageUrl] = React.useState<string | null>(null);
+  const [imageMime, setImageMime] = React.useState<string | null>(null);
+  const [imageName, setImageName] = React.useState<string | null>(null);
+  const [imageUploading, setImageUploading] = React.useState(false);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
 
   // Físico
   const [weightGrams, setWeightGrams] = React.useState("");
@@ -223,6 +228,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
       setUnit("un");
       setIsActive(true);
       setCatalogId(initialCatalogId ?? "");
+      setImageUrl(null);
+      setImageMime(null);
+      setImageName(null);
       setWeightGrams("");
       setPlans([]);
       setCourseLevel("");
@@ -245,6 +253,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
     setUnit(detail.unit);
     setIsActive(detail.isActive);
     setCatalogId(detail.catalogId ?? "");
+    setImageUrl(detail.imageUrl ?? null);
+    setImageMime(detail.imageMime ?? null);
+    setImageName(detail.imageName ?? null);
     setWeightGrams(detail.shipping?.weightGrams != null ? String(detail.shipping.weightGrams) : "");
     setPlans(detail.plans ?? []);
     setCourseLevel(detail.courseConfig?.level ?? "");
@@ -315,6 +326,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
       kind,
       catalogId: catalogId || null,
       isActive,
+      imageUrl: imageUrl || null,
+      imageMime: imageUrl ? imageMime : null,
+      imageName: imageUrl ? imageName : null,
     };
     if (kind === "PHYSICAL") {
       body.shipping = { weightGrams: weightGrams ? Number(weightGrams) : null };
@@ -633,6 +647,114 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
                 rows={2}
                 className="mt-1"
               />
+            </div>
+            <div className="mt-3">
+              <Label>Imagem do produto</Label>
+              <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                Enviada no chat antes do texto ao encaminhar o produto.
+              </p>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  if (!file.type.startsWith("image/")) {
+                    toast.error("Selecione uma imagem (JPG, PNG, WEBP ou GIF).");
+                    return;
+                  }
+                  if (file.size > 16 * 1024 * 1024) {
+                    toast.error("Arquivo excede o limite de 16 MB.");
+                    return;
+                  }
+                  setImageUploading(true);
+                  try {
+                    const form = new FormData();
+                    form.append("file", file);
+                    const res = await fetch(apiUrl("/api/uploads/automation-media"), {
+                      method: "POST",
+                      body: form,
+                    });
+                    const data = (await res.json()) as {
+                      message?: string;
+                      url?: string;
+                      fileName?: string;
+                      mimeType?: string;
+                    };
+                    if (!res.ok || !data.url) {
+                      toast.error(data.message ?? "Erro ao enviar imagem.");
+                      return;
+                    }
+                    setImageUrl(data.url);
+                    setImageMime(data.mimeType ?? file.type);
+                    setImageName(data.fileName ?? file.name);
+                  } catch {
+                    toast.error("Erro de rede ao enviar imagem.");
+                  } finally {
+                    setImageUploading(false);
+                  }
+                }}
+              />
+              {imageUrl ? (
+                <div className="mt-2 flex items-start gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageUrl}
+                    alt={imageName ?? "Produto"}
+                    className="size-20 rounded-[var(--radius-md)] border border-[var(--glass-border)] object-cover"
+                  />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="truncate text-xs text-[var(--text-secondary)]">
+                      {imageName ?? "Imagem"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={imageUploading}
+                        onClick={() => imageInputRef.current?.click()}
+                      >
+                        Trocar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={imageUploading}
+                        onClick={() => {
+                          setImageUrl(null);
+                          setImageMime(null);
+                          setImageName(null);
+                        }}
+                      >
+                        Remover
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  disabled={imageUploading}
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  {imageUploading ? (
+                    <>
+                      <IconLoader2 size={14} className="mr-1.5 animate-spin" />
+                      Enviando…
+                    </>
+                  ) : (
+                    "Adicionar imagem"
+                  )}
+                </Button>
+              )}
             </div>
             {kind === "COURSE" ? (
               <div className="mt-3 space-y-3">

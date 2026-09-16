@@ -768,7 +768,22 @@ export function DealProductsSection({
         .map((part) => part.trim())
         .filter(Boolean);
       if (parts.length === 0) return;
-      insertComposerText(parts.join("\n\n"));
+      const media = list
+        .filter((item) => typeof item.imageUrl === "string" && item.imageUrl.trim())
+        .map((item) => ({
+          url: item.imageUrl!.trim(),
+          name: item.imageName ?? null,
+          mimeType: item.imageMime ?? null,
+          sendBeforeText: true,
+        }));
+      // Dedup por URL (mesmo produto em várias linhas).
+      const seen = new Set<string>();
+      const uniqueMedia = media.filter((m) => {
+        if (seen.has(m.url)) return false;
+        seen.add(m.url);
+        return true;
+      });
+      insertComposerText(parts.join("\n\n"), uniqueMedia);
       toast.success(
         parts.length > 1
           ? "Mensagens dos produtos prontas no chat — confira e envie."
