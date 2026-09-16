@@ -130,6 +130,9 @@ export type ProductDetail = {
   isActive: boolean;
   trackStock: boolean;
   stock: number | string;
+  imageUrl?: string | null;
+  imageMime?: string | null;
+  imageName?: string | null;
   offers: ProductOffer[];
   shipping: {
     weightGrams: number | null;

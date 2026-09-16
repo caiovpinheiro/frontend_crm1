@@ -116,6 +116,9 @@ export type DealProductItem = {
   unit: string;
   productType?: "PRODUCT" | "SERVICE";
   productKind?: "PHYSICAL" | "SERVICE" | "COURSE" | "JOB_OPENING" | null;
+  imageUrl?: string | null;
+  imageMime?: string | null;
+  imageName?: string | null;
   quantity: number;
   unitPrice: number;
   discount: number;
