@@ -36,7 +36,6 @@ import {
   LIST_CARD_STACK_CLASS,
   ListColumnLabel,
 } from "@/components/crm/sortable-header";
-import { SwitchGlass } from "@/components/crm/switch-glass";
 import { UserAvatar } from "@/components/crm/user-avatar";
 import { DistributionIcon } from "@/components/icons/distribution-icon";
 import {
@@ -53,12 +52,11 @@ import {
   useBulkAddLeadsParticipants,
   useLeadsHistory,
   useLeadsParticipants,
-  useLeadsSettings,
   useLeadsStats,
   useUpdateLeadsParticipant,
-  useUpdateLeadsSettings,
 } from "@/features/distribution/leads-hooks";
 import type { LeadsParticipantDto } from "@/features/distribution/leads-types";
+import { DistributionModeToggle } from "@/features/distribution/settings-panel";
 import { useDistributionResponsibles } from "@/features/distribution/hooks";
 import { cn } from "@/lib/utils";
 
@@ -481,52 +479,6 @@ function ObservationNoteDialog({
   );
 }
 
-function LeadsEnabledToggle({ canManage }: { canManage: boolean }) {
-  const settingsQuery = useLeadsSettings();
-  const updateSettings = useUpdateLeadsSettings();
-  const pendingEnabled = updateSettings.isPending
-    ? updateSettings.variables?.enabled
-    : undefined;
-  const enabled = pendingEnabled ?? settingsQuery.data?.enabled ?? true;
-
-  return (
-    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
-      <div className="min-w-0">
-        <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
-          Distribuição por Leads {enabled ? "ligada" : "desligada"}
-        </p>
-        <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
-          {enabled
-            ? "Ligada: o bloco “Executar distribuição” em modo Por Leads atribui pelo rodízio."
-            : "Desligada: o bloco Por Leads não atribui (a automação segue a saída “Sem agente”). A Distribuição Inteligente não é afetada."}
-        </p>
-      </div>
-      <SwitchGlass
-        checked={enabled}
-        disabled={!canManage || updateSettings.isPending || settingsQuery.isLoading}
-        onChange={(next) => {
-          updateSettings.mutate(
-            { enabled: next },
-            {
-              onSuccess: (data) =>
-                toast.success(
-                  data.enabled
-                    ? "Distribuição por Leads ligada."
-                    : "Distribuição por Leads desligada.",
-                ),
-              onError: (e) =>
-                toast.error(
-                  e instanceof Error ? e.message : "Erro ao salvar configuração.",
-                ),
-            },
-          );
-        }}
-        aria-label="Distribuição por Leads ligada"
-      />
-    </div>
-  );
-}
-
 export function LeadsDistributionView({
   canManage,
   view = "cards",
@@ -714,7 +666,7 @@ export function LeadsDistributionView({
         </div>
       </section>
 
-      {canManage && <LeadsEnabledToggle canManage={canManage} />}
+      {canManage && <DistributionModeToggle />}
 
       {pane === "consultants" ? (
         <div className={LIST_PAGE_PANE_CLASS}>

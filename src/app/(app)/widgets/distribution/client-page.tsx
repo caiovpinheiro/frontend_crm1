@@ -102,6 +102,7 @@ import {
   AutoOnInboundToggle,
   DepartmentsDistributionPanel,
   DistributionEnabledToggle,
+  DistributionModeToggle,
 } from "@/features/distribution/settings-panel";
 import {
   BLOCK_REASON_LABELS,
@@ -813,6 +814,7 @@ export default function DistributionClientPage({
                   (settings mockados em memória) para paridade local×DEV. */}
               {canManage && view === "team" && (
                 <>
+                  <DistributionModeToggle />
                   <DistributionEnabledToggle />
                   <AutoOnInboundToggle showTour />
                 </>
