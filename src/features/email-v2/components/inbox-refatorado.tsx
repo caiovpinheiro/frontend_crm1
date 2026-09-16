@@ -5,6 +5,7 @@ import { IconMail } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/crm/page-header";
+import { FormDialog } from "@/components/ui/form-dialog";
 import {
   useEmailAccounts,
   useEmailCustomFolders,
@@ -423,11 +424,12 @@ interface MessageRowProps {
   active: boolean;
   selected: boolean;
   onOpen: () => void;
+  onDoubleClick?: () => void;
   onToggle: () => void;
   dense: boolean;
 }
 
-function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRowProps) {
+function MessageRow({ m, active, selected, onOpen, onDoubleClick, onToggle, dense }: MessageRowProps) {
   const [hover, setHover] = useState(false);
   const fromName = m.fromName || m.fromAddress;
   const [bg, fg] = avatarTone(fromName);
@@ -438,6 +440,7 @@ function MessageRow({ m, active, selected, onOpen, onToggle, dense }: MessageRow
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={onOpen}
+      onDoubleClick={onDoubleClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onOpen()}
@@ -579,6 +582,7 @@ interface ListProps {
   emails: EmailListItem[];
   activeId: string | null;
   setActiveId: (id: string | null) => void;
+  onOpenReply: (id: string) => void;
   selected: string[];
   setSelected: (ids: string[] | ((prev: string[]) => string[])) => void;
   folderLabel: string;
@@ -601,6 +605,7 @@ function List({
   emails,
   activeId,
   setActiveId,
+  onOpenReply,
   selected,
   setSelected,
   folderLabel,
@@ -885,6 +890,7 @@ function List({
                 active={m.id === activeId}
                 selected={selected.includes(m.id)}
                 onOpen={() => setActiveId(m.id)}
+                onDoubleClick={() => onOpenReply(m.id)}
                 onToggle={() =>
                   setSelected((s) =>
                     s.includes(m.id) ? s.filter((x) => x !== m.id) : [...s, m.id],
@@ -1188,6 +1194,7 @@ export default function InboxRefatorado() {
   const [composing, setComposing] = useState(false);
   const [composeDraft, setComposeDraft] = useState<ComposeDraft>(newComposeDraft());
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [expandedReplyId, setExpandedReplyId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -1355,6 +1362,7 @@ export default function InboxRefatorado() {
   const handleSent = useCallback(
     (id: string) => {
       setComposing(false);
+      setExpandedReplyId(null);
       setSelectedEmailId(id);
       setSelectedFolder("SENT");
       setSelectedCustomFolderId(null);
@@ -1364,6 +1372,11 @@ export default function InboxRefatorado() {
     },
     [refreshEmails, reloadAccounts],
   );
+
+  const handleOpenReply = useCallback((id: string) => {
+    setSelectedEmailId(id);
+    setExpandedReplyId(id);
+  }, []);
 
   const handleSelectFolder = useCallback((folder: EmailFolder) => {
     setSelectedFolder(folder);
@@ -1452,6 +1465,7 @@ export default function InboxRefatorado() {
           onSearch={setSearch}
           unreadOnly={unreadOnly}
           onUnreadOnly={setUnreadOnly}
+          onOpenReply={handleOpenReply}
           onArchive={handleArchive}
           onSpam={handleSpam}
           onTrash={handleTrash}
@@ -1489,6 +1503,30 @@ export default function InboxRefatorado() {
           reloadCustomFolders();
         }}
       />
+
+      <FormDialog
+        open={expandedReplyId !== null}
+        onOpenChange={(open) => {
+          if (!open) setExpandedReplyId(null);
+        }}
+        title="Responder e-mail"
+        size="2xl"
+        className="max-h-[90vh]"
+        bodyClassName="overflow-hidden p-0"
+      >
+        {emailDetail && expandedReplyId ? (
+          <div className="h-[calc(90vh-8rem)]">
+            <ComposeView
+              accounts={composeAccounts.length > 0 ? composeAccounts : accounts}
+              draft={buildComposeDraft(emailDetail, "reply")}
+              onCancel={() => setExpandedReplyId(null)}
+              onSent={handleSent}
+            />
+          </div>
+        ) : (
+          <div className="p-6 text-sm text-muted-foreground">Carregando e-mail…</div>
+        )}
+      </FormDialog>
     </div>
   );
 }
