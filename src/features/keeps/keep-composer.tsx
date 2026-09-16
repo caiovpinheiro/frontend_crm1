@@ -141,20 +141,17 @@ export function KeepComposer({
           <div className="flex items-center gap-2">
             {showCategoryPicker ? (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "inline-flex max-w-[12rem] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm",
-                      selectedCategory
-                        ? "bg-secondary font-semibold text-foreground"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                    )}
-                    aria-label="Categoria"
-                  >
-                    <Folder className="size-3.5 shrink-0" />
-                    <span className="truncate">{selectedCategory?.name ?? "Categoria"}</span>
-                  </button>
+                <DropdownMenuTrigger
+                  aria-label="Categoria"
+                  className={cn(
+                    "inline-flex max-w-[12rem] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm",
+                    selectedCategory
+                      ? "bg-secondary font-semibold text-foreground"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  )}
+                >
+                  <Folder className="size-3.5 shrink-0" />
+                  <span className="truncate">{selectedCategory?.name ?? "Categoria"}</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[10rem]">
                   <DropdownMenuItem onClick={() => setCategoryId(null)}>
