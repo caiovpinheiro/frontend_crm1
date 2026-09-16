@@ -663,12 +663,25 @@ function eventTouchesOpenConversation(
   qc: QueryClient,
   eventConversationId: string,
   activeId: string | null,
+  eventCard?: ConversationListRow | null,
 ): boolean {
   if (!activeId) return false;
   if (eventConversationId === activeId) return true;
   const open = findCachedConversationRow(qc, activeId);
-  if (open && conversationMatchesId(open, eventConversationId)) return true;
-  const eventRow = findCachedConversationRow(qc, eventConversationId);
+  if (!open) return false;
+  // Mesmo contato+canal em conversa ativa diferente = mesma timeline unificada.
+  if (
+    open.contact?.id &&
+    eventCard?.contact?.id &&
+    open.contact.id === eventCard.contact.id &&
+    open.channel &&
+    eventCard.channel &&
+    String(open.channel) === String(eventCard.channel)
+  ) {
+    return true;
+  }
+  if (conversationMatchesId(open, eventConversationId)) return true;
+  const eventRow = eventCard ?? findCachedConversationRow(qc, eventConversationId);
   return Boolean(eventRow && conversationMatchesId(eventRow, activeId));
 }
 
@@ -1067,7 +1080,14 @@ export function useInboxRealtime(options: {
                 queryKey: ["channel-session", data.conversationId],
               });
             }
-            if (eventTouchesOpenConversation(qc, data.conversationId, activeRef.current)) {
+            if (
+              eventTouchesOpenConversation(
+                qc,
+                data.conversationId,
+                activeRef.current,
+                data.card,
+              )
+            ) {
               // Conversa aberta: refetch imediato para exibir a mensagem.
               qc.invalidateQueries({ queryKey: messagesKey(activeRef.current) });
               if (activeRef.current !== data.conversationId) {
