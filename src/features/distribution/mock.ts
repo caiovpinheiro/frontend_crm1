@@ -11,6 +11,7 @@ export const MOCK_DISTRIBUTION_SETTINGS: DistributionSettings = {
   autoOnInbound: true,
   enabled: true,
   fallbackDepartmentId: null,
+  mode: "smart",
 };
 
 function ago(minutes: number): string {
