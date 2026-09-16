@@ -546,7 +546,7 @@ function MessageRow({ m, active, selected, onOpen, onDoubleClick, onToggle, dens
             textOverflow: "ellipsis",
           }}
         >
-          {m.subject || "(sem assunto)"}
+          {decodeIfQuotedPrintable(m.subject ?? "") || "(sem assunto)"}
         </div>
 
         {!dense && (
@@ -1019,7 +1019,7 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
               flex: 1,
             }}
           >
-            {email.subject || "(sem assunto)"}
+            {decodeIfQuotedPrintable(email.subject ?? "") || "(sem assunto)"}
           </h1>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0, justifyContent: "flex-end" }}>
             <Action Icon={IconReply} label="Responder" primary onClick={onReply} />

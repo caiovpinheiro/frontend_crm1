@@ -1,4 +1,5 @@
 import type { EmailDetail } from "../api/types";
+import { decodeIfQuotedPrintable } from "../components/html-email-frame";
 
 export type ComposeMode = "new" | "reply" | "forward";
 
@@ -14,12 +15,12 @@ export interface ComposeDraft {
 }
 
 function replySubject(subject: string | null): string {
-  const base = subject?.trim() || "(sem assunto)";
+  const base = decodeIfQuotedPrintable(subject?.trim() ?? "") || "(sem assunto)";
   return /^re:/i.test(base) ? base : `Re: ${base}`;
 }
 
 function forwardSubject(subject: string | null): string {
-  const base = subject?.trim() || "(sem assunto)";
+  const base = decodeIfQuotedPrintable(subject?.trim() ?? "") || "(sem assunto)";
   return /^enc:/i.test(base) ? base : `Enc: ${base}`;
 }
 
@@ -30,7 +31,7 @@ function quoteBlock(email: EmailDetail): string {
   const from = email.fromName
     ? `${email.fromName} &lt;${email.fromAddress}&gt;`
     : email.fromAddress;
-  const body = email.bodyText?.trim() || "(sem conteúdo)";
+  const body = decodeIfQuotedPrintable(email.bodyText?.trim() ?? "") || "(sem conteúdo)";
   const escaped = body
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
