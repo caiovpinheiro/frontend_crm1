@@ -38,6 +38,7 @@ import {
 import { getContact } from "@/features/inbox-v2/api/misc";
 import {
   sendAttachment,
+  sendAttachmentReuse,
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
@@ -745,14 +746,68 @@ export function Composer({
     files.forEach((f) => URL.revokeObjectURL(f.previewUrl));
   }
 
+  // Limite de caption de imagem na WhatsApp Cloud API.
+  const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
+
   async function flushOutbound(text: string | null) {
-    // Produto / mídia marcada: imagem antes do texto. Demais anexos depois.
-    await flushPendingMedia(true);
-    if (text) {
+    const all = pendingMediaListRef.current;
+    const before = all.filter((m) => Boolean(m.sendBeforeText));
+    const captionText = text?.trim() ?? "";
+    const canCaption =
+      Boolean(conversationId) &&
+      before.length > 0 &&
+      captionText.length > 0 &&
+      captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
+
+    if (canCaption && conversationId) {
+      // Uma mensagem: 1ª imagem + caption (texto do composer). Demais capas sem legenda.
+      const remaining = all.filter((m) => !m.sendBeforeText);
+      setPendingMediaList(remaining);
+      pendingMediaListRef.current = remaining;
+      onChange("");
+      draftRef.current = "";
+      setSequenceSending(true);
       try {
-        await Promise.resolve(onSend(text));
-      } catch {
-        /* texto falhou; ainda tenta anexos se o caller não bloqueou */
+        const [first, ...rest] = before;
+        await sendAttachmentReuse(conversationId, {
+          reuseUrl: first.url,
+          fileName: first.name ?? undefined,
+          mimeType: first.mimeType ?? undefined,
+          caption: captionText,
+          channelId: selectedChannelId,
+          waitUntilSent: true,
+        });
+        for (const m of rest) {
+          await sendAttachmentReuse(conversationId, {
+            reuseUrl: m.url,
+            fileName: m.name ?? undefined,
+            mimeType: m.mimeType ?? undefined,
+            channelId: selectedChannelId,
+            waitUntilSent: true,
+          });
+        }
+        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+        applyOutboundPreviewToInboxCaches(qc, conversationId, {
+          content: captionText,
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Falha ao enviar imagem com legenda.");
+      } finally {
+        setSequenceSending(false);
+      }
+    } else {
+      if (before.length > 0 && captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
+        toast.message(
+          "Texto longo demais para legenda do WhatsApp; enviando imagem e texto separados.",
+        );
+      }
+      await flushPendingMedia(true);
+      if (text) {
+        try {
+          await Promise.resolve(onSend(text));
+        } catch {
+          /* texto falhou; ainda tenta anexos se o caller não bloqueou */
+        }
       }
     }
     await flushPendingMedia(false);
@@ -778,8 +833,8 @@ export function Composer({
       return;
     }
     if (!(await confirmChannelSwitchIfNeeded())) return;
-    // Aguarda o texto sair antes dos anexos — evita race (arquivo aparecer
-    // antes da 1ª mensagem) e garante ordem: texto → arq1 → msg2 → arq2…
+    // Capa de produto (sendBeforeText): tenta 1 mensagem imagem+caption;
+    // se o texto passar de 1024 chars, cai no fallback imagem → texto.
     if (trimmed) {
       const gated = await proofread.gate(trimmed);
       if (gated.status === "block") return;
