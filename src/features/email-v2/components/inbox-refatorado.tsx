@@ -293,12 +293,14 @@ function Sidebar({
       style={{
         width: 224,
         flexShrink: 0,
-        borderRight: `1px solid ${T.line}`,
+        border: `1px solid ${T.line}`,
+        borderRadius: 14,
+        overflow: "hidden",
         padding: "14px 12px",
         display: "flex",
         flexDirection: "column",
         gap: 18,
-        background: T.paper,
+        background: T.surface,
       }}
     >
       <button
@@ -657,7 +659,9 @@ function List({
       style={{
         width: 392,
         flexShrink: 0,
-        borderRight: `1px solid ${T.line}`,
+        border: `1px solid ${T.line}`,
+        borderRadius: 14,
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         background: T.surface,
@@ -982,7 +986,7 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
   const bodyParagraphs = (email.bodyText ?? "(sem conteúdo)").split(/\n{2,}/);
 
   return (
-    <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: T.surface }}>
+    <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, border: `1px solid ${T.line}`, borderRadius: 14, overflow: "hidden", background: T.surface }}>
       <header
         style={{
           padding: "14px 28px 12px",
@@ -1408,7 +1412,7 @@ export default function InboxRefatorado() {
     >
       <PageHeader icon={<IconMail size={22} />} title="E-mail" className="rounded-none border-0 bg-transparent shadow-none" />
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, gap: 12, padding: 12, background: T.paper }}>
         <Sidebar
           accounts={accounts}
           folders={customFolders}
