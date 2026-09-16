@@ -110,6 +110,7 @@ type InboxMessageDto = {
   reactions?: ReactionDto[];
   sendStatus?: string;
   sendError?: string;
+  channelId?: string | null;
 };
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -123,6 +124,8 @@ type MessagesResponse = {
   pinnedNoteId?: string | null;
   channelProvider?: string | null;
   session?: SessionInfo;
+  channel?: ConnectionRef | null;
+  channels?: Record<string, ConnectionRef>;
 };
 
 async function fetchMessages(
@@ -153,6 +156,9 @@ async function fetchMessages(
       : [],
     pinnedNoteId: data.pinnedNoteId ?? null,
     channelProvider: data.channelProvider ?? null,
+    channel: data.channel ?? null,
+    channels:
+      data.channels && typeof data.channels === "object" ? data.channels : {},
     session: data.session ?? undefined,
   };
 }
