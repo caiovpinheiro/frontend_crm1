@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useSession } from "next-auth/react";
-import { IconChevronDown, IconColumns, IconLayoutKanban, IconPlus, IconRocket, IconTrash } from "@tabler/icons-react";
+import { IconChevronDown, IconColumns, IconLayoutKanban, IconPlus, IconTrash } from "@tabler/icons-react";
+import { FolderKanban } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -206,7 +207,7 @@ export default function DemandsClientPage({
       ) : (
       <main className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
           <PageHeader
-            icon={<IconRocket size={20} />}
+            icon={<FolderKanban size={20} />}
             title="Demandas"
             titleAccessory={
               boards.length > 0 ? (

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Activity, Loader2, MessageSquare, Rocket, ThumbsUp, Trash2, X } from "lucide-react";
+import { Activity, FileText, FolderKanban, Loader2, MessageSquare, ThumbsUp, Trash2, X, type LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
@@ -13,8 +13,8 @@ import { EVENT_LABEL, KIND_LABEL, PRIORITY_LABEL, type DemandItem } from "./type
 
 type TabId = "detalhes" | "comentarios" | "atividade";
 
-const TABS: { id: TabId; label: string; icon: typeof Rocket }[] = [
-  { id: "detalhes", label: "Detalhes", icon: Rocket },
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: "detalhes", label: "Detalhes", icon: FileText },
   { id: "comentarios", label: "Comentários", icon: MessageSquare },
   { id: "atividade", label: "Atividade", icon: Activity },
 ];
@@ -83,7 +83,7 @@ export function DemandItemDrawer({
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Rocket className="size-5" aria-hidden="true" />
+              <FolderKanban className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
               <h2
