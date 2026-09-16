@@ -58,6 +58,8 @@ import {
   isChannelMismatch,
 } from "./channel-switch-confirm";
 import { ComposerMenu } from "./composer-menu";
+import { QuickReplyPopover } from "./quick-reply-popover";
+import type { QuickReplyCatalogItem } from "./quick-reply-catalog";
 import { ConversationResolveButton } from "./conversation-resolve-button";
 import {
   TemplateComposePanel,
@@ -70,6 +72,7 @@ import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channe
  * Composer completo para o ChatArea. Substitui o footer estático
  * do v0 via prop `composerSlot`. Reúne:
  *  - ComposerMenu ("+" — anexo, template, nota, agendar, tarefa, resolver)
+ *  - QuickReplyPopover (raio — preenche a frase; o envio é o botão Enviar)
  *  - input controlado (com modo "nota interna")
  *  - Slash command menu — digitar "/" abre lista de modelos internos e
  *    templates WhatsApp.
@@ -260,7 +263,6 @@ export function Composer({
       name: string | null;
       mimeType?: string | null;
       messageBefore?: string | null;
-      sendBeforeText?: boolean;
     }>
   >([]);
   // Ref espelhando `pendingMediaList` — evita stale closure no flush do
@@ -458,9 +460,9 @@ export function Composer({
     }> | null,
   ) {
     const list = media && media.length > 0 ? media : [];
-    const base = draftRef.current || value;
+    const base = value;
     const next = base.trim()
-      ? `${base}${base.endsWith("\n") ? "" : "\n\n"}${text}`
+      ? `${base}${base.endsWith("\n") ? "" : "\n"}${text}`
       : text;
 
     if (list.length > 0 && mediaNeedsSequence(list) && conversationId) {
@@ -502,54 +504,22 @@ export function Composer({
     });
   }
 
-  // Ponte: botões da lateral (ex. "Enviar produto") empurram texto (+ mídia)
+  // Ponte: botões da lateral (ex. "Enviar produto" de curso) empurram texto
   // pra cá sem prop-drilling pelo ContactAside.
   // No mobile o Chat pode estar desmontado (aba Negócio) — nesse caso o
-  // payload fica em `takePendingComposerInsert` e é aplicado ao montar.
+  // texto fica em `takePendingComposerInsert` e é aplicado ao montar.
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
   useEffect(() => {
-    function applyInsert(payload: { text?: string; media?: Array<{
-      url: string;
-      name?: string | null;
-      mimeType?: string | null;
-      sendBeforeText?: boolean;
-    }> }) {
-      const text = typeof payload?.text === "string" ? payload.text : "";
-      const media = Array.isArray(payload?.media)
-        ? payload.media
-            .filter((m) => typeof m?.url === "string" && m.url.trim())
-            .map((m) => ({
-              url: m.url.trim(),
-              name: m.name ?? null,
-              mimeType: m.mimeType ?? null,
-              sendBeforeText: Boolean(m.sendBeforeText),
-            }))
-        : [];
-      if (!text.trim() && media.length === 0) return;
-      if (text.trim()) {
-        const current = (draftRef.current || "").trimEnd();
-        const incoming = text.trim();
-        if (!(current === incoming || current.endsWith(incoming))) {
-          insertTemplateTextRef.current(text);
-        }
-      }
-      if (media.length > 0) {
-        setPendingMediaList((prev) => [...prev, ...media]);
-      }
+    function applyInsert(text: string) {
+      if (!text.trim()) return;
       clearPendingComposerInsert();
+      insertTemplateTextRef.current(text);
     }
     function onInsert(e: Event) {
-      const detail = (e as CustomEvent<{
-        text?: string;
-        media?: Array<{
-          url: string;
-          name?: string | null;
-          mimeType?: string | null;
-          sendBeforeText?: boolean;
-        }>;
-      }>).detail;
-      applyInsert(detail ?? {});
+      const detail = (e as CustomEvent<{ text?: string }>).detail;
+      const text = typeof detail?.text === "string" ? detail.text : "";
+      applyInsert(text);
     }
     window.addEventListener(COMPOSER_INSERT_EVENT, onInsert as EventListener);
     const pending = takePendingComposerInsert();
@@ -701,15 +671,15 @@ export function Composer({
     );
   }
 
-  // Envia os anexos encostados (mídia de modelo/mensagem rápida) — via o
-  // helper compartilhado (SEQUENCIAL). `beforeText` filtra o lote.
-  async function flushPendingMedia(beforeText: boolean) {
-    const all = pendingMediaListRef.current;
-    const list = all.filter((m) => Boolean(m.sendBeforeText) === beforeText);
+  // Envia os anexos encostados (mídia de modelo/mensagem rápida) logo após o
+  // texto do Enter — via o helper compartilhado (SEQUENCIAL, com toast em
+  // falha intermediária). Lê de `pendingMediaListRef` (não do state direto)
+  // pra evitar stale closure entre o render que agendou e o flush em si.
+  async function flushPendingMedia() {
+    const list = pendingMediaListRef.current;
     if (list.length === 0 || !conversationId) return;
-    const remaining = all.filter((m) => Boolean(m.sendBeforeText) !== beforeText);
-    setPendingMediaList(remaining);
-    pendingMediaListRef.current = remaining;
+    setPendingMediaList([]);
+    pendingMediaListRef.current = [];
     await sendInternalTemplateSequence({ conversationId, content: "", attachments: list });
   }
 
@@ -744,7 +714,7 @@ export function Composer({
         /* texto falhou; ainda tenta anexos se o caller não bloqueou */
       }
     }
-    await flushPendingMedia(false);
+    await flushPendingMedia();
     await flushPendingFiles();
   }
 
@@ -779,6 +749,21 @@ export function Composer({
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     performSend();
+  }
+
+  function insertQuickReply(item: QuickReplyCatalogItem) {
+    const trimmed = item.content.trim();
+    if (!trimmed || busy) return;
+    if (inputDisabled) {
+      warnOutboundBlocked();
+      return;
+    }
+    insertTemplateText(
+      trimmed,
+      item.attachmentUrl
+        ? [{ url: item.attachmentUrl, name: null, mimeType: null, messageBefore: null }]
+        : null,
+    );
   }
 
   // Extensão de arquivo a partir do mime da imagem colada.
@@ -912,7 +897,7 @@ export function Composer({
       {pendingMediaList.length > 0 && (
         <div className="mb-2 flex flex-col gap-1.5">
           {pendingMediaList.map((media, i) => {
-            const before = media.messageBefore?.trim();
+            const before = i > 0 ? media.messageBefore?.trim() : "";
             return (
               <div
                 key={`${media.url}-${i}`}
@@ -1253,6 +1238,17 @@ export function Composer({
                 </div>
               )}
             </div>
+            <QuickReplyPopover
+              disabled={busy}
+              sending={busy}
+              onSend={insertQuickReply}
+              onOpenChange={(next) => {
+                if (next) {
+                  setEmojiOpen(false);
+                  setNoteMode(false);
+                }
+              }}
+            />
           </>
         )}
 
