@@ -25,6 +25,7 @@ import type {
 } from "../api/types";
 import { ComposeView } from "./compose-view";
 import { EmailRulesModal } from "./email-rules-modal";
+import { HtmlEmailFrame } from "./html-email-frame";
 import {
   buildComposeDraft,
   newComposeDraft,
@@ -586,6 +587,7 @@ interface ListProps {
   hasMore: boolean;
   onLoadMore: () => void;
   onRefresh: () => void;
+  total?: number;
   search: string;
   onSearch: (value: string) => void;
   unreadOnly: boolean;
@@ -607,6 +609,7 @@ function List({
   hasMore,
   onLoadMore,
   onRefresh,
+  total,
   search,
   onSearch,
   unreadOnly,
@@ -837,7 +840,7 @@ function List({
           <>
             <span style={{ fontSize: 12.5, color: T.ink2, fontWeight: 600 }}>{folderLabel}</span>
             <span style={{ ...NUM, fontSize: 12.5, color: T.muted, marginLeft: 8 }}>
-              {folderUnread} não lidos de {emails.length}
+              {folderUnread} não lidos · {total ?? emails.length} total
             </span>
           </>
         )}
@@ -983,7 +986,8 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
     </button>
   );
 
-  const bodyParagraphs = (email.bodyText ?? "(sem conteúdo)").split(/\n{2,}/);
+  const hasHtml = Boolean(email.bodyHtml?.trim());
+  const hasText = Boolean(email.bodyText?.trim());
 
   return (
     <section style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, border: `1px solid ${T.line}`, borderRadius: 14, overflow: "hidden", background: T.surface }}>
@@ -1098,7 +1102,7 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
 
       <div ref={ref} style={{ flex: 1, overflowY: "auto", padding: "24px 28px 40px" }}>
         <div style={{ maxWidth: 660 }}>
-          {email.bodyHtml && (
+          {hasHtml && (
             <div
               style={{
                 display: "flex",
@@ -1113,38 +1117,32 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
                 marginBottom: 18,
               }}
             >
-              Imagens bloqueadas neste remetente.
-              <button
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  color: T.accent,
-                  fontWeight: 600,
-                  fontSize: 12.5,
-                  fontFamily: FONT,
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                Exibir imagens
-              </button>
+              Imagens e conteúdo externo serão carregados abaixo.
             </div>
           )}
 
-          {bodyParagraphs.map((p, i) => (
-            <p
-              key={i}
-              style={{
-                margin: "0 0 14px",
-                fontSize: 14.5,
-                lineHeight: 1.65,
-                color: T.ink2,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {p}
-            </p>
-          ))}
+          {hasHtml ? (
+            <HtmlEmailFrame html={email.bodyHtml ?? ""} />
+          ) : hasText ? (
+            email.bodyText
+              ?.split(/\n{2,}/)
+              .map((p, i) => (
+                <p
+                  key={i}
+                  style={{
+                    margin: "0 0 14px",
+                    fontSize: 14.5,
+                    lineHeight: 1.65,
+                    color: T.ink2,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {p}
+                </p>
+              ))
+          ) : (
+            <p style={{ color: T.muted, fontSize: 14.5 }}>(sem conteúdo)</p>
+          )}
         </div>
       </div>
 
@@ -1199,6 +1197,7 @@ export default function InboxRefatorado() {
 
   const {
     emails,
+    pagination,
     loading: emailsLoading,
     hasMore,
     loadMore,
@@ -1272,10 +1271,13 @@ export default function InboxRefatorado() {
   }, [folderCounts, selectedFolder, selectedCustomFolderId, customFolders]);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all(accounts.map((a) => sync(a.id).catch(() => ({}))));
+    const results = await Promise.all(accounts.map((a) => sync(a.id).catch(() => ({ synced: 0 }))));
+    const synced = results.reduce((sum, r) => sum + (r.synced ?? 0), 0);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     refreshEmails();
     reloadAccounts();
     reloadCustomFolders();
+    if (synced > 0) toast.success(`${synced} e-mail${synced > 1 ? "s" : ""} sincronizado${synced > 1 ? "s" : ""}.`);
   }, [accounts, sync, refreshEmails, reloadAccounts, reloadCustomFolders]);
 
   const runBulk = useCallback(
@@ -1444,6 +1446,7 @@ export default function InboxRefatorado() {
           hasMore={hasMore}
           onLoadMore={loadMore}
           onRefresh={refreshAll}
+          total={pagination?.total}
           search={search}
           onSearch={setSearch}
           unreadOnly={unreadOnly}
