@@ -67,6 +67,26 @@ export function useCreateQuickReply() {
   });
 }
 
+export function useCreateQuickReplyGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch("/api/settings/quick-replies/groups", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (!res.ok) throw new Error((await res.json()).message ?? "Erro ao criar grupo");
+      return res.json() as Promise<QuickReplyGroup>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: GROUPS_QK });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useDeleteQuickReply() {
   const qc = useQueryClient();
   return useMutation({

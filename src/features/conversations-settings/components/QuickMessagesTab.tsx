@@ -23,6 +23,7 @@ import {
   useQuickReplies,
   useQuickReplyGroups,
   useCreateQuickReply,
+  useCreateQuickReplyGroup,
   useDeleteQuickReply,
   type QuickReply,
   type QuickReplyGroup,
@@ -126,15 +127,24 @@ export function CreateQuickReplyModal({
   const [attachmentUrl, setAttachmentUrl] = React.useState<string | null>(null);
   const [attachmentName, setAttachmentName] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
+  const [isNewGroup, setIsNewGroup] = React.useState(false);
+  const [newGroupName, setNewGroupName] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const createMutation = useCreateQuickReply();
+  const createGroupMutation = useCreateQuickReplyGroup();
 
-  function handleClose() {
+  function reset() {
     setTitle("");
     setContent("");
     setGroupId("");
+    setIsNewGroup(false);
+    setNewGroupName("");
     setAttachmentUrl(null);
     setAttachmentName(null);
+  }
+
+  function handleClose() {
+    reset();
     onClose();
   }
 
@@ -162,22 +172,42 @@ export function CreateQuickReplyModal({
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
+
+    let finalGroupId = groupId || null;
+    if (isNewGroup && newGroupName.trim()) {
+      try {
+        const created = await createGroupMutation.mutateAsync(newGroupName.trim());
+        finalGroupId = created.id;
+      } catch {
+        return;
+      }
+    }
+
     createMutation.mutate(
-      { title: title.trim(), content: content.trim(), groupId: groupId || null, attachmentUrl: attachmentUrl || null },
+      {
+        title: title.trim(),
+        content: content.trim(),
+        groupId: finalGroupId,
+        attachmentUrl: attachmentUrl || null,
+      },
       { onSuccess: handleClose },
     );
   }
 
-  const canSubmit = title.trim().length > 0 && content.trim().length > 0;
+  const canSubmit =
+    title.trim().length > 0 &&
+    content.trim().length > 0 &&
+    (!isNewGroup || newGroupName.trim().length > 0) &&
+    !createGroupMutation.isPending;
 
   return (
     <FormDialog
       open={open}
       onOpenChange={(v) => !v && handleClose()}
-      busy={createMutation.isPending}
+      busy={createMutation.isPending || createGroupMutation.isPending}
       size="md"
       icon={<IconBolt size={18} className="text-[var(--brand-primary)]" />}
       title="Nova mensagem rápida"
@@ -232,8 +262,18 @@ export function CreateQuickReplyModal({
               Grupo
             </label>
             <select
-              value={groupId}
-              onChange={(e) => setGroupId(e.target.value)}
+              value={isNewGroup ? "__new__" : groupId}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "__new__") {
+                  setIsNewGroup(true);
+                  setGroupId("");
+                } else {
+                  setIsNewGroup(false);
+                  setNewGroupName("");
+                  setGroupId(value);
+                }
+              }}
               className={cn(
                 "w-full rounded-[var(--radius-md)] border border-[var(--glass-border)]",
                 "bg-[var(--glass-bg-overlay)] px-3 py-2.5",
@@ -247,7 +287,23 @@ export function CreateQuickReplyModal({
                   {g.name}
                 </option>
               ))}
+              <option value="__new__">+ Novo grupo</option>
             </select>
+            {isNewGroup && (
+              <input
+                type="text"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Nome do novo grupo"
+                autoFocus
+                className={cn(
+                  "mt-2 w-full rounded-[var(--radius-md)] border border-[var(--glass-border)]",
+                  "bg-[var(--glass-bg-overlay)] px-3 py-2.5",
+                  "font-body text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]",
+                  "focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]",
+                )}
+              />
+            )}
           </div>
 
           {/* Media attachment */}
