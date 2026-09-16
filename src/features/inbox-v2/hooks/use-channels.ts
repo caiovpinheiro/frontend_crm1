@@ -119,7 +119,7 @@ export function findLastPublicMessageChannelId(
         channelId?: string | null;
         isPrivate?: boolean;
         private?: boolean;
-        messageType?: string;
+        messageType?: string | number;
       }>
     | undefined,
 ): string | null {
@@ -127,7 +127,7 @@ export function findLastPublicMessageChannelId(
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.isPrivate || m.private) continue;
-    const t = (m.messageType ?? "").toLowerCase();
+    const t = String(m.messageType ?? "").toLowerCase();
     if (t === "note" || t === "event") continue;
     if (m.channelId) return m.channelId;
   }
