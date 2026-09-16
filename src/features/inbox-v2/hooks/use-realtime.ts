@@ -83,6 +83,8 @@ type NewMessagePayload = {
   content?: string;
   timestamp?: string;
   messageType?: string;
+  /** Nome do agente remetente em mensagens outbound — evita avatar "?". */
+  senderName?: string;
   /** Slim list row from the bus (`InboxSseCard`). */
   card?: ConversationListRow;
 };
@@ -558,6 +560,10 @@ function appendSseMessageToOpenChat(
       ? data.timestamp
       : new Date().toISOString();
   const content = typeof data.content === "string" ? data.content : "";
+  const senderName =
+    typeof data.senderName === "string" && data.senderName.trim()
+      ? data.senderName.trim()
+      : null;
   const stub: InboxMessageDto = {
     id: `sse:${data.conversationId ?? activeId}:${ts}:${content.slice(0, 80)}`,
     conversationId: data.conversationId ?? activeId,
@@ -565,6 +571,7 @@ function appendSseMessageToOpenChat(
     content,
     messageType: data.messageType || "text",
     createdAt: ts,
+    senderName,
     channelId: data.card?.channelId ?? null,
   };
   qc.setQueryData<MessagesResponse>(messagesKey(activeId), (old) => {
