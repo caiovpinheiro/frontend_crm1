@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   IconAlertTriangle,
@@ -108,6 +108,7 @@ import {
 import { CoverageSearchFilterBar } from "@/features/settings/coverage/search-filter-bar";
 import { isPageMockMode, shouldAutoDemoEmpty } from "@/lib/page-mock-mode";
 import { inboxConversationDeepLink } from "@/features/inbox-v2/hooks/use-inbox-url-sync";
+import { LeadsDistributionView, type LeadsPane } from "./leads-view";
 
 const CoverageBoard = dynamic(
   () =>
@@ -204,6 +205,35 @@ function parseViewParam(raw: string | null): DistributionView | null {
   return null;
 }
 
+const DIST_BASE_PATH = "/widgets/distribution";
+
+function parseLeadsPane(raw: string | null): LeadsPane {
+  if (raw === "ranking" || raw === "history") return raw;
+  return "consultants";
+}
+
+function distributionHref(opts: {
+  mode: "smart" | "leads";
+  view?: DistributionView;
+  pane?: LeadsPane;
+  current: URLSearchParams;
+}): string {
+  const params = new URLSearchParams(opts.current.toString());
+  if (opts.mode === "leads") {
+    params.delete("tab");
+    params.set("mode", "leads");
+    if (opts.pane && opts.pane !== "consultants") params.set("pane", opts.pane);
+    else params.delete("pane");
+  } else {
+    params.delete("mode");
+    params.delete("pane");
+    if (opts.view && opts.view !== "team") params.set("tab", opts.view);
+    else params.delete("tab");
+  }
+  const qs = params.toString();
+  return qs ? `${DIST_BASE_PATH}?${qs}` : DIST_BASE_PATH;
+}
+
 /** Presença efetiva de um responsável (para badge + filtro). */
 type PresenceKey = "ONLINE" | "AWAY" | "OFFLINE" | "INACTIVE";
 function classifyPresence(r: DistributionResponsibleDto): PresenceKey {
@@ -254,9 +284,38 @@ export default function DistributionClientPage({
       widgetFromApi === true ||
       (widgetFromApi === undefined && cachedInstalled !== false));
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const viewFromUrl = parseViewParam(searchParams.get("tab"));
   const [view, setView] = useState<DistributionView>(viewFromUrl ?? "team");
+  // Só alterna a visualização — não muda motor nem automações.
+  const [pageMode, setPageMode] = useState<"smart" | "leads">("smart");
+  const leadsPane = parseLeadsPane(searchParams.get("pane"));
+  const [leadsSearch, setLeadsSearch] = useState("");
+  const [leadsDateFrom, setLeadsDateFrom] = useState("");
+  const [leadsDateTo, setLeadsDateTo] = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("mode") === "leads") setPageMode("leads");
+    else setPageMode("smart");
+  }, [searchParams]);
+
+  const changePageMode = (m: "smart" | "leads") => {
+    setPageMode(m);
+    router.push(
+      distributionHref({
+        mode: m,
+        view: m === "smart" ? view : undefined,
+        pane: "consultants",
+        current: searchParams,
+      }),
+    );
+  };
+  const changeLeadsPane = (pane: LeadsPane) => {
+    router.push(
+      distributionHref({ mode: "leads", pane, current: searchParams }),
+    );
+  };
 
   const respQuery = useDistributionResponsibles(queueLive, {
     poll: view === "team",
@@ -443,9 +502,60 @@ export default function DistributionClientPage({
         <SectionHeader
           icon={Shuffle}
           title="Distribuição"
-          search={(smartInstalled && view === "team") || view === "coverage"}
+          titleAccessory={
+            smartInstalled ? (
+              <div
+                data-tour="distribution-mode"
+                className="ml-2 flex shrink-0 items-center rounded-full border border-border bg-card p-0.5"
+                role="tablist"
+                aria-label="Modo da página de distribuição"
+              >
+                {(
+                  [
+                    { key: "smart", label: "Inteligente" },
+                    { key: "leads", label: "Por Leads" },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={pageMode === m.key}
+                    onClick={() => changePageMode(m.key)}
+                    className={cn(
+                      "h-7 cursor-pointer rounded-full px-3 text-[12px] font-semibold whitespace-nowrap transition-colors",
+                      pageMode === m.key
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : undefined
+          }
+          search={
+            (pageMode === "leads" &&
+              (leadsPane === "ranking" || leadsPane === "history")) ||
+            (pageMode === "smart" &&
+              ((smartInstalled && view === "team") || view === "coverage"))
+          }
           searchSlot={
-            smartInstalled && view === "team" ? (
+            pageMode === "leads" &&
+            (leadsPane === "ranking" || leadsPane === "history") ? (
+              <SearchFilterBar
+                value={leadsSearch}
+                onChange={setLeadsSearch}
+                placeholder={
+                  leadsPane === "ranking"
+                    ? "Pesquisar consultor..."
+                    : "Pesquisar lead ou consultor..."
+                }
+                withFilter={false}
+                clearable
+              />
+            ) : smartInstalled && view === "team" ? (
               <DistributionSearchFilterBar
                 search={search}
                 onSearch={setSearch}
@@ -470,7 +580,20 @@ export default function DistributionClientPage({
             ) : undefined
           }
           period={
-            view === "logs" ? (
+            pageMode === "leads" ? (
+              <PeriodCalendarButton active={Boolean(leadsDateFrom || leadsDateTo)}>
+                <PeriodIsoRangePanel
+                  from={leadsDateFrom}
+                  to={leadsDateTo}
+                  onChange={({ from, to }) => {
+                    setLeadsDateFrom(from);
+                    setLeadsDateTo(to);
+                  }}
+                  allPeriodLabel="Todo o período"
+                  showToday
+                />
+              </PeriodCalendarButton>
+            ) : view === "logs" ? (
               <PeriodCalendarButton active={Boolean(logDateFrom || logDateTo)}>
                 <PeriodIsoRangePanel
                   from={logDateFrom}
@@ -488,20 +611,34 @@ export default function DistributionClientPage({
           actions={
             smartInstalled || view === "coverage" ? (
               <div className="flex min-w-0 w-full flex-nowrap items-center gap-2">
-                {view !== "coverage" && smartInstalled ? (
+                {((pageMode === "smart" && view !== "coverage") ||
+                  pageMode === "leads") &&
+                smartInstalled ? (
                   <ViewToggle value={listView} onChange={setListView} />
                 ) : null}
-                <HeaderTabs
-                  tabs={[
-                    { key: "team", label: "Equipe", badge: teamListCount },
-                    { key: "coverage", label: "Cobertura" },
-                    { key: "queue", label: "Fila de espera", badge: pendingBadge },
-                    { key: "logs", label: "Logs" },
-                  ]}
-                  value={view}
-                  onChange={(v) => setView(v)}
-                />
-                {adminCount > 0 && (
+                {pageMode === "leads" ? (
+                  <HeaderTabs
+                    tabs={[
+                      { key: "consultants", label: "Consultores" },
+                      { key: "ranking", label: "Ranking" },
+                      { key: "history", label: "Histórico" },
+                    ]}
+                    value={leadsPane}
+                    onChange={changeLeadsPane}
+                  />
+                ) : (
+                  <HeaderTabs
+                    tabs={[
+                      { key: "team", label: "Equipe", badge: teamListCount },
+                      { key: "coverage", label: "Cobertura" },
+                      { key: "queue", label: "Fila de espera", badge: pendingBadge },
+                      { key: "logs", label: "Logs" },
+                    ]}
+                    value={view}
+                    onChange={(v) => setView(v)}
+                  />
+                )}
+                {adminCount > 0 && pageMode === "smart" && (
                   <button
                     type="button"
                     onClick={() => setShowAdmins((v) => !v)}
@@ -527,8 +664,9 @@ export default function DistributionClientPage({
               </div>
             ) : undefined
           }
-          menu={smartInstalled || view === "coverage"}
+          menu={pageMode === "smart" && (smartInstalled || view === "coverage")}
           menuSlot={
+            pageMode === "smart" ? (
             <DistributionActionsMenu
               onTest={handleTest}
               testing={simulateMut.isPending}
@@ -543,16 +681,29 @@ export default function DistributionClientPage({
                   : undefined
               }
             />
+            ) : undefined
           }
         />
         }
         bodyClassName="gap-3 sm:gap-4"
       >
 
-        {/* Cobertura não depende do widget `smart_distribution`: a grade
-            de expedientes valia para qualquer org quando morava em
-            /settings/coverage. Fica fora do gating pra não perder acesso. */}
-        {view === "coverage" ? (
+        {pageMode === "leads" ? (
+          widgetsQuery.isLoading ? (
+            <SkeletonState />
+          ) : !smartInstalled ? (
+            <NotEnabledState />
+          ) : (
+            <LeadsDistributionView
+              canManage={canManage}
+              view={listView}
+              pane={leadsPane}
+              from={leadsDateFrom}
+              to={leadsDateTo}
+              search={leadsSearch}
+            />
+          )
+        ) : view === "coverage" ? (
           <CoverageBoard
             search={coverageSearch}
             deptIds={coverageDeptIds}
