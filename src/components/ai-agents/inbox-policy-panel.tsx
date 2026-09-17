@@ -206,6 +206,23 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
 
       <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
         <ToggleRow
+          id="speak-on-ai-transfer"
+          label="Ao receber transferência, falar na hora"
+          hint="Quando outro agente IA encaminhar a conversa, este destino envia a mensagem de abertura da Pilotagem em vez de esperar o aluno responder. Sem texto de abertura, o interruptor não envia nada."
+          checked={Boolean(value.speakOnAiTransfer)}
+          onChange={(speakOnAiTransfer) => patch({ speakOnAiTransfer })}
+        />
+        <p className="text-[11px] text-muted-foreground">
+          O texto sai de{" "}
+          <span className="font-medium text-foreground">
+            Pilotagem → Mensagem de abertura
+          </span>
+          .
+        </p>
+      </div>
+
+      <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
+        <ToggleRow
           id="inaugural"
           label="Link da aula inaugural"
           hint="Responde o YouTube sem passar pelo modelo, nas datas configuradas."
