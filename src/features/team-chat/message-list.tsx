@@ -631,14 +631,16 @@ function BubbleHoverActions({
     const place = () => {
       const btn = boxRef.current;
       if (!btn) return;
-      const r = btn.getBoundingClientRect();
+      const bubble = btn.offsetParent as HTMLElement | null;
+      if (!bubble) return;
+      const br = bubble.getBoundingClientRect();
       const menuW = 15.5 * 16;
       const gap = 4;
-      const left = mine
-        ? Math.min(Math.max(8, r.left), window.innerWidth - menuW - 8)
-        : Math.min(Math.max(8, r.right - menuW), window.innerWidth - menuW - 8);
-      const top = r.bottom + gap;
-      setMenuPos({ top, left, placement: "below" });
+      // Alinha ao canto direito da bolha para mensagens enviadas e ao
+      // canto esquerdo para recebidas — igual ao WhatsApp Web.
+      const rawLeft = mine ? br.right - menuW : br.left;
+      const left = Math.min(Math.max(8, rawLeft), window.innerWidth - menuW - 8);
+      setMenuPos({ top: br.bottom + gap, left, placement: "below" });
     };
     place();
     window.addEventListener("resize", place);
@@ -650,23 +652,34 @@ function BubbleHoverActions({
     };
   }, [open, mine]);
 
-  // Reposiciona o menu para cima do botão quando ele não cabe embaixo
-  // (ex.: mensagem no final da tela).
+  // Flip vertical: se o menu extrapolar o fundo da tela, abre acima da
+  // bolha; se extrapolar o topo, volta para baixo.
   useLayoutEffect(() => {
     if (!open || !menuRef.current || !menuPos) return;
     const menu = menuRef.current;
     const btn = boxRef.current;
     if (!btn) return;
-    const r = btn.getBoundingClientRect();
+    const bubble = btn.offsetParent as HTMLElement | null;
+    if (!bubble) return;
+    const br = bubble.getBoundingClientRect();
     const menuH = menu.offsetHeight;
     const gap = 4;
+    const margin = 8;
     const bottomEdge = menuPos.top + menuH;
-    const viewportBottomMargin = 8;
-    if (menuPos.placement === "below" && bottomEdge > window.innerHeight - viewportBottomMargin) {
+    const overflowsBottom = bottomEdge > window.innerHeight - margin;
+    const overflowsTop = menuPos.top < margin;
+
+    if (menuPos.placement === "below" && overflowsBottom) {
       setMenuPos({
-        top: Math.max(8, r.top - menuH - gap),
+        top: Math.max(margin, br.top - menuH - gap),
         left: menuPos.left,
         placement: "above",
+      });
+    } else if (menuPos.placement === "above" && overflowsTop) {
+      setMenuPos({
+        top: br.bottom + gap,
+        left: menuPos.left,
+        placement: "below",
       });
     }
   }, [open, menuPos]);
@@ -732,7 +745,7 @@ function BubbleHoverActions({
             style={{ top: menuPos.top, left: menuPos.left }}
             role="menu"
           >
-            <div className="mx-1.5 mb-1 flex items-center justify-between gap-0.5 rounded-full bg-muted/70 px-1 py-1">
+            <div className="mx-2 mb-2 flex items-center justify-between gap-0.5 rounded-full bg-card px-2 py-1 shadow-sm">
               {REACTION_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
@@ -827,8 +840,7 @@ function BubbleHoverActions({
     <div
       ref={boxRef}
       className={cn(
-        "pointer-events-auto absolute top-1 z-30",
-        mine ? "left-1" : "right-1",
+        "pointer-events-auto absolute right-1 top-1 z-30",
       )}
     >
       <button
