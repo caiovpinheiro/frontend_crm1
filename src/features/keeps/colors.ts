@@ -40,6 +40,12 @@ export const KEEP_CATEGORY_COLORS = [
 
 export type KeepCategoryColorId = (typeof KEEP_CATEGORY_COLORS)[number];
 
+const CATEGORY_COLOR_SET = new Set<string>(KEEP_CATEGORY_COLORS);
+
+export function isKeepCategoryColor(value: string): value is KeepCategoryColorId {
+  return CATEGORY_COLOR_SET.has(value);
+}
+
 export const KEEP_CATEGORY_COLOR_LABELS: Record<KeepCategoryColorId, string> = {
   ember: "Brasa",
   honey: "Mel",

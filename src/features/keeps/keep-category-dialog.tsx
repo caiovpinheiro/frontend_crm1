@@ -11,7 +11,12 @@ import {
   formDialogPrimaryClass,
   formLabelClass,
 } from "@/components/ui/form-dialog";
-import { KEEP_CATEGORY_COLOR_LABELS, KEEP_CATEGORY_COLORS } from "./colors";
+import {
+  isKeepCategoryColor,
+  KEEP_CATEGORY_COLOR_LABELS,
+  KEEP_CATEGORY_COLORS,
+  type KeepCategoryColorId,
+} from "./colors";
 import { KeepColorSwatches } from "./keep-color-swatches";
 
 export function KeepCategoryDialog({
@@ -26,7 +31,7 @@ export function KeepCategoryDialog({
   onSubmit: (input: { name: string; color: string }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
-  const [color, setColor] = useState(KEEP_CATEGORY_COLORS[0]);
+  const [color, setColor] = useState<KeepCategoryColorId>(KEEP_CATEGORY_COLORS[0]);
 
   async function handleSubmit() {
     const trimmed = name.trim();
@@ -90,7 +95,7 @@ export function KeepCategoryDialog({
         colors={[...KEEP_CATEGORY_COLORS]}
         labels={{ ...KEEP_CATEGORY_COLOR_LABELS }}
         onChange={(next) => {
-          if (next) setColor(next);
+          if (next && isKeepCategoryColor(next)) setColor(next);
         }}
       />
     </FormDialog>
