@@ -316,7 +316,7 @@ export function MessageList({
                 return (
                   <Fragment key={msg.id}>
                     {showDay && (
-                      <div className="pointer-events-none sticky top-2 z-[2] my-3.5 flex justify-center">
+                      <div className="pointer-events-none relative z-[2] my-3.5 flex justify-center">
                         <span className="pointer-events-auto rounded-full border border-border bg-[var(--orbita-block)] px-3.5 py-1 text-[13px] font-medium text-muted-foreground">
                           {formatDayLabel(msg.createdAt)}
                         </span>
