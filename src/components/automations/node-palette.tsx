@@ -67,6 +67,7 @@ const GROUPS: { title: string; items: PaletteItem[] }[] = [
       { type: "remove_tag" },
       { type: "update_field" },
       { type: "create_activity" },
+      { type: "create_conversation_note" },
       { type: "update_lead_score" },
       { type: "execute_distribution" },
       {

@@ -36,6 +36,7 @@ const STEP_CHIP: Record<string, Chip> = {
   remove_tag: "red",
   update_field: "blue",
   create_activity: "violet",
+  create_conversation_note: "amber",
   update_lead_score: "green",
   create_deal: "green",
   finish_conversation: "green",

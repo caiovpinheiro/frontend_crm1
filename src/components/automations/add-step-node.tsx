@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { Position, type Node, type NodeProps } from "@xyflow/react";
 import { CustomHandle } from "./custom-handle";
-import { IconArrowsLeftRight as ArrowRightLeft, IconRobot as Bot, IconRobotFace as BotMessageSquare, IconBriefcase as Briefcase, IconCalendarPlus as CalendarPlus, IconCircleCheck as CheckCircle2, IconChecklist as Checklist, IconClipboardList as ClipboardList, IconCircleX as CircleX, IconClock as Clock, IconCornerDownRight as CornerDownRight, IconFileText as FileText, IconGitBranch as GitBranch, IconGlobe as Globe, IconHourglass as Hourglass, IconPhoto as Image, IconListDetails as ListDetails, IconMail as Mail, IconMessageQuestion as MessageCircleQuestion, IconMessage as MessageSquare, IconClick as MousePointerClick, IconPackageOff as PackageMinus, IconPlayerPause as Pause, IconPencil as Pencil, IconPlus as Plus, IconRefresh as RefreshCw, IconRepeat as Repeat, IconRoute as Route, IconShoppingBag as ShoppingBag, IconSquare as Square, IconPlayerStop as StopCircle, IconTag as Tag, IconClock as Timer, IconTrendingUp as TrendingUp, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserPlus as UserPlus, IconUsersGroup as UsersGroup, IconVariable as Variable } from "@tabler/icons-react";
+import { IconArrowsLeftRight as ArrowRightLeft, IconRobot as Bot, IconRobotFace as BotMessageSquare, IconBriefcase as Briefcase, IconCalendarPlus as CalendarPlus, IconCircleCheck as CheckCircle2, IconChecklist as Checklist, IconClipboardList as ClipboardList, IconCircleX as CircleX, IconClock as Clock, IconCornerDownRight as CornerDownRight, IconFileText as FileText, IconGitBranch as GitBranch, IconGlobe as Globe, IconHourglass as Hourglass, IconPhoto as Image, IconListDetails as ListDetails, IconMail as Mail, IconMessageQuestion as MessageCircleQuestion, IconMessage as MessageSquare, IconNote as NoteIcon, IconClick as MousePointerClick, IconPackageOff as PackageMinus, IconPlayerPause as Pause, IconPencil as Pencil, IconPlus as Plus, IconRefresh as RefreshCw, IconRepeat as Repeat, IconRoute as Route, IconShoppingBag as ShoppingBag, IconSquare as Square, IconPlayerStop as StopCircle, IconTag as Tag, IconClock as Timer, IconTrendingUp as TrendingUp, IconTrophy as Trophy, IconUserCheck as UserCheck, IconUserPlus as UserPlus, IconUsersGroup as UsersGroup, IconVariable as Variable } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ export const stepIcon: Record<string, ComponentType<{ className?: string; stroke
   remove_tag: Tag,
   update_field: Pencil,
   create_activity: CalendarPlus,
+  create_conversation_note: NoteIcon,
   send_whatsapp_message: MessageSquare,
   send_whatsapp_template: FileText,
   send_whatsapp_media: Image,
@@ -66,6 +67,7 @@ export const stepDescription: Record<string, string> = {
   remove_tag: "Remove uma tag do contato.",
   update_field: "Atualiza um campo personalizado.",
   create_activity: "Cria uma tarefa, ligacao ou reuniao.",
+  create_conversation_note: "Grava uma nota interna na conversa, sem enviar ao cliente.",
   send_whatsapp_message: "Envia uma mensagem de texto pelo WhatsApp.",
   send_whatsapp_template: "Envia um template aprovado pelo WhatsApp.",
   send_whatsapp_media: "Envia imagem, video ou documento.",
@@ -114,6 +116,7 @@ export const stepColor: Record<string, string> = {
   remove_tag: "text-[var(--color-danger)]",
   update_field: "text-[var(--color-warn)]",
   create_activity: "text-[var(--color-lavender)]",
+  create_conversation_note: "text-[var(--color-warning)]",
   send_whatsapp_message: "text-[var(--color-success)]",
   send_whatsapp_template: "text-[var(--color-success)]",
   send_whatsapp_media: "text-[var(--color-success)]",
@@ -189,6 +192,7 @@ export const STEP_GROUPS: StepGroup[] = [
       "remove_tag",
       "update_field",
       "create_activity",
+      "create_conversation_note",
       "update_lead_score",
       "create_deal",
       "tabulate_conversation",

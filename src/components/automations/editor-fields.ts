@@ -132,6 +132,14 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "text", key: "title", label: "Título" },
     { kind: "textarea", key: "description", label: "Descrição", optional: true },
   ],
+  create_conversation_note: [
+    {
+      kind: "textarea",
+      key: "content",
+      label: "Nota",
+      hint: "Aparece como nota interna na conversa. Não é enviada ao cliente. Use {{campo}} para variáveis.",
+    },
+  ],
   send_whatsapp_message: [
     { kind: "channelPicker" },
     { kind: "textarea", key: "content", label: "Conteúdo da mensagem", hint: "Use {{campo}} para variáveis." },

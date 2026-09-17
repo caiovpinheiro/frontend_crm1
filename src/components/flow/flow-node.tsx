@@ -482,6 +482,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps) {
         stepType === "update_field" ||
         stepType === "create_deal" ||
         stepType === "create_activity" ||
+        stepType === "create_conversation_note" ||
         stepType === "tabulate_conversation" ||
         stepType === "ask_ai_agent" ||
         stepType === "transfer_to_ai_agent" ||
