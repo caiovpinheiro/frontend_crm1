@@ -328,6 +328,8 @@ export type PageActionsMenuItem = {
   primary?: boolean;
   /** Estado ativo (ex.: modo demo ligado). */
   active?: boolean;
+  /** Valor de `data-tour` no item (product tour). */
+  tourId?: string;
 };
 
 /** Classes do item de menu — use quando o menu for montado manualmente. */
@@ -491,6 +493,7 @@ export function PageActionsMenu({
                       type="button"
                       role="menuitem"
                       disabled={it.disabled}
+                      {...(it.tourId ? { "data-tour": it.tourId } : {})}
                       onClick={() => {
                         setOpen(false);
                         it.onClick();
