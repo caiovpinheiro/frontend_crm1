@@ -28,6 +28,10 @@ function forwardSubject(subject: string | null): string {
   return /^enc:/i.test(base) ? base : `Enc: ${base}`;
 }
 
+function stripTags(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function quoteBlock(email: EmailDetail): string {
   const date = email.receivedAt
     ? new Date(email.receivedAt).toLocaleString("pt-BR")
@@ -35,7 +39,15 @@ function quoteBlock(email: EmailDetail): string {
   const from = email.fromName
     ? `${email.fromName} &lt;${email.fromAddress}&gt;`
     : email.fromAddress;
-  const body = cleanText(email.bodyText) || "(sem conteúdo)";
+
+  // Prefere bodyText, mas cai para bodyHtml decodificado quando o bodyText
+  // veio parcialmente decodificado ou truncado pelo parser legado.
+  const textBody = cleanText(email.bodyText);
+  const htmlBody = email.bodyHtml
+    ? cleanText(stripTags(email.bodyHtml))
+    : "";
+  const body = textBody || htmlBody || "(sem conteúdo)";
+
   const escaped = body
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
