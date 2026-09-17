@@ -213,6 +213,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
     inauguralEnabled: true,
     inauguralUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     inauguralDates: ["2026-02-10", "2026-02-11"],
+    firstAccessPackMessage: null,
     scope: defaultAttendanceScope(),
     handoffMessage:
       "Vou te conectar com um consultor humano agora. Ele já vai ver o histórico.",
@@ -321,7 +322,7 @@ export const SECTION_META: Record<
   },
   inbox: {
     label: "Inbox",
-    description: "Interceptos de confiança, retenção e aula inaugural.",
+    description: "Interceptos de confiança, retenção, primeiro acesso e aula inaugural.",
   },
   knowledge: {
     label: "Conhecimento",

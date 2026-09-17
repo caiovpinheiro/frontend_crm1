@@ -6,6 +6,7 @@ import { ChipInput } from "@/components/ai-agents/chip-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { formLabelClass } from "@/components/ui/form-dialog";
 import { mergeInboxPolicy, type InboxPolicy } from "@/lib/ai-agents/steering";
 
@@ -29,9 +30,9 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
     <div className="space-y-4">
       <p className="text-[12px] text-muted-foreground">
         Interceptos que o backend aplica antes (e depois) do modelo —
-        confiança baixa, retenção, dúvida comercial e link da aula
-        inaugural. Campo vazio / desligado cai no comportamento atual
-        do código.
+        confiança baixa, retenção, dúvida comercial, primeiro acesso e
+        link da aula inaugural. Campo vazio / desligado cai no
+        comportamento atual do código.
       </p>
 
       <ToggleRow
@@ -171,6 +172,37 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
         Textos de fila humana (8h, retenção) ficam em{" "}
         <span className="font-medium text-foreground">Pilotagem → Horário e fila humana</span>.
       </p>
+
+      <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
+        <div className="text-sm font-semibold">Primeiro acesso</div>
+        <p className="text-[12px] text-muted-foreground">
+          Texto enviado palavra por palavra quando o aluno pede primeiro
+          acesso (botão da campanha incluso). O modelo não reescreve.
+          Vazio = pacote de fábrica (vídeo + portal + Duda).
+        </p>
+        <div className="grid gap-1.5">
+          <Label htmlFor="first-access-pack" className={formLabelClass}>
+            Pacote de primeiro acesso
+          </Label>
+          <Textarea
+            id="first-access-pack"
+            rows={8}
+            value={value.firstAccessPackMessage ?? ""}
+            onChange={(e) =>
+              patch({ firstAccessPackMessage: e.target.value || null })
+            }
+            placeholder={
+              "Claro, te ajudo com o primeiro acesso 😊\n\nO login é com o e-mail acadêmico…\n\nTutorial: https://youtu.be/…"
+            }
+            className="resize-y text-sm"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Variáveis: <code>{"{{contact.firstName}}"}</code>,{" "}
+            <code>{"{{contact.name}}"}</code>. Inclua os links oficiais do
+            vídeo, do Portal e das lojas do Duda.
+          </p>
+        </div>
+      </div>
 
       <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
         <ToggleRow
