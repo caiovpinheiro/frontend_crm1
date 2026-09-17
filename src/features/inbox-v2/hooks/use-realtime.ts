@@ -1246,9 +1246,19 @@ export function useInboxRealtime(options: {
                     snapshot.lastMessageDirection ?? live.lastMessageDirection,
                 });
               }
-            } else if (snapshot) {
+            } else if (
+              snapshot &&
+              newMessageLikelyOnTabs(
+                activeInboxListTabs(qc),
+                {
+                  direction: snapshot.lastMessageDirection ?? data.direction,
+                  assignedToId: snapshot.assignedToId ?? data.assignedToId,
+                },
+                userIdRef.current,
+              )
+            ) {
               applyConversationRowToInboxCaches(qc, snapshot);
-            } else if (newMessageLikelyOnTabs(activeInboxListTabs(qc), data)) {
+            } else if (newMessageLikelyOnTabs(activeInboxListTabs(qc), data, userIdRef.current)) {
               scheduleMissingCardHydrate(
                 qc,
                 {

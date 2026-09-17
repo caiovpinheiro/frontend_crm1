@@ -232,10 +232,14 @@ export function inboxQueueSectionFor(
 }
 
 /** SSE `new_message` sem o card: só hidrata se a aba aberta puder
- *  mostrar esse ticket. Sem sinal de direção, não afirma — hidrata. */
+ *  mostrar esse ticket. Sem sinal de direção, não afirma — hidrata.
+ *
+ *  `currentUserId` restringe filhas pessoais (`esperando`/`respondidas`)
+ *  ao responsável, evitando cards de outros agentes na inbox de alguém. */
 export function newMessageLikelyOnTabs(
   tabs: readonly InboxTab[],
   event: { direction?: string | null; assignedToId?: string | null },
+  currentUserId?: string | null,
 ): boolean {
   if (tabs.length === 0) return false;
   if (tabs.some((t) => t === "todos" || t === "abertas")) return true;
@@ -244,10 +248,14 @@ export function newMessageLikelyOnTabs(
   const inbound = dir === "in" || dir === "inbound";
   const outbound = dir === "out" || dir === "outbound";
   const assigned = Boolean(event.assignedToId);
+  const isMine =
+    !currentUserId || !event.assignedToId
+      ? false
+      : String(event.assignedToId) === String(currentUserId);
 
   return tabs.some((tab) => {
-    if (tab === "esperando") return inbound && assigned;
-    if (tab === "respondidas") return outbound && assigned;
+    if (tab === "esperando") return inbound && assigned && isMine;
+    if (tab === "respondidas") return outbound && assigned && isMine;
     if (tab === "entrada") return !assigned && inbound;
     if (tab === "agente_ia" || tab === "ligar" || tab === "automacao") return true;
     return false;
