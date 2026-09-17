@@ -68,6 +68,7 @@ import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { COMPOSER_FOCUS_CHAT_EVENT } from "@/lib/composer-insert"
 import { ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton"
 import { useHideChatEvents } from "@/components/crm/chat-timeline"
+import { registerKeepsChatTourBridge } from "@/features/product-tour/keeps-tour-bridge"
 
 // ─── Ordem das seções da sidebar ──────────────────────────────────
 // Mudancas (DD4 + DD5 do questionario):
@@ -374,6 +375,11 @@ export function DealDetailPanel({
   const resolvedContactConfig = contactFieldConfigSlot ?? fieldConfigSlot ?? null;
   const resolvedDealConfig = dealFieldConfigSlot ?? null;
   const [activeTab, setActiveTab] = useState<TabId>("conversa")
+
+  useEffect(() => {
+    registerKeepsChatTourBridge((tab) => setActiveTab(tab))
+    return () => registerKeepsChatTourBridge(null)
+  }, [])
   // Config de visibilidade dos campos personalizados: um toggle por entidade
   // (contato/negócio), aberto inline dentro do card "Informações do Negócio"
   // — paridade com o aside do Inbox (contact-aside.tsx), que usa engrenagens
@@ -1775,7 +1781,7 @@ function TabsBar({
         {/* Tabs pill group — oculta enquanto busca está aberta */}
         {!(searchOpen && activeTab === "conversa") && (
           // Borda/radius no scroller — H-scroll não corta a pílula em reta.
-          <div className="toolbar-hscroll min-w-0 max-w-full flex-1 overflow-x-auto overscroll-x-contain rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="toolbar-hscroll min-w-0 max-w-full flex-1 overflow-x-auto overscroll-x-contain rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-tour="pipeline-chat-tabs">
             <div className="inline-flex w-max flex-nowrap items-center gap-1">
               {TABS.map((tab) => {
                 const Icon = tab.icon
@@ -1785,6 +1791,7 @@ function TabsBar({
                     key={tab.id}
                     type="button"
                     onClick={() => onChange(tab.id)}
+                    {...(tab.id === "keeps" ? { "data-tour": "keeps-chat-tab" } : {})}
                     className={cn(
                       "inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 font-display text-[12px] font-bold transition-all",
                       isActive

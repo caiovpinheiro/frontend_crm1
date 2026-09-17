@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions"
 import { cn } from "@/lib/utils"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
+import { registerKeepsChatTourBridge } from "@/features/product-tour/keeps-tour-bridge"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import { isPreviewMode, PREVIEW_USER } from "@/lib/preview-mode"
 import { AppLoading } from "@/components/crm/app-loading"
@@ -287,6 +288,11 @@ export function ChatArea({
     notesSlot || activitiesSlot || timelineSlot || callsSlot || keepsSlot,
   )
   const [activeTab, setActiveTab] = useState<ChatTabId>("conversa")
+
+  useEffect(() => {
+    registerKeepsChatTourBridge((tab) => setActiveTab(tab))
+    return () => registerKeepsChatTourBridge(null)
+  }, [])
 
   // Nome/iniciais do agente logado — só contexto de sessão (composer etc.).
   // Avatar da bolha NÃO usa isso: identifica o remetente da mensagem.
@@ -1104,6 +1110,7 @@ function ChatTabsBar({
               key={tab.id}
               type="button"
               onClick={() => onChange(tab.id)}
+              {...(tab.id === "keeps" ? { "data-tour": "keeps-chat-tab" } : {})}
               className={cn(
                 "inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 font-display text-xs font-bold transition-all",
                 isActive

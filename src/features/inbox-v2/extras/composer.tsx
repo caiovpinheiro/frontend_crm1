@@ -48,7 +48,11 @@ import {
   clearPendingComposerInsert,
   COMPOSER_INSERT_EVENT,
   takePendingComposerInsert,
+  type ComposerInsertPayload,
+  type ComposerInsertStep,
 } from "@/lib/composer-insert";
+
+const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
 
 import { ActiveBotsButton } from "./active-bots-button";
 import { AudioRecorderButton, type AudioRecordState } from "./audio-recorder-button";
@@ -411,6 +415,74 @@ export function Composer({
     return already ? text : `*${sig}*: ${text}`;
   }
 
+  async function sendProductOfferSteps(steps: ComposerInsertStep[]) {
+    const cid = conversationId;
+    if (!cid) {
+      toast.error("Abra a conversa para enviar os produtos.");
+      return;
+    }
+    setSequenceSending(true);
+    try {
+      for (const step of steps) {
+        const captionText = applySignature(step.text.trim());
+        const media = (step.media ?? []).find(
+          (m) => typeof m.url === "string" && m.url.trim(),
+        );
+        try {
+          if (media) {
+            const reuseUrl = media.url.trim();
+            if (
+              captionText.length > 0 &&
+              captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX
+            ) {
+              await sendAttachmentReuse(cid, {
+                reuseUrl,
+                fileName: media.name ?? undefined,
+                mimeType: media.mimeType ?? undefined,
+                caption: captionText,
+                channelId: selectedChannelId,
+                waitUntilSent: true,
+              });
+            } else {
+              if (captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
+                toast.message(
+                  "Texto longo demais para legenda do WhatsApp; enviando imagem e texto separados.",
+                );
+              }
+              await sendAttachmentReuse(cid, {
+                reuseUrl,
+                fileName: media.name ?? undefined,
+                mimeType: media.mimeType ?? undefined,
+                channelId: selectedChannelId,
+                waitUntilSent: true,
+              });
+              if (captionText) {
+                await Promise.resolve(onSend(captionText));
+              }
+            }
+          } else if (captionText) {
+            await Promise.resolve(onSend(captionText));
+          }
+        } catch (err) {
+          toast.error(
+            err instanceof Error
+              ? err.message
+              : "Falha ao enviar um dos produtos.",
+          );
+        }
+      }
+      qc.invalidateQueries({ queryKey: messagesKey(cid) });
+      applyOutboundPreviewToInboxCaches(qc, cid, {
+        content: steps[steps.length - 1]?.text?.trim() || "produto",
+      });
+    } finally {
+      setSequenceSending(false);
+    }
+  }
+
+  const sendProductOfferStepsRef = useRef(sendProductOfferSteps);
+  sendProductOfferStepsRef.current = sendProductOfferSteps;
+
   // ── Template do WhatsApp pendente de validação/envio ─────────────
   // Aberto pelo slash menu (meta-template) ou pelo menu "+". O envio é
   // feito pelo botão do próprio painel após o agente validar as variáveis.
@@ -514,15 +586,13 @@ export function Composer({
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
   useEffect(() => {
-    function applyInsert(payload: {
-      text?: string;
-      media?: Array<{
-        url: string;
-        name?: string | null;
-        mimeType?: string | null;
-        sendBeforeText?: boolean;
-      }>;
-    }) {
+    function applyInsert(payload: ComposerInsertPayload) {
+      const steps = Array.isArray(payload?.steps) ? payload.steps : [];
+      if (steps.length > 1) {
+        clearPendingComposerInsert();
+        void sendProductOfferStepsRef.current(steps);
+        return;
+      }
       const text = typeof payload?.text === "string" ? payload.text : "";
       const media = Array.isArray(payload?.media)
         ? payload.media
@@ -548,16 +618,8 @@ export function Composer({
       clearPendingComposerInsert();
     }
     function onInsert(e: Event) {
-      const detail = (e as CustomEvent<{
-        text?: string;
-        media?: Array<{
-          url: string;
-          name?: string | null;
-          mimeType?: string | null;
-          sendBeforeText?: boolean;
-        }>;
-      }>).detail;
-      applyInsert(detail ?? {});
+      const detail = (e as CustomEvent<ComposerInsertPayload>).detail;
+      applyInsert(detail ?? { text: "" });
     }
     window.addEventListener(COMPOSER_INSERT_EVENT, onInsert as EventListener);
     const pending = takePendingComposerInsert();
@@ -750,7 +812,6 @@ export function Composer({
   }
 
   // Limite de caption de imagem na WhatsApp Cloud API.
-  const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
 
   async function flushOutbound(text: string | null) {
     const all = pendingMediaListRef.current;

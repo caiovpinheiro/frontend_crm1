@@ -38,6 +38,7 @@ export function KeepCard({
 
   return (
     <article
+      data-tour="keeps-card"
       data-keep-id={note.id}
       data-keep-color={note.color || undefined}
       onPointerDown={onMovePointerDown}

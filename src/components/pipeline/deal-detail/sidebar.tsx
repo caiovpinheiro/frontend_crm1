@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { insertComposerText } from "@/lib/composer-insert";
+import { insertComposerSequence, insertComposerText } from "@/lib/composer-insert";
 import { dt } from "@/lib/design-tokens";
 import { AvailabilityBadge } from "@/features/products-v2/availability-badge";
 import {
@@ -764,31 +764,37 @@ export function DealProductsSection({
     if (list.length === 0 || sendingCourseOfferId) return;
     setSendingCourseOfferId(list[0].id);
     try {
-      const parts = (await Promise.all(list.map(messageForProductItem)))
-        .map((part) => part.trim())
-        .filter(Boolean);
-      if (parts.length === 0) return;
-      const media = list
-        .filter((item) => typeof item.imageUrl === "string" && item.imageUrl.trim())
-        .map((item) => ({
-          url: item.imageUrl!.trim(),
-          name: item.imageName ?? null,
-          mimeType: item.imageMime ?? null,
-          sendBeforeText: true,
-        }));
-      // Dedup por URL (mesmo produto em várias linhas).
-      const seen = new Set<string>();
-      const uniqueMedia = media.filter((m) => {
-        if (seen.has(m.url)) return false;
-        seen.add(m.url);
-        return true;
-      });
-      insertComposerText(parts.join("\n\n"), uniqueMedia);
-      toast.success(
-        parts.length > 1
-          ? "Mensagens dos produtos prontas no chat — confira e envie."
-          : "Mensagem do produto pronta no chat — confira e envie.",
-      );
+      const steps: { text: string; media: { url: string; name: string | null; mimeType: string | null; sendBeforeText: true }[] }[] =
+        [];
+      for (const item of list) {
+        const text = (await messageForProductItem(item)).trim();
+        if (!text) continue;
+        const imageUrl =
+          typeof item.imageUrl === "string" ? item.imageUrl.trim() : "";
+        steps.push({
+          text,
+          media: imageUrl
+            ? [
+                {
+                  url: imageUrl,
+                  name: item.imageName ?? null,
+                  mimeType: item.imageMime ?? null,
+                  sendBeforeText: true,
+                },
+              ]
+            : [],
+        });
+      }
+      if (steps.length === 0) return;
+      if (steps.length === 1) {
+        insertComposerText(steps[0].text, steps[0].media);
+        toast.success("Mensagem do produto pronta no chat — confira e envie.");
+      } else {
+        insertComposerSequence(steps);
+        toast.success(
+          `Enviando ${steps.length} produtos, um por mensagem, cada um com a própria imagem.`,
+        );
+      }
     } catch {
       toast.error("Falha ao preparar a mensagem dos produtos.");
     } finally {
@@ -1239,7 +1245,7 @@ export function DealProductsSection({
               </button>
               {canSelectProducts ? (
                 <p className="mt-1.5 text-center text-xs font-semibold text-foreground">
-                  Toque no ícone do produto para selecionar e enviar vários na mesma mensagem.
+                  Toque no ícone do produto para selecionar vários — cada um vai em uma mensagem, com a própria imagem.
                 </p>
               ) : null}
             </div>

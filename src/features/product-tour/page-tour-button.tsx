@@ -34,6 +34,10 @@ export function PageTourButton({
 
   if (!hasTour(tourId)) return null;
 
+  const label = tourId.startsWith("bwipo-keeps")
+    ? "Fazer tour do Keeps"
+    : "Fazer tour desta página";
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger
@@ -64,7 +68,7 @@ export function PageTourButton({
           }}
         >
           <Play className="size-3.5 fill-current" aria-hidden="true" />
-          Fazer tour desta página
+          {label}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -46,6 +46,7 @@ function KeepPeekCard({
         "keep-note-card flex items-start gap-1 p-3 shadow-none transition-colors hover:border-primary/40",
       )}
       data-keep-color={note.color || undefined}
+      data-tour="keeps-peek-card"
     >
       <button type="button" onClick={() => onOpen(note)} className="min-w-0 flex-1 text-left">
         <h3 className="mb-1 truncate pr-1 text-sm font-semibold text-foreground">
@@ -63,6 +64,7 @@ function KeepPeekCard({
         tooltipSide="bottom"
         className="size-8 shrink-0 text-muted-foreground"
         aria-label="Copiar texto"
+        data-tour="keeps-peek-copy"
         onClick={(e) => {
           e.stopPropagation();
           void copyKeepPlainText(note);
@@ -139,9 +141,10 @@ export function KeepPeekPanel({ className }: { className?: string }) {
   const loading = notesQuery.isLoading || (categoriesMode && categoriesQuery.isLoading);
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col", className)}>
+    <div className={cn("flex h-full min-h-0 flex-col", className)} data-tour="keeps-peek">
       <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
+          <div data-tour="keeps-peek-search" className="min-w-0 flex-1">
           <SearchFilterBar
             value={q}
             onChange={setQ}
@@ -149,6 +152,8 @@ export function KeepPeekPanel({ className }: { className?: string }) {
             withFilter={false}
             className="min-w-0 flex-1"
           />
+          </div>
+          <div data-tour="keeps-peek-view">
           <HeaderPillToggle
             value={viewMode}
             onChange={setViewMode}
@@ -157,6 +162,7 @@ export function KeepPeekPanel({ className }: { className?: string }) {
               { key: "categories", label: "Categorias" },
             ]}
           />
+          </div>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
