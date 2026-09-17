@@ -63,12 +63,69 @@ export default function BwipoKeepsClientPage() {
                 });
               }}
             />
+<<<<<<< Updated upstream
             <div className="relative">
               <SectionHeader
                 icon={Lightbulb}
                 title="Bwipo Keeps"
                 search={false}
                 actions={
+=======
+            <SectionHeader
+              icon={Lightbulb}
+              title="Bwipo Keeps"
+              stackSearchOnMobile
+              searchSlot={
+                <SearchFilterBar
+                  value={q}
+                  onChange={setQ}
+                  placeholder="Pesquisar notas..."
+                  withFilter={showColorFilter}
+                  filterOpen={filterOpen}
+                  activeCount={colorFilter.length}
+                  onFilterClick={() => setFilterOpen((v) => !v)}
+                  className="w-full"
+                >
+                  {filterOpen && showColorFilter ? (
+                    <div className="absolute right-0 top-12 z-30 w-[min(100%,20rem)] rounded-2xl border border-border bg-card p-3 shadow-lg">
+                      <p className="mb-2 text-xs font-semibold text-muted-foreground">Cor</p>
+                      <KeepColorSwatches
+                        selected={colorFilter}
+                        showDefault={hasUncolored}
+                        colors={usedColors}
+                        onChange={(color) => {
+                          const key = color ?? "none";
+                          setColorFilter((prev) =>
+                            prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
+                          );
+                        }}
+                      />
+                      {colorFilter.length > 0 ? (
+                        <button
+                          type="button"
+                          className="mt-2 text-xs font-semibold text-primary"
+                          onClick={() => setColorFilter([])}
+                        >
+                          Limpar cores
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </SearchFilterBar>
+              }
+              actions={
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {folder === "notes" ? (
+                    <HeaderPillToggle
+                      value={viewMode}
+                      onChange={setViewMode}
+                      options={[
+                        { key: "normal", label: "Keeps" },
+                        { key: "categories", label: "Categorias" },
+                      ]}
+                    />
+                  ) : null}
+>>>>>>> Stashed changes
                   <HeaderPillToggle
                     value={folder}
                     onChange={setFolder}
@@ -76,6 +133,7 @@ export default function BwipoKeepsClientPage() {
                       { key: "notes", label: "Notas", icon: Lightbulb },
                       { key: "archive", label: "Arquivo", icon: Archive },
                       { key: "trash", label: "Lixeira", icon: Trash2 },
+<<<<<<< Updated upstream
                     ]}
                   />
                 }
@@ -95,51 +153,32 @@ export default function BwipoKeepsClientPage() {
                           window.open(GOOGLE_KEEP_TUTORIAL_PLAYER, "_blank", "noopener,noreferrer");
                         },
                       },
+=======
+>>>>>>> Stashed changes
                     ]}
                   />
-                }
-              />
-              <div className="pointer-events-none absolute inset-x-0 top-0 bottom-2 z-[1] grid place-items-center">
-                <div className="pointer-events-auto w-full max-w-xl">
-                  <SearchFilterBar
-                    value={q}
-                    onChange={setQ}
-                    placeholder="Pesquisar notas..."
-                    withFilter={showColorFilter}
-                    filterOpen={filterOpen}
-                    activeCount={colorFilter.length}
-                    onFilterClick={() => setFilterOpen((v) => !v)}
-                    className="w-full"
-                  >
-                    {filterOpen && showColorFilter ? (
-                      <div className="absolute right-0 top-12 z-30 w-[min(100%,20rem)] rounded-2xl border border-border bg-card p-3 shadow-lg">
-                        <p className="mb-2 text-xs font-semibold text-muted-foreground">Cor</p>
-                        <KeepColorSwatches
-                          selected={colorFilter}
-                          showDefault={hasUncolored}
-                          colors={usedColors}
-                          onChange={(color) => {
-                            const key = color ?? "none";
-                            setColorFilter((prev) =>
-                              prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
-                            );
-                          }}
-                        />
-                        {colorFilter.length > 0 ? (
-                          <button
-                            type="button"
-                            className="mt-2 text-xs font-semibold text-primary"
-                            onClick={() => setColorFilter([])}
-                          >
-                            Limpar cores
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </SearchFilterBar>
                 </div>
-              </div>
-            </div>
+              }
+              menuSlot={
+                <PageActionsMenu
+                  tooltip="Keeps"
+                  items={[
+                    {
+                      icon: <Upload size={14} />,
+                      label: "Importar Keeps",
+                      onClick: () => importRef.current?.click(),
+                    },
+                    {
+                      icon: <CirclePlay size={14} />,
+                      label: "Como importar Keeps",
+                      onClick: () => {
+                        window.open(GOOGLE_KEEP_TUTORIAL_PLAYER, "_blank", "noopener,noreferrer");
+                      },
+                    },
+                  ]}
+                />
+              }
+            />
           </>
         }
         bodyClassName="gap-4"
