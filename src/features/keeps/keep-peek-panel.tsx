@@ -185,8 +185,17 @@ export function KeepPeekPanel({ className }: { className?: string }) {
                       )}
                       aria-hidden
                     />
-                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">
-                      {section.label}
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      {section.key !== "none" ? (
+                        <span
+                          data-keep-color={categories.find((c) => c.id === section.key)?.color}
+                          className="keep-color-dot size-3 shrink-0 rounded-full border border-border/60"
+                          aria-hidden
+                        />
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">
+                        {section.label}
+                      </span>
                     </span>
                     <span className="tabular-nums text-[10px] font-semibold text-muted-foreground">
                       {section.notes.length}

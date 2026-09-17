@@ -64,24 +64,17 @@ export function toPersistItems(
 }
 
 /**
- * Itens editaveis no Perfil: so o que o papel liberou. O que o admin
- * escondeu nao entra — o usuario nao reexibe pelo overlay pessoal.
+ * Itens editáveis no Perfil: o que a permissão do usuário libera
+ * (`availableKeys`). Menu antigo do papel não esconde módulo autorizado.
  */
 export function toPersonalEditorItems(
   prefs: SidebarPreferencesResponse | undefined,
 ): SidebarEditorItem[] {
   if (!prefs?.sidebar?.items) return [];
-  const roleItems = prefs.roleSidebar?.items ?? prefs.sidebar.items;
-  const roleAllowed = new Set(
-    roleItems
-      .filter((it) => it.enabled || Boolean(getSidebarCatalogItem(it.key)?.locked))
-      .map((it) => it.key),
-  );
   const available = prefs.availableKeys?.length
     ? new Set(prefs.availableKeys)
     : null;
   return toEditorItems(prefs.sidebar.items).filter((it) => {
-    if (!roleAllowed.has(it.key)) return false;
     if (available && !available.has(it.key)) return false;
     return true;
   });

@@ -114,7 +114,7 @@ export function KeepEditorDialog({
       ) : (
         <KeepRichEditor content={content} onChange={setContent} />
       )}
-      {note ? (
+      {note && !note.categoryId ? (
         <div className="mt-3">
           <KeepColorSwatches
             value={color}

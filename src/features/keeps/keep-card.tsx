@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import type { KeepNote } from "./types";
 import { keepPreviewText } from "./preview";
 import { KeepColorSwatches } from "./keep-color-swatches";
-import type { KeepNoteColorId } from "./colors";
 
 export function KeepCard({
   note,
@@ -28,7 +27,7 @@ export function KeepCard({
   onArchive?: () => void;
   onTrash?: () => void;
   onRestore?: () => void;
-  onColor?: (color: KeepNoteColorId | null) => void;
+  onColor?: (color: string | null) => void;
   onMovePointerDown?: (event: ReactPointerEvent) => void;
   ghost?: boolean;
   floating?: boolean;

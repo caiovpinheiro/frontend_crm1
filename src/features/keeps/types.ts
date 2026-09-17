@@ -35,6 +35,7 @@ export type KeepNote = {
 export type KeepCategory = {
   id: string;
   name: string;
+  color: string;
   position: number;
   createdAt: string;
   updatedAt: string;

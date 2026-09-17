@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Archive, CirclePlay, FolderPlus, Lightbulb, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { Archive, CirclePlay, FolderPlus, Lightbulb, Palette, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/crm/empty-state";
@@ -17,8 +17,14 @@ import { KeepBoard, type KeepBoardSection } from "@/features/keeps/keep-board";
 import { KeepComposer } from "@/features/keeps/keep-composer";
 import { KeepEditorDialog } from "@/features/keeps/keep-editor-dialog";
 import { GOOGLE_KEEP_TUTORIAL_PLAYER } from "@/features/keeps/keep-import-tutorial";
+import { KeepCategoryDialog } from "@/features/keeps/keep-category-dialog";
 import { KeepColorSwatches } from "@/features/keeps/keep-color-swatches";
-import { KEEP_NOTE_COLORS, type KeepNoteColorId } from "@/features/keeps/colors";
+import {
+  KEEP_CATEGORY_COLOR_LABELS,
+  KEEP_CATEGORY_COLORS,
+  KEEP_NOTE_COLORS,
+  type KeepNoteColorId,
+} from "@/features/keeps/colors";
 import { useKeepCategories, useKeepMutations, useKeepNotes } from "@/features/keeps/hooks";
 import {
   EMPTY_KEEP_DOC,
@@ -33,70 +39,102 @@ function CategorySectionHeader({
   onRename,
   onDelete,
   onAddNote,
+  onColor,
 }: {
   category: KeepCategory;
   onRename: (name: string) => void;
   onDelete: () => void;
   onAddNote: () => void;
+  onColor: (color: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(category.name);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
-    <div className="flex w-full min-w-0 items-center gap-2">
-      {editing ? (
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => {
-            const next = name.trim();
-            setEditing(false);
-            if (!next || next === category.name) {
-              setName(category.name);
-              return;
-            }
-            onRename(next);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            if (e.key === "Escape") {
-              setName(category.name);
-              setEditing(false);
-            }
-          }}
-          className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-semibold text-foreground"
+    <div className="flex w-full min-w-0 flex-col gap-2">
+      <div className="flex w-full min-w-0 items-center gap-2">
+        <span
+          data-keep-color={category.color}
+          className="keep-color-dot size-3.5 shrink-0 rounded-full border border-border/60"
+          aria-hidden
         />
-      ) : (
-        <p className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">{category.name}</p>
-      )}
-      <button
-        type="button"
-        className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
-        aria-label="Criar nota nesta categoria"
-        onClick={onAddNote}
-      >
-        <Plus className="size-3.5" />
-      </button>
-      <button
-        type="button"
-        className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
-        aria-label="Renomear categoria"
-        onClick={() => {
-          setName(category.name);
-          setEditing(true);
-        }}
-      >
-        <Pencil className="size-3.5" />
-      </button>
-      <button
-        type="button"
-        className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-destructive"
-        aria-label="Excluir categoria"
-        onClick={onDelete}
-      >
-        <Trash2 className="size-3.5" />
-      </button>
+        {editing ? (
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              const next = name.trim();
+              setEditing(false);
+              if (!next || next === category.name) {
+                setName(category.name);
+                return;
+              }
+              onRename(next);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") {
+                setName(category.name);
+                setEditing(false);
+              }
+            }}
+            className="min-w-0 flex-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-semibold text-foreground"
+          />
+        ) : (
+          <p className="min-w-0 flex-1 truncate text-xs font-semibold text-muted-foreground">{category.name}</p>
+        )}
+        <button
+          type="button"
+          className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          aria-label="Criar nota nesta categoria"
+          onClick={onAddNote}
+        >
+          <Plus className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          aria-label="Cor da categoria"
+          aria-expanded={paletteOpen}
+          onClick={() => setPaletteOpen((v) => !v)}
+        >
+          <Palette className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+          aria-label="Renomear categoria"
+          onClick={() => {
+            setName(category.name);
+            setEditing(true);
+          }}
+        >
+          <Pencil className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-destructive"
+          aria-label="Excluir categoria"
+          onClick={onDelete}
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      </div>
+      {paletteOpen ? (
+        <KeepColorSwatches
+          value={category.color}
+          showDefault={false}
+          colors={[...KEEP_CATEGORY_COLORS]}
+          labels={{ ...KEEP_CATEGORY_COLOR_LABELS }}
+          onChange={(next) => {
+            if (!next) return;
+            onColor(next);
+            setPaletteOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -108,6 +146,7 @@ export default function BwipoKeepsClientPage() {
   const [colorFilter, setColorFilter] = useState<string[]>([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [active, setActive] = useState<KeepNote | null>(null);
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const notesQuery = useKeepNotes(folder, q, colorFilter);
   const categoriesQuery = useKeepCategories();
@@ -199,6 +238,15 @@ export default function BwipoKeepsClientPage() {
               }
             })();
           }}
+          onColor={(color) =>
+            mut.patchCategory.mutate(
+              { id: cat.id, patch: { color } },
+              {
+                onError: (err) =>
+                  toast.error(err instanceof Error ? err.message : "Não foi possível alterar a cor."),
+              },
+            )
+          }
         />
       ),
     }));
@@ -413,17 +461,7 @@ export default function BwipoKeepsClientPage() {
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-full border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted-foreground hover:border-primary hover:text-foreground"
-              onClick={() => {
-                const name = window.prompt("Nome da categoria");
-                if (!name?.trim()) return;
-                mut.createCategory.mutate(
-                  { name: name.trim() },
-                  {
-                    onError: (err) =>
-                      toast.error(err instanceof Error ? err.message : "Não foi possível criar."),
-                  },
-                );
-              }}
+              onClick={() => setCategoryOpen(true)}
             >
               <FolderPlus className="size-4" />
               Nova categoria
@@ -434,7 +472,10 @@ export default function BwipoKeepsClientPage() {
               onPin={(note) => mut.patch.mutate({ id: note.id, patch: { pinned: !note.pinned } })}
               onArchive={(note) => mut.patch.mutate({ id: note.id, patch: { archived: true } })}
               onTrash={(note) => mut.remove.mutate({ id: note.id })}
-              onColor={(note, color) => mut.patch.mutate({ id: note.id, patch: { color } })}
+              onColor={(note, color) => {
+                if (note.categoryId) return;
+                mut.patch.mutate({ id: note.id, patch: { color } });
+              }}
               onReorder={handleCategoryReorder}
             />
           </div>
@@ -445,7 +486,10 @@ export default function BwipoKeepsClientPage() {
             onPin={(note) => mut.patch.mutate({ id: note.id, patch: { pinned: !note.pinned } })}
             onArchive={(note) => mut.patch.mutate({ id: note.id, patch: { archived: true } })}
             onTrash={(note) => mut.remove.mutate({ id: note.id })}
-            onColor={(note, color) => mut.patch.mutate({ id: note.id, patch: { color } })}
+              onColor={(note, color) => {
+                if (note.categoryId) return;
+                mut.patch.mutate({ id: note.id, patch: { color } });
+              }}
             onReorder={handleNormalReorder}
           />
         ) : (
@@ -472,7 +516,11 @@ export default function BwipoKeepsClientPage() {
                         ? () => mut.remove.mutate({ id: note.id, forever: true })
                         : () => mut.remove.mutate({ id: note.id })
                     }
-                    onColor={(color) => mut.patch.mutate({ id: note.id, patch: { color } })}
+                    onColor={
+                      note.categoryId
+                        ? undefined
+                        : (color) => mut.patch.mutate({ id: note.id, patch: { color } })
+                    }
                   />
                 ))}
               </div>
@@ -481,6 +529,19 @@ export default function BwipoKeepsClientPage() {
         )}
       </PageChrome>
 
+      <KeepCategoryDialog
+        open={categoryOpen}
+        onOpenChange={setCategoryOpen}
+        pending={mut.createCategory.isPending}
+        onSubmit={async ({ name, color }) => {
+          try {
+            await mut.createCategory.mutateAsync({ name, color });
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Não foi possível criar.");
+            throw err;
+          }
+        }}
+      />
       <KeepEditorDialog
         note={active}
         open={!!active}

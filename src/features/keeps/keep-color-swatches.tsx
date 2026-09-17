@@ -1,19 +1,21 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { KEEP_COLOR_LABELS, KEEP_NOTE_COLORS, type KeepNoteColorId } from "./colors";
+import { KEEP_COLOR_LABELS, KEEP_NOTE_COLORS } from "./colors";
 
 export function KeepColorSwatches({
   value,
   selected,
   onChange,
   colors = [...KEEP_NOTE_COLORS],
+  labels = KEEP_COLOR_LABELS,
   showDefault = true,
 }: {
   value?: string | null;
   selected?: string[];
-  onChange: (color: KeepNoteColorId | null) => void;
-  colors?: KeepNoteColorId[];
+  onChange: (color: string | null) => void;
+  colors?: string[];
+  labels?: Record<string, string>;
   showDefault?: boolean;
 }) {
   const current = selected ?? [value || "none"];
@@ -25,8 +27,8 @@ export function KeepColorSwatches({
       {showDefault ? (
         <button
           type="button"
-          title={KEEP_COLOR_LABELS.none}
-          aria-label={KEEP_COLOR_LABELS.none}
+          title={labels.none ?? "Padrão"}
+          aria-label={labels.none ?? "Padrão"}
           aria-pressed={active("none")}
           onClick={() => onChange(null)}
           className={cn(
@@ -39,8 +41,8 @@ export function KeepColorSwatches({
         <button
           type="button"
           key={id}
-          title={KEEP_COLOR_LABELS[id]}
-          aria-label={KEEP_COLOR_LABELS[id]}
+          title={labels[id] ?? id}
+          aria-label={labels[id] ?? id}
           aria-pressed={active(id)}
           data-keep-color={id}
           onClick={() => onChange(id)}

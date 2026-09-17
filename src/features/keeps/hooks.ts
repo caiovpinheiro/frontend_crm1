@@ -97,12 +97,14 @@ export function useKeepMutations(folder: KeepFolder, q: string, colors: string[]
       onSettled: invalidate,
     }),
     createCategory: useMutation({
-      mutationFn: (input: { name: string }) => createKeepCategory(input),
+      mutationFn: (input: { name: string; color: string }) => createKeepCategory(input),
       onSuccess: invalidate,
     }),
     patchCategory: useMutation({
-      mutationFn: (input: { id: string; patch: Partial<{ name: string; position: number }> }) =>
-        patchKeepCategory(input.id, input.patch),
+      mutationFn: (input: {
+        id: string;
+        patch: Partial<{ name: string; position: number; color: string }>;
+      }) => patchKeepCategory(input.id, input.patch),
       onSuccess: invalidate,
     }),
     removeCategory: useMutation({

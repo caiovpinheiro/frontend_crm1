@@ -24,3 +24,30 @@ export const KEEP_COLOR_LABELS: Record<KeepNoteColorId | "none", string> = {
   dusk: "Anil",
   blossom: "Rosa",
 };
+
+/** Paleta exclusiva de categorias — ids distintos da paleta de notas. */
+export const KEEP_CATEGORY_COLORS = [
+  "ember",
+  "honey",
+  "citrus",
+  "fern",
+  "lagoon",
+  "cobalt",
+  "iris",
+  "berry",
+  "graphite",
+] as const;
+
+export type KeepCategoryColorId = (typeof KEEP_CATEGORY_COLORS)[number];
+
+export const KEEP_CATEGORY_COLOR_LABELS: Record<KeepCategoryColorId, string> = {
+  ember: "Brasa",
+  honey: "Mel",
+  citrus: "Cítrico",
+  fern: "Samambaia",
+  lagoon: "Lagoa",
+  cobalt: "Cobalto",
+  iris: "Íris",
+  berry: "Amora",
+  graphite: "Grafite",
+};

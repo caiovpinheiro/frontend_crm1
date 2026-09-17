@@ -242,7 +242,7 @@ export function KeepBoard({
                   onPin={onPin ? () => onPin(note) : undefined}
                   onArchive={() => onArchive(note)}
                   onTrash={() => onTrash(note)}
-                  onColor={(color) => onColor(note, color)}
+                  onColor={note.categoryId ? undefined : (color) => onColor(note, color)}
                   onMovePointerDown={(e) => onCardPointerDown(note, e)}
                 />
               ))}

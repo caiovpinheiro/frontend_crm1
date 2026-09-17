@@ -73,7 +73,10 @@ export function KeepComposer({
   }
 
   return (
-    <div className={cn(CARD_SURFACE_CLASS, "mx-auto w-full max-w-xl p-3 shadow-none")}>
+    <div
+      className={cn(CARD_SURFACE_CLASS, "keep-note-card mx-auto w-full max-w-xl p-3 shadow-none")}
+      data-keep-color={selectedCategory?.color || undefined}
+    >
       <input
         ref={fileRef}
         type="file"
@@ -158,7 +161,16 @@ export function KeepComposer({
                     Sem categoria
                   </DropdownMenuItem>
                   {(categories ?? []).map((cat) => (
-                    <DropdownMenuItem key={cat.id} onClick={() => setCategoryId(cat.id)}>
+                    <DropdownMenuItem
+                      key={cat.id}
+                      className="flex items-center"
+                      onClick={() => setCategoryId(cat.id)}
+                    >
+                      <span
+                        data-keep-color={cat.color}
+                        className="keep-color-dot mr-2 size-3 rounded-full border border-border/60"
+                        aria-hidden
+                      />
                       {cat.name}
                     </DropdownMenuItem>
                   ))}

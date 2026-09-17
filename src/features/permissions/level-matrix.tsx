@@ -121,6 +121,11 @@ export const NAV_DERIVATION: Record<string, readonly string[]> = {
   distribution: ["distribution:view"],
   logs: ["report:view"],
   widgets: ["distribution:view"],
+  "team-chat": ["team_chat:view"],
+  "bwipo-keeps": ["keep:view"],
+  email: ["email_account:view", "email_account:view_own"],
+  "whatsapp-groups": ["whatsapp_group:view"],
+  demands: ["demand:view"],
 };
 
 /**

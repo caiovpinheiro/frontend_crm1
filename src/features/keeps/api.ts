@@ -115,7 +115,10 @@ export async function listKeepCategories(): Promise<{ items: KeepCategory[] }> {
   );
 }
 
-export async function createKeepCategory(input: { name: string }): Promise<{ category: KeepCategory }> {
+export async function createKeepCategory(input: {
+  name: string;
+  color: string;
+}): Promise<{ category: KeepCategory }> {
   return json(
     fetch(apiUrl("/api/keeps/categories"), {
       method: "POST",
@@ -129,7 +132,7 @@ export async function createKeepCategory(input: { name: string }): Promise<{ cat
 
 export async function patchKeepCategory(
   id: string,
-  patch: Partial<{ name: string; position: number }>,
+  patch: Partial<{ name: string; position: number; color: string }>,
 ): Promise<{ category: KeepCategory }> {
   return json(
     fetch(apiUrl(`/api/keeps/categories/${id}`), {

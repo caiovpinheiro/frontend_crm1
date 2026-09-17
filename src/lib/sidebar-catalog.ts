@@ -119,7 +119,7 @@ export const SIDEBAR_CATALOG: readonly SidebarCatalogItem[] = [
     icon: MessagesSquare,
     description: "Chat interno do time — diretas e canais.",
     locked: false,
-    requiredPermission: "nav:team-chat",
+    requiredPermission: "team_chat:view",
   },
   {
     key: "bwipo-keeps",
@@ -326,6 +326,12 @@ export function filterNavItemsByPermissions<T extends SidebarCatalogItem>(
   return items.filter((item) => {
     if (!item.requiredPermission) return true;
     if (permSet.has(item.requiredPermission)) return true;
+    if (
+      item.requiredPermission === "nav:team-chat" &&
+      (permSet.has("team_chat:view") || permSet.has("team_chat:*"))
+    ) {
+      return true;
+    }
     // Suporte a wildcard por resource (ex.: `nav:*`).
     const [resource] = item.requiredPermission.split(":");
     if (resource && permSet.has(`${resource}:*`)) return true;
