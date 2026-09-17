@@ -12,6 +12,7 @@ import {
   IconDeviceMobile,
   IconPlayerPlay,
   IconPlayerPause,
+  IconPlus,
   IconPencil,
   IconSitemap,
 } from "@tabler/icons-react"
@@ -125,6 +126,8 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const [logsTarget, setLogsTarget] = useState<LogsTarget | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [paneMenu, setPaneMenu] = useState<{ x: number; y: number } | null>(null)
+  const [nodeMenu, setNodeMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [simOpen, setSimOpen] = useState(false)
   const [connectStroke, setConnectStroke] = useState("var(--route-navigation)")
   const [dirty, setDirty] = useState(false)
@@ -869,6 +872,20 @@ function InnerEditor({ automationId }: { automationId: string }) {
         onPaneClick={() => {
           setHovered(null)
           setSelectedNodeId(null)
+          setPaneMenu(null)
+          setNodeMenu(null)
+        }}
+        onPaneContextMenu={(e) => {
+          e.preventDefault()
+          setNodeMenu(null)
+          setPaneMenu({ x: e.clientX, y: e.clientY })
+          pendingPosition.current = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        }}
+        onNodeContextMenu={(e, node) => {
+          if (node.type !== "flowNode") return
+          e.preventDefault()
+          setPaneMenu(null)
+          setNodeMenu({ id: node.id, x: e.clientX, y: e.clientY })
         }}
         onDragOver={onDragOver}
         onDrop={onDrop}
@@ -939,6 +956,75 @@ function InnerEditor({ automationId }: { automationId: string }) {
         }}
         onSelect={(type, presetConfig) => addNode(type, undefined, presetConfig)}
       />
+
+      {paneMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-(--z-overlay)"
+            onClick={() => setPaneMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setPaneMenu(null)
+            }}
+          />
+          <div
+            className="fixed z-(--z-sheet) min-w-[208px] overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] py-1 shadow-[var(--glass-shadow)] backdrop-blur-md"
+            style={{ top: paneMenu.y, left: paneMenu.x }}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-primary)]/12"
+              onClick={() => {
+                setPickerOpen(true)
+                setPaneMenu(null)
+              }}
+            >
+              <IconPlus className="size-4 text-[var(--text-secondary)]" strokeWidth={2.2} />
+              Adicionar bloco de automação
+            </button>
+          </div>
+        </>
+      )}
+
+      {nodeMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-(--z-overlay)"
+            onClick={() => setNodeMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setNodeMenu(null)
+            }}
+          />
+          <div
+            className="fixed z-(--z-sheet) min-w-[208px] overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-modal)] py-1 shadow-[var(--glass-shadow)] backdrop-blur-md"
+            style={{ top: nodeMenu.y, left: nodeMenu.x }}
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--brand-primary)]/12"
+              onClick={() => {
+                const node = nodes.find((n) => n.id === nodeMenu.id)
+                const firstOut = node?.data.outputs[0]?.key
+                if (node && firstOut) {
+                  pendingConn.current = { sourceId: node.id, sourceHandle: firstOut }
+                } else if (node) {
+                  pendingPosition.current = {
+                    x: node.position.x + 340,
+                    y: node.position.y,
+                  }
+                }
+                setPickerOpen(true)
+                setNodeMenu(null)
+              }}
+            >
+              <IconPlus className="size-4 text-[var(--text-secondary)]" strokeWidth={2.2} />
+              Adicionar bloco
+            </button>
+          </div>
+        </>
+      )}
+
       <FlowSimulator
         open={simOpen}
         onOpenChange={setSimOpen}
