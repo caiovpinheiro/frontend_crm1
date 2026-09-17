@@ -3,13 +3,18 @@
 import { driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 
+import { applyKeepsTourStep } from "./keeps-tour-bridge";
 import "./product-tour.css";
 import { getTour } from "./tour-registry";
+import type { PageTour, PageTourCta, PageTourStep } from "./tour-types";
 
 type DriverInstance = ReturnType<typeof driver>;
 type Box = { x: number; y: number; width: number; height: number };
 
+const PENDING_TOUR_KEY = "product-tour:pending";
+
 let activeTour: DriverInstance | null = null;
+let activeTourDef: PageTour | null = null;
 
 function overlayColor(): string {
   const raw = getComputedStyle(document.documentElement)
@@ -90,7 +95,6 @@ function snapDriverToElement(el: Element | undefined): void {
   if (side === "top") {
     top = box.y - popH - margin;
   }
-  // Quadro Kanban (quase a viewport): abaixo/acima cai fora da tela.
   if (top + popH > vh - margin) {
     top = Math.max(margin, box.y - popH - margin);
   }
@@ -103,11 +107,156 @@ function snapDriverToElement(el: Element | undefined): void {
   pop.style.top = `${top}px`;
 }
 
-function toDriveSteps(
-  steps: NonNullable<ReturnType<typeof getTour>>["steps"],
-): DriveStep[] {
+function isElementPainted(el: Element): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const style = window.getComputedStyle(el);
+  if (style.display === "none" || style.visibility === "hidden") return false;
+  const r = el.getBoundingClientRect();
+  return r.width > 2 && r.height > 2;
+}
+
+/** Primeiro alvo visível; ignora o clone `md:hidden` / `hidden md:block`. */
+function queryTourElement(tourId: string, visibleOnly = false): HTMLElement | null {
+  const nodes = document.querySelectorAll(`[data-tour="${tourId}"]`);
+  let first: HTMLElement | null = null;
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue;
+    if (!first) first = node;
+    if (isElementPainted(node)) return node;
+  }
+  return visibleOnly ? null : first;
+}
+
+function isTourTargetVisible(tourId: string): boolean {
+  return queryTourElement(tourId, true) != null;
+}
+
+function ensureTourFallback(step: PageTourStep): void {
+  if (!step.fallback) return;
+  removeTourFallbacks();
+  if (queryTourElement(step.element, true)) return;
+
+  if (step.fallback === "menu-item") {
+    const panel = document.querySelector("[role='menu'], [role='listbox']");
+    if (!(panel instanceof HTMLElement)) return;
+    const ghost = document.createElement("button");
+    ghost.type = "button";
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "flex w-full items-center gap-2.5 px-3 py-2 text-left font-display text-[12.5px] font-bold text-muted-foreground";
+    ghost.textContent = step.fallbackLabel ?? step.title;
+    panel.appendChild(ghost);
+    return;
+  }
+
+  if (step.fallback === "generic") {
+    const anchor = step.fallbackAnchor
+      ? queryTourElement(step.fallbackAnchor, true)
+      : null;
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "rounded-xl border border-dashed border-border bg-card px-4 py-3 font-body text-[13px] text-muted-foreground";
+    ghost.textContent = step.fallbackLabel ?? step.title;
+    anchor.insertAdjacentElement("afterend", ghost);
+    return;
+  }
+
+  if (step.fallback === "bwipo-chat-thread") {
+    const anchor = queryTourElement(step.fallbackAnchor ?? "bwipo-chat-stage", true);
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "pointer-events-none m-4 flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm";
+    ghost.innerHTML = `
+      <div class="flex items-center gap-2 border-b border-border pb-3">
+        <div class="size-8 rounded-full bg-primary/10"></div>
+        <div class="min-w-0 flex-1">
+          <div class="h-3 w-28 rounded bg-muted"></div>
+          <div class="mt-1 h-2 w-16 rounded bg-muted/60"></div>
+        </div>
+      </div>
+      <div class="space-y-2">
+        <div class="h-8 w-2/3 rounded-2xl rounded-bl-sm bg-muted"></div>
+        <div class="ml-auto h-8 w-1/2 rounded-2xl rounded-br-sm bg-primary/15"></div>
+      </div>
+    `;
+    anchor.insertAdjacentElement("afterbegin", ghost);
+    return;
+  }
+
+  if (step.fallback === "inbox-chat") {
+    const anchor = queryTourElement("inbox-list", true);
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "flex flex-col gap-3 rounded-xl border border-border bg-card p-4";
+    ghost.innerHTML = `
+      <div class="flex items-center gap-2 border-b border-border pb-2">
+        <div class="size-8 rounded-full bg-primary/10"></div>
+        <div class="min-w-0 flex-1">
+          <div class="h-3 w-24 rounded bg-muted"></div>
+          <div class="mt-1 h-2 w-16 rounded bg-muted/60"></div>
+        </div>
+        <div class="h-5 w-12 rounded-full bg-muted"></div>
+      </div>
+      <div class="space-y-2">
+        <div class="h-3 w-3/4 rounded bg-muted"></div>
+        <div class="h-3 w-1/2 rounded bg-muted"></div>
+      </div>
+    `;
+    anchor.insertAdjacentElement("afterend", ghost);
+    return;
+  }
+
+  if (step.fallback === "keeps-peek") {
+    const anchor =
+      (step.fallbackAnchor ? queryTourElement(step.fallbackAnchor, true) : null) ??
+      queryTourElement("pipeline-chat-tabs", true) ??
+      queryTourElement("inbox-chat-tabs", true) ??
+      queryTourElement("pipeline-kanban", true) ??
+      queryTourElement("inbox-list", true);
+    if (!anchor) return;
+    const ghost = document.createElement("div");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm";
+    ghost.innerHTML = `
+      <div class="flex items-center gap-2">
+        <div class="h-9 flex-1 rounded-full bg-muted"></div>
+        <div class="h-9 w-36 rounded-full bg-muted"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl border border-border p-3">
+          <div class="h-3 w-24 rounded bg-muted"></div>
+          <div class="mt-2 h-2 w-full rounded bg-muted/70"></div>
+        </div>
+        <div class="rounded-xl border border-border p-3">
+          <div class="h-3 w-20 rounded bg-muted"></div>
+          <div class="mt-2 h-2 w-full rounded bg-muted/70"></div>
+        </div>
+      </div>
+    `;
+    anchor.insertAdjacentElement("afterend", ghost);
+  }
+}
+
+function removeTourFallbacks(): void {
+  for (const el of document.querySelectorAll("[data-tour-ghost]")) el.remove();
+}
+
+function toDriveSteps(steps: PageTourStep[]): DriveStep[] {
   return steps.map((step) => ({
-    element: `[data-tour="${step.element}"]`,
+    element: () => queryTourElement(step.element) as Element,
+    skipMissingElement: true,
     popover: {
       title: step.title,
       description: step.description,
@@ -115,6 +264,161 @@ function toDriveSteps(
       align: "center",
     },
   }));
+}
+
+function openTourMenu(triggerTourId: string): void {
+  const wrap = document.querySelector(`[data-tour="${triggerTourId}"]`);
+  const btn = wrap?.querySelector<HTMLButtonElement>("button[aria-expanded]");
+  if (btn && btn.getAttribute("aria-expanded") !== "true") btn.click();
+}
+
+function closeTourMenu(triggerTourId: string): void {
+  const wrap = document.querySelector(`[data-tour="${triggerTourId}"]`);
+  const btn = wrap?.querySelector<HTMLButtonElement>("button[aria-expanded]");
+  if (btn && btn.getAttribute("aria-expanded") === "true") btn.click();
+}
+
+function prepareStep(step: PageTourStep | undefined): void {
+  if (!step) return;
+  applyKeepsTourStep(step);
+}
+
+function stepNeedsMountWait(step: PageTourStep): boolean {
+  return Boolean(
+    step.openMenu ||
+      step.keepsFolder ||
+      step.keepsView ||
+      step.keepsComposer ||
+      step.keepsChatTab,
+  );
+}
+
+function waitForTourElement(tourId: string, timeoutMs: number): Promise<Element | null> {
+  const found = queryTourElement(tourId, true);
+  if (found) return Promise.resolve(found);
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const tick = () => {
+      const el = queryTourElement(tourId, true);
+      if (el) {
+        resolve(el);
+        return;
+      }
+      if (Date.now() - started >= timeoutMs) {
+        resolve(null);
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+async function goToStepIndex(index: number): Promise<void> {
+  const tour = activeTourDef;
+  const instance = activeTour;
+  if (!tour || !instance) return;
+  if (index < 0) return;
+  if (index >= tour.steps.length) {
+    instance.destroy();
+    return;
+  }
+  const step = tour.steps[index];
+  prepareStep(step);
+  if (step) {
+    const waitMs = step.skipIfMissing
+      ? stepNeedsMountWait(step)
+        ? 400
+        : 0
+      : 2500;
+    if (waitMs > 0) {
+      await waitForTourElement(step.element, waitMs);
+    }
+    if (step.fallback) ensureTourFallback(step);
+    if (step.skipIfMissing && !isTourTargetVisible(step.element)) {
+      const current = instance.getActiveIndex() ?? 0;
+      const dir = index >= current ? 1 : -1;
+      await goToStepIndex(index + dir);
+      return;
+    }
+  }
+  const resolved = queryTourElement(step.element);
+  if (resolved) {
+    const driveStep = instance.getConfig().steps?.[index];
+    if (driveStep) driveStep.element = resolved;
+  }
+  instance.moveTo(index);
+  if (step.openMenu) {
+    window.setTimeout(() => {
+      openTourMenu(step.openMenu!);
+      if (step.fallback) ensureTourFallback(step);
+    }, 120);
+  }
+  if (step.closeMenu) {
+    window.setTimeout(() => closeTourMenu(step.closeMenu!), 120);
+  }
+}
+
+function runCta(cta: PageTourCta): void {
+  if (cta.startTourId && cta.href) {
+    queuePageTour(cta.startTourId);
+    stopPageTour();
+    window.location.assign(cta.href);
+  }
+}
+
+function injectTourCtas(tour: PageTour, index: number): void {
+  for (const el of document.querySelectorAll("[data-tour-cta]")) el.remove();
+  const step = tour.steps[index];
+  if (!step) return;
+  const ctas = (tour.ctas ?? []).filter((cta) => cta.onElement === step.element);
+  if (ctas.length === 0) return;
+  const footer = document.querySelector(".driver-popover-footer");
+  if (!(footer instanceof HTMLElement) || !footer.parentElement) return;
+  const wrap = document.createElement("div");
+  wrap.dataset.tourCta = "1";
+  wrap.style.cssText =
+    "display:flex;flex-direction:column;gap:6px;width:100%;margin:0 0 8px;";
+  for (const cta of ctas) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = cta.label;
+    btn.style.cssText =
+      "width:100%;border-radius:999px;border:1px solid var(--border);background:var(--card);padding:8px 12px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;";
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      runCta(cta);
+    });
+    wrap.appendChild(btn);
+  }
+  footer.parentElement.insertBefore(wrap, footer);
+}
+
+export function queuePageTour(id: string): void {
+  try {
+    sessionStorage.setItem(PENDING_TOUR_KEY, id);
+  } catch {
+    /* noop */
+  }
+}
+
+export function consumeQueuedPageTour(): string | null {
+  try {
+    const id = sessionStorage.getItem(PENDING_TOUR_KEY);
+    if (id) sessionStorage.removeItem(PENDING_TOUR_KEY);
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+export function peekQueuedPageTour(): string | null {
+  try {
+    return sessionStorage.getItem(PENDING_TOUR_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** Inicia o tour da página. Só chama a partir de um clique do usuário. */
@@ -125,7 +429,10 @@ export function startPageTour(id: string): void {
   const steps = toDriveSteps(tour.steps);
   if (steps.length === 0) return;
 
+  prepareStep(tour.steps[0]);
+
   activeTour?.destroy();
+  activeTourDef = tour;
   activeTour = driver({
     steps,
     animate: false,
@@ -145,17 +452,42 @@ export function startPageTour(id: string): void {
     doneBtnText: "Concluir",
     skipMissingElement: true,
     waitForElement: 2500,
+    onPopoverRender: () => {
+      injectTourCtas(tour, activeTour?.getActiveIndex() ?? 0);
+      snapDriverToElement(activeTour?.getActiveElement() ?? undefined);
+    },
     onHighlighted: (element) => {
-      requestAnimationFrame(() => snapDriverToElement(element));
+      const snap = () => snapDriverToElement(element);
+      requestAnimationFrame(() => {
+        snap();
+        requestAnimationFrame(snap);
+      });
+    },
+    onNextClick: (_element, _step, { driver: instance, state }) => {
+      const next = (state.activeIndex ?? 0) + 1;
+      if (next >= tour.steps.length) {
+        instance.destroy();
+        return;
+      }
+      void goToStepIndex(next);
+    },
+    onPrevClick: (_element, _step, { state }) => {
+      void goToStepIndex((state.activeIndex ?? 1) - 1);
     },
     onDestroyed: () => {
+      removeTourFallbacks();
+      for (const el of document.querySelectorAll("[data-tour-cta]")) el.remove();
       activeTour = null;
+      activeTourDef = null;
     },
   });
-  activeTour.drive();
+  window.setTimeout(() => activeTour?.drive(), 80);
 }
 
 export function stopPageTour(): void {
+  removeTourFallbacks();
+  for (const el of document.querySelectorAll("[data-tour-cta]")) el.remove();
   activeTour?.destroy();
   activeTour = null;
+  activeTourDef = null;
 }

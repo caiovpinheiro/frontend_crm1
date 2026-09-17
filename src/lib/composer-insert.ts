@@ -20,24 +20,24 @@ export type ComposerInsertMedia = {
   sendBeforeText?: boolean;
 };
 
-export type ComposerInsertPayload = {
+export type ComposerInsertStep = {
   text: string;
   media?: ComposerInsertMedia[];
 };
 
+export type ComposerInsertPayload = {
+  text: string;
+  media?: ComposerInsertMedia[];
+  /** Vários produtos: o composer envia um passo por mensagem WhatsApp. */
+  steps?: ComposerInsertStep[];
+};
+
 let pendingInsert: ComposerInsertPayload | null = null;
 
-export function insertComposerText(text: string, media?: ComposerInsertMedia[]) {
+function dispatchComposerInsert(payload: ComposerInsertPayload) {
   if (typeof window === "undefined") return;
-  const value = typeof text === "string" ? text : "";
-  const list = Array.isArray(media)
-    ? media.filter((m) => typeof m?.url === "string" && m.url.trim())
-    : [];
-  if (!value.trim() && list.length === 0) return;
-
-  pendingInsert = { text: value, media: list };
+  pendingInsert = payload;
   window.dispatchEvent(new CustomEvent(COMPOSER_FOCUS_CHAT_EVENT));
-  const payload: ComposerInsertPayload = { text: value, media: list };
   // Mobile: o Chat só monta depois do FOCUS. Atrasa o evento para o
   // composer já existir; se ainda não existir, o mount usa takePending.
   requestAnimationFrame(() => {
@@ -45,6 +45,33 @@ export function insertComposerText(text: string, media?: ComposerInsertMedia[]) 
       new CustomEvent(COMPOSER_INSERT_EVENT, { detail: payload }),
     );
   });
+}
+
+export function insertComposerText(text: string, media?: ComposerInsertMedia[]) {
+  const value = typeof text === "string" ? text : "";
+  const list = Array.isArray(media)
+    ? media.filter((m) => typeof m?.url === "string" && m.url.trim())
+    : [];
+  if (!value.trim() && list.length === 0) return;
+  dispatchComposerInsert({ text: value, media: list });
+}
+
+/** Encaminha N produtos em sequência (cada um = capa + texto). */
+export function insertComposerSequence(steps: ComposerInsertStep[]) {
+  const clean = steps
+    .map((s) => ({
+      text: typeof s.text === "string" ? s.text : "",
+      media: Array.isArray(s.media)
+        ? s.media.filter((m) => typeof m?.url === "string" && m.url.trim())
+        : [],
+    }))
+    .filter((s) => s.text.trim() || s.media.length > 0);
+  if (clean.length === 0) return;
+  if (clean.length === 1) {
+    insertComposerText(clean[0].text, clean[0].media);
+    return;
+  }
+  dispatchComposerInsert({ text: "", media: [], steps: clean });
 }
 
 /** Consome payload pendente (ex.: Composer acabou de montar após trocar pra Chat). */

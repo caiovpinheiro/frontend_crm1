@@ -1,5 +1,8 @@
 import type { PageTour, TourId } from "./tour-types";
 import { bwipoChatTour } from "./tours/bwipo-chat-tour";
+import { bwipoKeepsInboxTour } from "./tours/bwipo-keeps-inbox-tour";
+import { bwipoKeepsPipelineTour } from "./tours/bwipo-keeps-pipeline-tour";
+import { bwipoKeepsTour } from "./tours/bwipo-keeps-tour";
 import { pipelineTour } from "./tours/pipeline-tour";
 
 /**
@@ -10,6 +13,9 @@ import { pipelineTour } from "./tours/pipeline-tour";
 const TOURS: Partial<Record<TourId, PageTour>> = {
   pipeline: pipelineTour,
   "bwipo-chat": bwipoChatTour,
+  "bwipo-keeps": bwipoKeepsTour,
+  "bwipo-keeps-pipeline": bwipoKeepsPipelineTour,
+  "bwipo-keeps-inbox": bwipoKeepsInboxTour,
   // automations: automationsTour,
   // contacts: contactsTour,
 };
@@ -17,6 +23,7 @@ const TOURS: Partial<Record<TourId, PageTour>> = {
 export const TOUR_BY_PATH: Partial<Record<string, TourId>> = {
   "/pipeline": "pipeline",
   "/bwipo-chat": "bwipo-chat",
+  "/bwipo-keeps": "bwipo-keeps",
   // "/automations": "automations",
   // "/contacts": "contacts",
 };

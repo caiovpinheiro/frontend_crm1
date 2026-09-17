@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Folder, ListChecks, Paperclip } from "lucide-react";
 
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
@@ -19,6 +19,7 @@ import {
 } from "./keep-checklist";
 import { KeepRichEditor } from "./keep-editor";
 import { EMPTY_KEEP_DOC, type KeepCategory, type KeepDoc } from "./types";
+import { registerKeepsComposerTourBridge } from "@/features/product-tour/keeps-tour-bridge";
 
 function emptyItems(): KeepCheckItem[] {
   return [{ id: `li-${Math.random().toString(36).slice(2, 9)}`, text: "", checked: false }];
@@ -48,6 +49,23 @@ export function KeepComposer({
   const fileRef = useRef<HTMLInputElement>(null);
   const fileHold = useRef<File | null>(null);
 
+  useEffect(() => {
+    registerKeepsComposerTourBridge((mode) => {
+      if (mode === "closed") {
+        setTitle("");
+        setContent(EMPTY_KEEP_DOC);
+        setItems(emptyItems());
+        setChecklist(false);
+        setCategoryId(null);
+        setOpen(false);
+        return;
+      }
+      setChecklist(mode === "checklist");
+      setOpen(true);
+    });
+    return () => registerKeepsComposerTourBridge(null);
+  }, []);
+
   const showCategoryPicker = categories !== undefined;
   const selectedCategory = categories?.find((c) => c.id === categoryId) ?? null;
 
@@ -74,6 +92,7 @@ export function KeepComposer({
 
   return (
     <div
+      data-tour="keeps-composer"
       className={cn(CARD_SURFACE_CLASS, "keep-note-card mx-auto w-full max-w-xl p-3 shadow-none")}
       data-keep-color={selectedCategory?.color || undefined}
     >
@@ -101,6 +120,7 @@ export function KeepComposer({
               type="button"
               className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
               aria-label="Lista"
+              data-tour="keeps-composer-list"
               onClick={() => {
                 setItems(emptyItems());
                 setChecklist(true);
@@ -115,6 +135,7 @@ export function KeepComposer({
               type="button"
               className="rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
               aria-label="Imagem"
+              data-tour="keeps-composer-attach"
               onClick={() => fileRef.current?.click()}
             >
               <Paperclip className="size-4" />
@@ -122,12 +143,13 @@ export function KeepComposer({
           </TooltipGlass>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2" data-tour="keeps-composer-open">
           <input
             autoFocus={!checklist}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Título"
+            data-tour="keeps-composer-title"
             className="w-full bg-transparent pb-2 text-sm font-semibold text-foreground outline-none"
           />
           <div className="border-t border-border" aria-hidden />
@@ -177,7 +199,7 @@ export function KeepComposer({
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex gap-2" data-tour="keeps-composer-save">
               <button
                 type="button"
                 className="rounded-full px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"

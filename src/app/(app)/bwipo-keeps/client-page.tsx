@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useKeepCategories, useKeepMutations, useKeepNotes } from "@/features/keeps/hooks";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, CirclePlay, FolderPlus, Lightbulb, Palette, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,6 +19,8 @@ import { KeepComposer } from "@/features/keeps/keep-composer";
 import { KeepEditorDialog } from "@/features/keeps/keep-editor-dialog";
 import { GOOGLE_KEEP_TUTORIAL_PLAYER } from "@/features/keeps/keep-import-tutorial";
 import { KeepCategoryDialog } from "@/features/keeps/keep-category-dialog";
+import { PageTourButton } from "@/features/product-tour";
+import { registerKeepsFolderTourBridge } from "@/features/product-tour/keeps-tour-bridge";
 import { KeepColorSwatches } from "@/features/keeps/keep-color-swatches";
 import {
   KEEP_CATEGORY_COLOR_LABELS,
@@ -25,7 +28,6 @@ import {
   KEEP_NOTE_COLORS,
   type KeepNoteColorId,
 } from "@/features/keeps/colors";
-import { useKeepCategories, useKeepMutations, useKeepNotes } from "@/features/keeps/hooks";
 import {
   EMPTY_KEEP_DOC,
   type KeepCategory,
@@ -151,6 +153,14 @@ export default function BwipoKeepsClientPage() {
   const notesQuery = useKeepNotes(folder, q, colorFilter);
   const categoriesQuery = useKeepCategories();
   const mut = useKeepMutations(folder, q, colorFilter);
+
+  useEffect(() => {
+    registerKeepsFolderTourBridge({
+      setFolder,
+      setViewMode,
+    });
+    return () => registerKeepsFolderTourBridge(null);
+  }, []);
 
   const items = notesQuery.data?.items ?? [];
   const categories = categoriesQuery.data?.items ?? [];
@@ -344,6 +354,7 @@ export default function BwipoKeepsClientPage() {
               title="Bwipo Keeps"
               stackSearchOnMobile
               searchSlot={
+                <div data-tour="keeps-search" className="w-full">
                 <SearchFilterBar
                   value={q}
                   onChange={setQ}
@@ -380,10 +391,12 @@ export default function BwipoKeepsClientPage() {
                     </div>
                   ) : null}
                 </SearchFilterBar>
+                </div>
               }
               actions={
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {folder === "notes" ? (
+                    <div data-tour="keeps-view-mode">
                     <HeaderPillToggle
                       value={viewMode}
                       onChange={setViewMode}
@@ -392,7 +405,9 @@ export default function BwipoKeepsClientPage() {
                         { key: "categories", label: "Categorias" },
                       ]}
                     />
+                    </div>
                   ) : null}
+                  <div data-tour="keeps-folders">
                   <HeaderPillToggle
                     value={folder}
                     onChange={setFolder}
@@ -401,27 +416,35 @@ export default function BwipoKeepsClientPage() {
                       { key: "archive", label: "Arquivo", icon: Archive },
                       { key: "trash", label: "Lixeira", icon: Trash2 },
                     ]}
-                  />
+                    />
+                  </div>
                 </div>
               }
               menuSlot={
+                <div className="flex items-center gap-1">
+                <PageTourButton tourId="bwipo-keeps" />
+                <div data-tour="keeps-actions">
                 <PageActionsMenu
                   tooltip="Keeps"
                   items={[
                     {
                       icon: <Upload size={14} />,
                       label: "Importar Keeps",
+                      tourId: "keeps-import",
                       onClick: () => importRef.current?.click(),
                     },
                     {
                       icon: <CirclePlay size={14} />,
                       label: "Como importar Keeps",
+                      tourId: "keeps-import-help",
                       onClick: () => {
                         window.open(GOOGLE_KEEP_TUTORIAL_PLAYER, "_blank", "noopener,noreferrer");
                       },
                     },
                   ]}
                 />
+                </div>
+                </div>
               }
             />
           </>
@@ -451,21 +474,25 @@ export default function BwipoKeepsClientPage() {
         {notesQuery.isLoading || (categoriesMode && categoriesQuery.isLoading) ? (
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : items.length === 0 && !categoriesMode ? (
+          <div data-tour="keeps-board">
           <EmptyState
             icon={<Lightbulb className="size-7" />}
             title={q || colorFilter.length ? "Nenhuma nota encontrada" : folder === "trash" ? "Lixeira vazia" : folder === "archive" ? "Nada no arquivo" : "Nenhuma nota ainda"}
             description={q || colorFilter.length ? "Tente outro termo ou limpe o filtro de cor." : "Crie uma nota ou importe o ZIP do Google Keep."}
           />
+          </div>
         ) : folder === "notes" && categoriesMode ? (
           <div className="space-y-4">
             <button
               type="button"
+              data-tour="keeps-new-category"
               className="inline-flex items-center gap-2 rounded-full border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted-foreground hover:border-primary hover:text-foreground"
               onClick={() => setCategoryOpen(true)}
             >
               <FolderPlus className="size-4" />
               Nova categoria
             </button>
+          <div data-tour="keeps-board">
             <KeepBoard
               sections={categorySections}
               onOpen={setActive}
@@ -479,7 +506,9 @@ export default function BwipoKeepsClientPage() {
               onReorder={handleCategoryReorder}
             />
           </div>
+          </div>
         ) : folder === "notes" ? (
+          <div data-tour="keeps-board">
           <KeepBoard
             sections={normalSections}
             onOpen={setActive}
@@ -492,6 +521,7 @@ export default function BwipoKeepsClientPage() {
               }}
             onReorder={handleNormalReorder}
           />
+          </div>
         ) : (
           <div className="space-y-6">
             <section>

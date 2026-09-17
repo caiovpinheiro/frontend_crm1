@@ -39,7 +39,7 @@ import {
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
-import { PageTourButton } from "@/features/product-tour";
+import { PageTourButton, useQueuedPageTour } from "@/features/product-tour";
 import { KanbanColumn } from "@/components/crm/kanban-column";
 import { DealCard } from "@/components/crm/deal-card";
 import { ScrollMap } from "@/components/crm/scroll-map";
@@ -164,6 +164,7 @@ export default function KanbanV2ClientPage({
   const router = useRouter();
   const { status: sessionStatus } = useSession();
   const canFetch = sessionStatus !== "unauthenticated";
+  useQueuedPageTour("bwipo-keeps-pipeline");
 
   useEffect(() => {
     writePipelineViewPreference("kanban");
