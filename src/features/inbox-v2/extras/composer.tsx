@@ -38,6 +38,7 @@ import {
 import { getContact } from "@/features/inbox-v2/api/misc";
 import {
   sendAttachment,
+  sendAttachmentReuse,
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
@@ -263,6 +264,8 @@ export function Composer({
       name: string | null;
       mimeType?: string | null;
       messageBefore?: string | null;
+      /** Capa de produto: sai antes do texto (ou como caption se couber). */
+      sendBeforeText?: boolean;
     }>
   >([]);
   // Ref espelhando `pendingMediaList` — evita stale closure no flush do
@@ -528,6 +531,7 @@ export function Composer({
               url: m.url.trim(),
               name: m.name ?? null,
               mimeType: m.mimeType ?? null,
+              sendBeforeText: Boolean(m.sendBeforeText),
             }))
         : [];
       if (!text.trim() && media.length === 0) return;
@@ -709,12 +713,19 @@ export function Composer({
   // texto do Enter — via o helper compartilhado (SEQUENCIAL, com toast em
   // falha intermediária). Lê de `pendingMediaListRef` (não do state direto)
   // pra evitar stale closure entre o render que agendou e o flush em si.
-  async function flushPendingMedia() {
-    const list = pendingMediaListRef.current;
+  async function flushPendingMedia(beforeText: boolean) {
+    const all = pendingMediaListRef.current;
+    const list = all.filter((m) => Boolean(m.sendBeforeText) === beforeText);
     if (list.length === 0 || !conversationId) return;
-    setPendingMediaList([]);
-    pendingMediaListRef.current = [];
-    await sendInternalTemplateSequence({ conversationId, content: "", attachments: list });
+    const remaining = all.filter((m) => Boolean(m.sendBeforeText) !== beforeText);
+    setPendingMediaList(remaining);
+    pendingMediaListRef.current = remaining;
+    await sendInternalTemplateSequence({
+      conversationId,
+      content: "",
+      attachments: list,
+      channelId: selectedChannelId,
+    });
   }
 
   // Remove uma imagem colada da fila de pendentes (revoga a URL de preview).
@@ -738,15 +749,70 @@ export function Composer({
     files.forEach((f) => URL.revokeObjectURL(f.previewUrl));
   }
 
+  // Limite de caption de imagem na WhatsApp Cloud API.
+  const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
+
   async function flushOutbound(text: string | null) {
-    if (text) {
+    const all = pendingMediaListRef.current;
+    const before = all.filter((m) => Boolean(m.sendBeforeText));
+    const captionText = text?.trim() ?? "";
+    const canCaption =
+      Boolean(conversationId) &&
+      before.length > 0 &&
+      captionText.length > 0 &&
+      captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
+
+    if (canCaption && conversationId) {
+      const remaining = all.filter((m) => !m.sendBeforeText);
+      setPendingMediaList(remaining);
+      pendingMediaListRef.current = remaining;
+      onChange("");
+      draftRef.current = "";
+      setSequenceSending(true);
       try {
-        await Promise.resolve(onSend(text));
-      } catch {
-        /* texto falhou; ainda tenta anexos se o caller não bloqueou */
+        const [first, ...rest] = before;
+        await sendAttachmentReuse(conversationId, {
+          reuseUrl: first.url,
+          fileName: first.name ?? undefined,
+          mimeType: first.mimeType ?? undefined,
+          caption: captionText,
+          channelId: selectedChannelId,
+          waitUntilSent: true,
+        });
+        for (const m of rest) {
+          await sendAttachmentReuse(conversationId, {
+            reuseUrl: m.url,
+            fileName: m.name ?? undefined,
+            mimeType: m.mimeType ?? undefined,
+            channelId: selectedChannelId,
+            waitUntilSent: true,
+          });
+        }
+        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+        applyOutboundPreviewToInboxCaches(qc, conversationId, {
+          content: captionText,
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Falha ao enviar imagem com legenda.");
+      } finally {
+        setSequenceSending(false);
+      }
+    } else {
+      if (before.length > 0 && captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
+        toast.message(
+          "Texto longo demais para legenda do WhatsApp; enviando imagem e texto separados.",
+        );
+      }
+      await flushPendingMedia(true);
+      if (text) {
+        try {
+          await Promise.resolve(onSend(text));
+        } catch {
+          /* texto falhou; ainda tenta anexos se o caller não bloqueou */
+        }
       }
     }
-    await flushPendingMedia();
+    await flushPendingMedia(false);
     await flushPendingFiles();
   }
 
@@ -769,8 +835,8 @@ export function Composer({
       return;
     }
     if (!(await confirmChannelSwitchIfNeeded())) return;
-    // Mídia com sendBeforeText (ex.: capa de produto) sai antes do texto;
-    // demais anexos depois.
+    // Capa de produto (sendBeforeText): 1 mensagem imagem+caption se o texto
+    // couber em 1024 chars; senão imagem e texto separados.
     if (trimmed) {
       await flushOutbound(applySignature(trimmed));
       return;
@@ -940,7 +1006,10 @@ export function Composer({
                 </div>
                 <div className="min-w-0 flex-1">
                   <span className="block truncate font-body text-[12px] text-[var(--text-secondary)]">
-                    {media.name?.trim() || "Anexo do modelo"} · será enviado junto
+                    {media.name?.trim() || "Anexo do modelo"} ·{" "}
+                    {media.sendBeforeText
+                      ? "imagem com a mensagem (legenda)"
+                      : "será enviado junto"}
                   </span>
                   {before ? (
                     <span className="block truncate font-body text-[11px] italic text-[var(--text-muted)]">
