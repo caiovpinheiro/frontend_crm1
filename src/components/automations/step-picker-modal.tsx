@@ -10,7 +10,7 @@ import type { ActionStepType } from "@/lib/automation-workflow";
 import { stepTypeLabel } from "@/lib/automation-workflow";
 import { cn } from "@/lib/utils";
 
-import { STEP_GROUPS, stepColor, stepDescription, stepIcon } from "./add-step-node";
+import { DISTRIBUTION_LEADS_ENTRY, STEP_GROUPS, stepColor, stepDescription, stepIcon } from "./add-step-node";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StepPickerModal — modal central premium "O que deseja automatizar?"
@@ -53,6 +53,24 @@ function visualForGroup(title: string) {
   };
 }
 
+type PickerEntry = {
+  type: ActionStepType;
+  label?: string;
+  description?: string;
+  presetConfig?: Record<string, unknown>;
+};
+
+function pickerGroups(): { title: string; items: PickerEntry[] }[] {
+  return STEP_GROUPS.map((g) => ({
+    title: g.title,
+    items: g.items.flatMap((type): PickerEntry[] =>
+      type === "execute_distribution"
+        ? [{ type }, { ...DISTRIBUTION_LEADS_ENTRY }]
+        : [{ type }],
+    ),
+  }));
+}
+
 function normalize(s: string) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -60,7 +78,7 @@ function normalize(s: string) {
 type StepPickerModalProps = {
   open: boolean;
   onClose: () => void;
-  onSelect: (type: ActionStepType) => void;
+  onSelect: (type: ActionStepType, presetConfig?: Record<string, unknown>) => void;
   title?: string;
   subtitle?: string;
 };
@@ -110,12 +128,13 @@ export function StepPickerModal({
 
   const q = normalize(query.trim());
   const filteredGroups = React.useMemo(() => {
-    if (!q) return STEP_GROUPS;
-    return STEP_GROUPS.map((g) => ({
+    const groups = pickerGroups();
+    if (!q) return groups;
+    return groups.map((g) => ({
       ...g,
-      items: g.items.filter((type) => {
-        const label = normalize(stepTypeLabel(type));
-        const desc = normalize(stepDescription[type] ?? "");
+      items: g.items.filter((entry) => {
+        const label = normalize(entry.label ?? stepTypeLabel(entry.type));
+        const desc = normalize(entry.description ?? stepDescription[entry.type] ?? "");
         return label.includes(q) || desc.includes(q);
       }),
     })).filter((g) => g.items.length > 0);
@@ -250,12 +269,14 @@ export function StepPickerModal({
                       </div>
 
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                        {group.items.map((type) => (
+                        {group.items.map((entry) => (
                           <StepCard
-                            key={type}
-                            type={type}
+                            key={entry.label ?? entry.type}
+                            type={entry.type}
+                            label={entry.label}
+                            description={entry.description}
                             onClick={() => {
-                              onSelect(type);
+                              onSelect(entry.type, entry.presetConfig);
                               onClose();
                             }}
                           />
@@ -332,9 +353,13 @@ function CloseButton({ onClose }: { onClose: () => void }) {
 
 function StepCard({
   type,
+  label,
+  description,
   onClick,
 }: {
   type: ActionStepType;
+  label?: string;
+  description?: string;
   onClick: () => void;
 }) {
   const Icon = stepIcon[type] ?? Sparkles;
@@ -364,10 +389,10 @@ function StepCard({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13.5px] font-bold tracking-tight text-[var(--text-primary)]">
-          {stepTypeLabel(type)}
+          {label ?? stepTypeLabel(type)}
         </p>
         <p className="mt-0.5 line-clamp-2 text-[11.5px] font-medium leading-snug tracking-tight text-[var(--text-muted)]">
-          {stepDescription[type] ?? ""}
+          {description ?? stepDescription[type] ?? ""}
         </p>
       </div>
     </motion.button>

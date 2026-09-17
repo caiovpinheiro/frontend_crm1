@@ -782,13 +782,19 @@ function WorkflowCanvasInner({
   const connectedWaCount = connectedWaChannels.length;
   const connectedEmailCount = connectedEmailChannels.length;
 
-  const onAddStepRef = useRef<(type: ActionStepType, afterId: string | null) => void>(null!);
+  const onAddStepRef = useRef<
+    (type: ActionStepType, afterId: string | null, presetConfig?: Record<string, unknown>) => void
+  >(null!);
 
   const buildNodes = useCallback(
     (
       list: AutomationStep[],
       onDelete: (id: string) => void,
-      onAddStep: (type: ActionStepType, afterStepId: string | null) => void
+      onAddStep: (
+        type: ActionStepType,
+        afterStepId: string | null,
+        presetConfig?: Record<string, unknown>,
+      ) => void
     ): Node[] => {
       const channelLookup: Record<string, string> = {};
       for (const o of connectedWaChannels) channelLookup[o.id] = o.label;
@@ -1343,10 +1349,17 @@ function WorkflowCanvasInner({
   );
 
   const addStepAfter = useCallback(
-    (stepType: ActionStepType, afterStepId: string | null) => {
+    (
+      stepType: ActionStepType,
+      afterStepId: string | null,
+      presetConfig?: Record<string, unknown>,
+    ) => {
       const id = newStepId();
       const cur = stepsRef.current;
-      const config = defaultStepConfig(stepType) as Record<string, unknown>;
+      const config = {
+        ...(defaultStepConfig(stepType) as Record<string, unknown>),
+        ...(presetConfig ?? {}),
+      };
       config.__hasExplicitEdges = true;
       // Step novo é folha — marca explicitamente como "fim de ramo"
       // (ver comentário em handlePendingStepSelect).
@@ -1729,13 +1742,16 @@ function WorkflowCanvasInner({
   );
 
   const handlePendingStepSelect = useCallback(
-    (stepType: ActionStepType) => {
+    (stepType: ActionStepType, presetConfig?: Record<string, unknown>) => {
       if (!pendingConn) return;
       const { sourceId, sourceHandle, position: connPos } = pendingConn;
       setPendingConn(null);
 
       const id = newStepId();
-      const config = defaultStepConfig(stepType) as Record<string, unknown>;
+      const config = {
+        ...(defaultStepConfig(stepType) as Record<string, unknown>),
+        ...(presetConfig ?? {}),
+      };
       config.__rfPos = { x: connPos.x - 100, y: connPos.y };
       config.__hasExplicitEdges = true;
       // Step recém-criado é folha por default — marca explicitamente como
@@ -2215,11 +2231,15 @@ function WorkflowCanvasInner({
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const stepType = readPaletteDragType(e.dataTransfer);
-      if (!stepType) return;
+      const payload = readPaletteDragType(e.dataTransfer);
+      if (!payload) return;
+      const stepType = payload.type;
       const dropPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
       const id = newStepId();
-      const config = defaultStepConfig(stepType) as Record<string, unknown>;
+      const config = {
+        ...(defaultStepConfig(stepType) as Record<string, unknown>),
+        ...(payload.presetConfig ?? {}),
+      };
       config.__rfPos = { x: dropPos.x, y: dropPos.y };
       config.__hasExplicitEdges = true;
       const step: AutomationStep = { id, type: stepType, config };
@@ -2271,7 +2291,7 @@ function WorkflowCanvasInner({
   return (
     <div className={cn("automation-editor relative flex w-full", className)}>
       {/* Palette — gaveta esquerda (pin = dock; solta = overlay) */}
-      <NodePaletteDrawer />
+      <NodePaletteDrawer onAdd={(type, presetConfig) => addStepAfter(type, null, presetConfig)} />
 
       {/* Canvas area */}
       <div
