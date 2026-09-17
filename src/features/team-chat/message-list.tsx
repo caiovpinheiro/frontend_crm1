@@ -994,7 +994,7 @@ function MessageBody({
           </div>
         );
       })}
-      {hasText && (
+      {(hasText || showCard) && (
         <div className={cn(bubbleCls, "px-3.5 pb-2.5 pt-2.5")}>
           {pinned && (
             <span
@@ -1020,33 +1020,25 @@ function MessageBody({
               <p className="truncate text-[13px] opacity-80">{parsed.quote.excerpt}</p>
             </div>
           ) : null}
-          <p className="whitespace-pre-wrap break-words text-[16px] leading-[22px]">
-            {bodyText ? formatChatText(bodyText, mine) : null}
-            <span className={cn("inline-block", mine ? "w-[78px]" : "w-[52px]")} aria-hidden />
-          </p>
+          {hasText ? (
+            <p className="whitespace-pre-wrap break-words text-[16px] leading-[22px]">
+              {bodyText ? formatChatText(bodyText, mine) : null}
+              <span className={cn("inline-block", mine ? "w-[78px]" : "w-[52px]")} aria-hidden />
+            </p>
+          ) : null}
+          {showCard ? (
+            <div className={cn(hasText && "mt-2")}>
+              <LinkedRecordCard
+                card={message.card}
+                anchorRef={message.anchorRef}
+                onOpen={onOpenRecord}
+                className="border-0 bg-transparent px-0 shadow-none hover:bg-transparent"
+              />
+            </div>
+          ) : null}
           <span className="absolute bottom-[6px] right-[10px]">{meta}</span>
         </div>
       )}
-      {showCard && !hasText ? (
-        <div className={cn(bubbleCls, "px-3.5 py-2.5")}>
-          <LinkedRecordCard
-            card={message.card}
-            anchorRef={message.anchorRef}
-            onOpen={onOpenRecord}
-            className="border-0 bg-transparent px-0 shadow-none hover:bg-transparent"
-          />
-          <span className="absolute bottom-[6px] right-[10px]">{meta}</span>
-        </div>
-      ) : null}
-      {showCard && hasText ? (
-        <div className="w-full">
-          <LinkedRecordCard
-            card={message.card}
-            anchorRef={message.anchorRef}
-            onOpen={onOpenRecord}
-          />
-        </div>
-      ) : null}
       {images.length > 0 ? (
         <TeamChatImageViewer
           open={viewerOpen}
