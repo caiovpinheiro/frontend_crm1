@@ -149,6 +149,7 @@ export function MessageList({
   const stickToBottom = useRef(true);
   const prevRoomId = useRef(room.id);
   const prevCount = useRef(messages.length);
+  const didInitScroll = useRef(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [unseen, setUnseen] = useState(0);
   const isDirect = room.kind === "DM";
@@ -190,22 +191,36 @@ export function MessageList({
     return () => el.removeEventListener("scroll", onScroll);
   }, [room.id]);
 
+  // Reseta controle de scroll ao trocar de sala. Não scrolla imediatamente —
+  // espera as mensagens carregarem para evitar o flash de "carrega em cima
+  // e depois desce sozinho".
   useEffect(() => {
     prevRoomId.current = room.id;
     stickToBottom.current = true;
-    prevCount.current = messages.length;
+    prevCount.current = 0;
+    didInitScroll.current = false;
     setShowScrollDown(false);
     setUnseen(0);
-    requestAnimationFrame(() => scrollToBottom("auto"));
-    // só ao trocar de sala
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
   const lastMessage = messages[messages.length - 1];
   useEffect(() => {
-    const grew = messages.length > prevCount.current;
-    prevCount.current = messages.length;
-    if (!grew) return;
+    const count = messages.length;
+    const isInit = !didInitScroll.current && count > 0;
+    const grew = count > prevCount.current;
+    prevCount.current = count;
+
+    if (!isInit && !grew) return;
+
+    if (isInit) {
+      // Primeira carga: scroll instantâneo, sem animação visível.
+      requestAnimationFrame(() => {
+        scrollToBottom("auto");
+        didInitScroll.current = true;
+      });
+      return;
+    }
+
     if (stickToBottom.current || lastMessage?.authorId === meId) {
       requestAnimationFrame(() => scrollToBottom("smooth"));
       return;
@@ -791,8 +806,8 @@ function BubbleHoverActions({
     <div
       ref={boxRef}
       className={cn(
-        "pointer-events-auto absolute -top-2 z-30",
-        mine ? "-right-2" : "-left-2",
+        "pointer-events-auto absolute top-1 z-30",
+        mine ? "left-1" : "right-1",
       )}
     >
       <button
