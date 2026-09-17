@@ -16,6 +16,7 @@ import {
 } from "@/lib/flow-step-adapter"
 import {
   defaultTriggerConfig,
+  stepTypeLabel,
   summarizeStepConfig,
   summarizeTriggerConfig,
   triggerBindsInboundChannel,
@@ -52,7 +53,7 @@ const HIDE_EDITOR_KEYS = new Set([
 
 const CUSTOM_STEP_TYPES = new Set(["assign_owner", "condition", "round_robin"])
 
-function fieldsForFlow(stepType: string): EditorField[] | null {
+function fieldsForFlow(stepType: string, cfg?: Record<string, unknown>): EditorField[] | null {
   const raw = STEP_FIELDS[stepType]
   if (!raw) return null
   const next = raw.filter((f) => {
@@ -60,6 +61,14 @@ function fieldsForFlow(stepType: string): EditorField[] | null {
     if (f.kind === "builder" && f.builder === "condition") return false
     if ("key" in f && HIDE_EDITOR_KEYS.has(f.key)) return false
     if ((f.kind === "textarea" || f.kind === "text") && "key" in f && (f.key === "content" || f.key === "body" || f.key === "message")) {
+      return false
+    }
+    if (
+      stepType === "execute_distribution" &&
+      cfg?.mode === "leads" &&
+      "key" in f &&
+      (f.key === "departmentIds" || f.key === "distributionType")
+    ) {
       return false
     }
     return true
@@ -88,7 +97,7 @@ export function NodeConfigPanel({ id, data }: { id: string; data: FlowNodeData }
   const inboundBound = triggerBindsInboundChannel(triggerType)
   const isCondition = stepType === "condition"
   const isRoundRobin = stepType === "round_robin"
-  const catalogFields = !CUSTOM_STEP_TYPES.has(stepType) && !isTrigger ? fieldsForFlow(stepType) : null
+  const catalogFields = !CUSTOM_STEP_TYPES.has(stepType) && !isTrigger ? fieldsForFlow(stepType, cfg as Record<string, unknown>) : null
   const { firstId, channelId: inheritedChannelId } = firstMessageChannel(allNodes)
   const isFirstMessageStep = id === firstId
   const isFinish = (stepType === "finish" || stepType === "stop_automation") && !catalogFields
@@ -127,10 +136,19 @@ export function NodeConfigPanel({ id, data }: { id: string; data: FlowNodeData }
 
   const commitConfig = useCallback(
     (next: NodeConfig) => {
+      const nextMode = (next as Record<string, unknown>).mode
       updateNodeData(id, {
         config: next,
         outputs: outputsFromStepConfig(stepType, next as Record<string, unknown>, data.outputs),
         preview: summarizeStepConfig(stepType, next, nameLookup),
+        ...(stepType === "execute_distribution"
+          ? {
+              title:
+                nextMode === "leads"
+                  ? "Distribuição por Leads"
+                  : stepTypeLabel(stepType),
+            }
+          : {}),
       })
     },
     [id, stepType, data.outputs, nameLookup, updateNodeData],

@@ -242,9 +242,14 @@ function Field({
       return (
         <Labeled label={field.label} optional={field.optional} hint={field.hint}>
           <ConfigSelect
-            value={str(config[field.key])}
+            value={
+              field.allowEmpty === false && !str(config[field.key])
+                ? (field.options[0]?.value ?? "")
+                : str(config[field.key])
+            }
             options={field.options}
             placeholder="Selecione…"
+            allowEmpty={field.allowEmpty !== false}
             onChange={(v) => set(field.key, v)}
           />
         </Labeled>

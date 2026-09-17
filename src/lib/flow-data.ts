@@ -110,6 +110,11 @@ export interface NodeConfig {
   elseGotoStepId?: string
   receivedGotoStepId?: string
   continueIfNoDeal?: boolean
+  /** execute_distribution: ausência/"smart" = Inteligente; "leads" = rodízio por peso. */
+  mode?: "smart" | "leads" | string
+  departmentIds?: string[]
+  departmentNames?: string[]
+  distributionType?: string
 }
 
 export interface FlowNodeData extends Record<string, unknown> {

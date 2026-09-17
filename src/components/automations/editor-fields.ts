@@ -30,7 +30,7 @@ export type EditorField =
   | (Common & { kind: "tag" })
   | (Common & { kind: "textarea" })
   | (Common & { kind: "number"; min?: number; step?: number; suffix?: string })
-  | (Common & { kind: "select"; options: Opt[] })
+  | (Common & { kind: "select"; options: Opt[]; allowEmpty?: boolean })
   | (Common & { kind: "source"; source: SourceKey })
   | (Common & { kind: "departmentMulti" })
   /** Select de motivo de perda dinâmico, dependente de `config.pipelineId`. */
@@ -406,13 +406,24 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
   consume_stock: [{ kind: "info", text: "Baixa o estoque dos produtos do negócio. Bloqueia se faltar saldo." }],
   execute_distribution: [
     {
+      kind: "select",
+      key: "mode",
+      label: "Modo de distribuição",
+      allowEmpty: false,
+      options: [
+        { value: "smart", label: "Inteligente (elegibilidade + fila)" },
+        { value: "leads", label: "Por Leads (rodízio por peso)" },
+      ],
+      hint: "Inteligente = presença, expediente e fila de espera. Por Leads = rodízio por peso (0–5) dos consultores da página Distribuição, sem fila; redistribui mesmo com dono.",
+    },
+    {
       kind: "departmentMulti",
       key: "departmentIds",
       label: "Departamentos",
       optional: true,
-      hint: "Vazio = distribuição geral. Com seleção, só membros desses departamentos.",
+      hint: "Só no modo Inteligente. Vazio = distribuição geral. Com seleção, só membros desses departamentos.",
     },
-    { kind: "text", key: "distributionType", label: "Tipo / segmento", optional: true },
+    { kind: "text", key: "distributionType", label: "Tipo / segmento (só no modo Inteligente)", optional: true },
   ],
 }
 

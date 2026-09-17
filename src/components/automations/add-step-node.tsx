@@ -145,6 +145,18 @@ export const stepColor: Record<string, string> = {
   execute_distribution: "text-[var(--brand-primary)]",
 };
 
+/**
+ * Variante de paleta/picker: o MESMO step `execute_distribution`, já com
+ * `mode: "leads"`. Sem `mode` o backend trata como Distribuição Inteligente.
+ */
+export const DISTRIBUTION_LEADS_ENTRY = {
+  type: "execute_distribution" as ActionStepType,
+  label: "Distribuição por Leads",
+  description:
+    "Rodízio por peso (0–5) entre os consultores da página Distribuição — sem fila de espera.",
+  presetConfig: { mode: "leads" } as Record<string, unknown>,
+};
+
 export type StepGroup = { title: string; items: ActionStepType[] };
 
 export const STEP_GROUPS: StepGroup[] = [
@@ -201,7 +213,11 @@ export const STEP_GROUPS: StepGroup[] = [
 
 export type AddStepNodeData = {
   afterStepId: string | null;
-  onSelectType: (stepType: ActionStepType, afterStepId: string | null) => void;
+  onSelectType: (
+    stepType: ActionStepType,
+    afterStepId: string | null,
+    presetConfig?: Record<string, unknown>,
+  ) => void;
 };
 
 type AddStepRF = Node<AddStepNodeData, "addStep">;
@@ -213,8 +229,8 @@ export function AddStepNode({ data }: NodeProps<AddStepRF>) {
   const [open, setOpen] = useState(false);
 
   const handleSelect = useCallback(
-    (type: ActionStepType) => {
-      data.onSelectType(type, data.afterStepId);
+    (type: ActionStepType, presetConfig?: Record<string, unknown>) => {
+      data.onSelectType(type, data.afterStepId, presetConfig);
       setOpen(false);
     },
     [data]

@@ -473,7 +473,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
   }, [nodes, activeNodeIds, selectedNodeId])
 
   const addNode = useCallback(
-    (type: ActionStepType, position?: { x: number; y: number }) => {
+    (type: ActionStepType, position?: { x: number; y: number }, presetConfig?: Record<string, unknown>) => {
       const ref = nodes.reduce((max, n) => Math.max(max, n.data.ref), 0) + 1
       const id = `node-${Date.now()}`
       const pos =
@@ -487,6 +487,12 @@ function InnerEditor({ automationId }: { automationId: string }) {
       const conn = pendingConn.current
       pendingConn.current = null
       const data = blankFlowNodeFromStep(type, ref)
+      if (presetConfig) {
+        data.config = { ...data.config, ...presetConfig } as typeof data.config
+      }
+      if (type === "execute_distribution" && presetConfig?.mode === "leads") {
+        data.title = "Distribuição por Leads"
+      }
       // Mesma convenção do editor legado: passo novo nasce como folha
       // explícita, senão o runtime cai no próximo item do array por engano.
       data.config = markExplicitEdges(data.config)
@@ -562,9 +568,9 @@ function InnerEditor({ automationId }: { automationId: string }) {
   const onDrop = useCallback(
     (e: DragEvent) => {
       e.preventDefault()
-      const type = readPaletteDragType(e.dataTransfer)
-      if (!type) return
-      addNode(type, screenToFlowPosition({ x: e.clientX, y: e.clientY }))
+      const payload = readPaletteDragType(e.dataTransfer)
+      if (!payload) return
+      addNode(payload.type, screenToFlowPosition({ x: e.clientX, y: e.clientY }), payload.presetConfig)
     },
     [addNode, screenToFlowPosition],
   )
@@ -821,7 +827,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
       />
 
       <div className="crm-flow-editor relative flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)]">
-      <NodePaletteDrawer onAdd={addNode} />
+      <NodePaletteDrawer onAdd={(type, presetConfig) => addNode(type, undefined, presetConfig)} />
 
       <div className="relative min-h-0 min-w-0 flex-1">
 
@@ -931,7 +937,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
           pendingPosition.current = null
           pendingConn.current = null
         }}
-        onSelect={(type) => addNode(type)}
+        onSelect={(type, presetConfig) => addNode(type, undefined, presetConfig)}
       />
       <FlowSimulator
         open={simOpen}
