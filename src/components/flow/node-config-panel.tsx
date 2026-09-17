@@ -60,7 +60,14 @@ function fieldsForFlow(stepType: string, cfg?: Record<string, unknown>): EditorF
     if (f.kind === "step") return false
     if (f.kind === "builder" && f.builder === "condition") return false
     if ("key" in f && HIDE_EDITOR_KEYS.has(f.key)) return false
-    if ((f.kind === "textarea" || f.kind === "text") && "key" in f && (f.key === "content" || f.key === "body" || f.key === "message")) {
+    // WhatsApp/pergunta editam content/body/message no card (InlineText).
+    // Nota interna só tem esse campo — se esconder, o bloco fica sem editor.
+    if (
+      (f.kind === "textarea" || f.kind === "text") &&
+      "key" in f &&
+      (f.key === "content" || f.key === "body" || f.key === "message") &&
+      stepType !== "create_conversation_note"
+    ) {
       return false
     }
     if (
