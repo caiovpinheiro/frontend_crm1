@@ -63,14 +63,6 @@ export default function BwipoKeepsClientPage() {
                 });
               }}
             />
-<<<<<<< Updated upstream
-            <div className="relative">
-              <SectionHeader
-                icon={Lightbulb}
-                title="Bwipo Keeps"
-                search={false}
-                actions={
-=======
             <SectionHeader
               icon={Lightbulb}
               title="Bwipo Keeps"
@@ -114,50 +106,15 @@ export default function BwipoKeepsClientPage() {
                 </SearchFilterBar>
               }
               actions={
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {folder === "notes" ? (
-                    <HeaderPillToggle
-                      value={viewMode}
-                      onChange={setViewMode}
-                      options={[
-                        { key: "normal", label: "Keeps" },
-                        { key: "categories", label: "Categorias" },
-                      ]}
-                    />
-                  ) : null}
->>>>>>> Stashed changes
-                  <HeaderPillToggle
-                    value={folder}
-                    onChange={setFolder}
-                    options={[
-                      { key: "notes", label: "Notas", icon: Lightbulb },
-                      { key: "archive", label: "Arquivo", icon: Archive },
-                      { key: "trash", label: "Lixeira", icon: Trash2 },
-<<<<<<< Updated upstream
-                    ]}
-                  />
-                }
-                menuSlot={
-                  <PageActionsMenu
-                    tooltip="Keeps"
-                    items={[
-                      {
-                        icon: <Upload size={14} />,
-                        label: "Importar Keeps",
-                        onClick: () => importRef.current?.click(),
-                      },
-                      {
-                        icon: <CirclePlay size={14} />,
-                        label: "Como importar Keeps",
-                        onClick: () => {
-                          window.open(GOOGLE_KEEP_TUTORIAL_PLAYER, "_blank", "noopener,noreferrer");
-                        },
-                      },
-=======
->>>>>>> Stashed changes
-                    ]}
-                  />
-                </div>
+                <HeaderPillToggle
+                  value={folder}
+                  onChange={setFolder}
+                  options={[
+                    { key: "notes", label: "Notas", icon: Lightbulb },
+                    { key: "archive", label: "Arquivo", icon: Archive },
+                    { key: "trash", label: "Lixeira", icon: Trash2 },
+                  ]}
+                />
               }
               menuSlot={
                 <PageActionsMenu
