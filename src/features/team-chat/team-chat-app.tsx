@@ -48,7 +48,13 @@ export function TeamChatApp() {
   const meId = (session?.user as { id?: string } | undefined)?.id ?? "";
   const searchParams = useSearchParams();
   const roomFromUrl = searchParams.get("room");
-  const [selectedId, setSelectedId] = useState<string | null>(roomFromUrl);
+  const messageFromUrl = searchParams.get("message");
+  const LAST_ROOM_KEY = "bwipo-chat-last-room";
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (roomFromUrl) return roomFromUrl;
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(LAST_ROOM_KEY);
+  });
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeIntent, setComposeIntent] = useState<"dm" | "group">("dm");
   const [addOpen, setAddOpen] = useState(false);
@@ -70,6 +76,10 @@ export function TeamChatApp() {
     setActiveTeamChatRoom(selectedId);
     return () => setActiveTeamChatRoom(null);
   }, [selectedId, setActiveTeamChatRoom]);
+
+  useEffect(() => {
+    if (selectedId) localStorage.setItem(LAST_ROOM_KEY, selectedId);
+  }, [selectedId]);
   const knownRoomIds = useRef<Set<string>>(new Set());
   useEffect(() => {
     const ids = new Set((roomsQuery.data?.rooms ?? []).map((r) => r.id));
@@ -219,6 +229,7 @@ export function TeamChatApp() {
             detailsOpen={detailsOpen}
             detailsBadge={detailsBadge}
             typing={typing[selected.id] ?? null}
+            scrollToMessageId={messageFromUrl ?? undefined}
             favorited={favorites.includes(
               favoriteKey({ roomId: selected.id, personId: selected.peer?.id }),
             )}
@@ -418,6 +429,7 @@ function Thread({
   detailsBadge,
   typing,
   favorited,
+  scrollToMessageId,
   onBack,
   onToggleDetails,
   onToggleFavorite,
@@ -429,6 +441,7 @@ function Thread({
   detailsBadge: number;
   typing?: { userId: string; name: string } | null;
   favorited: boolean;
+  scrollToMessageId?: string;
   onBack: () => void;
   onToggleDetails: () => void;
   onToggleFavorite: () => void;
@@ -493,6 +506,7 @@ function Thread({
           messages={messages}
           meId={meId}
           error={messagesError}
+          scrollToMessageId={scrollToMessageId}
           onRetry={() => {
             void refetch();
           }}

@@ -125,6 +125,7 @@ export function MessageList({
   onForward,
   onDelete,
   onOpenRecord,
+  scrollToMessageId,
 }: {
   room: TeamChatRoom;
   messages: TeamChatMessage[];
@@ -143,6 +144,7 @@ export function MessageList({
   onForward?: (message: TeamChatMessage) => void;
   onDelete?: (message: TeamChatMessage) => void;
   onOpenRecord?: (card: OpenCrmCard) => void;
+  scrollToMessageId?: string;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -228,6 +230,16 @@ export function MessageList({
     setShowScrollDown(true);
     setUnseen((n) => n + 1);
   }, [lastMessage?.authorId, lastMessage?.id, meId, messages.length]);
+
+  // Scroll para mensagem alvo ao vir de notificação (deep link).
+  useEffect(() => {
+    if (!scrollToMessageId || messages.length === 0) return;
+    const el = document.getElementById(`msg-${scrollToMessageId}`);
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [scrollToMessageId, messages.length]);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -323,6 +335,7 @@ export function MessageList({
                       </div>
                     )}
                     <MessageRow
+                      id={`msg-${msg.id}`}
                       message={msg}
                       meId={meId}
                       authorName={mine ? "Você" : (author?.name ?? "Colega")}
@@ -392,6 +405,7 @@ function tickStatus(mine: boolean, peerOnline: boolean, createdAt: string): Deli
 }
 
 function MessageRow({
+  id,
   message,
   meId,
   authorName,
@@ -413,6 +427,7 @@ function MessageRow({
   onDelete,
   onOpenRecord,
 }: {
+  id?: string;
   message: TeamChatMessage;
   meId: string;
   authorName: string;
@@ -465,6 +480,7 @@ function MessageRow({
 
   return (
     <div
+      id={id}
       className={cn(
         // Sem isolate permanente: o menu do balão precisa pintar acima das linhas seguintes.
         // Com menu aberto, eleva a linha inteira no stacking da thread.

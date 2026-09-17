@@ -301,7 +301,10 @@ export function Composer({
       setPicker(null);
       onClearQuote?.();
       requestAnimationFrame(() => {
-        if (textareaRef.current) textareaRef.current.style.height = "auto";
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+          textareaRef.current.focus();
+        }
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível enviar.");
@@ -318,6 +321,7 @@ export function Composer({
         content: "",
         attachments: [{ url: "", name: emoji, mimeType: "text/plain", size: 0, kind: "sticker", emoji }],
       });
+      requestAnimationFrame(() => textareaRef.current?.focus());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível enviar a figurinha.");
     } finally {
@@ -415,6 +419,7 @@ export function Composer({
       const fileName = `audio-${Date.now()}.${ext}`;
       const attachment = await uploadTeamChatAttachment(roomId, blob, { fileName });
       await onSend({ content: "", attachments: [attachment] });
+      requestAnimationFrame(() => textareaRef.current?.focus());
       discardAudio();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível enviar o áudio.");
@@ -948,6 +953,7 @@ export function Composer({
                   asSticker: true,
                 });
                 await onSend({ content: "", attachments: [attachment] });
+                requestAnimationFrame(() => textareaRef.current?.focus());
               } catch (err) {
                 toast.error(err instanceof Error ? err.message : "Não foi possível enviar a figurinha.");
               } finally {
