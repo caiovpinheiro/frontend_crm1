@@ -200,7 +200,8 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
     if (toast.kind === "inbox" && toast.inboxPayload?.conversationId) {
       router.push(`/inbox?c=${toast.inboxPayload.conversationId}`);
     } else if (toast.kind === "team-chat" && toast.teamChatPayload?.roomId) {
-      router.push(`/bwipo-chat?room=${toast.teamChatPayload.roomId}`);
+      const { roomId, message } = toast.teamChatPayload;
+      router.push(`/bwipo-chat?room=${roomId}&message=${message.id}`);
     }
   };
 
@@ -298,10 +299,11 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     // Notificação nativa do sistema quando a aba não está visível.
     const authorName = payload.message.author?.name || "Bwipo Chat";
     const roomName = payload.roomName || "Bwipo Chat";
+    const messageId = payload.message.id;
     void showNativeNotificationIfNeeded(`${authorName} · ${roomName}`, {
       body: formatTeamChatPreview(payload.message),
-      tag: dedupKey,
-      data: { url: `/bwipo-chat?room=${roomId}` },
+      tag: `${dedupKey}:${messageId}`,
+      data: { url: `/bwipo-chat?room=${roomId}&message=${messageId}` },
       icon: payload.roomAvatarUrl || "/icon.svg",
     });
 
@@ -337,7 +339,7 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     >
       {children}
       <div
-        className="fixed right-4 top-4 z-[100] flex flex-col gap-2"
+        className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
         aria-live="polite"
         aria-atomic="true"
       >

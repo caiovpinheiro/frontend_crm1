@@ -190,6 +190,7 @@ export function useTeamChatMessages(roomId: string | null) {
       return { messages: mergeMessageLists(prev?.messages, data.messages) };
     },
     enabled: !!roomId,
+    refetchOnMount: "always",
     refetchInterval: visible ? 8_000 : false,
     refetchIntervalInBackground: false,
     retry: retryUnlessTimeout,
