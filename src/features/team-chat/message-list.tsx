@@ -621,7 +621,7 @@ function BubbleHoverActions({
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; placement: "below" | "above" } | null>(null);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -637,8 +637,8 @@ function BubbleHoverActions({
       const left = mine
         ? Math.min(Math.max(8, r.left), window.innerWidth - menuW - 8)
         : Math.min(Math.max(8, r.right - menuW), window.innerWidth - menuW - 8);
-      const top = Math.min(r.bottom + gap, window.innerHeight - 8);
-      setMenuPos({ top, left });
+      const top = r.bottom + gap;
+      setMenuPos({ top, left, placement: "below" });
     };
     place();
     window.addEventListener("resize", place);
@@ -649,6 +649,27 @@ function BubbleHoverActions({
       window.removeEventListener("scroll", place, true);
     };
   }, [open, mine]);
+
+  // Reposiciona o menu para cima do botão quando ele não cabe embaixo
+  // (ex.: mensagem no final da tela).
+  useLayoutEffect(() => {
+    if (!open || !menuRef.current || !menuPos) return;
+    const menu = menuRef.current;
+    const btn = boxRef.current;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const menuH = menu.offsetHeight;
+    const gap = 4;
+    const bottomEdge = menuPos.top + menuH;
+    const viewportBottomMargin = 8;
+    if (menuPos.placement === "below" && bottomEdge > window.innerHeight - viewportBottomMargin) {
+      setMenuPos({
+        top: Math.max(8, r.top - menuH - gap),
+        left: menuPos.left,
+        placement: "above",
+      });
+    }
+  }, [open, menuPos]);
 
   useEffect(() => {
     if (!open) return;
