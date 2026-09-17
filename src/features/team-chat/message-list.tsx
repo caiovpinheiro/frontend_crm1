@@ -1027,14 +1027,24 @@ function MessageBody({
           <span className="absolute bottom-[6px] right-[10px]">{meta}</span>
         </div>
       )}
-      {showCard ? (
-        <div className={cn("w-full", !hasText && "relative")}>
+      {showCard && !hasText ? (
+        <div className={cn(bubbleCls, "px-3.5 py-2.5")}>
+          <LinkedRecordCard
+            card={message.card}
+            anchorRef={message.anchorRef}
+            onOpen={onOpenRecord}
+            className="border-0 bg-transparent px-0 shadow-none hover:bg-transparent"
+          />
+          <span className="absolute bottom-[6px] right-[10px]">{meta}</span>
+        </div>
+      ) : null}
+      {showCard && hasText ? (
+        <div className="w-full">
           <LinkedRecordCard
             card={message.card}
             anchorRef={message.anchorRef}
             onOpen={onOpenRecord}
           />
-          {!hasText ? <span className="mt-1 flex justify-end">{meta}</span> : null}
         </div>
       ) : null}
       {images.length > 0 ? (
