@@ -1,5 +1,5 @@
 import type { EmailDetail } from "../api/types";
-import { decodeIfQuotedPrintable } from "../components/html-email-frame";
+import { decodeIfQuotedPrintable, decodeHtmlEntities } from "../components/html-email-frame";
 
 export type ComposeMode = "new" | "reply" | "forward";
 
@@ -14,13 +14,17 @@ export interface ComposeDraft {
   inReplyTo?: string;
 }
 
+function cleanText(input: string | null): string {
+  return decodeHtmlEntities(decodeIfQuotedPrintable(input?.trim() ?? ""));
+}
+
 function replySubject(subject: string | null): string {
-  const base = decodeIfQuotedPrintable(subject?.trim() ?? "") || "(sem assunto)";
+  const base = cleanText(subject) || "(sem assunto)";
   return /^re:/i.test(base) ? base : `Re: ${base}`;
 }
 
 function forwardSubject(subject: string | null): string {
-  const base = decodeIfQuotedPrintable(subject?.trim() ?? "") || "(sem assunto)";
+  const base = cleanText(subject) || "(sem assunto)";
   return /^enc:/i.test(base) ? base : `Enc: ${base}`;
 }
 
@@ -31,14 +35,14 @@ function quoteBlock(email: EmailDetail): string {
   const from = email.fromName
     ? `${email.fromName} &lt;${email.fromAddress}&gt;`
     : email.fromAddress;
-  const body = decodeIfQuotedPrintable(email.bodyText?.trim() ?? "") || "(sem conteúdo)";
+  const body = cleanText(email.bodyText) || "(sem conteúdo)";
   const escaped = body
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\n/g, "<br/>");
 
-  return `<p><br/></p><p><br/></p><blockquote style="margin:0;padding-left:12px;border-left:3px solid var(--glass-border);color:var(--text-muted)"><p style="margin:0 0 8px;font-size:12px">Em ${date}, ${from} escreveu:</p><p style="margin:0;font-size:13px">${escaped}</p></blockquote>`;
+  return `<p><br/></p><p><br/></p><blockquote style="margin:0;padding-left:12px;border-left:3px solid var(--glass-border);color:var(--text-muted);word-break:break-word;overflow-wrap:anywhere"><p style="margin:0 0 8px;font-size:12px">Em ${date}, ${from} escreveu:</p><p style="margin:0;font-size:13px;word-break:break-word;overflow-wrap:anywhere">${escaped}</p></blockquote>`;
 }
 
 /** Destinatário ao responder: remetente original (INBOX) ou destinatário (SENT). */

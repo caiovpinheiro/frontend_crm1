@@ -65,6 +65,24 @@ export function decodeIfQuotedPrintable(input: string): string {
 }
 
 /**
+ * Decodifica entidades HTML (&aacute;, &#xE1;, &#225;, &ldquo;...) para
+ * caracteres legíveis. Repete até estabilizar para lidar com codificações
+ * duplas que aparecem em textos citados de e-mails legados.
+ */
+export function decodeHtmlEntities(input: string): string {
+  if (!input || typeof window === "undefined") return input;
+  const textarea = document.createElement("textarea");
+  let prev: string;
+  let out = input;
+  do {
+    prev = out;
+    textarea.innerHTML = out;
+    out = textarea.value;
+  } while (out !== prev);
+  return out;
+}
+
+/**
  * Substitui imagens com `cid:` (anexos inline ainda não baixados) por um
  * placeholder visual, evitando o ícone de imagem quebrada no iframe.
  * Imagens externas permanecem como estão; o navegador as carrega ou mostra
@@ -82,7 +100,7 @@ function replaceBrokenImages(html: string): string {
  * substitui anexos inline por placeholders antes de renderizar no iframe.
  */
 export function prepareEmailHtml(html: string): string {
-  return replaceBrokenImages(sanitizeHtml(decodeIfQuotedPrintable(html)));
+  return replaceBrokenImages(sanitizeHtml(decodeHtmlEntities(decodeIfQuotedPrintable(html))));
 }
 
 /**

@@ -26,7 +26,7 @@ import type {
 } from "../api/types";
 import { ComposeView } from "./compose-view";
 import { EmailRulesModal } from "./email-rules-modal";
-import { HtmlEmailFrame, decodeIfQuotedPrintable } from "./html-email-frame";
+import { HtmlEmailFrame, decodeIfQuotedPrintable, decodeHtmlEntities } from "./html-email-frame";
 import {
   buildComposeDraft,
   newComposeDraft,
@@ -122,7 +122,7 @@ const IconNote = (p: IconProps) => (
 /* Utilidades                                                          */
 /* ------------------------------------------------------------------ */
 const stripHtml = (s: string | null): string =>
-  decodeIfQuotedPrintable(s ?? "")
+  decodeHtmlEntities(decodeIfQuotedPrintable(s ?? ""))
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
@@ -368,30 +368,32 @@ function Sidebar({
         </div>
       </label>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-        {main.map((m) => (
-          <Row key={m.id} {...m} />
-        ))}
-      </nav>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 18 }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 1, flexShrink: 0 }}>
+          {main.map((m) => (
+            <Row key={m.id} {...m} />
+          ))}
+        </nav>
 
-      {folders.length > 0 && (
-        <div>
-          <div style={{ fontSize: 12, color: T.muted, padding: "0 10px 6px" }}>Pastas</div>
-          <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {folders.map((f) => (
-              <Row
-                key={f.id}
-                id={f.id}
-                label={f.name}
-                count={f.unreadCount}
-                quiet
-              />
-            ))}
-          </nav>
-        </div>
-      )}
+        {folders.length > 0 && (
+          <div style={{ flexShrink: 0 }}>
+            <div style={{ fontSize: 12, color: T.muted, padding: "0 10px 6px" }}>Pastas</div>
+            <nav style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {folders.map((f) => (
+                <Row
+                  key={f.id}
+                  id={f.id}
+                  label={f.name}
+                  count={f.unreadCount}
+                  quiet
+                />
+              ))}
+            </nav>
+          </div>
+        )}
+      </div>
 
-      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 1, flexShrink: 0, paddingTop: 8, borderTop: `1px solid ${T.lineSoft}` }}>
         <Row id="rules" label="Regras" Icon={IconRules} onClick={onOpenRules} />
         <button
           onClick={onRefresh}
@@ -546,7 +548,7 @@ function MessageRow({ m, active, selected, onOpen, onDoubleClick, onToggle, dens
             textOverflow: "ellipsis",
           }}
         >
-          {decodeIfQuotedPrintable(m.subject ?? "") || "(sem assunto)"}
+          {decodeHtmlEntities(decodeIfQuotedPrintable(m.subject ?? "")) || "(sem assunto)"}
         </div>
 
         {!dense && (
@@ -994,7 +996,7 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
     </button>
   );
 
-  const decodedBodyText = decodeIfQuotedPrintable(email.bodyText ?? "");
+  const decodedBodyText = decodeHtmlEntities(decodeIfQuotedPrintable(email.bodyText ?? ""));
   const hasHtml = Boolean(email.bodyHtml?.trim());
   const hasText = Boolean(decodedBodyText.trim());
 
@@ -1017,9 +1019,11 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
               color: T.ink,
               letterSpacing: -0.2,
               flex: 1,
+              wordBreak: "break-word",
+              overflowWrap: "anywhere",
             }}
           >
-            {decodeIfQuotedPrintable(email.subject ?? "") || "(sem assunto)"}
+            {decodeHtmlEntities(decodeIfQuotedPrintable(email.subject ?? "")) || "(sem assunto)"}
           </h1>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flexShrink: 0, justifyContent: "flex-end" }}>
             <Action Icon={IconReply} label="Responder" primary onClick={onReply} />
@@ -1109,8 +1113,8 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
         )}
       </header>
 
-      <div ref={ref} style={{ flex: 1, overflowY: "auto", padding: "24px 28px 40px" }}>
-        <div style={{ maxWidth: 660 }}>
+      <div ref={ref} style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "24px 28px 40px" }}>
+        <div style={{ maxWidth: 660, minWidth: 0, wordBreak: "break-word", overflowWrap: "anywhere" }}>
           {hasHtml && (
             <div
               style={{
