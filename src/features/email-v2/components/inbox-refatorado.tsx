@@ -196,6 +196,7 @@ interface SidebarProps {
   selectedFolder: EmailFolder;
   selectedCustomFolderId: string | null;
   counts: { inbox: number; sent: number; spam: number; trash: number };
+  width: number;
   onSelectAccount: (id?: string) => void;
   onSelectFolder: (folder: EmailFolder) => void;
   onSelectCustomFolder: (id: string | null) => void;
@@ -205,6 +206,7 @@ interface SidebarProps {
 }
 
 function Sidebar({
+  width,
   accounts,
   folders,
   selectedAccountId,
@@ -293,7 +295,7 @@ function Sidebar({
   return (
     <aside
       style={{
-        width: 224,
+        width,
         flexShrink: 0,
         border: `1px solid ${T.line}`,
         borderRadius: 14,
@@ -598,6 +600,7 @@ interface ListProps {
   onSearch: (value: string) => void;
   unreadOnly: boolean;
   onUnreadOnly: (value: boolean) => void;
+  width: number;
   onArchive: () => void;
   onSpam: () => void;
   onTrash: () => void;
@@ -621,6 +624,7 @@ function List({
   onSearch,
   unreadOnly,
   onUnreadOnly,
+  width,
   onArchive,
   onSpam,
   onTrash,
@@ -667,7 +671,7 @@ function List({
   return (
     <section
       style={{
-        width: 392,
+        width,
         flexShrink: 0,
         border: `1px solid ${T.line}`,
         borderRadius: 14,
@@ -1185,6 +1189,69 @@ function Reader({ email, loading, folder, onReply, onForward, onArchive, onSpam,
 }
 
 /* ------------------------------------------------------------------ */
+/* Resize handle                                                         */
+/* ------------------------------------------------------------------ */
+function ResizeHandle({ onResize }: { onResize: (delta: number) => void }) {
+  const [active, setActive] = useState(false);
+  const [hover, setHover] = useState(false);
+  const startX = useRef(0);
+  const cbRef = useRef(onResize);
+  useEffect(() => {
+    cbRef.current = onResize;
+  }, [onResize]);
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    setActive(true);
+    startX.current = e.clientX;
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const onMove = (e: MouseEvent) => {
+      const delta = e.clientX - startX.current;
+      startX.current = e.clientX;
+      cbRef.current(delta);
+    };
+    const onUp = () => setActive(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [active]);
+
+  return (
+    <div
+      onMouseDown={onMouseDown}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        width: 8,
+        flexShrink: 0,
+        cursor: "col-resize",
+        alignSelf: "stretch",
+        display: "flex",
+        justifyContent: "center",
+        background: active || hover ? "rgba(0,0,0,0.04)" : "transparent",
+        transition: active ? "none" : "background 120ms ease",
+      }}
+    >
+      <div
+        style={{
+          width: 2,
+          height: "100%",
+          background: active || hover ? T.line : "transparent",
+          borderRadius: 1,
+          transition: active ? "none" : "background 120ms ease",
+        }}
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* App                                                                 */
 /* ------------------------------------------------------------------ */
 export default function InboxRefatorado() {
@@ -1201,6 +1268,12 @@ export default function InboxRefatorado() {
   const [composeDraft, setComposeDraft] = useState<ComposeDraft>(newComposeDraft());
   const [rulesOpen, setRulesOpen] = useState(false);
   const [expandedReplyId, setExpandedReplyId] = useState<string | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(224);
+  const [listWidth, setListWidth] = useState(392);
+  const minSidebar = 180;
+  const maxSidebar = 360;
+  const minList = 280;
+  const maxList = 600;
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -1434,8 +1507,9 @@ export default function InboxRefatorado() {
     >
       <PageHeader icon={<IconMail size={22} />} title="E-mail" className="rounded-none border-0 bg-transparent shadow-none" />
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0, overflowX: "auto", gap: 12, padding: 12, background: T.paper }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, overflowX: "auto", padding: 12, background: T.paper }}>
         <Sidebar
+          width={sidebarWidth}
           accounts={accounts}
           folders={customFolders}
           selectedAccountId={selectedAccountId}
@@ -1454,8 +1528,15 @@ export default function InboxRefatorado() {
           onNew={handleNew}
         />
 
+        <ResizeHandle
+          onResize={(delta) =>
+            setSidebarWidth((w) => Math.max(minSidebar, Math.min(maxSidebar, w + delta)))
+          }
+        />
+
         {!composing && (
           <List
+            width={listWidth}
             emails={emails}
             activeId={selectedEmailId}
             setActiveId={setSelectedEmailId}
@@ -1476,6 +1557,14 @@ export default function InboxRefatorado() {
             onArchive={handleArchive}
             onSpam={handleSpam}
             onTrash={handleTrash}
+          />
+        )}
+
+        {!composing && (
+          <ResizeHandle
+            onResize={(delta) =>
+              setListWidth((w) => Math.max(minList, Math.min(maxList, w + delta)))
+            }
           />
         )}
 
