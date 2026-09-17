@@ -59,6 +59,7 @@ export type TeamChatMessage = {
   kind: "TEXT" | "SYSTEM";
   content: string;
   pinned: boolean;
+  feedbackType?: "positive" | "negative" | "warning" | null;
   reactions: TeamChatReaction[];
   attachments?: TeamChatAttachment[];
   createdAt: string;
