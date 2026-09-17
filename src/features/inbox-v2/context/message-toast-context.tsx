@@ -252,9 +252,14 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
 
 export function MessageToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [mounted, setMounted] = useState(false);
   const activeConversationsRef = useRef(new Set<string>());
   const activeTeamChatRoomsRef = useRef(new Set<string>());
   const recentRef = useRef(new Map<string, number>());
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const registerActiveConversation = useCallback((id: string | null) => {
     if (id) activeConversationsRef.current.add(id);
@@ -341,20 +346,21 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
       >
         {children}
       </MessageToastContext.Provider>
-      {createPortal(
-        <div
-          className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          <AnimatePresence mode="popLayout">
-            {toasts.map((toast) => (
-              <ToastItem key={toast.id} toast={toast} onClose={close} />
-            ))}
-          </AnimatePresence>
-        </div>,
-        document.body,
-      )}
+      {mounted &&
+        createPortal(
+          <div
+            className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <AnimatePresence mode="popLayout">
+              {toasts.map((toast) => (
+                <ToastItem key={toast.id} toast={toast} onClose={close} />
+              ))}
+            </AnimatePresence>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
