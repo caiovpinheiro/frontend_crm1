@@ -17,16 +17,43 @@ export function isDisconnectedChannelError(err: unknown): boolean {
   return true;
 }
 
-/** Canal selecionado (Y) ≠ canal atual da conversa (X). */
+/** Só os dígitos — o canal guarda o número formatado ("+55 11 91518-4535"). */
+function phoneKey(phone: string | null | undefined): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return digits.length > 0 ? digits : null;
+}
+
+/**
+ * Canal selecionado (Y) ≠ canal atual da conversa (X).
+ *
+ * Passando `channels` (os canais de envio), dois casos NÃO contam como troca:
+ *  - o canal da conversa não está mais na lista de envio — conexão antiga
+ *    desconectada. Não há troca a confirmar, e o dialog só teria um id cru
+ *    para mostrar no lugar do nome;
+ *  - os dois canais têm o MESMO número, o que acontece quando a conexão é
+ *    recriada na Meta e as conversas antigas ficam apontando para o registro
+ *    velho. O cliente recebe do mesmo telefone.
+ */
 export function isChannelMismatch(
   selectedChannelId: string | null | undefined,
   conversationChannelId: string | null | undefined,
+  channels?: OutboundChannelOption[],
 ): boolean {
-  return Boolean(
-    selectedChannelId &&
-      conversationChannelId &&
-      selectedChannelId !== conversationChannelId,
+  if (!selectedChannelId || !conversationChannelId) return false;
+  if (selectedChannelId === conversationChannelId) return false;
+  if (!channels) return true;
+
+  const conversationChannel = channels.find((c) => c.id === conversationChannelId);
+  if (!conversationChannel) return false;
+
+  const conversationPhone = phoneKey(conversationChannel.phoneNumber);
+  const selectedPhone = phoneKey(
+    channels.find((c) => c.id === selectedChannelId)?.phoneNumber,
   );
+  if (conversationPhone && selectedPhone && conversationPhone === selectedPhone) {
+    return false;
+  }
+  return true;
 }
 
 function formatChannelLabel(

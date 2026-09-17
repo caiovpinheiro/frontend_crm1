@@ -756,7 +756,11 @@ export function Composer({
 
   async function confirmChannelSwitchIfNeeded(): Promise<boolean> {
     if (
-      !isChannelMismatch(selectedChannelId, conversationChannelId) ||
+      !isChannelMismatch(
+        selectedChannelId,
+        conversationChannelId,
+        availableChannels,
+      ) ||
       !selectedChannelId ||
       !conversationChannelId
     ) {

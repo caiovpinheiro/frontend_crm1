@@ -276,7 +276,7 @@ export function TemplateComposePanel({
     const outboundId = effectiveChannelId;
     if (
       conversationChannelConnected &&
-      isChannelMismatch(outboundId, conversationChannelId) &&
+      isChannelMismatch(outboundId, conversationChannelId, waChannels) &&
       outboundId &&
       conversationChannelId
     ) {
