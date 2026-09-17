@@ -215,7 +215,7 @@ export function DropdownGlass({
             </DropdownPrimitive.Label>
           )}
           {searchable && (
-            <div className="p-1 pb-1.5">
+            <div className="sticky top-0 z-10 bg-[var(--dropdown-solid-bg,var(--glass-bg-modal,#fff))] p-1 pb-1.5">
               <input
                 autoFocus
                 value={q}
@@ -226,8 +226,9 @@ export function DropdownGlass({
                   if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key))
                     e.stopPropagation()
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
                 placeholder={searchPlaceholder ?? "Buscar…"}
-                className={FILTER_FIELD_INPUT_CLASS}
+                className={cn(FILTER_FIELD_INPUT_CLASS, "nodrag nopan")}
               />
             </div>
           )}

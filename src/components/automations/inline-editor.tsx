@@ -717,6 +717,8 @@ function ConfigSelect({
   onChange,
   loading,
   allowEmpty = true,
+  searchable,
+  searchPlaceholder,
 }: {
   value: string
   options: Opt[]
@@ -724,6 +726,8 @@ function ConfigSelect({
   onChange: (v: string) => void
   loading?: boolean
   allowEmpty?: boolean
+  searchable?: boolean
+  searchPlaceholder?: string
 }) {
   const ph = loading ? "Carregando…" : (placeholder ?? "Selecione…")
   const missing =
@@ -732,11 +736,16 @@ function ConfigSelect({
       : []
   const dropdownOptions: DropdownOption[] = [
     ...(allowEmpty ? [{ value: "", label: ph }] : []),
-    ...missing.map((o) => ({ value: o.value, label: o.label })),
+    ...missing.map((o) => ({
+      value: o.value,
+      label: o.label,
+      searchText: `${o.label} ${o.value}`,
+    })),
     ...options.map((o) => ({
       value: o.value,
       label: o.label,
       description: o.group,
+      searchText: `${o.label} ${o.value} ${o.group ?? ""}`,
     })),
   ]
 
@@ -750,6 +759,8 @@ function ConfigSelect({
         matchTriggerWidth
         disabled={loading}
         triggerClassName="!w-full"
+        searchable={searchable}
+        searchPlaceholder={searchPlaceholder}
       />
     </div>
   )
@@ -1100,6 +1111,8 @@ function TemplateNameSelect({
         onChange={onChange}
         placeholder="Selecione um template…"
         loading={catalog.isLoading}
+        searchable
+        searchPlaceholder="Buscar template pelo nome…"
       />
       {catalog.isIntersect && !catalog.isLoading ? (
         <p className="cfg-hint">
