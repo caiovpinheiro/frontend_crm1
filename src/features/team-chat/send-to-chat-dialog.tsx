@@ -103,6 +103,7 @@ function SendToChatDialog({
   const [dests, setDests] = useState<ChatDestination[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [content, setContent] = useState("");
+  const [feedbackType, setFeedbackType] = useState<"positive" | "negative" | "warning" | null>(null);
   const [card, setCard] = useState<CrmCard | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -112,6 +113,7 @@ function SendToChatDialog({
     setQ("");
     setPicked([]);
     setContent("");
+    setFeedbackType(null);
     setWarning(null);
     void previewTeamChatRecord(target.type, target.id)
       .then((r) => setCard(r.card))
@@ -176,6 +178,7 @@ function SendToChatDialog({
         roomIds: selected.map((d) => d.roomId).filter((id): id is string => !!id),
         personIds: selected.filter((d) => !d.roomId && d.personId).map((d) => d.personId as string),
         content: text,
+        feedbackType,
       });
       toast.success("Enviado para o chat.");
       onClose();
@@ -224,6 +227,30 @@ function SendToChatDialog({
         className={cn(formControlClass, "h-20 resize-none py-2")}
         placeholder="Ex.: lead mal atendido — revisar abordagem"
       />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {[
+          { key: "positive", label: "Positivo", cls: "bg-green-100 text-green-900 border-green-200" },
+          { key: "negative", label: "Negativo", cls: "bg-red-100 text-red-900 border-red-200" },
+          { key: "warning", label: "Aviso", cls: "bg-amber-100 text-amber-900 border-amber-200" },
+        ].map((opt) => {
+          const active = feedbackType === (opt.key as typeof feedbackType);
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() =>
+                setFeedbackType(active ? null : (opt.key as typeof feedbackType))
+              }
+              className={cn(
+                "rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors",
+                active ? opt.cls : "border-border bg-card text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
       {target?.attendanceNames && target.attendanceNames.length > 0 ? (
         <p className="mt-2 text-[12px] text-muted-foreground">
           Atendimento: {target.attendanceNames.join(", ")}
@@ -234,7 +261,15 @@ function SendToChatDialog({
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Preview
           </p>
-          <RecordCard card={card} />
+          <RecordCard
+            card={card}
+            className={cn(
+              "w-full max-w-none",
+              feedbackType === "positive" && "border-green-200 bg-green-50/50",
+              feedbackType === "negative" && "border-red-200 bg-red-50/50",
+              feedbackType === "warning" && "border-amber-200 bg-amber-50/50",
+            )}
+          />
         </div>
       )}
       <span className={cn(formLabelClass, "mt-4")}>Destinos</span>

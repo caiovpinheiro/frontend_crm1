@@ -1127,6 +1127,29 @@ function ServiceFeedbackBubble({
   const isOpen = /aberto|open/i.test(status);
   const initials = nameInitials(authorName);
 
+  const feedback = message.feedbackType
+    ? {
+        positive: {
+          label: "Positivo",
+          badge: "bg-green-100 text-green-900",
+          border: "border-green-200/60",
+          cardBg: "bg-green-100/10",
+        },
+        negative: {
+          label: "Negativo",
+          badge: "bg-red-100 text-red-900",
+          border: "border-red-200/60",
+          cardBg: "bg-red-100/10",
+        },
+        warning: {
+          label: "Aviso",
+          badge: "bg-amber-100 text-amber-900",
+          border: "border-amber-200/60",
+          cardBg: "bg-amber-100/10",
+        },
+      }[message.feedbackType]
+    : null;
+
   return (
     <div
       className={cn(
@@ -1161,13 +1184,24 @@ function ServiceFeedbackBubble({
           {bodyText ? formatChatText(bodyText, true) : null}
         </p>
       )}
-      <div className="flex flex-col gap-2.5 rounded-[10px] border border-white/30 bg-white/15 p-3.5">
+      <div
+        className={cn(
+          "flex flex-col gap-2.5 rounded-[10px] border p-3.5",
+          "border-white/30 bg-white/15",
+          feedback?.border,
+          feedback?.cardBg,
+        )}
+      >
         <div className="flex items-center gap-2">
           <Ticket className="size-4 shrink-0 text-white" />
           <span className="flex-1 text-[12px] font-medium text-white">
             Atendimento {openCard?.number != null ? `#${openCard.number}` : ""}
           </span>
-          {status ? (
+          {feedback ? (
+            <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", feedback.badge)}>
+              {feedback.label}
+            </span>
+          ) : status ? (
             <span
               className={cn(
                 "rounded-full px-2 py-0.5 text-[11px] font-semibold",

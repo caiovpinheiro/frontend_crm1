@@ -406,6 +406,7 @@ export async function shareRecordToChat(input: {
   roomIds: string[];
   personIds: string[];
   content: string;
+  feedbackType?: "positive" | "negative" | "warning" | null;
 }): Promise<{ count: number }> {
   return json(
     apiFetch("/api/team-chat/share", {
