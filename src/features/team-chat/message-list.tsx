@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode, Fragment } from "react";
 import { createPortal } from "react-dom";
-import { CheckSquare, ChevronDown, Copy, Download, FileText, Forward, Pin, PinOff, Reply, Trash2, X } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronRight, Copy, Download, FileText, Forward, Pin, PinOff, Reply, Ticket, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppLoading } from "@/components/crm/app-loading";
@@ -20,6 +20,12 @@ import { WorkItemCard } from "./work-item-card";
 
 function formatViewerWhen(iso: string) {
   return `${formatDayLabel(iso)} às ${formatClock(iso)}`;
+}
+
+function nameInitials(name?: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
 function formatChatText(text: string, mine: boolean): ReactNode {
@@ -929,6 +935,9 @@ function MessageBody({
   const showCard = Boolean(
     message.card || (message.anchorRef && message.anchorRef.type !== "work_item"),
   );
+  const isServiceFeedback = showCard && (
+    message.card?.type === "conversation" || message.anchorRef?.type === "conversation"
+  );
   const radius = bubbleRadius(first, mine);
   const bubbleCls = cn(
     "relative w-fit max-w-full",
@@ -1010,51 +1019,64 @@ function MessageBody({
           </div>
         );
       })}
-      {(hasText || showCard) && (
-        <div className={cn(bubbleCls, "px-3.5 pb-2.5 pt-2.5")}>
-          {pinned && (
-            <span
-              className={cn(
-                "absolute -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-[var(--orbita-selected)] text-white",
-                mine ? "-left-1.5" : "-right-1.5",
-              )}
-            >
-              <Pin className="h-2.5 w-2.5" />
-            </span>
-          )}
-          {message.forward ? (
-            <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide opacity-70">Encaminhada</p>
-          ) : null}
-          {parsed.quote ? (
-            <div
-              className={cn(
-                "mb-1.5 border-l-2 px-2.5 py-1.5",
-                mine ? "border-primary-foreground/50" : "border-primary/50",
-              )}
-            >
-              <p className="truncate text-[13px] font-semibold">{parsed.quote.author}</p>
-              <p className="truncate text-[13px] opacity-80">{parsed.quote.excerpt}</p>
-            </div>
-          ) : null}
-          {hasText ? (
-            <p className="whitespace-pre-wrap break-words text-[16px] leading-[22px]">
-              {bodyText ? formatChatText(bodyText, mine) : null}
-              <span className={cn("inline-block", mine ? "w-[78px]" : "w-[52px]")} aria-hidden />
-            </p>
-          ) : null}
-          {showCard ? (
-            <div className={cn(hasText && "mt-2")}>
-              <LinkedRecordCard
-                card={message.card}
-                anchorRef={message.anchorRef}
-                onOpen={onOpenRecord}
-                className="border-0 bg-transparent px-0 shadow-none hover:bg-transparent"
-              />
-            </div>
-          ) : null}
-          <span className="absolute bottom-[6px] right-[10px]">{meta}</span>
-        </div>
-      )}
+      {(hasText || showCard) &&
+        (isServiceFeedback ? (
+          <ServiceFeedbackBubble
+            message={message}
+            author={author}
+            authorName={authorName}
+            first={first}
+            pinned={pinned}
+            bodyText={bodyText}
+            hasText={hasText}
+            time={time}
+            onOpenRecord={onOpenRecord}
+          />
+        ) : (
+          <div className={cn(bubbleCls, "px-3.5 pb-2.5 pt-2.5")}>
+            {pinned && (
+              <span
+                className={cn(
+                  "absolute -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-[var(--orbita-selected)] text-white",
+                  mine ? "-left-1.5" : "-right-1.5",
+                )}
+              >
+                <Pin className="h-2.5 w-2.5" />
+              </span>
+            )}
+            {message.forward ? (
+              <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide opacity-70">Encaminhada</p>
+            ) : null}
+            {parsed.quote ? (
+              <div
+                className={cn(
+                  "mb-1.5 border-l-2 px-2.5 py-1.5",
+                  mine ? "border-primary-foreground/50" : "border-primary/50",
+                )}
+              >
+                <p className="truncate text-[13px] font-semibold">{parsed.quote.author}</p>
+                <p className="truncate text-[13px] opacity-80">{parsed.quote.excerpt}</p>
+              </div>
+            ) : null}
+            {hasText ? (
+              <p className="whitespace-pre-wrap break-words text-[16px] leading-[22px]">
+                {bodyText ? formatChatText(bodyText, mine) : null}
+                <span className={cn("inline-block", mine ? "w-[78px]" : "w-[52px]")} aria-hidden />
+              </p>
+            ) : null}
+            {showCard ? (
+              <div className={cn(hasText && "mt-2")}>
+                <LinkedRecordCard
+                  card={message.card}
+                  anchorRef={message.anchorRef}
+                  onOpen={onOpenRecord}
+                  className="border-0 bg-transparent px-0 shadow-none hover:bg-transparent"
+                />
+              </div>
+            ) : null}
+            <span className="absolute bottom-[6px] right-[10px]">{meta}</span>
+          </div>
+        ))}
       {images.length > 0 ? (
         <TeamChatImageViewer
           open={viewerOpen}
@@ -1072,6 +1094,108 @@ function MessageBody({
           onDelete={onDelete ? () => onDelete(message) : undefined}
         />
       ) : null}
+    </div>
+  );
+}
+
+function ServiceFeedbackBubble({
+  message,
+  author,
+  authorName,
+  first,
+  pinned,
+  bodyText,
+  hasText,
+  time,
+  onOpenRecord,
+}: {
+  message: TeamChatMessage;
+  author: ReturnType<typeof toPerson> | null;
+  authorName: string;
+  first: boolean;
+  pinned: boolean;
+  bodyText: string;
+  hasText: boolean;
+  time: string;
+  onOpenRecord?: (card: OpenCrmCard) => void;
+}) {
+  const openCard = useMemo<OpenCrmCard | null>(() => {
+    if (message.card && !message.card.restricted) return message.card as OpenCrmCard;
+    return null;
+  }, [message.card]);
+  const status = openCard?.status || "";
+  const isOpen = /aberto|open/i.test(status);
+  const initials = nameInitials(authorName);
+
+  return (
+    <div
+      className={cn(
+        "relative w-fit max-w-full rounded-[14px] rounded-bl-md bg-primary px-[18px] pb-3 pt-3.5 text-white shadow-sm",
+        first ? "mt-2.5" : "mt-[3px]",
+        pinned && "ring-1 ring-[var(--orbita-selected)]/35",
+      )}
+    >
+      {pinned && (
+        <span className="absolute -top-1.5 -right-1.5 grid h-4 w-4 place-items-center rounded-full bg-[var(--orbita-selected)] text-white">
+          <Pin className="h-2.5 w-2.5" />
+        </span>
+      )}
+      <div className="mb-2.5 flex items-center gap-2">
+        {author?.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={author.avatarUrl}
+            alt={authorName}
+            className="size-[22px] rounded-full object-cover"
+          />
+        ) : (
+          <div className="grid size-[22px] place-items-center rounded-full bg-white text-[10px] font-bold text-primary">
+            {initials}
+          </div>
+        )}
+        <span className="text-[13px] font-semibold text-white">{authorName}</span>
+        <span className="text-[13px] text-white/70">Atendimento</span>
+      </div>
+      {hasText && (
+        <p className="mb-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-white">
+          {bodyText ? formatChatText(bodyText, true) : null}
+        </p>
+      )}
+      <div className="flex flex-col gap-2.5 rounded-[10px] border border-white/30 bg-white/15 p-3.5">
+        <div className="flex items-center gap-2">
+          <Ticket className="size-4 shrink-0 text-white" />
+          <span className="flex-1 text-[12px] font-medium text-white">
+            Atendimento {openCard?.number != null ? `#${openCard.number}` : ""}
+          </span>
+          {status ? (
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                isOpen ? "bg-green-100 text-green-900" : "bg-white/20 text-white",
+              )}
+            >
+              {status}
+            </span>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="text-[15px] font-semibold leading-tight text-white">{openCard?.title}</div>
+          {openCard?.ownerName ? (
+            <div className="text-[12px] text-white/80">Responsável: {openCard.ownerName}</div>
+          ) : null}
+        </div>
+        {openCard && onOpenRecord ? (
+          <button
+            type="button"
+            onClick={() => onOpenRecord(openCard)}
+            className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg bg-white px-4 text-[13px] font-semibold text-primary transition-colors hover:bg-white/90"
+          >
+            Abrir atendimento
+            <ChevronRight className="size-4" />
+          </button>
+        ) : null}
+      </div>
+      <span className="mt-1 block text-right text-[11px] text-white/70">{time}</span>
     </div>
   );
 }
