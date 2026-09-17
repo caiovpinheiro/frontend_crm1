@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
@@ -329,27 +330,32 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <MessageToastContext.Provider
-      value={{
-        registerActiveConversation,
-        registerActiveTeamChatRoom,
-        notifyInboxMessage,
-        notifyTeamChatMessage,
-      }}
-    >
-      {children}
-      <div
-        className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
-        aria-live="polite"
-        aria-atomic="true"
+    <>
+      <MessageToastContext.Provider
+        value={{
+          registerActiveConversation,
+          registerActiveTeamChatRoom,
+          notifyInboxMessage,
+          notifyTeamChatMessage,
+        }}
       >
-        <AnimatePresence mode="popLayout">
-          {toasts.map((toast) => (
-            <ToastItem key={toast.id} toast={toast} onClose={close} />
-          ))}
-        </AnimatePresence>
-      </div>
-    </MessageToastContext.Provider>
+        {children}
+      </MessageToastContext.Provider>
+      {createPortal(
+        <div
+          className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <AnimatePresence mode="popLayout">
+            {toasts.map((toast) => (
+              <ToastItem key={toast.id} toast={toast} onClose={close} />
+            ))}
+          </AnimatePresence>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
