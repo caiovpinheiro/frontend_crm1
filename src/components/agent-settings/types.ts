@@ -218,7 +218,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
     inauguralDates: ["2026-02-10", "2026-02-11"],
     firstAccessPackMessage: null,
     speakOnAiTransfer: false,
-    announceAiTransfer: true,
+    announceAiTransfer: false,
     announceAiTransferMessage: null,
     scope: defaultAttendanceScope(),
     handoffMessage:
