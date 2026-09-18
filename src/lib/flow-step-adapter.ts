@@ -134,7 +134,7 @@ export function stepTypeToNodeKind(type: ActionStepType): NodeKind {
   return "action"
 }
 
-const NO_OUTPUT_TYPES = new Set<string>(["finish", "stop_automation"])
+const NO_OUTPUT_TYPES = new Set<string>(["finish", "stop_automation", "finish_conversation"])
 const META_FAILURE_TYPES = new Set<string>([
   "send_whatsapp_message",
   "send_whatsapp_template",
@@ -428,7 +428,10 @@ export function applyHandleToConfig(
   if (handle === "next" && isInteractiveType(type, rec)) {
     const key = choiceKey(type)
     rec[key] = choiceItems(type, rec).map((b) => ({ ...b, gotoStepId: targetId }))
-    rec.nextStepId = targetId
+    // Lista/botões/pergunta não usam nextStepId raiz (aresta invisível no
+    // canvas). Template com botões ainda precisa — o fluxo BV liga webhook.
+    if (type !== "send_whatsapp_template") rec.nextStepId = "__none__"
+    else rec.nextStepId = targetId
     return rec as NodeConfig
   }
 
