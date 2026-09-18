@@ -6,7 +6,11 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { useMessageToast } from "@/features/inbox-v2/context/message-toast-context";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
-import { isSseMessageStubId, messagesKey } from "./use-messages";
+import {
+  emitConversationReopened,
+  isSseMessageStubId,
+  messagesKey,
+} from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { playInboxPing } from "./use-inbox-sound";
 import {
@@ -617,6 +621,38 @@ function appendSseMessageToOpenChat(
   });
 }
 
+/**
+ * Cliente volta a falar depois do encerramento: `findOrCreateConversation`
+ * (webhook) só reusa conversa ativa, então o inbound abre um ticket NOVO.
+ * O chat continuava no ticket encerrado — que nunca mais recebe mensagem —
+ * enquanto o card, que é um por contato+canal, já exibia a prévia nova.
+ * Troca o chat para o ticket novo pelo mesmo caminho do reopen por envio
+ * do agente. Retorna true quando assumiu o evento.
+ */
+function followInboundToNewTicket(
+  qc: QueryClient,
+  openId: string,
+  data: NewMessagePayload,
+): boolean {
+  const newId = data.conversationId;
+  if (!newId || newId === openId) return false;
+  if (isEventMessageType(data.messageType)) return false;
+  const open = findCachedConversationRow(qc, openId);
+  if (!open || !isClosedInboxRow(open)) return false;
+  const incoming = data.card ?? findCachedConversationRow(qc, newId);
+  if (incoming) {
+    if (isClosedInboxRow(incoming)) return false;
+    if (!sameInboxCardGroup(open, incoming)) return false;
+  } else {
+    const contactId = data.contactId ?? null;
+    if (!open.contact?.id || !contactId || open.contact.id !== contactId) {
+      return false;
+    }
+  }
+  emitConversationReopened(newId);
+  return true;
+}
+
 function shouldGetConversationOnUpdated(
   qc: QueryClient,
   conversationId: string,
@@ -1080,7 +1116,11 @@ export function useInboxRealtime(options: {
               });
             }
             const openId = activeRef.current;
+            const followedNewTicket = Boolean(
+              openId && followInboundToNewTicket(qc, openId, data),
+            );
             const touchesOpen =
+              !followedNewTicket &&
               openId &&
               eventTouchesOpenConversation(
                 qc,
