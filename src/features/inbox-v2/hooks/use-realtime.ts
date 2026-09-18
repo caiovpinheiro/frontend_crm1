@@ -69,7 +69,8 @@ import {
  *  - message_status: update otimista do tick; refetch só em `failed`
  *    (delivered/read não disparam GET messages de novo).
  *  - Reconexão automática com backoff fixo de 5s em onerror.
- *    Reconnect após gap: um refetch de lista + counts.
+ *    Reconnect após gap: um refetch de lista + counts + mensagens do
+ *    ticket aberto (o gap não tem replay).
  *
  * Aviso sonoro: só em inbound destinado a este operador (assignedToId),
  * para não tocar em quem tem a inbox vazia / não é responsável.
@@ -1004,6 +1005,13 @@ export function useInboxRealtime(options: {
         queryKey: ["conversations", "tab-counts"],
         refetchType: "active",
       });
+      // O gap são ~5s cegos (use-sse.ts) e o stream não tem replay. Sem
+      // isto a lista e o preview se curam aqui, mas a thread aberta só no
+      // poll de 90s — é a mensagem que aparece no card e não na conversa.
+      const openId = activeRef.current;
+      if (openId) {
+        qc.refetchQueries({ queryKey: messagesKey(openId) });
+      }
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a
