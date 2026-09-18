@@ -4,7 +4,7 @@ import { apiUrl } from "@/lib/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useDocumentVisible } from "@/hooks/use-document-visible";
-import { IconAlertCircle as AlertCircle, IconCircleCheck as CheckCircle2, IconFileText as FileText, IconLoader2 as Loader2, IconPlus as Plus, IconRefresh as RefreshCcw, IconTrash as Trash2 } from "@tabler/icons-react";
+import { IconAlertCircle as AlertCircle, IconCircleCheck as CheckCircle2, IconFileText as FileText, IconLoader2 as Loader2, IconPencil as Pencil, IconPlus as Plus, IconRefresh as RefreshCcw, IconTrash as Trash2 } from "@tabler/icons-react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,8 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
   const queryClient = useQueryClient();
   const visible = useDocumentVisible();
   const [adding, setAdding] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [loadingDoc, setLoadingDoc] = React.useState(false);
   const [title, setTitle] = React.useState("");
   const [content, setContent] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -73,11 +75,54 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
     refetchIntervalInBackground: false,
   });
 
-  const createMut = useMutation({
+  const resetForm = () => {
+    setTitle("");
+    setContent("");
+    setAdding(false);
+    setEditingId(null);
+    setError(null);
+  };
+
+  const openCreate = () => {
+    setEditingId(null);
+    setTitle("");
+    setContent("");
+    setError(null);
+    setAdding(true);
+  };
+
+  const openEdit = async (docId: string) => {
+    setAdding(true);
+    setEditingId(docId);
+    setError(null);
+    setLoadingDoc(true);
+    try {
+      const res = await fetch(
+        apiUrl(`/api/ai-agents/${agentId}/knowledge/${docId}`),
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        title?: string;
+        content?: string | null;
+        message?: string;
+      };
+      if (!res.ok) throw new Error(data.message ?? "Falha ao carregar.");
+      setTitle(typeof data.title === "string" ? data.title : "");
+      setContent(typeof data.content === "string" ? data.content : "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro");
+    } finally {
+      setLoadingDoc(false);
+    }
+  };
+
+  const saveMut = useMutation({
     mutationFn: async () => {
       setError(null);
-      const res = await fetch(apiUrl(`/api/ai-agents/${agentId}/knowledge`), {
-        method: "POST",
+      const path = editingId
+        ? `/api/ai-agents/${agentId}/knowledge/${editingId}`
+        : `/api/ai-agents/${agentId}/knowledge`;
+      const res = await fetch(apiUrl(path), {
+        method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim(), content }),
       });
@@ -86,9 +131,7 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
       return data;
     },
     onSuccess: () => {
-      setTitle("");
-      setContent("");
-      setAdding(false);
+      resetForm();
       queryClient.invalidateQueries({
         queryKey: ["ai-agent-knowledge", agentId],
       });
@@ -124,7 +167,7 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
           type="button"
           size="sm"
           variant={adding ? "outline" : "default"}
-          onClick={() => setAdding((v) => !v)}
+          onClick={() => (adding ? resetForm() : openCreate())}
           className="gap-1.5"
         >
           <Plus className="size-3.5" />
@@ -134,6 +177,16 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
 
       {adding && (
         <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
+          {loadingDoc ? (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" /> Carregando documento...
+            </p>
+          ) : null}
+          <p className="text-xs font-medium text-foreground">
+            {editingId
+              ? "Editar documento — ao salvar o agente reaprende o texto."
+              : "Novo documento"}
+          </p>
           <div className="grid gap-1.5">
             <Label htmlFor="kb-title" className="text-xs">
               Título
@@ -170,22 +223,25 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setAdding(false)}
+              onClick={resetForm}
               type="button"
             >
               Cancelar
             </Button>
             <Button
               size="sm"
-              onClick={() => createMut.mutate()}
+              onClick={() => saveMut.mutate()}
               disabled={
-                createMut.isPending || !title.trim() || content.trim().length < 10
+                saveMut.isPending ||
+                loadingDoc ||
+                !title.trim() ||
+                content.trim().length < 10
               }
             >
-              {createMut.isPending && (
+              {saveMut.isPending && (
                 <Loader2 className="mr-1.5 size-3.5 animate-spin" />
               )}
-              Indexar
+              {editingId ? "Salvar" : "Indexar"}
             </Button>
           </div>
         </div>
@@ -224,11 +280,23 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
                   </p>
                 )}
               </div>
+              <div className="flex shrink-0 items-center">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                title="Editar"
+                onClick={() => void openEdit(d.id)}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
                 className="size-8 text-destructive/70 hover:text-destructive"
+                title="Excluir"
                 onClick={async () => {
                   const ok = await confirm({
                     title: `Excluir documento "${d.title}"?`,
@@ -241,6 +309,7 @@ export function KnowledgePanel({ agentId }: { agentId: string }) {
               >
                 <Trash2 className="size-3.5" />
               </Button>
+              </div>
             </div>
           ))}
         </div>
