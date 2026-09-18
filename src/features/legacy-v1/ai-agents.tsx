@@ -28,7 +28,7 @@ type AgentRow = {
   name: string;
   email: string;
   avatarUrl: string | null;
-  archetype: "SDR" | "ATENDIMENTO" | "VENDEDOR" | "SUPORTE" | "TABULACAO" | "ENCERRAMENTO";
+  archetype: "SDR" | "ATENDIMENTO" | "VENDEDOR" | "SUPORTE" | "TABULACAO" | "ENCERRAMENTO" | "COORDENADOR";
   model: string;
   autonomyMode: "AUTONOMOUS" | "DRAFT";
   enabledTools: string[];

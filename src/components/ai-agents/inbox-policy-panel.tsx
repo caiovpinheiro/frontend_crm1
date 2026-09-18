@@ -73,6 +73,14 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
       </div>
 
       <ToggleRow
+        id="intercept-first"
+        label="Intercepto de primeiro acesso / portal"
+        hint="Pedido de senha, AVA, cumprimento solto: a IA responde sozinha. Desligue no coordenador."
+        checked={value.interceptFirstAccess}
+        onChange={(interceptFirstAccess) => patch({ interceptFirstAccess })}
+      />
+
+      <ToggleRow
         id="intercept-ret"
         label="Intercepto de retenção"
         hint="Cancelar / trancar / desistir vai direto para Retenção, sem esperar o modelo."
@@ -218,6 +226,30 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
             Pilotagem → Mensagem de abertura
           </span>
           .
+        </p>
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="tabulate-on-exit" className={formLabelClass}>
+          Tabular ao sair da IA
+        </Label>
+        <select
+          id="tabulate-on-exit"
+          className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+          value={value.tabulateOnExit}
+          onChange={(e) =>
+            patch({
+              tabulateOnExit: e.target.value as InboxPolicy["tabulateOnExit"],
+            })
+          }
+        >
+          <option value="off">Não tabular</option>
+          <option value="on_human_handoff">Ao passar para humano</option>
+          <option value="on_close">Ao encerrar</option>
+          <option value="both">Nos dois casos</option>
+        </select>
+        <p className="text-[11px] text-muted-foreground">
+          Usa o agente classificador da organização. Ele não vira dono do WhatsApp.
         </p>
       </div>
 

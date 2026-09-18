@@ -38,9 +38,11 @@ export type ToolPolicy = {
   allowedTagNames: string[];
   denyCreateNew: boolean;
 
-  // transfer_to_department / execute_distribution / transfer_to_human
+  // transfer_to_department / execute_distribution / transfer_to_human / transfer_conversation
   allowedDepartments: string[];
   blockedDepartments: string[];
+  allowedUserNames: string[];
+  allowedAgentNames: string[];
 
   // create_activity
   allowedTypes: string[];
@@ -76,6 +78,8 @@ export function emptyToolPolicy(): ToolPolicy {
     denyCreateNew: false,
     allowedDepartments: [],
     blockedDepartments: [],
+    allowedUserNames: [],
+    allowedAgentNames: [],
     allowedTypes: [],
     defaultType: null,
     policyText: null,
@@ -170,6 +174,8 @@ export function normalizeToolPolicy(v: unknown): ToolPolicy {
     denyCreateNew: Boolean(r.denyCreateNew),
     allowedDepartments: strList(r.allowedDepartments),
     blockedDepartments: strList(r.blockedDepartments),
+    allowedUserNames: strList(r.allowedUserNames),
+    allowedAgentNames: strList(r.allowedAgentNames),
     allowedTypes: strList(r.allowedTypes),
     defaultType: nullableText(r.defaultType),
     policyText: nullableText(r.policyText),
@@ -200,6 +206,8 @@ export function isEmptyToolPolicy(p: ToolPolicy): boolean {
     !p.denyCreateNew &&
     p.allowedDepartments.length === 0 &&
     p.blockedDepartments.length === 0 &&
+    p.allowedUserNames.length === 0 &&
+    p.allowedAgentNames.length === 0 &&
     p.allowedTypes.length === 0 &&
     !p.defaultType &&
     !p.policyText &&
@@ -405,6 +413,12 @@ export function isUnrestrictedScope(s: AttendanceScope): boolean {
   );
 }
 
+export type TabulateOnExitMode =
+  | "off"
+  | "on_human_handoff"
+  | "on_close"
+  | "both";
+
 export type InboxPolicy = {
   /// Abaixo disso o backend distribui para humano. `null` = usa o
   /// default do código (0.4).
@@ -419,6 +433,8 @@ export type InboxPolicy = {
   /// Interceptos determinísticos do inbox-handler.
   interceptRetention: boolean;
   interceptCourseShopping: boolean;
+  interceptFirstAccess: boolean;
+  tabulateOnExit: TabulateOnExitMode;
 
   /// Termos EXTRA (somados aos regexes do código) que classificam a
   /// mensagem como retenção / dúvida comercial de curso.
@@ -487,6 +503,8 @@ export function defaultInboxPolicy(): InboxPolicy {
     messageRules: [],
     interceptRetention: true,
     interceptCourseShopping: true,
+    interceptFirstAccess: true,
+    tabulateOnExit: "on_human_handoff",
     retentionKeywords: [],
     courseShoppingKeywords: [],
     departmentAliases: { acolhimento: [], retencao: [], atendimento: [] },
@@ -559,6 +577,17 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
       r.interceptCourseShopping,
       base.interceptCourseShopping,
     ),
+    interceptFirstAccess: boolOr(
+      r.interceptFirstAccess,
+      base.interceptFirstAccess,
+    ),
+    tabulateOnExit:
+      r.tabulateOnExit === "off" ||
+      r.tabulateOnExit === "on_human_handoff" ||
+      r.tabulateOnExit === "on_close" ||
+      r.tabulateOnExit === "both"
+        ? r.tabulateOnExit
+        : base.tabulateOnExit,
     retentionKeywords: strList(r.retentionKeywords),
     courseShoppingKeywords: strList(r.courseShoppingKeywords),
     departmentAliases: {

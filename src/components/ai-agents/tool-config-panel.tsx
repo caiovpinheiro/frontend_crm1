@@ -33,6 +33,7 @@ const DEPT_TOOL_IDS = new Set([
   "transfer_to_department",
   "execute_distribution",
   "transfer_to_human",
+  "transfer_conversation",
 ]);
 
 type Props = {
@@ -243,6 +244,31 @@ export function ToolPolicyForm({
               onChange={(blockedDepartments) => onChange({ blockedDepartments })}
               placeholder="Ex.: Retenção"
               suggestions={departments}
+            />
+          </Field>
+        </>
+      )}
+
+      {tool.id === "transfer_conversation" && (
+        <>
+          <Field
+            label="Pessoas permitidas"
+            hint="Vazio = qualquer pessoa da equipe. Nomes como no CRM."
+          >
+            <ChipInput
+              values={policy.allowedUserNames}
+              onChange={(allowedUserNames) => onChange({ allowedUserNames })}
+              placeholder="Nome da pessoa"
+            />
+          </Field>
+          <Field
+            label="Agentes IA permitidos"
+            hint="Vazio = qualquer agente IA ativo. Nomes como na tela de agentes."
+          >
+            <ChipInput
+              values={policy.allowedAgentNames}
+              onChange={(allowedAgentNames) => onChange({ allowedAgentNames })}
+              placeholder="Nome do agente"
             />
           </Field>
         </>

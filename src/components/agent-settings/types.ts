@@ -32,7 +32,8 @@ export type AgentArchetype =
   | "VENDEDOR"
   | "SUPORTE"
   | "TABULACAO"
-  | "ENCERRAMENTO";
+  | "ENCERRAMENTO"
+  | "COORDENADOR";
 
 /** Contrato do formulário — espelha GET/PUT `/api/ai-agents/:id`. */
 export type AgentSettingsValues = {
@@ -203,6 +204,8 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
     ],
     interceptRetention: true,
     interceptCourseShopping: true,
+    interceptFirstAccess: true,
+    tabulateOnExit: "on_human_handoff",
     retentionKeywords: ["trancar", "cancelar matrícula", "reembolso"],
     courseShoppingKeywords: ["quanto custa", "mensalidade", "bolsa"],
     departmentAliases: {

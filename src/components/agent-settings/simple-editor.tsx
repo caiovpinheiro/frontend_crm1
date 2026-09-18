@@ -1,16 +1,23 @@
 "use client";
 
-import { BookOpen, MessageSquareText, UserRound } from "lucide-react";
+import { BookOpen, MessageSquareText, Signpost, UserRound } from "lucide-react";
 import * as React from "react";
 
 import { KnowledgePanel } from "@/components/ai-agents/knowledge-panel";
 import { StudentDataPanel } from "@/components/ai-agents/student-data-panel";
+import { ToolPolicyForm } from "@/components/ai-agents/tool-config-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { formControlClass, formLabelClass } from "@/components/ui/form-dialog";
 import { defaultAcademicSteeringRules } from "@/lib/ai-agents/academic-atendimento-prompt";
+import {
+  emptyToolPolicy,
+  mergeInboxPolicy,
+  type ToolPolicy,
+} from "@/lib/ai-agents/steering";
+import { TOOL_MAP } from "@/lib/ai-agents/tools-catalog";
 import { cn } from "@/lib/utils";
 
 import { OpenAiKeyField } from "./openai-key-field";
@@ -96,8 +103,9 @@ export function SimpleEditor({
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <p className="text-sm text-muted-foreground">
-        Três coisas bastam para o agente atender: quem ele é, o que pode dizer,
-        e os textos de apoio. O resto fica em Avançado.
+        Quatro blocos: quem é, como atende, para quem passa a conversa, e quando
+        não atende sozinho. O pacote de primeiro acesso da Cruzeiro continua
+        em Avançado → Inbox.
       </p>
 
       <section className="space-y-3">
@@ -217,7 +225,7 @@ export function SimpleEditor({
         <div className="flex items-center gap-2">
           <BookOpen className="size-4 text-primary" />
           <h3 className="text-sm font-semibold text-foreground">
-            3. Textos de apoio (FAQ)
+            Textos de apoio (FAQ)
           </h3>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -236,6 +244,127 @@ export function SimpleEditor({
             </div>
           </div>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Signpost className="size-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">
+            3. Passar a conversa para…
+          </h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Departamento (a fila escolhe quem atende), uma pessoa da equipe ou
+          outro agente de IA. Vazio = qualquer destino do CRM. A tool antiga
+          “Transferir para outro agente IA” da Cruzeiro continua no avançado.
+        </p>
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              Pode passar a conversa
+            </p>
+          </div>
+          <Switch
+            checked={form.enabledTools.includes("transfer_conversation")}
+            onCheckedChange={(on) => {
+              const next = on
+                ? Array.from(
+                    new Set([...form.enabledTools, "transfer_conversation"]),
+                  )
+                : form.enabledTools.filter((t) => t !== "transfer_conversation");
+              onChange({ ...form, enabledTools: next });
+            }}
+          />
+        </div>
+        {TOOL_MAP.transfer_conversation ? (
+          <ToolPolicyForm
+            tool={TOOL_MAP.transfer_conversation}
+            enabled={form.enabledTools.includes("transfer_conversation")}
+            policy={
+              form.toolConfig.transfer_conversation ?? emptyToolPolicy()
+            }
+            onChange={(partial: Partial<ToolPolicy>) => {
+              const prev =
+                form.toolConfig.transfer_conversation ?? emptyToolPolicy();
+              onChange({
+                ...form,
+                toolConfig: {
+                  ...form.toolConfig,
+                  transfer_conversation: { ...prev, ...partial },
+                },
+              });
+            }}
+          />
+        ) : null}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Signpost className="size-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">
+            4. Quando não atende sozinho
+          </h3>
+        </div>
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              Primeiro acesso / portal / cumprimento
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Desligue no coordenador para ele poder rotear.
+            </p>
+          </div>
+          <Switch
+            checked={form.inboxPolicy.interceptFirstAccess}
+            onCheckedChange={(interceptFirstAccess) =>
+              onChange({
+                ...form,
+                inboxPolicy: mergeInboxPolicy(form.inboxPolicy, {
+                  interceptFirstAccess,
+                }),
+              })
+            }
+          />
+        </div>
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">
+              Retenção (cancelar / trancar)
+            </p>
+          </div>
+          <Switch
+            checked={form.inboxPolicy.interceptRetention}
+            onCheckedChange={(interceptRetention) =>
+              onChange({
+                ...form,
+                inboxPolicy: mergeInboxPolicy(form.inboxPolicy, {
+                  interceptRetention,
+                }),
+              })
+            }
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <p className={formLabelClass}>Tabular ao sair da IA</p>
+          <select
+            className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+            value={form.inboxPolicy.tabulateOnExit}
+            onChange={(e) =>
+              onChange({
+                ...form,
+                inboxPolicy: mergeInboxPolicy(form.inboxPolicy, {
+                  tabulateOnExit: e.target
+                    .value as typeof form.inboxPolicy.tabulateOnExit,
+                }),
+              })
+            }
+          >
+            <option value="off">Não tabular</option>
+            <option value="on_human_handoff">Ao passar para humano</option>
+            <option value="on_close">Ao encerrar</option>
+            <option value="both">Nos dois casos</option>
+          </select>
+        </div>
       </section>
     </div>
   );
