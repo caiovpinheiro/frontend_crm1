@@ -30,7 +30,8 @@ function nameInitials(name?: string | null): string {
 
 function formatChatText(text: string, mine: boolean): ReactNode {
   if (!text) return text;
-  const tokenRe = /(@all\b|@[^\s@]{1,40}|==[^=\n]+==|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|`[^`\n]+`)/gi;
+  const tokenRe =
+    /(https?:\/\/[^\s]+|@all\b|@[^\s@]{1,40}|==[^=\n]+==|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|`[^`\n]+`)/gi;
   const parts: ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -38,7 +39,23 @@ function formatChatText(text: string, mine: boolean): ReactNode {
   while ((m = tokenRe.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index));
     const tok = m[0];
-    if (tok.startsWith("@")) {
+    if (tok.startsWith("http")) {
+      parts.push(
+        <a
+          key={key++}
+          href={tok}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "underline underline-offset-2 hover:opacity-80",
+            mine ? "text-inherit" : "text-primary",
+          )}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {tok}
+        </a>,
+      );
+    } else if (tok.startsWith("@")) {
       parts.push(
         <span
           key={key++}
@@ -1059,7 +1076,7 @@ function MessageBody({
               </div>
             ) : null}
             {hasText ? (
-              <p className="whitespace-pre-wrap break-words text-[16px] leading-[22px]">
+              <p className="select-text whitespace-pre-wrap break-words text-[16px] leading-[22px]">
                 {bodyText ? formatChatText(bodyText, mine) : null}
                 <span className={cn("inline-block", mine ? "w-[78px]" : "w-[52px]")} aria-hidden />
               </p>
@@ -1180,7 +1197,7 @@ function ServiceFeedbackBubble({
         <span className="text-[13px] text-white/70">Atendimento</span>
       </div>
       {hasText && (
-        <p className="mb-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-white">
+        <p className="mb-2 select-text whitespace-pre-wrap break-words text-[15px] leading-relaxed text-white">
           {bodyText ? formatChatText(bodyText, true) : null}
         </p>
       )}
