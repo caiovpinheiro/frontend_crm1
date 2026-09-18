@@ -101,6 +101,8 @@ import {
   useConversations,
   useContactSidebar,
   useInboxRealtime,
+  isInboxConversationDeniedError,
+  purgePhantomInboxConversation,
   useFavoriteMessage,
   useMarkConversationRead,
   useMessages,
@@ -722,6 +724,7 @@ export default function InboxV2ClientPage({
     isFetchingOlder,
     isPending: messagesPending,
     isError: messagesFailed,
+    error: messagesErrorObj,
   } = useMessages(conversationApiId);
   const messages = messagesData?.messages ?? [];
   const sessionInfo = messagesData?.session;
@@ -1047,6 +1050,17 @@ export default function InboxV2ClientPage({
       return changed ? { ...old, pages } : old;
     });
   }, [activeId, conversationApiId, sessionInfo, sessionInfo?.lastInboundAt, sessionInfo?.active, qc]);
+
+  // Card na lista que o servidor recusa: o ticket está com outro agente.
+  // Tira da lista em vez de deixar o chat vazio com "não foi possível
+  // carregar as mensagens" — e evita o clique repetido no mesmo fantasma.
+  useEffect(() => {
+    if (!conversationApiId) return;
+    if (!isInboxConversationDeniedError(messagesErrorObj)) return;
+    purgePhantomInboxConversation(qc, conversationApiId);
+    toast.error("Conversa não encontrada ou sem permissão.");
+    setActiveId(null);
+  }, [conversationApiId, messagesErrorObj, qc, setActiveId]);
 
   const [inboxRefreshing, setInboxRefreshing] = useState(false);
   const prevTabKeyRef = useRef<string | null>(null);
