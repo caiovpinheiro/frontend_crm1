@@ -218,6 +218,8 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
     inauguralDates: ["2026-02-10", "2026-02-11"],
     firstAccessPackMessage: null,
     speakOnAiTransfer: false,
+    announceAiTransfer: true,
+    announceAiTransferMessage: null,
     scope: defaultAttendanceScope(),
     handoffMessage:
       "Vou te conectar com um consultor humano agora. Ele já vai ver o histórico.",

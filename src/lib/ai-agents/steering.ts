@@ -459,6 +459,9 @@ export type InboxPolicy = {
   /// Depois de outro agente IA transferir, este destino fala na hora
   /// (mensagem de abertura da Pilotagem). Desligado = espera o aluno.
   speakOnAiTransfer: boolean;
+  /// Avisar o aluno ao passar para outro agente IA. Desligado = silencioso.
+  announceAiTransfer: boolean;
+  announceAiTransferMessage: string | null;
 
   /// Em quais conversas o agente pode entrar (funil, etapa, tag).
   scope: AttendanceScope;
@@ -513,6 +516,8 @@ export function defaultInboxPolicy(): InboxPolicy {
     inauguralDates: [],
     firstAccessPackMessage: null,
     speakOnAiTransfer: false,
+    announceAiTransfer: true,
+    announceAiTransferMessage: null,
     scope: defaultAttendanceScope(),
     handoffMessage: null,
     retentionHandoffMessage: null,
@@ -602,6 +607,8 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
     ),
     firstAccessPackMessage: nullableText(r.firstAccessPackMessage),
     speakOnAiTransfer: boolOr(r.speakOnAiTransfer, base.speakOnAiTransfer),
+    announceAiTransfer: boolOr(r.announceAiTransfer, base.announceAiTransfer),
+    announceAiTransferMessage: nullableText(r.announceAiTransferMessage),
     scope: normalizeAttendanceScope(r.scope),
     handoffMessage: nullableText(r.handoffMessage),
     retentionHandoffMessage: nullableText(r.retentionHandoffMessage),

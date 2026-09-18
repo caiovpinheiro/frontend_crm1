@@ -229,6 +229,41 @@ export function InboxPolicyPanel({ value, onChange }: Props) {
         </p>
       </div>
 
+      <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
+        <ToggleRow
+          id="announce-ai-transfer"
+          label="Avisar o cliente ao passar para outro agente IA"
+          hint="Desligado: a troca de dono é silenciosa. Ligado: o CRM envia o texto abaixo (ou uma frase curta da tool) antes de trocar o responsável."
+          checked={Boolean(value.announceAiTransfer)}
+          onChange={(announceAiTransfer) => patch({ announceAiTransfer })}
+        />
+        {value.announceAiTransfer ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="announce-ai-transfer-msg" className={formLabelClass}>
+              Texto do aviso
+            </Label>
+            <Textarea
+              id="announce-ai-transfer-msg"
+              rows={3}
+              value={value.announceAiTransferMessage ?? ""}
+              onChange={(e) =>
+                patch({
+                  announceAiTransferMessage: e.target.value || null,
+                })
+              }
+              placeholder="Vou te passar para {{target_agent}}, que continua seu atendimento."
+              className="resize-y text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Escreva como o cliente deve ouvir a troca. Use{" "}
+              <code>{"{{target_agent}}"}</code> para o nome do destino (ex.:
+              Agente Acolhi). Uma frase, tom WhatsApp. Vazio = o modelo
+              inventa o aviso.
+            </p>
+          </div>
+        ) : null}
+      </div>
+
       <div className="grid gap-1.5">
         <Label htmlFor="tabulate-on-exit" className={formLabelClass}>
           Tabular ao sair da IA
