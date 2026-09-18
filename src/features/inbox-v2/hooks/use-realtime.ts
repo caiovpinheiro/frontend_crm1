@@ -1096,6 +1096,32 @@ export function useInboxRealtime(options: {
               } catch (e) {
                 console.error("[sse] appendSseMessageToOpenChat failed", e);
               }
+              // DEBUG TEMPORÁRIO: a escrita chega na entrada de cache que a
+              // tela observa? `observers: 0` = o thread renderizado lê outra
+              // entrada, e nenhum patch de SSE pode aparecer.
+              try {
+                const cache = qc.getQueryCache();
+                const entry = cache.find({ queryKey: ["messages", openId] });
+                // eslint-disable-next-line no-console
+                console.log("[sse:new_message] thread", {
+                  openId,
+                  observers: entry?.getObserversCount() ?? -1,
+                  cachedMessages:
+                    (entry?.state.data as MessagesResponse | undefined)?.messages
+                      ?.length ?? -1,
+                  entradasDeMensagens: cache
+                    .findAll({ queryKey: ["messages"] })
+                    .map((q) => ({
+                      id: String(q.queryKey[1]),
+                      observers: q.getObserversCount(),
+                      messages:
+                        (q.state.data as MessagesResponse | undefined)?.messages
+                          ?.length ?? -1,
+                    })),
+                });
+              } catch (e) {
+                console.error("[sse] debug thread falhou", e);
+              }
               // Hidrata id/mídia; refetch imediato como fallback caso o
               // setQueryData/merge tenham falhado ou a query esteja fresh.
               qc.refetchQueries({ queryKey: messagesKey(openId) });
