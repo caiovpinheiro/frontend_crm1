@@ -1,5 +1,4 @@
 /// <reference lib="webworker" />
-import { apiUrl } from "@/lib/api";
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { NetworkOnly, Serwist } from "serwist";
@@ -227,18 +226,22 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
 // PUSH SUBSCRIPTION CHANGE — re-subscreve automaticamente quando o
 // browser invalida a subscription (rotacao de chaves do navegador).
 // ─────────────────────────────────────────────────────────────────
+// `apiUrl()` de `@/lib/api` não pode ser importado aqui: o minificador do
+// build de produção elimina as guardas `typeof window === "undefined"` do
+// módulo, o worker avalia `window` e o registro falha inteiro. Caminho
+// relativo já vai pro backend pelo rewrite `/api/:path*` do next.config.
 self.addEventListener("pushsubscriptionchange", (event: any) => {
   event.waitUntil(
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/push/vapid-public"));
+        const res = await fetch("/api/push/vapid-public");
         if (!res.ok) return;
         const { publicKey } = (await res.json()) as { publicKey: string };
         const newSub = await self.registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
         });
-        await fetch(apiUrl("/api/push/subscribe"), {
+        await fetch("/api/push/subscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(newSub.toJSON()),

@@ -442,8 +442,12 @@ export default function InboxV2ClientPage({
   const [bulkOpId, setBulkOpId] = useState<string | null>(null);
   const bulkSkippedRef = useRef(0);
   const bulkKindRef = useRef<"resolve" | "assign" | "unassign">("resolve");
-  const canBulkAssign =
-    useCan("conversation:reassign_others") || useCan("conversation:transfer");
+  // Os dois `useCan` precisam ser chamados sempre: com `||` o segundo era
+  // pulado quando o primeiro virava true (authz carregou), mudando a
+  // contagem de hooks entre renders e derrubando o inbox.
+  const canReassignOthers = useCan("conversation:reassign_others");
+  const canTransferConversation = useCan("conversation:transfer");
+  const canBulkAssign = canReassignOthers || canTransferConversation;
 
   function exitSelectionMode() {
     setSelectionMode(false);
