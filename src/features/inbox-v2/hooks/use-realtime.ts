@@ -1202,16 +1202,6 @@ export function useInboxRealtime(options: {
                 data.card,
                 data.contactId,
               );
-            // DEBUG: rastrear por que new_message não atualiza o chat aberto.
-            // eslint-disable-next-line no-console
-            console.log("[sse:new_message] debug", {
-              conversationId: data.conversationId,
-              openId,
-              touchesOpen,
-              direction: data.direction,
-              cardId: data.card?.id,
-              contactId: data.contactId,
-            });
             if (touchesOpen) {
               try {
                 appendSseMessageToOpenChat(qc, openId, data);
