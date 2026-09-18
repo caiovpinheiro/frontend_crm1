@@ -16,12 +16,13 @@ export type SSEReconnectHandler = () => void;
  * fecha quando o último sai. O close é adiado 1 tick para absorver o
  * duplo mount/unmount de efeitos do StrictMode sem derrubar a conexão.
  *
- * Aba oculta: fecha o EventSource e não reconecta. Ao voltar, abre de
- * novo e dispara `onReconnect` (inbox/pipeline reidratam). Chamada
- * WhatsApp ativa segura a conexão via `holdSSEWhileHidden`.
+ * Aba oculta NÃO derruba a conexão: aviso sonoro, contador e Notification
+ * de nova mensagem existem para funcionar em segundo plano, e o stream não
+ * tem replay — o que chega com a conexão fechada é perdido para sempre.
  *
  * Reconexão: `onerror` fecha e reconecta em 5s (mesmo backoff fixo que
- * cada consumidor tinha quando abria a própria conexão).
+ * cada consumidor tinha quando abria a própria conexão). Reabrir depois de
+ * um gap dispara `onReconnect` (inbox/pipeline reidratam).
  */
 
 /** Eventos entregues por padrão aos assinantes do `useSSE` (compat). */
@@ -47,44 +48,12 @@ class SharedSSEConnection {
   /** Só dispara `onReconnect` depois de um open bem-sucedido + gap. */
   private everOpened = false;
   private sawGap = false;
-  private hiddenHold = 0;
-  private visibilityBound = false;
 
-  constructor(private readonly url: string) {
-    this.bindVisibility();
-  }
+  constructor(private readonly url: string) {}
 
-  holdWhileHidden(): () => void {
-    this.hiddenHold += 1;
-    this.syncVisibility();
-    return () => {
-      this.hiddenHold = Math.max(0, this.hiddenHold - 1);
-      this.syncVisibility();
-    };
-  }
-
-  private bindVisibility(): void {
-    if (this.visibilityBound || typeof document === "undefined") return;
-    this.visibilityBound = true;
-    document.addEventListener("visibilitychange", () => this.syncVisibility());
-  }
-
+  /** Conexão viva enquanto houver assinante — visibilidade não entra aqui. */
   private shouldRun(): boolean {
-    if (this.subscribers.size === 0) return false;
-    if (typeof document === "undefined") return true;
-    if (document.visibilityState === "visible") return true;
-    return this.hiddenHold > 0;
-  }
-
-  private syncVisibility(): void {
-    if (this.shouldRun()) {
-      if (this.es || this.retryTimer) return;
-      this.connect();
-      return;
-    }
-    if (!this.es && !this.retryTimer) return;
-    if (this.everOpened) this.sawGap = true;
-    this.teardown();
+    return this.subscribers.size > 0;
   }
 
   subscribe(
@@ -225,9 +194,13 @@ function connectionFor(url: string): SharedSSEConnection {
   return conn;
 }
 
-/** Mantém o SSE aberto com a aba oculta (sinalização de chamada WhatsApp). */
-export function holdSSEWhileHidden(url = "/api/sse/messages"): () => void {
-  return connectionFor(apiUrl(url)).holdWhileHidden();
+/**
+ * No-op: a conexão não é mais derrubada com a aba oculta, então não há o
+ * que segurar. Mantido para não mexer nos hooks de chamada WhatsApp, que
+ * chamavam isto para garantir a sinalização com a aba em segundo plano.
+ */
+export function holdSSEWhileHidden(_url = "/api/sse/messages"): () => void {
+  return () => {};
 }
 
 /**
