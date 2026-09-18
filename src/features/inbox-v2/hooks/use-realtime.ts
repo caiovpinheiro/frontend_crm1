@@ -621,6 +621,7 @@ function hasPatchableUpdatedFields(payload: ConversationUpdatedPayload): boolean
 function applyConversationUpdatedPatch(
   qc: QueryClient,
   payload: ConversationUpdatedPayload,
+  currentUserId: string | null,
 ): boolean {
   const id = payload.conversationId;
   if (!id || !hasPatchableUpdatedFields(payload)) return false;
@@ -628,14 +629,23 @@ function applyConversationUpdatedPatch(
   if (!existing) return false;
   const next: ConversationListRow = { ...existing };
   if (payload.assignedToId !== undefined) {
-    next.assignedToId = payload.assignedToId;
-    if (payload.assignedToId == null) {
+    const nextAssignedToId = payload.assignedToId ?? null;
+    next.assignedToId = nextAssignedToId;
+    if (nextAssignedToId == null) {
       next.assignedTo = null;
-    } else if (payload.assignedTo && existing.assignedTo) {
-      next.assignedTo = {
-        ...existing.assignedTo,
-        type: payload.assignedTo.type ?? existing.assignedTo.type,
-      };
+    } else if (nextAssignedToId === existing.assignedToId) {
+      next.assignedTo =
+        payload.assignedTo && existing.assignedTo
+          ? {
+              ...existing.assignedTo,
+              type: payload.assignedTo.type ?? existing.assignedTo.type,
+            }
+          : existing.assignedTo;
+    } else {
+      // Transferiu para OUTRO usuário e o payload não traz nome/avatar do
+      // novo dono. Manter o objeto anterior pintava o card com o nome de
+      // quem não atende mais — o card "no meu nome" que dá 404 no clique.
+      next.assignedTo = null;
     }
   }
   if (
@@ -651,13 +661,40 @@ function applyConversationUpdatedPatch(
   if (typeof payload.whatsappCallConsentStatus === "string") {
     next.whatsappCallConsentStatus = payload.whatsappCallConsentStatus;
   }
+  // A aba do card é por status, não por dono: sem relistar, o ticket que
+  // saiu para outro agente continuaria na lista de quem não pode abri-lo.
+  // Quem tem visibilidade ampla recebe o card de volta no refetch.
+  const movedToAnotherUser =
+    next.assignedToId != null &&
+    next.assignedToId !== existing.assignedToId &&
+    next.assignedToId !== currentUserId;
   applyConversationRowToInboxCaches(qc, next);
+  if (movedToAnotherUser) {
+    invalidateInboxQueriesTouching(qc, [id]);
+  }
   return true;
 }
 
 function isConversationNotFoundError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : "";
   return /não encontrada|sem permissão|not found/i.test(msg);
+}
+
+/** Erro de abertura de conversa que prova que o card não é deste usuário. */
+export function isInboxConversationDeniedError(err: unknown): boolean {
+  return isConversationNotFoundError(err);
+}
+
+/**
+ * Card que o servidor recusa (404/sem permissão): tira da lista e bloqueia
+ * re-hidratação por ~60s. Sem isto o card fantasma volta no próximo SSE.
+ */
+export function purgePhantomInboxConversation(
+  qc: QueryClient,
+  conversationId: string,
+): void {
+  rememberConversation404(conversationId);
+  removeConversationFromInboxCaches(qc, conversationId);
 }
 
 function invalidateInboxQueriesTouching(
@@ -1195,7 +1232,7 @@ export function useInboxRealtime(options: {
         const completeRow = conversationRowFromUpdatedEvent(raw);
         if (completeRow) {
           applyConversationRowToInboxCaches(qc, completeRow);
-        } else if (applyConversationUpdatedPatch(qc, payload)) {
+        } else if (applyConversationUpdatedPatch(qc, payload, userIdRef.current)) {
           // Card + badges ±1 sem GET :id / counts=1.
         } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
