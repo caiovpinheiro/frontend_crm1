@@ -1047,6 +1047,18 @@ export function useInboxRealtime(options: {
       {
       new_message: (raw: unknown) => {
         const data = raw as NewMessagePayload;
+        // DEBUG TEMPORÁRIO (remover junto com o log de
+        // `appendSseMessageToOpenChat`): separa "evento não chegou" de
+        // "chegou e foi descartado" no chat que não atualiza.
+        // eslint-disable-next-line no-console
+        console.log("[sse:new_message] recebido", {
+          conversationId: data.conversationId,
+          openId: activeRef.current,
+          hasCard: Boolean(data.card),
+          contactId: data.contactId ?? null,
+          direction: data.direction,
+          messageType: data.messageType ?? null,
+        });
         try {
           if (shouldPlayInboundPing(qc, userIdRef.current, data)) {
             playInboxPing();
