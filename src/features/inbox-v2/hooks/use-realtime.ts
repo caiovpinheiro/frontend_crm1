@@ -504,6 +504,15 @@ function eventTouchesOpenConversation(
   activeId: string | null,
   eventCard?: ConversationListRow | null,
   eventContactId?: string | null,
+  /**
+   * Aceita só o contato como prova de que o evento é do thread aberto. O
+   * servidor não manda `card` de conversa que este usuário não pode listar,
+   * então sem isso a mensagem que cai num ticket irmão do mesmo contato não
+   * tem como ser reconhecida e o chat aberto para de atualizar. Vale apenas
+   * para refazer o thread já aberto (que passou pelo controle de acesso) —
+   * não use em caminhos que buscam a conversa do evento.
+   */
+  allowContactOnlyMatch = false,
 ): boolean {
   if (!activeId) return false;
   if (eventConversationId === activeId) return true;
@@ -523,6 +532,15 @@ function eventTouchesOpenConversation(
     open.contact.id === contactId &&
     eventCard?.channel &&
     sameInboxCardGroup(open, eventCard)
+  ) {
+    return true;
+  }
+  if (
+    allowContactOnlyMatch &&
+    !eventCard &&
+    open.contact?.id &&
+    contactId &&
+    open.contact.id === contactId
   ) {
     return true;
   }
@@ -1058,6 +1076,7 @@ export function useInboxRealtime(options: {
                 openId,
                 data.card,
                 data.contactId,
+                true,
               );
             if (touchesOpen) {
               try {
