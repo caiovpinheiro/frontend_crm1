@@ -60,6 +60,11 @@ export type ToolPolicy = {
   /// Permite procurar registros de terceiros (`scope: "organization"`).
   /// Falso = o agente só lê o cadastro de quem está na conversa.
   allowOrgWideSearch: boolean;
+  /// Campos que servem para IDENTIFICAR a pessoa quando ela informa o
+  /// número no chat. Sem nenhum declarado o agente não pede nem aceita
+  /// identificador. Identificar não é o mesmo que poder ler: a leitura
+  /// continua governada por `readableFields`.
+  identityKeys: string[];
   /// Jargão desta organização que deve acender o aviso de "campo sensível"
   /// na tela de configuração (ex.: o nome que ela dá ao número de
   /// matrícula, ao prontuário, ao contrato). Somado aos termos genéricos do
@@ -86,6 +91,7 @@ export function emptyToolPolicy(): ToolPolicy {
     transferMessage: null,
     readableFields: [],
     allowOrgWideSearch: false,
+    identityKeys: [],
     sensitiveTerms: [],
   };
 }
@@ -182,6 +188,7 @@ export function normalizeToolPolicy(v: unknown): ToolPolicy {
     transferMessage: nullableText(r.transferMessage),
     readableFields: strList(r.readableFields),
     allowOrgWideSearch: Boolean(r.allowOrgWideSearch),
+    identityKeys: strList(r.identityKeys),
     sensitiveTerms: strList(r.sensitiveTerms),
   };
   return { ...carried, ...known };
@@ -214,6 +221,7 @@ export function isEmptyToolPolicy(p: ToolPolicy): boolean {
     !p.transferMessage &&
     p.readableFields.length === 0 &&
     !p.allowOrgWideSearch &&
+    p.identityKeys.length === 0 &&
     p.sensitiveTerms.length === 0
   );
 }
@@ -261,6 +269,12 @@ export function describeToolPolicy(p: ToolPolicy): string {
   }
   if (p.blockedDepartments.length > 0) {
     lines.push(`Departamentos proibidos: ${p.blockedDepartments.join(", ")}.`);
+  }
+  if (p.allowedUserNames.length > 0) {
+    lines.push(`Pessoas permitidas: ${p.allowedUserNames.join(", ")}.`);
+  }
+  if (p.allowedAgentNames.length > 0) {
+    lines.push(`Agentes IA permitidos: ${p.allowedAgentNames.join(", ")}.`);
   }
   if (p.allowedTypes.length > 0) {
     lines.push(`Tipos permitidos: ${p.allowedTypes.join(", ")}.`);
