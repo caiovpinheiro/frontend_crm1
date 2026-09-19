@@ -49,6 +49,65 @@ type CrmFieldDescriptor = {
   valueAvailable: boolean;
 };
 
+/**
+ * Escolha de campos-chave a partir do catálogo real da organização.
+ * Usado nas duas pontas da identificação: o que o agente reconhece sozinho
+ * no cadastro que veio pelo telefone, e o que a pessoa pode digitar.
+ */
+function IdentityFieldPicker(props: {
+  title: string;
+  help: React.ReactNode;
+  emptyLabel: string;
+  keys: string[];
+  candidates: CrmFieldDescriptor[];
+  labelOf: (key: string) => string;
+  onChange: (keys: string[]) => void;
+}) {
+  const { keys, candidates, labelOf, onChange } = props;
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+      <p className="text-sm font-medium text-foreground">{props.title}</p>
+      <FieldHelp>{props.help}</FieldHelp>
+      <div className="flex flex-wrap gap-1.5">
+        {keys.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(keys.filter((k) => fold(k) !== fold(key)))}
+            className="flex items-center gap-1 rounded-full border border-indigo-500 bg-[var(--color-indigo-soft)] px-2 py-0.5 text-xs dark:border-indigo-400 dark:bg-indigo-950/30"
+          >
+            {labelOf(key)}
+            <span className="text-muted-foreground">×</span>
+          </button>
+        ))}
+        {keys.length === 0 && (
+          <span className="text-xs text-muted-foreground">
+            {props.emptyLabel}
+          </span>
+        )}
+      </div>
+      <select
+        value=""
+        onChange={(e) => {
+          const key = e.target.value;
+          if (key) onChange([...keys, key]);
+        }}
+        className="w-full rounded-xl border border-border bg-background p-2 text-sm"
+        aria-label={props.title}
+      >
+        <option value="">Adicionar campo…</option>
+        {candidates
+          .filter((f) => !keys.some((k) => fold(k) === fold(f.key)))
+          .map((f) => (
+            <option key={f.key} value={f.key}>
+              {f.label} ({f.key})
+            </option>
+          ))}
+      </select>
+    </div>
+  );
+}
+
 /** Espelha `CrmEntityGroup`. O agrupamento e os rótulos vêm do backend. */
 type CrmEntityGroup = {
   entity: string;
@@ -582,61 +641,41 @@ export function CrmFieldsSection({
         />
       </div>
 
-      <div className="space-y-2 rounded-xl border border-border bg-card p-4">
-        <p className="text-sm font-medium text-foreground">
-          O que a pessoa pode informar para ser localizada
-        </p>
-        <FieldHelp>
-          Sem nenhum campo aqui, o agente não pede número de cadastro nenhum:
-          ele só encontra quem já está ligado à conversa. Escolher um campo
-          não libera o agente a <span className="text-foreground">dizer</span>{" "}
-          o valor — isso continua sendo a lista acima. O casamento é exato,
-          então serve para campo que identifica uma pessoa só.
-        </FieldHelp>
-        <div className="flex flex-wrap gap-1.5">
-          {identityKeys.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() =>
-                patchPolicy({
-                  identityKeys: identityKeys.filter(
-                    (k) => fold(k) !== fold(key),
-                  ),
-                })
-              }
-              className="flex items-center gap-1 rounded-full border border-indigo-500 bg-[var(--color-indigo-soft)] px-2 py-0.5 text-xs dark:border-indigo-400 dark:bg-indigo-950/30"
-            >
-              {identityLabel(key)}
-              <span className="text-muted-foreground">×</span>
-            </button>
-          ))}
-          {identityKeys.length === 0 && (
-            <span className="text-xs text-muted-foreground">
-              Nenhum campo de identificação.
-            </span>
-          )}
-        </div>
-        <select
-          value=""
-          onChange={(e) => {
-            const key = e.target.value;
-            if (!key) return;
-            patchPolicy({ identityKeys: [...identityKeys, key] });
-          }}
-          className="w-full rounded-xl border border-border bg-background p-2 text-sm"
-          aria-label="Adicionar campo de identificação"
-        >
-          <option value="">Adicionar campo…</option>
-          {identityCandidates
-            .filter((f) => !identityKeys.some((k) => fold(k) === fold(f.key)))
-            .map((f) => (
-              <option key={f.key} value={f.key}>
-                {f.label} ({f.key})
-              </option>
-            ))}
-        </select>
-      </div>
+      <IdentityFieldPicker
+        title="Campos-chave do cadastro que veio pelo telefone"
+        help={
+          <>
+            Quando o mesmo telefone tem mais de um cadastro e eles{" "}
+            <span className="text-foreground">divergem</span> nestes campos, o
+            agente pergunta por qual em vez de escolher sozinho — era assim que
+            dois contratos da mesma pessoa viravam uma resposta só. Cadastros
+            com o mesmo valor são tratados como duplicata e seguem normalmente.
+          </>
+        }
+        emptyLabel="Nenhum campo-chave: o agente trata todos os cadastros do contato como um só."
+        keys={policy.linkedIdentityKeys}
+        candidates={identityCandidates}
+        labelOf={identityLabel}
+        onChange={(linkedIdentityKeys) => patchPolicy({ linkedIdentityKeys })}
+      />
+
+      <IdentityFieldPicker
+        title="O que a pessoa pode informar para ser localizada"
+        help={
+          <>
+            Sem nenhum campo aqui, o agente não pede número de cadastro nenhum:
+            ele só encontra quem já está ligado à conversa. Escolher um campo
+            não libera o agente a <span className="text-foreground">dizer</span>{" "}
+            o valor — isso continua sendo a lista acima. O casamento é exato,
+            então serve para campo que identifica uma pessoa só.
+          </>
+        }
+        emptyLabel="Nenhum campo de identificação."
+        keys={identityKeys}
+        candidates={identityCandidates}
+        labelOf={identityLabel}
+        onChange={(identityKeys) => patchPolicy({ identityKeys })}
+      />
 
       <div className="space-y-2 rounded-xl border border-border bg-card p-4">
         <p className="text-sm font-medium text-foreground">

@@ -65,6 +65,10 @@ export type ToolPolicy = {
   /// identificador. Identificar não é o mesmo que poder ler: a leitura
   /// continua governada por `readableFields`.
   identityKeys: string[];
+  /// Campos-chave do registro JÁ ligado ao contato. Quando o mesmo telefone
+  /// tem mais de um registro e eles divergem aqui, o agente pergunta por
+  /// qual em vez de escolher sozinho.
+  linkedIdentityKeys: string[];
   /// Jargão desta organização que deve acender o aviso de "campo sensível"
   /// na tela de configuração (ex.: o nome que ela dá ao número de
   /// matrícula, ao prontuário, ao contrato). Somado aos termos genéricos do
@@ -92,6 +96,7 @@ export function emptyToolPolicy(): ToolPolicy {
     readableFields: [],
     allowOrgWideSearch: false,
     identityKeys: [],
+    linkedIdentityKeys: [],
     sensitiveTerms: [],
   };
 }
@@ -189,6 +194,7 @@ export function normalizeToolPolicy(v: unknown): ToolPolicy {
     readableFields: strList(r.readableFields),
     allowOrgWideSearch: Boolean(r.allowOrgWideSearch),
     identityKeys: strList(r.identityKeys),
+    linkedIdentityKeys: strList(r.linkedIdentityKeys),
     sensitiveTerms: strList(r.sensitiveTerms),
   };
   return { ...carried, ...known };
@@ -222,6 +228,7 @@ export function isEmptyToolPolicy(p: ToolPolicy): boolean {
     p.readableFields.length === 0 &&
     !p.allowOrgWideSearch &&
     p.identityKeys.length === 0 &&
+    p.linkedIdentityKeys.length === 0 &&
     p.sensitiveTerms.length === 0
   );
 }
