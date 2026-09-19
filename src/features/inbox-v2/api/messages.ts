@@ -238,6 +238,47 @@ export async function sendAttachmentReuse(
   };
 }
 
+export type ConversationProductSendResult = {
+  used?: "catalog" | "legacy" | "ask";
+  fallback?: boolean;
+  reason?: string;
+  needsFormatChoice?: boolean;
+  format?: string;
+  sendMode?: string;
+};
+
+/** POST /api/conversations/:id/products — nativo Meta ou fallback legado. */
+export async function sendConversationProducts(
+  conversationId: string,
+  options: {
+    productIds: string[];
+    format?: "auto" | "legacy" | "catalog_product" | "catalog_product_list";
+    body?: string;
+    header?: string;
+    channelId?: string | null;
+  },
+): Promise<ConversationProductSendResult> {
+  const res = await apiFetch(
+    `/api/conversations/${conversationId}/products`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productIds: options.productIds,
+        format: options.format ?? "auto",
+        ...(options.body?.trim() ? { body: options.body.trim() } : {}),
+        ...(options.header?.trim() ? { header: options.header.trim() } : {}),
+        ...(options.channelId ? { channelId: options.channelId } : {}),
+      }),
+    },
+    45_000,
+  );
+  return parseApiResponse<ConversationProductSendResult>(
+    res,
+    "Erro ao enviar produtos",
+  );
+}
+
 /** POST /api/messages/:id/reactions */
 export async function sendReaction(
   messageId: string,

@@ -154,6 +154,14 @@ export type ProductDetail = {
   } | null;
   stakeholders: Stakeholder[];
   jobOpenings: { id: string; title: string; status: string; poolId: string }[];
+  metaLinks?: {
+    id: string;
+    channelId: string;
+    metaCatalogId: string;
+    productRetailerId: string;
+    syncStatus: string;
+    lastSyncError?: string | null;
+  }[];
 };
 
 export type JobOpening = {

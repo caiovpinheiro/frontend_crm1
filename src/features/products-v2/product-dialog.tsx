@@ -12,6 +12,7 @@ import {
   IconSchool,
   IconTrash,
   IconUsers,
+  IconBrandWhatsapp,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 
@@ -28,7 +29,7 @@ import { ButtonGlass } from "@/components/crm/button-glass";
 import { DropdownGlass, type DropdownOption } from "@/components/crm/dropdown-glass";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, apiUrl, parseApiResponse } from "@/lib/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCan } from "@/hooks/use-my-permissions";
 import { useCatalogs } from "@/features/catalogs-v2/hooks";
 import { capabilityMeta } from "@/features/catalogs-v2/constants";
@@ -185,6 +186,87 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
   const [pricingRows, setPricingRows] = React.useState<PricingRow[]>([newPricingRow()]);
 
   const [saving, setSaving] = React.useState(false);
+  const [metaChannelId, setMetaChannelId] = React.useState("");
+  const [metaRetailerId, setMetaRetailerId] = React.useState("");
+  const [publishingMeta, setPublishingMeta] = React.useState(false);
+
+  const { data: metaCatalog } = useQuery({
+    queryKey: ["products-meta-catalog"],
+    queryFn: async () => {
+      const res = await apiFetch("/api/products/meta-catalog");
+      return parseApiResponse<{
+        channelId?: string | null;
+        canUseCatalog?: boolean;
+        message?: string;
+      }>(res, "Erro ao detectar catálogo Meta");
+    },
+    enabled: open && isEdit,
+    staleTime: 60_000,
+  });
+
+  React.useEffect(() => {
+    if (!metaChannelId && metaCatalog?.channelId) {
+      setMetaChannelId(metaCatalog.channelId);
+    }
+  }, [metaChannelId, metaCatalog?.channelId]);
+
+  const saveMetaLink = async (id: string) => {
+    const existing = detail?.metaLinks?.[0];
+    const retailer = metaRetailerId.trim();
+    const channel = metaChannelId.trim() || existing?.channelId || metaCatalog?.channelId || "";
+    if (!existing || !retailer || !channel) return;
+    await parseApiResponse(
+      await apiFetch(`/api/products/${id}/meta-link`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelId: channel,
+          productRetailerId: retailer,
+          ...(existing.metaCatalogId ? { metaCatalogId: existing.metaCatalogId } : {}),
+        }),
+      }),
+      "Erro ao vincular produto da Meta.",
+    );
+  };
+
+  const publishToMeta = async () => {
+    if (!productId) return;
+    const channel = metaChannelId.trim() || metaCatalog?.channelId || "";
+    setPublishingMeta(true);
+    try {
+      if (imageUrl) {
+        await saveBlocks.mutateAsync(buildBlocks());
+      }
+      const data = await parseApiResponse<{
+        link?: { productRetailerId?: string };
+      }>(
+        await apiFetch(
+          `/api/products/${productId}/meta-link`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(channel ? { channelId: channel } : {}),
+              ...(metaRetailerId.trim()
+                ? { productRetailerId: metaRetailerId.trim() }
+                : {}),
+            }),
+          },
+          45_000,
+        ),
+        "Erro ao criar produto na Meta.",
+      );
+      if (data.link?.productRetailerId) {
+        setMetaRetailerId(data.link.productRetailerId);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["product-detail", productId] });
+      toast.success("Produto criado no catálogo Meta.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao criar na Meta");
+    } finally {
+      setPublishingMeta(false);
+    }
+  };
 
   const updatePricingRow = React.useCallback(
     (key: string, patch: Partial<PricingRow>) => {
@@ -240,6 +322,8 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
       setPostSalePipelineId("");
       setClasses([]);
       setPricingRows([newPricingRow()]);
+      setMetaChannelId("");
+      setMetaRetailerId("");
     }
   }, [open, isEdit, initialCatalogId]);
 
@@ -312,6 +396,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
         }),
       ]);
     }
+    const link = detail.metaLinks?.[0];
+    setMetaChannelId(link?.channelId ?? "");
+    setMetaRetailerId(link?.productRetailerId ?? detail.sku ?? "");
   }, [detail]);
 
   const buildBlocks = (): Record<string, unknown> => {
@@ -404,6 +491,7 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
     try {
       if (isEdit) {
         await saveBlocks.mutateAsync(buildBlocks());
+        await saveMetaLink(productId as string);
         toast.success("Produto atualizado.");
         onOpenChange(false);
       } else {
@@ -444,6 +532,7 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
           }),
           "Produto criado, mas falhou ao salvar detalhes.",
         );
+        await saveMetaLink(newId);
         await queryClient.invalidateQueries({ queryKey: ["products"] });
         toast.success("Produto criado. Configure ofertas e alocação.");
         onCreated?.(newId);
@@ -993,6 +1082,56 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
               </p>
             )}
           </div>
+
+          {isEdit ? (
+            <div className={sectionClass}>
+              <p className={sectionTitleClass}>
+                <IconBrandWhatsapp size={14} /> WhatsApp / Meta
+              </p>
+              <p className="mb-3 text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                ID do produto no catálogo Commerce da Meta (product retailer id). Sem
+                este vínculo o envio continua no formato atual.
+              </p>
+              <Label className="mb-1.5 block text-[12px]">ID do produto na Meta</Label>
+              <Input
+                value={metaRetailerId}
+                onChange={(e) => setMetaRetailerId(e.target.value)}
+                placeholder={sku.trim() || "Mesmo SKU do produto"}
+                className="h-10"
+              />
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <ButtonGlass
+                  type="button"
+                  variant="glass"
+                  size="sm"
+                  disabled={publishingMeta}
+                  onClick={() => void publishToMeta()}
+                >
+                  {publishingMeta && <IconLoader2 size={14} className="mr-1.5 animate-spin" />}
+                  Criar no catálogo Meta
+                </ButtonGlass>
+              </div>
+              {detail?.metaLinks?.[0]?.syncStatus === "SYNCED" ? (
+                <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                  Publicado no catálogo Commerce. Usa nome, preço e imagem já salvos.
+                </p>
+              ) : detail?.metaLinks?.[0]?.lastSyncError ? (
+                <p className="mt-2 text-[11px] text-[var(--color-danger)]">
+                  {detail.metaLinks[0].lastSyncError}
+                </p>
+              ) : (
+                <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                  O ID na Meta é o SKU deste produto. Sem SKU, usamos bwipo e o
+                  número. A capa do produto é enviada automaticamente.
+                </p>
+              )}
+              {metaCatalog && !metaCatalog.channelId && metaCatalog.message ? (
+                <p className="mt-2 text-[11px] text-[var(--text-secondary)]">
+                  {metaCatalog.message}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* PHYSICAL: envio */}
           {kind === "PHYSICAL" && (
