@@ -18,9 +18,12 @@ import {
 } from "@/lib/ai-agents/steering";
 import { TOOLS_CATALOG, type ToolDescriptor } from "@/lib/ai-agents/tools-catalog";
 import {
+  ACADEMIC_IDENTITY_OPTIONS,
   ACADEMIC_RECORD_FIELDS,
   isAcademicFieldReadable,
+  isIdentityKeyOn,
   toggleAcademicField,
+  toggleIdentityKey,
 } from "@/lib/ai-agents/academic-fields";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +41,7 @@ const DEPT_TOOL_IDS = new Set([
   "transfer_to_department",
   "execute_distribution",
   "transfer_to_human",
+  "transfer_conversation",
 ]);
 
 type Props = {
@@ -249,6 +253,31 @@ export function ToolPolicyForm({
         </>
       )}
 
+      {tool.id === "transfer_conversation" && (
+        <>
+          <Field
+            label="Pessoas permitidas"
+            hint="Vazio = qualquer pessoa da equipe. Nomes como no CRM."
+          >
+            <ChipInput
+              values={policy.allowedUserNames}
+              onChange={(allowedUserNames) => onChange({ allowedUserNames })}
+              placeholder="Nome da pessoa"
+            />
+          </Field>
+          <Field
+            label="Agentes IA permitidos"
+            hint="Vazio = qualquer agente IA ativo. Nomes como na tela de agentes."
+          >
+            <ChipInput
+              values={policy.allowedAgentNames}
+              onChange={(allowedAgentNames) => onChange({ allowedAgentNames })}
+              placeholder="Nome do agente"
+            />
+          </Field>
+        </>
+      )}
+
       {tool.id === "create_activity" && (
         <>
           <Field label="Tipos permitidos" hint="Vazio = todos os tipos.">
@@ -299,6 +328,53 @@ export function ToolPolicyForm({
 
       {tool.id === "consultar_matricula" && (
         <>
+          <Field
+            label="O que o aluno pode informar para ser localizado"
+            hint="Sem nenhum marcado, o agente não pede número nenhum: ele só encontra quem já está casado por telefone ou e-mail. Marcar aqui não libera o agente a DIZER o valor — isso continua sendo a lista de leitura abaixo."
+          >
+            <div className="grid gap-1.5">
+              {ACADEMIC_IDENTITY_OPTIONS.map((f) => {
+                const on = isIdentityKeyOn(policy.identityKeys, f.key);
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        identityKeys: toggleIdentityKey(
+                          policy.identityKeys,
+                          f.key,
+                        ),
+                      })
+                    }
+                    className={cn(
+                      "flex items-start gap-2 rounded-lg border p-2 text-left text-[13px] transition-colors",
+                      on
+                        ? "border-indigo-500 bg-[var(--color-indigo-soft)] dark:border-indigo-400 dark:bg-indigo-950/30"
+                        : "border-border hover:bg-muted/40",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border",
+                        on
+                          ? "border-indigo-500 bg-indigo-500 text-white"
+                          : "border-border",
+                      )}
+                    >
+                      {on && <span className="text-[10px]">✓</span>}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="font-medium">{f.label}</span>
+                      <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                        {f.hint}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
           <Field
             label="Campos do relatório que o agente pode dizer"
             hint="Nada é liberado por padrão. O que não estiver marcado o agente sabe que existe, mas não recebe o valor — ele encaminha para um consultor em vez de responder. CPF, data de nascimento e telefone do relatório nunca são liberáveis: servem para localizar o aluno."

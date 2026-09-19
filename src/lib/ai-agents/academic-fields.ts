@@ -73,6 +73,50 @@ export const ACADEMIC_RECORD_FIELDS: AcademicFieldDescriptor[] = [
   },
 ];
 
+/**
+ * Espelho de `ACADEMIC_IDENTITY_KEYS` do backend: o que a pessoa pode
+ * informar no chat para ser localizada. Não é a mesma lista de leitura —
+ * o CPF localiza o aluno e continua sem poder ser dito em voz alta.
+ *
+ * Sem nenhum marcado, a ferramenta nem expõe o argumento: o agente não
+ * pede número nenhum e só acha quem já está casado por telefone/e-mail.
+ */
+export const ACADEMIC_IDENTITY_OPTIONS: Array<{
+  key: string;
+  label: string;
+  hint: string;
+}> = [
+  {
+    key: "rgm",
+    label: "RGM / número de matrícula",
+    hint: "O aluno digita o número e o agente localiza a matrícula por ele.",
+  },
+  {
+    key: "cpf",
+    label: "CPF",
+    hint: "Aceito quando informado espontaneamente. O agente continua proibido de pedir CPF para desempatar identidade.",
+  },
+];
+
+export function isIdentityKeyOn(
+  identityKeys: string[],
+  key: string,
+): boolean {
+  const k = key.toLowerCase();
+  return identityKeys.some((raw) => stripPrefix(raw.trim().toLowerCase()) === k);
+}
+
+export function toggleIdentityKey(
+  identityKeys: string[],
+  key: string,
+): string[] {
+  return isIdentityKeyOn(identityKeys, key)
+    ? identityKeys.filter(
+        (raw) => stripPrefix(raw.trim().toLowerCase()) !== key.toLowerCase(),
+      )
+    : [...identityKeys, key];
+}
+
 const KEY_PREFIX = "matricula.";
 
 export const ACADEMIC_FIELD_KEYS: AcademicFieldKey[] =

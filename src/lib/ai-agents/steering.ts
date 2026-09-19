@@ -38,9 +38,11 @@ export type ToolPolicy = {
   allowedTagNames: string[];
   denyCreateNew: boolean;
 
-  // transfer_to_department / execute_distribution / transfer_to_human
+  // transfer_to_department / execute_distribution / transfer_to_human / transfer_conversation
   allowedDepartments: string[];
   blockedDepartments: string[];
+  allowedUserNames: string[];
+  allowedAgentNames: string[];
 
   // create_activity
   allowedTypes: string[];
@@ -58,6 +60,11 @@ export type ToolPolicy = {
   /// Permite procurar registros de terceiros (`scope: "organization"`).
   /// Falso = o agente só lê o cadastro de quem está na conversa.
   allowOrgWideSearch: boolean;
+  /// Campos que servem para IDENTIFICAR a pessoa quando ela informa o
+  /// número no chat. Sem nenhum declarado o agente não pede nem aceita
+  /// identificador. Identificar não é o mesmo que poder ler: a leitura
+  /// continua governada por `readableFields`.
+  identityKeys: string[];
   /// Jargão desta organização que deve acender o aviso de "campo sensível"
   /// na tela de configuração (ex.: o nome que ela dá ao número de
   /// matrícula, ao prontuário, ao contrato). Somado aos termos genéricos do
@@ -76,12 +83,15 @@ export function emptyToolPolicy(): ToolPolicy {
     denyCreateNew: false,
     allowedDepartments: [],
     blockedDepartments: [],
+    allowedUserNames: [],
+    allowedAgentNames: [],
     allowedTypes: [],
     defaultType: null,
     policyText: null,
     transferMessage: null,
     readableFields: [],
     allowOrgWideSearch: false,
+    identityKeys: [],
     sensitiveTerms: [],
   };
 }
@@ -170,12 +180,15 @@ export function normalizeToolPolicy(v: unknown): ToolPolicy {
     denyCreateNew: Boolean(r.denyCreateNew),
     allowedDepartments: strList(r.allowedDepartments),
     blockedDepartments: strList(r.blockedDepartments),
+    allowedUserNames: strList(r.allowedUserNames),
+    allowedAgentNames: strList(r.allowedAgentNames),
     allowedTypes: strList(r.allowedTypes),
     defaultType: nullableText(r.defaultType),
     policyText: nullableText(r.policyText),
     transferMessage: nullableText(r.transferMessage),
     readableFields: strList(r.readableFields),
     allowOrgWideSearch: Boolean(r.allowOrgWideSearch),
+    identityKeys: strList(r.identityKeys),
     sensitiveTerms: strList(r.sensitiveTerms),
   };
   return { ...carried, ...known };
@@ -200,12 +213,15 @@ export function isEmptyToolPolicy(p: ToolPolicy): boolean {
     !p.denyCreateNew &&
     p.allowedDepartments.length === 0 &&
     p.blockedDepartments.length === 0 &&
+    p.allowedUserNames.length === 0 &&
+    p.allowedAgentNames.length === 0 &&
     p.allowedTypes.length === 0 &&
     !p.defaultType &&
     !p.policyText &&
     !p.transferMessage &&
     p.readableFields.length === 0 &&
     !p.allowOrgWideSearch &&
+    p.identityKeys.length === 0 &&
     p.sensitiveTerms.length === 0
   );
 }
@@ -253,6 +269,12 @@ export function describeToolPolicy(p: ToolPolicy): string {
   }
   if (p.blockedDepartments.length > 0) {
     lines.push(`Departamentos proibidos: ${p.blockedDepartments.join(", ")}.`);
+  }
+  if (p.allowedUserNames.length > 0) {
+    lines.push(`Pessoas permitidas: ${p.allowedUserNames.join(", ")}.`);
+  }
+  if (p.allowedAgentNames.length > 0) {
+    lines.push(`Agentes IA permitidos: ${p.allowedAgentNames.join(", ")}.`);
   }
   if (p.allowedTypes.length > 0) {
     lines.push(`Tipos permitidos: ${p.allowedTypes.join(", ")}.`);
@@ -405,6 +427,12 @@ export function isUnrestrictedScope(s: AttendanceScope): boolean {
   );
 }
 
+export type TabulateOnExitMode =
+  | "off"
+  | "on_human_handoff"
+  | "on_close"
+  | "both";
+
 export type InboxPolicy = {
   /// Abaixo disso o backend distribui para humano. `null` = usa o
   /// default do código (0.4).
@@ -419,6 +447,8 @@ export type InboxPolicy = {
   /// Interceptos determinísticos do inbox-handler.
   interceptRetention: boolean;
   interceptCourseShopping: boolean;
+  interceptFirstAccess: boolean;
+  tabulateOnExit: TabulateOnExitMode;
 
   /// Termos EXTRA (somados aos regexes do código) que classificam a
   /// mensagem como retenção / dúvida comercial de curso.
@@ -479,6 +509,8 @@ export function defaultInboxPolicy(): InboxPolicy {
     messageRules: [],
     interceptRetention: true,
     interceptCourseShopping: true,
+    interceptFirstAccess: true,
+    tabulateOnExit: "on_human_handoff",
     retentionKeywords: [],
     courseShoppingKeywords: [],
     departmentAliases: { acolhimento: [], retencao: [], atendimento: [] },
@@ -549,6 +581,17 @@ export function normalizeInboxPolicy(v: unknown): InboxPolicy {
       r.interceptCourseShopping,
       base.interceptCourseShopping,
     ),
+    interceptFirstAccess: boolOr(
+      r.interceptFirstAccess,
+      base.interceptFirstAccess,
+    ),
+    tabulateOnExit:
+      r.tabulateOnExit === "off" ||
+      r.tabulateOnExit === "on_human_handoff" ||
+      r.tabulateOnExit === "on_close" ||
+      r.tabulateOnExit === "both"
+        ? r.tabulateOnExit
+        : base.tabulateOnExit,
     retentionKeywords: strList(r.retentionKeywords),
     courseShoppingKeywords: strList(r.courseShoppingKeywords),
     departmentAliases: {
