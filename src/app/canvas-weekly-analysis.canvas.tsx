@@ -453,7 +453,7 @@ const ConversationAnalysisDashboard = () => {
                   <li>🤖 <strong>Redução de redundância</strong> - Evitar repetir saudações em sequência</li>
                   <li>🤖 <strong>Resposta direta</strong> - Oferecer ações concretas (links, formulários, próximos passos)</li>
                   <li>🤖 <strong>Análise de satisfação</strong> - Verificar se resoluções da IA superam o 0% de encerramento humano neste caso</li>
-                  <li>🤖 <strong>Tempo de resposta</strong> - Medir latência: IA <5s vs Humano ~5min (no caso, 5min+ com delay)</li>
+                  <li>🤖 <strong>Tempo de resposta</strong> - Medir latência: IA &lt;5s vs Humano ~5min (no caso, 5min+ com delay)</li>
                 </ul>
               </div>
             </div>
