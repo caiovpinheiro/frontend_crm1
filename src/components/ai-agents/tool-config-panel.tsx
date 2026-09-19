@@ -322,36 +322,9 @@ export function ToolPolicyForm({
         </>
       )}
 
-      {tool.id === "consultar_matricula" && (
-        <>
-          <Field
-            label="Política da consulta"
-            hint="Texto injetado na ferramenta. Vazio = política padrão do código."
-          >
-            <Textarea
-              value={policy.policyText ?? ""}
-              onChange={(e) =>
-                onChange({ policyText: e.target.value || null })
-              }
-              rows={4}
-              className="resize-y rounded-xl text-sm"
-              placeholder="O que o agente pode e não pode revelar dos dados de matrícula."
-            />
-          </Field>
-          <Field
-            label="Mensagem ao transferir"
-            hint="Usada quando a consulta exige handoff (ex.: situação financeira)."
-          >
-            <Input
-              value={policy.transferMessage ?? ""}
-              onChange={(e) =>
-                onChange({ transferMessage: e.target.value || null })
-              }
-              placeholder="Vou te conectar com a equipe responsável…"
-            />
-          </Field>
-        </>
-      )}
+      {/* `policyText` e `transferMessage` eram da tool de negócio que saiu do
+          motor. O que a consulta pode revelar agora é a allowlist de campos,
+          editada na seção de campos do CRM — não há mais texto livre aqui. */}
 
       <Field
         label="Instrução extra para esta ferramenta"
