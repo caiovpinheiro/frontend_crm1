@@ -193,6 +193,19 @@ function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
     markMessagesRead:
       typeof data.markMessagesRead === "boolean" ? data.markMessagesRead : true,
     autoClosePolicy: normalizeAutoClosePolicy(data.autoClosePolicy),
+    identityConfirmationEnabled:
+      typeof data.identityConfirmationEnabled === "boolean"
+        ? data.identityConfirmationEnabled
+        : false,
+    identityConfirmationTemplate:
+      typeof data.identityConfirmationTemplate === "string"
+        ? data.identityConfirmationTemplate
+        : "",
+    identityConfirmationFields: Array.isArray(data.identityConfirmationFields)
+      ? data.identityConfirmationFields.filter(
+          (v: unknown): v is string => typeof v === "string",
+        )
+      : [],
   };
 
   return {
@@ -422,6 +435,11 @@ export function AgentSettingsDialog({
             idleMessage:
               form.piloting.autoClosePolicy.idleMessage?.trim() || null,
           },
+          identityConfirmationEnabled:
+            form.piloting.identityConfirmationEnabled,
+          identityConfirmationTemplate:
+            form.piloting.identityConfirmationTemplate.trim() || null,
+          identityConfirmationFields: form.piloting.identityConfirmationFields,
         }),
       });
       if (!res.ok) {
