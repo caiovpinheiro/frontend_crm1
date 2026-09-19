@@ -76,6 +76,11 @@ export type PilotingValue = {
   typingPerCharMs: number;
   markMessagesRead: boolean;
   autoClosePolicy: AutoClosePolicy;
+  
+  /// Confirmação de identidade
+  identityConfirmationEnabled: boolean;
+  identityConfirmationTemplate: string;
+  identityConfirmationFields: string[];
 };
 
 export function createDefaultPiloting(): PilotingValue {
@@ -105,6 +110,9 @@ export function createDefaultPiloting(): PilotingValue {
     typingPerCharMs: 25,
     markMessagesRead: true,
     autoClosePolicy: defaultAutoClosePolicy(),
+    identityConfirmationEnabled: false,
+    identityConfirmationTemplate: "",
+    identityConfirmationFields: [],
   };
 }
 
@@ -150,6 +158,7 @@ export function PilotingPanel({
       <InactivitySection value={value} patch={patch} presentation={presentation} />
       <KeywordSection value={value} patch={patch} presentation={presentation} />
       <AutoCloseSection value={value} patch={patch} presentation={presentation} />
+      <IdentityConfirmationSection value={value} patch={patch} presentation={presentation} />
       <QualificationSection value={value} patch={patch} presentation={presentation} />
       <BusinessHoursSection value={value} patch={patch} presentation={presentation} />
     </div>
@@ -1080,6 +1089,150 @@ function AutoCloseSection({
         encerra se ninguém humano tiver respondido nesta conversa. O
         fechamento dispara o mesmo gatilho do encerramento manual
         (automação Encerramento).
+      </div>
+    </Section>
+  );
+}
+
+// ── Seção: Confirmação de Identidade ─────────────────────────
+
+import { IconUserCheck as IdentityIcon } from "@tabler/icons-react";
+
+function IdentityConfirmationSection({
+  value,
+  patch,
+  presentation,
+}: {
+  value: PilotingValue;
+  patch: (p: Partial<PilotingValue>) => void;
+  presentation?: PilotingPresentation;
+}) {
+  const [draft, setDraft] = React.useState("");
+
+  const addField = () => {
+    const f = draft.trim();
+    if (!f) return;
+    if (value.identityConfirmationFields.includes(f)) {
+      setDraft("");
+      return;
+    }
+    patch({
+      identityConfirmationFields: [...value.identityConfirmationFields, f],
+    });
+    setDraft("");
+  };
+
+  const removeField = (f: string) =>
+    patch({
+      identityConfirmationFields: value.identityConfirmationFields.filter(
+        (x) => x !== f,
+      ),
+    });
+
+  return (
+    <Section
+      icon={IdentityIcon}
+      presentation={presentation}
+      enabled={value.identityConfirmationEnabled}
+      onEnabledChange={
+        presentation === "accordion"
+          ? (on) => patch({ identityConfirmationEnabled: on })
+          : undefined
+      }
+      title="Confirmação de identidade"
+      description="Depois de identificar o cliente, envia uma mensagem interativa com seus dados pra confirmar (Sim/Não)."
+    >
+      <div className="flex items-start gap-2 rounded-xl border border-[var(--color-info-border)] bg-[var(--color-info-bg)] p-3 text-[var(--color-info)]">
+        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold">ℹ</span>
+        <div className="text-[12px] leading-relaxed">
+          Quando o agente identificar o cliente (link com Deal), ele busca os
+          campos configurados aqui e envia com botões [Sim] [Não]. Genérico:
+          funciona com qualquer tipo de campo (RGM, número de pedido, código de
+          contrato, etc.).
+        </div>
+      </div>
+
+      <div className="grid gap-2">
+        <Label className={formLabelClass}>
+          Campos do Deal a mostrar (editável no Deal ou via API)
+        </Label>
+        <div className="flex gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addField();
+              }
+            }}
+            placeholder="Ex.: rgm, curso, email_academico"
+          />
+          <Button type="button" variant="outline" onClick={addField}>
+            <Plus className="size-4" />
+            Adicionar
+          </Button>
+        </div>
+        {value.identityConfirmationFields.length === 0 ? (
+          <p className="text-[12px] text-muted-foreground">
+            Nenhum campo configurado. Desativa a confirmação interativa.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {value.identityConfirmationFields.map((f) => (
+              <span
+                key={f}
+                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-[12px]"
+              >
+                {f}
+                <button
+                  type="button"
+                  onClick={() => removeField(f)}
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label={`Remover "${f}"`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Nomes dos campos customizáveis. Ex.: "rgm", "numero_pedido",
+          "codigo_contrato". Vazio usa todos os campos.
+        </p>
+      </div>
+
+      {value.identityConfirmationFields.length > 0 && (
+        <div className="grid gap-2">
+          <Label htmlFor="pilot-identity-template" className={formLabelClass}>
+            Template da mensagem
+          </Label>
+          <Textarea
+            id="pilot-identity-template"
+            rows={4}
+            value={value.identityConfirmationTemplate}
+            onChange={(e) =>
+              patch({ identityConfirmationTemplate: e.target.value })
+            }
+            placeholder={`Ex.: Oi {name}, tudo bem? Aqui estão suas informações:\nCurso: {curso}\nRGM: {rgm}\nEmail: {email_academico}\n\nConfirma pra gente se é sobre isso que você quer falar?`}
+            className="resize-y text-sm font-mono"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Use <code>{"{campo}"}</code> para placeholders. Ex.:{" "}
+            <code>{"{rgm}"}</code>, <code>{"{curso}"}</code>,{" "}
+            <code>{"{email_academico}"}</code>. Deixe vazio para usar template
+            padrão genérico.
+          </p>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-dashed bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+        <strong className="text-foreground">Como funciona:</strong> quando o
+        agente identifica o cliente (encontra seu Deal), busca os campos
+        configurados aqui no Deal, substitui no template e envia uma mensagem
+        interativa com botões. Se cliente clica "Não", limpa a identidade e o
+        agente pergunta de novo.
       </div>
     </Section>
   );

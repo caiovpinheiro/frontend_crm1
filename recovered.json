@@ -1,0 +1,57 @@
+[
+  {
+    "path": "src/components/painel/charts/UsersLollipop.tsx",
+    "sha": "cb1b6444da2182976697abf8f9ee21b530ff9eae",
+    "size": 2763
+  },
+  {
+    "path": "src/features/dashboard-v2/use-section-visibility.tsx",
+    "sha": "9e4c5c37a9b3441d7d4475a69718f63227f0045a",
+    "size": 2205
+  },
+  {
+    "path": "src/components/painel/charts/ChartCard.tsx",
+    "sha": "f472b42feff26d18a28aff349ad89e7f556b5dd4",
+    "size": 60166293
+  },
+  {
+    "path": "src/components/painel/charts/ReasonsVolumeTime.tsx",
+    "sha": "768524b0d54fc69652eb1e37ddeeffcfdbee57f2",
+    "size": 2888
+  },
+  {
+    "path": "src/components/painel/charts/DepartmentsTable.tsx",
+    "sha": "9991714348bf29922b0f900709482a51a0dafbf7",
+    "size": 5163
+  },
+  {
+    "path": "src/components/painel/charts/KpiCards.tsx",
+    "sha": "33ca05dbdd9c7f78af1b99be2e105db10a20a36a",
+    "size": 1247
+  },
+  {
+    "path": "src/components/painel/charts/TabulationsByCategory.tsx",
+    "sha": "bbf7bd6e7b2216df7d515a1b1e1cfc39f5f37cd4",
+    "size": 3674
+  },
+  {
+    "path": "src/components/painel/charts/AtendimentosCharts.tsx",
+    "sha": "a7598ef804815ea62462aeb495ff9b6aca7ae5d8",
+    "size": 357
+  },
+  {
+    "path": "src/components/painel/charts/ChannelDonut.tsx",
+    "sha": "95957e30b2ff2bde2edab8cce5f6888a5f87cf5c",
+    "size": 3434
+  },
+  {
+    "path": "src/features/dashboard-v2/charts-adapter.ts",
+    "sha": "ad375f500123e12bb815343af3129c830b9009b0",
+    "size": 1075
+  },
+  {
+    "path": "src/components/painel/charts/AgentsScatter.tsx",
+    "sha": "39ac53a7eb2c848ff95ac95fe8209b2a276da09e",
+    "size": 6489
+  }
+]
