@@ -265,6 +265,16 @@ export function CrmFieldsSection({
   ).length;
   const nothingReleased = readableFields.length === 0;
 
+  const identityKeys = policy.identityKeys;
+  // Só contato e negócio identificam pessoa; empresa e catálogo são de
+  // terceiros. Campo sem valor disponível nunca casaria.
+  const identityCandidates = (data?.fields ?? []).filter(
+    (f) =>
+      (f.entity === "contact" || f.entity === "deal") && f.valueAvailable,
+  );
+  const identityLabel = (key: string) =>
+    identityCandidates.find((f) => fold(f.key) === fold(key))?.label ?? key;
+
   const validWildcards = new Set(
     entities.map((g) => fold(g.wildcardKey)).concat("*"),
   );
@@ -570,6 +580,62 @@ export function CrmFieldsSection({
           }
           aria-label="Consultar cadastro de outras pessoas"
         />
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-border bg-card p-4">
+        <p className="text-sm font-medium text-foreground">
+          O que a pessoa pode informar para ser localizada
+        </p>
+        <FieldHelp>
+          Sem nenhum campo aqui, o agente não pede número de cadastro nenhum:
+          ele só encontra quem já está ligado à conversa. Escolher um campo
+          não libera o agente a <span className="text-foreground">dizer</span>{" "}
+          o valor — isso continua sendo a lista acima. O casamento é exato,
+          então serve para campo que identifica uma pessoa só.
+        </FieldHelp>
+        <div className="flex flex-wrap gap-1.5">
+          {identityKeys.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() =>
+                patchPolicy({
+                  identityKeys: identityKeys.filter(
+                    (k) => fold(k) !== fold(key),
+                  ),
+                })
+              }
+              className="flex items-center gap-1 rounded-full border border-indigo-500 bg-[var(--color-indigo-soft)] px-2 py-0.5 text-xs dark:border-indigo-400 dark:bg-indigo-950/30"
+            >
+              {identityLabel(key)}
+              <span className="text-muted-foreground">×</span>
+            </button>
+          ))}
+          {identityKeys.length === 0 && (
+            <span className="text-xs text-muted-foreground">
+              Nenhum campo de identificação.
+            </span>
+          )}
+        </div>
+        <select
+          value=""
+          onChange={(e) => {
+            const key = e.target.value;
+            if (!key) return;
+            patchPolicy({ identityKeys: [...identityKeys, key] });
+          }}
+          className="w-full rounded-xl border border-border bg-background p-2 text-sm"
+          aria-label="Adicionar campo de identificação"
+        >
+          <option value="">Adicionar campo…</option>
+          {identityCandidates
+            .filter((f) => !identityKeys.some((k) => fold(k) === fold(f.key)))
+            .map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.label} ({f.key})
+              </option>
+            ))}
+        </select>
       </div>
 
       <div className="space-y-2 rounded-xl border border-border bg-card p-4">
