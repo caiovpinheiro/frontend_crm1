@@ -783,17 +783,15 @@ export function DealProductsSection({
                 },
               ]
             : [],
+          productId: item.productId,
         });
       }
       if (steps.length === 0) return;
-      if (steps.length === 1) {
+      if (steps.length === 1 && !steps[0].productId) {
         insertComposerText(steps[0].text, steps[0].media);
         toast.success("Mensagem do produto pronta no chat — confira e envie.");
       } else {
         insertComposerSequence(steps);
-        toast.success(
-          `Enviando ${steps.length} produtos, um por mensagem, cada um com a própria imagem.`,
-        );
       }
     } catch {
       toast.error("Falha ao preparar a mensagem dos produtos.");

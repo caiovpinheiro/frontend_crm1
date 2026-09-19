@@ -178,12 +178,10 @@ export class ApiError extends Error {
 export const DEFAULT_API_TIMEOUT_MS = 12_000;
 
 function isAbortError(e: unknown): boolean {
-  return (
-    (typeof DOMException !== "undefined" &&
-      e instanceof DOMException &&
-      e.name === "AbortError") ||
-    (e instanceof Error && e.name === "AbortError")
-  );
+  const name = e instanceof Error || (typeof DOMException !== "undefined" && e instanceof DOMException)
+    ? e.name
+    : "";
+  return name === "AbortError" || name === "TimeoutError";
 }
 
 export async function apiFetch(

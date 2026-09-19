@@ -23,6 +23,7 @@ export type ComposerInsertMedia = {
 export type ComposerInsertStep = {
   text: string;
   media?: ComposerInsertMedia[];
+  productId?: string;
 };
 
 export type ComposerInsertPayload = {
@@ -30,6 +31,7 @@ export type ComposerInsertPayload = {
   media?: ComposerInsertMedia[];
   /** Vários produtos: o composer envia um passo por mensagem WhatsApp. */
   steps?: ComposerInsertStep[];
+  productIds?: string[];
 };
 
 let pendingInsert: ComposerInsertPayload | null = null;
@@ -47,13 +49,21 @@ function dispatchComposerInsert(payload: ComposerInsertPayload) {
   });
 }
 
-export function insertComposerText(text: string, media?: ComposerInsertMedia[]) {
+export function insertComposerText(
+  text: string,
+  media?: ComposerInsertMedia[],
+  productId?: string,
+) {
   const value = typeof text === "string" ? text : "";
   const list = Array.isArray(media)
     ? media.filter((m) => typeof m?.url === "string" && m.url.trim())
     : [];
   if (!value.trim() && list.length === 0) return;
-  dispatchComposerInsert({ text: value, media: list });
+  dispatchComposerInsert({
+    text: value,
+    media: list,
+    ...(productId ? { productIds: [productId] } : {}),
+  });
 }
 
 /** Encaminha N produtos em sequência (cada um = capa + texto). */
@@ -64,14 +74,25 @@ export function insertComposerSequence(steps: ComposerInsertStep[]) {
       media: Array.isArray(s.media)
         ? s.media.filter((m) => typeof m?.url === "string" && m.url.trim())
         : [],
+      ...(typeof s.productId === "string" && s.productId.trim()
+        ? { productId: s.productId.trim() }
+        : {}),
     }))
-    .filter((s) => s.text.trim() || s.media.length > 0);
+    .filter((s) => s.text.trim() || s.media.length > 0 || s.productId);
   if (clean.length === 0) return;
-  if (clean.length === 1) {
+  const productIds = clean
+    .map((s) => s.productId)
+    .filter((id): id is string => Boolean(id));
+  if (clean.length === 1 && productIds.length === 0) {
     insertComposerText(clean[0].text, clean[0].media);
     return;
   }
-  dispatchComposerInsert({ text: "", media: [], steps: clean });
+  dispatchComposerInsert({
+    text: clean.length === 1 ? clean[0].text : "",
+    media: clean.length === 1 ? clean[0].media : [],
+    steps: clean,
+    ...(productIds.length > 0 ? { productIds } : {}),
+  });
 }
 
 /** Consome payload pendente (ex.: Composer acabou de montar após trocar pra Chat). */

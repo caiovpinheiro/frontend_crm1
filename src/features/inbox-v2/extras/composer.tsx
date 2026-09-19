@@ -39,6 +39,7 @@ import { getContact } from "@/features/inbox-v2/api/misc";
 import {
   sendAttachment,
   sendAttachmentReuse,
+  sendConversationProducts,
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
@@ -423,6 +424,50 @@ export function Composer({
     }
     setSequenceSending(true);
     try {
+      const productIds = steps
+        .map((s) => s.productId?.trim())
+        .filter((id): id is string => Boolean(id));
+      if (productIds.length > 0) {
+        try {
+          let result = await sendConversationProducts(cid, {
+            productIds,
+            format: "auto",
+            header: "Produtos",
+            channelId: selectedChannelId,
+          });
+          if (result.used === "ask") {
+            result = await sendConversationProducts(cid, {
+              productIds,
+              format:
+                productIds.length <= 1
+                  ? "catalog_product"
+                  : "catalog_product_list",
+              header: "Produtos",
+              channelId: selectedChannelId,
+            });
+          }
+          if (result.used === "catalog") {
+            qc.invalidateQueries({ queryKey: messagesKey(cid) });
+            applyOutboundPreviewToInboxCaches(qc, cid, {
+              content:
+                productIds.length <= 1
+                  ? "Produto enviado no catálogo WhatsApp"
+                  : "Carrossel de produtos enviado no WhatsApp",
+            });
+            toast.success(
+              productIds.length <= 1
+                ? "Produto enviado no catálogo WhatsApp."
+                : "Carrossel de produtos enviado no WhatsApp.",
+            );
+            return;
+          }
+        } catch (err) {
+          toast.error(
+            err instanceof Error ? err.message : "Falha ao enviar no catálogo Meta.",
+          );
+          return;
+        }
+      }
       for (const step of steps) {
         const captionText = applySignature(step.text.trim());
         const media = (step.media ?? []).find(
@@ -588,9 +633,29 @@ export function Composer({
   useEffect(() => {
     function applyInsert(payload: ComposerInsertPayload) {
       const steps = Array.isArray(payload?.steps) ? payload.steps : [];
-      if (steps.length > 1) {
+      const productIds = Array.isArray(payload?.productIds)
+        ? payload.productIds.filter((id) => typeof id === "string" && id.trim())
+        : steps
+            .map((s) => s.productId)
+            .filter((id): id is string => Boolean(id));
+      if (steps.length > 1 || productIds.length > 0) {
         clearPendingComposerInsert();
-        void sendProductOfferStepsRef.current(steps);
+        const resolvedSteps =
+          steps.length > 0
+            ? steps
+            : [
+                {
+                  text: typeof payload?.text === "string" ? payload.text : "",
+                  media: payload?.media,
+                  productId: productIds[0],
+                },
+              ];
+        if (productIds.length > 0 && !resolvedSteps.some((s) => s.productId)) {
+          resolvedSteps.forEach((s, i) => {
+            if (!s.productId && productIds[i]) s.productId = productIds[i];
+          });
+        }
+        void sendProductOfferStepsRef.current(resolvedSteps);
         return;
       }
       const text = typeof payload?.text === "string" ? payload.text : "";

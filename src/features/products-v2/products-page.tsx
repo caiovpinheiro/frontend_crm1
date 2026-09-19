@@ -14,6 +14,7 @@ import {
   IconTool,
   IconTrash,
   IconUpload,
+  IconBrandWhatsapp,
 } from "@tabler/icons-react";
 import { toast } from "sonner";
 
@@ -48,6 +49,7 @@ import { CsvIoDialog } from "@/features/data-io/csv-io-dialog";
 import { useUserRole } from "@/hooks/use-user-role";
 
 import { ProductDialog } from "./product-dialog";
+import { WhatsAppCatalogDialog } from "./whatsapp-catalog-dialog";
 import { KIND_LABEL, type ProductKind } from "./types";
 
 type ProductRow = {
@@ -129,6 +131,7 @@ export function ProductsV2Page({
   const { role } = useUserRole();
   const canIo = role === "ADMIN" || role === "MANAGER";
   const [ioMode, setIoMode] = React.useState<"import" | "export" | null>(null);
+  const [whatsappOpen, setWhatsappOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [kindFilter, setKindFilter] = React.useState<ProductKind | "">("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -287,13 +290,18 @@ export function ProductsV2Page({
             onClick: openCreate,
             primary: true,
           },
+          {
+            icon: <IconBrandWhatsapp size={16} />,
+            label: "Envio WhatsApp / Meta",
+            onClick: () => setWhatsappOpen(true),
+            divider: true,
+          },
           ...(canIo
             ? [
                 {
                   icon: <IconUpload size={16} />,
                   label: "Importar CSV",
                   onClick: () => setIoMode("import"),
-                  divider: true,
                 },
                 {
                   icon: <IconDownload size={16} />,
@@ -520,6 +528,8 @@ export function ProductsV2Page({
           void queryClient.invalidateQueries({ queryKey: ["products"] });
         }}
       />
+
+      <WhatsAppCatalogDialog open={whatsappOpen} onOpenChange={setWhatsappOpen} />
 
       <Dialog open={deleting !== null} onOpenChange={(next) => !next && setDeleting(null)}>
         <DialogContent size="sm">
