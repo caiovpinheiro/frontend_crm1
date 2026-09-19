@@ -47,6 +47,9 @@ type CrmFieldDescriptor = {
   sensitiveHint: boolean;
   /// Falso = o motor não entrega o valor deste campo hoje. Liberar é inerte.
   valueAvailable: boolean;
+  /// Falso = a fonte veta a leitura deste campo. Ele continua servindo para
+  /// localizar a pessoa, mas nenhuma configuração o torna legível.
+  readable?: boolean;
 };
 
 /**
@@ -115,6 +118,9 @@ type CrmEntityGroup = {
   wildcardKey: string;
   searchable: boolean;
   customValuesSupported: boolean;
+  /// Registros desta entidade são de UMA pessoa, então um campo dela pode
+  /// ser marcado como chave de identificação.
+  identifiesPerson?: boolean;
   builtinCount: number;
   customCount: number;
   fields: CrmFieldDescriptor[];
@@ -256,7 +262,13 @@ export function CrmFieldsSection({
     globalWildcard ||
     readableFields.some((k) => fold(k) === fold(group.wildcardKey));
 
+  /// Campo que a fonte veta: serve para achar o registro, nunca para ser
+  /// dito. Nem o curinga da entidade libera, então a tela não pode mostrá-lo
+  /// como marcado.
+  const isVetoed = (field: CrmFieldDescriptor) => field.readable === false;
+
   const isReadable = (field: CrmFieldDescriptor) => {
+    if (isVetoed(field)) return false;
     if (globalWildcard) return true;
     const group = groupOf.get(field.entity);
     if (group && readableFields.some((k) => fold(k) === fold(group.wildcardKey))) {
@@ -267,6 +279,9 @@ export function CrmFieldsSection({
 
   /// Por que liberar este campo não teria efeito. `null` = pode liberar.
   const unavailableReason = (field: CrmFieldDescriptor): string | null => {
+    if (isVetoed(field)) {
+      return "Documento ou credencial: o agente aceita este campo para identificar a pessoa, mas nunca repete o valor.";
+    }
     if (field.valueAvailable) return null;
     const group = groupOf.get(field.entity);
     if (group && !group.searchable) {
@@ -279,7 +294,7 @@ export function CrmFieldsSection({
   };
 
   const toggleField = (field: CrmFieldDescriptor) => {
-    if (!field.valueAvailable) return;
+    if (!field.valueAvailable || isVetoed(field)) return;
     const group = groupOf.get(field.entity);
     if (group && entityWildcardOn(group)) return;
     setReadable(
@@ -325,11 +340,22 @@ export function CrmFieldsSection({
   const nothingReleased = readableFields.length === 0;
 
   const identityKeys = policy.identityKeys;
-  // Só contato e negócio identificam pessoa; empresa e catálogo são de
-  // terceiros. Campo sem valor disponível nunca casaria.
+  // Quais entidades identificam uma pessoa é resposta do servidor, não lista
+  // fixa aqui: uma organização pode ter fontes além de contato e negócio, e
+  // a tela precisa oferecer os campos delas. Empresa e catálogo ficam de
+  // fora porque o dado é de terceiro. Campo sem valor disponível nunca
+  // casaria; campo vetado pela fonte continua valendo como chave (é para
+  // isso que ele existe) mesmo sendo ilegível.
+  const personEntities = React.useMemo(() => {
+    const declared = entities
+      .filter((g) => g.identifiesPerson)
+      .map((g) => g.entity);
+    // Backend antigo não manda a flag: cai nas duas entidades que sempre
+    // identificaram, em vez de esvaziar os seletores.
+    return new Set(declared.length > 0 ? declared : ["contact", "deal"]);
+  }, [entities]);
   const identityCandidates = (data?.fields ?? []).filter(
-    (f) =>
-      (f.entity === "contact" || f.entity === "deal") && f.valueAvailable,
+    (f) => personEntities.has(f.entity) && f.valueAvailable,
   );
   const identityLabel = (key: string) =>
     identityCandidates.find((f) => fold(f.key) === fold(key))?.label ?? key;
@@ -811,7 +837,9 @@ function FieldGroup({
                     )}
                     {reason !== null && (
                       <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
-                        Sem valor disponível
+                        {field.readable === false
+                          ? "Só para identificar"
+                          : "Sem valor disponível"}
                       </span>
                     )}
                   </span>
