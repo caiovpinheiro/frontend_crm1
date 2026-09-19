@@ -1,10 +1,15 @@
 /**
- * Catálogo de ferramentas (tools) que o agente pode invocar.
+ * Catálogo de ferramentas (tools) do NÚCLEO — as que existem para qualquer
+ * tenant, de qualquer ramo.
  *
- * A execução real vive em src/services/ai/tools/ — aqui só
- * descrevemos o que existe e em que categoria aparece, para o
- * wizard de criação. O id é o que vai pro AIAgentConfig.enabledTools
- * e também o nome com que o provider LLM chama a tool.
+ * A execução real vive no backend — aqui só descrevemos o que existe e em
+ * que categoria aparece. O id é o que vai pro AIAgentConfig.enabledTools e
+ * também o nome com que o provider LLM chama a tool.
+ *
+ * Ferramenta de um produto (consulta acadêmica, agenda de clínica) NÃO entra
+ * nesta lista: vem do pack do tenant, por `GET /api/ai-agents/tools` — ver
+ * `useToolCatalog`. Fixa aqui, ela aparecia na tela de todo tenant, inclusive
+ * dos que o runtime nem constrói a ferramenta.
  */
 
 export type ToolCategory = "crm" | "whatsapp" | "handoff";
@@ -17,6 +22,8 @@ export type ToolDescriptor = {
   /// Arquétipos para os quais essa tool faz sentido como default
   /// (apenas informativo — o admin pode habilitar qualquer combinação).
   defaultForArchetypes: string[];
+  /// Pack que trouxe a ferramenta. Ausente/`null` = núcleo.
+  pack?: string | null;
 };
 
 export const TOOLS_CATALOG: ToolDescriptor[] = [
@@ -59,14 +66,6 @@ export const TOOLS_CATALOG: ToolDescriptor[] = [
       "Busca produtos/serviços/cursos por nome, SKU ou descrição. Retorna preço em BRL, características e campos personalizados. Fonte de verdade — sem isso o agente inventa valores.",
     category: "crm",
     defaultForArchetypes: ["SDR", "VENDEDOR"],
-  },
-  {
-    id: "consultar_matricula",
-    label: "Consultar matrícula do aluno",
-    description:
-      "Consulta os dados acadêmicos do aluno em conversa (curso, polo, série, situação da matrícula, ciclo) a partir do relatório de matriculados subido em 'Dados dos alunos'. Casa por telefone/e-mail do contato. Essencial para atendimento acadêmico personalizado.",
-    category: "crm",
-    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE"],
   },
   {
     id: "send_whatsapp_template",

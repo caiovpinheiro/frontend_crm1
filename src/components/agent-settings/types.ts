@@ -129,14 +129,18 @@ export const PREVIEW_PIPELINES: Array<{
 
 const ATENDIMENTO = ARCHETYPES.find((a) => a.id === "ATENDIMENTO");
 
-const PREVIEW_MATRICULA_POLICY = emptyToolPolicy();
-PREVIEW_MATRICULA_POLICY.argHints = {
-  contactId: "Não envie — o sistema resolve pelo telefone do contato.",
-};
-PREVIEW_MATRICULA_POLICY.policyText =
-  "Uso interno. Não confirme situação financeira nem RGM no WhatsApp. Se o aluno pedir boleto ou status de matrícula, transfira.";
-PREVIEW_MATRICULA_POLICY.transferMessage =
-  "Vou te passar para o time acadêmico com o contexto da matrícula, tá?";
+/// Mostra a consulta genérica configurada como um tenant acadêmico a
+/// configuraria: o relatório é só mais uma entidade, com campo-chave e
+/// allowlist escolhidos na tela.
+const PREVIEW_CRM_SEARCH_POLICY = emptyToolPolicy();
+PREVIEW_CRM_SEARCH_POLICY.readableFields = [
+  "matricula.nome",
+  "matricula.curso",
+  "matricula.polo",
+  "matricula.situacao",
+];
+PREVIEW_CRM_SEARCH_POLICY.identityKeys = ["matricula.rgm", "matricula.cpf"];
+PREVIEW_CRM_SEARCH_POLICY.linkedIdentityKeys = ["matricula.nome"];
 
 /** Mock rico para navegar as 7 seções quando a lista da API está vazia. */
 export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
@@ -146,7 +150,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
   temperature: 0.4,
   dailyTokenCap: 80_000,
   autonomyMode: "DRAFT",
-  enabledTools: ["consultar_matricula"],
+  enabledTools: ["search_crm_records"],
   systemPromptOverride:
     "Priorize calouros e dúvidas de portal/Blackboard. Se o aluno pedir preço, turma ou desconto, transfira. Nunca invente data de início de aula.",
   systemPromptTemplate:
@@ -155,7 +159,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
   productPolicy:
     "Ao falar de curso, use só o catálogo. Destaque carga horária, polo e modalidade. Preço só se vier da tool — senão, transfira.",
   toolConfig: {
-    consultar_matricula: PREVIEW_MATRICULA_POLICY,
+    search_crm_records: PREVIEW_CRM_SEARCH_POLICY,
   },
   attendanceScope: {
     allowedPipelineIds: ["preview-pipeline-academico"],
@@ -287,7 +291,7 @@ export const PREVIEW_AGENT_ROW = {
   archetype: "ATENDIMENTO" as const,
   model: ATENDIMENTO?.suggestedModel ?? "gpt-4.1-mini",
   autonomyMode: "DRAFT" as const,
-  enabledTools: ["consultar_matricula"],
+  enabledTools: ["search_crm_records"],
   active: false,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
