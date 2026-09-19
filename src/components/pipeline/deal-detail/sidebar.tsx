@@ -16,7 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { insertComposerSequence, insertComposerText } from "@/lib/composer-insert";
+import {
+  insertComposerSequence,
+  insertComposerText,
+  type ComposerInsertStep,
+} from "@/lib/composer-insert";
 import { dt } from "@/lib/design-tokens";
 import { AvailabilityBadge } from "@/features/products-v2/availability-badge";
 import {
@@ -764,8 +768,7 @@ export function DealProductsSection({
     if (list.length === 0 || sendingCourseOfferId) return;
     setSendingCourseOfferId(list[0].id);
     try {
-      const steps: { text: string; media: { url: string; name: string | null; mimeType: string | null; sendBeforeText: true }[] }[] =
-        [];
+      const steps: ComposerInsertStep[] = [];
       for (const item of list) {
         const text = (await messageForProductItem(item)).trim();
         if (!text) continue;
