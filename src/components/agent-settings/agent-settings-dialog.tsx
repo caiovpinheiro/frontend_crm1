@@ -621,6 +621,7 @@ export function AgentSettingsDialog({
               </SectionPane>
               <SectionPane active={advanced && section === "tools"}>
                 <ToolsSection
+                  agentId={preview ? null : id}
                   archetype={form.archetype}
                   enabledTools={form.enabledTools}
                   onToggleTool={toggleTool}

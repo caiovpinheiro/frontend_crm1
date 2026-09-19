@@ -27,7 +27,7 @@ import {
   isTabulationAllowedTool,
   isTabulationArchetype,
 } from "@/lib/ai-agents/archetypes";
-import { TOOLS_CATALOG } from "@/lib/ai-agents/tools-catalog";
+import { useToolCatalog } from "@/lib/ai-agents/use-tool-catalog";
 import { cn } from "@/lib/utils";
 
 import { SectionHeader } from "../section-header";
@@ -36,7 +36,6 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   add_tag: Tag,
   move_stage: ArrowRightLeft,
   execute_distribution: ArrowRightLeft,
-  consultar_matricula: Database,
   send_whatsapp_template: MessageSquare,
   transfer_to_department: Users,
   transfer_to_human: Users,
@@ -46,7 +45,15 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
   create_activity: ClipboardList,
 };
 
+/** Ferramenta vinda do pack do tenant não tem id conhecido aqui — cai na categoria. */
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  crm: Database,
+  whatsapp: MessageSquare,
+  handoff: Users,
+};
+
 export function ToolsSection({
+  agentId,
   archetype,
   enabledTools,
   onToggleTool,
@@ -55,6 +62,8 @@ export function ToolsSection({
   productPolicy,
   onProductPolicyChange,
 }: {
+  /** `null` em prévia — sem agente, a lista é a do núcleo. */
+  agentId: string | null;
   archetype?: string;
   enabledTools: string[];
   onToggleTool: (toolId: string) => void;
@@ -63,17 +72,19 @@ export function ToolsSection({
   productPolicy: string;
   onProductPolicyChange: (v: string) => void;
 }) {
+  // Núcleo + o que o pack DESTE agente traz. A tela não decide a lista.
+  const { tools } = useToolCatalog(agentId);
   const [selectedId, setSelectedId] = React.useState<string | null>(
-    enabledTools[0] ?? TOOLS_CATALOG[0]?.id ?? null,
+    enabledTools[0] ?? tools[0]?.id ?? null,
   );
 
   React.useEffect(() => {
-    if (selectedId && !TOOLS_CATALOG.some((t) => t.id === selectedId)) {
-      setSelectedId(TOOLS_CATALOG[0]?.id ?? null);
+    if (selectedId && !tools.some((t) => t.id === selectedId)) {
+      setSelectedId(tools[0]?.id ?? null);
     }
-  }, [selectedId]);
+  }, [selectedId, tools]);
 
-  const selected = TOOLS_CATALOG.find((t) => t.id === selectedId) ?? null;
+  const selected = tools.find((t) => t.id === selectedId) ?? null;
   const policy = selectedId
     ? (toolConfig[selectedId] ?? emptyToolPolicy())
     : emptyToolPolicy();
@@ -99,8 +110,8 @@ export function ToolsSection({
       />
 
       <div className="grid gap-2 sm:grid-cols-2">
-        {TOOLS_CATALOG.map((t) => {
-          const Icon = TOOL_ICONS[t.id] ?? Wrench;
+        {tools.map((t) => {
+          const Icon = TOOL_ICONS[t.id] ?? CATEGORY_ICONS[t.category] ?? Wrench;
           const active = enabledTools.includes(t.id);
           const selectedTool = selectedId === t.id;
           const hasPolicy = Boolean(toolConfig[t.id]);
