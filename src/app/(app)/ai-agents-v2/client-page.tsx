@@ -20,7 +20,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -28,7 +27,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BehaviorSelector } from "@/components/agent-settings/behavior-selector";
 import {
   Dialog,
   DialogContent,
@@ -37,77 +35,55 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiFetch, parseApiResponse, ApiError } from "@/lib/api";
-import {
-  AGENT_RESPONSE_BEHAVIOR_PRESETS,
-  behaviorToTemperature,
-  type AgentResponseBehavior,
-} from "@/lib/ai-agents/behavior-presets";
+import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type SimpleAgentRow = {
+type V2AgentRow = {
   id: string;
-  userId: string;
   name: string;
-  archetype: string;
-  model: string;
-  autonomyMode: string;
+  flow: string;
   active: boolean;
-  engine: string | null;
-  simpleConfig?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };
 
-type PresetMap = Record<string, Record<string, unknown>>;
+type V2Preset = { key: string; label: string };
 
-async function fetchAgents(): Promise<SimpleAgentRow[]> {
-  const res = await apiFetch("/api/ai-agents");
-  return parseApiResponse<SimpleAgentRow[]>(res, "Erro ao carregar agentes.");
+async function fetchAgents(): Promise<V2AgentRow[]> {
+  const res = await apiFetch("/api/ai-agents-v2");
+  const data = await parseApiResponse<{ agents: V2AgentRow[] }>(res, "Erro ao carregar agentes v2.");
+  return data.agents;
 }
 
-async function fetchPresets(): Promise<PresetMap> {
-  const res = await apiFetch("/api/ai-simple/presets");
-  const data = await parseApiResponse<{ presets: PresetMap }>(
-    res,
-    "Erro ao carregar presets.",
-  );
+async function fetchPresets(): Promise<V2Preset[]> {
+  const res = await apiFetch("/api/ai-agents-v2/presets");
+  const data = await parseApiResponse<{ presets: V2Preset[] }>(res, "Erro ao carregar presets.");
   return data.presets;
 }
 
-async function createAgent(payload: {
-  name: string;
-  archetype: string;
-  model: string;
-  responseBehavior: AgentResponseBehavior;
-  temperature: number;
-  engine: "simple";
-  openaiApiKey?: string;
-  simpleConfig: Record<string, unknown>;
-}): Promise<{ id: string; userId: string }> {
-  const res = await apiFetch("/api/ai-agents", {
+async function createAgent(payload: { name: string; preset: string }) {
+  const res = await apiFetch("/api/ai-agents-v2", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return parseApiResponse<{ id: string; userId: string }>(
-    res,
-    "Erro ao criar agente.",
-  );
+  return parseApiResponse<{ id: string }>(res, "Erro ao criar agente.");
 }
 
 export default function AIAgentsV2ListClientPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [creating, setCreating] = React.useState(false);
+  const [newName, setNewName] = React.useState("");
+  const [newPreset, setNewPreset] = React.useState("");
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["ai-agents-v2"],
     queryFn: fetchAgents,
   });
 
-  const { data: presets = {} } = useQuery({
-    queryKey: ["ai-simple-presets"],
+  const { data: presets = [] } = useQuery({
+    queryKey: ["ai-agents-v2-presets"],
     queryFn: fetchPresets,
     enabled: creating,
   });
@@ -121,13 +97,17 @@ export default function AIAgentsV2ListClientPage() {
     },
   });
 
-  const simpleAgents = agents.filter((a) => a.engine === "simple");
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    createMutation.mutate({ name: newName.trim(), preset: newPreset || "blank" });
+  }
 
   return (
     <AppV2PageShell
       title="Agentes IA v2"
       icon={<IconBrain size={22} />}
-      description="Motor simples: configuração declarativa, ações estruturadas e handoff único."
+      description="Motor declarativo: regras, temas, handoff e ações estruturadas."
     >
       <div className="min-w-0 space-y-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -145,7 +125,7 @@ export default function AIAgentsV2ListClientPage() {
               <Skeleton key={i} className="h-40 rounded-xl" />
             ))}
           </div>
-        ) : simpleAgents.length === 0 ? (
+        ) : agents.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               Nenhum agente v2 criado. Clique em “Novo agente v2” para começar.
@@ -153,7 +133,7 @@ export default function AIAgentsV2ListClientPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {simpleAgents.map((agent) => (
+            {agents.map((agent) => (
               <Card key={agent.id} className="overflow-hidden">
                 <CardContent className="flex flex-col gap-4 p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -162,11 +142,9 @@ export default function AIAgentsV2ListClientPage() {
                         <IconRobot size={20} />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold">
-                          {agent.name}
-                        </h3>
+                        <h3 className="truncate text-sm font-semibold">{agent.name}</h3>
                         <p className="truncate text-xs text-muted-foreground">
-                          {agent.model} · {agent.archetype}
+                          {agent.flow}
                         </p>
                       </div>
                     </div>
@@ -175,22 +153,12 @@ export default function AIAgentsV2ListClientPage() {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 gap-1"
-                      asChild
-                    >
+                    <Button variant="outline" size="sm" className="flex-1 gap-1" asChild>
                       <Link href={`/ai-agents-v2/${agent.id}`}>
                         <IconPencil className="size-3.5" /> Editar
                       </Link>
                     </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="flex-1 gap-1"
-                      asChild
-                    >
+                    <Button variant="secondary" size="sm" className="flex-1 gap-1" asChild>
                       <Link href={`/ai-agents-v2/${agent.id}?tab=test`}>
                         <IconPlayerPlay className="size-3.5" /> Testar
                       </Link>
@@ -203,191 +171,53 @@ export default function AIAgentsV2ListClientPage() {
         )}
       </div>
 
-      <CreateAgentDialog
-        open={creating}
-        onOpenChange={setCreating}
-        presets={presets}
-        onCreate={(values) =>
-          createMutation.mutate({
-            ...values,
-            engine: "simple",
-            archetype: "ATENDIMENTO",
-            model: values.model || "gpt-4o-mini",
-            temperature: behaviorToTemperature(values.responseBehavior),
-            openaiApiKey: values.openaiApiKey?.trim(),
-          })
-        }
-        isPending={createMutation.isPending}
-        error={
-          createMutation.error instanceof ApiError
-            ? createMutation.error.message
-            : createMutation.error?.message ?? null
-        }
-      />
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent>
+          <form onSubmit={handleCreate}>
+            <DialogHeader>
+              <DialogTitle>Novo agente v2</DialogTitle>
+              <DialogDescription>
+                Escolha um preset para começar. A configuração completa é editada na próxima tela.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Nome</Label>
+                <Input
+                  id="name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Ex: Atendimento"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="preset">Preset</Label>
+                <Select value={newPreset} onValueChange={setNewPreset}>
+                  <SelectTrigger id="preset">
+                    <SelectValue placeholder="Em branco" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {presets.map((p) => (
+                      <SelectItem key={p.key} value={p.key}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreating(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending || !newName.trim()}>
+                Criar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </AppV2PageShell>
-  );
-}
-
-function CreateAgentDialog({
-  open,
-  onOpenChange,
-  presets,
-  onCreate,
-  isPending,
-  error,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  presets: PresetMap;
-  onCreate: (values: {
-    name: string;
-    model: string;
-    responseBehavior: AgentResponseBehavior;
-    openaiApiKey?: string;
-    simpleConfig: Record<string, unknown>;
-  }) => void;
-  isPending: boolean;
-  error: string | null;
-}) {
-  const [name, setName] = React.useState("");
-  const [model, setModel] = React.useState("gpt-4o-mini");
-  const [responseBehavior, setResponseBehavior] = React.useState<AgentResponseBehavior>("balanced");
-  const [openaiApiKey, setOpenaiApiKey] = React.useState("");
-  const [presetKey, setPresetKey] = React.useState<string>("blank");
-
-  React.useEffect(() => {
-    if (open) {
-      setName("");
-      setModel("gpt-4o-mini");
-      setResponseBehavior("balanced");
-      setOpenaiApiKey("");
-      setPresetKey("blank");
-    }
-  }, [open]);
-
-  const presetNames: Record<string, string> = {
-    atendimento: "Atendimento",
-    sdr: "SDR",
-    vendedor: "Vendedor",
-    suporte_tecnico: "Suporte técnico",
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const base =
-      presetKey === "blank"
-        ? {
-            tone: "neutro",
-            rules: "",
-            context_fields: { contact: ["name", "phone", "email"], deal: ["title", "stage.name"] },
-            confirmation_message: "Oi {{contact.name}}! Como posso ajudar?",
-            on_deal_not_found: "ask_identification",
-            identification_message: "Para te localizar, pode me passar o e-mail ou telefone cadastrado?",
-            knowledge: "",
-            modes: [],
-            allowed_actions: [],
-            allowed_fields: [],
-            handoff_message: "Vou te conectar com um atendente humano.",
-            handoff_queue: "",
-            history_limit: 10,
-          }
-        : presets[presetKey] ?? {};
-    onCreate({
-      name: name.trim(),
-      model,
-      responseBehavior,
-      openaiApiKey: openaiApiKey.trim(),
-      simpleConfig: base as Record<string, unknown>,
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Novo agente v2</DialogTitle>
-            <DialogDescription>
-              Escolha um preset ou comece em branco. A configuração completa é
-              editada na próxima tela.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="v2-name">Nome</Label>
-              <Input
-                id="v2-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Atendimento v2"
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Preset</Label>
-              <Select value={presetKey} onValueChange={setPresetKey}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="blank">Em branco</SelectItem>
-                  {Object.keys(presets).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {presetNames[key] ?? key}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="v2-model">Modelo</Label>
-              <Select value={model} onValueChange={setModel}>
-                <SelectTrigger id="v2-model">
-                  <SelectValue placeholder="Selecione o modelo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
-                  <SelectItem value="gpt-4o">gpt-4o</SelectItem>
-                  <SelectItem value="gpt-4-turbo">gpt-4-turbo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <BehaviorSelector
-              label="Comportamento das respostas"
-              value={responseBehavior}
-              onChange={setResponseBehavior}
-            />
-            <div className="grid gap-2">
-              <Label htmlFor="v2-key">Chave OpenAI do agente</Label>
-              <PasswordInput
-                id="v2-key"
-                value={openaiApiKey}
-                onChange={(e) => setOpenaiApiKey(e.target.value)}
-                placeholder="sk-... (deixe em branco para herdar/limpar)"
-              />
-              <p className="text-xs text-muted-foreground">
-                Cada agente v2 usa sua própria chave. Sem chave, o motor não consegue chamar o modelo.
-              </p>
-            </div>
-            {error && (
-              <p className="text-xs text-destructive">{error}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isPending || !name.trim()}>
-              {isPending ? "Criando..." : "Criar e editar"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
