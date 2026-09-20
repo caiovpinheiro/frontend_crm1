@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,6 +42,7 @@ type AgentDetail = {
   temperature: number;
   active: boolean;
   engine: string | null;
+  hasOwnOpenaiKey?: boolean;
   simpleConfig?: Record<string, unknown> | null;
 };
 
@@ -163,15 +165,20 @@ async function updateAgent(payload: {
   id: string;
   simpleConfig: Record<string, unknown>;
   active: boolean;
+  openaiApiKey?: string;
 }): Promise<AgentDetail> {
+  const body: Record<string, unknown> = {
+    engine: "simple",
+    simpleConfig: payload.simpleConfig,
+    active: payload.active,
+  };
+  if (payload.openaiApiKey !== undefined) {
+    body.openaiApiKey = payload.openaiApiKey.trim();
+  }
   const res = await apiFetch(`/api/ai-agents/${payload.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      engine: "simple",
-      simpleConfig: payload.simpleConfig,
-      active: payload.active,
-    }),
+    body: JSON.stringify(body),
   });
   return parseApiResponse<AgentDetail>(res, "Erro ao salvar agente.");
 }
@@ -223,11 +230,12 @@ export default function AIAgentV2EditClientPage() {
           <TabsContent value="edit" className="min-w-0">
             <EditTab
               agent={agent}
-              onSave={(form, active) =>
+              onSave={(form, active, key) =>
                 updateMutation.mutate({
                   id: agentId,
                   simpleConfig: toPayload(form),
                   active,
+                  openaiApiKey: key,
                 })
               }
               savePending={updateMutation.isPending}
@@ -257,7 +265,7 @@ function EditTab({
   saveError,
 }: {
   agent: AgentDetail;
-  onSave: (form: SimpleConfigForm, active: boolean) => void;
+  onSave: (form: SimpleConfigForm, active: boolean, openaiApiKey?: string) => void;
   savePending: boolean;
   saveError: string | null;
 }) {
@@ -265,10 +273,12 @@ function EditTab({
     normalizeConfig(agent.simpleConfig),
   );
   const [active, setActive] = React.useState(agent.active);
+  const [openaiApiKey, setOpenaiApiKey] = React.useState("");
 
   React.useEffect(() => {
     setForm(normalizeConfig(agent.simpleConfig));
     setActive(agent.active);
+    setOpenaiApiKey("");
   }, [agent.simpleConfig, agent.active]);
 
   const update = <K extends keyof SimpleConfigForm>(
@@ -303,7 +313,7 @@ function EditTab({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(form, active);
+        onSave(form, active, openaiApiKey || undefined);
       }}
       className="min-w-0 space-y-6"
     >
@@ -350,6 +360,20 @@ function EditTab({
             <Label htmlFor="active" className="cursor-pointer">
               Ativo
             </Label>
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label htmlFor="openai-key">Chave OpenAI do agente</Label>
+            <PasswordInput
+              id="openai-key"
+              value={openaiApiKey}
+              onChange={(e) => setOpenaiApiKey(e.target.value)}
+              placeholder={agent.hasOwnOpenaiKey ? "Chave já cadastrada — digite para substituir" : "sk-..."}
+            />
+            <p className="text-xs text-muted-foreground">
+              {agent.hasOwnOpenaiKey
+                ? "Chave própria ativa. Deixe em branco para manter a atual."
+                : "Sem chave cadastrada o agente não consegue chamar o modelo."}
+            </p>
           </div>
         </CardContent>
       </Card>

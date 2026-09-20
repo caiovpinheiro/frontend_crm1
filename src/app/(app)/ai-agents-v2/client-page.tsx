@@ -20,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -74,6 +75,7 @@ async function createAgent(payload: {
   model: string;
   temperature: number;
   engine: "simple";
+  openaiApiKey?: string;
   simpleConfig: Record<string, unknown>;
 }): Promise<{ id: string; userId: string }> {
   const res = await apiFetch("/api/ai-agents", {
@@ -205,6 +207,7 @@ export default function AIAgentsV2ListClientPage() {
             archetype: "ATENDIMENTO",
             model: values.model || "gpt-4o-mini",
             temperature: values.temperature ?? 0.5,
+            openaiApiKey: values.openaiApiKey?.trim(),
           })
         }
         isPending={createMutation.isPending}
@@ -233,6 +236,7 @@ function CreateAgentDialog({
     name: string;
     model: string;
     temperature: number;
+    openaiApiKey?: string;
     simpleConfig: Record<string, unknown>;
   }) => void;
   isPending: boolean;
@@ -241,6 +245,7 @@ function CreateAgentDialog({
   const [name, setName] = React.useState("");
   const [model, setModel] = React.useState("gpt-4o-mini");
   const [temperature, setTemperature] = React.useState(0.5);
+  const [openaiApiKey, setOpenaiApiKey] = React.useState("");
   const [presetKey, setPresetKey] = React.useState<string>("blank");
 
   React.useEffect(() => {
@@ -248,6 +253,7 @@ function CreateAgentDialog({
       setName("");
       setModel("gpt-4o-mini");
       setTemperature(0.5);
+      setOpenaiApiKey("");
       setPresetKey("blank");
     }
   }, [open]);
@@ -283,6 +289,7 @@ function CreateAgentDialog({
       name: name.trim(),
       model,
       temperature,
+      openaiApiKey: openaiApiKey.trim(),
       simpleConfig: base as Record<string, unknown>,
     });
   };
@@ -351,6 +358,18 @@ function CreateAgentDialog({
                 value={temperature}
                 onChange={(e) => setTemperature(Number(e.target.value))}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="v2-key">Chave OpenAI do agente</Label>
+              <PasswordInput
+                id="v2-key"
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                placeholder="sk-... (deixe em branco para herdar/limpar)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Cada agente v2 usa sua própria chave. Sem chave, o motor não consegue chamar o modelo.
+              </p>
             </div>
             {error && (
               <p className="text-xs text-destructive">{error}</p>
