@@ -290,7 +290,6 @@ export default function TabulationsClientPage() {
 }
 
 function TabulationsBody() {
-  const confirm = useConfirm();
   const slots = useSettingsHeaderSlots();
   const qc = useQueryClient();
   const departmentsQuery = useDepartments();
@@ -1101,6 +1100,7 @@ function TreeCard(props: {
   onDelete: (id: string) => void;
 }) {
   const { node, depth } = props;
+  const confirm = useConfirm();
   const [open, setOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(node.name);
