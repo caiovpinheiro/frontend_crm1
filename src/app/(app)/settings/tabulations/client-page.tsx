@@ -30,6 +30,7 @@ import { KpiStrip } from "@/components/crm/kpi-strip";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   PageActionsMenu,
   PageSegmentedControl,
@@ -289,6 +290,7 @@ export default function TabulationsClientPage() {
 }
 
 function TabulationsBody() {
+  const confirm = useConfirm();
   const slots = useSettingsHeaderSlots();
   const qc = useQueryClient();
   const departmentsQuery = useDepartments();
@@ -1289,10 +1291,12 @@ function TreeCard(props: {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm(`Remover "${node.name}" e todos os subitens?`)) {
-                    props.onDelete(node.id);
-                  }
+                onClick={async () => {
+                  const ok = await confirm({
+                    description: `Remover "${node.name}" e todos os subitens?`,
+                    variant: "destructive",
+                  });
+                  if (ok) props.onDelete(node.id);
                 }}
                 aria-label="Excluir"
                 className="flex size-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--color-danger-bg)] hover:text-[var(--color-danger)] sm:size-9"

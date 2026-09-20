@@ -250,7 +250,7 @@ export function newMessageLikelyOnTabs(
   const assigned = Boolean(event.assignedToId);
   const isMine =
     !currentUserId || !event.assignedToId
-      ? false
+      ? true
       : String(event.assignedToId) === String(currentUserId);
 
   return tabs.some((tab) => {

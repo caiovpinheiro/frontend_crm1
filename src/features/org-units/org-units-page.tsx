@@ -26,6 +26,7 @@ import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
 import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/hooks/use-confirm";
 
 type OrgUnit = {
   id: string;
@@ -48,6 +49,7 @@ const LIST_GRID = "minmax(0,1.4fr) minmax(0,1fr) 140px 90px 90px";
 
 export function OrgUnitsPage() {
   const slots = useSettingsHeaderSlots();
+  const confirm = useConfirm();
   const [search, setSearch] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<OrgUnit | null>(null);
@@ -213,9 +215,11 @@ export function OrgUnitsPage() {
                 {u.active && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(`Desativar unidade "${u.name}"?`))
-                        deactivateMut.mutate(u.id);
+                    onClick={async () => {
+                      const ok = await confirm({
+                        description: `Desativar unidade "${u.name}"?`,
+                      });
+                      if (ok) deactivateMut.mutate(u.id);
                     }}
                     aria-label={`Desativar ${u.name}`}
                     className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] hover:text-[var(--color-danger)]"

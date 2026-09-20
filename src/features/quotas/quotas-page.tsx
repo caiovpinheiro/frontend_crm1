@@ -16,6 +16,7 @@ import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
 import { apiUrl } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useConfirm } from "@/hooks/use-confirm";
 
 import { CategoriesPage } from "./categories-page";
 import { CategoryDialog } from "./category-dialog";
@@ -73,6 +74,7 @@ const LIST_GRID = "minmax(0,1fr) 110px 120px 130px 90px 90px";
 type Tab = "categories" | "quotas";
 
 export function QuotasPage() {
+  const confirm = useConfirm();
   const slots = useSettingsHeaderSlots();
   const [search, setSearch] = React.useState("");
   const [tab, setTab] = React.useState<Tab>("categories");
@@ -272,8 +274,11 @@ export function QuotasPage() {
                 {q.active && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(`Desativar cota "${q.name}"?`)) deleteMut.mutate(q.id);
+                    onClick={async () => {
+                      const ok = await confirm({
+                        description: `Desativar cota "${q.name}"?`,
+                      });
+                      if (ok) deleteMut.mutate(q.id);
                     }}
                     aria-label={`Desativar ${q.name}`}
                     className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] hover:text-[var(--color-danger)]"

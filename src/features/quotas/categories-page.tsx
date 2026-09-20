@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { apiUrl } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useConfirm } from "@/hooks/use-confirm";
 
 import { CategoryDialog } from "./category-dialog";
 
@@ -68,6 +69,7 @@ function fmtDiscount(type: "PERCENT" | "FIXED", value: number): string {
 const LIST_GRID = "minmax(0,1fr) 110px minmax(0,1.4fr) 130px 90px 90px";
 
 export function CategoriesPage({ search }: { search: string }) {
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -224,9 +226,11 @@ export function CategoriesPage({ search }: { search: string }) {
                   {c.active && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(`Desativar categoria "${c.name}"?`))
-                          deactivateMut.mutate(c.id);
+                      onClick={async () => {
+                        const ok = await confirm({
+                          description: `Desativar categoria "${c.name}"?`,
+                        });
+                        if (ok) deactivateMut.mutate(c.id);
                       }}
                       aria-label={`Desativar ${c.name}`}
                       className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] hover:text-[var(--color-danger)]"
