@@ -155,6 +155,12 @@ jobs:
             nextjs-${{ github.ref_name }}-
             nextjs-main-
 
+      # Garante que nenhum cache anterior corrompido (ex.: fallback de outra
+      # branch/versão) interfira no build. O cache ainda acelera restores,
+      # mas partimos de um estado limpo a cada rodada.
+      - name: Clear Next.js build cache
+        run: rm -rf .next/cache
+
       # So roda npm ci quando o cache de node_modules NAO bateu (deps
       # mudaram). Cache hit => pula direto pro build.
       - name: Install dependencies
