@@ -40,9 +40,15 @@ import {
   type ArchetypeDescriptor,
   type ArchetypeId,
 } from "@/lib/ai-agents/archetypes";
+import {
+  AGENT_RESPONSE_BEHAVIOR_PRESETS,
+  behaviorToTemperature,
+  type AgentResponseBehavior,
+} from "@/lib/ai-agents/behavior-presets";
 import { TOOLS_CATALOG, toolsByCategory } from "@/lib/ai-agents/tools-catalog";
 import { cn } from "@/lib/utils";
 import { ProductPolicyPanel } from "./product-policy-panel";
+import { BehaviorSelector } from "@/components/agent-settings/behavior-selector";
 
 type StepId =
   | "identity"
@@ -107,7 +113,7 @@ export function AgentWizard({
   const [archetype, setArchetype] = React.useState<ArchetypeId>("SDR");
   const [tone, setTone] = React.useState(TONE_PRESETS[0]);
   const [model, setModel] = React.useState("gpt-4o-mini");
-  const [temperature, setTemperature] = React.useState(0.7);
+  const [responseBehavior, setResponseBehavior] = React.useState<AgentResponseBehavior>("balanced");
   const [override, setOverride] = React.useState("");
   const [productPolicy, setProductPolicy] = React.useState("");
   const [enabledTools, setEnabledTools] = React.useState<string[]>([]);
@@ -141,7 +147,7 @@ export function AgentWizard({
       setArchetype("SDR");
       setTone(TONE_PRESETS[0]);
       setModel("gpt-4o-mini");
-      setTemperature(0.7);
+      setResponseBehavior("balanced");
       setOverride("");
       setProductPolicy("");
       setEnabledTools([]);
@@ -182,7 +188,8 @@ export function AgentWizard({
           tone,
           language,
           model,
-          temperature,
+          responseBehavior,
+          temperature: behaviorToTemperature(responseBehavior),
           systemPromptOverride: override.trim() || null,
           productPolicy: productPolicy.trim() || null,
           enabledTools: sanitizeEnabledToolsForArchetype(
@@ -239,8 +246,8 @@ export function AgentWizard({
                 setTone={setTone}
                 model={model}
                 setModel={setModel}
-                temperature={temperature}
-                setTemperature={setTemperature}
+                responseBehavior={responseBehavior}
+                setResponseBehavior={setResponseBehavior}
                 override={override}
                 setOverride={setOverride}
               />
@@ -267,7 +274,7 @@ export function AgentWizard({
                 language={language}
                 tone={tone}
                 model={model}
-                temperature={temperature}
+                responseBehavior={responseBehavior}
                 enabledTools={enabledTools}
                 hasOverride={override.trim().length > 0}
                 hasProductPolicy={productPolicy.trim().length > 0}
@@ -484,8 +491,8 @@ function PersonalityStep({
   setTone,
   model,
   setModel,
-  temperature,
-  setTemperature,
+  responseBehavior,
+  setResponseBehavior,
   override,
   setOverride,
 }: {
@@ -496,8 +503,8 @@ function PersonalityStep({
   setTone: (v: string) => void;
   model: string;
   setModel: (v: string) => void;
-  temperature: number;
-  setTemperature: (v: number) => void;
+  responseBehavior: AgentResponseBehavior;
+  setResponseBehavior: (v: AgentResponseBehavior) => void;
   override: string;
   setOverride: (v: string) => void;
 }) {
@@ -552,25 +559,11 @@ function PersonalityStep({
             onValueChange={setModel}
             triggerClassName="w-full"
           />
-          <div className="grid gap-1 pt-2">
-            <Label htmlFor="w-temp" className="text-xs font-normal">
-              Temperatura: {temperature.toFixed(1)}
-            </Label>
-            <input
-              id="w-temp"
-              type="range"
-              min={0}
-              max={1}
-              step={0.1}
-              value={temperature}
-              onChange={(e) => setTemperature(parseFloat(e.target.value))}
-              className="w-full accent-[var(--brand-primary)]"
-            />
-            <div className="flex justify-between text-[10px] text-[var(--text-muted)]">
-              <span>Previsível</span>
-              <span>Criativo</span>
-            </div>
-          </div>
+          <BehaviorSelector
+            label="Comportamento das respostas"
+            value={responseBehavior}
+            onChange={setResponseBehavior}
+          />
         </div>
       </div>
 
@@ -756,7 +749,7 @@ function ReviewStep({
   language,
   tone,
   model,
-  temperature,
+  responseBehavior,
   enabledTools,
   hasOverride,
   hasProductPolicy,
@@ -768,7 +761,7 @@ function ReviewStep({
   language: string;
   tone: string;
   model: string;
-  temperature: number;
+  responseBehavior: AgentResponseBehavior;
   enabledTools: string[];
   hasOverride: boolean;
   hasProductPolicy: boolean;
@@ -793,8 +786,8 @@ function ReviewStep({
           <ReviewField label="Tom" value={tone} />
           <ReviewField label="Modelo" value={model} />
           <ReviewField
-            label="Temperatura"
-            value={temperature.toFixed(1)}
+            label="Comportamento"
+            value={AGENT_RESPONSE_BEHAVIOR_PRESETS[responseBehavior].label}
           />
           <ReviewField
             label="Instruções extras"

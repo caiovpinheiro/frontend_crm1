@@ -30,7 +30,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BehaviorSelector } from "@/components/agent-settings/behavior-selector";
 import { apiFetch, parseApiResponse, ApiError } from "@/lib/api";
+import {
+  behaviorToTemperature,
+  normalizeResponseBehavior,
+  type AgentResponseBehavior,
+} from "@/lib/ai-agents/behavior-presets";
 import { cn } from "@/lib/utils";
 
 type AgentDetail = {
@@ -39,6 +45,7 @@ type AgentDetail = {
   name: string;
   archetype: string;
   model: string;
+  responseBehavior?: string;
   temperature: number;
   active: boolean;
   engine: string | null;
@@ -166,6 +173,7 @@ async function updateAgent(payload: {
   simpleConfig: Record<string, unknown>;
   active: boolean;
   openaiApiKey?: string;
+  responseBehavior?: AgentResponseBehavior;
 }): Promise<AgentDetail> {
   const body: Record<string, unknown> = {
     engine: "simple",
@@ -174,6 +182,10 @@ async function updateAgent(payload: {
   };
   if (payload.openaiApiKey !== undefined) {
     body.openaiApiKey = payload.openaiApiKey.trim();
+  }
+  if (payload.responseBehavior !== undefined) {
+    body.responseBehavior = payload.responseBehavior;
+    body.temperature = behaviorToTemperature(payload.responseBehavior);
   }
   const res = await apiFetch(`/api/ai-agents/${payload.id}`, {
     method: "PUT",
@@ -230,12 +242,13 @@ export default function AIAgentV2EditClientPage() {
           <TabsContent value="edit" className="min-w-0">
             <EditTab
               agent={agent}
-              onSave={(form, active, key) =>
+              onSave={(form, active, key, responseBehavior) =>
                 updateMutation.mutate({
                   id: agentId,
                   simpleConfig: toPayload(form),
                   active,
                   openaiApiKey: key,
+                  responseBehavior,
                 })
               }
               savePending={updateMutation.isPending}
@@ -265,7 +278,12 @@ function EditTab({
   saveError,
 }: {
   agent: AgentDetail;
-  onSave: (form: SimpleConfigForm, active: boolean, openaiApiKey?: string) => void;
+  onSave: (
+    form: SimpleConfigForm,
+    active: boolean,
+    openaiApiKey?: string,
+    responseBehavior?: AgentResponseBehavior,
+  ) => void;
   savePending: boolean;
   saveError: string | null;
 }) {
@@ -274,12 +292,16 @@ function EditTab({
   );
   const [active, setActive] = React.useState(agent.active);
   const [openaiApiKey, setOpenaiApiKey] = React.useState("");
+  const [responseBehavior, setResponseBehavior] = React.useState<AgentResponseBehavior>(() =>
+    normalizeResponseBehavior(agent.responseBehavior, agent.temperature),
+  );
 
   React.useEffect(() => {
     setForm(normalizeConfig(agent.simpleConfig));
     setActive(agent.active);
     setOpenaiApiKey("");
-  }, [agent.simpleConfig, agent.active]);
+    setResponseBehavior(normalizeResponseBehavior(agent.responseBehavior, agent.temperature));
+  }, [agent.simpleConfig, agent.active, agent.responseBehavior, agent.temperature]);
 
   const update = <K extends keyof SimpleConfigForm>(
     key: K,
@@ -313,7 +335,7 @@ function EditTab({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSave(form, active, openaiApiKey || undefined);
+        onSave(form, active, openaiApiKey || undefined, responseBehavior);
       }}
       className="min-w-0 space-y-6"
     >
@@ -360,6 +382,13 @@ function EditTab({
             <Label htmlFor="active" className="cursor-pointer">
               Ativo
             </Label>
+          </div>
+          <div className="sm:col-span-2">
+            <BehaviorSelector
+              label="Comportamento das respostas"
+              value={responseBehavior}
+              onChange={setResponseBehavior}
+            />
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label htmlFor="openai-key">Chave OpenAI do agente</Label>

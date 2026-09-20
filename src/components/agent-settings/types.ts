@@ -2,6 +2,7 @@ import {
   createDefaultPiloting,
   type PilotingValue,
 } from "@/components/ai-agents/piloting-panel";
+import { type AgentResponseBehavior } from "@/lib/ai-agents/behavior-presets";
 import { ACADEMIC_ATENDIMENTO_RULES } from "@/lib/ai-agents/academic-atendimento-prompt";
 import { ARCHETYPES } from "@/lib/ai-agents/archetypes";
 import {
@@ -40,6 +41,7 @@ export type AgentSettingsValues = {
   name: string;
   tone: string;
   model: string;
+  responseBehavior: AgentResponseBehavior;
   temperature: number;
   dailyTokenCap: number;
   autonomyMode: AutonomyMode;
@@ -68,7 +70,8 @@ export const EMPTY_AGENT_SETTINGS: AgentSettingsValues = {
   name: "",
   tone: "",
   model: "gpt-4o-mini",
-  temperature: 0.7,
+  responseBehavior: "balanced",
+  temperature: 0.4,
   dailyTokenCap: 0,
   autonomyMode: "DRAFT",
   enabledTools: [],
@@ -147,6 +150,7 @@ export const PREVIEW_AGENT_SETTINGS: AgentSettingsValues = {
   name: "Agente academico",
   tone: ATENDIMENTO?.defaultTone ?? "simpática, paciente e natural (WhatsApp)",
   model: ATENDIMENTO?.suggestedModel ?? "gpt-4.1-mini",
+  responseBehavior: "balanced",
   temperature: 0.4,
   dailyTokenCap: 80_000,
   autonomyMode: "DRAFT",

@@ -10,7 +10,9 @@ import {
   formLabelClass,
 } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
+import { type AgentResponseBehavior } from "@/lib/ai-agents/behavior-presets";
 
+import { BehaviorSelector } from "../behavior-selector";
 import { OpenAiKeyField } from "../openai-key-field";
 import { FieldHelp, SectionHeader } from "../section-header";
 import { AGENT_MODELS, type AutonomyMode } from "../types";
@@ -23,8 +25,8 @@ export function IdentitySection({
   onToneChange,
   model,
   onModelChange,
-  temperature,
-  onTemperatureChange,
+  responseBehavior,
+  onResponseBehaviorChange,
   dailyTokenCap,
   onDailyTokenCapChange,
   autonomyMode,
@@ -42,8 +44,8 @@ export function IdentitySection({
   onToneChange: (v: string) => void;
   model: string;
   onModelChange: (v: string) => void;
-  temperature: number;
-  onTemperatureChange: (v: number) => void;
+  responseBehavior: AgentResponseBehavior;
+  onResponseBehaviorChange: (v: AgentResponseBehavior) => void;
   dailyTokenCap: number;
   onDailyTokenCapChange: (v: number) => void;
   autonomyMode: AutonomyMode;
@@ -106,26 +108,12 @@ export function IdentitySection({
             )}
           </SelectNative>
         </div>
-        <div>
-          <label htmlFor="ag-temp" className={formLabelClass}>
-            <span className="flex items-center justify-between">
-              Temperatura
-              <span className="normal-case tracking-normal text-muted-foreground">
-                {temperature.toFixed(1)}
-              </span>
-            </span>
-          </label>
-          <input
-            id="ag-temp"
-            type="range"
-            min={0}
-            max={1}
-            step={0.1}
-            value={temperature}
-            onChange={(e) => onTemperatureChange(parseFloat(e.target.value))}
-            className="mt-2 w-full accent-[var(--color-primary)]"
+        <div className="sm:col-span-2">
+          <BehaviorSelector
+            label="Comportamento das respostas"
+            value={responseBehavior}
+            onChange={onResponseBehaviorChange}
           />
-          <FieldHelp>0 = previsível · 1 = mais criativo</FieldHelp>
         </div>
         <div>
           <label htmlFor="ag-cap" className={formLabelClass}>

@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BehaviorSelector } from "@/components/agent-settings/behavior-selector";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiFetch, parseApiResponse, ApiError } from "@/lib/api";
+import {
+  AGENT_RESPONSE_BEHAVIOR_PRESETS,
+  behaviorToTemperature,
+  type AgentResponseBehavior,
+} from "@/lib/ai-agents/behavior-presets";
 import { cn } from "@/lib/utils";
 
 type SimpleAgentRow = {
@@ -73,6 +79,7 @@ async function createAgent(payload: {
   name: string;
   archetype: string;
   model: string;
+  responseBehavior: AgentResponseBehavior;
   temperature: number;
   engine: "simple";
   openaiApiKey?: string;
@@ -206,7 +213,7 @@ export default function AIAgentsV2ListClientPage() {
             engine: "simple",
             archetype: "ATENDIMENTO",
             model: values.model || "gpt-4o-mini",
-            temperature: values.temperature ?? 0.5,
+            temperature: behaviorToTemperature(values.responseBehavior),
             openaiApiKey: values.openaiApiKey?.trim(),
           })
         }
@@ -235,7 +242,7 @@ function CreateAgentDialog({
   onCreate: (values: {
     name: string;
     model: string;
-    temperature: number;
+    responseBehavior: AgentResponseBehavior;
     openaiApiKey?: string;
     simpleConfig: Record<string, unknown>;
   }) => void;
@@ -244,7 +251,7 @@ function CreateAgentDialog({
 }) {
   const [name, setName] = React.useState("");
   const [model, setModel] = React.useState("gpt-4o-mini");
-  const [temperature, setTemperature] = React.useState(0.5);
+  const [responseBehavior, setResponseBehavior] = React.useState<AgentResponseBehavior>("balanced");
   const [openaiApiKey, setOpenaiApiKey] = React.useState("");
   const [presetKey, setPresetKey] = React.useState<string>("blank");
 
@@ -252,7 +259,7 @@ function CreateAgentDialog({
     if (open) {
       setName("");
       setModel("gpt-4o-mini");
-      setTemperature(0.5);
+      setResponseBehavior("balanced");
       setOpenaiApiKey("");
       setPresetKey("blank");
     }
@@ -288,7 +295,7 @@ function CreateAgentDialog({
     onCreate({
       name: name.trim(),
       model,
-      temperature,
+      responseBehavior,
       openaiApiKey: openaiApiKey.trim(),
       simpleConfig: base as Record<string, unknown>,
     });
@@ -345,20 +352,11 @@ function CreateAgentDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="v2-temp">
-                Temperatura: {temperature.toFixed(2)}
-              </Label>
-              <Input
-                id="v2-temp"
-                type="range"
-                min={0}
-                max={1.5}
-                step={0.1}
-                value={temperature}
-                onChange={(e) => setTemperature(Number(e.target.value))}
-              />
-            </div>
+            <BehaviorSelector
+              label="Comportamento das respostas"
+              value={responseBehavior}
+              onChange={setResponseBehavior}
+            />
             <div className="grid gap-2">
               <Label htmlFor="v2-key">Chave OpenAI do agente</Label>
               <PasswordInput

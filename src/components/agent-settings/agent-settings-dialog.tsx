@@ -21,6 +21,11 @@ import {
   sanitizeEnabledToolsForArchetype,
 } from "@/lib/ai-agents/archetypes";
 import {
+  behaviorToTemperature,
+  normalizeResponseBehavior,
+  type AgentResponseBehavior,
+} from "@/lib/ai-agents/behavior-presets";
+import {
   normalizeAutoClosePolicy,
   normalizeBusinessHours,
   normalizeOutputStyle,
@@ -212,7 +217,14 @@ function hydrateFromApi(data: Record<string, unknown>): AgentSettingsValues {
     name: user?.name ?? "",
     tone: typeof data.tone === "string" ? data.tone : "",
     model: typeof data.model === "string" ? data.model : "gpt-4o-mini",
-    temperature: typeof data.temperature === "number" ? data.temperature : 0.7,
+    responseBehavior: normalizeResponseBehavior(
+      typeof data.responseBehavior === "string" ? data.responseBehavior : null,
+      typeof data.temperature === "number" ? data.temperature : undefined,
+    ),
+    temperature:
+      typeof data.temperature === "number"
+        ? data.temperature
+        : behaviorToTemperature("balanced"),
     dailyTokenCap:
       typeof data.dailyTokenCap === "number" ? data.dailyTokenCap : 0,
     autonomyMode:
@@ -398,7 +410,8 @@ export function AgentSettingsDialog({
           autonomyMode: form.autonomyMode,
           tone: form.tone.trim() || undefined,
           model: form.model,
-          temperature: form.temperature,
+          responseBehavior: form.responseBehavior,
+          temperature: behaviorToTemperature(form.responseBehavior),
           dailyTokenCap: form.dailyTokenCap,
           ...openaiApiKeyPayload,
           enabledTools: sanitizeEnabledToolsForArchetype(
@@ -583,8 +596,10 @@ export function AgentSettingsDialog({
                   onToneChange={(v) => patch("tone", v)}
                   model={form.model}
                   onModelChange={(v) => patch("model", v)}
-                  temperature={form.temperature}
-                  onTemperatureChange={(v) => patch("temperature", v)}
+                  responseBehavior={form.responseBehavior}
+                  onResponseBehaviorChange={(v: AgentResponseBehavior) =>
+                    patch("responseBehavior", v)
+                  }
                   dailyTokenCap={form.dailyTokenCap}
                   onDailyTokenCapChange={(v) => patch("dailyTokenCap", v)}
                   autonomyMode={form.autonomyMode as AutonomyMode}
