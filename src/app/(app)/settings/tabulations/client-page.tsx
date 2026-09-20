@@ -30,7 +30,7 @@ import { KpiStrip } from "@/components/crm/kpi-strip";
 import { SwitchGlass } from "@/components/crm/switch-glass";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
-import { useConfirm } from "@/hooks/use-confirm";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   PageActionsMenu,
   PageSegmentedControl,
@@ -290,7 +290,6 @@ export default function TabulationsClientPage() {
 }
 
 function TabulationsBody() {
-  const confirm = useConfirm();
   const slots = useSettingsHeaderSlots();
   const qc = useQueryClient();
   const departmentsQuery = useDepartments();
@@ -1100,6 +1099,7 @@ function TreeCard(props: {
   onToggleActive: (id: string, active: boolean) => void;
   onDelete: (id: string) => void;
 }) {
+  const { confirm, dialog } = useConfirm();
   const { node, depth } = props;
   const [open, setOpen] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -1293,8 +1293,9 @@ function TreeCard(props: {
                 type="button"
                 onClick={async () => {
                   const ok = await confirm({
+                    title: "Remover tabulação",
                     description: `Remover "${node.name}" e todos os subitens?`,
-                    variant: "destructive",
+                    destructive: true,
                   });
                   if (ok) props.onDelete(node.id);
                 }}
@@ -1363,6 +1364,7 @@ function TreeCard(props: {
           ))}
         </div>
       )}
+      {dialog}
     </div>
   );
 }

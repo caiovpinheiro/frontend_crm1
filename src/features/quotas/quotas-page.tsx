@@ -16,7 +16,7 @@ import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
 import { apiUrl } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
-import { useConfirm } from "@/hooks/use-confirm";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 import { CategoriesPage } from "./categories-page";
 import { CategoryDialog } from "./category-dialog";
@@ -74,7 +74,7 @@ const LIST_GRID = "minmax(0,1fr) 110px 120px 130px 90px 90px";
 type Tab = "categories" | "quotas";
 
 export function QuotasPage() {
-  const confirm = useConfirm();
+  const { confirm, dialog } = useConfirm();
   const slots = useSettingsHeaderSlots();
   const [search, setSearch] = React.useState("");
   const [tab, setTab] = React.useState<Tab>("categories");
@@ -276,7 +276,9 @@ export function QuotasPage() {
                     type="button"
                     onClick={async () => {
                       const ok = await confirm({
+                        title: "Desativar cota",
                         description: `Desativar cota "${q.name}"?`,
+                        destructive: true,
                       });
                       if (ok) deleteMut.mutate(q.id);
                     }}
@@ -303,6 +305,7 @@ export function QuotasPage() {
         onOpenChange={setCatDialogOpen}
         categoryId={null}
       />
+      {dialog}
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { apiUrl } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
-import { useConfirm } from "@/hooks/use-confirm";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 import { CategoryDialog } from "./category-dialog";
 
@@ -69,7 +69,7 @@ function fmtDiscount(type: "PERCENT" | "FIXED", value: number): string {
 const LIST_GRID = "minmax(0,1fr) 110px minmax(0,1.4fr) 130px 90px 90px";
 
 export function CategoriesPage({ search }: { search: string }) {
-  const confirm = useConfirm();
+  const { confirm, dialog } = useConfirm();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -228,7 +228,9 @@ export function CategoriesPage({ search }: { search: string }) {
                       type="button"
                       onClick={async () => {
                         const ok = await confirm({
+                          title: "Desativar categoria",
                           description: `Desativar categoria "${c.name}"?`,
+                          destructive: true,
                         });
                         if (ok) deactivateMut.mutate(c.id);
                       }}
@@ -259,6 +261,7 @@ export function CategoriesPage({ search }: { search: string }) {
           </ButtonGlass>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

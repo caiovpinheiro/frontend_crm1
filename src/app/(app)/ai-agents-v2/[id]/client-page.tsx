@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, parseApiResponse } from "@/lib/api";
-import { useConfirm } from "@/hooks/use-confirm";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type AgentDetail = {
   id: string;
@@ -86,7 +86,7 @@ export default function AIAgentV2EditClientPage() {
   const queryClient = useQueryClient();
   const defaultTab = searchParams.get("tab") === "test" ? "test" : "config";
   const [activeTab, setActiveTab] = React.useState(defaultTab);
-  const confirmDelete = useConfirm();
+  const { confirm: confirmDelete, dialog: deleteDialog } = useConfirm();
 
   const { data: agent, isLoading } = useQuery({
     queryKey: ["ai-agents-v2", id],
@@ -190,8 +190,9 @@ export default function AIAgentV2EditClientPage() {
                     variant="destructive"
                     onClick={async () => {
                       const ok = await confirmDelete({
+                        title: "Deletar agente v2",
                         description: "Deletar este agente v2? Esta ação não pode ser desfeita.",
-                        variant: "destructive",
+                        destructive: true,
                       });
                       if (ok) deleteMutation.mutate();
                     }}
@@ -213,6 +214,7 @@ export default function AIAgentV2EditClientPage() {
           <LogsTab agentId={id} />
         </TabsContent>
       </Tabs>
+      {deleteDialog}
     </AppV2PageShell>
   );
 }
