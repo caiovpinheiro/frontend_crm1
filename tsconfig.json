@@ -39,6 +39,7 @@
     "node_modules",
     "src/app/(app)/showcase/**",
     ".next/types/**",
-    ".next/dev/types/**"
+    ".next/dev/types/**",
+    "vitest.config.ts"
   ]
 }
