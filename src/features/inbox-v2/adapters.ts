@@ -12,7 +12,7 @@
 import type { Conversation, LastMessageType } from "@/components/crm/conversation-card";
 import type { Message, FormField } from "@/components/crm/message-bubble";
 import { classifyTimelineItem } from "@/components/crm/chat-timeline/classify";
-import { normalizeDeliveryStatus } from "@/components/crm/status-ticks";
+import { normalizeDeliveryStatus } from "@/lib/delivery-status";
 import { avatarInitials as avatarInitialsFromLib } from "@/lib/avatar";
 import type { ConnectionRef } from "@/lib/connection-label";
 import { ownerLabel } from "@/lib/utils";
