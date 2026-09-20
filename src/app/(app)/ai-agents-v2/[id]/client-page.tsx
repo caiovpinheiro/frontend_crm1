@@ -159,11 +159,12 @@ async function fetchAgent(id: string): Promise<AgentDetail> {
   return parseApiResponse<AgentDetail>(res, "Erro ao carregar agente.");
 }
 
-async function updateAgent(
-  id: string,
-  payload: { simpleConfig: Record<string, unknown>; active: boolean },
-): Promise<AgentDetail> {
-  const res = await apiFetch(`/api/ai-agents/${id}`, {
+async function updateAgent(payload: {
+  id: string;
+  simpleConfig: Record<string, unknown>;
+  active: boolean;
+}): Promise<AgentDetail> {
+  const res = await apiFetch(`/api/ai-agents/${payload.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
