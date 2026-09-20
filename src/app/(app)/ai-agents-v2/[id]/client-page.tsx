@@ -89,16 +89,26 @@ function defaultConfig(): SimpleConfigForm {
   };
 }
 
+function asStringList(value: unknown, fallback: string[]): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : fallback;
+}
+
 function normalizeConfig(raw: Record<string, unknown> | null | undefined): SimpleConfigForm {
   if (!raw) return defaultConfig();
   const base = defaultConfig();
   const r = raw as Record<string, unknown>;
+  const contextFields =
+    r.context_fields && typeof r.context_fields === "object"
+      ? (r.context_fields as { contact?: unknown; deal?: unknown })
+      : null;
   return {
     tone: typeof r.tone === "string" ? r.tone : base.tone,
     rules: typeof r.rules === "string" ? r.rules : base.rules,
     context_fields: {
-      contact: Array.isArray(r.context_fields?.contact) ? (r.context_fields.contact as string[]).filter((v): v is string => typeof v === "string") : base.context_fields.contact,
-      deal: Array.isArray(r.context_fields?.deal) ? (r.context_fields.deal as string[]).filter((v): v is string => typeof v === "string") : base.context_fields.deal,
+      contact: asStringList(contextFields?.contact, base.context_fields.contact),
+      deal: asStringList(contextFields?.deal, base.context_fields.deal),
     },
     confirmation_message: typeof r.confirmation_message === "string" ? r.confirmation_message : base.confirmation_message,
     on_deal_not_found:
