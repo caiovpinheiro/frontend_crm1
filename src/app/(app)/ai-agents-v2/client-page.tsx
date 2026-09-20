@@ -13,7 +13,7 @@ import {
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../_v2-page-shell";
-import { PageHeader, pageHeaderPrimaryCtaClass } from "@/components/ui/page-header";
+import { pageHeaderPrimaryCtaClass } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";

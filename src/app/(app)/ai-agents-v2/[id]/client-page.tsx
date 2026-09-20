@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { IconBrain, IconTrash, IconSend, IconRefresh } from "@tabler/icons-react";
+import { IconBrain, IconTrash, IconSend } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch, parseApiResponse } from "@/lib/api";
+import { useConfirm } from "@/hooks/use-confirm";
 
 type AgentDetail = {
   id: string;
@@ -85,6 +86,7 @@ export default function AIAgentV2EditClientPage() {
   const queryClient = useQueryClient();
   const defaultTab = searchParams.get("tab") === "test" ? "test" : "config";
   const [activeTab, setActiveTab] = React.useState(defaultTab);
+  const confirmDelete = useConfirm();
 
   const { data: agent, isLoading } = useQuery({
     queryKey: ["ai-agents-v2", id],
@@ -186,8 +188,12 @@ export default function AIAgentV2EditClientPage() {
                   </Button>
                   <Button
                     variant="destructive"
-                    onClick={() => {
-                      if (confirm("Deletar este agente v2?")) deleteMutation.mutate();
+                    onClick={async () => {
+                      const ok = await confirmDelete({
+                        description: "Deletar este agente v2? Esta ação não pode ser desfeita.",
+                        variant: "destructive",
+                      });
+                      if (ok) deleteMutation.mutate();
                     }}
                     disabled={deleteMutation.isPending}
                   >
