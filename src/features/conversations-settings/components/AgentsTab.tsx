@@ -934,7 +934,7 @@ function GroupsView({
                           )}
                         >
                           <IconDeviceFloppy size={13} />
-                          Reaplicar preset "{meta.label}" a todos
+                          Reaplicar preset &quot;{meta.label}&quot; a todos
                         </button>
                       </div>
                     )}

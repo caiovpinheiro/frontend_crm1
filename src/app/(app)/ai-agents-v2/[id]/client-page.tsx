@@ -377,26 +377,32 @@ export default function AIAgentV2EditClientPage() {
   const { confirm: confirmPublish, dialog: publishDialog } = useConfirm();
   const [activeTab, setActiveTab] = React.useState("config");
 
-  const { data: agent, isLoading } = useQuery({
-    queryKey: ["ai-agents-v2", id],
-    queryFn: () => fetchAgent(id),
-  });
-
-  const { data: catalogs } = useCatalogs();
-
   const [config, setConfig] = React.useState<Record<string, unknown> | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [advancedText, setAdvancedText] = React.useState("{}");
   const [advancedError, setAdvancedError] = React.useState<string | null>(null);
+  const initializedRef = React.useRef(false);
 
+  // Reinicializa o estado local quando o id do agente muda (navegação).
   React.useEffect(() => {
-    if (agent) {
-      const base = clone(agent.simpleConfig);
+    initializedRef.current = false;
+  }, [id]);
+
+  const { data: agent, isLoading } = useQuery({
+    queryKey: ["ai-agents-v2", id],
+    queryFn: () => fetchAgent(id),
+    enabled: !!id,
+    onSuccess: (data) => {
+      if (initializedRef.current) return;
+      initializedRef.current = true;
+      const base = clone(data.simpleConfig);
       setConfig(base);
       setAdvancedText(JSON.stringify(extractAdvanced(base), null, 2));
       setDirty(false);
-    }
-  }, [agent]);
+    },
+  });
+
+  const { data: catalogs } = useCatalogs();
 
   function updateConfig(path: string, value: unknown) {
     if (!config) return;
@@ -582,7 +588,7 @@ export default function AIAgentV2EditClientPage() {
                 rows={10}
                 className="font-mono text-xs"
               />
-              {advancedError && <p className="text-sm text-red-500">{advancedError}</p>}
+              {advancedError && <p className="text-sm text-destructive">{advancedError}</p>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1752,7 +1758,7 @@ function TestTab({ agentId }: { agentId: string }) {
             <IconSend className="size-4" /> Enviar
           </Button>
         </div>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         {result && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -1874,7 +1880,7 @@ function LogsTab({ agentId }: { agentId: string }) {
 
 function MissingBadge({ className }: { className?: string }) {
   return (
-    <Badge variant="outline" className={cn("gap-1 text-amber-600 border-amber-300 bg-amber-50", className)}>
+    <Badge variant="outline" className={cn("gap-1 text-warning border-warning bg-warning/10", className)}>
       <IconAlertCircle className="size-3" /> Não encontrado no catálogo
     </Badge>
   );

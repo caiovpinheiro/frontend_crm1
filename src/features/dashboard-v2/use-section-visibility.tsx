@@ -78,15 +78,15 @@ export function SectionVisibilityProvider({
 
 export function useSectionVisibility(group: string) {
   const ctx = useContext(SectionVisibilityContext);
+  const ref = useCallback(
+    (el: Element | null) => ctx?.register(group, el),
+    [ctx, group],
+  );
   if (!ctx) {
     return {
       ref: (_el: Element | null) => {},
       armed: true,
     };
   }
-  const ref = useCallback(
-    (el: Element | null) => ctx.register(group, el),
-    [ctx, group],
-  );
   return { ref, armed: ctx.isArmed(group) };
 }
