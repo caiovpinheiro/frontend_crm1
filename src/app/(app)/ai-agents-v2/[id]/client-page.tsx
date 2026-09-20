@@ -392,15 +392,16 @@ export default function AIAgentV2EditClientPage() {
     queryKey: ["ai-agents-v2", id],
     queryFn: () => fetchAgent(id),
     enabled: !!id,
-    onSuccess: (data) => {
-      if (initializedRef.current) return;
-      initializedRef.current = true;
-      const base = clone(data.simpleConfig);
-      setConfig(base);
-      setAdvancedText(JSON.stringify(extractAdvanced(base), null, 2));
-      setDirty(false);
-    },
   });
+
+  React.useEffect(() => {
+    if (!agent || initializedRef.current) return;
+    initializedRef.current = true;
+    const base = clone(agent.simpleConfig);
+    setConfig(base);
+    setAdvancedText(JSON.stringify(extractAdvanced(base), null, 2));
+    setDirty(false);
+  }, [agent]);
 
   const { data: catalogs } = useCatalogs();
 
