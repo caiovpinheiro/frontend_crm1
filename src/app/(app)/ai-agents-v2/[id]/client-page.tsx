@@ -750,7 +750,8 @@ function LogsTab({ agentId }: { agentId: string }) {
                   </pre>
                 )}
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {log.executedActions && JSON.stringify(log.executedActions) !== "[]" && (
+                  {!!log.executedActions &&
+                    JSON.stringify(log.executedActions) !== "[]" && (
                     <div>
                       <p className="text-xs font-medium">Executadas</p>
                       <pre className="rounded-md bg-muted p-2 text-xs">
@@ -758,7 +759,8 @@ function LogsTab({ agentId }: { agentId: string }) {
                       </pre>
                     </div>
                   )}
-                  {log.discardedActions && JSON.stringify(log.discardedActions) !== "[]" && (
+                  {!!log.discardedActions &&
+                    JSON.stringify(log.discardedActions) !== "[]" && (
                     <div>
                       <p className="text-xs font-medium">Descartadas</p>
                       <pre className="rounded-md bg-muted p-2 text-xs">
