@@ -264,17 +264,17 @@ function CreateAgentDialog({
     const base =
       presetKey === "blank"
         ? {
-            tone: "",
+            tone: "neutro",
             rules: "",
             context_fields: { contact: ["name", "phone", "email"], deal: ["title", "stage.name"] },
-            confirmation_message: "",
-            on_deal_not_found: "handoff",
-            identification_message: "",
+            confirmation_message: "Oi {{contact.name}}! Como posso ajudar?",
+            on_deal_not_found: "ask_identification",
+            identification_message: "Para te localizar, pode me passar o e-mail ou telefone cadastrado?",
             knowledge: "",
             modes: [],
             allowed_actions: [],
             allowed_fields: [],
-            handoff_message: "",
+            handoff_message: "Vou te conectar com um atendente humano.",
             handoff_queue: "",
             history_limit: 10,
           }
@@ -329,7 +329,7 @@ function CreateAgentDialog({
               <Label htmlFor="v2-model">Modelo</Label>
               <Select value={model} onValueChange={setModel}>
                 <SelectTrigger id="v2-model">
-                  <SelectValue />
+                  <SelectValue placeholder="Selecione o modelo" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
