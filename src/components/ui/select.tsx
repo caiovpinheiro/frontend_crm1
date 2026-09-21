@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { IconChevronDown as ChevronDown } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -144,31 +145,59 @@ function SelectContent({
 }: React.HTMLAttributes<HTMLDivElement>) {
   const { open, setOpen } = useSelectContext("SelectContent");
   const ref = React.useRef<HTMLDivElement>(null);
+  const [position, setPosition] = React.useState<{ top: number; left: number; width: number } | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
+    const updatePosition = () => {
+      const trigger = ref.current?.parentElement;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    };
+    updatePosition();
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.parentElement?.contains(e.target as Node)) {
+      const clickedTrigger = ref.current?.parentElement?.contains(e.target as Node);
+      const clickedContent = ref.current?.contains(e.target as Node);
+      if (!clickedTrigger && !clickedContent) {
         setOpen(false);
       }
     };
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", onDoc);
+    };
   }, [open, setOpen]);
 
-  if (!open) return null;
-  return (
+  if (!open || !position) return null;
+  return createPortal(
     <div
       ref={ref}
       data-slot="select-content"
+      style={{
+        position: "fixed",
+        top: position.top,
+        left: position.left,
+        width: position.width,
+        zIndex: 50,
+      }}
       className={cn(
-        "absolute z-50 mt-1 max-h-60 w-full min-w-36 overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
+        "mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
         className
       )}
       {...props}
     >
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
