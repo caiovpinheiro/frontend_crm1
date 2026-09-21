@@ -47,13 +47,13 @@ Legenda:
 | Protótipo | Tela atual | Status |
 |---|---|---|
 | Nome da empresa via variável `@Nome da empresa` | Campo `organizationName` separado | EXTRA |
-| Campos do contato: selecionar quais o agente pode ler/alterar | Tabela com built-ins + catálogo de campos customizados | ✅ OK |
-| Campos do negócio: selecionar quais o agente pode ler/alterar | Tabela com built-ins + catálogo de campos customizados | ✅ OK |
-| Permissão por campo (só ler / ler e escrever) | Não há permissão por campo | FALTA |
-| Variáveis explicadas com ícone ⓘ | Não há tooltips | FALTA |
+| Campos do contato: selecionar quais o agente pode ler/alterar | Tabela com built-ins + catálogo de campos customizados, com valor de exemplo ao lado de cada campo (2026-09-21) | ✅ OK |
+| Campos do negócio: selecionar quais o agente pode ler/alterar | Tabela com built-ins + catálogo de campos customizados, com valor de exemplo ao lado de cada campo (2026-09-21) | ✅ OK |
+| Permissão por campo (só ler / ler e escrever) | **Já existia** no código (checkboxes Ler/Citar/Atualizar lado a lado, `contextFields[].permissions`) — este item estava desatualizado nesta doc. Confirmado em `StepContext` (2026-09-21). | ✅ OK |
+| Variáveis explicadas com ícone ⓘ | Tooltips (ⓘ) já existem no cabeçalho da tabela (Ler/Citar/Atualizar); "Informações fixas" (variáveis da empresa) segue sem ⓘ próprio | parcial |
 
 **BUGS:**
-- `organizationName` é campo próprio em vez de variável `@Nome da empresa` — pendente de alinhamento de schema/backend.
+- `organizationName` é campo próprio em vez de variável `@Nome da empresa` — pendente de alinhamento de schema/backend. Não corrigido nesta sessão (decisão de negócio: manter campo próprio ou migrar para variável — precisa confirmação).
 
 ---
 
@@ -101,9 +101,9 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Explicação do que são "Assuntos" (temas de atendimento) | Não há explicação | FALTA |
+| Explicação do que são "Assuntos" (temas de atendimento) | Texto explicativo adicionado no topo da etapa (2026-09-21) | ✅ OK |
 | Cada assunto com nome, descrição, prompt, regras, ferramentas permitidas | Cards existem | OK |
-| Ordenação de assuntos | Não há drag | FALTA |
+| Ordenação de assuntos | Arraste nativo (HTML5 drag-and-drop, sem nova dependência) + botões de mover para cima/baixo (2026-09-21) | ✅ OK |
 | Lista de ferramentas por assunto | MultiSelectPopover | OK |
 
 ---
@@ -117,7 +117,7 @@ Legenda:
 | Ações: encaminhar, enviar mensagem, aplicar tag, etc. | Ações listadas | OK |
 
 **BUGS:**
-- `out_of_hours`, `contact_tag`, `survey_received` não avaliam corretamente.
+- `out_of_hours`, `contact_tag`, `survey_received` não avaliam corretamente. **Verificado em 2026-09-21: já estavam corrigidos no motor** (`src/services/ai-v2/engine.ts` passa `withinBusinessHours` real via `isWithinV2BusinessHours`, `contactTags` de `context.contact?.tags`, `surveyReceived` de `counters.surveyPending` — `src/services/ai-v2/rules.ts` avalia os três corretamente). Este item da doc estava desatualizado. Cobertura em `rules.test.ts`/`engine.test.ts` (51/51 passam). O simulador da aba Testar (`test-turn.ts`) também foi corrigido para calcular `withinBusinessHours` e `isFirstMessage` reais (antes usava `isFirstMessage: true` fixo).
 
 ---
 
@@ -149,9 +149,9 @@ Legenda:
 | Protótipo | Tela atual | Status |
 |---|---|---|
 | Tabulações permitidas | MultiSelectPopover | OK |
-| Campos a atualizar no encerramento | Não há | FALTA |
-| Botões no WhatsApp (habilitar) | Não há | FALTA |
-| “Devolver para automação” ao encerrar | Não há | FALTA |
+| Campos a atualizar no encerramento | Implementado ponta a ponta (2026-09-21): schema `closure.fieldUpdates[]` (`entity`, `key`, `value`), UI em "Encerrar e classificar" lista campos com permissão de escrita (`contextFields[].permissions` inclui `write`) + valor a gravar, motor aplica em `closeState` (`applyV2ClosureFieldUpdates`, respeitando a permissão) antes de fechar a conversa. Testes existentes continuam passando (51/51). | ✅ OK |
+| Botões no WhatsApp (habilitar) | Ainda **não implementado**. Não existe campo `interactive`/botões no schema (`v2AgentConfigSchema`); o código de montagem/persistência de opções (`interactive.ts`) já existe mas nunca é chamado, e o clique nunca é resolvido no webhook de inbound (confirmado em `V2_STATUS.md`). Implementar isso corretamente exige tocar no fluxo de webhook Meta/inbound (área sensível — ver AGENTS.md do backend) e não foi feito nesta sessão por segurança/tempo. **Precisa decisão/priorização do time antes de tocar no inbound.** | FALTA |
+| "Devolver para automação" ao encerrar | Implementado ponta a ponta (2026-09-21): a função `continueV2AutomationOnClose` (já existia mas nunca era chamada) agora é chamada em `closeState` quando `closure.nextAutomationStepId` está preenchido. Campo de texto adicionado em "Encerrar e classificar" (id do passo é digitado manualmente — não há catálogo de passos de automação disponível na API de catálogos hoje). | ✅ OK |
 
 ---
 
@@ -159,16 +159,20 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Chat estilo WhatsApp com bolhas | Apenas input + botão Enviar | FALTA |
-| Mensagens com status (digitando, enviado, lido) | Não há | FALTA |
-| Painel “Bastidores deste turno” com regra, assunto, ferramentas, trechos, ações, motivo | Não há | FALTA |
-| Simulação: origem da conversa, fora do horário, campos vazios, recomeçar | Não há | FALTA |
-| Aprovar/enviar resposta em modo rascunho | Não há | FALTA |
-| Checklist de preenchimento antes de publicar | Não há | FALTA |
+| Chat estilo WhatsApp com bolhas | Reescrito (2026-09-21): bolhas de mensagem (cliente à esquerda, agente à direita), usando as variáveis de cor do chat do CRM (`--chat-bubble-sent-bg`/`--chat-bubble-received-bg`) para consistência visual sem duplicar o `MessageBubble` pesado do inbox (que carrega menu/reações/mídia real, não aplicável a uma simulação). Histórico de turnos mantido na tela e enviado ao backend (`history`) para o LLM ter contexto real entre mensagens. | ✅ OK |
+| Mensagens com status (digitando, enviado, lido) | Indicador "digitando…" (3 pontinhos animados) enquanto aguarda a resposta simulada. "Enviado/lido" não se aplica — é simulação local, não há entrega real. | ✅ OK (parcial: sem ticks de entrega, que não fazem sentido numa simulação) |
+| Painel "Bastidores deste turno" / "Por que respondeu isso?" | Implementado por resposta: regra aplicada (nome, não só id), assunto identificado (nome), ferramentas chamadas com resultado resumido, trechos dos materiais (RAG, com nome do documento — corrigido bug que lia campos errados do resultado: `content`/`distance` em vez de `text`/`score`), ações executadas, ações descartadas **com o motivo** (nova: antes não existia motivo por ação descartada), atalho "Editar assunto"/"Editar regra" que pula para a etapa correspondente. | ✅ OK |
+| Simulação: origem da conversa, fora do horário, campos vazios, recomeçar | "Recomeçar" implementado (limpa o histórico). Simular "fora do horário"/"origem da conversa"/"contato com campos vazios" **não implementado** — o simulador (`test-turn.ts`) sempre roda sem contato real (`contact: null`); fazer isso corretamente exigiria escolher um contato real do CRM para o teste, o que é uma mudança maior de contrato (`POST /test` passaria a aceitar `contactId`) e não foi feita nesta sessão. | parcial — ver decisão pendente abaixo |
+| Aprovar/enviar resposta em modo rascunho | Não implementado. O simulador não passa pelo fluxo de `autonomyMode: draft` (é sempre uma simulação isolada, sem fila de aprovação). | FALTA |
+| Checklist de preenchimento antes de publicar | Checklist estático adicionado ("Antes de publicar"): testar cada assunto, confirmar campos citados, confirmar transferência. Não é dinâmico (não valida de fato o preenchimento) — é uma lista de lembretes. | parcial |
 
 **BUGS:**
-- Teste retornava erro de schema `theme`/`tabulationId` (corrigido no backend).
-- Valor do modo de execução salvo pode não bater com opções do select.
+- Teste retornava erro de schema `theme`/`tabulationId` (corrigido no backend, sessão anterior).
+- Valor do modo de execução salvo pode não bater com opções do select (não investigado nesta sessão — não estava nos itens prioritários).
+- **Novo bug encontrado e corrigido (2026-09-21):** o front enviava `{ message: userMessage }` para `POST /api/ai-agents-v2/:id/test`, mas a rota lê `body.userMessage` — ou seja, o teste **sempre simulava a mensagem "oi"**, independentemente do que o operador digitasse. Corrigido nos dois lados (front manda `{ userMessage, history }`).
+- **Novo bug encontrado e corrigido (2026-09-21):** `test-turn.ts` extraía trechos do RAG lendo `chunk.text`/`chunk.score`, mas o resultado real de `searchV2Knowledge` usa `chunk.content`/`chunk.distance` — os trechos apareciam sempre vazios no painel. Corrigido.
+
+**Decisão pendente (precisa confirmação do usuário):** simular a conversa contra um contato real do CRM (com campos preenchidos/vazios de verdade) e simular "fora do horário" exigem mudar o contrato de `POST /api/ai-agents-v2/:id/test` para aceitar `contactId`/`overrideNow` opcionais. Não implementado nesta sessão para não expandir escopo de API sem alinhamento — pode ser feito num próximo passo se confirmado como prioridade.
 
 ---
 
@@ -178,8 +182,20 @@ Legenda:
 |---|---|---|
 | Check verde só quando etapa tem mínimo preenchido | `isStepComplete` valida preenchimento mínimo | ✅ OK |
 | Sidebar com título + subtítulo por passo | Existe | OK |
-| Botão “Dicionário da tela” com termos técnicos | Não há | FALTA |
-| Rascunho salvo automaticamente | Botão “Salvar rascunho” | parcial |
+| Botão "Dicionário da tela" com termos técnicos | Implementado (2026-09-21): botão no topo abre um diálogo com o vocabulário de `SPEC_V2.md` (código → termo simples da tela). | ✅ OK |
+| Rascunho salvo automaticamente | Botão "Salvar rascunho" | parcial |
+| Linguagem sem jargão técnico | Passe de revisão (2026-09-21): "Mensagem de handoff" → "Mensagem ao transferir"; "Enviar modelo de mensagem" → "Enviar mensagem pronta" (ação de regra); rótulos de ferramentas na aba Testar traduzidos (`search_products` → "Buscar produtos no catálogo" etc.); rótulos de ações executadas/descartadas na aba Testar traduzidos (`add_tag` → "Adicionar etiqueta" etc.). Revisão feita por leitura completa do arquivo da tela + grep por termos crus (`RAG`, `trace`, `handoff`, `webhook`, `schema`, `JSON`, `playground`) — nenhum termo técnico cru restante visível ao operador. | ✅ OK |
+
+---
+
+## Nota sobre validação visual (screenshots) — 2026-09-21
+
+Não foi possível gerar screenshots reais nesta sessão:
+- **Ambiente de dev deployado** (`crm-dev-frontend.ca31ey.easypanel.host`): sem credencial válida (mesmo bloqueio já registrado na seção de validação do Select abaixo — `gestor@eduit.com.br`/`operador@eduit.com.br` com a senha do seed local retornam "E-mail ou senha incorretos" nesse ambiente).
+- **Browser MCP local**: a ferramenta `browser_navigate` retornou "No browser tab available" em todas as tentativas (4), mesmo criando aba nova / URL em branco — indisponível nesta sessão.
+- Como alternativa, subi o backend local (`npm run dev`, porta 3001) para tentar validar via browser contra dev local, mas sem o browser funcional isso também não avançou. O frontend local (porta 3000) já estava ocupado por outro processo (provavelmente o subagente concorrente).
+
+Todas as mudanças desta sessão foram validadas por: `npm run build` (frontend, limpo), `npx eslint` no arquivo editado (0 erros), `npx tsc --noEmit` (0 erros novos — os 5 erros pré-existentes em `ai-v2` continuam idênticos antes/depois, confirmado via `git stash`), e `npx vitest run src/services/ai-v2` no backend (51/51 testes passando). Assim que houver credencial de dev válida ou o browser MCP voltar a funcionar, os itens marcados ✅ OK nesta sessão devem ser fotografados e os prints anexados aqui.
 
 ---
 

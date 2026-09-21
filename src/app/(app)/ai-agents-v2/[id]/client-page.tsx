@@ -19,6 +19,16 @@ import {
   IconFile,
   IconInfoCircle,
   IconLoader2,
+  IconRefresh,
+  IconBulb,
+  IconTool,
+  IconRoute,
+  IconArrowRight,
+  IconMoodSad2,
+  IconMessageCircle2,
+  IconChevronDown,
+  IconChevronUp,
+  IconGripVertical,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -45,6 +55,7 @@ import {
 } from "@/components/ui/tooltip";
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ChipInput } from "@/components/ai-agents/chip-input";
 import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
@@ -90,18 +101,39 @@ type KnowledgeDoc = {
 type TestResult = {
   userMessage: string;
   appliedRuleId: string | null;
+  appliedRuleName?: string | null;
   themeId: string | null;
+  themeName?: string | null;
   reply: string;
   reason: string;
   handoff: boolean;
   closed: boolean;
   toolCalls: Array<{ toolName: string; args: unknown; result: unknown }>;
-  ragChunks: Array<{ docId?: string; text?: string; score?: number }>;
-  executedActions: Array<Record<string, unknown>>;
-  discardedActions: Array<Record<string, unknown>>;
+  ragChunks: Array<{ docId?: string; docTitle?: string; text?: string; score?: number }>;
+  executedActions: Array<{ action: Record<string, unknown>; label: string } | Record<string, unknown>>;
+  discardedActions: Array<{ action: Record<string, unknown>; label: string; reason: string } | Record<string, unknown>>;
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
+};
+
+/** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
+const TOOL_LABELS: Record<string, string> = {
+  search_products: "Buscar produtos no catálogo",
+  search_crm_records: "Buscar dados do cliente/negócio no CRM",
+  knowledge_search: "Buscar nos materiais de consulta",
+  list_message_models: "Listar mensagens prontas",
+};
+
+function toolLabel(name: string): string {
+  return TOOL_LABELS[name] ?? name;
+}
+
+type ChatTurn = {
+  id: string;
+  userMessage: string;
+  result?: TestResult;
+  error?: string;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,13 +200,36 @@ const ACTION_TYPES = [
   { value: "add_tag", label: "Adicionar etiqueta" },
   { value: "close_conversation", label: "Encerrar conversa" },
   { value: "no_reply", label: "Não responder" },
-  { value: "send_message_model", label: "Enviar modelo de mensagem" },
+  { value: "send_message_model", label: "Enviar mensagem pronta" },
   { value: "send_whatsapp_template", label: "Enviar template oficial" },
   { value: "set_variable", label: "Definir variável" },
   { value: "record_knowledge_gap", label: "Registrar dúvida sem resposta" },
 ];
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+/** Dicionário da tela: termo técnico do motor → o que aparece na tela, em português simples. */
+const SCREEN_DICTIONARY: Array<{ term: string; meaning: string }> = [
+  { term: "Modelo (preset)", meaning: "Ponto de partida pronto do agente (ex.: Atendimento, Vendas)." },
+  { term: "Tom de voz", meaning: "Como o agente fala com o cliente." },
+  { term: "Regras que ele sempre segue", meaning: "Instruções fixas, válidas em qualquer assunto." },
+  { term: "Campos do contato e do negócio", meaning: "Dados do CRM que o agente pode usar." },
+  { term: "Informações fixas da empresa", meaning: "Variáveis como @Nome da empresa, sempre disponíveis nas mensagens." },
+  { term: "Materiais de consulta", meaning: "Documentos que o agente pesquisa para responder (também chamado RAG)." },
+  { term: "Como a conversa chega", meaning: "De onde vem a primeira mensagem: cliente, automação ou outra pessoa." },
+  { term: "Confirmar o cadastro", meaning: "Checar com o cliente se os dados encontrados são dele." },
+  { term: "Assuntos / Demandas", meaning: "Os temas que o agente atende (cada um com suas próprias instruções)." },
+  { term: "O que ele pode fazer", meaning: "Lista de ações e ferramentas liberadas para o assunto." },
+  { term: "Regras automáticas", meaning: "Condições que, quando batem, decidem a resposta antes do agente pensar." },
+  { term: "Distribuição inteligente", meaning: "Escolha automática de quem vai atender, pelas regras do CRM." },
+  { term: "Passar para uma pessoa", meaning: "Transferir a conversa para alguém da equipe (também chamado handoff)." },
+  { term: "Passar para um especialista", meaning: "Transferir para outro agente de IA." },
+  { term: "Equipe atendendo / Devolver para o agente", meaning: "Uma pessoa assumiu a conversa; ela pode devolver para o agente quando terminar." },
+  { term: "Classificar o atendimento", meaning: "Marcar a tabulação/motivo do atendimento ao encerrar." },
+  { term: "Sugerir resposta para aprovar", meaning: "Modo rascunho: o agente escreve, mas alguém aprova antes de enviar." },
+  { term: "Por que respondeu isso?", meaning: "Os bastidores da resposta: regra, assunto, ferramentas e motivo." },
+  { term: "Conversa de teste", meaning: "Simulação sem afetar clientes reais (também chamado playground)." },
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Defaults da configuração (garante que todos os campos existam)
@@ -363,11 +418,15 @@ async function fetchCatalogs(): Promise<Catalogs> {
   return parseApiResponse<Catalogs>(res, "Erro ao carregar catálogos.");
 }
 
-async function testAgent(id: string, userMessage: string): Promise<TestResult> {
+async function testAgent(
+  id: string,
+  userMessage: string,
+  history: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<TestResult> {
   const res = await apiFetch(`/api/ai-agents-v2/${id}/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: userMessage }),
+    body: JSON.stringify({ userMessage, history }),
   });
   return parseApiResponse<TestResult>(res, "Erro ao testar agente.");
 }
@@ -599,6 +658,7 @@ export default function AIAgentV2EditPage() {
   const [openaiKey, setOpenaiKey] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [dictionaryOpen, setDictionaryOpen] = React.useState(false);
 
   const agentQuery = useQuery({
     queryKey: ["ai-agents-v2", id],
@@ -702,6 +762,22 @@ export default function AIAgentV2EditPage() {
     <TooltipProvider>
       <AppV2PageShell title={name || "Novo agente de IA"} icon={<IconBrain size={22} />}>
         {dialog}
+        <Dialog open={dictionaryOpen} onOpenChange={setDictionaryOpen}>
+          <DialogContent size="lg">
+            <DialogHeader>
+              <DialogTitle>Dicionário da tela</DialogTitle>
+              <DialogDescription>Termos técnicos do motor de IA e o que eles significam em português simples.</DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+              {SCREEN_DICTIONARY.map((d) => (
+                <div key={d.term} className="rounded-lg border px-3 py-2">
+                  <p className="text-sm font-semibold">{d.term}</p>
+                  <p className="text-sm text-muted-foreground">{d.meaning}</p>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
         <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4 p-4">
         {/* top bar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -712,6 +788,10 @@ export default function AIAgentV2EditPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setDictionaryOpen(true)} className="gap-1">
+              <IconBulb className="size-4" />
+              Dicionário da tela
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -809,12 +889,14 @@ export default function AIAgentV2EditPage() {
             {step === 7 && <StepRules config={config} catalogs={catalogs} onChange={updateConfig} />}
             {step === 8 && <StepOutputs config={config} onChange={updateConfig} />}
             {step === 9 && <StepTeam config={config} catalogs={catalogs} onChange={updateConfig} />}
-            {step === 10 && <StepClosure config={config} onChange={updateConfig} />}
+            {step === 10 && <StepClosure config={config} catalogs={catalogs} onChange={updateConfig} />}
             {step === 11 && (
               <StepTestPublish
                 agentId={id}
                 dirty={dirty}
                 onSave={async () => saveDraftMutation.mutateAsync()}
+                onGoToTheme={() => handleStepChange(6)}
+                onGoToRule={() => handleStepChange(7)}
               />
             )}
           </main>
@@ -1028,6 +1110,25 @@ function StepContext({
     return fromCatalog ?? builtinLabels[key] ?? key;
   }
 
+  const EXAMPLE_VALUES: Record<string, string> = {
+    name: "Ex.: João Silva",
+    phone: "Ex.: (11) 98888-7777",
+    email: "Ex.: joao@empresa.com",
+    stage: "Ex.: Negociação",
+    status: "Ex.: Aberto",
+    value: "Ex.: R$ 1.200,00",
+  };
+
+  function exampleValue(key: string, label: string): string {
+    if (EXAMPLE_VALUES[key]) return EXAMPLE_VALUES[key];
+    const lower = label.toLowerCase();
+    if (lower.includes("data")) return "Ex.: 12/03/2026";
+    if (lower.includes("telefone") || lower.includes("celular")) return "Ex.: (11) 98888-7777";
+    if (lower.includes("e-mail") || lower.includes("email")) return "Ex.: joao@empresa.com";
+    if (lower.includes("valor") || lower.includes("preço") || lower.includes("preco")) return "Ex.: R$ 1.200,00";
+    return "Ex.: valor de exemplo deste campo";
+  }
+
   function HeaderCell({ label, tooltip }: { label: string; tooltip: string }) {
     return (
       <div className="flex items-center justify-center gap-0.5 text-center">
@@ -1096,26 +1197,32 @@ function StepContext({
             <HeaderCell label="Atualizar" tooltip="O agente pode alterar o valor via ações (ex.: mudar etapa)." />
             <span />
           </div>
-          {stored.map((s) => (
-            <div
-              key={s.key}
-              className="grid grid-cols-[1fr,auto,auto,auto,auto] items-center gap-2 border-b px-3 py-2 last:border-0"
-            >
-              <span className="text-sm">{fieldLabel(s.key, catalogFields)}</span>
-              {["read", "cite", "write"].map((p) => (
-                <input
-                  key={p}
-                  type="checkbox"
-                  checked={s.permissions.includes(p)}
-                  onChange={() => toggle(s.key, p)}
-                  className="mx-auto size-4 accent-primary"
-                />
-              ))}
-              <Button variant="ghost" size="icon" onClick={() => remove(s.key)} aria-label="Remover campo">
-                <IconTrash className="size-4" />
-              </Button>
-            </div>
-          ))}
+          {stored.map((s) => {
+            const label = fieldLabel(s.key, catalogFields);
+            return (
+              <div
+                key={s.key}
+                className="grid grid-cols-[1fr,auto,auto,auto,auto] items-center gap-2 border-b px-3 py-2 last:border-0"
+              >
+                <span className="flex flex-col text-sm">
+                  {label}
+                  <span className="text-xs text-muted-foreground">{exampleValue(s.key, label)}</span>
+                </span>
+                {["read", "cite", "write"].map((p) => (
+                  <input
+                    key={p}
+                    type="checkbox"
+                    checked={s.permissions.includes(p)}
+                    onChange={() => toggle(s.key, p)}
+                    className="mx-auto size-4 accent-primary"
+                  />
+                ))}
+                <Button variant="ghost" size="icon" onClick={() => remove(s.key)} aria-label="Remover campo">
+                  <IconTrash className="size-4" />
+                </Button>
+              </div>
+            );
+          })}
           {stored.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">Nenhum campo selecionado.</p>}
           {options.length > 0 && (
             <div className="flex items-center gap-2 border-t px-3 py-2">
@@ -1557,6 +1664,16 @@ function StepThemes({
 }) {
   const themes = (config.themes as Array<Record<string, unknown>>) ?? [];
   const [editingIdx, setEditingIdx] = React.useState<number | null>(null);
+  const [dragIdx, setDragIdx] = React.useState<number | null>(null);
+
+  const moveTheme = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= themes.length || to >= themes.length) return;
+    const next = themes.slice();
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange("themes", next);
+    if (editingIdx === from) setEditingIdx(to);
+  };
 
   const addTheme = () => {
     const next = themes.slice();
@@ -1579,15 +1696,44 @@ function StepThemes({
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Assuntos são os temas que este agente atende (ex.: Cancelamento, Suporte técnico, Financeiro). Cada mensagem do
+        cliente é encaixada em um assunto, que define as instruções, ferramentas e materiais usados na resposta.
+        Arraste pela alça <IconGripVertical className="inline size-3.5 -translate-y-0.5" /> para mudar a ordem em que o
+        agente considera os assuntos.
+      </p>
       {themes.map((t, i) => (
-        <Card key={String(t.id) ?? i}>
+        <Card
+          key={String(t.id) ?? i}
+          draggable
+          onDragStart={() => setDragIdx(i)}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (dragIdx !== null) moveTheme(dragIdx, i);
+            setDragIdx(null);
+          }}
+          onDragEnd={() => setDragIdx(null)}
+          className={cn(dragIdx === i && "opacity-50")}
+        >
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle className="text-base">{(t.name as string) || "Assunto sem nome"}</CardTitle>
-                <CardDescription>{((t.when as string[]) ?? []).join(", ") || "Sem gatilhos"}</CardDescription>
+              <div className="flex items-start gap-2">
+                <span className="mt-1 cursor-grab text-muted-foreground active:cursor-grabbing" title="Arrastar para reordenar">
+                  <IconGripVertical className="size-4" />
+                </span>
+                <div>
+                  <CardTitle className="text-base">{(t.name as string) || "Assunto sem nome"}</CardTitle>
+                  <CardDescription>{((t.when as string[]) ?? []).join(", ") || "Sem gatilhos"}</CardDescription>
+                </div>
               </div>
               <div className="flex gap-1">
+                <Button variant="outline" size="icon" disabled={i === 0} onClick={() => moveTheme(i, i - 1)} aria-label="Mover para cima">
+                  <IconChevronUp className="size-4" />
+                </Button>
+                <Button variant="outline" size="icon" disabled={i === themes.length - 1} onClick={() => moveTheme(i, i + 1)} aria-label="Mover para baixo">
+                  <IconChevronDown className="size-4" />
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setEditingIdx(editingIdx === i ? null : i)}>
                   {editingIdx === i ? "Fechar" : "Editar"}
                 </Button>
@@ -2108,7 +2254,7 @@ function StepTeam({
             onChange={(v) => onChange("handoff.defaultDestination", v)}
           />
         </Field>
-        <Field label="Mensagem de handoff" tooltip="Texto enviado ao cliente antes de transferir para um humano.">
+        <Field label="Mensagem ao transferir" tooltip="Texto enviado ao cliente antes de passar para uma pessoa.">
           <Textarea
             value={(handoff.message as string) ?? ""}
             onChange={(e) => onChange("handoff.message", e.target.value)}
@@ -2278,14 +2424,34 @@ function StepTeam({
 
 function StepClosure({
   config,
+  catalogs,
   onChange,
 }: {
   config: Record<string, unknown>;
+  catalogs: Catalogs;
   onChange: (path: string, value: unknown) => void;
 }) {
   const closure = getPath(config, "closure", {}) as Record<string, unknown>;
   const survey = getPath(config, "survey", {}) as Record<string, unknown>;
   const tabulation = getPath(config, "tabulation", {}) as Record<string, unknown>;
+  const fieldUpdates = (closure.fieldUpdates as Array<{ entity: "contact" | "deal"; key: string; value: string }>) ?? [];
+
+  const contactFields = (getPath(config, "contextFields.contact", []) as Array<{ key: string; label?: string; permissions: string[] }>) ?? [];
+  const dealFields = (getPath(config, "contextFields.deal", []) as Array<{ key: string; label?: string; permissions: string[] }>) ?? [];
+  const writableOptions = [
+    ...contactFields.filter((f) => f.permissions.includes("write")).map((f) => ({
+      entity: "contact" as const,
+      key: f.key,
+      label: `Contato · ${f.label ?? catalogs.contactCustomFields.find((c) => c.id === f.key)?.name ?? f.key}`,
+    })),
+    ...dealFields.filter((f) => f.permissions.includes("write")).map((f) => ({
+      entity: "deal" as const,
+      key: f.key,
+      label: `Negócio · ${f.label ?? catalogs.dealCustomFields.find((c) => c.id === f.key)?.name ?? f.key}`,
+    })),
+  ];
+
+  const setFieldUpdates = (next: typeof fieldUpdates) => onChange("closure.fieldUpdates", next);
 
   return (
     <div className="space-y-6">
@@ -2311,6 +2477,70 @@ function StepClosure({
           />
           <Label htmlFor="returnStage">Devolver card à etapa de origem ao fechar</Label>
         </div>
+      </SectionCard>
+
+      <SectionCard title="Campos a atualizar no encerramento" description="Sempre que a conversa for encerrada por este agente, atualize automaticamente estes campos do contato ou do negócio.">
+        <div className="space-y-2">
+          {fieldUpdates.map((fu, i) => (
+            <div key={i} className="flex gap-2">
+              <Select
+                value={`${fu.entity}:${fu.key}`}
+                onValueChange={(v) => {
+                  const [entity, key] = v.split(":");
+                  const next = fieldUpdates.slice();
+                  next[i] = { ...next[i], entity: entity as "contact" | "deal", key };
+                  setFieldUpdates(next);
+                }}
+              >
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Campo…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {writableOptions.map((o) => (
+                    <SelectItem key={`${o.entity}:${o.key}`} value={`${o.entity}:${o.key}`}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Novo valor"
+                value={fu.value}
+                onChange={(e) => {
+                  const next = fieldUpdates.slice();
+                  next[i] = { ...next[i], value: e.target.value };
+                  setFieldUpdates(next);
+                }}
+              />
+              <Button variant="outline" size="icon" onClick={() => setFieldUpdates(fieldUpdates.filter((_, j) => j !== i))}>
+                <IconTrash className="size-4" />
+              </Button>
+            </div>
+          ))}
+          {writableOptions.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Nenhum campo com permissão de atualizar. Libere a coluna “Atualizar” em O que ele sabe primeiro.
+            </p>
+          )}
+          {writableOptions.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setFieldUpdates([...fieldUpdates, { entity: writableOptions[0].entity, key: writableOptions[0].key, value: "" }])}
+            >
+              <IconPlus className="size-4" /> Adicionar campo
+            </Button>
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Devolver para a automação" description="Se este atendimento começou por uma automação, ela pode continuar de onde ficou paralisada, no passo indicado.">
+        <Field label="Id do passo da automação" tooltip="Id do step da automação que deve continuar quando este agente encerrar a conversa. Deixe vazio se não houver automação de origem.">
+          <Input
+            value={(closure.nextAutomationStepId as string) ?? ""}
+            onChange={(e) => onChange("closure.nextAutomationStepId", e.target.value || undefined)}
+            placeholder="Opcional"
+          />
+        </Field>
       </SectionCard>
 
       <SectionCard title="Comportamento após reabertura" description="O que fazer quando o cliente manda nova mensagem depois de encerrado.">
@@ -2416,94 +2646,283 @@ function StepClosure({
 // Etapa 12 — Testar e publicar
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Normaliza executedActions/discardedActions (formato antigo achatado ou novo { action, label }). */
+function normalizeActionEntry(entry: Record<string, unknown>): { action: Record<string, unknown>; label: string; reason?: string } {
+  if (entry && typeof entry === "object" && "action" in entry && "label" in entry) {
+    return entry as { action: Record<string, unknown>; label: string; reason?: string };
+  }
+  const type = typeof entry.type === "string" ? entry.type : "Ação";
+  return { action: entry, label: type };
+}
+
+function WhyPanel({ result, onEditTheme, onEditRule }: {
+  result: TestResult;
+  onEditTheme?: () => void;
+  onEditRule?: () => void;
+}) {
+  const executed = result.executedActions.map((a) => normalizeActionEntry(a as Record<string, unknown>));
+  const discarded = result.discardedActions.map((a) => normalizeActionEntry(a as Record<string, unknown>));
+  return (
+    <div className="mt-2 space-y-3 rounded-xl border bg-muted/30 p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-1 text-xs font-medium">
+          <IconRoute className="size-3.5 text-muted-foreground" />
+          Regra aplicada:{" "}
+          <strong className="font-semibold">{result.appliedRuleName ?? result.appliedRuleId ?? "Nenhuma (o modelo decidiu)"}</strong>
+        </span>
+        {onEditRule && result.appliedRuleId && (
+          <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs" onClick={onEditRule}>
+            Editar regra <IconArrowRight className="size-3" />
+          </Button>
+        )}
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-1 text-xs font-medium">
+          <IconMessageCircle2 className="size-3.5 text-muted-foreground" />
+          Assunto identificado:{" "}
+          <strong className="font-semibold">{result.themeName ?? result.themeId ?? "Nenhum"}</strong>
+        </span>
+        {onEditTheme && result.themeId && (
+          <Button variant="ghost" size="sm" className="h-6 gap-1 px-2 text-xs" onClick={onEditTheme}>
+            Editar assunto <IconArrowRight className="size-3" />
+          </Button>
+        )}
+        {result.handoff && <Badge variant="secondary">Passou para uma pessoa</Badge>}
+        {result.closed && <Badge variant="secondary">Encerrou a conversa</Badge>}
+      </div>
+
+      <div>
+        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <IconBulb className="size-3.5" /> Por que respondeu isso
+        </p>
+        <p className="rounded-lg bg-background px-3 py-2 text-[13px]">{result.reason || "Sem motivo informado."}</p>
+      </div>
+
+      {result.toolCalls.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <IconTool className="size-3.5" /> Ferramentas chamadas
+          </p>
+          <ul className="space-y-1">
+            {result.toolCalls.map((t, i) => (
+              <li key={i} className="rounded-lg bg-background px-3 py-2 text-[13px]">
+                <span className="font-medium">{toolLabel(t.toolName)}</span>
+                <span className="text-muted-foreground"> → {JSON.stringify(t.result).slice(0, 160)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.ragChunks.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <IconFile className="size-3.5" /> Trechos dos materiais usados
+          </p>
+          <ul className="space-y-1">
+            {result.ragChunks.map((c, i) => (
+              <li key={i} className="rounded-lg bg-background px-3 py-2 text-[13px]">
+                {c.docTitle && <span className="font-medium">{c.docTitle}: </span>}
+                <span className="text-muted-foreground">{(c.text ?? "").slice(0, 220) || "(sem trecho)"}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {executed.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <IconCheck className="size-3.5" /> Ações que seriam executadas
+          </p>
+          <ul className="space-y-1">
+            {executed.map((a, i) => (
+              <li key={i} className="rounded-lg bg-background px-3 py-2 text-[13px]">
+                <span className="font-medium">{a.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {discarded.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <IconMoodSad2 className="size-3.5" /> Ações descartadas e o motivo
+          </p>
+          <ul className="space-y-1">
+            {discarded.map((a, i) => (
+              <li key={i} className="rounded-lg bg-background px-3 py-2 text-[13px]">
+                <span className="font-medium">{a.label}</span>
+                <span className="text-muted-foreground"> — {a.reason ?? "Não permitida neste contexto."}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="text-right text-[11px] text-muted-foreground">
+        {result.inputTokens + result.outputTokens} tokens · {result.latencyMs}ms
+      </p>
+    </div>
+  );
+}
+
 function StepTestPublish({
   agentId,
   dirty,
   onSave,
+  onGoToTheme,
+  onGoToRule,
 }: {
   agentId: string;
   dirty: boolean;
   onSave: () => Promise<void>;
+  onGoToTheme?: (themeId: string) => void;
+  onGoToRule?: (ruleId: string) => void;
 }) {
-  const [message, setMessage] = React.useState("Oi");
-  const [result, setResult] = React.useState<TestResult | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [message, setMessage] = React.useState("");
+  const [turns, setTurns] = React.useState<ChatTurn[]>([]);
   const [testing, setTesting] = React.useState(false);
+  const [openWhyId, setOpenWhyId] = React.useState<string | null>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [turns, testing]);
 
   const runTest = async () => {
+    const text = message.trim();
+    if (!text) return;
     if (dirty) await onSave();
+    const turnId = `t_${Date.now()}`;
+    const history: Array<{ role: "user" | "assistant"; content: string }> = [];
+    for (const t of turns) {
+      history.push({ role: "user", content: t.userMessage });
+      if (t.result?.reply) history.push({ role: "assistant", content: t.result.reply });
+    }
+    setTurns((prev) => [...prev, { id: turnId, userMessage: text }]);
+    setMessage("");
     setTesting(true);
-    setError(null);
     try {
-      const r = await testAgent(agentId, message);
-      setResult(r);
+      const r = await testAgent(agentId, text, history);
+      setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, result: r } : t)));
+      setOpenWhyId(turnId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro no teste");
+      setTurns((prev) =>
+        prev.map((t) => (t.id === turnId ? { ...t, error: err instanceof Error ? err.message : "Erro no teste" } : t)),
+      );
     } finally {
       setTesting(false);
     }
   };
 
+  const restart = () => {
+    setTurns([]);
+    setOpenWhyId(null);
+  };
+
   return (
-    <div className="space-y-6">
-      <SectionCard title="Testar antes de publicar" description="Envie uma mensagem e veja como o agente responderia, sem afetar clientes reais.">
+    <div className="space-y-4">
+      <SectionCard
+        title="Conversa de teste"
+        description="Converse com o agente como se fosse o cliente, sem afetar clientes reais. Depois de cada resposta, veja os bastidores em “Por que respondeu isso?”."
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">Simulação isolada — nada é enviado pelo canal real nem grava dados do cliente.</p>
+          <Button variant="outline" size="sm" onClick={restart} disabled={turns.length === 0} className="gap-1">
+            <IconRefresh className="size-3.5" /> Recomeçar
+          </Button>
+        </div>
+
+        <div
+          ref={scrollRef}
+          className="flex max-h-[480px] min-h-[320px] flex-col gap-3 overflow-y-auto rounded-xl border bg-[var(--chat-bg,var(--muted))] p-4"
+        >
+          {turns.length === 0 && !testing && (
+            <p className="m-auto text-sm text-muted-foreground">Digite uma mensagem abaixo para começar a simulação.</p>
+          )}
+          {turns.map((t) => (
+            <React.Fragment key={t.id}>
+              {/* Bolha do cliente simulado */}
+              <div className="flex justify-start">
+                <div
+                  className="max-w-[75%] rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm shadow-sm"
+                  style={{ background: "var(--chat-bubble-received-bg, #fff)", color: "var(--chat-bubble-received-text, inherit)" }}
+                >
+                  {t.userMessage}
+                </div>
+              </div>
+              {/* Bolha do agente */}
+              {t.result && (
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex justify-end">
+                    <div
+                      className="max-w-[75%] rounded-2xl rounded-br-sm px-3.5 py-2 text-sm shadow-sm"
+                      style={{ background: "var(--chat-bubble-sent-bg, var(--primary))", color: "var(--chat-bubble-sent-text, var(--primary-foreground))" }}
+                    >
+                      {t.result.reply || <span className="italic opacity-75">(sem resposta ao cliente)</span>}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOpenWhyId(openWhyId === t.id ? null : t.id)}
+                    className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    <IconBulb className="size-3.5" />
+                    Por que respondeu isso?
+                    <IconChevronDown className={cn("size-3 transition-transform", openWhyId === t.id && "rotate-180")} />
+                  </button>
+                  {openWhyId === t.id && (
+                    <div className="w-full max-w-[92%]">
+                      <WhyPanel
+                        result={t.result}
+                        onEditTheme={t.result.themeId && onGoToTheme ? () => onGoToTheme(t.result!.themeId!) : undefined}
+                        onEditRule={t.result.appliedRuleId && onGoToRule ? () => onGoToRule(t.result!.appliedRuleId!) : undefined}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              {t.error && (
+                <div className="flex justify-end">
+                  <div className="max-w-[75%] rounded-2xl rounded-br-sm border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-sm text-destructive">
+                    Não consegui responder: {t.error}
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+          {testing && (
+            <div className="flex justify-end">
+              <div className="flex items-center gap-1.5 rounded-2xl rounded-br-sm bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
+                <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.2s]" />
+                <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.1s]" />
+                <span className="size-1.5 animate-bounce rounded-full bg-current" />
+                <span className="ml-1">digitando…</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex gap-2">
           <Input
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Digite uma mensagem…"
-            onKeyDown={(e) => e.key === "Enter" && runTest()}
+            placeholder="Digite como se fosse o cliente…"
+            onKeyDown={(e) => e.key === "Enter" && !testing && runTest()}
+            disabled={testing}
           />
           <Button onClick={runTest} disabled={testing || !message.trim()}>
             <IconSend className="size-4" /> Enviar
           </Button>
         </div>
-        {testing && <p className="text-sm text-muted-foreground">Pensando…</p>}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        {result && (
-          <div className="space-y-3 rounded-lg border bg-muted/20 p-4 text-sm">
-            <p>
-              <span className="text-muted-foreground">Resposta:</span> {result.reply || "(sem resposta)"}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Motivo:</span> {result.reason}
-            </p>
-            {result.handoff && <Badge>Handoff</Badge>}
-            {result.closed && <Badge>Encerrado</Badge>}
-            {result.toolCalls.length > 0 && (
-              <div>
-                <p className="font-semibold">Ferramentas chamadas:</p>
-                <ul className="list-disc pl-5">
-                  {result.toolCalls.map((t, i) => (
-                    <li key={i}>
-                      {t.toolName} → {JSON.stringify(t.result).slice(0, 120)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {result.ragChunks.length > 0 && (
-              <div>
-                <p className="font-semibold">Trechos dos materiais:</p>
-                {result.ragChunks.map((c, i) => (
-                  <p key={i} className="text-muted-foreground">
-                    {c.text?.slice(0, 200)}
-                  </p>
-                ))}
-              </div>
-            )}
-            {result.executedActions.length > 0 && (
-              <div>
-                <p className="font-semibold">Ações executadas:</p>
-                {result.executedActions.map((a, i) => (
-                  <p key={i} className="text-muted-foreground">
-                    {JSON.stringify(a)}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+      </SectionCard>
+
+      <SectionCard title="Antes de publicar" description="Confira o essencial antes de deixar o agente no ar.">
+        <ul className="space-y-1.5 text-sm text-muted-foreground">
+          <li className="flex items-center gap-2"><IconCheck className="size-4 text-success" /> Teste ao menos uma mensagem de cada assunto importante.</li>
+          <li className="flex items-center gap-2"><IconCheck className="size-4 text-success" /> Confira se os campos citados aparecem certos nas respostas.</li>
+          <li className="flex items-center gap-2"><IconCheck className="size-4 text-success" /> Veja se a transferência para pessoa acontece quando deveria.</li>
+        </ul>
       </SectionCard>
     </div>
   );
