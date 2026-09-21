@@ -20,7 +20,11 @@ import { KeepEditorDialog } from "@/features/keeps/keep-editor-dialog";
 import { GOOGLE_KEEP_TUTORIAL_PLAYER } from "@/features/keeps/keep-import-tutorial";
 import { KeepCategoryDialog } from "@/features/keeps/keep-category-dialog";
 import { PageTourButton } from "@/features/product-tour";
-import { registerKeepsFolderTourBridge } from "@/features/product-tour/keeps-tour-bridge";
+import {
+  registerKeepsFolderTourBridge,
+  registerKeepsSceneTourBridge,
+} from "@/features/product-tour/keeps-tour-bridge";
+import { KeepsTourDemo, type KeepsTourScene } from "@/features/product-tour/keeps-tour-demo";
 import { KeepColorSwatches } from "@/features/keeps/keep-color-swatches";
 import {
   KEEP_CATEGORY_COLOR_LABELS,
@@ -149,6 +153,7 @@ export default function BwipoKeepsClientPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [active, setActive] = useState<KeepNote | null>(null);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [tourScene, setTourScene] = useState<KeepsTourScene | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const notesQuery = useKeepNotes(folder, q, colorFilter);
   const categoriesQuery = useKeepCategories();
@@ -159,7 +164,11 @@ export default function BwipoKeepsClientPage() {
       setFolder,
       setViewMode,
     });
-    return () => registerKeepsFolderTourBridge(null);
+    registerKeepsSceneTourBridge(setTourScene);
+    return () => {
+      registerKeepsFolderTourBridge(null);
+      registerKeepsSceneTourBridge(null);
+    };
   }, []);
 
   const items = notesQuery.data?.items ?? [];
@@ -595,6 +604,19 @@ export default function BwipoKeepsClientPage() {
           );
         }}
       />
+      {tourScene ? (
+        <div
+          className="pointer-events-none fixed z-40 flex p-4 pb-40"
+          style={{
+            left: "var(--nav-rail-w, 76px)",
+            top: 0,
+            right: 0,
+            bottom: 0,
+          }}
+        >
+          <KeepsTourDemo scene={tourScene} />
+        </div>
+      ) : null}
     </div>
   );
 }
