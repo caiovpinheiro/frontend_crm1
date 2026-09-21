@@ -950,7 +950,6 @@ function StepStart({
             options={(catalogs.channels ?? []).map((c) => ({ value: c.id, label: c.name ?? c.id }))}
             selected={((config.channelIds as string[]) ?? []).map(String)}
             onChange={(v) => onChange("channelIds", v)}
-            placeholder="Selecionar canais"
           />
         </Field>
         <Field label="Domínios permitidos em links" tooltip="URLs de quais domínios o agente pode enviar ao cliente (segurança de phishing).">
