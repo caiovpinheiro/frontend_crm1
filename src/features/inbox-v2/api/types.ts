@@ -376,6 +376,21 @@ export interface InboxMessageDto {
    *  compartilhado entre agentes). Alimenta a estrela preenchida no
    *  menu contextual e no bubble. */
   favoritedByMe?: boolean;
+  catalogOrder?: {
+    catalogId: string;
+    text: string | null;
+    currency: string;
+    total: number;
+    items: Array<{
+      productRetailerId: string;
+      quantity: number;
+      itemPrice: number;
+      currency: string;
+      productId: string | null;
+      name: string;
+      imageUrl: string | null;
+    }>;
+  } | null;
 }
 
 /** Resumo de uma conexão (Channel) — mesmo shape do ConnectionRefDto do backend. */
