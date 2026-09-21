@@ -962,7 +962,7 @@ function ContactsSearchFilterBar({
         title="Filtros"
         labelledBy="Filtros de contatos"
       >
-        <FilterCategoryColumn title="Tags" hint="Incluir contatos com estas tags" className="sm:col-span-2">
+        <FilterCategoryColumn title="Tags" hint="Incluir contatos com estas tags">
           <div className="relative w-full">
             <IconSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
