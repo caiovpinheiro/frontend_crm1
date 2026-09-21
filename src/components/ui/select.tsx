@@ -51,6 +51,7 @@ type SelectContextValue = {
   setOpen: (open: boolean) => void;
   labels: Record<string, React.ReactNode>;
   registerLabel: (value: string, label: React.ReactNode) => void;
+  triggerRef: React.RefObject<HTMLDivElement | null>;
 };
 
 const SelectContext = React.createContext<SelectContextValue | null>(null);
@@ -75,6 +76,7 @@ function Select({
   const [labels, setLabels] = React.useState<Record<string, React.ReactNode>>(
     {}
   );
+  const triggerRef = React.useRef<HTMLDivElement>(null);
   const registerLabel = React.useCallback(
     (itemValue: string, label: React.ReactNode) => {
       setLabels((prev) =>
@@ -86,9 +88,9 @@ function Select({
 
   return (
     <SelectContext.Provider
-      value={{ value, onValueChange, open, setOpen, labels, registerLabel }}
+      value={{ value, onValueChange, open, setOpen, labels, registerLabel, triggerRef }}
     >
-      <div className="relative">{children}</div>
+      <div ref={triggerRef} className="relative">{children}</div>
     </SelectContext.Provider>
   );
 }
@@ -143,14 +145,14 @@ function SelectContent({
   children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  const { open, setOpen } = useSelectContext("SelectContent");
+  const { open, setOpen, triggerRef } = useSelectContext("SelectContent");
   const ref = React.useRef<HTMLDivElement>(null);
   const [position, setPosition] = React.useState<{ top: number; left: number; width: number } | null>(null);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!open) return;
     const updatePosition = () => {
-      const trigger = ref.current?.parentElement;
+      const trigger = triggerRef.current;
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
       setPosition({
@@ -161,7 +163,7 @@ function SelectContent({
     };
     updatePosition();
     const onDoc = (e: MouseEvent) => {
-      const clickedTrigger = ref.current?.parentElement?.contains(e.target as Node);
+      const clickedTrigger = triggerRef.current?.contains(e.target as Node);
       const clickedContent = ref.current?.contains(e.target as Node);
       if (!clickedTrigger && !clickedContent) {
         setOpen(false);
@@ -175,13 +177,17 @@ function SelectContent({
       window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("mousedown", onDoc);
     };
-  }, [open, setOpen]);
+  }, [open, setOpen, triggerRef]);
 
   if (!open || !position) {
     // Render items invisíveis para que os labels sejam registrados
     // e o SelectValue consiga mostrar o rótulo mesmo sem abrir.
     return (
-      <div data-slot="select-content-hidden" className="sr-only" aria-hidden="true">
+      <div
+        data-slot="select-content-hidden"
+        className="pointer-events-none invisible absolute"
+        aria-hidden="true"
+      >
         {children}
       </div>
     );

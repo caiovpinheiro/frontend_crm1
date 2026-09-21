@@ -18,14 +18,11 @@ Legenda:
 | Nome do agente + hint "É o nome que o cliente vê" | Campo com label simples | OK, falta hint |
 | Canal escolhido de uma **lista** (WhatsApp/Instagram/Messenger) do catálogo | Input de texto pedindo ID do canal | FALTA |
 | Modelo escolhido de uma **lista** (Em branco, Atendimento, Vendas, etc.) | Modelo é só um select de fluxo; não aparecem presets como cards | FALTA |
-| Cards de modelo com tags do que inclui | Não há cards | FALTA |
-| Dica "Não achou? Escolha Em branco" | Não há | FALTA |
+| Botão "Criar" desabilitado até nome + canal + modelo preenchidos | Botão habilitado | BUG |
 
 **BUGS:**
-- Comportamento, Tamanho e Modo (passo 1/2) aparecem vazios quando há valor salvo — mapping label/valor incorreto.
-
-**EXTRA:**
-- Campo "Chave OpenAI" aparece no passo 1. Protótipo não mostra (pode ficar em Avançado ou ser lida do backend).
+- Campo canal é texto livre em vez de select com catálogo.
+- Modelo não exibe presets do protótipo (Atendimento, Vendas, etc.) como cards.
 
 ---
 
@@ -33,15 +30,16 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Tom como **botões chip** (Acolhedor, Direto, Formal, Descontraído, Técnico) | Textarea livre | FALTA |
-| Descrição do tom em textarea separada | Apenas textarea "Descrição do tom" | FALTA separar |
-| Tamanho da resposta como **botões chip** (Curtas, Médias, Detalhadas) | Select nativo | FALTA |
-| Prévia de mensagem com bolha de chat que muda conforme tamanho | Sem prévia | FALTA |
-| Regras como lista de inputs com botão de adicionar/remover | ChipInput existe, OK | OK |
-| Dica amigável "Escreva como orientaria alguém novo" | Não há | FALTA |
+| Slider/espécie de tom com presets "Mais objetivo/Equilibrado/Mais natural/Mais criativo" | Select funciona depois do fix, mas não é slider/card | parcial |
+| Tamanho da resposta: Curta / Média / Completa | Select funciona | OK |
+| Saudação customizada com variáveis (`@Nome`, `@Empresa`) | Campo de texto simples | OK |
+| Despedida customizada com variáveis | Campo de texto simples | OK |
+| Instruções gerais de comportamento (tom, tom de voz, o que evitar) | Editor TipTap presente | OK |
+| Exemplos de frases para guiar o modelo | Editor presente | OK |
+| Limite de caracteres/contagem de tokens visível | Não há | FALTA |
 
 **BUGS:**
-- Selects aparecem vazios se valor salvo não bate com opção.
+- O select de "Comportamento" estava vazio antes do fix (valor salvo não mostrava rótulo). Corrigido em `src/components/ui/select.tsx`.
 
 ---
 
@@ -49,31 +47,31 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Tabela: Campo / Ler / Citar / Atualizar, uma linha por campo | Tabela existe, mas headers flutuam; layout confuso | BUG |
-| Rótulos do CRM ("Nome", "Telefone") em vez da chave técnica | Mostra `name`, `phone`, `email`, `stage` como chaves | BUG |
-| Valor de exemplo do contato embaixo do nome do campo | Não mostra valor exemplo | FALTA |
-| “Usar o mais recente” / “Perguntar ao cliente” para múltiplos negócios | Não há controle | FALTA |
-| Mídia (áudio, imagem, documento) com opções em português legíveis | Selects existem, mas com valores técnicos | BUG/parcial |
-| Informações fixas da empresa (@Nome etc) com chave/valor | Existe como "Informações fixas" | OK |
+| Nome da empresa via variável `@Nome da empresa` | Campo `organizationName` separado | EXTRA |
+| Campos do contato: selecionar quais o agente pode ler/alterar | Tabela estática sem vínculo ao CRM | BUG |
+| Campos do negócio: selecionar quais o agente pode ler/alterar | Tabela estática sem vínculo ao CRM | BUG |
+| Permissão por campo (só ler / ler e escrever) | Não há permissão por campo | FALTA |
+| Variáveis explicadas com ícone ⓘ | Não há tooltips | FALTA |
 
 **BUGS:**
-- Campos vazios em selects de mídia.
-- Tabela não usa rótulos do CRM.
+- Tabela de campos não está ligada aos catálogos de contato/negócio.
+- `organizationName` é campo próprio em vez de usar a variável `@Nome da empresa`.
 
 ---
 
-## 4. Materiais de consulta (docs)
+## 4. Materiais (docs)
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Dropzone grande “Arraste arquivos aqui” | Input file simples | FALTA |
-| Botão “Criar texto” para FAQ curto | Não há | FALTA |
-| Tabela: Material / Situação / Usado nos assuntos / Ações | Lista simples de docs com badge Usado/Não usado | FALTA |
-| Situação “Processando…” / “Pronto” | Não mostra status de indexação | FALTA |
-| “Testar busca” com pergunta e trecho encontrado | Não há | FALTA |
+| Lista de materiais cadastrados com nome e tipo | Existe, mas upload falha | BUG |
+| Upload de arquivos (TXT, MD, PDF) | Aceita `.pdf`, mas backend rejeita; hint ausente | BUG |
+| Seleção de quais materiais o agente pode consultar (RAG) | MultiSelectPopover funciona | OK |
+| Indicador de "material ativo/inativo" | Não há | FALTA |
+| Botão de upload com loading | Não tinha | FALTA |
 
 **BUGS:**
-- Upload de PDF é aceito na UI mas rejeitado no backend.
+- Upload de materiais não funciona.
+- Upload aceita `.pdf` que o backend ainda não suporta.
 
 ---
 
@@ -81,13 +79,13 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Toggle “Usar mensagens prontas” | Toggle “Falar de produtos” está; mensagens prontas sem toggle | FALTA |
-| Opção “Enviar como está” / “Pode adaptar levemente” | Não há | FALTA |
-| Lista de modelos do CRM como chips toggle | MultiSelectPopover existe | parcial |
-| Templates oficiais aprovados na Meta como chips | Não mostra templates oficiais separados | FALTA |
-| Prévia do modelo preenchida com variáveis | Não há prévia | FALTA |
-| Produtos: quantos por vez, filtro, o que mostrar, ações com o produto | Quantos por vez e toggles de exibição existem, mas sem ações | parcial |
-| Prévia do produto | Não há | FALTA |
+| "Mensagens prontas" escolhidas de modelos cadastrados | MultiSelectPopover com modelos | OK |
+| Lista de produtos cadastrados com switch individual | Não lista produtos | BUG |
+| Opção de enviar até N produtos | Select de max items existe | OK |
+| Mostrar preço/imagem nos cards | Checkbox existe | OK |
+
+**BUGS:**
+- Produtos cadastrados não aparecem para seleção (faltava `allowedProductIds` no schema; corrigido).
 
 ---
 
@@ -95,13 +93,10 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| “Como a conversa chega”: cliente / automação / pessoa (botões) | Toggle simples “Enviar boas-vindas” | FALTA |
-| Editor de mensagem com botões para inserir campos (@Nome) | Textarea simples | FALTA |
-| Trecho condicional entre { } com aviso “só aparece se tiver valor” | Não há | FALTA |
-| Opção “cliente sem campo preenchido” na prévia | Checkbox de simulação parcial | parcial |
-| Confirmação do cadastro com opções confirmar/só ler/não usar dados | Switch booleano apenas | FALTA |
-| Se não encontrar: pedir dado / criar negócio / encaminhar | Existe, mas select vazio | BUG |
-| Prévia da conversa com bolhas | Não há | FALTA |
+| Mensagem de abertura | Campo existe | OK |
+| Comportamento quando não identifica contato | Select | OK |
+| Ação para primeiro acesso / disciplinas | Campos existem | OK |
+| Pack de primeiro acesso | Campo existe | OK |
 
 ---
 
@@ -109,13 +104,10 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Lista vertical de assuntos com nome + gatilho + badge “Passa direto” | Cards colapsados | parcial |
-| Editor: nome, quando usar, exemplos, como agir | Existe, mas exemplos são ChipInput sem Enter inline | parcial |
-| “O que ele pode fazer neste assunto” com checkboxes de ações legíveis | Existe como checkboxes de tools técnicas | FALTA rótulos |
-| Materiais do assunto como chips dos docs enviados | MultiSelectPopover existe | OK |
-| Quem responde: este agente / especialista / criar novo | Select existe | parcial |
-| Mapa do atendimento (botão) | Não há | FALTA |
-| Passar direto, sem conversar | Toggle existe | OK |
+| Explicação do que são "Assuntos" (temas de atendimento) | Não há explicação | FALTA |
+| Cada assunto com nome, descrição, prompt, regras, ferramentas permitidas | Cards existem | OK |
+| Ordenação de assuntos | Não há drag | FALTA |
+| Lista de ferramentas por assunto | MultiSelectPopover | OK |
 
 ---
 
@@ -123,13 +115,12 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Regra exibida como “Quando … Então …” legível | Mostra selects de condição/ação técnicos | FALTA |
-| Reordenar (subir/descer) | Não há | FALTA |
-| Ativar/desativar toggle por regra | Não há | FALTA |
-| Condições: palavras-chave, etiqueta, fora de horário, áudio, etc. | Apenas keywords, contact_tag, out_of_hours, survey_received | parcial |
+| Regras com condição e ação | Cards existem | OK |
+| Condições: fora do horário, tag do contato, pesquisa recebida, campo atualizado | Condições listadas, mas 3 estão quebradas | BUG |
+| Ações: encaminhar, enviar mensagem, aplicar tag, etc. | Ações listadas | OK |
 
 **BUGS:**
-- Selects de condição e ação aparecem vazios.
+- `out_of_hours`, `contact_tag`, `survey_received` não avaliam corretamente.
 
 ---
 
@@ -137,14 +128,12 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Quando não souber responder + ação depois | Existe, mas select vazio | BUG |
-| Quando cliente pedir pessoa | Existe | OK |
-| Quando resposta não estiver nos materiais | Existe | OK |
-| Quando der erro no sistema | Existe | OK |
-| Quando parar de responder (cortesia, ofertas, trocas sem avanço, nonsense, silêncio) | Existe como números puros | parcial |
-| Fora do escopo + assuntos proibidos | Não há | FALTA |
-| Humor do cliente (irritado/insatisfeito) | Existe | parcial |
-| Resumo das saídas em check-row | Não há | FALTA |
+| Resposta padrão quando não tem material/cliente | Editor existe | OK |
+| Após encerramento: cortesia / nova demanda / ambíguo | 3 selects | OK |
+| Janela pós-encerramento em horas/dias | Campos existem | OK |
+
+**BUGS:**
+- Selects de comportamento pós-encerramento apareciam vazios (mesmo fix do select).
 
 ---
 
@@ -152,11 +141,9 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Destino de transferência padrão com catálogo | DestinationPicker existe | OK |
-| Mensagem “ao transferir” (não “handoff”) | Label ainda “Mensagem de handoff” | BUG texto |
-| Palavras-chave de pedido humano (protótipo removeu desta tela) | Ainda aparece | EXTRA |
-| Horário de atendimento com dias e horas | Existe | OK |
-| Inatividade: lembrete e encerramento | Existe | OK |
+| Expediente e ação fora do horário | Campos existem | OK |
+| Encaminhamento: departamento, fila, pessoa, distribuição, agente IA | Campos existem | OK |
+| Limite de idas e voltas IA↔humano | Campo existe | OK |
 
 ---
 
@@ -164,14 +151,10 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Pós-encerramento: janela, cortesia, demanda nova, ambíguo | Existe | OK |
-| Tabulação com mapping demanda→tabulação | Apenas toggle + quando + obrigatório | parcial |
-| Pesquisa de satisfação (nota, quando, pergunta, motivo, frequência) | Existe | parcial |
+| Tabulações permitidas | MultiSelectPopover | OK |
+| Campos a atualizar no encerramento | Não há | FALTA |
 | Botões no WhatsApp (habilitar) | Não há | FALTA |
 | “Devolver para automação” ao encerrar | Não há | FALTA |
-
-**BUGS:**
-- Selects de comportamento pós-encerramento aparecem vazios.
 
 ---
 
@@ -200,3 +183,24 @@ Legenda:
 | Sidebar com título + subtítulo por passo | Existe | OK |
 | Botão “Dicionário da tela” com termos técnicos | Não há | FALTA |
 | Rascunho salvo automaticamente | Botão “Salvar rascunho” | parcial |
+
+---
+
+## Validação da correção do Select em outras telas
+
+A correção do Select foi em `src/components/ui/select.tsx`, componente compartilhado do CRM. O teste interativo foi feito com o dev server local (`npm run dev`).
+
+| Tela / componente | O que foi verificado | Resultado |
+|---|---|---|
+| Página isolada `/test-select` | 3 selects mostrando valor salvo, abrindo, trocando de opção e exibindo rótulo correto. | ✅ OK |
+| `/inbox` | Carregou, mas filtros usam outros controles; nenhum select compartilhado renderizado. | ⚠️ Nenhum select para validar |
+| `/settings/team?tab=departamentos` | Carregou vazia; sem selects sem dados do backend. | ⚠️ Nenhum select renderizado |
+| `/automations/new` | Não carregou dados (backend local com dependência faltando). | ❌ Não validado |
+| `/pipeline` | Não carregou dados (backend local com dependência faltando). | ❌ Não validado |
+| `/settings/canais` | Não carregou dados (backend local com dependência faltando). | ❌ Não validado |
+
+### Observação técnica
+
+O backend local não iniciou completamente porque falta o pacote `@aws-sdk/s3-request-presigner` e `npm install` falha em `ffmpeg-static` (ambiente Windows). Sem backend, as telas que dependem de catálogos do CRM não renderizam os selects compartilhados. O componente em si foi validado isoladamente e o dropdown abre na frente do conteúdo.
+
+**Próximo passo de validação:** assim que a imagem de dev subir, vou conferir as mesmas telas no ambiente de dev e marcar esta seção como concluída.
