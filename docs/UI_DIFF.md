@@ -185,7 +185,12 @@ Legenda:
 
 ## Validação da correção do Select em outras telas
 
-A correção do Select foi em `src/components/ui/select.tsx`, componente compartilhado do CRM. O teste interativo foi feito com o dev server local (`npm run dev`).
+A correção do Select foi em `src/components/ui/select.tsx`, componente compartilhado do CRM. Este arquivo exporta **dois** controles distintos — isso muda o escopo real da validação:
+
+- **`Select`** (composto: `SelectTrigger`/`SelectContent`/`SelectItem`/`SelectValue`, portal fixo sobre `document.body`, `z-index: 50`) — foi o componente **corrigido** (bug do valor salvo aparecendo vazio no trigger). Levantamento no código (`grep -r "SelectTrigger" src/`) em 2026-09-21 confirma que esse composto é usado **somente** em `src/app/(app)/ai-agents-v2/[id]/client-page.tsx`. Nenhuma outra tela do CRM usa esse componente hoje.
+- **`SelectNative`** (um `<select>` HTML nativo) — usado em Inbox (filtros/quick actions), Departamentos (`deal-form`/`contact-filters` etc.), Pipeline (`deal-form`), Contatos (`contact-filters`). É um controle diferente, não tocado pela refatoração, renderizado nativamente pelo browser — não pode ter o mesmo bug (nem o de valor vazio, nem o de dropdown atrás de outros elementos).
+
+Ou seja: as "5 telas fora da v2" (inbox, departamentos, automações, pipeline, contatos) **não usam o componente corrigido**. A validação real da correção só é possível dentro de `/ai-agents-v2/[id]` (etapas Começar, Jeito de falar, Início da conversa, Saídas etc.).
 
 ### Implementação atual
 
@@ -193,18 +198,24 @@ A correção do Select foi em `src/components/ui/select.tsx`, componente compart
 - Isso evita o problema anterior (valor saldo aparecia vazio) e também evita peso em listas grandes.
 - Itens só são renderizados no DOM quando o menu abre (portal fixo sobre o `body`), então **não há itens escondidos recebendo foco do Tab nem sendo lidos por leitor de tela** quando o select está fechado.
 
-### Testes de impacto
+### Testes de impacto (isolados, sem backend)
 
 | Cenário | Resultado |
 |---|---|
 | Select pequeno (3 itens) — `/test-select` | Valor saldo aparece, abre, troca de opção. ✅ |
 | Select grande (500 itens) — `/test-select-large` | Render inicial ~6 ms; dropdown abre. ✅ |
-| `/inbox` | Carregou, mas filtros usam outros controles; nenhum select compartilhado renderizado. | ⚠️ |
-| `/settings/team?tab=departamentos` | Carregou vazia; sem selects sem dados do backend. | ⚠️ |
-| `/automations/new`, `/pipeline`, `/settings/canais` | Não carregaram dados (backend local travado por dependências). | ❌ Não validado |
 
-### Observação técnica
+### Validação em ambiente de dev (2026-09-21)
 
-O backend local não iniciou completamente porque falta o pacote `@aws-sdk/s3-request-presigner` e `npm install` falha em `ffmpeg-static` (ambiente Windows). Sem backend, as telas que dependem de catálogos do CRM não renderizam os selects compartilhados. O componente em si foi validado isoladamente e o dropdown abre na frente do conteúdo.
+Deploy do `DEV_BRANCH` no commit `2a94abf73` ([run #35597420987](https://github.com/caiovpinheiro/frontend_crm1/actions/runs/35597420987)) ficou **verde** sem necessidade de correção adicional — o merge de `feat/ai-simple-v2` já buildou limpo.
 
-**Próximo passo de validação:** assim que a imagem de dev subir, vou conferir as mesmas telas no ambiente de dev e marcar esta seção como concluída.
+Tentativa de validação manual via browser em `https://crm-dev-frontend.ca31ey.easypanel.host`:
+
+| Etapa | Resultado |
+|---|---|
+| Login com `gestor@eduit.com.br` / `Teste@123` (seed `seed-test-users.ts`) | ❌ "E-mail ou senha incorretos" |
+| Login com `operador@eduit.com.br` / `Teste@123` (mesmo seed) | ❌ "E-mail ou senha incorretos" |
+
+**Bloqueio real:** as credenciais de `prisma/seed-test-users.ts` (usadas para dev local) não existem no banco do ambiente de dev deployado (`crm-dev-frontend.ca31ey.easypanel.host` + `crm-dev-backend.ca31ey.easypanel.host`). Não há credencial válida conhecida para esse ambiente. Nenhuma tela (`/ai-agents-v2/[id]`, `/inbox`, `/settings/team?tab=departamentos`, `/automations/new`, `/settings/pipeline`, `/contacts`) pôde ser aberta autenticada.
+
+**Próximo passo de validação:** com uma credencial válida do ambiente de dev, repetir o roteiro acima — o essencial é `/ai-agents-v2/[id]` (único lugar que usa o `Select` corrigido); as demais telas usam `SelectNative` e servem só como sanity check de regressão geral, não do bug corrigido.
