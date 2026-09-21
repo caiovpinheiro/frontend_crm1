@@ -781,6 +781,7 @@ export default function AIAgentV2EditPage() {
             {step === 0 && (
               <StepStart
                 config={config}
+                catalogs={catalogs}
                 name={name}
                 active={active}
                 openaiKey={openaiKey}
@@ -849,6 +850,7 @@ export default function AIAgentV2EditPage() {
 
 function StepStart({
   config,
+  catalogs,
   name,
   active,
   openaiKey,
@@ -858,6 +860,7 @@ function StepStart({
   onChange,
 }: {
   config: Record<string, unknown>;
+  catalogs: Catalogs;
   name: string;
   active: boolean;
   openaiKey: string;
