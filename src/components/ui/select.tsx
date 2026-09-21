@@ -140,14 +140,58 @@ function SelectValue({
   );
 }
 
+function getNodeText(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(getNodeText).join("");
+  if (React.isValidElement(node)) {
+    const child = (node.props as { children?: React.ReactNode }).children;
+    return getNodeText(child);
+  }
+  return "";
+}
+
+function collectItemLabels(
+  nodes: React.ReactNode,
+  labels: Record<string, React.ReactNode>,
+  register: (value: string, label: React.ReactNode) => void,
+): void {
+  React.Children.forEach(nodes, (child) => {
+    if (!React.isValidElement(child)) return;
+    if (child.type === SelectItem) {
+      const { value: itemValue, children: itemChildren } = child.props as {
+        value?: string;
+        children?: React.ReactNode;
+      };
+      if (itemValue == null) return;
+      const text = getNodeText(itemChildren);
+      // Só atualiza o estado se o rótulo mudou (evita re-renderizações em loop).
+      if (!text || getNodeText(labels[itemValue]) !== text) {
+        register(itemValue, itemChildren);
+      }
+    } else if (child.type === React.Fragment) {
+      collectItemLabels(
+        (child.props as { children?: React.ReactNode }).children,
+        labels,
+        register,
+      );
+    }
+  });
+}
+
 function SelectContent({
   className,
   children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  const { open, setOpen, triggerRef } = useSelectContext("SelectContent");
+  const { open, setOpen, triggerRef, labels, registerLabel } =
+    useSelectContext("SelectContent");
   const ref = React.useRef<HTMLDivElement>(null);
   const [position, setPosition] = React.useState<{ top: number; left: number; width: number } | null>(null);
+
+  React.useEffect(() => {
+    collectItemLabels(children, labels, registerLabel);
+  }, [children, labels, registerLabel]);
 
   React.useLayoutEffect(() => {
     if (!open) return;
@@ -180,17 +224,7 @@ function SelectContent({
   }, [open, setOpen, triggerRef]);
 
   if (!open || !position) {
-    // Render items invisíveis para que os labels sejam registrados
-    // e o SelectValue consiga mostrar o rótulo mesmo sem abrir.
-    return (
-      <div
-        data-slot="select-content-hidden"
-        className="pointer-events-none invisible absolute"
-        aria-hidden="true"
-      >
-        {children}
-      </div>
-    );
+    return null;
   }
   return createPortal(
     <div
@@ -221,12 +255,8 @@ function SelectItem({
   children,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) {
-  const { value: selected, onValueChange, setOpen, registerLabel } =
+  const { value: selected, onValueChange, setOpen } =
     useSelectContext("SelectItem");
-
-  React.useEffect(() => {
-    registerLabel(value, children);
-  }, [value, children, registerLabel]);
 
   return (
     <button

@@ -190,14 +190,21 @@ Legenda:
 
 A correção do Select foi em `src/components/ui/select.tsx`, componente compartilhado do CRM. O teste interativo foi feito com o dev server local (`npm run dev`).
 
-| Tela / componente | O que foi verificado | Resultado |
-|---|---|---|
-| Página isolada `/test-select` | 3 selects mostrando valor salvo, abrindo, trocando de opção e exibindo rótulo correto. | ✅ OK |
-| `/inbox` | Carregou, mas filtros usam outros controles; nenhum select compartilhado renderizado. | ⚠️ Nenhum select para validar |
-| `/settings/team?tab=departamentos` | Carregou vazia; sem selects sem dados do backend. | ⚠️ Nenhum select renderizado |
-| `/automations/new` | Não carregou dados (backend local com dependência faltando). | ❌ Não validado |
-| `/pipeline` | Não carregou dados (backend local com dependência faltando). | ❌ Não validado |
-| `/settings/canais` | Não carregou dados (backend local com dependência faltando). | ❌ Não validado |
+### Implementação atual
+
+- O `Select` agora registra os rótulos dos itens a partir das `props` (`children` de cada `<SelectItem>`), sem renderizar os itens no DOM enquanto o menu está fechado.
+- Isso evita o problema anterior (valor saldo aparecia vazio) e também evita peso em listas grandes.
+- Itens só são renderizados no DOM quando o menu abre (portal fixo sobre o `body`), então **não há itens escondidos recebendo foco do Tab nem sendo lidos por leitor de tela** quando o select está fechado.
+
+### Testes de impacto
+
+| Cenário | Resultado |
+|---|---|
+| Select pequeno (3 itens) — `/test-select` | Valor saldo aparece, abre, troca de opção. ✅ |
+| Select grande (500 itens) — `/test-select-large` | Render inicial ~6 ms; dropdown abre. ✅ |
+| `/inbox` | Carregou, mas filtros usam outros controles; nenhum select compartilhado renderizado. | ⚠️ |
+| `/settings/team?tab=departamentos` | Carregou vazia; sem selects sem dados do backend. | ⚠️ |
+| `/automations/new`, `/pipeline`, `/settings/canais` | Não carregaram dados (backend local travado por dependências). | ❌ Não validado |
 
 ### Observação técnica
 
