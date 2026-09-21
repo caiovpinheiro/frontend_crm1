@@ -71,8 +71,8 @@ export function FilterColumnsModal({
       setCanScrollRight(false)
       return
     }
-    setCanScrollLeft(el.scrollLeft > 4)
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+    setCanScrollLeft(el.scrollLeft > 12)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 12)
   }, [])
 
   useEffect(() => {
@@ -127,7 +127,6 @@ export function FilterColumnsModal({
 
   const columns = flattenFilterColumns(children)
   const columnCount = columns.length
-  const wide = columnCount > 4
 
   function scrollColumns(dir: -1 | 1) {
     hScrollRef.current?.scrollBy({ left: dir * COL_SCROLL_PX, behavior: "smooth" })
@@ -151,8 +150,11 @@ export function FilterColumnsModal({
         aria-label={labelledBy ?? title}
         className={cn(
           "relative grid h-[min(84vh,720px)] max-h-[min(84vh,720px)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
-          wide ? "w-full max-w-6xl" : "w-max max-w-[min(96vw,72rem)]",
         )}
+        style={{
+          width: `min(calc(100vw - 2rem), ${Math.max(columnCount * 17.5, 28)}rem)`,
+          maxWidth: "72rem",
+        }}
       >
         <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
           <div className="min-w-0 space-y-0.5">
@@ -204,9 +206,15 @@ export function FilterColumnsModal({
           ) : null}
           <div
             ref={hScrollRef}
-            className="filter-columns-hscroll absolute inset-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+            className="filter-columns-hscroll absolute inset-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
-            <div className="flex h-full w-max min-h-0 flex-nowrap items-stretch">
+            <div
+              className={cn(
+                "flex h-full w-max min-h-0 flex-nowrap items-stretch",
+                canScrollLeft && "pl-12",
+                canScrollRight && "pr-12",
+              )}
+            >
               {columns}
             </div>
           </div>
@@ -245,7 +253,7 @@ export function FilterCategoryColumn({
   return (
     <section
       className={cn(
-        "flex h-full min-h-0 w-[min(16rem,85vw)] max-h-full shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
+        "flex h-full min-h-0 w-[17.5rem] max-w-[85vw] max-h-full shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
         className,
       )}
     >
@@ -265,7 +273,7 @@ export function FilterCategoryColumn({
         className={cn(
           "min-h-0 flex-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain",
           stacked ? "flex flex-col gap-3" : "flex flex-col gap-1.5",
-          "[&>button]:w-full [&>button]:shrink-0 [&>button]:justify-start [&>button]:min-w-0",
+          "[&>button]:h-auto [&>button]:w-full [&>button]:shrink-0 [&>button]:justify-start [&>button]:whitespace-normal [&>button]:text-left [&>button]:min-w-0",
         )}
       >
         {children}
