@@ -59,6 +59,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ChipInput } from "@/components/ai-agents/chip-input";
 import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
+import { looksLikeOpenAiApiKey } from "@/lib/agent-key";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,7 +70,15 @@ type AgentDetail = {
   id: string;
   name: string;
   active: boolean;
-  simpleConfig: Record<string, unknown>;
+  /** Config publicada (usada pelo WhatsApp). */
+  publishedConfig: Record<string, unknown>;
+  /** Config em rascunho (usada pela aba Testar). */
+  draftConfig?: Record<string, unknown>;
+  /** Config efetiva exibida: rascunho primeiro. */
+  config: Record<string, unknown>;
+  hasUnpublishedChanges: boolean;
+  /** Número da última versão publicada (0 se nunca publicado). */
+  lastVersionNumber: number;
   hasOwnOpenaiKey: boolean;
   openaiApiKeyHint: string | null;
   createdAt: string;
@@ -89,6 +98,7 @@ type Catalogs = {
   dealCustomFields: Array<{ id: string; name: string }>;
   products: Array<{ id: string; name: string }>;
   whatsappTemplates: Array<{ id: string; name: string }>;
+  models: Array<{ id: string; name: string }>;
 };
 
 type KnowledgeDoc = {
@@ -148,8 +158,8 @@ const BEHAVIOR_OPTIONS = [
 ];
 
 const AUTONOMY_OPTIONS = [
-  { value: "autonomous", label: "Autônomo (responde direto)" },
-  { value: "draft", label: "Rascunho (sugere, operador aprova)" },
+  { value: "suggest", label: "Sugerir resposta para a equipe aprovar" },
+  { value: "auto", label: "Responder sozinho" },
 ];
 
 const ON_DEAL_NOT_FOUND_OPTIONS = [
@@ -242,7 +252,7 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
   model: "gpt-4o-mini",
   responseBehavior: "balanced",
   responseLength: "medium",
-  autonomyMode: "autonomous",
+  autonomyMode: "suggest",
   allowedDomains: [],
   tone: "",
   globalRules: [],
@@ -411,6 +421,16 @@ async function publishAgent(id: string, comment?: string): Promise<{ versionNumb
     body: JSON.stringify({ comment }),
   });
   return parseApiResponse<{ versionNumber: number }>(res, "Erro ao publicar agente.");
+}
+
+async function validateAgentKey(id: string): Promise<{ ok: boolean; message: string }> {
+  const res = await apiFetch(`/api/ai-agents-v2/${id}/validate-key`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  const data = await parseApiResponse<{ ok: boolean; error?: string; message?: string }>(res, "Erro ao validar chave.");
+  return { ok: data.ok, message: data.message ?? (data.ok ? "Chave válida." : "Chave inválida.") };
 }
 
 async function fetchCatalogs(): Promise<Catalogs> {
@@ -659,6 +679,8 @@ export default function AIAgentV2EditPage() {
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [dictionaryOpen, setDictionaryOpen] = React.useState(false);
+  const [keyValidation, setKeyValidation] = React.useState<{ ok: boolean | null; message: string }>({ ok: null, message: "" });
+  const [validatingKey, setValidatingKey] = React.useState(false);
 
   const agentQuery = useQuery({
     queryKey: ["ai-agents-v2", id],
@@ -673,7 +695,7 @@ export default function AIAgentV2EditPage() {
 
   React.useEffect(() => {
     if (agentQuery.data && config === null) {
-      setConfig(mergeDefaults(agentQuery.data.simpleConfig ?? {}, DEFAULT_CONFIG));
+      setConfig(mergeDefaults(agentQuery.data.config ?? {}, DEFAULT_CONFIG));
       setName(agentQuery.data.name);
       setActive(agentQuery.data.active);
     }
@@ -714,7 +736,29 @@ export default function AIAgentV2EditPage() {
     },
   });
 
+  const validateKeyMutation = useMutation({
+    mutationFn: async () => {
+      setValidatingKey(true);
+      try {
+        const result = await validateAgentKey(id);
+        setKeyValidation({ ok: result.ok, message: result.message });
+        return result;
+      } finally {
+        setValidatingKey(false);
+      }
+    },
+  });
+
   const handlePublish = async () => {
+    const hasKey = agentQuery.data?.hasOwnOpenaiKey || looksLikeOpenAiApiKey(openaiKey);
+    if (!hasKey) {
+      await confirm({
+        title: "Chave ausente",
+        description: "Configure uma chave de modelo válida antes de publicar.",
+        confirmLabel: "Entendi",
+      });
+      return;
+    }
     const ok = await confirm({
       title: "Publicar agente",
       description: "Publicar cria uma nova versão e ativa o agente. Continuar?",
@@ -802,10 +846,26 @@ export default function AIAgentV2EditPage() {
               <IconDeviceFloppy className="size-4" />
               Salvar rascunho
             </Button>
-            <Button size="sm" onClick={handlePublish} disabled={publishMutation.isPending} className="gap-1">
-              <IconRocket className="size-4" />
-              Publicar
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button
+                    size="sm"
+                    onClick={handlePublish}
+                    disabled={publishMutation.isPending || !agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey)}
+                    className="gap-1"
+                  >
+                    <IconRocket className="size-4" />
+                    Publicar
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey) && (
+                <TooltipContent>
+                  <p>Configure uma chave de modelo válida para publicar.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
           </div>
         </div>
 
@@ -865,13 +925,21 @@ export default function AIAgentV2EditPage() {
                 name={name}
                 active={active}
                 openaiKey={openaiKey}
+                hasOpenaiKey={agentQuery.data?.hasOwnOpenaiKey ?? false}
+                openaiKeyHint={agentQuery.data?.openaiApiKeyHint ?? null}
+                hasUnpublishedChanges={agentQuery.data?.hasUnpublishedChanges ?? false}
+                publishedVersionNumber={agentQuery.data?.lastVersionNumber}
+                validatingKey={validatingKey}
+                keyValidation={keyValidation}
                 onNameChange={setName}
                 onActiveChange={setActive}
                 onKeyChange={(v) => {
                   setOpenaiKey(v);
                   setDirty(true);
+                  setKeyValidation({ ok: null, message: "" });
                 }}
                 onChange={updateConfig}
+                onValidateKey={() => validateKeyMutation.mutate()}
               />
             )}
             {step === 1 && <StepTone config={config} onChange={updateConfig} />}
@@ -936,42 +1004,117 @@ function StepStart({
   name,
   active,
   openaiKey,
+  hasOpenaiKey,
+  openaiKeyHint,
+  hasUnpublishedChanges,
+  publishedVersionNumber,
+  validatingKey,
+  keyValidation,
   onNameChange,
   onActiveChange,
   onKeyChange,
   onChange,
+  onValidateKey,
 }: {
   config: Record<string, unknown>;
   catalogs: Catalogs;
   name: string;
   active: boolean;
   openaiKey: string;
+  hasOpenaiKey: boolean;
+  openaiKeyHint: string | null;
+  hasUnpublishedChanges: boolean;
+  publishedVersionNumber?: number;
+  validatingKey: boolean;
+  keyValidation: { ok: boolean | null; message: string };
   onNameChange: (v: string) => void;
   onActiveChange: (v: boolean) => void;
   onKeyChange: (v: string) => void;
   onChange: (path: string, value: unknown) => void;
+  onValidateKey: () => void;
 }) {
+  const channelIds = (config.channelIds as string[]) ?? [];
+  const allowedPhoneNumbers = (config.allowedPhoneNumbers as string[]) ?? [];
+  const modelId = (config.model as string) ?? "";
+  const modelValid = catalogs.models.some((m) => m.id === modelId);
+
+  const hasKeyForPublish = hasOpenaiKey || looksLikeOpenAiApiKey(openaiKey);
+  const showRealClientWarning = active && channelIds.length > 0 && allowedPhoneNumbers.length === 0;
+
   return (
     <div className="space-y-6">
-      <SectionCard title="Identidade do agente" description="Como ele aparece e quando responde.">
+      <SectionCard title="Identidade e disponibilidade" description="Nome, se está ligado e status da publicação.">
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Nome do agente">
+          <Field label="Nome do agente" tooltip="Nome exibido na lista e nas conversas.">
             <Input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="Ex: Atendimento" />
           </Field>
           <div className="flex items-center gap-3 pt-6">
             <Switch checked={active} onCheckedChange={onActiveChange} id="active" />
-            <Label htmlFor="active">Ativo</Label>
+            <Label htmlFor="active">
+              Ativo
+              <span className="ml-2 text-xs text-muted-foreground">responde em canais reais</span>
+            </Label>
           </div>
         </div>
+
+        <div className="mt-4 flex items-center gap-3 rounded-xl border bg-muted/40 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Estado da publicação:</span>
+          {hasUnpublishedChanges ? (
+            <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200 bg-amber-50">
+              <IconAlertCircle className="size-3" />
+              Alterações não publicadas
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-200 bg-emerald-50">
+              <IconCheck className="size-3" />
+              {publishedVersionNumber ? `Publicado (versão ${publishedVersionNumber})` : "Publicado"}
+            </Badge>
+          )}
+          <span className="text-xs text-muted-foreground">
+            A aba <b>Testar</b> usa o rascunho. O WhatsApp usa a versão publicada.
+          </span>
+        </div>
+
+        {showRealClientWarning && (
+          <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="font-medium">Este agente vai responder clientes reais.</p>
+              <p className="text-xs">
+                Ele está ativo, tem canal vinculado e a lista "Responder só para estes números" está vazia.
+                Preencha essa lista se quiser restringir o teste a números específicos.
+              </p>
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Modelo e comportamento" description="Qual modelo usa e como formula as respostas.">
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Modelo LLM" hint="Ex: gpt-4o-mini" tooltip="Nome do modelo da OpenAI usado para gerar as respostas.">
-            <Input
-              value={(config.model as string) ?? ""}
-              onChange={(e) => onChange("model", e.target.value)}
-            />
+          <Field label="Modelo" tooltip="Modelo da OpenAI usado para gerar as respostas. Valor salvo que não existe mais na lista aparece com aviso.">
+            <Select value={modelId} onValueChange={(v) => onChange("model", v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {catalogs.models.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
+                ))}
+                {!modelValid && modelId && (
+                  <SelectItem value={modelId}>
+                    {modelId} (não listado)
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {!modelValid && modelId && (
+              <p className="mt-1.5 text-xs text-amber-600 flex items-center gap-1">
+                <IconAlertCircle className="size-3" />
+                Modelo salvo não está na lista de modelos suportados.
+              </p>
+            )}
           </Field>
           <Field label="Comportamento das respostas" tooltip="Define o quanto o agente varia a forma de responder sem alterar seu conhecimento.">
             <Select
@@ -990,24 +1133,9 @@ function StepStart({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Tamanho das respostas" tooltip="Tamanho médio desejado para as respostas do agente.">
+          <Field label="Modo de execução" tooltip="Sugerir resposta: nada é enviado ao cliente sem aprovação. Responder sozinho: envia direto.">
             <Select
-              value={(config.responseLength as string) ?? "medium"}
-              onValueChange={(v) => onChange("responseLength", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="short">Curtas</SelectItem>
-                <SelectItem value="medium">Médias</SelectItem>
-                <SelectItem value="long">Longas</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Modo de execução" tooltip="Autônomo responde sozinho; Rascunho sugere e espera aprovação humana.">
-            <Select
-              value={(config.autonomyMode as string) ?? "autonomous"}
+              value={(config.autonomyMode as string) ?? "suggest"}
               onValueChange={(v) => onChange("autonomyMode", v)}
             >
               <SelectTrigger>
@@ -1025,13 +1153,20 @@ function StepStart({
         </div>
       </SectionCard>
 
-      <SectionCard title="Canais e domínios" description="Por onde ele atende e quais links pode enviar.">
-        <Field label="Canais vinculados" tooltip="Quais canais de WhatsApp/e-mail usam este agente quando recebem uma nova conversa.">
+      <SectionCard title="Canais e alcance" description="Por onde ele atende e para quem pode responder.">
+        <Field label="Canais vinculados" tooltip="Quais canais de WhatsApp usam este agente quando recebem uma nova conversa.">
           <MultiSelectPopover
             label="Canais"
             options={(catalogs.channels ?? []).map((c) => ({ value: c.id, label: c.name ?? c.id }))}
-            selected={((config.channelIds as string[]) ?? []).map(String)}
+            selected={channelIds.map(String)}
             onChange={(v) => onChange("channelIds", v)}
+          />
+        </Field>
+        <Field label="Responder só para estes números (modo de teste)" tooltip="Se preenchida, o agente ignora qualquer outro número, mesmo ativo e com canal vinculado. Vazio = responde qualquer número.">
+          <ChipInput
+            values={allowedPhoneNumbers.map(String)}
+            onChange={(v) => onChange("allowedPhoneNumbers", v)}
+            placeholder="11999999999"
           />
         </Field>
         <Field label="Domínios permitidos em links" tooltip="URLs de quais domínios o agente pode enviar ao cliente (segurança de phishing).">
@@ -1043,8 +1178,44 @@ function StepStart({
         </Field>
       </SectionCard>
 
-      <SectionCard title="Chave OpenAI" description="Cada agente usa sua própria conta OpenAI.">
-        <OpenAiKeyField value={openaiKey} onChange={onKeyChange} />
+      <SectionCard title="Chave de acesso ao modelo" description="Cada agente usa sua própria conta OpenAI. A chave nunca volta completa para a tela.">
+        <div className="grid gap-4 md:grid-cols-[1fr_auto] items-end">
+          <OpenAiKeyField
+            value={openaiKey}
+            onChange={onKeyChange}
+            hasSavedKey={hasOpenaiKey}
+            savedHint={openaiKeyHint ?? undefined}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onValidateKey}
+            disabled={validatingKey || !hasKeyForPublish}
+            className="gap-1"
+          >
+            {validatingKey ? <IconLoader2 className="size-4 animate-spin" /> : <IconCheck className="size-4" />}
+            Testar chave
+          </Button>
+        </div>
+        {keyValidation.ok === false && (
+          <p className="mt-2 text-sm text-destructive flex items-center gap-1">
+            <IconAlertCircle className="size-4" />
+            {keyValidation.message || "Falhou — verifique a chave."}
+          </p>
+        )}
+        {keyValidation.ok === true && (
+          <p className="mt-2 text-sm text-emerald-600 flex items-center gap-1">
+            <IconCheck className="size-4" />
+            {keyValidation.message || "Chave válida."}
+          </p>
+        )}
+        {!hasKeyForPublish && (
+          <p className="mt-2 text-sm text-amber-600 flex items-center gap-1">
+            <IconAlertCircle className="size-4" />
+            Sem chave válida o agente não pode ser publicado.
+          </p>
+        )}
       </SectionCard>
     </div>
   );
@@ -1064,6 +1235,24 @@ function StepTone({ config, onChange }: { config: Record<string, unknown>; onCha
             onChange={(e) => onChange("tone", e.target.value)}
             placeholder="Ex: profissional, direto e educado"
           />
+        </Field>
+      </SectionCard>
+
+      <SectionCard title="Tamanho das respostas" description="Controle o tamanho médio das mensagens do agente.">
+        <Field label="Tamanho das respostas" tooltip="Tamanho médio desejado para as respostas do agente.">
+          <Select
+            value={(config.responseLength as string) ?? "medium"}
+            onValueChange={(v) => onChange("responseLength", v)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="short">Curtas</SelectItem>
+              <SelectItem value="medium">Médias</SelectItem>
+              <SelectItem value="long">Longas</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
       </SectionCard>
 
