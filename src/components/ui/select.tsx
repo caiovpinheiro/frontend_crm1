@@ -177,7 +177,15 @@ function SelectContent({
     };
   }, [open, setOpen]);
 
-  if (!open || !position) return null;
+  if (!open || !position) {
+    // Render items invisíveis para que os labels sejam registrados
+    // e o SelectValue consiga mostrar o rótulo mesmo sem abrir.
+    return (
+      <div data-slot="select-content-hidden" className="sr-only" aria-hidden="true">
+        {children}
+      </div>
+    );
+  }
   return createPortal(
     <div
       ref={ref}

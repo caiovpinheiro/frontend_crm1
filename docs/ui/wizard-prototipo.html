@@ -1,0 +1,1299 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Novo agente de IA — protótipo do wizard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#ECEEF2;--surface:#FFFFFF;--soft:#F6F7F9;--ink:#15171C;--muted:#555C69;--line:#E2E5EB;
+  --acc:#3451D1;--on-acc:#FFFFFF;--acc-ink:#1F3294;--acc-bg:#EEF1FD;--acc-line:#B9C5F5;
+  --green:#2B7A3B;--green-bg:#EAF6EC;--amber:#8A5100;--amber-bg:#FFF3DD;--red:#B42318;--red-bg:#FDECEA;
+  --toggle-off:#C9CED8;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1014;--surface:#171A21;--soft:#1D2129;--ink:#E8EAF0;--muted:#A6ADBB;--line:#2B303B;
+    --acc:#8FA2FF;--on-acc:#0B0F1F;--acc-ink:#C7D1FF;--acc-bg:#1E2542;--acc-line:#3A4680;
+    --green:#7FD08F;--green-bg:#17301D;--amber:#F2C27A;--amber-bg:#3A2A10;--red:#FF9C94;--red-bg:#3A1714;
+    --toggle-off:#3A404C;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1014;--surface:#171A21;--soft:#1D2129;--ink:#E8EAF0;--muted:#A6ADBB;--line:#2B303B;
+  --acc:#8FA2FF;--on-acc:#0B0F1F;--acc-ink:#C7D1FF;--acc-bg:#1E2542;--acc-line:#3A4680;
+  --green:#7FD08F;--green-bg:#17301D;--amber:#F2C27A;--amber-bg:#3A2A10;--red:#FF9C94;--red-bg:#3A1714;
+  --toggle-off:#3A404C;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:'Figtree','Segoe UI',system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+.app{max-width:1240px;margin:0 auto;padding:20px}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;min-height:calc(100vh - 40px);overflow:clip}
+.top{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:22px 28px 0}
+.top h1{margin:0;font-size:23px;font-weight:700;letter-spacing:-.01em}
+.top .sub{font-size:14px;color:var(--muted)}
+.top-actions{display:flex;gap:8px;align-items:center}
+.body{display:flex;gap:28px;padding:22px 28px;flex:1;min-height:0}
+.steps{width:258px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;position:sticky;top:16px;align-self:flex-start}
+.step{display:flex;gap:12px;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);text-align:left;cursor:pointer;width:100%}
+.step:hover{border-color:var(--acc-line)}
+.step[aria-current="step"]{background:var(--acc-bg);border-color:var(--acc-line)}
+.badge{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:700;border:1px solid var(--line);color:var(--muted)}
+.step[aria-current="step"] .badge{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+.step.done .badge{background:var(--green);border-color:var(--green);color:var(--surface)}
+.step-t{display:flex;flex-direction:column;gap:1px}
+.step-t b{font-size:14.5px;font-weight:600}
+.step-t span{font-size:12.5px;color:var(--muted)}
+main{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
+.head h2{margin:0;font-size:25px;font-weight:700;letter-spacing:-.015em}
+.head p{margin:6px 0 0;color:var(--muted);max-width:72ch}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 28px;border-top:1px solid var(--line);background:var(--soft);position:sticky;bottom:0}
+.foot .count{font-size:14px;color:var(--muted)}
+
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.split{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:22px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:14px}
+.stack-s{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.card{border:1px solid var(--line);border-radius:14px;padding:18px;background:var(--surface);display:flex;flex-direction:column;gap:12px}
+.card h3{margin:0;font-size:16px;font-weight:700}
+.card .desc{font-size:13.5px;color:var(--muted);margin-top:-6px}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.card-h > div{display:flex;flex-direction:column;gap:3px}
+.panel{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px}
+
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
+label.f small,.hint{font-weight:400;font-size:13px;color:var(--muted)}
+.inp,select.inp,textarea.inp{width:100%;min-height:44px;padding:0 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:15px}
+textarea.inp{padding:11px 13px;resize:vertical;min-height:70px;line-height:1.45}
+.inp:hover{border-color:var(--acc-line)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 18px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:15px;cursor:pointer;text-decoration:none;color:var(--ink)}
+.btn:hover{border-color:var(--acc-line)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+.btn.sm{min-height:38px;padding:0 13px;font-size:14px}
+.btn.icon{width:44px;padding:0}
+.btn.add{border-style:dashed;border-color:var(--acc-line);color:var(--acc);align-self:flex-start}
+.btn.ghost{border-color:transparent;background:transparent}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:14px;font-weight:500;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--acc-bg);border-color:var(--acc-line);color:var(--acc-ink)}
+.chip .x{color:var(--muted);font-size:16px;line-height:1}
+.tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap;background:var(--soft);color:var(--muted)}
+.tag.green{background:var(--green-bg);color:var(--green)}
+.tag.amber{background:var(--amber-bg);color:var(--amber)}
+.tag.acc{background:var(--acc-bg);color:var(--acc-ink)}
+.tag.red{background:var(--red-bg);color:var(--red)}
+.var{display:inline-flex;padding:0 7px;border-radius:6px;background:var(--acc-bg);color:var(--acc-ink);font-weight:600;font-size:.92em}
+.cb{display:flex;gap:10px;align-items:flex-start;min-height:30px;font-size:14.5px;cursor:pointer}
+.cb input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--acc);flex-shrink:0}
+.cb small{display:block;color:var(--muted);font-size:13px}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;border:1px solid var(--line);cursor:pointer}
+.opt:has(input:checked){background:var(--acc-bg);border-color:var(--acc-line)}
+.opt input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--acc);flex-shrink:0}
+.opt b{font-size:15px;font-weight:600}
+.opt small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.opt .more{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.toggle{width:46px;height:28px;border-radius:999px;border:0;padding:3px;background:var(--toggle-off);display:flex;cursor:pointer;flex-shrink:0;transition:background .15s}
+.toggle::after{content:"";width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .15s}
+.toggle[aria-pressed="true"]{background:var(--acc)}
+.toggle[aria-pressed="true"]::after{transform:translateX(18px)}
+.tip{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--soft);font-size:14px;color:var(--muted)}
+.tip svg{flex-shrink:0;margin-top:1px}
+.lbl{font-size:13px;font-weight:700;color:var(--muted)}
+.crmsrc{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);font-weight:600}
+.crmsrc::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}
+
+.model{text-align:left;display:flex;flex-direction:column;gap:9px;padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.model:hover{border-color:var(--acc-line)}
+.model[aria-pressed="true"]{border:1.5px solid var(--acc);background:var(--acc-bg)}
+.model b{font-size:16px}
+.model p{margin:0;font-size:14px;color:var(--muted)}
+.model[aria-pressed="true"] .tag{background:var(--surface);color:var(--acc-ink)}
+
+.bubble{max-width:85%;padding:9px 13px;border-radius:14px;font-size:14.5px;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line);background:var(--surface);align-self:flex-start;white-space:pre-line}
+.bubble.me{align-self:flex-end;background:var(--acc-bg);border-color:var(--acc-line)}
+.bubble .who{font-size:12px;font-weight:700;color:var(--muted)}
+.sys{align-self:center;font-size:13px;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:999px;padding:4px 12px;text-align:center}
+
+.table{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.trow{display:grid;grid-template-columns:minmax(0,1.6fr) 120px minmax(0,1.3fr) 44px;gap:12px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
+.trow.h{border-top:0;background:var(--soft);font-size:13px;font-weight:700;color:var(--muted)}
+.doc{display:flex;gap:10px;align-items:center;font-weight:600}
+.doc small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:26px;border:1.5px dashed var(--acc-line);border-radius:14px;background:var(--acc-bg);text-align:center}
+.drop.over{border-color:var(--acc)}
+.drop b{font-size:16px}
+.drop span{font-size:14px;color:var(--muted)}
+
+.frow{display:grid;grid-template-columns:minmax(0,1fr) 62px 62px 74px;gap:8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);font-size:14.5px}
+.frow.h{border-top:0;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--muted);text-align:center}
+.frow.h span:first-child{text-align:left}
+.frow .fv{display:block;font-size:12.5px;color:var(--muted)}
+.frow input{width:18px;height:18px;accent-color:var(--acc);margin:0 auto;display:block}
+.frow label{display:flex;justify-content:center}
+
+.subj-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:22px;align-items:start}
+.subj{text-align:left;width:100%;display:flex;flex-direction:column;gap:3px;padding:11px 13px;border-radius:12px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.subj[aria-pressed="true"]{background:var(--acc-bg);border-color:var(--acc-line)}
+.subj b{font-size:15px}
+.subj span{font-size:13px;color:var(--muted)}
+.acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
+.sw{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px}
+.sw b{font-size:14.5px;font-weight:600}
+.sw small{display:block;color:var(--muted);font-size:13px;font-weight:400}
+
+.rule{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.rule.off{opacity:.62}
+.rule .n{width:28px;height:28px;border-radius:50%;background:var(--soft);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:4px}
+.rule .body-r{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.kw{font-size:13px;font-weight:700;color:var(--muted)}
+.cond,.act{display:inline-flex;align-items:center;min-height:32px;padding:3px 11px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--soft)}
+.act{background:var(--acc-bg);border-color:var(--acc-line);color:var(--acc-ink)}
+.rule-tools{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.builder{border:1.5px solid var(--acc-line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;background:var(--acc-bg)}
+.builder .line{display:grid;grid-template-columns:90px 230px minmax(0,1fr);gap:10px;align-items:center}
+
+.hours{display:grid;grid-template-columns:minmax(0,1.3fr) 104px 22px 104px 46px;gap:8px;align-items:center;font-size:14.5px;font-weight:600}
+.hours .as{color:var(--muted);text-align:center;font-weight:400}
+.inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14.5px}
+.inline select.inp{width:auto}
+.dest{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:8px}
+
+.chat{display:flex;flex-direction:column;gap:10px;min-height:320px;max-height:480px;overflow-y:auto;padding:4px}
+.why{align-self:flex-end;width:88%;display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:14px}
+.why summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--acc);list-style:none}
+.why summary::-webkit-details-marker{display:none}
+.why .kv{display:grid;grid-template-columns:128px minmax(0,1fr);gap:8px;margin-top:6px}
+.why .kv span:first-child{color:var(--muted)}
+.why .kv span:last-child{font-weight:600}
+.sendbar{display:flex;gap:8px}
+.check-row{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:14.5px}
+.err{color:var(--red);font-size:14px;font-weight:600}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:12px 18px;border-radius:12px;font-weight:600;font-size:15px;z-index:20}
+dialog{border:1px solid var(--line);border-radius:16px;padding:0;max-width:min(920px,calc(100vw - 32px));width:100%;background:var(--surface);color:var(--ink)}
+dialog::backdrop{background:rgba(10,12,18,.45)}
+.dlg-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
+.dlg-h h2{margin:0;font-size:20px}
+.gl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr) minmax(0,.7fr);gap:14px;padding:10px 20px;border-top:1px solid var(--line);font-size:14.5px;align-items:center}
+.gl.h{border-top:0;background:var(--soft);font-size:13px;font-weight:700;color:var(--muted)}
+.gl code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.gl-wrap{overflow-x:auto}
+.gl-inner{min-width:620px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ===== simulador fiel do canal ===== */
+.wa-wrap{display:flex;flex-direction:column;gap:10px}
+.phone{width:100%;max-width:420px;margin:0 auto;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:#EFE7DE;display:flex;flex-direction:column;height:600px;box-shadow:0 10px 30px rgba(10,12,18,.12)}
+.wa-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#075E54;color:#fff;flex-shrink:0}
+.wa-head .av{width:36px;height:36px;border-radius:50%;background:#128C7E;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.wa-head b{font-size:15px;display:block;line-height:1.2}
+.wa-head span{font-size:12px;opacity:.85}
+.wa-body{flex:1;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:6px;background-color:#EFE7DE;background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:18px 18px}
+.wa-msg{max-width:80%;padding:6px 9px 5px;border-radius:9px;font-size:14.5px;line-height:1.4;color:#111B21;position:relative;white-space:pre-line;word-break:break-word;box-shadow:0 1px .5px rgba(11,20,26,.13);cursor:default}
+.wa-msg.in{align-self:flex-start;background:#FFFFFF;border-top-left-radius:2px}
+.wa-msg.out{align-self:flex-end;background:#D9FDD3;border-top-right-radius:2px}
+.wa-msg.out.draft{background:#FFF4D6;border:1px dashed #C9A227}
+.wa-msg.sel{outline:2px solid var(--acc);outline-offset:1px}
+.wa-meta{float:right;margin:6px 0 -2px 10px;font-size:10.5px;color:#667781;display:inline-flex;gap:3px;align-items:center;white-space:nowrap}
+.wa-sys{align-self:center;background:#FFF3C4;color:#54656F;font-size:12px;padding:5px 11px;border-radius:8px;text-align:center;max-width:92%}
+.wa-typing{align-self:flex-start;background:#fff;border-radius:9px;border-top-left-radius:2px;padding:10px 12px;display:flex;gap:4px;box-shadow:0 1px .5px rgba(11,20,26,.13)}
+.wa-typing i{width:7px;height:7px;border-radius:50%;background:#98A2A8;display:block;animation:bl 1.2s infinite}
+.wa-typing i:nth-child(2){animation-delay:.2s}.wa-typing i:nth-child(3){animation-delay:.4s}
+@keyframes bl{0%,60%,100%{opacity:.35}30%{opacity:1}}
+.wa-audio{display:flex;align-items:center;gap:8px;min-width:170px}
+.wa-audio .play{width:28px;height:28px;border-radius:50%;background:#54656F;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.wa-audio .wave{flex:1;height:18px;background:repeating-linear-gradient(90deg,#9AA6AC 0 2px,transparent 2px 5px);opacity:.8}
+.wa-btns{display:flex;flex-direction:column;gap:1px;margin-top:6px;border-top:1px solid rgba(0,0,0,.08);padding-top:4px}
+.wa-btns button{width:100%;min-height:36px;border:0;background:transparent;color:#027EB5;font-weight:600;font-size:14px;cursor:pointer;border-top:1px solid rgba(0,0,0,.08);padding:8px 4px}
+.wa-btns button:first-child{border-top:0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .wa-btns button{color:#53BDEB;border-color:rgba(255,255,255,.12)}}
+.wa-foot{display:flex;gap:8px;align-items:center;padding:8px;background:#F0F2F5;flex-shrink:0}
+.wa-foot input{flex:1;min-height:40px;border-radius:20px;border:0;padding:0 14px;background:#fff;font-size:14.5px;color:#111B21}
+.wa-btn{width:40px;height:40px;border-radius:50%;border:0;background:#075E54;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:15px}
+.wa-note{font-size:12.5px;color:var(--muted);text-align:center}
+.turnbox{display:flex;flex-direction:column;gap:6px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:14px}
+.turnbox .kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px}
+.turnbox .kv span:first-child{color:var(--muted)}
+.turnbox .kv span:last-child{font-weight:600}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .phone{background:#0B141A}
+ :root:not([data-theme="light"]) .wa-body{background-color:#0B141A;background-image:radial-gradient(rgba(255,255,255,.035) 1px,transparent 1px)}
+ :root:not([data-theme="light"]) .wa-msg{color:#E9EDEF}
+ :root:not([data-theme="light"]) .wa-msg.in,:root:not([data-theme="light"]) .wa-typing{background:#202C33}
+ :root:not([data-theme="light"]) .wa-msg.out{background:#005C4B}
+ :root:not([data-theme="light"]) .wa-msg.out.draft{background:#3A2E10}
+ :root:not([data-theme="light"]) .wa-meta{color:#8696A0}
+ :root:not([data-theme="light"]) .wa-sys{background:#182229;color:#8696A0}
+ :root:not([data-theme="light"]) .wa-foot{background:#202C33}
+ :root:not([data-theme="light"]) .wa-foot input{background:#2A3942;color:#E9EDEF}}
+@media (max-width:980px){
+  .body{flex-direction:column;gap:16px}
+  .steps{width:100%;position:static;flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .step{width:auto;flex-shrink:0}
+  .step-t span{display:none}
+  .split,.grid3,.subj-layout{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:640px){
+  .app{padding:0}
+  .modal{border-radius:0;border:0;min-height:100vh}
+  .top,.body,.foot{padding-left:16px;padding-right:16px}
+  .grid2,.acts,.dest{grid-template-columns:minmax(0,1fr)}
+  .trow{grid-template-columns:minmax(0,1fr) auto 44px}
+  .trow .uses{display:none}
+  .builder .line{grid-template-columns:minmax(0,1fr)}
+  .hours{grid-template-columns:minmax(0,1fr) 90px 18px 90px 46px;font-size:13.5px}
+  .top .save{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="modal">
+    <header class="top">
+      <div>
+        <h1 id="title">Novo agente de IA</h1>
+        <div class="sub" id="subtitle"></div>
+      </div>
+      <div class="top-actions">
+        <button class="btn sm" type="button" data-act="dict">Dicionário da tela</button>
+        <button class="btn sm save" type="button" data-act="savedraft">Salvar e sair</button>
+      </div>
+    </header>
+    <div class="body">
+      <nav class="steps" id="steps" aria-label="Etapas"></nav>
+      <main id="main" tabindex="-1"></main>
+    </div>
+    <footer class="foot">
+      <div id="foot-left"></div>
+      <div class="row" style="gap:14px"><span class="count" id="count"></span><div id="foot-right"></div></div>
+    </footer>
+  </div>
+</div>
+
+<dialog id="dict" aria-labelledby="dict-title">
+  <div class="dlg-h"><h2 id="dict-title">Dicionário da tela</h2><button class="btn icon" type="button" data-act="dict-close" aria-label="Fechar">✕</button></div>
+  <div style="padding:14px 20px 4px;color:var(--muted);font-size:14.5px">Como cada conceito técnico do motor aparece para quem configura o agente.</div>
+  <div class="gl-wrap"><div class="gl-inner" id="gl"></div></div>
+</dialog>
+<dialog id="map" aria-labelledby="map-title">
+  <div class="dlg-h"><h2 id="map-title">Mapa do atendimento</h2><button class="btn icon" type="button" data-act="map-close" aria-label="Fechar">✕</button></div>
+  <div id="mapbody" style="padding:20px"></div>
+</dialog>
+<input type="file" id="file" multiple class="sr" accept=".pdf,.doc,.docx,.txt,.md,.csv" aria-label="Enviar arquivos">
+<div id="toast-host" aria-live="polite"></div>
+
+<script>
+(function(){
+"use strict";
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let uid=100;const nid=()=>"id"+(uid++);
+
+const ICON={
+ check:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>',
+ info:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+ plus:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+ trash:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+ up:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>',
+ down:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+ upload:'<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>',
+ doc:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/></svg>'
+};
+
+const STEPS=[
+ ["Começar","Nome e modelo"],["Jeito de falar","Tom e regras"],["O que ele sabe","Dados do cliente"],
+ ["Materiais de consulta","Documentos e FAQ"],["Início da conversa","Como ela começa"],
+ ["Assuntos","O que ele atende"],["Regras automáticas","Sempre que… então…"],
+ ["Equipe e horários","Transferir e encerrar"],["Testar e publicar","Conferir antes de ligar"]
+];
+const MODELS=[
+ {id:"recep",t:"Recepção (organiza o atendimento)",d:"Não resolve a dúvida: identifica o cliente, entende do que se trata e entrega para o especialista certo.",has:["Confirmação do cliente","Encaminhar para especialistas","Passar para a equipe"]},
+ {id:"atend",t:"Atendimento",d:"Tira dúvidas de clientes, confirma o cadastro e chama a equipe quando precisa.",has:["Confirmação do cliente","Dúvidas gerais","Passar para a equipe"]},
+ {id:"sdr",t:"Qualificar contatos novos",d:"Conversa com quem acabou de chegar, entende o interesse e passa para o time de vendas.",has:["Perguntas de qualificação","Criar negócio","Etiquetas"]},
+ {id:"vendas",t:"Vendas",d:"Acompanha negócios em andamento, apresenta produtos e envia propostas.",has:["Buscar produtos","Mover etapa","Modelos de mensagem"]},
+ {id:"suporte",t:"Suporte técnico",d:"Ajuda passo a passo com problemas e registra o que precisa ir para o time técnico.",has:["Diagnóstico guiado","Criar tarefa"]},
+ {id:"branco",t:"Em branco",d:"Monte do zero, sem nenhuma sugestão pré-preenchida.",has:["Você decide tudo"]}
+];
+const ACTIONS=[["tag","Adicionar etiqueta"],["note","Registrar anotação no negócio"],["task","Criar tarefa para a equipe"],["stage","Mover o negócio de etapa"],["products","Buscar produtos e planos"],["template","Enviar modelo de mensagem"],["deal","Criar negócio"],["field","Atualizar campo do negócio"],["close","Encerrar a conversa"]];
+
+/* ==== Catálogos carregados do CRM (nomes são configuração do cliente, não do código) ==== */
+const CRMCAT={
+ departments:["SAC","Vendas","Retenção","Acolhimento","Financeiro"],
+ queues:["Fila geral","Fila prioritária"],
+ users:["Carlos Lima","Ana Paula Souza"],
+ strategies:["Distribuição inteligente (padrão da organização)","Rodízio por disponibilidade","Menor fila primeiro"],
+ automations:["Menu inicial (chatbot)","Campanha de reativação"],
+ tabulations:["Dúvida resolvida","Cancelamento solicitado","Retenção realizada","Pedido financeiro","Mudança de plano","Cliente não respondeu","Transferido para humano","Outros"],
+ fields:{
+  contato:[{k:"nome",l:"Nome",v:"Marcelo"},{k:"tel",l:"Telefone",v:"(11) 9xxxx-xx21"},{k:"email",l:"E-mail",v:"m***@email.com"},{k:"tags",l:"Etiquetas",v:"novo-cliente"}],
+  negocio:[{k:"prod",l:"Produto ou serviço",v:"Plano Anual"},{k:"etapa",l:"Etapa do funil",v:"Em atendimento"},{k:"valor",l:"Valor",v:"R$ 1.290,00",t:"moeda"},{k:"inicio",l:"Data de início",v:"12/02/2026",t:"data"},{k:"contrato",l:"Código do contrato",v:""},{k:"resp",l:"Responsável",v:"Carlos Lima"}]
+ }
+};
+const DEST_KINDS={dept:"Departamento",queue:"Fila",user:"Pessoa",smart:"Distribuição inteligente"};
+const destList=k=>k==="dept"?CRMCAT.departments:k==="queue"?CRMCAT.queues:k==="user"?CRMCAT.users:CRMCAT.strategies;
+const destLabel=d=>!d?"—":d.kind==="smart"?d.v:`${d.v} (${DEST_KINDS[d.kind].toLowerCase()})`;
+const COND_TYPES={audio:"a mensagem for um áudio",kw:"a mensagem tiver",tag:"o contato tiver a etiqueta",outside:"estiver fora do horário",first:"for a primeira mensagem",nodeal:"o cliente não tiver negócio aberto"};
+const ACT_TYPES={handoff:"passar para",msg:"enviar mensagem pronta",silence:"não responder mais nesta conversa"};
+
+const S={
+ step:0,visited:new Set([0]),
+ name:"",channel:"[Número do WhatsApp da empresa]",model:"atend",
+ tones:new Set(["Acolhedor","Direto"]),toneText:"Trata o cliente por você, usa frases curtas e evita termos técnicos. Mostra empatia antes de resolver.",size:"Curtas",
+ rules:[{id:nid(),t:"Nunca prometa reembolso, desconto ou prazo que não esteja nos materiais."},{id:nid(),t:"Nunca invente valores, datas ou links."},{id:nid(),t:"Se não souber a resposta, diga que vai chamar alguém da equipe."}],
+ perms:{nome:{r:1,c:1,w:0},tel:{r:1,c:0,w:0},email:{r:0,c:0,w:0},tags:{r:1,c:0,w:1},prod:{r:1,c:1,w:0},etapa:{r:1,c:0,w:1},valor:{r:1,c:0,w:0},inicio:{r:1,c:1,w:0},contrato:{r:1,c:1,w:0},resp:{r:0,c:0,w:0}},
+ bases:new Set(),
+ multi:"ask",
+ vars:[{id:nid(),k:"Nome da empresa",v:"[Sua empresa]"},{id:nid(),k:"Site oficial",v:"https://suaempresa.com.br"},{id:nid(),k:"Link da área do cliente",v:"https://app.suaempresa.com.br"},{id:nid(),k:"Horário da central",v:"seg a sex, 8h às 18h"}],
+ docs:[{id:"d1",name:"Perguntas frequentes.pdf",meta:"48 páginas",status:"ok"},{id:"d2",name:"Política de cancelamento.docx",meta:"6 páginas",status:"ok"},{id:"d3",name:"Tabela de planos.csv",meta:"120 linhas",status:"proc"}],
+ searchQ:"posso cancelar a qualquer momento?",searchRes:null,
+ entry:"client",
+ autoSkipWelcome:true,autoSubject:"definido pela automação",autoVars:[{id:nid(),k:"opcao_menu",f:"Assunto inicial"},{id:nid(),k:"documento",f:"Código do contrato"}],
+ fromHuman:"Continuar de onde parou, sem se apresentar de novo",
+ welcomeOn:true,welcome:"Oi, @Nome! Aqui é a @Agente, da @Nome da empresa.",
+ confirmMode:"confirm",confirmMsg:"Vi que você está com @Produto ou serviço{, desde @Data de início}{ · contrato @Código do contrato}. Como posso te ajudar?",
+ notFound:"ask",idField:"e-mail ou CPF",tries:"2 vezes",simEmpty:false,
+ subjects:[
+  {id:"s1",name:"Dúvidas gerais",when:"Perguntas do dia a dia sobre o serviço",examples:["como funciona","qual o horário","onde acho"],how:"Responda com base nos materiais. Seja breve e ofereça ajuda com mais alguma coisa.",acts:new Set(["tag","products"]),docs:new Set(["d1"]),dest:{kind:"dept",v:"SAC"},direct:false,answerBy:"self"},
+  {id:"s2",name:"Cancelamento",when:"Querer cancelar, desistir, encerrar ou não renovar",examples:["quero cancelar","não quero mais","como faço pra sair"],how:"Pergunte o motivo com empatia. Se for preço, apresente a opção mais em conta que está nos materiais. Se o cliente insistir, registre o motivo e chame a equipe.",acts:new Set(["tag","note","task","products"]),docs:new Set(["d2"]),dest:{kind:"dept",v:"Retenção"},direct:false,answerBy:"self"},
+  {id:"s3",name:"Mudança de plano",when:"Trocar, subir ou descer de plano",examples:["mudar de plano","trocar plano","plano mais barato"],how:"Confirme o plano atual pelos dados do cliente, apresente as opções da tabela e registre o interesse.",acts:new Set(["tag","note","products","field"]),docs:new Set(["d3"]),dest:{kind:"smart",v:"Distribuição inteligente (padrão da organização)"},direct:false,answerBy:"self"},
+  {id:"s4",name:"Financeiro",when:"Boletos, pagamentos, segunda via, cobrança",examples:["boleto","segunda via","pagamento"],how:"",acts:new Set(["tag"]),docs:new Set(),dest:{kind:"dept",v:"Financeiro"},direct:true,answerBy:"self"}
+ ],
+ activeSubject:"s2",
+ agents:[{id:"ag1",name:"Especialista em Cancelamento",vol:38},{id:"ag2",name:"Especialista em Financeiro",vol:24},{id:"ag3",name:"Especialista em Planos",vol:17}],
+ inBase:"confirm",notInBase:"ask",notInBaseDest:{kind:"dept",v:"Vendas"},notInBaseMsg:"Não achei seu cadastro por aqui. Me passa seu e-mail ou CPF para eu localizar?",
+ fbMsg:"Não quero te passar informação errada sobre isso. Vou chamar alguém da equipe para te ajudar, tudo bem?",fbAction:"handoff",fbTries:"1 vez",
+ fbHumanMsg:"Claro! Já te passo para alguém da equipe.",fbNoDoc:"Essa eu não tenho aqui comigo. Prefiro confirmar com a equipe do que arriscar.",fbError:"Tive um probleminha técnico agora. Já estou chamando alguém da equipe.",
+ mmOn:true,mmMode:"Enviar como está",mmModels:[{id:"m1",name:"Boas-vindas padrão",on:true},{id:"m2",name:"Confirmação de cadastro",on:true},{id:"m3",name:"Proposta comercial",on:false},{id:"m4",name:"Instruções de primeiro acesso",on:true}],
+ mmTemplates:[{id:"t1",name:"retomada_atendimento",on:true},{id:"t2",name:"aviso_documento",on:false}],
+ prodOn:true,prodMax:"3 por vez",prodPrice:true,prodCond:true,prodImg:true,prodLink:true,prodFilter:"Todos os ativos",prodActions:new Set(["link","interest"]),
+ mediaAudio:"Transcrever e seguir",mediaImage:"Ler o texto da imagem",mediaDoc:"Ler o texto",mediaConfirm:true,mediaFailMsg:"Não consegui entender esse arquivo. Pode me mandar em texto?",
+ stopCourtesy:"1 resposta",stopOffer:"1 vez",stopNoProgress:"2 trocas",stopNonsense:"3 mensagens",stopSilence:"30 minutos",
+ scopeMsg:"Sobre isso eu não consigo ajudar, mas posso te ajudar com [assuntos do agente].",scopeAction:"Encerrar",
+ forbidden:[{id:"f1",t:"Preço e condições de pagamento",dest:"Vendas"},{id:"f2",t:"Assuntos jurídicos",dest:"SAC"}],
+ npsOn:true,npsScale:"Nota de 0 a 10",npsWhen:"Na hora do encerramento",npsQuestion:"De 0 a 10, o quanto você recomendaria a @Nome da empresa para um amigo?",
+ npsFollow:true,npsFollowQ:"Obrigado! Quer me contar rapidinho o motivo da nota?",npsSkipTransfer:true,npsFreq:"No máximo 1 vez a cada 30 dias",npsThanks:"Obrigado pelo retorno! Isso ajuda muito a gente.",
+ sentOn:true,sentLevel:"Irritado ou muito insatisfeito",sentAction:"Passar para uma pessoa na hora",sentTag:true,sentSoften:true,sentNotify:"Avisar o responsável pelo atendimento",
+ useButtons:true,owner:"agente",closed:false,
+ postWindow:"6 horas",pcCourtesy:"Não reabrir (responder curtinho)",pcCourtesyMsg:"Imagina! Qualquer coisa é só chamar por aqui.",
+ pcNew:"Reabrir e encaminhar direto",pcAmbig:"Perguntar com botões",pcAskMsg:"Vi que seu atendimento tinha sido encerrado. Quer falar de outro assunto?",
+ tabOn:true,tabWhen:"Ao encerrar e ao transferir",tabFallback:"Outros",tabRequired:true,
+ tabMap:{s1:"Dúvida resolvida",s2:"Cancelamento solicitado",s3:"Mudança de plano",s4:"Pedido financeiro"},
+ passOn:{summary:true,fields:true,reason:true},bounceLimit:"2 vezes",activeAgent:null,bounces:0,
+ autoRules:[
+  {id:nid(),on:true,conds:[{type:"audio"}],acts:[{type:"handoff"}],dest:{kind:"dept",v:"SAC"},msg:"Recebi seu áudio! Vou te passar para alguém da equipe, só um instante."},
+  {id:nid(),on:true,conds:[{type:"kw",v:"falar com atendente, humano, pessoa"}],acts:[{type:"handoff"}],dest:{kind:"smart",v:"Distribuição inteligente (padrão da organização)"},msg:""},
+  {id:nid(),on:true,conds:[{type:"tag",v:"novo-cliente"},{type:"kw",v:"link, acesso"}],acts:[{type:"msg"}],msg:"Seu acesso fica em @Link da área do cliente. Qualquer dúvida, é só chamar!"},
+  {id:nid(),on:false,conds:[{type:"outside"}],acts:[{type:"msg"},{type:"silence"}],msg:"Nosso horário é @Horário da central. Assim que abrirmos, te respondemos por aqui."}
+ ],
+ builder:null,
+ dest:{kind:"smart",v:"Distribuição inteligente (padrão da organização)"},
+ transferMsg:"Vou te passar para alguém da equipe, só um instante.",
+ hoursOn:true,hours:[{d:"Segunda a sexta",a:"08:00",b:"18:00",on:true},{d:"Sábado",a:"08:00",b:"12:00",on:true},{d:"Domingo",a:"",b:"",on:false}],outside:"Só enviar aviso e aguardar",
+ nudgeOn:true,nudgeAfter:"30 minutos",nudgeMsg:"Oi, @Nome! Ainda posso te ajudar com alguma coisa?",closeAfter:"1 hora",
+ endBack:true,endClassify:true,endBye:true,bye:"Obrigado pelo contato! Se precisar, é só chamar.",endReturn:"Não devolver para automação",
+ sendMode:"draft",domains:["suaempresa.com.br","app.suaempresa.com.br"],
+ chat:[],stage:"new",simOutside:false,entrySim:"client",contactTags:["novo-cliente"],humanActive:false,forced:null,
+ typing:false,waTimer:null,revealing:false,selTurn:null,grouping:false,pendingBtn:null,
+ publishErr:""
+};
+
+/* ---------- campos e mensagens ---------- */
+const allFields=()=>[...CRMCAT.fields.contato.map(f=>({...f,g:"contato"})),...CRMCAT.fields.negocio.map(f=>({...f,g:"negocio"}))];
+const fieldByLabel=l=>allFields().find(f=>f.l.toLowerCase()===String(l).toLowerCase());
+function fieldValue(f){
+ if(!f)return "";
+ if(S.simEmpty&&(f.k==="inicio"||f.k==="contrato"))return "";
+ return f.v;
+}
+const citable=()=>allFields().filter(f=>S.perms[f.k]&&S.perms[f.k].c);
+function tokens(){
+ return [["Agente",S.name||"Ana"],...citable().map(f=>[f.l,fieldValue(f)]),...S.vars.filter(v=>v.k.trim()).map(v=>[v.k.trim(),v.v])].sort((a,b)=>b[0].length-a[0].length);
+}
+function replaceTokens(t,map){
+ let out=String(t||"");
+ for(const [k,v] of map){out=out.replace(new RegExp("@"+k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi"),v);}
+ return out;
+}
+function fill(t){
+ const map=tokens();
+ // trechos entre chaves só aparecem se todos os campos citados tiverem valor
+ let out=String(t||"").replace(/\{([^{}]*)\}/g,(m,inner)=>{
+  const used=[...inner.matchAll(/@([A-Za-zÀ-ÿ0-9 ]+)/g)].map(x=>x[1].trim());
+  const ok=map.filter(([k])=>used.some(u=>u.toLowerCase().startsWith(k.toLowerCase()))).every(([,v])=>String(v).trim()!=="");
+  const anyKnown=map.some(([k])=>inner.toLowerCase().includes("@"+k.toLowerCase()));
+  if(anyKnown){const has=map.filter(([k])=>inner.toLowerCase().includes("@"+k.toLowerCase()));if(has.some(([,v])=>String(v).trim()===""))return "";}
+  else if(!ok)return "";
+  return inner;
+ });
+ out=replaceTokens(out,map);
+ return out.replace(/@[A-Za-zÀ-ÿ0-9 ]+/g,m=>m).replace(/\s+([,.!?;:])/g,"$1").replace(/\s{2,}/g," ").trim();
+}
+const tip=h=>`<div class="tip">${ICON.info}<span>${h}</span></div>`;
+const toggle=(act,on,label,extra="")=>`<button type="button" class="toggle" data-act="${act}" ${extra} aria-pressed="${on}" aria-label="${esc(label)}"></button>`;
+const sel=(bind,opts,val,extra="")=>`<select class="inp" data-bind="${bind}" ${extra}>${opts.map(o=>`<option${o===val?" selected":""}>${esc(o)}</option>`).join("")}</select>`;
+const crmsrc=t=>`<span class="crmsrc">${esc(t)}</span>`;
+function destSel(path,d){
+ return `<div class="dest">${sel(path+".kind",Object.values(DEST_KINDS),DEST_KINDS[d.kind],'aria-label="Tipo de destino"')}${sel(path+".v",destList(d.kind),d.v,'aria-label="Destino"')}</div>`;
+}
+
+/* ---------- STEPS ---------- */
+const R=[];
+R[0]=()=>`
+<div class="grid2">
+ <label class="f">Nome do agente<small>É o nome que o cliente vê nas mensagens.</small><input class="inp" data-bind="name" value="${esc(S.name)}" placeholder="Ex.: Ana, da central de atendimento"></label>
+ <label class="f">Em qual número ele atende<small>${esc("Canais conectados na sua organização")}</small>${sel("channel",["[Número do WhatsApp da empresa]","Instagram","Messenger"],S.channel)}</label>
+</div>
+<div class="stack-s">
+ <div><b style="font-size:14px">Comece a partir de um modelo</b><div class="hint">O modelo só preenche as próximas etapas com sugestões. Nada fica travado.</div></div>
+ <div class="grid3">${MODELS.map(m=>`<button type="button" class="model" data-act="model" data-id="${m.id}" aria-pressed="${S.model===m.id}"><b>${m.t}</b><p>${m.d}</p><span class="row" style="gap:6px">${m.has.map(h=>`<span class="tag">${h}</span>`).join("")}</span></button>`).join("")}
+ ${tip("Não achou um modelo parecido? Escolha <strong>Em branco</strong>. Todos usam as mesmas etapas, então dá para chegar no mesmo lugar.")}</div>
+</div>`;
+
+R[1]=()=>{
+ const sample={Curtas:"Oi! Consigo te ajudar sim. Você quer mudar para um plano maior ou menor?",Médias:"Oi! Consigo te ajudar com a mudança de plano. Hoje você está no Plano Anual. Quer ir para um plano com mais recursos ou para um mais em conta?",Detalhadas:"Oi! Consigo te ajudar com a mudança de plano, sim. Hoje você está no Plano Anual. Temos duas opções: subir para o Plano Completo, que inclui suporte prioritário, ou descer para o Essencial, que mantém o principal por um valor menor. Qual faz mais sentido para você?"}[S.size];
+ return `<div class="split"><div class="stack">
+ <section class="card"><div class="card-h"><div><h3>Tom de voz</h3><span class="desc">Como ele soa para o cliente. Escolha quantos quiser.</span></div></div>
+  <div class="row">${["Acolhedor","Direto","Formal","Descontraído","Técnico"].map(t=>`<button type="button" class="chip" data-act="tone" data-v="${t}" aria-pressed="${S.tones.has(t)}">${t}</button>`).join("")}</div>
+  <label class="f">Descreva com suas palavras<textarea class="inp" data-bind="toneText" rows="3">${esc(S.toneText)}</textarea></label></section>
+ <section class="card"><div class="card-h"><div><h3>Tamanho das respostas</h3><span class="desc">Respostas curtas funcionam melhor no WhatsApp.</span></div></div>
+  <div class="row" role="group" aria-label="Tamanho das respostas">${["Curtas","Médias","Detalhadas"].map(t=>`<button type="button" class="chip" data-act="size" data-v="${t}" aria-pressed="${S.size===t}">${t}</button>`).join("")}</div></section>
+ <section class="card"><div class="card-h"><div><h3>Regras que ele sempre segue</h3><span class="desc">Valem para todos os assuntos. Escreva como se estivesse orientando alguém novo na equipe.</span></div></div>
+  ${S.rules.map((r,i)=>`<div class="row" style="flex-wrap:nowrap"><input class="inp" aria-label="Regra ${i+1}" data-bind="rules.${i}.t" value="${esc(r.t)}"><button type="button" class="btn icon" data-act="rule-del" data-i="${i}" aria-label="Remover regra ${i+1}">${ICON.trash}</button></div>`).join("")}
+  <button type="button" class="btn sm add" data-act="rule-add">${ICON.plus}Adicionar regra</button></section>
+ </div>
+ <div class="panel"><b style="font-size:14px">Assim ele vai soar</b>
+  <div class="bubble"><span class="who">Cliente</span>Oi, queria saber como faço pra mudar meu plano</div>
+  <div class="bubble me"><span class="who">${esc(S.name||"Agente")}</span>${esc(sample)}</div>
+  <span class="hint">Exemplo que muda conforme o tamanho escolhido.</span></div>
+ </div>`;
+};
+
+R[2]=()=>{
+ const grp=(title,list,g)=>`<div class="table"><div class="frow h"><span>${title}</span><span>Ler</span><span>Citar</span><span>Atualizar</span></div>
+ ${list.map(f=>{const p=S.perms[f.k]||{};const val=fieldValue(f);return `<div class="frow"><span>${esc(f.l)}<span class="fv">${val?esc(val):"sem valor neste cliente"}</span></span>
+  <label><input type="checkbox" data-act="perm" data-k="${f.k}" data-p="r"${p.r?" checked":""} aria-label="Ler ${esc(f.l)}"></label>
+  <label><input type="checkbox" data-act="perm" data-k="${f.k}" data-p="c"${p.c?" checked":""} aria-label="Citar ${esc(f.l)}"></label>
+  <label><input type="checkbox" data-act="perm" data-k="${f.k}" data-p="w"${p.w?" checked":""} aria-label="Atualizar ${esc(f.l)}"></label></div>`}).join("")}</div>`;
+ return `<div class="stack">
+ <div class="card-h"><div><h3 style="margin:0">Campos do contato e do negócio</h3><span class="desc">${esc("O agente identifica o cliente pelo telefone da conversa e carrega os campos marcados.")}</span></div>${crmsrc("Campos carregados do seu CRM")}</div>
+ <div class="grid2">${grp("Contato",CRMCAT.fields.contato,"contato")}${grp("Negócio",CRMCAT.fields.negocio,"negocio")}</div>
+ ${tip("<strong>Ler</strong>: entra no contexto para ele responder. <strong>Citar</strong>: pode aparecer nas mensagens, como <span class='var'>@Produto ou serviço</span>. <strong>Atualizar</strong>: o agente pode gravar valor nesse campo.")}
+ <div class="grid2">
+  <section class="card"><div class="card-h"><div><h3>Se o cliente tiver mais de um negócio aberto</h3></div></div>
+   <label class="opt"><input type="radio" name="multi" data-bind="multi" value="recent"${S.multi==="recent"?" checked":""}><span><b>Usar o mais recente</b></span></label>
+   <label class="opt"><input type="radio" name="multi" data-bind="multi" value="ask"${S.multi==="ask"?" checked":""}><span><b>Perguntar ao cliente qual deles</b><small>O agente lista pelos campos marcados como “citar”.</small></span></label></section>
+  <section class="card"><div class="card-h"><div><h3>Mídia que o cliente manda</h3><span class="desc">Vira texto antes de qualquer regra.</span></div></div>
+   <label class="f">Áudio${sel("mediaAudio",["Transcrever e seguir","Passar para a equipe","Pedir para escrever"],S.mediaAudio)}</label>
+   <label class="f">Imagem${sel("mediaImage",["Ler o texto da imagem","Descrever o que aparece","Passar para a equipe","Pedir descrição"],S.mediaImage)}</label>
+   <label class="f">Documento${sel("mediaDoc",["Ler o texto","Passar para a equipe","Pedir outro formato"],S.mediaDoc)}</label>
+   <label class="cb"><input type="checkbox" data-act="flag" data-v="mediaConfirm"${S.mediaConfirm?" checked":""}><span>Confirmar o entendimento antes de agir<small>“Entendi que você quer cancelar, é isso?” — evita errar por transcrição ruim.</small></span></label>
+   <label class="f">Se não conseguir entender<input class="inp" data-bind="mediaFailMsg" value="${esc(S.mediaFailMsg)}"></label></section>
+  <section class="card"><div class="card-h"><div><h3>Informações fixas da empresa</h3><span class="desc">Não mudam de cliente para cliente.</span></div></div>
+   ${S.vars.map((v,i)=>`<div style="display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr) 44px;gap:8px"><input class="inp" aria-label="Nome da informação ${i+1}" data-bind="vars.${i}.k" value="${esc(v.k)}"><input class="inp" aria-label="Valor ${i+1}" data-bind="vars.${i}.v" value="${esc(v.v)}"><button type="button" class="btn icon" data-act="var-del" data-i="${i}" aria-label="Remover ${esc(v.k)}">${ICON.trash}</button></div>`).join("")}
+   <button type="button" class="btn sm add" data-act="var-add">${ICON.plus}Adicionar informação</button></section>
+ </div></div>`;
+};
+
+function docUses(id){return S.subjects.filter(s=>s.docs.has(id)).map(s=>s.name);}
+R[3]=()=>`
+<div class="split" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)">
+ <div class="drop" id="drop">${ICON.upload}<b>Arraste arquivos aqui</b><span>PDF, Word, TXT e planilhas CSV, até 10 MB cada</span><button type="button" class="btn sm pri" data-act="upload">Escolher arquivos</button></div>
+ <div class="card" style="justify-content:center"><h3>Ou escreva direto</h3><span class="hint">Bom para perguntas frequentes curtas, que mudam com frequência.</span><button type="button" class="btn sm" data-act="doc-text" style="align-self:flex-start">Criar texto</button></div>
+</div>
+<div class="table" role="table" aria-label="Materiais enviados">
+ <div class="trow h" role="row"><span role="columnheader">Material</span><span role="columnheader">Situação</span><span class="uses" role="columnheader">Usado nos assuntos</span><span></span></div>
+ ${S.docs.length?S.docs.map((d,i)=>{const u=docUses(d.id);return `<div class="trow" role="row"><span class="doc" role="cell">${ICON.doc}<span>${esc(d.name)}<small>${esc(d.meta)}</small></span></span><span role="cell">${d.status==="ok"?'<span class="tag green">Pronto</span>':'<span class="tag amber">Processando…</span>'}</span><span class="uses row" role="cell" style="gap:6px">${u.length?u.map(x=>`<span class="tag">${esc(x)}</span>`).join(""):'<span class="hint">Nenhum assunto ainda</span>'}</span><button type="button" class="btn icon" data-act="doc-del" data-i="${i}" aria-label="Remover ${esc(d.name)}">${ICON.trash}</button></div>`}).join(""):`<div class="trow"><span class="hint" style="grid-column:1/-1">Nenhum material ainda. Envie um arquivo ou crie um texto.</span></div>`}
+</div>
+<section class="card"><div class="card-h"><div><h3>Testar busca</h3><span class="desc">Pergunte como o cliente perguntaria e veja qual trecho o agente encontraria.</span></div></div>
+ <div class="row" style="flex-wrap:nowrap"><input class="inp" aria-label="Pergunta de teste" data-bind="searchQ" value="${esc(S.searchQ)}"><button type="button" class="btn sm pri" data-act="search">Buscar</button></div>
+ ${S.searchRes?`<div class="panel" style="gap:6px"><span class="lbl">Trecho mais parecido · ${esc(S.searchRes)}</span><span>“[O trecho do seu documento aparece aqui, exatamente como o agente vai ler.]”</span></div>`:""}
+</section>`;
+
+R[4]=()=>{
+ const prev=[];
+ if(S.entry==="client"){
+  if(S.welcomeOn)prev.push(fill(S.welcome));
+  if(S.confirmMode==="confirm")prev.push(fill(S.confirmMsg));
+ }else if(S.entry==="auto"){
+  prev.push("(sem boas-vindas) Sobre "+(S.autoSubject==="definido pela automação"?"o que o cliente escolheu no menu":S.autoSubject)+", como posso ajudar?");
+ }else{
+  prev.push("(assume a conversa) "+(S.fromHuman.startsWith("Continuar")?"Voltei aqui! Vamos continuar de onde paramos.":"Oi! Como posso te ajudar?"));
+ }
+ return `<div class="split"><div class="stack">
+ <section class="card"><div class="card-h"><div><h3>Como a conversa chega neste agente</h3><span class="desc">${esc("A mesma conversa pode começar com o cliente, vir de um chatbot/automação ou ser transferida por alguém.")}</span></div></div>
+  <div class="row" role="group" aria-label="Origem da conversa">${[["client","O cliente inicia"],["auto","Vem de automação ou chatbot"],["human","Vem de pessoa ou outro agente"]].map(([k,l])=>`<button type="button" class="chip" data-act="entry" data-v="${k}" aria-pressed="${S.entry===k}">${l}</button>`).join("")}</div>
+  ${S.entry==="auto"?`<div class="stack-s">
+   <div class="sw"><span><b>Não enviar boas-vindas</b><small>O cliente já foi cumprimentado pelo chatbot</small></span>${toggle("autoSkip",S.autoSkipWelcome,"Não enviar boas-vindas")}</div>
+   <label class="f">Assunto inicial${sel("autoSubject",["definido pela automação",...S.subjects.map(s=>s.name)],S.autoSubject)}</label>
+   <span style="font-size:14px;font-weight:600">Variáveis recebidas da automação</span>
+   ${S.autoVars.map((v,i)=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) 44px;gap:8px;align-items:center"><input class="inp" aria-label="Variável ${i+1}" data-bind="autoVars.${i}.k" value="${esc(v.k)}">${sel(`autoVars.${i}.f`,["Assunto inicial",...citable().map(f=>f.l),...S.vars.map(x=>x.k)],v.f,'aria-label="Onde guardar"')}<button type="button" class="btn icon" data-act="av-del" data-i="${i}" aria-label="Remover variável">${ICON.trash}</button></div>`).join("")}
+   <button type="button" class="btn sm add" data-act="av-add">${ICON.plus}Adicionar variável</button>
+   ${tip("Se a variável não vier, o agente segue normalmente e identifica o assunto pela mensagem do cliente.")}</div>`:""}
+  ${S.entry==="human"?`<label class="f">Ao assumir a conversa${sel("fromHuman",["Continuar de onde parou, sem se apresentar de novo","Se apresentar e perguntar como pode ajudar"],S.fromHuman)}</label>${tip("O agente lê o histórico anterior e o motivo da transferência antes de responder.")}`:""}
+ </section>
+ ${S.entry==="client"?`
+ <section class="card"><div class="card-h"><div><h3>Mensagem de boas-vindas</h3></div>${toggle("welcomeOn",S.welcomeOn,"Ativar boas-vindas")}</div>
+  ${S.welcomeOn?`<textarea class="inp" id="ta-welcome" aria-label="Texto de boas-vindas" data-bind="welcome" data-live="1" rows="2">${esc(S.welcome)}</textarea>`:""}</section>
+ <section class="card"><h3>Confirmar o cadastro com o cliente</h3>
+  <label class="opt"><input type="radio" name="cm" data-bind="confirmMode" value="confirm"${S.confirmMode==="confirm"?" checked":""}><span style="flex:1"><b>Confirmar os dados do negócio antes de continuar</b><small>Monte a frase com os campos marcados como “citar” no passo 3.</small>
+   ${S.confirmMode==="confirm"?`<span class="more"><textarea class="inp" id="ta-confirm" aria-label="Mensagem de confirmação" data-bind="confirmMsg" data-live="1" rows="3">${esc(S.confirmMsg)}</textarea>
+   <span class="row" style="gap:6px">${citable().map(f=>`<button type="button" class="chip" data-act="ins" data-v="${esc(f.l)}" style="min-height:32px">+ ${esc(f.l)}</button>`).join("")||'<span class="hint">Marque campos como “citar” no passo 3.</span>'}</span>
+   <span class="hint">Texto entre <strong>{ }</strong> só aparece se o campo tiver valor. Sem isso, o cliente receberia “desde ” vazio.</span></span>`:""}</span></label>
+  <label class="opt"><input type="radio" name="cm" data-bind="confirmMode" value="load"${S.confirmMode==="load"?" checked":""}><span><b>Só ler os dados, sem perguntar</b></span></label>
+  <label class="opt"><input type="radio" name="cm" data-bind="confirmMode" value="none"${S.confirmMode==="none"?" checked":""}><span><b>Não usar dados do CRM</b></span></label></section>
+ ${S.confirmMode!=="none"?`<section class="card"><h3>Se não encontrar o cliente pelo telefone</h3>
+  <label class="opt"><input type="radio" name="nf" data-bind="notFound" value="ask"${S.notFound==="ask"?" checked":""}><span style="flex:1"><b>Pedir um dado para localizar</b>${S.notFound==="ask"?`<span class="more inline">Pedir ${sel("idField",["e-mail ou CPF","e-mail","telefone","número do pedido"],S.idField,'aria-label="Dado pedido"')} e tentar até ${sel("tries",["1 vez","2 vezes","3 vezes"],S.tries,'aria-label="Tentativas"')}</span>`:""}</span></label>
+  <label class="opt"><input type="radio" name="nf" data-bind="notFound" value="handoff"${S.notFound==="handoff"?" checked":""}><span><b>Passar para a equipe</b></span></label></section>`:""}`:""}
+ </div>
+ <div class="panel" id="preview5"><div class="card-h" style="align-items:center"><b style="font-size:14px">Prévia da conversa</b><label class="cb" style="font-size:13px"><input type="checkbox" data-act="sim-empty"${S.simEmpty?" checked":""}><span>Cliente sem data e sem contrato</span></label></div>
+  ${S.entry!=="client"?`<span class="sys">${S.entry==="auto"?"Conversa recebida da automação “Menu inicial (chatbot)”":"Conversa transferida por Carlos Lima"}</span>`:'<div class="bubble"><span class="who">Cliente</span>oi</div>'}
+  ${prev.map(t=>`<div class="bubble me"><span class="who">${esc(S.name||"Agente")}</span>${esc(t)}</div>`).join("")}
+  <span class="hint">Valores de exemplo vindos do CRM. Marque a caixa acima para ver o que acontece quando um campo está vazio.</span></div>
+ </div>`;
+};
+
+R[5]=()=>{
+ const s=S.subjects.find(x=>x.id===S.activeSubject)||S.subjects[0];
+ const i=S.subjects.indexOf(s);
+ return `<div class="subj-layout">
+ <div class="stack-s" role="list" aria-label="Assuntos">${S.subjects.map(x=>`<button type="button" class="subj" role="listitem" data-act="subj" data-id="${x.id}" aria-pressed="${x.id===s.id}"><b>${esc(x.name||"Sem nome")}</b><span>${esc(x.when||"Descreva quando usar")}</span>${x.direct?'<span class="tag amber" style="align-self:flex-start;margin-top:4px">Passa direto</span>':""}</button>`).join("")}
+  <button type="button" class="btn sm add" data-act="subj-add">${ICON.plus}Novo assunto</button></div>
+ ${s?`<div class="stack">
+  <div style="display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);gap:14px">
+   <label class="f">Nome do assunto<input class="inp" data-bind="subjects.${i}.name" data-live="1" value="${esc(s.name)}"></label>
+   <label class="f">Quando o cliente falar sobre…<input class="inp" data-bind="subjects.${i}.when" data-live="1" value="${esc(s.when)}"></label></div>
+  <div class="stack-s"><span style="font-size:14px;font-weight:600">Exemplos de frases <span class="hint">· ajudam o agente a reconhecer o assunto</span></span>
+   <div class="row">${s.examples.map((e,j)=>`<button type="button" class="chip" data-act="ex-del" data-j="${j}" aria-label="Remover exemplo ${esc(e)}">${esc(e)} <span class="x" aria-hidden="true">×</span></button>`).join("")}
+   <input class="inp" id="ex-new" placeholder="Nova frase e Enter" aria-label="Nova frase de exemplo" style="width:200px;min-height:38px"></div></div>
+  <section class="card" style="gap:10px"><div class="card-h"><div><h3>Quem responde este assunto</h3><span class="desc">Você mesmo ou um especialista, que tem materiais e instruções próprios.</span></div><button type="button" class="btn sm" data-act="map">Ver mapa do atendimento</button></div>
+   ${sel(`subjects.${i}.answerBy`,["Este agente",...S.agents.map(a=>a.name),"+ Criar novo especialista"],s.answerBy==="self"?"Este agente":(S.agents.find(a=>a.id===s.answerBy)||{}).name||"Este agente",'aria-label="Quem responde"')}
+   ${s.answerBy!=="self"?`<div class="panel" style="gap:8px">
+    <b style="font-size:14px">O especialista herda deste agente</b>
+    <span class="row" style="gap:6px">${["Tom de voz","Regras gerais","Campos do CRM","Informações fixas","Links permitidos"].map(x=>`<span class="tag acc">${x}</span>`).join("")}</span>
+    <span class="hint">Mude uma vez aqui e vale para todos. No especialista dá para sobrescrever item por item.</span>
+    <b style="font-size:14px;margin-top:4px">O que vai junto na passagem</b>
+    <label class="cb"><input type="checkbox" data-act="pass" data-v="summary"${S.passOn.summary?" checked":""}><span>Resumo do que já foi conversado</span></label>
+    <label class="cb"><input type="checkbox" data-act="pass" data-v="fields"${S.passOn.fields?" checked":""}><span>Dados do cliente já confirmados</span></label>
+    <label class="cb"><input type="checkbox" data-act="pass" data-v="reason"${S.passOn.reason?" checked":""}><span>Motivo do encaminhamento</span></label>
+    <span class="hint">O especialista não repete boas-vindas nem confirmação: ele continua de onde parou.</span>
+    <button type="button" class="btn sm" data-act="edit-spec" style="align-self:flex-start">Abrir o especialista</button></div>`:""}
+  </section>
+  ${s.answerBy!=="self"?"":(s.direct?tip("Este assunto <strong>passa direto</strong>: o agente não conversa, só envia a mensagem de transferência."):`<label class="f">Como o agente deve agir<textarea class="inp" data-bind="subjects.${i}.how" rows="3">${esc(s.how)}</textarea></label>`)}
+  ${s.answerBy!=="self"?`<span class="hint">As instruções, os materiais e as ações deste assunto ficam dentro do especialista.</span>`:`
+  <div style="display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px">
+   <div class="stack-s"><span style="font-size:14px;font-weight:600">O que ele pode fazer neste assunto</span>
+    <div class="acts">${ACTIONS.map(([k,l])=>`<label class="cb"><input type="checkbox" data-act="subj-act" data-v="${k}"${s.acts.has(k)?" checked":""}${s.direct?" disabled":""}><span>${l}</span></label>`).join("")}</div>
+    ${s.acts.has("field")?`<span class="hint">Ele só grava nos campos marcados como “atualizar” no passo 3: ${allFields().filter(f=>S.perms[f.k]&&S.perms[f.k].w).map(f=>esc(f.l)).join(", ")||"nenhum ainda"}.</span>`:""}</div>
+   <div class="stack">
+    <div class="stack-s"><span style="font-size:14px;font-weight:600">Materiais que ele consulta</span>
+     <div class="row">${S.docs.map(d=>`<button type="button" class="chip" data-act="subj-doc" data-v="${d.id}" aria-pressed="${s.docs.has(d.id)}">${esc(d.name)}</button>`).join("")||'<span class="hint">Envie materiais no passo 4.</span>'}</div></div>
+    <div class="stack-s"><span style="font-size:14px;font-weight:600">Quando chamar uma pessoa, passar para ${crmsrc("do CRM")}</span>${destSel(`subjects.${i}.dest`,s.dest)}</div>
+    <div class="sw"><span><b>Passar direto, sem conversar</b><small>Assim que reconhecer o assunto</small></span>${toggle("subj-direct",s.direct,"Passar direto, sem conversar")}</div>
+   </div></div>`}
+    ${S.subjects.length>1?`<button type="button" class="btn sm ghost" data-act="subj-del" style="align-self:flex-start;color:var(--red)">${ICON.trash}Excluir este assunto</button>`:""}
+ </div>`:""}
+ </div>`;
+};
+
+function ruleText(r){
+ const c=r.conds.map(c=>`<span class="cond">${COND_TYPES[c.type]}${c.v?`: “${esc(c.v)}”`:""}</span>`).join(' <span class="kw">e</span> ');
+ const a=r.acts.map(a=>`<span class="act">${ACT_TYPES[a.type]}${a.type==="handoff"?`: ${esc(destLabel(r.dest))}`:""}</span>`).join(' <span class="kw">e</span> ');
+ return `<div class="row"><span class="kw">Quando</span> ${c}</div><div class="row"><span class="kw">Então</span> ${a}</div>${r.msg?`<div class="hint">Mensagem: “${esc(fill(r.msg))}”</div>`:""}`;
+}
+R[6]=()=>{
+ const b=S.builder;
+ return `${tip("Regras automáticas valem <strong>sempre</strong> e são checadas antes de o agente pensar, de cima para baixo. A primeira que combinar é aplicada.")}
+ ${S.autoRules.map((r,i)=>`<div class="rule${r.on?"":" off"}"><span class="n">${i+1}</span><div class="body-r">${ruleText(r)}</div>
+  <div class="rule-tools"><button type="button" class="btn icon sm" data-act="ar-up" data-i="${i}" aria-label="Subir regra ${i+1}"${i===0?" disabled":""}>${ICON.up}</button><button type="button" class="btn icon sm" data-act="ar-down" data-i="${i}" aria-label="Descer regra ${i+1}"${i===S.autoRules.length-1?" disabled":""}>${ICON.down}</button><button type="button" class="btn icon sm" data-act="ar-del" data-i="${i}" aria-label="Remover regra ${i+1}">${ICON.trash}</button>${toggle("ar-on",r.on,`Regra ${i+1} ativa`,`data-i="${i}"`)}</div></div>`).join("")}
+ ${b?`<div class="builder"><b>Nova regra</b>
+  <div class="line"><span class="kw">Quando</span>${sel("builder.ct",Object.values(COND_TYPES),COND_TYPES[b.ct],'aria-label="Condição"')}${(b.ct==="kw"||b.ct==="tag")?`<input class="inp" data-bind="builder.cv" value="${esc(b.cv)}" placeholder="${b.ct==="kw"?"palavras separadas por vírgula":"nome da etiqueta"}" aria-label="Valor da condição">`:"<span></span>"}</div>
+  <div class="line"><span class="kw">Então</span>${sel("builder.at",Object.values(ACT_TYPES),ACT_TYPES[b.at],'aria-label="Ação"')}${b.at==="handoff"?destSel("builder.dest",b.dest):"<span></span>"}</div>
+  <label class="f">Mensagem para o cliente <small>Opcional. Aceita @informações e trechos entre { }.</small><input class="inp" data-bind="builder.msg" value="${esc(b.msg)}"></label>
+  <div class="row"><button type="button" class="btn sm pri" data-act="ar-save">Salvar regra</button><button type="button" class="btn sm" data-act="ar-cancel">Cancelar</button></div></div>`
+ :`<button type="button" class="btn sm add" data-act="ar-new">${ICON.plus}Adicionar regra</button>`}`;
+};
+
+R[7]=()=>`<div class="grid2" style="align-items:start"><div class="stack">
+ <section class="card"><div class="card-h"><div><h3>Quando passar para uma pessoa</h3><span class="desc">Usado quando o assunto não define outro destino.</span></div>${crmsrc("Departamentos, filas e estratégias do CRM")}</div>
+  ${destSel("dest",S.dest)}
+  ${S.dest.kind==="smart"?tip("A <strong>distribuição inteligente</strong> do CRM decide quem recebe, usando a estratégia configurada lá. O agente só diz que precisa transferir."):""}
+  <label class="f">Mensagem ao transferir<textarea class="inp" data-bind="transferMsg" rows="2">${esc(S.transferMsg)}</textarea></label>
+  ${tip("Enquanto a equipe atende, o agente fica em silêncio. Na conversa, o botão <strong>Devolver para o agente</strong> faz ele retomar.")}</section>
+ <section class="card"><div class="card-h"><div><h3>Horário de atendimento</h3></div>${toggle("hoursOn",S.hoursOn,"Usar horário de atendimento")}</div>
+  ${S.hoursOn?S.hours.map((h,i)=>`<div class="hours"><span>${h.d}</span><input class="inp" type="time" aria-label="${h.d}: abre" data-bind="hours.${i}.a" value="${h.a}"${h.on?"":" disabled"}><span class="as">às</span><input class="inp" type="time" aria-label="${h.d}: fecha" data-bind="hours.${i}.b" value="${h.b}"${h.on?"":" disabled"}>${toggle("day-on",h.on,`${h.d} aberto`,`data-i="${i}"`)}</div>`).join("")+`<label class="f">Fora do horário${sel("outside",["Responder normalmente","Só enviar aviso e aguardar","Passar para a equipe mesmo assim"],S.outside)}</label>`:'<span class="hint">O agente atende a qualquer hora.</span>'}</section>
+ </div><div class="stack">
+ <section class="card"><div class="card-h"><div><h3>Se o cliente parar de responder</h3></div>${toggle("nudgeOn",S.nudgeOn,"Lembrete ativo")}</div>
+  ${S.nudgeOn?`<div class="inline">Enviar um lembrete depois de ${sel("nudgeAfter",["15 minutos","30 minutos","1 hora","3 horas"],S.nudgeAfter,'aria-label="Tempo até o lembrete"')}</div>
+  <textarea class="inp" aria-label="Texto do lembrete" data-bind="nudgeMsg" rows="2">${esc(S.nudgeMsg)}</textarea>
+  <div class="inline">Encerrar se não responder em mais ${sel("closeAfter",["30 minutos","1 hora","3 horas","24 horas"],S.closeAfter,'aria-label="Tempo até encerrar"')}</div>`:'<span class="hint">A conversa fica aberta até alguém encerrar.</span>'}</section>
+ <section class="card"><h3>Ao encerrar o atendimento</h3>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="endBack"${S.endBack?" checked":""}><span>Devolver o negócio para a etapa em que estava<small>Se o atendimento moveu o negócio, ele volta ao lugar de antes.</small></span></label>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="endClassify"${S.endClassify?" checked":""}><span>Classificar o atendimento automaticamente<small>Usa as tabulações que você já tem no CRM.</small></span></label>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="endBye"${S.endBye?" checked":""}><span>Enviar mensagem de despedida</span></label>
+  ${S.endBye?`<input class="inp" aria-label="Mensagem de despedida" data-bind="bye" value="${esc(S.bye)}">`:""}
+  ${S.subjects.some(x=>x.answerBy!=="self")?`<label class="f">Idas e voltas entre agentes<small>Depois desse limite, a conversa vai para uma pessoa.</small>${sel("bounceLimit",["1 vez","2 vezes","3 vezes"],S.bounceLimit)}</label>`:""}
+  <label class="f">Depois de encerrar${sel("endReturn",["Não devolver para automação",...CRMCAT.automations.map(a=>"Devolver para: "+a)],S.endReturn)}</label></section>
+ </div></div>`;
+
+R[8]=()=>{
+ const checks=[
+  ["Nome do agente",S.name?["Pronto","green"]:["Falta preencher","red"],0],
+  ["Campos do CRM",[`${Object.values(S.perms).filter(p=>p.r).length} para ler`,"green"],idx(S.model==="recep"?"recognize":"data")],
+  [S.model==="recep"?"Encaminhamentos":"Assuntos",[`${S.subjects.length} ${S.model==="recep"?"demandas":"assuntos"}`,"green"],idx(S.model==="recep"?"route":"subjects")],
+  ["Regras automáticas",[`${S.autoRules.filter(r=>r.on).length} ativas`,"green"],idx("rules")],
+  ["Mensagens e produtos",[(S.mmOn?"modelos on":"modelos off")+" · "+(S.prodOn?"produtos on":"produtos off"),"green"],idx("msgs")],
+  ["Saídas",[{handoff:"passa para a equipe",ask:"tenta de novo",close:"encerra"}[S.fbAction],"green"],idx("fallback")],
+  ["Classificação",[S.tabOn?S.tabWhen.toLowerCase():"desligada",S.tabOn?"green":"amber"],idx("tabul")],
+  ["Destino padrão",[destLabel(S.dest),"green"],idx(S.model==="recep"?"fallback":"team")]
+ ];
+ const canal=S.channel.includes("Instagram")?"Instagram":S.channel.includes("Messenger")?"Messenger":"WhatsApp";
+ const vis=S.chat.filter(m=>!m.hidden);
+ const turn=S.selTurn!=null?S.chat[S.selTurn]:[...S.chat].reverse().find(m=>m.kind==="agent"&&m.why&&!m.hidden);
+ return `<div class="split" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+ <div class="wa-wrap">
+  <div class="phone">
+   <div class="wa-head"><span class="av">${esc(((S.activeAgent||S.name||"A").trim().charAt(0)||"A").toUpperCase())}</span><span><b>${esc(S.activeAgent||S.name||"Agente")}</b><span>${S.humanActive?"uma pessoa está atendendo":S.closed?"atendimento encerrado":(S.typing?"digitando…":"online")} · ${esc(canal)}</span></span></div>
+   <div class="wa-body" id="chat">
+    ${vis.length?vis.map(m=>renderMsg(m,S.chat.indexOf(m))).join(""):'<span class="wa-sys">Escreva como se fosse o cliente. Tente “oi”, “quero cancelar”, “boleto”, “falar com atendente” ou mande 3 mensagens seguidas.</span>'}
+    ${S.grouping?'<span class="wa-sys">Cliente ainda digitando… o agente espera para responder uma vez só</span>':""}
+    ${S.typing?'<div class="wa-typing"><i></i><i></i><i></i></div>':""}
+   </div>
+   <div class="wa-foot"><input id="msg" placeholder="Mensagem" aria-label="Mensagem do cliente"><button class="wa-btn" type="button" data-act="send-audio" aria-label="Enviar áudio">🎙</button><button class="wa-btn" type="button" data-act="send" aria-label="Enviar">➤</button></div>
+  </div>
+  ${S.activeAgent?`<span class="wa-note">Atendendo agora: <strong>${esc(S.activeAgent)}</strong> · o cliente continua no mesmo número</span>`:""}
+  <span class="wa-note">Renderização fiel ao canal. O texto das respostas é simulado; no ambiente de dev quem escreve é o modelo de verdade.</span>
+  ${S.chat.some(m=>m.status==="draft")?`<button type="button" class="btn pri" data-act="approve" style="align-self:center">Aprovar e enviar ${S.chat.filter(m=>m.status==="draft").length===1?"a mensagem":"as mensagens"}</button>`:""}
+  ${S.humanActive?`<button type="button" class="btn" data-act="release" style="align-self:center">Devolver para o agente</button>`:""}
+ </div>
+ <div class="stack">
+  <section class="card"><div class="card-h"><div><h3>Simulação</h3><span class="desc">Muda o cenário sem mexer na configuração.</span></div><button type="button" class="btn sm" data-act="chat-reset">Recomeçar</button></div>
+   <label class="f">Como a conversa chega${sel("entrySim",["Cliente inicia","Vem da automação “Menu inicial (chatbot)”","Vem de uma pessoa"],{client:"Cliente inicia",auto:"Vem da automação “Menu inicial (chatbot)”",human:"Vem de uma pessoa"}[S.entrySim],'aria-label="Origem da conversa de teste"')}</label>
+   <div class="row" style="gap:16px"><label class="cb" style="font-size:14px"><input type="checkbox" data-act="sim-outside"${S.simOutside?" checked":""}><span>Fora do horário</span></label><label class="cb" style="font-size:14px"><input type="checkbox" data-act="sim-empty"${S.simEmpty?" checked":""}><span>Campos vazios no CRM</span></label></div>
+   <div class="row" style="gap:8px"><button type="button" class="btn sm" data-act="do-close">Encerrar atendimento</button><button type="button" class="btn sm" data-act="own-human">${S.humanActive?"Devolver para o agente":"Uma pessoa assume"}</button></div>
+   <span class="hint">Contato de teste: Marcelo · etiqueta “novo-cliente” · negócio aberto. ${S.closed?"<strong>Atendimento encerrado</strong> — mande “obrigado” e depois “quero um boleto”.":""}</span></section>
+  <section class="card"><div class="card-h"><div><h3>Bastidores deste turno</h3><span class="desc">${turn?"Toque em outra resposta para ver os bastidores dela.":"Envie uma mensagem para ver."}</span></div></div>
+   ${turn&&turn.why?`<div class="turnbox">${Object.entries(turn.why).map(([k,v])=>`<div class="kv"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join("")}
+    <div class="row" style="margin-top:6px">${turn.subj?`<button type="button" class="btn sm" data-act="edit-subj" data-id="${turn.subj}">Editar este assunto</button>`:""}${turn.rule!=null?`<button type="button" class="btn sm" data-act="go" data-i="6">Editar esta regra</button>`:""}<button type="button" class="btn sm" data-act="bad">Marcar como resposta ruim</button></div></div>`:'<span class="hint">Cada resposta guarda: regra aplicada, assunto escolhido, campos do CRM usados, materiais consultados, ações e motivo.</span>'}</section>
+  <section class="card"><h3>Como ele envia as respostas</h3>
+   <label class="opt"><input type="radio" name="sm" data-bind="sendMode" value="draft"${S.sendMode==="draft"?" checked":""}><span><b>Sugerir resposta para a equipe aprovar</b><small>No teste, a mensagem fica amarela até você aprovar.</small></span></label>
+   <label class="opt"><input type="radio" name="sm" data-bind="sendMode" value="auto"${S.sendMode==="auto"?" checked":""}><span><b>Responder sozinho</b></span></label></section>
+  <section class="card"><h3>Links permitidos</h3>
+   <div class="row">${S.domains.map((d,i)=>`<button type="button" class="chip" aria-pressed="true" data-act="dom-del" data-i="${i}" aria-label="Remover ${esc(d)}">${esc(d)} <span class="x" aria-hidden="true">×</span></button>`).join("")}</div>
+   <div class="row" style="flex-wrap:nowrap"><input class="inp" id="dom-new" placeholder="exemplo.com.br" aria-label="Novo domínio permitido"><button type="button" class="btn sm" data-act="dom-add">Adicionar</button></div></section>
+  <section class="card"><h3>Tudo certo?</h3>${checks.map(([a,[t,k],st])=>`<div class="check-row"><button type="button" class="btn ghost sm" data-act="go" data-i="${st}" style="padding:0">${a}</button><span class="tag ${k}">${esc(t)}</span></div>`).join("")}
+   ${S.publishErr?`<span class="err" role="alert">${S.publishErr}</span>`:""}</section>
+ </div></div>`;
+};
+
+const TICK_SENT='<svg width="15" height="11" viewBox="0 0 16 11" fill="none" aria-hidden="true"><path d="M1 6l3.5 3.5L11 2" stroke="#667781" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const TICK_READ='<svg width="17" height="11" viewBox="0 0 18 11" fill="none" aria-hidden="true"><path d="M1 6l3.2 3.2L10.4 2M6.6 8.6l.9.9L14 2" stroke="#53BDEB" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CLOCK='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A6D00" stroke-width="2.4" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+function nowStr(){const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}
+function renderMsg(m,idx){
+ if(m.kind==="sys")return `<span class="wa-sys">${esc(m.text)}</span>`;
+ const meta=`<span class="wa-meta">${esc(m.t||"")}${m.kind==="agent"?(m.status==="draft"?CLOCK:m.status==="read"?TICK_READ:TICK_SENT):""}</span>`;
+ if(m.kind==="user"){
+  const body=m.audio?`<span class="wa-audio"><span class="play" aria-hidden="true">▶</span><span class="wave"></span><span style="font-size:11px;color:#667781">0:09</span></span>`:esc(m.text);
+  return `<div class="wa-msg in">${body}${meta}</div>`;
+ }
+ const cls=`wa-msg out${m.status==="draft"?" draft":""}${S.selTurn===idx?" sel":""}`;
+ const btns=(m.buttons&&m.status!=="draft")?`<span class="wa-btns">${m.buttons.map(b=>`<button type="button" data-act="wa-btn" data-id="${esc(b.id)}" data-label="${esc(b.label)}">${esc(b.label)}</button>`).join("")}</span>`:"";
+ return `<div class="${cls}"><button type="button" data-act="sel-turn" data-i="${idx}" style="text-align:left;font-family:inherit;border:0;background:transparent;padding:0;color:inherit;font-size:inherit;width:100%;cursor:pointer">${esc(m.text)}${meta}</button>${btns}</div>`;
+}
+function splitReply(t){
+ const parts=String(t).split(/(?<=[.!?])\s+/);const out=[];let cur="";
+ parts.forEach(p=>{if((cur+" "+p).trim().length>130&&cur){out.push(cur.trim());cur=p;}else cur=(cur+" "+p).trim();});
+ if(cur)out.push(cur);return out.slice(0,3);
+}
+function reveal(){
+ const next=S.chat.find(m=>m.hidden);
+ if(!next){S.typing=false;S.revealing=false;render();return;}
+ if(next.kind==="sys"){next.hidden=false;render();setTimeout(reveal,500);return;}
+ S.typing=true;render();
+ setTimeout(()=>{S.typing=false;next.hidden=false;if(next.status==="sent")setTimeout(()=>{if(next.status==="sent"){next.status="read";render();}},900);render();setTimeout(reveal,450);},Math.min(1900,700+next.text.length*14));
+}
+function processTurn(){
+ S.grouping=false;
+ const pend=S.chat.filter(m=>m.kind==="user"&&!m.done);
+ if(!pend.length)return;
+ pend.forEach(m=>m.done=true);
+ const audio=pend.some(m=>m.audio);
+ const text=pend.filter(m=>!m.audio).map(m=>m.text).join(" ");
+ const before=S.chat.length;
+ S.revealing=true;
+ simulate(text,audio&&!text);
+ S.chat.slice(before).forEach(m=>{m.hidden=true;});
+ S.selTurn=null;
+ render();reveal();
+}
+function pushUser(text,audio){
+ if(!S.chat.length)startEntry();
+ S.chat.push({kind:"user",text,audio:!!audio,t:nowStr(),done:false});
+ S.grouping=true;render();
+ clearTimeout(S.waTimer);S.waTimer=setTimeout(processTurn,2000);
+}
+
+/* ---------- simulação ---------- */
+function norm(s){return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");}
+function cleanLinks(t){return String(t).replace(/https?:\/\/([^\s/]+)[^\s]*/g,(u,h)=>S.domains.some(d=>h===d||h.endsWith("."+d))?u:"[link removido]");}
+function agent(text,why,extra){
+ extra=extra||{};const btns=extra.buttons;delete extra.buttons;
+ let txt=cleanLinks(fill(text));
+ if(btns&&!S.useButtons)txt+="\n"+btns.map((b,i)=>`${i+1}) ${b.label}`).join("\n");
+ const parts=splitReply(txt);
+ parts.forEach((p,i)=>S.chat.push(Object.assign({kind:"agent",text:p,why:i===0?why:null,t:nowStr(),status:S.sendMode==="draft"?"draft":"sent"},i===0?extra:{})));
+ if(btns&&S.useButtons)S.chat[S.chat.length-1].buttons=btns;
+}
+function ctxUsed(){return allFields().filter(f=>S.perms[f.k]&&S.perms[f.k].r&&fieldValue(f)).map(f=>`${f.l}: ${fieldValue(f)}`).slice(0,3).join(" · ")||"nenhum campo marcado";}
+function tabulate(subjName,motivo){
+ if(!S.tabOn)return;
+ const sj=S.subjects.find(x=>x.name===subjName);
+ const tb=(sj&&S.tabMap[sj.id])||S.tabFallback;
+ S.chat.push({kind:"sys",t:nowStr(),text:`Atendimento classificado no CRM: ${tb}${motivo?" · "+motivo:""}`});
+}
+function doHandoff(dest,why,extra,subjName){
+ S.humanActive=true;
+ agent(fill(S.transferMsg),why,extra);
+ if(S.tabWhen!=="Só ao encerrar")tabulate(subjName,"transferido para gente");
+ S.chat.push({kind:"sys",t:nowStr(),text:dest.kind==="smart"?`Transferido pela distribuição inteligente do CRM (${dest.v})`:`Transferido para ${destLabel(dest)}`});
+}
+function startEntry(){
+ if(S.entrySim==="auto"){S.chat.push({kind:"sys",t:nowStr(),text:"Conversa recebida da automação “Menu inicial (chatbot)” · opcao_menu = Financeiro"});S.stage="active";S.forced=S.subjects.find(s=>norm(s.name)==="financeiro")||null;}
+ else if(S.entrySim==="human"){S.chat.push({kind:"sys",t:nowStr(),text:"Conversa transferida por Carlos Lima · motivo: “cliente quer falar de plano”"});S.stage="active";S.forced=null;agent(S.fromHuman.startsWith("Continuar")?"Voltei aqui! Vamos continuar de onde paramos.":"Oi! Sou a "+(S.name||"Ana")+". Como posso te ajudar?",{"Origem":"Transferida por uma pessoa","Motivo":"Configurado para não repetir as boas-vindas"});}
+ else {S.stage="new";S.forced=null;}
+}
+function closeConv(motivo,subjName){
+ if(S.tabOn&&S.tabWhen!=="Só ao transferir")tabulate(subjName,motivo);
+ if(S.endBye)agent(S.bye,{"Saída":"Atendimento encerrado","Motivo":motivo||"conversa concluída"});
+ S.chat.push({kind:"sys",t:nowStr(),text:`Atendimento encerrado${S.endBack?" · negócio devolvido para a etapa anterior":""}`});
+ S.closed=true;S.stage="closed";S.activeAgent=null;
+ if(S.npsOn&&!(S.npsSkipTransfer&&S.humanActive)){
+  if(S.npsWhen!=="Na hora do encerramento"){S.chat.push({kind:"sys",t:nowStr(),text:`Pesquisa de satisfação agendada: ${S.npsWhen.toLowerCase()}`});return;}
+  const esc10=S.npsScale.startsWith("Nota de 0")?[0,1,2,3,4,5,6,7,8,9,10]:S.npsScale.startsWith("Nota de 1")?[1,2,3,4,5]:null;
+  const btns=esc10?(esc10.length<=10?esc10.map(v=>({id:"nps:"+v,label:String(v)})):null):[{id:"nps:10",label:"Gostei"},{id:"nps:3",label:"Não gostei"}];
+  agent(S.npsQuestion,{"Etapa":"Pesquisa de satisfação","Formato":btns?(btns.length<=3?"botões":"lista de opções"):"lista numerada em texto (mais de 10 opções)","Motivo":"Atendimento encerrado e cliente elegível ("+S.npsFreq.toLowerCase()+")"},btns?{buttons:btns}:{});
+  S.stage="nps";S.closed=false;
+ }
+}
+const isCourtesy=n=>/^(ok|okay|obg|obrigad|valeu|vlw|blz|beleza|show|perfeito|entendi|tks|de nada|👍|🙏|😊|tudo bem|isso|certo)\b/.test(n)||n.length<=3;
+function postClose(n,msg){
+ const hit=S.subjects.some(x=>x.examples.some(e=>{const k=norm(e);return k&&n.includes(k);})||norm(x.name).split(/\s+/).some(w=>w.length>3&&n.includes(w)));
+ if(isCourtesy(n)&&!hit){
+  if(S.pcCourtesy.startsWith("Não reabrir (responder"))agent(S.pcCourtesyMsg,{"Situação":"Mensagem depois do encerramento","Classificação":"Cortesia","Fez":"Respondeu sem reabrir","Motivo":`Dentro da janela de ${S.postWindow}`});
+  else if(S.pcCourtesy.startsWith("Não reabrir e não"))S.chat.push({kind:"sys",t:nowStr(),text:"Cortesia reconhecida · atendimento segue encerrado, sem resposta"});
+  else{S.closed=false;S.stage="active";agent(S.pcAskMsg,{"Situação":"Mensagem depois do encerramento","Classificação":"Cortesia","Fez":"Reabriu e perguntou"});}
+  return true;
+ }
+ if(hit){
+  if(S.pcNew.startsWith("Reabrir e encaminhar")){S.closed=false;S.stage="active";S.chat.push({kind:"sys",t:nowStr(),text:"Atendimento reaberto automaticamente · demanda nova"});return false;}
+  S.closed=false;S.stage="active";
+  agent("Claro! Só confirmando: é sobre um assunto novo?",{"Situação":"Mensagem depois do encerramento","Classificação":"Demanda nova","Fez":"Reabriu e perguntou"},{buttons:[{id:"reopen",label:"Sim, é outro assunto"},{id:"close",label:"Não, era só isso"}]});
+  return true;
+ }
+ if(S.pcAmbig.startsWith("Reabrir")){S.closed=false;S.stage="active";return false;}
+ S.closed=false;S.stage="ambig";
+ agent(S.pcAskMsg,{"Situação":"Mensagem depois do encerramento","Classificação":"Não deu para saber","Fez":S.pcAmbig.startsWith("Perguntar com botões")?"Perguntou com botões":"Perguntou em texto"},{buttons:[{id:"reopen",label:"Falar de outro assunto"},{id:"close",label:"Era só isso, obrigado"}]});
+ return true;
+}
+function simulate(msg,isAudio){
+ S.chat.push({kind:"user",text:isAudio?"🎤 mensagem de voz":msg});
+ if(S.humanActive){S.chat.push({kind:"sys",t:nowStr(),text:"A equipe está atendendo. O agente não responde."});return;}
+ const n=norm(msg),first=S.stage==="new";
+ const btn=S.pendingBtn;S.pendingBtn=null;
+ if(btn==="close"){closeConv("cliente disse que era só isso");return;}
+ if(btn==="reopen"){S.closed=false;S.stage="active";agent("Perfeito! Me conta o que você precisa.",{"Situação":"Botão tocado","Fez":"Reabriu o atendimento","Motivo":"Clique tratado pelo código, sem interpretação"});return;}
+ if(btn&&btn.indexOf("nps:")===0&&S.stage!=="nps"){S.stage="nps";}
+ if(btn&&btn.indexOf("subj:")===0){const sj=S.subjects.find(x=>x.id===btn.slice(5));if(sj){S.forced=sj;S.stage="active";}}
+ if(S.closed){if(postClose(n,msg))return;}
+ if(S.sentOn&&!isAudio){
+  const bravo=/(absurd|pessim|péssim|horrivel|horrível|ridicul|ridícul|inaceit|palhaç|procon|processar|advogad|nunca mais|to puto|tô puto|revoltad|descaso|enrolaç|enrolac)/.test(n);
+  const chateado=/(demora|ninguem|ninguém responde|cansad|de novo|terceira vez|insatisfeit|decepcion)/.test(n);
+  const alvo=S.sentLevel.startsWith("Qualquer")?(bravo||chateado):S.sentLevel.startsWith("Só em")?/(cancelar tudo|procon|processar|advogad|reclame aqui)/.test(n):bravo;
+  if(alvo){
+   const why={"Humor do cliente":bravo?"irritado":"insatisfeito","Limite configurado":S.sentLevel,"Fez":(S.sentTag?"Etiquetou o contato como insatisfeito. ":"")+(S.sentNotify.startsWith("Avisar")?S.sentNotify.toLowerCase():"sem aviso"),"Motivo":"Palavras e tom da mensagem indicam insatisfação"};
+   if(S.sentAction.startsWith("Passar")){agent("Sinto muito por isso, e você tem razão em cobrar. Vou te passar agora para alguém da equipe resolver.",why);doHandoff(S.dest,why);return;}
+   if(S.sentAction.startsWith("Avisar")){S.chat.push({kind:"sys",t:nowStr(),text:"Cliente insatisfeito · equipe avisada"+(S.sentTag?" · contato etiquetado":"")});}
+   else S.chat.push({kind:"sys",t:nowStr(),text:"Humor do cliente registrado: insatisfeito"});
+  }
+ }
+ if(S.stage==="nps"){
+  const nota=btn&&btn.indexOf("nps:")===0?btn.slice(4):(msg.match(/\b(10|[0-9])\b/)||[])[1];
+  if(nota!=null){
+   const v=parseInt(nota),cls=v>=9?"promotor":v>=7?"neutro":"detrator";
+   S.chat.push({kind:"sys",t:nowStr(),text:`Satisfação registrada no CRM: ${v} (${cls})`});
+   if(S.npsFollow){agent(S.npsFollowQ,{"Etapa":"Pesquisa de satisfação","Nota":`${v} · ${cls}`,"Motivo":"Configurado para perguntar o motivo"});S.stage="npsmotivo";return;}
+   agent(S.npsThanks,{"Etapa":"Pesquisa de satisfação","Nota":`${v} · ${cls}`});S.stage="closed";S.closed=true;return;
+  }
+  agent("Sem problema! Se quiser dar a nota depois, é só me mandar o número.",{"Etapa":"Pesquisa de satisfação","Motivo":"Cliente não respondeu com uma nota"});S.stage="closed";S.closed=true;return;
+ }
+ if(S.stage==="npsmotivo"){
+  S.chat.push({kind:"sys",t:nowStr(),text:"Motivo da nota salvo no negócio"});
+  agent(S.npsThanks,{"Etapa":"Pesquisa de satisfação","Fez":"Salvou o motivo no negócio"});
+  S.stage="closed";S.closed=true;return;
+ }
+ if(S.stage==="ambig"){S.stage="active";}
+ for(let i=0;i<S.autoRules.length;i++){
+  const r=S.autoRules[i];if(!r.on)continue;
+  const ok=r.conds.every(c=>c.type==="audio"?isAudio:c.type==="kw"?(!isAudio&&String(c.v).split(",").map(x=>norm(x.trim())).filter(Boolean).some(k=>n.includes(k))):c.type==="tag"?S.contactTags.includes(String(c.v).trim()):c.type==="outside"?S.simOutside:c.type==="first"?first:c.type==="nodeal"?false:false);
+  if(!ok)continue;
+  const ho=r.acts.find(a=>a.type==="handoff");
+  const why={"Regra automática":`Regra ${i+1}`,"Assunto":"—","Motivo":"A mensagem combinou com a regra, então o agente nem precisou interpretar"};
+  if(ho){doHandoff(r.dest,Object.assign(why,{"Fez":"Passou para "+destLabel(r.dest)}),{rule:i});}
+  else{agent(fill(r.msg),Object.assign(why,{"Fez":r.acts.some(a=>a.type==="silence")?"Enviou aviso e parou de responder":"Enviou mensagem pronta"}),{rule:i});
+   if(r.acts.some(a=>a.type==="silence"))S.chat.push({kind:"sys",t:nowStr(),text:"O agente não responde mais nesta conversa até o horário abrir"});}
+  if(S.stage==="new")S.stage="active";
+  return;
+ }
+ if(isAudio){agent("Ainda não consigo ouvir áudios por aqui. Pode me escrever?",{"Regra automática":"Nenhuma","Motivo":"Sem regra para áudio"});return;}
+ if(S.stage==="new"){
+  if(S.welcomeOn)agent(fill(S.welcome),{"Etapa":"Início da conversa","Identificação":"Telefone da conversa → contato no CRM","Motivo":"Primeira mensagem do cliente"});
+  if(S.confirmMode==="confirm"){agent(fill(S.confirmMsg),{"Etapa":"Confirmação","Campos usados":ctxUsed(),"Motivo":"Negócio aberto encontrado pelo telefone","Formato":S.useButtons?"com botões (API oficial, dentro de 24h)":"texto"},{buttons:[{id:"yes",label:"Sim, é isso"},{id:"no",label:"Não, é outro"}]});S.stage="confirm";return;}
+  S.stage="active";
+  if(/^(oi|ola|bom dia|boa tarde|boa noite)\W*$/.test(n)){if(!S.welcomeOn)agent("Oi! Como posso te ajudar?",{"Motivo":"Saudação"});return;}
+ }else if(S.stage==="confirm"){
+  if(btn==="yes"||/^(sim|s|isso|claro|exato|isso mesmo)\b/.test(n)){S.stage="active";agent("Perfeito! Me conta como posso te ajudar.",{"Etapa":"Confirmação","Motivo":"Cliente confirmou os dados"});return;}
+  if(btn==="no"||/^(nao|n)\b/.test(n)){
+   if(S.notFound==="ask"){S.stage="ident";agent(`Sem problemas! Me passa seu ${S.idField} para eu localizar o cadastro certo?`,{"Etapa":"Localizar o cliente","Motivo":"Cliente disse que não é esse cadastro"});}
+   else doHandoff(S.dest,{"Etapa":"Localizar o cliente","Fez":"Passou para "+destLabel(S.dest),"Motivo":"Configurado para passar para a equipe"});
+   return;}
+  S.stage="active";
+ }else if(S.stage==="ident"){S.stage="active";agent("Encontrei! Agora sim. Como posso te ajudar?",{"Etapa":"Localizar o cliente","Motivo":"Cadastro localizado pelo dado informado (simulado)"});return;}
+ let best=S.forced,score=0,why0="";
+ if(best){why0="Assunto veio da automação (variável opcao_menu)";S.forced=null;}
+ else{
+  for(const s of S.subjects){let sc=0;for(const e of s.examples){const k=norm(e);if(k&&n.includes(k))sc+=3;else k.split(/\s+/).forEach(w=>{if(w.length>3&&n.includes(w))sc+=1;});}norm(s.name).split(/\s+/).forEach(w=>{if(w.length>3&&n.includes(w))sc+=1;});if(sc>score){score=sc;best=s;}}
+  if(!best||!score){
+   // não soube: usa a saída configurada
+   if(S.fbAction==="handoff"){doHandoff(S.dest,{"Assunto":"não identificado","Saída":"Quando ele não souber","Fez":"Passou para "+destLabel(S.dest),"Motivo":"Nenhuma demanda combinou com a mensagem"});agent(S.fbMsg,null);return;}
+   if(S.fbAction==="ask"){agent(S.fbMsg.replace(/Vou chamar.*/,"")+" Pode me explicar com outras palavras o que você precisa?",{"Assunto":"não identificado","Saída":"Quando ele não souber","Motivo":`Configurado para tentar ${S.fbTries} antes de passar`});return;}
+   agent(S.fbMsg,{"Assunto":"não identificado","Saída":"Encerrar e registrar","Motivo":"Nenhuma demanda combinou"});tabulate(null,"não identificado");return;
+  }
+  why0=`A mensagem parece com os exemplos de “${best.name}”`;
+ }
+ if(best.answerBy&&best.answerBy!=="self"){
+  const sp=S.agents.find(a=>a.id===best.answerBy)||{name:"Especialista"};
+  const lim=parseInt(S.bounceLimit)||2;
+  if(S.activeAgent&&S.activeAgent!==sp.name){
+   S.bounces++;
+   if(S.bounces>lim){doHandoff(S.dest,{"Assunto":best.name,"Fez":"Passou para "+destLabel(S.dest),"Motivo":`Já houve ${S.bounces} idas e voltas entre agentes`},{subj:best.id});return;}
+   S.chat.push({kind:"sys",t:nowStr(),text:`Assunto mudou · devolvido para ${S.name||"a Recepção"}`});
+  }
+  S.activeAgent=sp.name;
+  const leva=[S.passOn.summary?"resumo":null,S.passOn.fields?"dados confirmados":null,S.passOn.reason?"motivo":null].filter(Boolean).join(", ");
+  S.chat.push({kind:"sys",t:nowStr(),text:`Conversa passada para ${sp.name}${leva?" · leva "+leva:""}`});
+  if(S.tabWhen!=="Só ao encerrar")tabulate(best.name,"encaminhado para especialista");
+  agent(`Oi! Sou ${sp.name.toLowerCase()}. Já vi aqui o que você falou, pode deixar que eu cuido disso.`,{"Assunto":best.name,"Quem responde":sp.name,"Levou junto":leva||"nada","Motivo":why0},{subj:best.id});
+  return;
+ }
+ if(best.direct){doHandoff(best.dest,{"Assunto":best.name,"Fez":"Passou direto para "+destLabel(best.dest),"Motivo":"Assunto configurado para passar direto"},{subj:best.id},best.name);return;}
+ const docs=S.docs.filter(d=>best.docs.has(d.id)).map(d=>d.name).join(", ")||"Nenhum";
+ const canned={"Cancelamento":"Poxa, entendo. Posso te perguntar o motivo? Se for o valor, temos uma opção mais em conta que mantém o principal.","Mudança de plano":"Claro! Hoje você está com o Plano Anual. Quer ver as opções com mais recursos ou uma mais em conta?","Dúvidas gerais":"Boa pergunta! Pelo que está nos nossos materiais, [resposta baseada nos documentos]. Posso ajudar com mais alguma coisa?","Financeiro":"Vou verificar seu financeiro."};
+ const did=[];if(best.acts.has("tag"))did.push(`Etiqueta “${norm(best.name).replace(/\s+/g,"-")}”`);if(best.acts.has("note"))did.push("Anotação no negócio");if(best.acts.has("field"))did.push("Atualizaria um campo permitido");
+ agent(canned[best.name]||`[Resposta seguindo as instruções do assunto “${best.name}”]`,{"Assunto":best.name,"Regra automática":"Nenhuma","Campos usados":ctxUsed(),"Consultou":docs,"Fez":did.join("; ")||"Nada","Motivo":why0},{subj:best.id});
+}
+
+
+/* ===== telas extras ===== */
+const Rrecognize=()=>`<div class="split"><div class="stack">
+ <section class="card"><div class="card-h"><div><h3>Como ele reconhece quem está falando</h3><span class="desc">Pelo telefone da conversa, ele procura o contato e os negócios no CRM.</span></div>${crmsrc("Contatos e negócios do CRM")}</div>
+  ${tip("Isso vale para qualquer produto: o que muda são os campos que você marca abaixo, não o comportamento.")}
+  <div class="table"><div class="frow h"><span>Campo do negócio</span><span>Ler</span><span>Citar</span><span>Atualizar</span></div>
+  ${CRMCAT.fields.negocio.map(f=>{const pm=S.perms[f.k]||{};const val=fieldValue(f);return `<div class="frow"><span>${esc(f.l)}<span class="fv">${val?esc(val):"sem valor neste cliente"}</span></span>
+   <label><input type="checkbox" data-act="perm" data-k="${f.k}" data-p="r"${pm.r?" checked":""} aria-label="Ler ${esc(f.l)}"></label>
+   <label><input type="checkbox" data-act="perm" data-k="${f.k}" data-p="c"${pm.c?" checked":""} aria-label="Citar ${esc(f.l)}"></label>
+   <label><input type="checkbox" data-act="perm" data-k="${f.k}" data-p="w"${pm.w?" checked":""} aria-label="Atualizar ${esc(f.l)}"></label></div>`}).join("")}</div></section>
+ <section class="card"><h3>Quando o cliente ESTÁ na base</h3>
+  <label class="opt"><input type="radio" name="ib" data-bind="inBase" value="confirm"${S.inBase==="confirm"?" checked":""}><span style="flex:1"><b>Confirmar os dados antes de encaminhar</b>
+   ${S.inBase==="confirm"?`<span class="more"><textarea class="inp" id="ta-confirm" data-bind="confirmMsg" data-live="1" rows="3" aria-label="Mensagem de confirmação">${esc(S.confirmMsg)}</textarea>
+   <span class="row" style="gap:6px">${citable().map(f=>`<button type="button" class="chip" data-act="ins" data-v="${esc(f.l)}" style="min-height:32px">+ ${esc(f.l)}</button>`).join("")}</span>
+   <span class="hint">Texto entre <strong>{ }</strong> só aparece se o campo tiver valor.</span></span>`:""}</span></label>
+  <label class="opt"><input type="radio" name="ib" data-bind="inBase" value="load"${S.inBase==="load"?" checked":""}><span><b>Não perguntar, só usar os dados</b><small>Mais rápido, mas o agente pode falar do negócio errado.</small></span></label>
+  ${S.multi==="ask"?"":""}
+  <label class="f">Se tiver mais de um negócio aberto${sel("multi",["recent","ask"].map(x=>x==="recent"?"Usar o mais recente":"Perguntar ao cliente qual deles"),S.multi==="recent"?"Usar o mais recente":"Perguntar ao cliente qual deles")}</label></section>
+ <section class="card"><h3>Quando o cliente NÃO está na base</h3>
+  <label class="opt"><input type="radio" name="nb" data-bind="notInBase" value="ask"${S.notInBase==="ask"?" checked":""}><span style="flex:1"><b>Pedir um dado para localizar</b>
+   ${S.notInBase==="ask"?`<span class="more"><input class="inp" data-bind="notInBaseMsg" value="${esc(S.notInBaseMsg)}" aria-label="Mensagem"><span class="inline">Tentar até ${sel("tries",["1 vez","2 vezes","3 vezes"],S.tries,'aria-label="Tentativas"')}, depois encaminhar</span></span>`:""}</span></label>
+  <label class="opt"><input type="radio" name="nb" data-bind="notInBase" value="new"${S.notInBase==="new"?" checked":""}><span><b>Tratar como contato novo e criar negócio</b><small>Cria o negócio no funil e segue o atendimento.</small></span></label>
+  <label class="opt"><input type="radio" name="nb" data-bind="notInBase" value="route"${S.notInBase==="route"?" checked":""}><span style="flex:1"><b>Encaminhar direto</b>${S.notInBase==="route"?`<span class="more">${destSel("notInBaseDest",S.notInBaseDest)}</span>`:""}</span></label></section>
+ </div>
+ <div class="panel"><b style="font-size:14px">Prévia</b><div class="wa-note" style="text-align:left">Cliente na base:</div>
+  <div class="bubble"><span class="who">Cliente</span>oi</div>
+  <div class="bubble me"><span class="who">${esc(S.name||"Recepção")}</span>${esc(fill(S.welcome))}</div>
+  ${S.inBase==="confirm"?`<div class="bubble me"><span class="who">${esc(S.name||"Recepção")}</span>${esc(fill(S.confirmMsg))}</div>`:""}
+  <div class="wa-note" style="text-align:left;margin-top:8px">Cliente fora da base:</div>
+  <div class="bubble me"><span class="who">${esc(S.name||"Recepção")}</span>${esc(S.notInBase==="ask"?S.notInBaseMsg:S.notInBase==="new"?"Legal te ver por aqui! Como posso te ajudar?":fill(S.transferMsg))}</div>
+  <label class="cb" style="font-size:13px;margin-top:6px"><input type="checkbox" data-act="sim-empty"${S.simEmpty?" checked":""}><span>Cliente sem data e sem contrato</span></label></div>
+ </div>`;
+
+const Rroute=()=>`<div class="stack">
+ <div class="card-h"><div><h3 style="margin:0">Para quem ele encaminha</h3><span class="desc">Cada demanda vai para um especialista já criado, uma equipe ou fica com a recepção.</span></div><button type="button" class="btn sm" data-act="map">Ver mapa do atendimento</button></div>
+ ${S.subjects.map((x,i)=>{const isAg=x.answerBy!=="self";const ag=S.agents.find(a=>a.id===x.answerBy);return `<section class="card" style="gap:10px">
+  <div style="display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr) 44px;gap:10px;align-items:end">
+   <label class="f">Demanda<input class="inp" data-bind="subjects.${i}.name" data-live="1" value="${esc(x.name)}"></label>
+   <label class="f">Quando o cliente falar sobre…<input class="inp" data-bind="subjects.${i}.when" data-live="1" value="${esc(x.when)}"></label>
+   <button type="button" class="btn icon" data-act="subj-del2" data-i="${i}" aria-label="Remover ${esc(x.name)}">${ICON.trash}</button></div>
+  <div class="row">${x.examples.map((e,j)=>`<button type="button" class="chip" data-act="ex-del2" data-i="${i}" data-j="${j}" aria-label="Remover ${esc(e)}">${esc(e)} <span class="x" aria-hidden="true">×</span></button>`).join("")}<input class="inp" data-act="ex-new2" data-i="${i}" placeholder="Nova frase e Enter" aria-label="Nova frase" style="width:190px;min-height:36px"></div>
+  <div class="grid2">
+   <label class="f">Quem responde${sel(`subjects.${i}.answerBy`,["Este agente",...S.agents.map(a=>a.name),"+ Criar novo especialista"],x.answerBy==="self"?"Este agente":(ag||{}).name||"Este agente")}</label>
+   <label class="f">Se precisar de gente, vai para${destSel(`subjects.${i}.dest`,x.dest)}</label></div>
+  ${S.tabOn?`<label class="f">Classificar como<small>Tabulação do CRM mais próxima do motivo.</small>${sel(`tabMap.${x.id}`,CRMCAT.tabulations,S.tabMap[x.id]||S.tabFallback)}</label>`:""}
+  ${isAg?`<span class="hint">As instruções e os materiais ficam em <strong>${esc((ag||{}).name||"")}</strong>. A recepção só entrega a conversa, com ${[S.passOn.summary?"resumo":null,S.passOn.fields?"dados confirmados":null,S.passOn.reason?"motivo":null].filter(Boolean).join(", ")||"nada"}.</span>`:`<span class="hint">Esta demanda fica com a própria recepção. Configure as instruções no passo de assuntos.</span>`}
+ </section>`}).join("")}
+ <button type="button" class="btn sm add" data-act="subj-add">${ICON.plus}Adicionar demanda</button>
+ ${tip("Os especialistas não repetem boas-vindas nem confirmação: eles continuam de onde a recepção parou.")}</div>`;
+
+const Rfallback=()=>`<div class="stack">
+ ${tip("Toda saída do agente tem que estar escrita aqui. É o que impede ele de inventar resposta ou deixar o cliente no vácuo.")}
+ <div class="grid2">
+  <section class="card"><h3>Quando ele não souber responder</h3>
+   <textarea class="inp" data-bind="fbMsg" rows="2" aria-label="Mensagem quando não sabe">${esc(S.fbMsg)}</textarea>
+   <label class="f">E então${sel("fbAction",["Passar para a equipe","Perguntar de outro jeito antes de passar","Encerrar e registrar"],{handoff:"Passar para a equipe",ask:"Perguntar de outro jeito antes de passar",close:"Encerrar e registrar"}[S.fbAction])}</label>
+   ${S.fbAction==="ask"?`<label class="f">Tentar de novo${sel("fbTries",["1 vez","2 vezes"],S.fbTries)}</label>`:""}
+   ${S.fbAction==="handoff"?destSel("dest",S.dest):""}</section>
+  <section class="card"><h3>Quando o cliente pedir uma pessoa</h3>
+   <textarea class="inp" data-bind="fbHumanMsg" rows="2" aria-label="Mensagem ao pedir humano">${esc(S.fbHumanMsg)}</textarea>
+   <span class="hint">Passa na hora, sem insistir. O destino é o da demanda; se não tiver, o padrão do passo Equipe.</span></section>
+  <section class="card"><h3>Quando a resposta não estiver nos materiais</h3>
+   <textarea class="inp" data-bind="fbNoDoc" rows="2" aria-label="Mensagem sem material">${esc(S.fbNoDoc)}</textarea>
+   <span class="hint">Ele nunca completa com o que “acha”. Se não está nos materiais nem nos dados do cliente, ele avisa.</span></section>
+  <section class="card"><h3>Quando der erro no sistema</h3>
+   <textarea class="inp" data-bind="fbError" rows="2" aria-label="Mensagem de erro">${esc(S.fbError)}</textarea>
+   <span class="hint">Falha de conexão, tempo esgotado ou resposta inválida. Sempre termina em gente.</span></section>
+ </div>
+ <section class="card"><div class="card-h"><div><h3>Quando parar de responder</h3><span class="desc">Evita o vai e vem infinito e o agente respondendo bobagem.</span></div></div>
+  <div class="grid2">
+   <label class="f">Cortesia (“ok”, “obrigado”)${sel("stopCourtesy",["1 resposta","Nenhuma resposta","2 respostas"],S.stopCourtesy)}<small>Depois disso, só conteúdo novo volta a ter resposta.</small></label>
+   <label class="f">Oferecer mais ajuda${sel("stopOffer",["1 vez","Nenhuma vez","2 vezes"],S.stopOffer)}<small>Sem assunto novo, encerra em vez de perguntar de novo.</small></label>
+   <label class="f">Trocas sem avanço${sel("stopNoProgress",["2 trocas","3 trocas","4 trocas"],S.stopNoProgress)}<small>Sem assunto, ação ou dado novo, encerra.</small></label>
+   <label class="f">Mensagens sem sentido${sel("stopNonsense",["3 mensagens","5 mensagens","Nunca parar"],S.stopNonsense)}<small>Um aviso e silêncio temporário.</small></label>
+   <label class="f">Silêncio de${sel("stopSilence",["15 minutos","30 minutos","1 hora"],S.stopSilence)}<small>Volta a responder na hora em que chegar mensagem que faz sentido.</small></label></div>
+  ${tip("Nada disso bloqueia o cliente: o agente só para de falar. Pedido de pessoa e assunto válido sempre furam o silêncio.")}</section>
+ <section class="card"><div class="card-h"><div><h3>Fora do escopo</h3><span class="desc">O que ele faz quando perguntam de outro produto, de outra empresa ou de qualquer coisa que não é dele.</span></div></div>
+  <textarea class="inp" data-bind="scopeMsg" rows="2" aria-label="Mensagem de fora do escopo">${esc(S.scopeMsg)}</textarea>
+  <label class="f">Se insistir${sel("scopeAction",["Encerrar","Passar para uma pessoa","Continuar redirecionando"],S.scopeAction)}</label>
+  <span style="font-size:14px;font-weight:600;margin-top:4px">Assuntos que ele nunca responde, mesmo sabendo</span>
+  ${S.forbidden.map((f,i)=>`<div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 44px;gap:8px"><input class="inp" data-bind="forbidden.${i}.t" value="${esc(f.t)}" aria-label="Assunto proibido ${i+1}">${sel(`forbidden.${i}.dest`,CRMCAT.departments,f.dest,'aria-label="Destino"')}<button type="button" class="btn icon" data-act="fb-del" data-i="${i}" aria-label="Remover">${ICON.trash}</button></div>`).join("")}
+  <button type="button" class="btn sm add" data-act="fb-add">${ICON.plus}Adicionar assunto</button></section>
+ <section class="card"><div class="card-h"><div><h3>Humor do cliente</h3><span class="desc">O agente percebe irritação, ironia e urgência ao longo da conversa.</span></div>${toggle("sentOn",S.sentOn,"Acompanhar o humor do cliente")}</div>
+  ${S.sentOn?`<div class="grid2">
+   <label class="f">A partir de${sel("sentLevel",["Irritado ou muito insatisfeito","Qualquer sinal de insatisfação","Só em ameaça de cancelar ou reclamar"],S.sentLevel)}</label>
+   <label class="f">O que fazer${sel("sentAction",["Passar para uma pessoa na hora","Avisar a equipe e continuar","Só registrar"],S.sentAction)}</label></div>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="sentSoften"${S.sentSoften?" checked":""}><span>Falar com mais cuidado quando perceber irritação<small>Reconhece o incômodo antes de resolver e não insiste em oferta.</small></span></label>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="sentTag"${S.sentTag?" checked":""}><span>Etiquetar o contato como insatisfeito</span></label>
+  <label class="f">Além disso${sel("sentNotify",["Avisar o responsável pelo atendimento","Avisar o supervisor da equipe","Não avisar ninguém"],S.sentNotify)}</label>
+  ${tip("Serve para qualquer negócio: o que muda é o limite que você escolhe. Cliente irritado passando por três respostas automáticas é o que mais gera reclamação.")}`:'<span class="hint">O agente não vai reagir ao tom do cliente.</span>'}</section>
+ <section class="card"><div class="card-h"><div><h3>Resumo das saídas</h3><span class="desc">Tudo que pode acontecer no fim de um atendimento.</span></div></div>
+  ${[["Resolveu","Encerra, classifica e se despede"],["Precisa de gente","Passa para "+destLabel(S.dest)+" ou para o destino da demanda"],["É de outro especialista","Encaminha e leva o contexto"],["Não soube","Mensagem acima + "+({handoff:"passa para a equipe",ask:"tenta de novo e passa",close:"encerra e registra"}[S.fbAction])],["Cliente sumiu","Lembrete e encerramento automático"],["Fora do horário","Aviso e aguarda"]].map(([a,b])=>`<div class="check-row"><span><strong>${a}</strong></span><span class="hint" style="text-align:right">${esc(b)}</span></div>`).join("")}</section>
+ </div>`;
+
+const Rtabul=()=>`<div class="split" style="grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)"><div class="stack">
+ <section class="card"><div class="card-h"><div><h3>Quem conduz a conversa</h3><span class="desc">Só um por vez. Quem não é o dono fica em silêncio.</span></div></div>
+  <div class="check-row"><span><strong>Uma pessoa assumiu</strong></span><span class="hint">o agente para de responder até devolverem</span></div>
+  <div class="check-row"><span><strong>Uma automação está rodando</strong></span><span class="hint">o agente espera a automação terminar</span></div>
+  <div class="check-row"><span><strong>O agente está atendendo</strong></span><span class="hint">nenhuma automação de encerramento age por fora</span></div>
+  ${tip("É isso que resolve a bagunça de hoje: automação de inatividade rodando junto com humano e com o agente. Aqui o encerramento por inatividade é do próprio agente, no passo Equipe.")}</section>
+ <section class="card"><div class="card-h"><div><h3>Depois que o atendimento encerra</h3><span class="desc">O que fazer quando o cliente escreve de novo.</span></div></div>
+  <label class="f">Considerar “recém-encerrado” por${sel("postWindow",["3 horas","6 horas","12 horas","24 horas"],S.postWindow)}</label>
+  <label class="f">Se for só cortesia (“ok”, “obrigado”, “valeu”)${sel("pcCourtesy",["Não reabrir (responder curtinho)","Não reabrir e não responder","Reabrir e perguntar"],S.pcCourtesy)}</label>
+  ${S.pcCourtesy.startsWith("Não reabrir (")?`<input class="inp" data-bind="pcCourtesyMsg" value="${esc(S.pcCourtesyMsg)}" aria-label="Resposta de cortesia">`:""}
+  <label class="f">Se for uma demanda nova${sel("pcNew",["Reabrir e encaminhar direto","Reabrir e perguntar antes","Abrir novo atendimento"],S.pcNew)}</label>
+  <label class="f">Se não der para saber${sel("pcAmbig",["Perguntar com botões","Perguntar em texto","Reabrir por padrão"],S.pcAmbig)}</label>
+  ${S.pcAmbig.startsWith("Perguntar")?`<input class="inp" data-bind="pcAskMsg" value="${esc(S.pcAskMsg)}" aria-label="Pergunta do caso ambíguo">`:""}
+  ${tip("Hoje o cliente manda “obrigado” e recebe uma pergunta de volta. Com isso configurado, ele recebe um “imagina!” e o atendimento continua fechado.")}</section>
+ <section class="card"><div class="card-h"><div><h3>Classificar o atendimento (tabulação)</h3><span class="desc">Usa as tabulações que já existem no CRM.</span></div>${toggle("tabOn",S.tabOn,"Classificar atendimentos")}</div>
+  ${S.tabOn?`<label class="f">Quando classificar${sel("tabWhen",["Ao encerrar e ao transferir","Só ao encerrar","Só ao transferir"],S.tabWhen)}</label>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="tabRequired"${S.tabRequired?" checked":""}><span>Não encerrar sem classificar<small>Sem tabulação próxima, usa a de reserva.</small></span></label>
+  <label class="f">Tabulação de reserva${sel("tabFallback",CRMCAT.tabulations,S.tabFallback)}</label>
+  <span style="font-size:14px;font-weight:600;margin-top:4px">Demanda → tabulação sugerida</span>
+  ${S.subjects.map(x=>`<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:10px;align-items:center"><span style="font-size:14.5px">${esc(x.name)}</span>${sel(`tabMap.${x.id}`,CRMCAT.tabulations,S.tabMap[x.id]||S.tabFallback,'aria-label="Tabulação"')}</div>`).join("")}
+  ${tip("Ele classifica pelo <strong>motivo real</strong> da conversa, lendo tudo — inclusive o que a pessoa atendeu — e não pela demanda inicial.")}`:'<span class="hint">Os atendimentos vão ficar sem classificação.</span>'}</section>
+ <section class="card"><div class="card-h"><div><h3>Botões no WhatsApp</h3><span class="desc">Perguntas viram opções para o cliente tocar.</span></div>${toggle("useButtons",S.useButtons,"Usar botões")}</div>
+  ${S.useButtons?`<span class="hint">Só na API oficial e dentro das 24h desde a última mensagem do cliente: até 3 botões curtos, ou lista com até 10 opções. Fora disso, a mesma pergunta sai como lista numerada e responder o número tem o mesmo efeito.</span>
+  <span class="row" style="gap:6px">${["Confirmação do cadastro","Escolha entre negócios","Pergunta do pós-encerramento","Encerrar ou continuar"].map(x=>`<span class="tag acc">${x}</span>`).join("")}</span>`:'<span class="hint">As perguntas saem sempre como texto.</span>'}</section>
+ <section class="card"><div class="card-h"><div><h3>Pesquisa de satisfação</h3><span class="desc">Pergunta a nota depois do atendimento e guarda no CRM.</span></div>${toggle("npsOn",S.npsOn,"Pedir nota de satisfação")}</div>
+  ${S.npsOn?`<div class="grid2">
+   <label class="f">Tipo de nota${sel("npsScale",["Nota de 0 a 10","Nota de 1 a 5","Gostou ou não gostou"],S.npsScale)}</label>
+   <label class="f">Quando perguntar${sel("npsWhen",["Na hora do encerramento","2 horas depois","No dia seguinte"],S.npsWhen)}</label></div>
+  <label class="f">Pergunta<textarea class="inp" data-bind="npsQuestion" rows="2" aria-label="Pergunta da pesquisa">${esc(S.npsQuestion)}</textarea></label>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="npsFollow"${S.npsFollow?" checked":""}><span>Perguntar o motivo da nota</span></label>
+  ${S.npsFollow?`<input class="inp" data-bind="npsFollowQ" value="${esc(S.npsFollowQ)}" aria-label="Pergunta do motivo">`:""}
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="npsSkipTransfer"${S.npsSkipTransfer?" checked":""}><span>Não perguntar quando o atendimento terminou com uma pessoa<small>Evita pedir nota logo depois de um problema.</small></span></label>
+  <label class="f">Com que frequência no mesmo cliente${sel("npsFreq",["No máximo 1 vez a cada 30 dias","No máximo 1 vez a cada 7 dias","Todo atendimento"],S.npsFreq)}</label>
+  ${tip("A nota e o motivo ficam no negócio e no contato. Nota baixa pode virar uma regra automática: <strong>quando a nota for até 6 → avisar a equipe</strong>.")}`:'<span class="hint">Nenhuma pesquisa é enviada.</span>'}</section>
+ <section class="card"><h3>Ao encerrar</h3>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="endBack"${S.endBack?" checked":""}><span>Devolver o negócio para a etapa em que estava</span></label>
+  <label class="cb"><input type="checkbox" data-act="flag" data-v="endBye"${S.endBye?" checked":""}><span>Enviar mensagem de despedida</span></label>
+  ${S.endBye?`<input class="inp" data-bind="bye" value="${esc(S.bye)}" aria-label="Despedida">`:""}
+  <label class="f">Depois de encerrar${sel("endReturn",["Não devolver para automação",...CRMCAT.automations.map(a=>"Devolver para: "+a)],S.endReturn)}</label></section>
+ </div>
+ <div class="panel"><b style="font-size:14px">Como fica no CRM</b>
+  <span class="wa-sys" style="align-self:stretch">Atendimento encerrado</span>
+  <div class="turnbox"><div class="kv"><span>Classificação</span><span>${esc(S.tabOn?(S.tabMap.s2||S.tabFallback):"sem classificação")}</span></div>
+   <div class="kv"><span>Motivo</span><span>Cliente pediu cancelamento por preço</span></div>
+   <div class="kv"><span>Negócio</span><span>${S.endBack?"voltou para a etapa anterior":"permanece onde está"}</span></div>
+   <div class="kv"><span>Conduzido por</span><span>${esc(S.name||"Agente")} → especialista → encerrado pelo agente</span></div>
+   <div class="kv"><span>Reaberturas</span><span>nenhuma nas ${esc(S.postWindow)} seguintes</span></div></div>
+  <span class="hint">Teste no último passo: encerre o atendimento e mande “obrigado”, depois mande “quero um boleto”.</span></div>
+ </div>`;
+
+const Rmsgs=()=>`<div class="stack">
+ <section class="card"><div class="card-h"><div><h3>Mensagens prontas do CRM</h3><span class="desc">Ele usa os textos que a equipe já usa, em vez de escrever do zero.</span></div>${toggle("mmOn",S.mmOn,"Usar mensagens prontas")}</div>
+  ${S.mmOn?`<label class="f">Como usar${sel("mmMode",["Enviar como está","Pode adaptar levemente"],S.mmMode)}<small>Adaptar muda só saudação e conectivos. Nunca informação, valor, prazo ou link.</small></label>
+  <span style="font-size:14px;font-weight:600;margin-top:4px">Quais ele pode usar ${crmsrc("modelos do CRM")}</span>
+  <div class="row">${S.mmModels.map((m,i)=>`<button type="button" class="chip" data-act="mm" data-i="${i}" aria-pressed="${m.on}">${esc(m.name)}</button>`).join("")}</div>
+  <span style="font-size:14px;font-weight:600;margin-top:4px">Templates oficiais ${crmsrc("aprovados na Meta")}</span>
+  <div class="row">${S.mmTemplates.map((m,i)=>`<button type="button" class="chip" data-act="mt" data-i="${i}" aria-pressed="${m.on}">${esc(m.name)}</button>`).join("")}</div>
+  <div class="panel" style="gap:6px"><span class="lbl">Prévia do modelo “Confirmação de cadastro”</span><span>${esc(fill("Oi @Nome! Confirmando: você está com @Produto ou serviço{, desde @Data de início}. Certo?"))}</span>
+   <span class="hint">Variável sem valor no cliente faz o modelo ser descartado; o trecho entre chaves some.</span></div>
+  ${tip("Fora das 24 horas desde a última mensagem do cliente, só template oficial. Sem template equivalente, ele não envia e registra a saída.")}`:'<span class="hint">Ele sempre escreve a resposta do zero.</span>'}</section>
+ <section class="card"><div class="card-h"><div><h3>Produtos do catálogo</h3><span class="desc">Preço e características vêm do cadastro. Ele nunca inventa.</span></div>${toggle("prodOn",S.prodOn,"Falar de produtos")}</div>
+  ${S.prodOn?`<div class="grid2">
+   <label class="f">Quantos por vez${sel("prodMax",["1 por vez","2 por vez","3 por vez","5 por vez"],S.prodMax)}</label>
+   <label class="f">Quais ele pode apresentar${sel("prodFilter",["Todos os ativos","Só de uma categoria","Só os do funil do cliente"],S.prodFilter)}</label></div>
+  <div class="grid2">
+   <div class="stack-s"><span class="lbl">O que mostrar</span>
+    <label class="cb"><input type="checkbox" data-act="flag" data-v="prodPrice"${S.prodPrice?" checked":""}><span>Preço</span></label>
+    <label class="cb"><input type="checkbox" data-act="flag" data-v="prodCond"${S.prodCond?" checked":""}><span>Condições e parcelamento</span></label>
+    <label class="cb"><input type="checkbox" data-act="flag" data-v="prodImg"${S.prodImg?" checked":""}><span>Imagem</span></label>
+    <label class="cb"><input type="checkbox" data-act="flag" data-v="prodLink"${S.prodLink?" checked":""}><span>Link</span></label></div>
+   <div class="stack-s"><span class="lbl">O que ele pode fazer com o produto</span>
+    ${[["link","Vincular ao negócio do cliente"],["deal","Criar negócio com o produto"],["stage","Mover o negócio de etapa"],["interest","Registrar interesse"]].map(([k,l])=>`<label class="cb"><input type="checkbox" data-act="prodact" data-v="${k}"${S.prodActions.has(k)?" checked":""}><span>${l}</span></label>`).join("")}</div></div>
+  <div class="panel" style="gap:6px"><span class="lbl">Prévia</span><span><strong>Plano Anual</strong>${S.prodPrice?" · R$ 1.290,00":""}${S.prodCond?" · em até 12x":""}<br>Acesso completo, suporte incluso.${S.prodLink?"<br>Ver detalhes: suaempresa.com.br/plano-anual":""}</span>
+   <span class="hint">Produto inativo ou sem preço é tratado como indisponível, com a mensagem da tela de Saídas.</span></div>`:'<span class="hint">Ele não fala de produtos; pedidos assim viram transferência.</span>'}</section>
+ </div>`;
+
+/* ===== fluxo por tipo de agente ===== */
+const META={
+ begin:["Começar","Nome e modelo"],tone:["Jeito de falar","Tom e regras"],data:["O que ele sabe","Dados do cliente"],
+ docs:["Materiais de consulta","Documentos e FAQ"],msgs:["Mensagens e produtos","Textos prontos e catálogo"],start:["Início da conversa","Como ela começa"],
+ recognize:["Reconhecer o cliente","Está ou não na base"],route:["Para quem encaminha","Demandas e especialistas"],
+ subjects:["Assuntos","O que ele atende"],rules:["Regras automáticas","Sempre que… então…"],
+ fallback:["Saídas","Quando não souber e handoff"],tabul:["Encerrar e classificar","Pós-encerramento e tabulação"],
+ team:["Equipe e horários","Transferir e encerrar"],test:["Testar e publicar","Conferir antes de ligar"]
+};
+const HEADS={
+ begin:["Vamos criar seu agente","Dê um nome, escolha onde ele atende e, se quiser, parta de um modelo pronto."],
+ tone:["Jeito de falar","Defina a personalidade do agente e as regras que ele nunca pode quebrar."],
+ data:["O que ele sabe do cliente","Ele identifica quem está falando pelo telefone. Escolha quais campos do CRM ele pode ler, citar e atualizar."],
+ docs:["Materiais de consulta","Envie os documentos que o agente usa para responder."],
+ msgs:["Mensagens prontas e produtos","Ele usa os textos que a equipe já usa e o catálogo do CRM, para ficar igual a um humano e nunca inventar preço."],
+ start:["Início da conversa","A conversa pode começar com o cliente, vir de um chatbot ou ser transferida por alguém."],
+ recognize:["Reconhecer o cliente","Este agente faz o primeiro atendimento: descobre quem está falando e o que fazer quando o cliente está ou não está na base."],
+ route:["Para quem ele encaminha","Liste as demandas e diga quem cuida de cada uma: um especialista já criado, uma equipe ou a própria recepção."],
+ subjects:["Assuntos que ele atende","Cada assunto é uma especialidade, com instruções, materiais, ações e destino próprios."],
+ rules:["Regras automáticas","Situações com resposta certa, sem margem para interpretação."],
+ fallback:["Saídas do atendimento","O que ele faz quando não sabe, quando pedem uma pessoa, quando falta material e quando dá erro."],
+ tabul:["Encerrar e classificar","Quem conduz a conversa, o que acontece quando o cliente escreve depois do encerramento e como o atendimento é registrado."],
+ team:["Equipe, horários e encerramento","Para onde ele transfere, em que horários atende e como a conversa termina."],
+ test:["Testar e publicar","Converse como se fosse um cliente, veja por que ele respondeu cada coisa e só então publique."]
+};
+const FLOW_RECEP=["begin","tone","recognize","route","rules","fallback","tabul","test"];
+const FLOW_FULL=["begin","tone","data","docs","msgs","start","subjects","rules","fallback","team","tabul","test"];
+const flow=()=>S.model==="recep"?FLOW_RECEP:FLOW_FULL;
+const idx=id=>Math.max(0,flow().indexOf(id));
+
+/* ---------- shell ---------- */
+const RID={begin:R[0],tone:R[1],data:R[2],docs:R[3],start:R[4],subjects:R[5],rules:R[6],team:R[7],test:R[8],msgs:Rmsgs,recognize:Rrecognize,route:Rroute,fallback:Rfallback,tabul:Rtabul};
+function renderSteps(){
+ $("#steps").innerHTML=flow().map(id=>META[id]).map(([t,s],i)=>`<button type="button" class="step${i<S.step?" done":""}" data-act="go" data-i="${i}"${i===S.step?' aria-current="step"':""}><span class="badge">${i<S.step?ICON.check:i+1}</span><span class="step-t"><b>${t}</b><span>${s}</span></span></button>`).join("");
+}
+const HEAD=[
+ ["Vamos criar seu agente","Dê um nome, escolha onde ele atende e, se quiser, parta de um modelo pronto."],
+ ["Jeito de falar","Defina a personalidade do agente e as regras que ele nunca pode quebrar."],
+ ["O que ele sabe do cliente","Ele identifica quem está falando pelo telefone da conversa. Escolha quais campos do CRM ele pode ler, citar e atualizar."],
+ ["Materiais de consulta","Envie os documentos que o agente usa para responder. Ele só afirma o que estiver aqui ou nos dados do cliente."],
+ ["Início da conversa","A conversa pode começar com o cliente, vir de um chatbot ou ser transferida por alguém. Configure cada caso."],
+ ["Assuntos que ele atende","Cada assunto é uma especialidade, com instruções, materiais, ações e destino de transferência próprios."],
+ ["Regras automáticas","Situações com resposta certa, sem margem para interpretação: sempre que acontecer isso, faça aquilo."],
+ ["Equipe, horários e encerramento","Para onde ele transfere, em que horários atende e como a conversa termina."],
+ ["Testar e publicar","Converse com o agente como se fosse um cliente, veja por que ele respondeu cada coisa e só então publique."]
+];
+function render(focus){
+ const F=flow();if(S.step>=F.length)S.step=F.length-1;
+ const id=F[S.step];
+ renderSteps();
+ $("#title").textContent=(S.name?`Novo agente: ${S.name}`:"Novo agente de IA")+(S.model==="recep"?" · recepção":"");
+ $("#subtitle").textContent=`Passo ${S.step+1} de ${F.length} · rascunho salvo automaticamente`;
+ $("#main").innerHTML=`<div class="head"><h2>${HEADS[id][0]}</h2><p>${HEADS[id][1]}</p></div>`+RID[id]();
+ $("#count").textContent=`${S.step+1} de ${F.length}`;
+ $("#foot-left").innerHTML=S.step>0?`<button type="button" class="btn" data-act="prev">Voltar</button>`:`<span class="count">Você pode mudar tudo depois</span>`;
+ $("#foot-right").innerHTML=S.step<F.length-1?`<button type="button" class="btn pri" data-act="next">Continuar</button>`:`<button type="button" class="btn pri" data-act="publish">Publicar agente</button>`;
+ if(id==="docs")wireDrop();
+ const c=$("#chat");if(c)c.scrollTop=c.scrollHeight;
+ if(focus){$("#main").focus({preventScroll:true});window.scrollTo({top:0});}
+}
+function go(i){S.step=Math.max(0,Math.min(flow().length-1,i));S.visited.add(S.step);S.publishErr="";render(true);}
+function toast(t){const h=$("#toast-host");h.innerHTML=`<div class="toast">${esc(t)}</div>`;clearTimeout(toast._t);toast._t=setTimeout(()=>h.innerHTML="",2600);}
+function setPath(p,v){const ks=p.split(".");let o=S;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=v;}
+function getPath(p){return p.split(".").reduce((o,k)=>o[k],S);}
+const keyFrom=(map,label)=>Object.keys(map).find(k=>map[k]===label)||label;
+
+document.addEventListener("click",e=>{
+ const el=e.target.closest("[data-act]");if(!el||el.disabled)return;
+ const a=el.dataset.act,i=+el.dataset.i,s=S.subjects.find(x=>x.id===S.activeSubject);
+ switch(a){
+  case "go":go(i);break;case "next":go(S.step+1);break;case "prev":go(S.step-1);break;
+  case "dict":$("#dict").showModal();break;case "dict-close":$("#dict").close();break;
+  case "savedraft":toast("Rascunho salvo");break;
+  case "model":{S.model=el.dataset.id;
+   if(S.model==="recep"){const m={"Cancelamento":"ag1","Financeiro":"ag2","Mudança de plano":"ag3"};S.subjects.forEach(x=>{x.answerBy=m[x.name]||"self";x.direct=false;});}
+   else S.subjects.forEach(x=>{x.answerBy="self";});
+   render();break;}
+  case "map":$("#map").showModal();break;
+  case "subj-del2":S.subjects.splice(i,1);render();break;
+  case "ex-del2":S.subjects[i].examples.splice(+el.dataset.j,1);render();break;
+  case "tabOn":S.tabOn=!S.tabOn;render();break;
+  case "mmOn":S.mmOn=!S.mmOn;render();break;
+  case "prodOn":S.prodOn=!S.prodOn;render();break;
+  case "mm":S.mmModels[i].on=!S.mmModels[i].on;render();break;
+  case "mt":S.mmTemplates[i].on=!S.mmTemplates[i].on;render();break;
+  case "fb-add":S.forbidden.push({id:nid(),t:"",dest:CRMCAT.departments[0]});render();break;
+  case "fb-del":S.forbidden.splice(i,1);render();break;
+  case "npsOn":S.npsOn=!S.npsOn;render();break;
+  case "sentOn":S.sentOn=!S.sentOn;render();break;
+  case "map-close":$("#map").close();break;
+  case "edit-spec":toast("Abriria a tela do especialista, com os mesmos 9 passos");break;
+  case "tone":S.tones.has(el.dataset.v)?S.tones.delete(el.dataset.v):S.tones.add(el.dataset.v);render();break;
+  case "size":S.size=el.dataset.v;render();break;
+  case "rule-add":S.rules.push({id:nid(),t:""});render();break;
+  case "rule-del":S.rules.splice(i,1);render();break;
+  case "var-add":S.vars.push({id:nid(),k:"",v:""});render();break;
+  case "var-del":S.vars.splice(i,1);render();break;
+  case "av-add":S.autoVars.push({id:nid(),k:"",f:"Assunto inicial"});render();break;
+  case "av-del":S.autoVars.splice(i,1);render();break;
+  case "entry":S.entry=el.dataset.v;render();break;
+  case "autoSkip":S.autoSkipWelcome=!S.autoSkipWelcome;render();break;
+  case "ins":{const ta=$("#ta-confirm");if(!ta)return;const t="@"+el.dataset.v,p=ta.selectionStart??ta.value.length;ta.value=ta.value.slice(0,p)+t+ta.value.slice(p);S.confirmMsg=ta.value;ta.focus();ta.selectionStart=ta.selectionEnd=p+t.length;render();break;}
+  case "upload":$("#file").click();break;
+  case "doc-text":S.docs.push({id:nid(),name:"Texto sem título",meta:"criado agora",status:"ok"});render();break;
+  case "doc-del":{const d=S.docs[i];S.subjects.forEach(x=>x.docs.delete(d.id));S.docs.splice(i,1);render();break;}
+  case "search":{const q=norm(S.searchQ),ready=S.docs.filter(d=>d.status==="ok");const hit=ready.find(d=>norm(d.name).split(/[\s.]+/).some(w=>w.length>4&&q.includes(w.slice(0,6))))||ready[0];S.searchRes=hit?hit.name:null;if(!hit)toast("Nenhum material pronto");render();break;}
+  case "welcomeOn":S.welcomeOn=!S.welcomeOn;render();break;
+  case "subj":S.activeSubject=el.dataset.id;render();break;
+  case "subj-add":{const n={id:nid(),name:"Novo assunto",when:"",examples:[],how:"",acts:new Set(["tag"]),docs:new Set(),dest:Object.assign({},S.dest),direct:false};S.subjects.push(n);S.activeSubject=n.id;render();break;}
+  case "subj-del":S.subjects=S.subjects.filter(x=>x.id!==s.id);S.activeSubject=S.subjects[0].id;render();break;
+  case "subj-doc":s.docs.has(el.dataset.v)?s.docs.delete(el.dataset.v):s.docs.add(el.dataset.v);render();break;
+  case "subj-direct":s.direct=!s.direct;render();break;
+  case "ex-del":s.examples.splice(+el.dataset.j,1);render();break;
+  case "edit-subj":S.activeSubject=el.dataset.id;go(idx(S.model==="recep"?"route":"subjects"));break;
+  case "ar-new":S.builder={ct:"kw",cv:"",at:"handoff",dest:Object.assign({},S.dest),msg:""};render();break;
+  case "ar-cancel":S.builder=null;render();break;
+  case "ar-save":{const b=S.builder;if((b.ct==="kw"||b.ct==="tag")&&!b.cv.trim()){toast("Preencha o valor da condição");return;}
+   S.autoRules.push({id:nid(),on:true,conds:[{type:b.ct,v:(b.ct==="kw"||b.ct==="tag")?b.cv.trim():undefined}],acts:[{type:b.at}],dest:b.dest,msg:b.msg});S.builder=null;render();toast("Regra adicionada");break;}
+  case "ar-up":if(i>0){const t=S.autoRules[i-1];S.autoRules[i-1]=S.autoRules[i];S.autoRules[i]=t;render();}break;
+  case "ar-down":if(i<S.autoRules.length-1){const t=S.autoRules[i+1];S.autoRules[i+1]=S.autoRules[i];S.autoRules[i]=t;render();}break;
+  case "ar-del":S.autoRules.splice(i,1);render();break;
+  case "ar-on":S.autoRules[i].on=!S.autoRules[i].on;render();break;
+  case "hoursOn":S.hoursOn=!S.hoursOn;render();break;
+  case "day-on":S.hours[i].on=!S.hours[i].on;render();break;
+  case "nudgeOn":S.nudgeOn=!S.nudgeOn;render();break;
+  case "send":{const m=$("#msg"),v=m.value.trim();if(!v)return;m.value="";pushUser(v,false);const f=$("#msg");f&&f.focus();break;}
+  case "send-audio":pushUser("mensagem de voz",true);break;
+  case "sel-turn":{S.selTurn=S.chat[i]&&S.chat[i].why?i:null;render();break;}
+  case "approve":{S.chat.forEach(m=>{if(m.status==="draft")m.status="sent";});render();setTimeout(()=>{S.chat.forEach(m=>{if(m.status==="sent")m.status="read";});render();},900);break;}
+  case "bad":toast("Marcado como resposta ruim. Isso vira um caso de teste do agente.");break;
+  case "wa-btn":S.pendingBtn=el.dataset.id;pushUser(el.dataset.label,false);break;
+  case "do-close":if(!S.chat.length)startEntry();closeConv("encerrado no teste");render();break;
+  case "own-human":S.humanActive=!S.humanActive;S.chat.push({kind:"sys",t:nowStr(),text:S.humanActive?"Uma pessoa assumiu a conversa · agente em silêncio":"Conversa devolvida para o agente"});render();break;
+  case "chat-reset":clearTimeout(S.waTimer);S.activeAgent=null;S.bounces=0;S.closed=false;S.pendingBtn=null;S.chat=[];S.stage="new";S.humanActive=false;S.forced=null;S.typing=false;S.grouping=false;S.selTurn=null;render();break;
+  case "release":S.humanActive=false;S.chat.push({kind:"sys",t:nowStr(),text:"Conversa devolvida para o agente"});render();break;
+  case "dom-add":{const v=$("#dom-new").value.trim().replace(/^https?:\/\//,"").replace(/\/.*$/,"");if(v&&!S.domains.includes(v)){S.domains.push(v);render();}break;}
+  case "dom-del":S.domains.splice(i,1);render();break;
+  case "publish":if(!S.name){S.publishErr="Dê um nome ao agente no passo 1 antes de publicar.";render();return;}
+   S.publishErr="";render();toast(`${S.name} publicado · ${S.sendMode==="draft"?"sugerindo respostas para aprovação":"respondendo sozinho"}`);break;
+ }
+});
+document.addEventListener("change",e=>{
+ const el=e.target,a=el.dataset.act;
+ if(a==="perm"){const k=el.dataset.k;S.perms[k]=S.perms[k]||{};S.perms[k][el.dataset.p]=el.checked?1:0;render();return;}
+ if(a==="subj-act"){const s=S.subjects.find(x=>x.id===S.activeSubject);el.checked?s.acts.add(el.dataset.v):s.acts.delete(el.dataset.v);render();return;}
+ if(a==="flag"){S[el.dataset.v]=el.checked;render();return;}
+ if(a==="sim-outside"){S.simOutside=el.checked;return;}
+ if(a==="sim-empty"){S.simEmpty=el.checked;render();return;}
+ if(a==="pass"){S.passOn[el.dataset.v]=el.checked;return;}
+ if(a==="prodact"){el.checked?S.prodActions.add(el.dataset.v):S.prodActions.delete(el.dataset.v);render();return;}
+ const b=el.dataset.bind;if(!b)return;
+ if(el.type==="radio"){if(el.checked){setPath(b,el.value);render();}return;}
+ if(b.endsWith(".kind")){const kind=keyFrom(DEST_KINDS,el.value);const base=b.slice(0,-5);setPath(b,kind);setPath(base+".v",destList(kind)[0]);render();return;}
+ if(b==="builder.ct"){S.builder.ct=keyFrom(COND_TYPES,el.value);render();return;}
+ if(b==="builder.at"){S.builder.at=keyFrom(ACT_TYPES,el.value);render();return;}
+ if(/^subjects\.\d+\.answerBy$/.test(b)){
+  const idx=+b.split(".")[1];
+  if(el.value==="+ Criar novo especialista"){const n={id:nid(),name:"Novo especialista",vol:0};S.agents.push(n);S.subjects[idx].answerBy=n.id;toast("Especialista criado. Abra para configurar.");}
+  else if(el.value==="Este agente")S.subjects[idx].answerBy="self";
+  else S.subjects[idx].answerBy=(S.agents.find(a=>a.name===el.value)||{}).id||"self";
+  render();return;}
+ if(b==="fbAction"){S.fbAction={"Passar para a equipe":"handoff","Perguntar de outro jeito antes de passar":"ask","Encerrar e registrar":"close"}[el.value];render();return;}
+ if(b==="multi"&&el.tagName==="SELECT"){S.multi=el.value.startsWith("Usar")?"recent":"ask";render();return;}
+ if(b.startsWith("tabMap.")){S.tabMap[b.split(".")[1]]=el.value;render();return;}
+ if(b==="entrySim"){S.entrySim={"Cliente inicia":"client","Vem da automação “Menu inicial (chatbot)”":"auto","Vem de uma pessoa":"human"}[el.value];S.chat=[];S.stage="new";S.humanActive=false;S.forced=null;render();return;}
+ setPath(b,el.value);
+ if(el.tagName==="SELECT")render();
+});
+document.addEventListener("input",e=>{
+ const el=e.target,b=el.dataset.bind;if(!b||el.type==="radio"||el.tagName==="SELECT")return;
+ setPath(b,el.value);
+ if(b==="name")$("#title").textContent=S.name?`Novo agente: ${S.name}`:"Novo agente de IA";
+ if(el.dataset.live){
+  if(flow()[S.step]==="start"){const p=$("#preview5"),bs=p?p.querySelectorAll(".bubble.me"):[];let k=0;if(S.welcomeOn&&bs[k]){bs[k].lastChild.textContent=fill(S.welcome);k++;}if(S.confirmMode==="confirm"&&bs[k])bs[k].lastChild.textContent=fill(S.confirmMsg);}
+  if(flow()[S.step]==="subjects"){const s=S.subjects.find(x=>x.id===S.activeSubject),btn=document.querySelector(`.subj[data-id="${s.id}"]`);if(btn){btn.querySelector("b").textContent=s.name||"Sem nome";btn.querySelector("span").textContent=s.when||"Descreva quando usar";}}
+ }
+});
+document.addEventListener("keydown",e=>{
+ if(e.key!=="Enter")return;
+ if(e.target.id==="ex-new"){e.preventDefault();const v=e.target.value.trim();if(v){S.subjects.find(x=>x.id===S.activeSubject).examples.push(v);render();const f=$("#ex-new");f&&f.focus();}}
+ else if(e.target.dataset&&e.target.dataset.act==="ex-new2"){e.preventDefault();const v=e.target.value.trim();if(v){S.subjects[+e.target.dataset.i].examples.push(v);render();}}
+ else if(e.target.id==="msg"){e.preventDefault();document.querySelector('[data-act="send"]').click();}
+ else if(e.target.id==="dom-new"){e.preventDefault();document.querySelector('[data-act="dom-add"]').click();}
+});
+function addFiles(list){
+ [...list].forEach(f=>{const d={id:nid(),name:f.name,meta:`${Math.max(1,Math.round(f.size/1024))} KB · enviado agora`,status:"proc"};S.docs.push(d);setTimeout(()=>{d.status="ok";render();},1600+Math.random()*1200);});
+ render();toast(`${list.length} ${list.length===1?"arquivo enviado":"arquivos enviados"}. Processando…`);
+}
+$("#file").addEventListener("change",e=>{if(e.target.files.length)addFiles(e.target.files);e.target.value="";});
+function wireDrop(){const d=$("#drop");if(!d)return;
+ d.addEventListener("dragover",e=>{e.preventDefault();d.classList.add("over");});
+ d.addEventListener("dragleave",()=>d.classList.remove("over"));
+ d.addEventListener("drop",e=>{e.preventDefault();d.classList.remove("over");if(e.dataTransfer.files.length)addFiles(e.dataTransfer.files);});}
+setTimeout(()=>{S.docs.forEach(d=>{if(d.id==="d3")d.status="ok";});render();},9000);
+
+const G=[["engine “simple” / v2","(não aparece)","—"],["preset / arquétipo","Modelo","Passo 1"],["tone","Tom de voz","Passo 2"],["global_rules","Regras que ele sempre segue","Passo 2"],
+["context_fields / crm-field-policy","Campos do contato e do negócio (ler / citar / atualizar)","Passo 3"],["identificação pelo telefone","Ele reconhece o cliente sozinho","Passo 3"],["record sources","Outras bases do CRM","Passo 3"],["variables","Informações fixas da empresa (@Nome)","Passo 3"],
+["knowledge / RAG","Materiais de consulta","Passo 4"],["entry point","Como a conversa chega","Passo 5"],["automação / chatbot → agente","Vem de automação ou chatbot","Passo 5"],["variáveis da automação","Variáveis recebidas da automação","Passo 5"],
+["opening message","Mensagem de boas-vindas","Passo 5"],["confirm_deal","Confirmar o cadastro com o cliente","Passo 5"],["trecho condicional","Texto entre { } que some se o campo estiver vazio","Passo 5"],["identification","Se não encontrar o cliente pelo telefone","Passo 5"],
+["themes / modes","Assuntos","Passo 6"],["tools allowlist","O que ele pode fazer neste assunto","Passo 6"],["handoff direto","Passar direto, sem conversar","Passo 6"],["regras determinísticas","Regras automáticas (Quando… Então…)","Passo 7"],
+["executeDistribution","Distribuição inteligente","Passos 6, 7 e 8"],["departamento / fila / usuário","Destino da transferência","Passos 6, 7 e 8"],["human_active / release","Equipe atendendo / Devolver para o agente","Passos 8 e 9"],
+["inactivity nudge / close","Se o cliente parar de responder","Passo 8"],["restore stage / tabulate","Ao encerrar o atendimento","Passo 8"],["devolver para automação","Depois de encerrar","Passo 8"],
+["autonomyMode DRAFT / AUTONOMOUS","Sugerir para aprovar / Responder sozinho","Passo 9"],["allowed domains","Links permitidos","Passo 9"],["trace / turn log","Por que respondeu isso?","Passo 9"],["playground","Conversa de teste","Passo 9"],["turn manager / debounce","O agente espera o cliente terminar de escrever","Passo 9"],["DRAFT pendente","Mensagem amarela até alguém aprovar","Passo 9"],["orquestrador / coordinator","Recepção (organiza o atendimento)","Passo 1"],["sub-agente / especialista","Quem responde este assunto","Passo 6"],["transfer_to_ai_agent","Passar para um especialista","Passo 6"],["herança de config","O especialista herda deste agente","Passo 6"],["cap de handoff IA","Idas e voltas entre agentes","Passo 8"],["tabulate_conversation","Classificar o atendimento","Passo Classificar"],["fallback / low confidence","Quando ele não souber","Passo Saídas"],["keyword handoff humano","Quando o cliente pedir uma pessoa","Passo Saídas"],["erro de LLM / timeout","Quando der erro no sistema","Passo Saídas"],["lead sem deal","Quando o cliente não está na base","Passo Reconhecer"],["dono da conversa","Quem conduz a conversa","Passo Encerrar"],["janela pós-encerramento","Depois que o atendimento encerra","Passo Encerrar"],["interactive reply buttons","Botões no WhatsApp","Passo Encerrar"],["payload do botão","Clique tratado pelo código","Simulação"],["NPS / CSAT","Pesquisa de satisfação","Passo Encerrar"],["análise de sentimento","Humor do cliente","Passo Saídas"],["message models","Mensagens prontas do CRM","Passo Mensagens"],["product policy","Produtos do catálogo","Passo Mensagens"],["media policy","Mídia que o cliente manda","Passo O que ele sabe"],["limits / anti-loop","Quando parar de responder","Passo Saídas"],["out of scope","Fora do escopo","Passo Saídas"],["forbidden subjects","Assuntos que ele nunca responde","Passo Saídas"]];
+$("#gl").innerHTML=`<div class="gl h"><span>No código</span><span>Na tela</span><span>Onde aparece</span></div>`+G.map(([a,b,c])=>`<div class="gl"><code>${esc(a)}</code><span style="font-weight:600">${esc(b)}</span><span style="color:var(--muted)">${esc(c)}</span></div>`).join("");
+function renderMap(){
+ const used=S.subjects.filter(x=>x.answerBy!=="self");
+ const self=S.subjects.filter(x=>x.answerBy==="self");
+ $("#mapbody").innerHTML=`<div class="stack">
+  <span class="hint">Como os assuntos estão distribuídos hoje. O cliente conversa sempre no mesmo número.</span>
+  <div class="panel" style="align-items:center;gap:6px"><b style="font-size:16px">${esc(S.name||"Este agente")}</b><span class="hint">identifica o cliente, confirma os dados e encaminha</span></div>
+  <div class="grid2">
+   ${used.map(x=>{const a=S.agents.find(y=>y.id===x.answerBy)||{};return `<div class="card" style="gap:6px"><b>${esc(a.name||"Especialista")}</b><span class="hint">Assunto: ${esc(x.name)}</span><span class="row" style="gap:6px"><span class="tag acc">${a.vol||0} conversas / mês</span><span class="tag">materiais e regras próprios</span></span><button type="button" class="btn sm" data-act="edit-spec" style="align-self:flex-start">Abrir</button></div>`}).join("")||'<span class="hint">Nenhum assunto foi entregue a um especialista ainda.</span>'}
+  </div>
+  ${self.length?`<div class="card" style="gap:6px"><b>Respondidos por este agente</b><span class="row" style="gap:6px">${self.map(x=>`<span class="tag">${esc(x.name)}</span>`).join("")}</span></div>`:""}
+  <div class="card" style="gap:6px"><b>Quando nada se encaixa</b><span class="hint">Vai para ${esc(destLabel(S.dest))}. Depois de ${esc(S.bounceLimit)} de idas e voltas entre agentes, também.</span></div>
+ </div>`;
+}
+document.addEventListener("click",e=>{if(e.target.closest('[data-act="map"]'))setTimeout(renderMap);});
+$("#map").addEventListener("click",e=>{if(e.target.id==="map")$("#map").close();});
+$("#dict").addEventListener("click",e=>{if(e.target.id==="dict")$("#dict").close();});
+render();
+})();
+</script>
+</body>
+</html>
