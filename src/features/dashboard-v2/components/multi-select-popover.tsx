@@ -9,10 +9,16 @@
 
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { IconCheck, IconChevronDown } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown, IconInfoCircle } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   computePopoverPosition,
   usePortalPopover,
@@ -28,6 +34,7 @@ export interface MultiSelectOption {
 
 interface MultiSelectPopoverProps {
   label: string;
+  tooltip?: string;
   icon?: React.ReactNode;
   options: MultiSelectOption[];
   selected: string[];
@@ -43,6 +50,7 @@ interface MultiSelectPopoverProps {
 
 export function MultiSelectPopover({
   label,
+  tooltip,
   icon,
   options,
   selected,
@@ -79,6 +87,24 @@ export function MultiSelectPopover({
 
   const position = computePopoverPosition(rect, 320, width, 8);
 
+  const labelNode = tooltip ? (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex cursor-help items-center gap-0.5">
+            {label}
+            <IconInfoCircle size={12} className="text-[var(--text-muted)]" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs">
+          <p className="text-xs leading-relaxed">{tooltip}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  ) : (
+    <span>{label}</span>
+  );
+
   return (
     <>
       <button
@@ -95,7 +121,7 @@ export function MultiSelectPopover({
         )}
       >
         {icon && <span className="text-[var(--text-muted)]">{icon}</span>}
-        <span>{label}</span>
+        {labelNode}
         {count > 0 && (
           <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-white">
             {count}
@@ -120,7 +146,7 @@ export function MultiSelectPopover({
           >
             <div className="flex items-center justify-between border-b border-[var(--glass-border-subtle)] px-3 py-2">
               <span className="font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                {label}
+                {labelNode}
               </span>
               {count > 0 && (
                 <button

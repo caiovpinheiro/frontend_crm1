@@ -18,6 +18,7 @@ import {
   IconX,
   IconFile,
   IconInfoCircle,
+  IconLoader2,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -1199,20 +1200,33 @@ function StepMaterials({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Enviar material" description="PDFs, Word, textos e planilhas viram documentos de consulta.">
-        <div className="flex gap-2">
-          <Input
-            type="file"
-            accept=".pdf,.doc,.docx,.txt,.md,.csv"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-          <Button
-            disabled={!file || uploadMutation.isPending}
-            onClick={() => file && uploadMutation.mutate(file)}
-          >
-            <IconUpload className="size-4" /> Enviar
-          </Button>
-        </div>
+      <SectionCard title="Enviar material" description="Textos, Word e planilhas viram documentos de consulta. PDF ainda não é suportado.">
+        <Field label="Arquivo" tooltip="O sistema extrai o texto e divide em trechos para a IA consultar. Tamanho máximo 10 MB." hint="Formatos: .doc, .docx, .txt, .md, .csv. PDF será rejeitado.">
+          <div className="flex gap-2">
+            <Input
+              type="file"
+              accept=".doc,.docx,.txt,.md,.csv"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            <Button
+              disabled={!file || uploadMutation.isPending}
+              onClick={() => file && uploadMutation.mutate(file)}
+            >
+              {uploadMutation.isPending ? (
+                <IconLoader2 className="size-4 animate-spin" />
+              ) : (
+                <IconUpload className="size-4" />
+              )}{" "}
+              Enviar
+            </Button>
+          </div>
+        </Field>
+        {!!uploadMutation.error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{(uploadMutation.error as Error)?.message ?? "Erro ao enviar material."}</span>
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Materiais disponíveis" description="Selecione quais o agente pode consultar globalmente.">
@@ -1222,6 +1236,7 @@ function StepMaterials({
           <>
             <MultiSelectPopover
               label="Materiais permitidos"
+              tooltip="Documentos que o agente pode citar em qualquer assunto. Assuntos também podem ter sua própria lista."
               options={(docsQuery.data?.docs ?? []).map((d) => ({ value: d.id, label: d.title }))}
               selected={allowedIds}
               onChange={(v) => onChange("allowedKnowledgeDocIds", v)}
@@ -1268,16 +1283,30 @@ function StepMessagesProducts({
   const pp = getPath(config, "productPolicy", {}) as Record<string, unknown>;
   const allowedModels = (config.allowedMessageModelIds as string[]) ?? [];
 
+  const allowedProductIds = (pp.allowedProductIds as string[]) ?? [];
+  const productOptions = catalogs.products.map((p) => ({ value: p.id, label: p.name }));
+
   return (
     <div className="space-y-6">
       <SectionCard title="Mensagens prontas" description="Modelos de mensagem do CRM que o agente pode usar.">
         <MultiSelectPopover
           label="Modelos permitidos"
+          tooltip="Modelos de mensagem já cadastrados no CRM. O agente só pode enviá-los se estiverem nesta lista.
+Use @Modelo para citar um modelo dentro de uma resposta."
           options={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
           selected={allowedModels}
           onChange={(v) => onChange("allowedMessageModelIds", v)}
           emptyLabel="Nenhum modelo cadastrado"
         />
+        {catalogs.messageTemplates.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {catalogs.messageTemplates.map((m) => (
+              <Badge key={m.id} variant={allowedModels.includes(m.id) ? "default" : "outline"}>
+                {m.name}
+              </Badge>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Produtos e planos" description="Permitir que o agente fale do catálogo.">
@@ -1287,25 +1316,55 @@ function StepMessagesProducts({
             onCheckedChange={(v) => onChange("productPolicy", { ...pp, enabled: v })}
             id="prodEnabled"
           />
-          <Label htmlFor="prodEnabled">Falar de produtos</Label>
+          <Label htmlFor="prodEnabled" className="cursor-pointer">Falar de produtos</Label>
         </div>
         {!!pp.enabled && (
           <div className="space-y-4 pt-2">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Quantos por vez">
-                <Input
-                  type="number"
-                  value={String(pp.maxItems ?? 3)}
-                  onChange={(e) => onChange("productPolicy", { ...pp, maxItems: Number(e.target.value) })}
-                />
-              </Field>
-            </div>
+            <Field label="Quantos por vez" tooltip="Máximo de produtos que o agente pode enviar em uma única resposta.">
+              <Input
+                type="number"
+                value={String(pp.maxItems ?? 3)}
+                onChange={(e) => onChange("productPolicy", { ...pp, maxItems: Number(e.target.value) })}
+              />
+            </Field>
+            <MultiSelectPopover
+              label="Produtos permitidos"
+              tooltip="Vazio = todos os produtos ativos do CRM. Selecione IDs específicos para restringir o catálogo deste agente."
+              options={productOptions}
+              selected={allowedProductIds}
+              onChange={(v) => onChange("productPolicy", { ...pp, allowedProductIds: v })}
+              emptyLabel="Nenhum produto cadastrado no CRM"
+            />
+            {catalogs.products.length > 0 && (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {catalogs.products.map((p) => (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "flex items-center justify-between rounded-lg border p-3 transition-colors",
+                      allowedProductIds.length > 0 && !allowedProductIds.includes(p.id) && "opacity-50",
+                    )}
+                  >
+                    <span className="text-sm">{p.name}</span>
+                    <Switch
+                      checked={allowedProductIds.length === 0 || allowedProductIds.includes(p.id)}
+                      onCheckedChange={(v) => {
+                        const next = new Set(allowedProductIds);
+                        if (v) next.add(p.id);
+                        else next.delete(p.id);
+                        onChange("productPolicy", { ...pp, allowedProductIds: Array.from(next) });
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap gap-4">
               {[
-                { key: "showPrice", label: "Mostrar preço" },
-                { key: "showConditions", label: "Mostrar condições" },
-                { key: "showImage", label: "Mostrar imagem" },
-                { key: "showLink", label: "Incluir link" },
+                { key: "showPrice", label: "Mostrar preço", tooltip: "Incluir o preço nas respostas sobre produtos." },
+                { key: "showConditions", label: "Mostrar condições", tooltip: "Incluir condições/como funciona." },
+                { key: "showImage", label: "Mostrar imagem", tooltip: "Anexar imagem do produto quando houver." },
+                { key: "showLink", label: "Incluir link", tooltip: "Incluir link para o produto (se o domínio estiver permitido)." },
               ].map((c) => (
                 <div key={c.key} className="flex items-center gap-2">
                   <Switch
@@ -1313,7 +1372,7 @@ function StepMessagesProducts({
                     onCheckedChange={(v) => onChange("productPolicy", { ...pp, [c.key]: v })}
                     id={c.key}
                   />
-                  <Label htmlFor={c.key}>{c.label}</Label>
+                  <Label htmlFor={c.key} className="cursor-pointer">{c.label}</Label>
                 </div>
               ))}
             </div>
