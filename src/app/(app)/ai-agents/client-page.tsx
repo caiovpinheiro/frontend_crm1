@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useState } from "react";
-import { IconRobot } from "@tabler/icons-react";
+import { IconArrowRight, IconRobot } from "@tabler/icons-react";
 
 import { TabsGlass } from "@/components/crm/tabs-glass";
 import OldAIAgentsPage from "@/features/legacy-v1/ai-agents";
@@ -39,6 +40,15 @@ export default function AIAgentsV2ClientPage() {
   return (
     <AppV2PageShell title="Agentes de IA" icon={<IconRobot size={22} />}>
       <div className="flex min-w-0 flex-col gap-3.5">
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+          <p className="font-medium">Novo motor de agentes disponível</p>
+          <p className="text-warning/80">
+            Agentes criados na versão 2 (motor declarativo) não aparecem aqui.{" "}
+            <Link href="/ai-agents-v2" className="inline-flex items-center gap-0.5 font-medium underline hover:opacity-80">
+              Ir para Agentes IA v2 <IconArrowRight className="size-3.5" />
+            </Link>
+          </p>
+        </div>
         <TabsGlass tabs={tabs} activeTab={activeTab} onChange={setActiveTab} scrollable />
 
         <div className={academicTab ? "hidden" : "min-w-0"}>

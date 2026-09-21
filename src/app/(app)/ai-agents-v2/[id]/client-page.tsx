@@ -470,6 +470,7 @@ export default function AIAgentV2EditClientPage() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
       setDirty(false);
+      router.push(`/ai-agents-v2/${id}`);
       alert(`Publicado como versão ${res.versionNumber}`);
     },
   });
