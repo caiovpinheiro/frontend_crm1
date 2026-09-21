@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   IconBrain,
@@ -517,7 +517,6 @@ const STEPS = [
 
 export default function AIAgentV2EditPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { confirm, dialog } = useConfirm();
 
@@ -589,13 +588,10 @@ export default function AIAgentV2EditPage() {
       title: "Publicar agente",
       description: "Publicar cria uma nova versão e ativa o agente. Continuar?",
       confirmLabel: "Publicar",
-      pendingLabel: "Publicando…",
-      action: async () => {
-        const res = await publishMutation.mutateAsync();
-        await confirm({ title: "Publicado", description: `Versão ${res.versionNumber} criada com sucesso.` });
-      },
     });
-    if (ok) router.push(`/ai-agents-v2/${id}`);
+    if (!ok) return;
+    const res = await publishMutation.mutateAsync();
+    await confirm({ title: "Publicado", description: `Versão ${res.versionNumber} criada com sucesso.` });
   };
 
   const handleStepChange = async (next: number) => {
