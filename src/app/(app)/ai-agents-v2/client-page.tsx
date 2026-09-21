@@ -21,13 +21,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -48,6 +41,14 @@ type V2AgentRow = {
 };
 
 type V2Preset = { key: string; label: string };
+
+const PRESET_HINTS: Record<string, string> = {
+  blank: "Comece do zero e configure cada etapa manualmente.",
+  atendimento: "Responde dúvidas frequentes e abre chamados quando precisar.",
+  recepcao: "Organiza o atendimento: identifica o cliente e entrega para o especialista certo.",
+  vendas: "Acompanha negócios, apresenta produtos e envia propostas.",
+  sdr: "Conversa com quem chegou, entende o interesse e passa para o time de vendas.",
+};
 
 async function fetchAgents(): Promise<V2AgentRow[]> {
   const res = await apiFetch("/api/ai-agents-v2");
@@ -182,36 +183,52 @@ export default function AIAgentsV2ListClientPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Nome</Label>
+                <Label htmlFor="name">Nome do agente</Label>
+                <p className="text-xs text-muted-foreground">
+                  É o nome que o cliente vê nas mensagens.
+                </p>
                 <Input
                   id="name"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Ex: Atendimento"
+                  placeholder="Ex.: Ana, da central de atendimento"
                   required
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="preset">Preset</Label>
-                <Select value={newPreset} onValueChange={setNewPreset}>
-                  <SelectTrigger id="preset">
-                    <SelectValue placeholder="Em branco" />
-                  </SelectTrigger>
-                  <SelectContent>
+                              <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Comece a partir de um modelo</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    O modelo só preenche as próximas etapas com sugestões. Nada fica travado.
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
                     {presets.map((p) => (
-                      <SelectItem key={p.key} value={p.key}>
-                        {p.label}
-                      </SelectItem>
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => setNewPreset(p.key)}
+                        className={cn(
+                          "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors",
+                          newPreset === p.key
+                            ? "border-primary bg-primary/10"
+                            : "border-border bg-card hover:bg-muted/50"
+                        )}
+                      >
+                        <span className="text-sm font-semibold">{p.label}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {PRESET_HINTS[p.key] ?? "Preset de configuração."}
+                        </span>
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  </div>
+                </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreating(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createMutation.isPending || !newName.trim()}>
+              <Button type="submit" disabled={createMutation.isPending || !newName.trim() || !newPreset}>
                 Criar
               </Button>
             </DialogFooter>

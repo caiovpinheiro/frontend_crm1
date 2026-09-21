@@ -527,6 +527,50 @@ function MultiChip({ label, tooltip, values, onChange, placeholder }: { label: s
 // Wizard
 // ─────────────────────────────────────────────────────────────────────────────
 
+function isStepComplete(
+  stepIndex: number,
+  cfg: Record<string, unknown> | null,
+  agentName: string,
+): boolean {
+  if (!cfg) return false;
+  const contactFields =
+    ((cfg.contextFields as Record<string, unknown> | undefined)?.contact as
+      | Array<{ key: string }>
+      | undefined) ?? [];
+  const dealFields =
+    ((cfg.contextFields as Record<string, unknown> | undefined)?.deal as
+      | Array<{ key: string }>
+      | undefined) ?? [];
+  switch (stepIndex) {
+    case 0:
+      return Boolean(agentName.trim()) && ((cfg.channelIds as string[]) ?? []).length > 0;
+    case 1:
+      return Boolean((cfg.tone as string)?.trim() || (cfg.systemPromptTemplate as string)?.trim());
+    case 2:
+      return contactFields.length + dealFields.length > 0;
+    case 3:
+      return (
+        ((cfg.allowedKnowledgeDocIds as string[]) ?? []).length > 0 ||
+        ((cfg.knowledgeDocs as unknown[]) ?? []).length > 0
+      );
+    case 4:
+      return true;
+    case 5:
+      return Boolean((cfg.entry as Record<string, unknown> | undefined)?.openingMessage);
+    case 6:
+      return ((cfg.themes as unknown[]) ?? []).length > 0;
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+      return true;
+    case 11:
+      return false;
+    default:
+      return false;
+  }
+}
+
 const STEPS = [
   { id: "start", title: "Começar", subtitle: "Nome e modelo" },
   { id: "tone", title: "Jeito de falar", subtitle: "Tom e regras" },
@@ -897,11 +941,13 @@ function StepStart({
       </SectionCard>
 
       <SectionCard title="Canais e domínios" description="Por onde ele atende e quais links pode enviar.">
-        <Field label="Canais vinculados" hint="IDs dos canais que usam este agente." tooltip="Quais canais de WhatsApp/e-mail usam este agente quando recebem uma nova conversa.">
-          <ChipInput
-            values={((config.channelIds as string[]) ?? []).map(String)}
+        <Field label="Canais vinculados" tooltip="Quais canais de WhatsApp/e-mail usam este agente quando recebem uma nova conversa.">
+          <MultiSelectPopover
+            label="Canais"
+            options={(catalogs.channels ?? []).map((c) => ({ value: c.id, label: c.name ?? c.id }))}
+            selected={((config.channelIds as string[]) ?? []).map(String)}
             onChange={(v) => onChange("channelIds", v)}
-            placeholder="Adicionar ID do canal"
+            placeholder="Selecionar canais"
           />
         </Field>
         <Field label="Domínios permitidos em links" tooltip="URLs de quais domínios o agente pode enviar ao cliente (segurança de phishing).">

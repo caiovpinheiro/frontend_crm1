@@ -15,14 +15,13 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Nome do agente + hint "É o nome que o cliente vê" | Campo com label simples | OK, falta hint |
-| Canal escolhido de uma **lista** (WhatsApp/Instagram/Messenger) do catálogo | Input de texto pedindo ID do canal | FALTA |
-| Modelo escolhido de uma **lista** (Em branco, Atendimento, Vendas, etc.) | Modelo é só um select de fluxo; não aparecem presets como cards | FALTA |
-| Botão "Criar" desabilitado até nome + canal + modelo preenchidos | Botão habilitado | BUG |
+| Nome do agente + hint "É o nome que o cliente vê" | Campo com label e tooltip | ✅ OK |
+| Canal escolhido de uma **lista** (WhatsApp/Instagram/Messenger) do catálogo | MultiSelectPopover com catálogo de canais | ✅ OK |
+| Modelo escolhido de uma **lista** (Em branco, Atendimento, Vendas, etc.) | Cards de presets na criação (`Novo agente v2`) | ✅ OK |
+| Botão "Criar" desabilitado até nome + preset preenchidos | Botão desabilitado até `newName.trim()` e `newPreset` | ✅ OK |
 
 **BUGS:**
-- Campo canal é texto livre em vez de select com catálogo.
-- Modelo não exibe presets do protótipo (Atendimento, Vendas, etc.) como cards.
+- Nenhum nesta etapa.
 
 ---
 
@@ -48,14 +47,13 @@ Legenda:
 | Protótipo | Tela atual | Status |
 |---|---|---|
 | Nome da empresa via variável `@Nome da empresa` | Campo `organizationName` separado | EXTRA |
-| Campos do contato: selecionar quais o agente pode ler/alterar | Tabela estática sem vínculo ao CRM | BUG |
-| Campos do negócio: selecionar quais o agente pode ler/alterar | Tabela estática sem vínculo ao CRM | BUG |
+| Campos do contato: selecionar quais o agente pode ler/alterar | Tabela com built-ins + catálogo de campos customizados | ✅ OK |
+| Campos do negócio: selecionar quais o agente pode ler/alterar | Tabela com built-ins + catálogo de campos customizados | ✅ OK |
 | Permissão por campo (só ler / ler e escrever) | Não há permissão por campo | FALTA |
 | Variáveis explicadas com ícone ⓘ | Não há tooltips | FALTA |
 
 **BUGS:**
-- Tabela de campos não está ligada aos catálogos de contato/negócio.
-- `organizationName` é campo próprio em vez de usar a variável `@Nome da empresa`.
+- `organizationName` é campo próprio em vez de variável `@Nome da empresa` — pendente de alinhamento de schema/backend.
 
 ---
 
@@ -63,15 +61,14 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Lista de materiais cadastrados com nome e tipo | Existe, mas upload falha | BUG |
-| Upload de arquivos (TXT, MD, PDF) | Aceita `.pdf`, mas backend rejeita; hint ausente | BUG |
+| Lista de materiais cadastrados com nome e tipo | Lista com status/trechos e MultiSelectPopover | ✅ OK |
+| Upload de arquivos (TXT, MD, PDF) | Input aceita só formatos suportados; hint e loading presentes | ✅ OK |
 | Seleção de quais materiais o agente pode consultar (RAG) | MultiSelectPopover funciona | OK |
 | Indicador de "material ativo/inativo" | Não há | FALTA |
 | Botão de upload com loading | Não tinha | FALTA |
 
 **BUGS:**
-- Upload de materiais não funciona.
-- Upload aceita `.pdf` que o backend ainda não suporta.
+- Nenhum nesta etapa.
 
 ---
 
@@ -79,13 +76,13 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| "Mensagens prontas" escolhidas de modelos cadastrados | MultiSelectPopover com modelos | OK |
-| Lista de produtos cadastrados com switch individual | Não lista produtos | BUG |
+| "Mensagens prontas" escolhidas de modelos cadastrados | MultiSelectPopover + badges dos modelos | ✅ OK |
+| Lista de produtos cadastrados com switch individual | Lista com switches e `allowedProductIds` | ✅ OK |
 | Opção de enviar até N produtos | Select de max items existe | OK |
 | Mostrar preço/imagem nos cards | Checkbox existe | OK |
 
 **BUGS:**
-- Produtos cadastrados não aparecem para seleção (faltava `allowedProductIds` no schema; corrigido).
+- Nenhum nesta etapa.
 
 ---
 
@@ -179,7 +176,7 @@ Legenda:
 
 | Protótipo | Tela atual | Status |
 |---|---|---|
-| Check verde só quando etapa tem mínimo preenchido | Check verde por visita | BUG |
+| Check verde só quando etapa tem mínimo preenchido | `isStepComplete` valida preenchimento mínimo | ✅ OK |
 | Sidebar com título + subtítulo por passo | Existe | OK |
 | Botão “Dicionário da tela” com termos técnicos | Não há | FALTA |
 | Rascunho salvo automaticamente | Botão “Salvar rascunho” | parcial |
