@@ -34,6 +34,7 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ChipInput } from "@/components/ai-agents/chip-input";
 import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
+import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
 import { cn } from "@/lib/utils";
 
 type AgentDetail = {
@@ -41,6 +42,8 @@ type AgentDetail = {
   name: string;
   active: boolean;
   simpleConfig: Record<string, unknown>;
+  hasOwnOpenaiKey: boolean;
+  openaiApiKeyHint: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -190,7 +193,7 @@ async function fetchAgent(id: string): Promise<AgentDetail> {
   return parseApiResponse<AgentDetail>(res, "Erro ao carregar agente v2.");
 }
 
-async function updateAgent(id: string, payload: { name?: string; active?: boolean }) {
+async function updateAgent(id: string, payload: { name?: string; active?: boolean; openaiApiKey?: string | null }) {
   const res = await apiFetch(`/api/ai-agents-v2/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -381,6 +384,8 @@ export default function AIAgentV2EditClientPage() {
   const [dirty, setDirty] = React.useState(false);
   const [advancedText, setAdvancedText] = React.useState("{}");
   const [advancedError, setAdvancedError] = React.useState<string | null>(null);
+  const [apiKeyValue, setApiKeyValue] = React.useState("");
+  const [apiKeyCleared, setApiKeyCleared] = React.useState(false);
   const initializedRef = React.useRef(false);
 
   // Reinicializa o estado local quando o id do agente muda (navegação).
@@ -400,6 +405,8 @@ export default function AIAgentV2EditClientPage() {
     const base = clone(agent.simpleConfig);
     setConfig(base);
     setAdvancedText(JSON.stringify(extractAdvanced(base), null, 2));
+    setApiKeyValue("");
+    setApiKeyCleared(false);
     setDirty(false);
   }, [agent]);
 
@@ -476,7 +483,7 @@ export default function AIAgentV2EditClientPage() {
   });
 
   const nameActiveMutation = useMutation({
-    mutationFn: (payload: { name?: string; active?: boolean }) => updateAgent(id, payload),
+    mutationFn: (payload: { name?: string; active?: boolean; openaiApiKey?: string | null }) => updateAgent(id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] }),
   });
 
@@ -559,6 +566,18 @@ export default function AIAgentV2EditClientPage() {
             agent={agent}
             config={config}
             catalogs={catalogs}
+            apiKeyValue={apiKeyValue}
+            apiKeyCleared={apiKeyCleared}
+            onApiKeyChange={setApiKeyValue}
+            onApiKeyClear={() => setApiKeyCleared(true)}
+            onSaveApiKey={() => {
+              if (apiKeyCleared) {
+                nameActiveMutation.mutate({ openaiApiKey: null });
+              } else if (apiKeyValue.trim()) {
+                nameActiveMutation.mutate({ openaiApiKey: apiKeyValue.trim() });
+              }
+            }}
+            isSavingApiKey={nameActiveMutation.isPending}
             onConfigChange={updateConfig}
             onNameActiveChange={(p) => nameActiveMutation.mutate(p)}
           />
@@ -612,12 +631,24 @@ function GeneralSection({
   agent,
   config,
   catalogs,
+  apiKeyValue,
+  apiKeyCleared,
+  onApiKeyChange,
+  onApiKeyClear,
+  onSaveApiKey,
+  isSavingApiKey,
   onConfigChange,
   onNameActiveChange,
 }: {
   agent: AgentDetail;
   config: Record<string, unknown>;
   catalogs?: Catalogs;
+  apiKeyValue: string;
+  apiKeyCleared: boolean;
+  onApiKeyChange: (v: string) => void;
+  onApiKeyClear: () => void;
+  onSaveApiKey: () => void;
+  isSavingApiKey: boolean;
   onConfigChange: (path: string, value: unknown) => void;
   onNameActiveChange: (payload: { name?: string; active?: boolean }) => void;
 }) {
@@ -703,6 +734,31 @@ function GeneralSection({
             onChange={(v) => onConfigChange("allowedDomains", v)}
             placeholder="ex.: meusite.com.br"
           />
+        </div>
+        <div className="grid gap-2 sm:col-span-2">
+          <OpenAiKeyField
+            value={apiKeyValue}
+            onChange={onApiKeyChange}
+            onClear={onApiKeyClear}
+            hasSavedKey={agent.hasOwnOpenaiKey && !apiKeyCleared}
+            savedHint={agent.openaiApiKeyHint ?? null}
+          />
+          {(apiKeyValue.trim() || apiKeyCleared) && (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onSaveApiKey}
+                disabled={isSavingApiKey}
+              >
+                {isSavingApiKey ? "Salvando…" : "Salvar chave"}
+              </Button>
+              {apiKeyCleared && (
+                <span className="text-xs text-muted-foreground">A chave será removida ao salvar.</span>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
