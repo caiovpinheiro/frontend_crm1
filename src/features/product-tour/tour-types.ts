@@ -3,9 +3,7 @@ export type TourId =
   | "automations"
   | "contacts"
   | "bwipo-chat"
-  | "bwipo-keeps"
-  | "bwipo-keeps-pipeline"
-  | "bwipo-keeps-inbox";
+  | "bwipo-keeps";
 
 export type TourSide = "top" | "right" | "bottom" | "left";
 
@@ -28,6 +26,8 @@ export type PageTourStep = {
   keepsView?: "normal" | "categories";
   keepsComposer?: "closed" | "note" | "checklist";
   keepsChatTab?: "conversa" | "keeps";
+  /** Painel ilustrado na página do Keeps (pipeline / inbox), sem navegar. */
+  keepsScene?: "pipeline" | "inbox";
 };
 
 export type PageTourCta = {

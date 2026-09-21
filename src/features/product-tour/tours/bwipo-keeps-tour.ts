@@ -32,6 +32,7 @@ export const bwipoKeepsTour: PageTour = {
       description:
         "Escolhe o ZIP do Google Keep. As notas entram no mural desta organização, na sua conta.",
       side: "left",
+      openMenu: "keeps-actions",
       fallback: "menu-item",
       fallbackLabel: "Importar Keeps",
     },
@@ -41,6 +42,7 @@ export const bwipoKeepsTour: PageTour = {
       description:
         "Abre o passo a passo para exportar no Google Keep e gerar o ZIP certo.",
       side: "left",
+      openMenu: "keeps-actions",
       fallback: "menu-item",
       fallbackLabel: "Como importar Keeps",
     },
@@ -127,32 +129,45 @@ export const bwipoKeepsTour: PageTour = {
       keepsView: "normal",
       keepsFolder: "notes",
       keepsComposer: "closed",
-      fallback: "generic",
+      fallback: "keeps-card",
       fallbackAnchor: "keeps-composer",
       fallbackLabel: "Card da nota",
     },
     {
-      element: "keeps-search",
-      title: "Nas conversas",
+      element: "keeps-demo-pipeline",
+      title: "No pipeline",
       description:
-        "O mesmo mural aparece na aba keeps da conversa no pipeline e na caixa de entrada: consulte e copie o texto para colar no WhatsApp. A criação e a edição ficam nesta página.",
+        "Isto é uma simulação do painel do negócio. No funil, abra um card: ao lado de Conversa, Tarefas, Notas e Timeline aparece keeps — o mesmo mural desta página, para consultar na hora do atendimento.",
       side: "bottom",
       keepsView: "normal",
+      keepsFolder: "notes",
       keepsComposer: "closed",
-    },
-  ],
-  ctas: [
-    {
-      label: "Ver no pipeline",
-      onElement: "keeps-search",
-      href: "/pipeline",
-      startTourId: "bwipo-keeps-pipeline",
+      keepsScene: "pipeline",
     },
     {
-      label: "Ver na caixa de entrada",
-      onElement: "keeps-search",
-      href: "/inbox",
-      startTourId: "bwipo-keeps-inbox",
+      element: "keeps-demo-pipeline",
+      title: "Aba keeps no card",
+      description:
+        "keeps não é a nota interna do ticket. É o seu mural pessoal. Toque na aba para trocar o chat pelo mural, sem sair do negócio. O ícone de copiar pega o texto da nota para colar no compositor.",
+      side: "bottom",
+      keepsScene: "pipeline",
+    },
+    {
+      element: "keeps-demo-inbox",
+      title: "Na caixa de entrada",
+      description:
+        "Simulação de um ticket aberto. No header do chat, a aba keeps mostra o mesmo mural — scripts, preços e checklists ao lado do WhatsApp.",
+      side: "bottom",
+      keepsComposer: "closed",
+      keepsScene: "inbox",
+    },
+    {
+      element: "keeps-demo-inbox",
+      title: "Copiar e enviar",
+      description:
+        "Conversa é o chat com o cliente; keeps é o mural em qualquer atendimento. Copie o texto, volte à aba Conversa, cole no campo de mensagem e envie. O que você cria nesta página aparece na hora.",
+      side: "bottom",
+      keepsScene: "inbox",
     },
   ],
 };

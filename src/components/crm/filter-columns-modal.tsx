@@ -1,12 +1,37 @@
 "use client"
 
-import { Children, useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { createPortal } from "react-dom"
-import { RotateCw, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, RotateCw, X } from "lucide-react"
 
 import { FilterApplyButton } from "@/components/crm/filter-popover"
 import { formDialogCancelClass } from "@/components/ui/form-dialog"
 import { cn } from "@/lib/utils"
+
+function flattenFilterColumns(node: ReactNode): ReactNode[] {
+  return Children.toArray(node).flatMap((child) => {
+    if (isValidElement(child) && child.type === Fragment) {
+      return flattenFilterColumns((child.props as { children?: ReactNode }).children)
+    }
+    return child ? [child] : []
+  })
+}
+
+const COL_SCROLL_PX = 272
+
+const scrollArrowClass =
+  "absolute top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-md transition-colors hover:bg-secondary"
+
 
 /**
  * Modal de filtros — variação 2 (etiquetas) em colunas.
@@ -36,6 +61,19 @@ export function FilterColumnsModal({
   children: ReactNode
 }) {
   const hScrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(false)
+
+  const updateHScroll = useCallback(() => {
+    const el = hScrollRef.current
+    if (!el) {
+      setCanScrollLeft(false)
+      setCanScrollRight(false)
+      return
+    }
+    setCanScrollLeft(el.scrollLeft > 12)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 12)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -59,23 +97,40 @@ export function FilterColumnsModal({
     function onWheel(e: WheelEvent) {
       const scroller = hScrollRef.current
       if (!scroller) return
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        if (scroller.scrollWidth <= scroller.clientWidth + 1) return
+        e.preventDefault()
+        scroller.scrollLeft += e.deltaX
+        return
+      }
       const col = (e.target as HTMLElement | null)?.closest("[data-filter-col-scroll]")
-      if (col instanceof HTMLElement && col.scrollHeight > col.clientHeight + 1) return
+      if (col instanceof HTMLElement) return
       if (scroller.scrollWidth <= scroller.clientWidth + 1) return
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
-      if (delta === 0) return
+      if (e.deltaY === 0) return
       e.preventDefault()
-      scroller.scrollLeft += delta
+      scroller.scrollLeft += e.deltaY
     }
 
+    updateHScroll()
     el.addEventListener("wheel", onWheel, { passive: false })
-    return () => el.removeEventListener("wheel", onWheel)
-  }, [open])
+    el.addEventListener("scroll", updateHScroll, { passive: true })
+    const ro = new ResizeObserver(updateHScroll)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener("wheel", onWheel)
+      el.removeEventListener("scroll", updateHScroll)
+      ro.disconnect()
+    }
+  }, [open, updateHScroll])
 
   if (!open || typeof document === "undefined") return null
 
-  const columnCount = Children.toArray(children).filter(Boolean).length
-  const wide = columnCount > 4
+  const columns = flattenFilterColumns(children)
+  const columnCount = columns.length
+
+  function scrollColumns(dir: -1 | 1) {
+    hScrollRef.current?.scrollBy({ left: dir * COL_SCROLL_PX, behavior: "smooth" })
+  }
 
   const countLabel =
     count === 0
@@ -94,11 +149,12 @@ export function FilterColumnsModal({
         aria-modal="true"
         aria-label={labelledBy ?? title}
         className={cn(
-          "relative flex max-h-[min(84vh,720px)] flex-col overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
-          wide
-            ? "w-full max-w-6xl"
-            : "w-max max-w-[min(96vw,72rem)]",
+          "relative grid h-[min(84vh,720px)] max-h-[min(84vh,720px)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
         )}
+        style={{
+          width: `min(calc(100vw - 2rem), ${Math.max(columnCount * 17.5, 28)}rem)`,
+          maxWidth: "72rem",
+        }}
       >
         <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
           <div className="min-w-0 space-y-0.5">
@@ -127,23 +183,39 @@ export function FilterColumnsModal({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="relative min-h-0 overflow-hidden">
+          {canScrollLeft ? (
+            <button
+              type="button"
+              className={cn(scrollArrowClass, "left-2")}
+              aria-label="Ver categorias anteriores"
+              onClick={() => scrollColumns(-1)}
+            >
+              <ChevronLeft className="size-4" aria-hidden />
+            </button>
+          ) : null}
+          {canScrollRight ? (
+            <button
+              type="button"
+              className={cn(scrollArrowClass, "right-2")}
+              aria-label="Ver mais categorias"
+              onClick={() => scrollColumns(1)}
+            >
+              <ChevronRight className="size-4" aria-hidden />
+            </button>
+          ) : null}
           <div
             ref={hScrollRef}
-            className={cn(
-              "filter-columns-hscroll min-h-0 overflow-y-hidden overscroll-x-contain",
-              wide ? "h-full overflow-x-auto" : "overflow-x-hidden",
-            )}
+            className="filter-columns-hscroll absolute inset-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
             <div
               className={cn(
-                "flex w-max flex-nowrap",
-                wide
-                  ? "h-full min-h-0 items-stretch [&_section]:h-full [&_section]:max-h-none"
-                  : "items-start",
+                "flex h-full w-max min-h-0 flex-nowrap items-stretch",
+                canScrollLeft && "pl-12",
+                canScrollRight && "pr-12",
               )}
             >
-              {children}
+              {columns}
             </div>
           </div>
         </div>
@@ -181,8 +253,7 @@ export function FilterCategoryColumn({
   return (
     <section
       className={cn(
-        "flex min-h-0 w-[min(16rem,85vw)] shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
-        "max-h-[min(calc(84vh-11rem),36rem)]",
+        "flex h-full min-h-0 w-[17.5rem] max-w-[85vw] max-h-full shrink-0 flex-col gap-3 overflow-hidden border-r border-border/40 px-4 py-5 last:border-r-0 sm:px-5",
         className,
       )}
     >
@@ -198,12 +269,11 @@ export function FilterCategoryColumn({
         {hint ? <p className="text-xs leading-snug text-muted-foreground">{hint}</p> : null}
       </header>
       <div
-        data-page-scroll
         data-filter-col-scroll
         className={cn(
-          "flex min-h-0 grow flex-col items-stretch overflow-x-hidden overflow-y-auto overscroll-y-contain",
-          stacked ? "gap-3" : "gap-1.5",
-          "[&>button]:w-full [&>button]:justify-start [&>button]:min-w-0",
+          "min-h-0 flex-1 overflow-x-hidden overflow-y-scroll overscroll-y-contain",
+          stacked ? "flex flex-col gap-3" : "flex flex-col gap-1.5",
+          "[&>button]:h-auto [&>button]:w-full [&>button]:shrink-0 [&>button]:justify-start [&>button]:whitespace-normal [&>button]:text-left [&>button]:min-w-0",
         )}
       >
         {children}

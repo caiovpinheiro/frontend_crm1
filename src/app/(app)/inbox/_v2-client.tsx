@@ -138,7 +138,7 @@ import {
 import { pickBulkCloseDepartment } from "@/features/inbox-v2/extras/tabulation-dialog";
 import { useUserRole } from "@/hooks/use-user-role";
 import { InboxSearchFilterBar } from "@/features/inbox-v2/extras/filter-panel";
-import { PageTourButton, useQueuedPageTour } from "@/features/product-tour";
+import { PageTourButton } from "@/features/product-tour";
 import {
   isSessionClosedError,
   SESSION_CLOSED_TOAST,
@@ -299,7 +299,6 @@ export default function InboxV2ClientPage({
   const router = useRouter();
   // Cookie do tenant já autentica o GET. Não espera o NextAuth hidratar.
   const canFetchInbox = sessionStatus !== "unauthenticated";
-  useQueuedPageTour("bwipo-keeps-inbox");
   const isDesktop = useIsDesktop();
   const { data: myPermissions } = useMyPermissions();
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
