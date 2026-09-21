@@ -1,205 +1,122 @@
-# UI_SPEC_V2.md — Tela de agentes IA v2
+# UI da v2 — o que construir e para onde cada campo grava
 
-Este documento define a tela `/ai-agents-v2/[id]` campo a campo, mapeando cada controle a um caminho canônico do `v2AgentConfigSchema`.
+Complemento de `SPEC_V2.md`, focado só no frontend. Protótipo navegável é a referência de comportamento.
+**Regra de ouro:** nenhum campo desta tela pode existir sem um caminho correspondente na config do agente, e nenhum campo da config pode ficar sem tela. Se algo aqui não casar com o schema real (`v2AgentConfigSchema`), **corrija esta doc e o schema no mesmo commit** — não crie campo paralelo.
 
-## Regras gerais da tela
+## Ordem de construção (por valor, não por tela)
 
-- Três abas fixas: **Config**, **Testar**, **Logs**.
-- **Config** é dividida em seções: Geral, Jeito de falar, O que ele sabe, Assuntos, Saídas, Equipe e horários.
-- Todo campo visível na tela deve ter um caminho equivalente no `v2AgentConfigSchema`. O bloco **Avançado (JSON)** só pode conter chaves que ainda não têm controle visual.
-- **Salvar rascunho** persiste em `draftConfig` do agente. **Publicar** copia o rascunho para `simpleConfig`, ativa o agente e cria uma linha em `AIAgentConfigVersion`.
-- Sem `confirm()` nativo do browser. Usar o diálogo de confirmação do design system (`useConfirm`).
-- Catálogos de referência (destinos, documentos, modelos etc.) vêm de `GET /api/ai-agents-v2/catalogs`. A UI guarda o `id`; se o `id` não existir mais no catálogo, exibe o nome salvo com um aviso “não encontrado”.
+O bloqueio hoje é não conseguir configurar nem testar um agente sem editar JSON. Então:
 
-## 1. Aba Config
+1. **Fase A — configurar o básico e testar.** Telas: Geral, Jeito de falar, O que ele sabe, Assuntos, Saídas, Equipe. Mais a aba Testar ligada. Com isso o agente já roda.
+2. **Fase B — o que dá qualidade.** Materiais (upload e testar busca), Mensagens prontas e produtos, Início da conversa, Regras automáticas.
+3. **Fase C — fechamento e operação.** Encerrar e classificar, Logs com "por que respondeu isso?", Versões.
+4. **Fase D — os outros fluxos.** Recepção e Primeiros dias.
 
-### 1.1 Geral
+Enquanto uma seção não existir, manter um bloco "avançado (JSON)" só para as chaves ainda sem tela, e removê-lo à medida que as telas nascem.
 
-| Campo na tela | Caminho no schema | Tipo | Default |
-|---|---|---|---|
-| Nome do agente | `name` | string | obrigatório |
-| Ativo | `active` (coluna do `AIAgentConfig`, não dentro do JSON) | boolean | true |
-| Fluxo | `flow` | select: `reception`, `full`, `onboarding` | `full` |
-| Modelo LLM | `model` | select/string | `gpt-4o-mini` |
-| Canais vinculados | `channelIds` | multi-select de ids | `[]` |
-| Modo de execução | `autonomyMode` | select: `autonomous`, `draft` | `autonomous` |
-| Domínios permitidos em links | `allowedDomains` | array de strings | `[]` |
+## Padrões da tela
 
-### 1.2 Jeito de falar
+- Rota: `/ai-agents-v2/[id]` com abas `Config | Testar | Logs | Versões`. Dentro de Config, navegação lateral com as seções.
+- Salvar grava **rascunho**; publicar é ação separada, com confirmação e registro de versão.
+- Toda lista do CRM (departamentos, filas, usuários, estratégias, pipelines, etapas, campos, tabulações, modelos, templates, produtos, automações, canais) vem de `/api/ai-agents-v2/catalogs`. A tela guarda **id** e mostra **nome**. Id que não existe mais: mostrar em vermelho com "não encontrado no CRM" e não deixar publicar.
+- Validação por zod no salvar, com erro no campo, não em alerta global.
+- Nada de `confirm()` nativo — usar o diálogo do design system.
+- Cada seção tem um texto curto explicando o efeito, na linguagem do protótipo (sem jargão).
 
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| Comportamento da resposta | `responseBehavior` | select: `objective`, `balanced`, `natural`, `creative` |
-| Tom / persona | `tone` | textarea |
-| Regras globais | `globalRules` | lista de textos |
+## Mapa campo → config
 
-> O `responseBehavior` é convertido internamente em `temperature` (0.2, 0.4, 0.6, 0.8). O número nunca aparece na UI.
+Formato: **rótulo na tela** → `caminho.na.config` (tipo).
 
-### 1.3 O que ele sabe
+### Geral
+- Nome → `name` (string, obrigatório) · Avatar → `avatarUrl` · Ativo → `active` (bool)
+- Canal/número → `channelId` (id do catálogo)
+- Como envia respostas → `autonomyMode` ("draft" | "autonomous")
+- Modelo e comportamento da resposta → `model`, `responseBehavior`
+- Chave OpenAI → endpoint próprio, nunca exibir valor salvo
 
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| Documentos de conhecimento globais | `allowedKnowledgeDocIds` | multi-select (catálogo `knowledgeDocs`) |
-| Modelos de mensagem globais | `allowedMessageModelIds` | multi-select (catálogo `messageModels`) |
+### Jeito de falar
+- Tom de voz (chips múltiplos) → `tone.traits` (string[]) · Descrição livre → `tone.text`
+- Tamanho das respostas → `responseBehavior.length` ("short" | "medium" | "long")
+- Regras que ele sempre segue (lista) → `globalRules` (string[])
 
-> A aba **Testar** mostra os trechos do RAG retornados pelas ferramentas de consulta.
+### O que ele sabe
+- Tabela de campos com três caixas por campo → `contextFields[]` `{ entity: "contact"|"deal", key, read, cite, write }`
+- Outras bases → `recordSources[]` (ids)
+- Mais de um negócio aberto → `context.multipleDeals` ("recent" | "ask")
+- Informações fixas → `variables[]` `{ key, value }`
+- Mídia: áudio → `media.audio` ("transcribe"|"handoff"|"ask_text"); imagem → `media.image` ("ocr"|"describe"|"handoff"|"ask_text"); documento → `media.document` ("extract"|"handoff"|"ask_other")
+- Confirmar entendimento antes de agir → `media.confirmBeforeAction` (bool) · Falha → `media.failMessage`
 
-### 1.4 Assuntos (themes)
+### Materiais
+- Upload → endpoint de knowledge do agente (multipart). Lista com situação do processamento.
+- Documento usado em quais assuntos → `themes[].knowledgeDocIds`
+- Testar busca → endpoint de busca, mostrando trecho e documento de origem
 
-Lista `themes`. Cada item tem:
+### Mensagens prontas e produtos
+- Usar mensagens prontas → `messageModels.enabled` · Como usar → `messageModels.mode` ("literal" | "adapt")
+- Quais pode usar → `messageModels.allowedIds` · Templates oficiais → `messageModels.allowedTemplateIds`
+- Falar de produtos → `products.enabled` · Quantos por vez → `products.maxItems` (número)
+- Mostrar preço/condições/imagem/link → `products.showPrice|showConditions|showImage|showLink` (bool)
+- Quais pode apresentar → `products.filter` `{ mode, categoryId? }`
+- O que pode fazer com o produto → `products.actions` (string[])
 
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| ID interno | `themes[].id` | string (gerado pela UI) |
-| Nome do assunto | `themes[].name` | string |
-| Gatilhos (palavras/frases) | `themes[].when` | lista de strings |
-| Exemplos de mensagens | `themes[].examples` | lista de strings |
-| Instruções específicas | `themes[].instructions` | textarea |
-| Tools permitidas | `themes[].allowedTools` | multi-select fixo de tools |
-| Docs permitidos (por assunto) | `themes[].allowedKnowledgeDocIds` | multi-select |
-| Modelos permitidos (por assunto) | `themes[].allowedMessageModelIds` | multi-select |
-| Handoff deste assunto | `themes[].handoffDestination` | destino (catálogo) |
-| Máximo de turnos no assunto | `themes[].maxTurns` | number |
-| Política de produtos | `themes[].productPolicy` | grupo de campos (igual ao produto global) |
+### Início da conversa
+- Como a conversa chega → `entry.sources` `{ client, automation, human }` com config por origem
+- Boas-vindas → `entry.openingEnabled`, `entry.openingMessage`
+- Confirmar cadastro → `entry.confirmMode` ("confirm"|"load"|"none"), `entry.confirmMessage`
+- Não encontrou o cliente → `entry.notFound` ("ask"|"create"|"route"), `entry.identityField`, `entry.maxAttempts`, `entry.notFoundDestination`
+- Variáveis da automação → `entry.automationVariables[]` `{ key, target }`
+- Usar botões → `interactive.enabled`
 
-Tools fixas disponíveis: `search_products`, `search_crm_records`, `knowledge_search`, `list_message_models`, `send_message_model`, `send_product`, `send_whatsapp_template`, `add_tag`, `update_field`, `add_note`, `create_deal`, `move_stage`, `create_activity`, `ask_with_options`, `handoff`, `close_conversation`.
+### Assuntos
+Lista → `themes[]`, cada um:
+- Nome → `name` · Quando usar → `description` · Exemplos → `examples` (string[])
+- Como agir → `instructions` · Quem responde → `answerBy` ("self" | id do agente)
+- O que pode fazer → `allowedTools` (string[]) · Materiais → `knowledgeDocIds` · Modelos → `messageModelIds`
+- Produtos → `productPolicy` (herda do global quando ausente)
+- Passar para → `destination` `{ kind: "department"|"queue"|"user"|"distribution"|"agent", id }`
+- Transferir direto → `directHandoff` (bool) · Tabulação sugerida → `tabulationId`
 
-### 1.5 Saídas
+### Regras automáticas
+Lista ordenável → `rules[]` `{ enabled, conditions[], actions[], message }`
+- Condição → `{ type, value }` com `type` em: `message_type`, `keyword`, `contact_tag`, `first_message`, `out_of_hours`, `deal_stage`, `field_equals`, `no_deal`, `survey_score`
+- Ação → `{ type, ... }` com `type` em: `send_message`, `handoff`, `add_tag`, `set_theme`, `close`, `stay_silent`, `send_message_model`
+- A ordem da lista é a ordem de avaliação. Mostrar isso na tela.
 
-#### Entrada (`entry`)
+### Saídas
+- Não soube → `fallback.unknown` `{ message, action, retries }`
+- Pediu pessoa → `fallback.humanRequest.message`
+- Sem material → `fallback.noSource.message`
+- Erro → `fallback.error.message`
+- Fora do escopo → `scope.message`, `scope.onInsist`
+- Assuntos proibidos → `scope.forbidden[]` `{ subject, destination }`
+- Parar de responder → `limits` `{ courtesyReplies, helpOffers, turnsWithoutProgress, nonsenseMessages, silenceMinutes }`
+- Humor do cliente → `sentiment` `{ enabled, threshold, action, soften, tag, notify }`
 
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| Mensagem de abertura | `entry.openingMessage` | string |
-| Mensagem de confirmação | `entry.confirmationMessage` | string |
-| Mensagem de identificação | `entry.identificationMessage` | string |
-| Quando não encontrar negócio | `entry.onDealNotFound` | select: `ask_identification`, `create_deal`, `handoff` |
-| Confirmar identidade antes de atender | `entry.confirmact` | boolean |
-| Campos usados na confirmação | `entry.confirmationFields` | multi-select de campos do catálogo |
+### Equipe e horários
+- Destino padrão → `handoff.default` (mesmo formato de `destination`) · Mensagem → `handoff.message`
+- Horário → `businessHours` `{ enabled, days[], holidays }` · Fora do horário → `businessHours.outsideAction`
+- Inatividade → `inactivity` `{ enabled, nudgeAfter, nudgeMessage, closeAfter }`
 
-#### Handoff (`handoff`)
+### Encerrar e classificar
+- Janela pós-encerramento → `closure.window`; casos → `closure.courtesy`, `closure.newDemand`, `closure.ambiguous` (com mensagens)
+- Tabulação → `tabulation` `{ enabled, when, required, fallbackId, byTheme{} , mode }`
+- Ao encerrar → `closure.returnStage`, `closure.farewellEnabled`, `closure.farewell`, `closure.returnToAutomation`
+- Pesquisa → `survey` `{ enabled, scale, when, question, askReason, reasonQuestion, skipAfterHuman, frequency }`
+- Links permitidos → `allowedDomains` (string[])
 
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| Destino padrão | `handoff.defaultDestination` | destino (catálogo) |
-| Mensagem padrão de handoff | `handoff.message` | string |
-| Palavras-chave de pedido humano | `handoff.humanRequestKeywords` | lista de strings |
+### Testar
+Chat contra um contato real do CRM, sem enviar nada pelo canal e sem alterar dados. Mostrar, por resposta: regra aplicada, assunto, ferramentas chamadas com resultado, trechos do RAG, modelo de mensagem usado, ações que **seriam** executadas, motivo. Botões clicáveis. Botão "marcar resposta ruim" com o texto esperado.
 
-#### Encerramento (`closure`)
+### Logs
+Turnos da conversa com o mesmo detalhe, e em cada um um atalho para editar o assunto ou a regra responsável.
 
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| Janela pós-encerramento (horas) | `closure.postCloseWindowHours` | number |
-| Comportamento: cortesia | `closure.courtesyBehavior` | select: `no_reply`, `short_reply`, `reopen_and_route`, `ask_with_options` |
-| Comportamento: nova demanda | `closure.newDemandBehavior` | select (mesmas opções) |
-| Comportamento: ambíguo | `closure.ambiguousBehavior` | select (mesmas opções) |
-| Mensagem de despedida | `closure.goodbyeMessage` | string |
-| Devolver card à origem ao fechar | `closure.returnToOriginStage` | boolean |
+### Versões
+Lista de publicações com autor e data, ver diferença e reverter.
 
-#### Limites (`limits`)
+## Fluxos alternativos
+- **Recepção:** esconder Materiais, Mensagens/produtos e as instruções dos assuntos; em Assuntos, mostrar só nome, quando usar, exemplos, quem responde, destino e tabulação.
+- **Primeiros dias:** no lugar de Assuntos, "Etapas do início" (`onboarding.steps[]` com `name`, `goal`, `openingMessage`, `collect[]`, `completionCriteria`, `allowedTools`, `knowledgeDocIds`, `stuckDestination`), mais "Quando faltar informação" (`onboarding.missingData`), "Acompanhamento" (`onboarding.followUp`) e "Encerrar e entregar" (`onboarding.completion`).
 
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| Máx. respostas de cortesia | `limits.maxCourtesyReplies` | number |
-| Máx. ofertas de ajuda | `limits.maxHelpOffers` | number |
-| Máx. trocas travadas | `limits.maxStalledExchanges` | number |
-| Ação após travamento | `limits.stalledExchangesAction` | select: `handoff`, `close` |
-| Limite de mensagens sem sentido | `limits.nonsenseLimit` | number |
-| Ação após sem sentido | `limits.nonsenseAction` | select: `warn_and_silence`, `handoff` |
-| Minutos de silêncio | `limits.silenceMinutes` | number |
-| Janela de detecção de loop (min) | `limits.loopDetectionWindowMinutes` | number |
-| Máx. repetições (loop) | `limits.maxLoopCount` | number |
-| Máx. transferências IA→IA | `limits.maxAiTransfers` | number |
-
-#### Regras determinísticas (`rules`)
-
-Lista ordenada. Cada regra tem:
-
-- `id`, `name`, `order`.
-- Condições (`conditions`): tipo (`message_type`, `keywords`, `contact_tag`, `first_message`, `out_of_hours`, `deal_stage`, `field_equals`, `no_deal`, `survey_received`, `media_kind`), `values`, `field`, `expected`, `negate`.
-- Ações (`actions`): tipo (`send_message`, `set_theme`, `handoff`, `add_tag`, `close_conversation`, `no_reply`, `send_message_model`, `send_whatsapp_template`, `set_variable`, `record_knowledge_gap`), `message`, `themeId`, `destination`, `tag`, `variable`, `modelId`.
-
-### 1.6 Equipe e horários
-
-| Campo na tela | Caminho no schema | Tipo |
-|---|---|---|
-| Horário de atendimento ativo | `businessHours.enabled` | boolean |
-| Timezone | `businessHours.timezone` | string/select |
-| Dias/horários | `businessHours.weekdays` | lista de `{ day, start, end }` |
-| Mensagem fora do expediente | `businessHours.offHoursMessage` | string |
-| Teto de custo diário (USD) | `costCap.maxUsdPerDay` | number |
-| Teto de custo mensal (USD) | `costCap.maxUsdPerMonth` | number |
-| Ação ao estourar custo | `costCap.action` | select: `handoff` |
-| Teto de tokens diários | `dailyTokenCap` | number (0 = sem limite) |
-| Tools habilitadas globalmente | `enabledTools` | multi-select fixo |
-| Máx. chamadas de tool por turno | `toolGovernor.maxCallsPerTurn` | number |
-| Máx. repetições da mesma tool | `toolGovernor.maxRepeatsPerTool` | number |
-
-## 2. Bloco Avançado (JSON)
-
-Só deve aparecer para chaves não cobertas pelas seções acima. Na FASE A, ficam aqui:
-
-- `variables`
-- `contextFields`
-- `media`
-- `sentiment`
-- `survey`
-- `onboarding`
-- `productPolicy` (quando usado como fallback global, fora dos temas)
-
-> A UI faz merge profundo: valores das abas sobrescrevem o JSON avançado; o JSON avançado só pode preencher campos ausentes nas abas.
-
-## 3. Aba Testar
-
-- Campo de mensagem + botão Enviar.
-- Endpoint: `POST /api/ai-agents-v2/:id/test`.
-- Para cada resposta, a UI deve mostrar cards com:
-  - `appliedRuleId` (regra determinística que disparou, se houver)
-  - `themeId` (assunto selecionado)
-  - `reply` (texto que seria enviado ao cliente)
-  - `reason` (motivo da resposta)
-  - `toolCalls` — nome da tool, argumentos e resultado resumido
-  - trechos do RAG (vêm dentro do resultado de `knowledge_search`)
-  - `executedActions` — ações que seriam executadas
-  - `discardedActions` — ações descartadas por allowlist
-  - `handoff`, `closed`
-  - tokens in/out e latência
-
-## 4. Aba Logs
-
-- Lista de `AISimpleTurnLog` do agente.
-- Filtro por `conversationId`.
-- Exibe: inbound, reply, regra aplicada, JSON do LLM, ações executadas/descartadas, handoff/closed, timestamp.
-
-## 5. Catálogos
-
-`GET /api/ai-agents-v2/catalogs` retorna:
-
-```json
-{
-  "departments": [{ "id": "...", "name": "..." }],
-  "distributionRules": [{ "id": "...", "name": "..." }],
-  "users": [{ "id": "...", "name": "...", "type": "HUMAN|AI" }],
-  "aiAgents": [{ "id": "...", "name": "..." }],
-  "messageModels": [{ "id": "...", "name": "..." }],
-  "knowledgeDocs": [{ "id": "...", "name": "..." }],
-  "channels": [{ "id": "...", "name": "..." }],
-  "pipelines": [{ "id": "...", "name": "...", "stages": [{ "id": "...", "name": "..." }] }],
-  "contactCustomFields": [{ "id": "...", "name": "..." }],
-  "dealCustomFields": [{ "id": "...", "name": "..." }],
-  "products": [{ "id": "...", "name": "..." }],
-  "whatsappTemplates": [{ "id": "...", "name": "..." }]
-}
-```
-
-A UI guarda apenas o `id`. Quando um `id` salvo não aparece no catálogo, exibe o nome cacheado com badge/ícone de aviso.
-
-## 6. Salvar vs Publicar
-
-- **Salvar rascunho**: `PUT /api/ai-agents-v2/:id/draft` com body `{ config }`. Atualiza `AIAgentConfig.draftConfig`.
-- **Publicar**: `POST /api/ai-agents-v2/:id/publish` com body opcional `{ comment?: string }`. Copia `draftConfig` → `simpleConfig`, seta `active=true` e insere `AIAgentConfigVersion`.
-- A tela de edição carrega `draftConfig` se existir; senão carrega `simpleConfig`.
-
-## 7. Alinhamento com schema
-
-Os campos deste documento usam exclusivamente campos já existentes em `v2AgentConfigSchema`. Caso uma futura FASE adicione campo novo, ele deve ser adicionado primeiro ao schema e depois à tela, no mesmo commit.
+## Aceite
+Uma seção só está pronta quando: os campos gravam e recarregam certo, a validação mostra erro no campo, os catálogos vêm da API, publicar gera versão, e o comportamento configurado aparece de fato na aba Testar.
