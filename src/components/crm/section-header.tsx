@@ -48,6 +48,7 @@ export function SectionHeader({
   menuSlot,
   stackSearchOnMobile = false,
   shrinkActions = false,
+  pinAccessoryEnd = false,
   children,
 }: {
   icon: LucideIcon | ReactNode
@@ -71,6 +72,8 @@ export function SectionHeader({
   stackSearchOnMobile?: boolean
   /** Ações no tamanho do conteúdo; a busca preenche o resto da linha. */
   shrinkActions?: boolean
+  /** Acessório do título encostado na lateral direita da linha. */
+  pinAccessoryEnd?: boolean
   children?: ReactNode
 }) {
   const iconNode = renderHeaderIcon(icon)
@@ -116,6 +119,7 @@ export function SectionHeader({
         title={title}
         back={back}
         titleAccessory={titleAccessory}
+        pinAccessoryEnd={pinAccessoryEnd}
         center={center}
         actions={actionsNode}
         shrinkActions={shrinkActions}
