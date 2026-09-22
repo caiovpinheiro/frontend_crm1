@@ -142,6 +142,11 @@ interface PageHeaderProps {
    * Calendário, switchers e hamburger — à DIREITA, depois da busca.
    */
   actions?: React.ReactNode
+  /**
+   * Ações no tamanho do conteúdo. A busca ocupa o restante da linha.
+   * Sem isso, o cluster de ações também cresce e deixa um vão.
+   */
+  shrinkActions?: boolean
   className?: string
 }
 
@@ -194,6 +199,7 @@ export function PageHeader({
   titleAccessory,
   center,
   actions,
+  shrinkActions = false,
   className,
 }: PageHeaderProps) {
   const hasControls = Boolean(center || actions)
@@ -217,7 +223,14 @@ export function PageHeader({
         <div className={PAGE_HEADER_CONTROLS_CLASS}>
           {center ? <div className={PAGE_HEADER_SEARCH_SLOT_CLASS}>{center}</div> : null}
           {actions ? (
-            <div className="flex min-w-0 flex-1 items-center gap-2 md:shrink-0 md:flex-none">{actions}</div>
+            <div
+              className={cn(
+                "flex min-w-0 items-center gap-2 md:shrink-0 md:flex-none",
+                shrinkActions ? "shrink-0" : "flex-1",
+              )}
+            >
+              {actions}
+            </div>
           ) : null}
         </div>
       ) : null}
