@@ -12,7 +12,6 @@ import {
   messagesKey,
 } from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
-import { playInboxPing } from "./use-inbox-sound";
 import {
   conversationUpdatedLikelyOnTabs,
   inboxQueueTabFor,
@@ -72,13 +71,8 @@ import {
  *    Reconnect após gap: um refetch de lista + counts + mensagens do
  *    ticket aberto (o gap não tem replay).
  *
- * Aviso sonoro: só em inbound destinado a este operador (assignedToId),
- * para não tocar em quem tem a inbox vazia / não é responsável.
+ * Aviso sonoro e toast: `InboxMessageAlerts` (layout global), não aqui.
  */
-
-type InfiniteInboxPage = {
-  items?: Array<{ id: string; assignedToId?: string | null }>;
-};
 
 type NewMessagePayload = {
   conversationId?: string;
@@ -926,47 +920,9 @@ function applyConversationRowToInboxCaches(
   }
 }
 
-function shouldPlayInboundPing(
-  qc: QueryClient,
-  currentUserId: string | null | undefined,
-  data: {
-    conversationId?: string;
-    direction?: string;
-    assignedToId?: string | null;
-  },
-): boolean {
-  if (data.direction !== "in") return false;
-  if (!currentUserId) return false;
-
-  // Payload novo: responsável explícito no SSE.
-  if (typeof data.assignedToId === "string" && data.assignedToId.length > 0) {
-    return data.assignedToId === currentUserId;
-  }
-  // Sem responsável → fila livre; não é "mensagem deste operador".
-  if (data.assignedToId === null) return false;
-
-  // Payload legado (sem assignedToId): só toca se a conversa já está na
-  // lista de inbox deste cliente (visibilidade já filtrada no GET).
-  if (!data.conversationId) return false;
-  const entries = qc.getQueriesData<{ pages?: InfiniteInboxPage[] }>({
-    queryKey: ["inbox-conversations"],
-  });
-  for (const [, cached] of entries) {
-    const pages = cached?.pages;
-    if (!pages) continue;
-    for (const page of pages) {
-      const hit = page?.items?.find((c) => c.id === data.conversationId);
-      if (!hit) continue;
-      if (hit.assignedToId == null) return false;
-      return hit.assignedToId === currentUserId;
-    }
-  }
-  return false;
-}
-
 export function useInboxRealtime(options: {
   activeConversationId: string | null;
-  /** Usuário logado — necessário para filtrar o bip por responsável. */
+  /** Usuário logado — decide o patch do card e a aba (bip: `InboxMessageAlerts`). */
   currentUserId?: string | null;
   enabled?: boolean;
 }) {
@@ -1087,14 +1043,6 @@ export function useInboxRealtime(options: {
       {
       new_message: (raw: unknown) => {
         const data = raw as NewMessagePayload;
-        try {
-          if (shouldPlayInboundPing(qc, userIdRef.current, data)) {
-            playInboxPing();
-          }
-        } catch (e) {
-          console.error("[sse] inbound ping failed", e);
-        }
-
         // Atualização do chat aberto: isola da lista para que um erro
         // no merge do thread não quebre o preview do card.
         try {

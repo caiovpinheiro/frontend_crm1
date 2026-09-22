@@ -32,6 +32,7 @@ import { SettingsDrawerProvider } from "@/features/settings/settings-drawer-cont
 import { AgentStatusProvider } from "@/components/crm/agent-status-context";
 import { SendToChatProvider } from "@/features/team-chat/send-to-chat-dialog";
 import { MessageToastProvider } from "@/features/inbox-v2/context/message-toast-context";
+import { InboxMessageAlerts } from "@/components/layout/inbox-message-alerts";
 
 // O TooltipProvider (Radix) é provido uma única vez na raiz (app/providers.tsx),
 // cobrindo tanto os TooltipGlass quanto os TooltipContent/TooltipHost. Não é
@@ -50,6 +51,8 @@ export default function AppLayout({
       <ChatThemeApplier />
       <SystemPresenceHeartbeat />
       <InboxConversationsPrefetch />
+      {/* Bip + toast de mensagem recebida em qualquer tela do CRM. */}
+      <InboxMessageAlerts />
       <div className="v2-root v2-min-screen">
         {/* Trilho de navegação ÚNICO e PERSISTENTE. Vive no layout para
             NÃO remontar ao navegar. Posição fixa sobre a 1ª coluna do grid
