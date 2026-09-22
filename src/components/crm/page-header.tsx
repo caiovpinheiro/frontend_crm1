@@ -248,6 +248,7 @@ export function PageHeader({
             <div
               className={cn(
                 "flex min-w-0 items-center gap-2 md:shrink-0 md:flex-none",
+                shrinkActions && !center && "ml-auto",
                 shrinkActions ? "shrink-0" : "flex-1",
               )}
             >

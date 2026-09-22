@@ -495,6 +495,24 @@ export default function DistributionClientPage({
     !(!useDemo && respQuery.error);
 
   const showHeaderTools = smartInstalled || view === "coverage";
+  const showViewToggle =
+    ((pageMode === "smart" && view !== "coverage") || pageMode === "leads") &&
+    smartInstalled;
+  const distributionMenu =
+    pageMode === "smart" ? (
+      <DistributionActionsMenu
+        onTest={handleTest}
+        testing={simulateMut.isPending}
+        onRetry={handleRetry}
+        retrying={retryMut.isPending}
+        canRetry={pendingTotal > 0}
+        hasFilters={hasFilters}
+        onClearFilters={clearFilters}
+        onDepartmentsConfig={
+          canManage && !useDemo ? () => setDeptConfigOpen(true) : undefined
+        }
+      />
+    ) : null;
   const headerTabsRow = (className: string) =>
     showHeaderTools ? (
       <div className={className}>
@@ -664,9 +682,7 @@ export default function DistributionClientPage({
           actions={
             showHeaderTools ? (
               <div className="flex min-w-0 items-center gap-2">
-                {((pageMode === "smart" && view !== "coverage") ||
-                  pageMode === "leads") &&
-                smartInstalled ? (
+                {showViewToggle ? (
                   <ViewToggle value={listView} onChange={setListView} />
                 ) : null}
                 {headerTabsRow(
@@ -677,24 +693,7 @@ export default function DistributionClientPage({
           }
           shrinkActions
           menu={pageMode === "smart" && (smartInstalled || view === "coverage")}
-          menuSlot={
-            pageMode === "smart" ? (
-            <DistributionActionsMenu
-              onTest={handleTest}
-              testing={simulateMut.isPending}
-              onRetry={handleRetry}
-              retrying={retryMut.isPending}
-              canRetry={pendingTotal > 0}
-              hasFilters={hasFilters}
-              onClearFilters={clearFilters}
-              onDepartmentsConfig={
-                canManage && !useDemo
-                  ? () => setDeptConfigOpen(true)
-                  : undefined
-              }
-            />
-            ) : undefined
-          }
+          menuSlot={distributionMenu}
         >
           {headerTabsRow(
             "-mt-2 mb-2 flex w-full min-w-0 items-center gap-2 px-1 md:hidden",
