@@ -611,7 +611,7 @@ export default function DistributionClientPage({
           }
           actions={
             smartInstalled || view === "coverage" ? (
-              <div className="flex min-w-0 w-full flex-nowrap items-center gap-2">
+              <div className="flex min-w-0 w-full flex-1 flex-nowrap items-center gap-2">
                 {((pageMode === "smart" && view !== "coverage") ||
                   pageMode === "leads") &&
                 smartInstalled ? (
