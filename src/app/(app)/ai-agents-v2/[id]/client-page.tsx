@@ -29,6 +29,7 @@ import {
   IconMessageCircle2,
   IconTextSize,
   IconListCheck,
+  IconUser,
   IconChevronDown,
   IconChevronUp,
   IconGripVertical,
@@ -102,6 +103,7 @@ type Catalogs = {
   products: Array<{ id: string; name: string }>;
   whatsappTemplates: Array<{ id: string; name: string }>;
   models: Array<{ id: string; name: string }>;
+  contacts: Array<{ id: string; name: string; phone?: string | null; email?: string | null }>;
 };
 
 type KnowledgeDoc = {
@@ -133,6 +135,10 @@ type TestResult = {
   globalRules?: string[];
   systemPrompt?: string;
   expandedByLength?: boolean;
+  crmContext?: {
+    contact?: Record<string, unknown> | null;
+    selectedDeal?: Record<string, unknown> | null;
+  };
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -456,11 +462,14 @@ async function testAgent(
   id: string,
   userMessage: string,
   history: Array<{ role: "user" | "assistant"; content: string }>,
+  contactId?: string,
 ): Promise<TestResult> {
+  const body: Record<string, unknown> = { userMessage, history };
+  if (contactId) body.contactId = contactId;
   const res = await apiFetch(`/api/ai-agents-v2/${id}/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userMessage, history }),
+    body: JSON.stringify(body),
   });
   return parseApiResponse<TestResult>(res, "Erro ao testar agente.");
 }
@@ -976,6 +985,7 @@ export default function AIAgentV2EditPage() {
               <StepTestPublish
                 agentId={id}
                 dirty={dirty}
+                catalogs={catalogs}
                 onSave={async () => saveDraftMutation.mutateAsync()}
                 onGoToTheme={() => handleStepChange(6)}
                 onGoToRule={() => handleStepChange(7)}
@@ -2925,6 +2935,24 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
 
       <div>
         <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <IconUser className="size-3.5" /> Cliente carregado
+        </p>
+        {result.crmContext?.contact && Object.keys(result.crmContext.contact).length > 0 ? (
+          <ul className="space-y-1 rounded-lg bg-background px-3 py-2 text-[13px]">
+            {Object.entries(result.crmContext.contact).map(([k, v]) => (
+              <li key={k}>
+                <span className="font-medium">{k}:</span>{" "}
+                <span className="text-muted-foreground">{String(v).slice(0, 200)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-lg bg-background px-3 py-2 text-[13px] text-muted-foreground">Nenhum contato encontrado para esta conversa.</p>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
           <IconBulb className="size-3.5" /> Por que respondeu isso
         </p>
         <p className="rounded-lg bg-background px-3 py-2 text-[13px]">{result.reason || "Sem motivo informado."}</p>
@@ -3003,12 +3031,14 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
 function StepTestPublish({
   agentId,
   dirty,
+  catalogs,
   onSave,
   onGoToTheme,
   onGoToRule,
 }: {
   agentId: string;
   dirty: boolean;
+  catalogs: Catalogs;
   onSave: () => Promise<void>;
   onGoToTheme?: (themeId: string) => void;
   onGoToRule?: (ruleId: string) => void;
@@ -3017,6 +3047,7 @@ function StepTestPublish({
   const [turns, setTurns] = React.useState<ChatTurn[]>([]);
   const [testing, setTesting] = React.useState(false);
   const [openWhyId, setOpenWhyId] = React.useState<string | null>(null);
+  const [testContactId, setTestContactId] = React.useState<string>("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -3037,7 +3068,7 @@ function StepTestPublish({
     setMessage("");
     setTesting(true);
     try {
-      const r = await testAgent(agentId, text, history);
+      const r = await testAgent(agentId, text, history, testContactId || undefined);
       setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, result: r } : t)));
       setOpenWhyId(turnId);
     } catch (err) {
@@ -3060,11 +3091,27 @@ function StepTestPublish({
         title="Conversa de teste"
         description="Converse com o agente como se fosse o cliente, sem afetar clientes reais. Depois de cada resposta, veja os bastidores em “Por que respondeu isso?”."
       >
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">Simulação isolada — nada é enviado pelo canal real nem grava dados do cliente.</p>
-          <Button variant="outline" size="sm" onClick={restart} disabled={turns.length === 0} className="gap-1">
-            <IconRefresh className="size-3.5" /> Recomeçar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={testContactId} onValueChange={setTestContactId}>
+              <SelectTrigger className="w-[260px] text-xs">
+                <SelectValue placeholder="Simular como contato genérico" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Contato genérico</SelectItem>
+                {catalogs.contacts.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                    {c.phone ? ` · ${c.phone}` : c.email ? ` · ${c.email}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={restart} disabled={turns.length === 0} className="gap-1">
+              <IconRefresh className="size-3.5" /> Recomeçar
+            </Button>
+          </div>
         </div>
 
         <div
