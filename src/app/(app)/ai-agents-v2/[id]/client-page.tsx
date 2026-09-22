@@ -132,6 +132,7 @@ type TestResult = {
   responseLength?: string;
   globalRules?: string[];
   systemPrompt?: string;
+  expandedByLength?: boolean;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -2889,6 +2890,12 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
         )}
         {result.handoff && <Badge variant="secondary">Passou para uma pessoa</Badge>}
         {result.closed && <Badge variant="secondary">Encerrou a conversa</Badge>}
+        {result.expandedByLength && (
+          <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200 bg-amber-50">
+            <IconAlertCircle className="size-3" />
+            Resposta foi curta demais; modelo reconvidado com mais tokens
+          </Badge>
+        )}
         {result.tone && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-1 text-xs font-medium">
             <IconMoodSmile className="size-3.5 text-muted-foreground" />
