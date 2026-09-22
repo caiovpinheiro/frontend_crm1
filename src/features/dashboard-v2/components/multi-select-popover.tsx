@@ -37,8 +37,8 @@ interface MultiSelectPopoverProps {
   tooltip?: string;
   icon?: React.ReactNode;
   options: MultiSelectOption[];
-  selected: string[];
-  onChange: (next: string[]) => void;
+  selected?: string[];
+  onChange?: (next: string[]) => void;
   emptyLabel?: string;
   disabled?: boolean;
   width?: number;
@@ -46,6 +46,10 @@ interface MultiSelectPopoverProps {
   triggerClassName?: string;
   /** Força o campo de busca. Sem isso, só aparece com mais de 8 opções. */
   searchable?: boolean;
+  /** Modo seleção única: sem checkboxes, fecha ao escolher e permite value/onValueChange. */
+  single?: boolean;
+  value?: string;
+  onValueChange?: (value: string) => void;
 }
 
 export function MultiSelectPopover({
@@ -53,14 +57,22 @@ export function MultiSelectPopover({
   tooltip,
   icon,
   options,
-  selected,
-  onChange,
+  selected = [],
+  onChange = () => {},
   emptyLabel = "Nenhuma opção disponível",
   disabled,
   width = 264,
   triggerClassName,
   searchable,
+  single,
+  value,
+  onValueChange,
 }: MultiSelectPopoverProps) {
+  const isSingle = Boolean(single);
+  const effectiveSelected = isSingle ? (value ? [value] : []) : selected;
+  const effectiveOnChange = isSingle
+    ? (next: string[]) => onValueChange?.(next[0] ?? "")
+    : onChange;
   const { open, rect, triggerRef, popoverRef, toggle, close } =
     usePortalPopover();
   const portalContainer = useModalPortalContainer();
@@ -77,15 +89,23 @@ export function MultiSelectPopover({
     });
   }, [options, query]);
 
-  function toggleValue(value: string) {
-    if (selected.includes(value)) {
-      onChange(selected.filter((v) => v !== value));
+  function toggleValue(itemValue: string) {
+    if (isSingle) {
+      effectiveOnChange(effectiveSelected[0] === itemValue ? [] : [itemValue]);
+      close();
+      return;
+    }
+    if (selected.includes(itemValue)) {
+      onChange(selected.filter((v) => v !== itemValue));
     } else {
-      onChange([...selected, value]);
+      onChange([...selected, itemValue]);
     }
   }
 
   const position = computePopoverPosition(rect, 320, width, 8);
+  const selectedOption = isSingle
+    ? options.find((o) => o.value === effectiveSelected[0])
+    : undefined;
 
   const labelNode = tooltip ? (
     <TooltipProvider>
@@ -114,15 +134,24 @@ export function MultiSelectPopover({
         disabled={disabled}
         className={cn(
           "flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] border bg-[var(--glass-bg-overlay)] px-2.5 font-display text-[12px] font-semibold shadow-[var(--glass-shadow-sm)] backdrop-blur-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-          count > 0
+          effectiveSelected.length > 0
             ? "border-[var(--brand-primary)]/50 text-[var(--text-primary)] ring-1 ring-[var(--brand-primary)]/25"
             : "border-[var(--glass-border)] text-[var(--text-secondary)] hover:border-[var(--brand-primary)]/35",
           triggerClassName,
         )}
       >
         {icon && <span className="text-[var(--text-muted)]">{icon}</span>}
-        {labelNode}
-        {count > 0 && (
+        {selectedOption ? (
+          <span className="min-w-0 truncate text-left">
+            <span className="block truncate">{selectedOption.label}</span>
+            {selectedOption.sub && (
+              <span className="block truncate text-[10px] font-normal text-[var(--text-muted)]">{selectedOption.sub}</span>
+            )}
+          </span>
+        ) : (
+          labelNode
+        )}
+        {!isSingle && count > 0 && (
           <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-white">
             {count}
           </span>
@@ -148,7 +177,7 @@ export function MultiSelectPopover({
               <span className="font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                 {labelNode}
               </span>
-              {count > 0 && (
+              {!isSingle && count > 0 && (
                 <button
                   type="button"
                   onClick={() => onChange([])}
@@ -183,7 +212,7 @@ export function MultiSelectPopover({
                 </p>
               ) : (
                 visibleOptions.map((opt) => {
-                  const checked = selected.includes(opt.value);
+                  const checked = effectiveSelected.includes(opt.value);
                   return (
                     <button
                       key={opt.value}
@@ -191,16 +220,18 @@ export function MultiSelectPopover({
                       onClick={() => toggleValue(opt.value)}
                       className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--glass-bg-subtle)]"
                     >
-                      <span
-                        className={cn(
-                          "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
-                          checked
-                            ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
-                            : "border-[var(--glass-border)]",
-                        )}
-                      >
-                        {checked && <IconCheck size={11} stroke={3} />}
-                      </span>
+                      {!isSingle && (
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                            checked
+                              ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
+                              : "border-[var(--glass-border)]",
+                          )}
+                        >
+                          {checked && <IconCheck size={11} stroke={3} />}
+                        </span>
+                      )}
                       {opt.color && (
                         <span
                           className="h-3 w-3 shrink-0 rounded-full"
@@ -220,6 +251,9 @@ export function MultiSelectPopover({
                           </span>
                         )}
                       </span>
+                      {isSingle && checked && (
+                        <IconCheck size={14} className="shrink-0 text-[var(--brand-primary)]" />
+                      )}
                     </button>
                   );
                 })

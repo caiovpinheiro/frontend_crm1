@@ -3380,20 +3380,22 @@ function StepTestPublish({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">Simulação isolada — nada é enviado pelo canal real nem grava dados do cliente.</p>
           <div className="flex items-center gap-2">
-            <Select value={testContactId} onValueChange={setTestContactId}>
-              <SelectTrigger className="w-[260px] text-xs">
-                <SelectValue placeholder="Simular como contato genérico" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Contato genérico</SelectItem>
-                {catalogs.contacts.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                    {c.phone ? ` · ${c.phone}` : c.email ? ` · ${c.email}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectPopover
+              label="Simular como contato genérico"
+              options={[
+                { value: "", label: "Contato genérico" },
+                ...catalogs.contacts.map((c) => ({
+                  value: c.id,
+                  label: c.name || c.phone || c.email || c.id,
+                  sub: c.phone || c.email || undefined,
+                })),
+              ]}
+              single
+              value={testContactId}
+              onValueChange={setTestContactId}
+              searchable
+              width={320}
+            />
             <Button variant="outline" size="sm" onClick={restart} disabled={turns.length === 0} className="gap-1">
               <IconRefresh className="size-3.5" /> Recomeçar
             </Button>
