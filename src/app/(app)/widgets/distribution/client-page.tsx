@@ -494,6 +494,58 @@ export default function DistributionClientPage({
     !(!useDemo && respQuery.isLoading) &&
     !(!useDemo && respQuery.error);
 
+  const showHeaderTools = smartInstalled || view === "coverage";
+  const headerTabsRow = (className: string) =>
+    showHeaderTools ? (
+      <div className={className}>
+        {pageMode === "leads" ? (
+          <HeaderTabs
+            tabs={[
+              { key: "consultants", label: "Consultores" },
+              { key: "ranking", label: "Ranking" },
+              { key: "history", label: "Histórico" },
+            ]}
+            value={leadsPane}
+            onChange={changeLeadsPane}
+          />
+        ) : (
+          <HeaderTabs
+            tabs={[
+              { key: "team", label: "Equipe", badge: teamListCount },
+              { key: "coverage", label: "Cobertura" },
+              { key: "queue", label: "Fila de espera", badge: pendingBadge },
+              { key: "logs", label: "Logs" },
+            ]}
+            value={view}
+            onChange={(v) => setView(v)}
+          />
+        )}
+        {adminCount > 0 && pageMode === "smart" ? (
+          <button
+            type="button"
+            onClick={() => setShowAdmins((v) => !v)}
+            className={cn(
+              "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
+              showAdmins
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground",
+            )}
+            title={
+              showAdmins
+                ? `Ocultar ${adminCount} admin(s)`
+                : `Mostrar ${adminCount} admin(s) oculto(s)`
+            }
+            aria-label={
+              showAdmins ? "Ocultar administradores" : "Mostrar administradores"
+            }
+            aria-pressed={showAdmins}
+          >
+            {showAdmins ? <IconEye size={16} /> : <IconEyeOff size={16} />}
+          </button>
+        ) : null}
+      </div>
+    ) : null;
+
   return (
     <div className="v2-screen grid min-w-0 grid-cols-[var(--nav-rail-w,72px)_minmax(0,1fr)] gap-4 overflow-hidden p-4">
       {navRail ?? <NavRailSpacer />}
@@ -610,61 +662,20 @@ export default function DistributionClientPage({
             ) : undefined
           }
           actions={
-            smartInstalled || view === "coverage" ? (
-              <div className="flex min-w-0 w-full flex-1 flex-nowrap items-center gap-2">
+            showHeaderTools ? (
+              <div className="flex min-w-0 items-center gap-2">
                 {((pageMode === "smart" && view !== "coverage") ||
                   pageMode === "leads") &&
                 smartInstalled ? (
                   <ViewToggle value={listView} onChange={setListView} />
                 ) : null}
-                {pageMode === "leads" ? (
-                  <HeaderTabs
-                    tabs={[
-                      { key: "consultants", label: "Consultores" },
-                      { key: "ranking", label: "Ranking" },
-                      { key: "history", label: "Histórico" },
-                    ]}
-                    value={leadsPane}
-                    onChange={changeLeadsPane}
-                  />
-                ) : (
-                  <HeaderTabs
-                    tabs={[
-                      { key: "team", label: "Equipe", badge: teamListCount },
-                      { key: "coverage", label: "Cobertura" },
-                      { key: "queue", label: "Fila de espera", badge: pendingBadge },
-                      { key: "logs", label: "Logs" },
-                    ]}
-                    value={view}
-                    onChange={(v) => setView(v)}
-                  />
-                )}
-                {adminCount > 0 && pageMode === "smart" && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAdmins((v) => !v)}
-                    className={cn(
-                      "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
-                      showAdmins
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-card text-muted-foreground hover:text-foreground",
-                    )}
-                    title={
-                      showAdmins
-                        ? `Ocultar ${adminCount} admin(s)`
-                        : `Mostrar ${adminCount} admin(s) oculto(s)`
-                    }
-                    aria-label={
-                      showAdmins ? "Ocultar administradores" : "Mostrar administradores"
-                    }
-                    aria-pressed={showAdmins}
-                  >
-                    {showAdmins ? <IconEye size={16} /> : <IconEyeOff size={16} />}
-                  </button>
+                {headerTabsRow(
+                  "hidden min-w-0 flex-1 items-center gap-2 md:flex",
                 )}
               </div>
             ) : undefined
           }
+          shrinkActions
           menu={pageMode === "smart" && (smartInstalled || view === "coverage")}
           menuSlot={
             pageMode === "smart" ? (
@@ -684,7 +695,11 @@ export default function DistributionClientPage({
             />
             ) : undefined
           }
-        />
+        >
+          {headerTabsRow(
+            "-mt-2 mb-2 flex w-full min-w-0 items-center gap-2 px-1 md:hidden",
+          )}
+        </SectionHeader>
         }
         bodyClassName="gap-3 sm:gap-4"
       >
