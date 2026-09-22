@@ -541,7 +541,7 @@ function InboxFilterModalShell({
             </button>
           </header>
 
-          <div className="min-h-0 flex-1">{children}</div>
+          <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
 
           <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)] px-5 py-3">
             <p className="font-body text-[12px] text-[var(--text-muted)]">
@@ -1056,8 +1056,8 @@ export function InboxFilterButton({
   );
 
   const tagsColumn = (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-[1] space-y-2 bg-[var(--glass-bg-modal)] pb-2">
+    <div className={cn("flex min-h-0 flex-col", isDesktop && "h-full overflow-hidden")}>
+      <div className="shrink-0 space-y-2 pb-2">
         <div className="flex items-center justify-between px-0.5">
           <span className="font-display text-[10px] font-bold uppercase tracking-[0.09em] text-[var(--text-muted)]">
             Tags
@@ -1083,9 +1083,15 @@ export function InboxFilterButton({
           </button>
         )}
       </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex flex-wrap content-start gap-1.5 pt-1">
+      <div
+        className={cn(
+          "min-w-0 overflow-x-hidden",
+          isDesktop
+            ? "min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : undefined,
+        )}
+      >
+        <div className="flex min-w-0 flex-wrap content-start gap-1.5 pt-1">
           {filteredTags.map((tag) => {
             const selected = selectedTagIds.includes(tag.id);
             return (
@@ -1109,8 +1115,13 @@ export function InboxFilterButton({
   );
 
   const middleContent = (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-[2] border-b border-[var(--glass-border-subtle)] bg-[var(--glass-bg-modal)] px-4 pb-3 pt-4">
+    <div className={cn("flex min-h-0 flex-col", isDesktop && "h-full overflow-hidden")}>
+      <div
+        className={cn(
+          "shrink-0 border-b border-[var(--glass-border-subtle)] bg-[var(--glass-bg-modal)] px-4 pb-3 pt-4",
+          isDesktop && "sticky top-0 z-[2]",
+        )}
+      >
         <div
           role="tablist"
           aria-label="Categorias de filtros"
@@ -1151,7 +1162,12 @@ export function InboxFilterButton({
           })}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-5 [scrollbar-width:thin]">
+      <div
+        className={cn(
+          "overflow-x-hidden p-5 [scrollbar-width:thin]",
+          isDesktop ? "min-h-0 flex-1 overflow-y-auto" : "overflow-visible",
+        )}
+      >
         <div className="mb-4">
           <h3 className="font-display text-[15px] font-bold text-[var(--text-primary)]">
             {MIDDLE_TABS.find((t) => t.id === middleTab)?.label}
@@ -1239,12 +1255,12 @@ export function InboxFilterButton({
                 </aside>
               </div>
             ) : (
-              <div className="h-full space-y-4 overflow-y-auto p-4">
+              <div className="h-full space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain p-4">
                 {sortColumn}
                 <div className="border-t border-[var(--glass-border-subtle)] pt-3">
                   {middleContent}
                 </div>
-                <div className="min-h-[220px] rounded-[var(--radius-lg)] border border-[var(--glass-border-subtle)] p-3">
+                <div className="min-w-0 overflow-x-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border-subtle)] p-3">
                   {tagsColumn}
                 </div>
               </div>

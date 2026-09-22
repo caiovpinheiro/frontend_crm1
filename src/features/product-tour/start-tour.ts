@@ -36,6 +36,11 @@ function readV2Zoom(): number {
 /** Caixa na viewport. Compensa só quando o rect ainda está em px de layout. */
 function visualBox(el: HTMLElement): Box {
   const r = el.getBoundingClientRect();
+  const root = document.querySelector(".v2-root") as HTMLElement | null;
+  // Portal (menu de ações) sai do `.v2-root`: o rect já está em px de viewport.
+  if (!root || !root.contains(el)) {
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }
   const zoom = readV2Zoom();
   const layoutW = el.offsetWidth;
   const reported = layoutW > 0 ? r.width / layoutW : 1;
@@ -86,25 +91,34 @@ function snapDriverToElement(el: Element | undefined): void {
   const margin = 8;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const left = Math.max(
-    margin,
-    Math.min(box.x + box.width / 2 - popW / 2, vw - popW - margin),
-  );
+  const large = box.height > vh * 0.42;
 
+  let left = box.x + box.width / 2 - popW / 2;
   let top = box.y + box.height + margin;
-  if (side === "top") {
+
+  if (large) {
+    left = box.x + box.width / 2 - popW / 2;
+    top = vh - popH - margin;
+  } else if (side === "left") {
+    left = box.x - popW - margin;
+    top = box.y + box.height / 2 - popH / 2;
+  } else if (side === "right") {
+    left = box.x + box.width + margin;
+    top = box.y + box.height / 2 - popH / 2;
+  } else if (side === "top") {
+    left = box.x + box.width / 2 - popW / 2;
     top = box.y - popH - margin;
   }
-  if (top + popH > vh - margin) {
-    top = Math.max(margin, box.y - popH - margin);
-  }
-  if (top < margin) {
-    top = Math.max(margin, Math.min(box.y + margin, vh - popH - margin));
-  }
+
+  left = Math.max(margin, Math.min(left, vw - popW - margin));
+  top = Math.max(margin, Math.min(top, vh - popH - margin));
 
   pop.style.left = `${left}px`;
   pop.style.right = "auto";
   pop.style.top = `${top}px`;
+
+  const arrow = pop.querySelector(".driver-popover-arrow") as HTMLElement | null;
+  if (arrow) arrow.style.display = large || side === "left" || side === "right" ? "none" : "";
 }
 
 function isElementPainted(el: Element): boolean {
@@ -137,6 +151,9 @@ function ensureTourFallback(step: PageTourStep): void {
   if (queryTourElement(step.element, true)) return;
 
   if (step.fallback === "menu-item") {
+    if (document.querySelector(`[data-tour="${step.element}"]:not([data-tour-ghost])`)) {
+      return;
+    }
     const panel = document.querySelector("[role='menu'], [role='listbox']");
     if (!(panel instanceof HTMLElement)) return;
     const ghost = document.createElement("button");
@@ -147,6 +164,29 @@ function ensureTourFallback(step: PageTourStep): void {
       "flex w-full items-center gap-2.5 px-3 py-2 text-left font-display text-[12.5px] font-bold text-muted-foreground";
     ghost.textContent = step.fallbackLabel ?? step.title;
     panel.appendChild(ghost);
+    return;
+  }
+
+  if (step.fallback === "keeps-card") {
+    const anchor =
+      (step.fallbackAnchor ? queryTourElement(step.fallbackAnchor, true) : null) ??
+      queryTourElement("keeps-board", true) ??
+      queryTourElement("keeps-composer", true);
+    if (!anchor) return;
+    const ghost = document.createElement("article");
+    ghost.dataset.tour = step.element;
+    ghost.dataset.tourGhost = "1";
+    ghost.className =
+      "keep-note-card mt-3 w-[min(100%,18rem)] rounded-xl border border-border bg-card p-4 text-left shadow-none";
+    const title = document.createElement("h3");
+    title.className = "mb-1.5 text-sm font-semibold leading-snug text-foreground";
+    title.textContent = "Script de preço";
+    const body = document.createElement("p");
+    body.className = "text-sm leading-relaxed text-muted-foreground";
+    body.textContent =
+      "A mensalidade deste curso é de R$ 249. Posso enviar o plano de pagamento.";
+    ghost.append(title, body);
+    anchor.insertAdjacentElement("afterend", ghost);
     return;
   }
 
@@ -289,7 +329,8 @@ function stepNeedsMountWait(step: PageTourStep): boolean {
       step.keepsFolder ||
       step.keepsView ||
       step.keepsComposer ||
-      step.keepsChatTab,
+      step.keepsChatTab ||
+      step.keepsScene,
   );
 }
 
@@ -325,6 +366,7 @@ async function goToStepIndex(index: number): Promise<void> {
   }
   const step = tour.steps[index];
   prepareStep(step);
+  if (step?.openMenu) openTourMenu(step.openMenu);
   if (step) {
     const waitMs = step.skipIfMissing
       ? stepNeedsMountWait(step)
@@ -342,7 +384,7 @@ async function goToStepIndex(index: number): Promise<void> {
       return;
     }
   }
-  const resolved = queryTourElement(step.element);
+  const resolved = queryTourElement(step.element, true) ?? queryTourElement(step.element);
   if (resolved) {
     const driveStep = instance.getConfig().steps?.[index];
     if (driveStep) driveStep.element = resolved;
@@ -475,6 +517,7 @@ export function startPageTour(id: string): void {
       void goToStepIndex((state.activeIndex ?? 1) - 1);
     },
     onDestroyed: () => {
+      applyKeepsTourStep({});
       removeTourFallbacks();
       for (const el of document.querySelectorAll("[data-tour-cta]")) el.remove();
       activeTour = null;
@@ -485,6 +528,7 @@ export function startPageTour(id: string): void {
 }
 
 export function stopPageTour(): void {
+  applyKeepsTourStep({});
   removeTourFallbacks();
   for (const el of document.querySelectorAll("[data-tour-cta]")) el.remove();
   activeTour?.destroy();

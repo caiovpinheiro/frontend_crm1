@@ -20,6 +20,11 @@ import {
 } from "./schedule-data";
 
 export const AGENT_COL = "15rem";
+/** Checkbox à esquerda da foto — sai no scroll horizontal. */
+const CHECK_COL = "2.75rem";
+/** Só a foto permanece fixa ao arrastar o horário. */
+const PHOTO_COL = "2.75rem";
+const NAME_COL = `calc(${AGENT_COL} - ${CHECK_COL} - ${PHOTO_COL})`;
 const HOUR_MIN = "2.25rem";
 
 function coverageCellTip(hour: number, work: number, lunch: number): string {
@@ -46,16 +51,21 @@ function CoverageSummaryRow({
       aria-label="Resumo de cobertura por hora"
       className="flex items-stretch border-y-2 border-[var(--brand-primary)]/35 bg-[color-mix(in_srgb,var(--brand-primary)_10%,var(--glass-bg-base))]"
     >
+      <div className="shrink-0" style={{ width: CHECK_COL }} />
       <div
-        className="sticky left-0 z-10 flex shrink-0 flex-col justify-center border-r border-[var(--glass-border)] bg-[color-mix(in_srgb,var(--brand-primary)_10%,var(--glass-bg-base))] px-3 py-2"
-        style={{ width: AGENT_COL }}
+        className="sticky left-0 z-30 shrink-0 self-stretch bg-[color-mix(in_srgb,var(--brand-primary)_10%,var(--glass-bg-base))]"
+        style={{ width: PHOTO_COL }}
+      />
+      <div
+        className="flex min-w-0 shrink-0 flex-col justify-center py-2 pr-3"
+        style={{ width: NAME_COL }}
       >
-        <span className="font-display text-[13px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-primary)]">
-          Cobertura
-        </span>
-        <span className="font-body text-[10px] font-medium text-[var(--text-muted)]">
-          agentes em expediente
-        </span>
+          <span className="truncate font-display text-[13px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-primary)]">
+            Cobertura
+          </span>
+          <span className="truncate font-body text-[10px] font-medium text-[var(--text-muted)]">
+            agentes em expediente
+          </span>
       </div>
       <div className="relative min-w-0 flex-1">
         <div className="grid h-full min-h-[3.25rem]" style={hourGrid}>
@@ -187,23 +197,61 @@ export function CoverageGantt({
       : null;
   const hourGrid = { gridTemplateColumns: `repeat(${span}, minmax(${HOUR_MIN}, 1fr))` };
   const minWidth = `calc(${AGENT_COL} + ${span} * ${HOUR_MIN})`;
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const pinRef = React.useRef<HTMLDivElement>(null);
+  const lineRef = React.useRef<HTMLDivElement>(null);
+  const [nowHidden, setNowHidden] = React.useState(false);
+
+  const syncNowLine = React.useCallback(() => {
+    const line = lineRef.current;
+    const pin = pinRef.current;
+    if (!line || !pin) {
+      setNowHidden(false);
+      return;
+    }
+    const hide = line.getBoundingClientRect().left <= pin.getBoundingClientRect().right + 0.5;
+    setNowHidden((prev) => (prev === hide ? prev : hide));
+  }, []);
+
+  React.useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    syncNowLine();
+    el.addEventListener("scroll", syncNowLine, { passive: true });
+    const ro = new ResizeObserver(syncNowLine);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", syncNowLine);
+      ro.disconnect();
+    };
+  }, [syncNowLine, nowPct, agents.length, hours.length]);
 
   return (
     <section className="min-w-0 overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg-base)] shadow-[var(--glass-shadow-sm)]">
-      <div className="overflow-x-auto">
+      <div ref={scrollerRef} className="overflow-x-auto">
         <div className="relative min-w-full" style={{ minWidth }}>
           {/* Régua: mini-gráfico de cobertura por hora */}
           <div className="flex border-b border-[var(--glass-border)]">
             <div
-              className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-3 py-2"
-              style={{ width: AGENT_COL }}
+              className="flex shrink-0 items-center bg-[var(--glass-bg-base)] pl-3"
+              style={{ width: CHECK_COL }}
             >
               <CheckboxGlass
                 checked={allSelected}
                 onChange={onToggleAll}
                 aria-label="Selecionar todos os agentes filtrados"
               />
-              <span className="font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            </div>
+            <div
+              ref={pinRef}
+              className="sticky left-0 z-30 shrink-0 self-stretch bg-[var(--glass-bg-base)]"
+              style={{ width: PHOTO_COL }}
+            />
+            <div
+              className="flex min-w-0 shrink-0 items-center bg-[var(--glass-bg-base)] pr-3"
+              style={{ width: NAME_COL }}
+            >
+              <span className="truncate font-display text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                 Agente
               </span>
             </div>
@@ -256,7 +304,12 @@ export function CoverageGantt({
           <div className="relative">
             {nowPct !== null && (
               <div
-                className="pointer-events-none absolute inset-y-0 z-20 w-px bg-[var(--color-danger)]"
+                ref={lineRef}
+                className={
+                  nowHidden
+                    ? "pointer-events-none invisible absolute inset-y-0 z-20 w-px bg-[var(--color-danger)]"
+                    : "pointer-events-none absolute inset-y-0 z-20 w-px bg-[var(--color-danger)]"
+                }
                 style={{
                   left: `calc(${AGENT_COL} + (100% - ${AGENT_COL}) * ${nowPct / 100})`,
                 }}
@@ -286,30 +339,50 @@ export function CoverageGantt({
                 >
                   <div
                     className={cn(
-                      "sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-[var(--glass-border)] px-3 py-2 group-hover:bg-[var(--glass-bg-panel)]",
+                      "flex shrink-0 items-center pl-3 group-hover:bg-[var(--glass-bg-panel)]",
                       odd
                         ? "bg-[color-mix(in_srgb,var(--glass-bg-panel)_40%,var(--glass-bg-base))]"
                         : "bg-[var(--glass-bg-base)]",
                     )}
-                    style={{ width: AGENT_COL }}
+                    style={{ width: CHECK_COL }}
                   >
-                    <CheckboxGlass
-                      checked={selected.has(agent.id)}
-                      onChange={() => onToggle(agent.id)}
-                      aria-label={`Selecionar ${agent.name}`}
-                    />
-                    <UserAvatar
-                      size={28}
-                      name={agent.name}
-                      imageUrl={agent.avatarUrl}
-                      status={
-                        presence === "ONLINE"
-                          ? "online"
-                          : presence === "AWAY"
-                            ? "away"
-                            : "offline"
-                      }
-                    />
+                      <CheckboxGlass
+                        checked={selected.has(agent.id)}
+                        onChange={() => onToggle(agent.id)}
+                        aria-label={`Selecionar ${agent.name}`}
+                      />
+                    </div>
+                    <div
+                      className={cn(
+                        "sticky left-0 z-30 flex shrink-0 items-center justify-center self-stretch group-hover:bg-[var(--glass-bg-panel)]",
+                        odd
+                          ? "bg-[color-mix(in_srgb,var(--glass-bg-panel)_40%,var(--glass-bg-base))]"
+                          : "bg-[var(--glass-bg-base)]",
+                      )}
+                      style={{ width: PHOTO_COL }}
+                    >
+                      <UserAvatar
+                        size={28}
+                        name={agent.name}
+                        imageUrl={agent.avatarUrl}
+                        status={
+                          presence === "ONLINE"
+                            ? "online"
+                            : presence === "AWAY"
+                              ? "away"
+                              : "offline"
+                        }
+                      />
+                    </div>
+                    <div
+                      className={cn(
+                        "flex min-w-0 shrink-0 items-center gap-2 py-2 pr-3 group-hover:bg-[var(--glass-bg-panel)]",
+                        odd
+                          ? "bg-[color-mix(in_srgb,var(--glass-bg-panel)_40%,var(--glass-bg-base))]"
+                          : "bg-[var(--glass-bg-base)]",
+                      )}
+                      style={{ width: NAME_COL }}
+                    >
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <p

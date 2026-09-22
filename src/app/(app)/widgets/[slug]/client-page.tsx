@@ -15,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { NavRail } from "@/components/crm/nav-rail";
 import { PageHeader } from "@/components/crm/page-header";
 
+import { getApiBaseUrl } from "@/lib/api";
+import { isSafePartnerIframeSrc } from "@/lib/partner-iframe-url";
+import { getTenantBaseDomain } from "@/lib/tenant-url";
 import { useWidgetSso, useWidgets } from "@/features/widgets/hooks";
 import type { WidgetDto } from "@/features/widgets/types";
 
@@ -180,13 +183,38 @@ function SafePartnerIframe({ slug, title, iframeUrl, token, onRetry }: SafePartn
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startedAtRef = useRef<number>(0);
 
-  const src = useMemo(() => buildIframeUrl(iframeUrl, token), [iframeUrl, token]);
+  const allowedSrc = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    let apiOrigin: string | undefined;
+    const apiBase = getApiBaseUrl();
+    if (apiBase) {
+      try {
+        apiOrigin = new URL(apiBase).origin;
+      } catch {
+        apiOrigin = undefined;
+      }
+    }
+    return isSafePartnerIframeSrc(iframeUrl, {
+      pageOrigin: window.location.origin,
+      apiOrigin,
+      tenantBaseDomain: getTenantBaseDomain(),
+    });
+  }, [iframeUrl]);
+
+  const src = useMemo(
+    () => (allowedSrc ? buildIframeUrl(iframeUrl, token) : ""),
+    [allowedSrc, iframeUrl, token],
+  );
 
   // `key` muda quando o token vira ou usuario reclica em "tentar de novo"
   // — forca o iframe a remontar com URL atualizada.
   const iframeKey = `${reloadKey}:${token}`;
 
   useEffect(() => {
+    if (!allowedSrc) {
+      setPhase("error");
+      return;
+    }
     setPhase("loading");
     startedAtRef.current = Date.now();
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -205,7 +233,7 @@ function SafePartnerIframe({ slug, title, iframeUrl, token, onRetry }: SafePartn
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [iframeKey, slug, iframeUrl]);
+  }, [allowedSrc, iframeKey, slug, iframeUrl]);
 
   const handleLoad = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -223,11 +251,12 @@ function SafePartnerIframe({ slug, title, iframeUrl, token, onRetry }: SafePartn
   }, [slug, iframeUrl]);
 
   const openExternal = useCallback(() => {
+    if (!allowedSrc) return;
     // Sem token na URL aberta em nova aba — o parceiro precisa de SSO
     // pra contexto, mas o link "abrir externamente" deve ser limpo
     // (evita vazar JWT no historico do navegador do usuario).
     window.open(iframeUrl, "_blank", "noopener,noreferrer");
-  }, [iframeUrl]);
+  }, [allowedSrc, iframeUrl]);
 
   const retry = useCallback(() => {
     setReloadKey((k) => k + 1);
@@ -263,22 +292,24 @@ function SafePartnerIframe({ slug, title, iframeUrl, token, onRetry }: SafePartn
               <IconRefresh className="size-3.5" />
               Tentar novamente
             </Button>
+            {allowedSrc ? (
             <Button size="sm" variant="ghost" onClick={openExternal}>
               <IconExternalLink className="size-3.5" />
               Abrir em nova aba
             </Button>
+            ) : null}
           </div>
         </div>
       )}
 
+      {allowedSrc && src ? (
       <iframe
         key={iframeKey}
         src={src}
         title={title}
-        // Sandbox restritivo. allow-same-origin necessario pra muitos apps
-        // funcionarem (cookies/localStorage proprios). Se algum parceiro
-        // precisar de allow-popups/allow-downloads, expandimos por widget
-        // no futuro via campo no banco.
+        // allow-scripts + allow-same-origin: scripts rodam no origin do
+        // parceiro (src já recusado se for CRM/API/tenant). Sem isso os
+        // widgets externos quebram cookies/localStorage próprios.
         sandbox="allow-scripts allow-forms allow-same-origin allow-popups-to-escape-sandbox"
         allow="clipboard-read; clipboard-write"
         referrerPolicy="no-referrer"
@@ -286,6 +317,7 @@ function SafePartnerIframe({ slug, title, iframeUrl, token, onRetry }: SafePartn
         onError={handleError}
         className="h-full w-full flex-1 border-0 bg-white"
       />
+      ) : null}
     </div>
   );
 }

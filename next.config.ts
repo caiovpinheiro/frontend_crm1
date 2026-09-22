@@ -73,6 +73,22 @@ function securityHeaders(): { key: string; value: string }[] {
       value: "max-age=31536000; includeSubDomains",
     });
   }
+  // CSP: NÃO enviar Content-Security-Policy nem Report-Only nesta etapa.
+  // Next.js 15 (inline scripts do App Router), Serwist (`blob:` worker),
+  // SSE/WebSocket (`connect-src`), iframe de e-mail (srcDoc), cockpit e
+  // widgets de parceiro (`frame-src`) quebram com uma política estreita.
+  // Rascunho Report-Only para homolog (nonces do Next quando estáveis;
+  // sem unsafe-eval permanente):
+  // default-src 'self';
+  // script-src 'self' 'nonce-{NEXT}' 'strict-dynamic';
+  // style-src 'self' 'unsafe-inline';
+  // img-src 'self' data: blob: https:;
+  // connect-src 'self' https: wss:;
+  // frame-src 'self' blob: https:;
+  // worker-src 'self' blob:;
+  // media-src 'self' blob: https:;
+  // object-src 'none'; base-uri 'self'; form-action 'self';
+  // frame-ancestors 'self';
   return headers;
 }
 

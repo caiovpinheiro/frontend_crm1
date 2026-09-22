@@ -138,7 +138,7 @@ import {
 import { pickBulkCloseDepartment } from "@/features/inbox-v2/extras/tabulation-dialog";
 import { useUserRole } from "@/hooks/use-user-role";
 import { InboxSearchFilterBar } from "@/features/inbox-v2/extras/filter-panel";
-import { PageTourButton, useQueuedPageTour } from "@/features/product-tour";
+import { PageTourButton } from "@/features/product-tour";
 import {
   isSessionClosedError,
   SESSION_CLOSED_TOAST,
@@ -299,7 +299,6 @@ export default function InboxV2ClientPage({
   const router = useRouter();
   // Cookie do tenant já autentica o GET. Não espera o NextAuth hidratar.
   const canFetchInbox = sessionStatus !== "unauthenticated";
-  useQueuedPageTour("bwipo-keeps-inbox");
   const isDesktop = useIsDesktop();
   const { data: myPermissions } = useMyPermissions();
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
@@ -2082,12 +2081,14 @@ export default function InboxV2ClientPage({
           />
         }
         floatingCallSlot={
-          <DealCallButton
-            fab
-            dealId={firstDealId}
-            phone={chatContact?.phone || null}
-            contactId={activeContactId ?? undefined}
-          />
+          isDesktop ? (
+            <DealCallButton
+              fab
+              dealId={firstDealId}
+              phone={chatContact?.phone || null}
+              contactId={activeContactId ?? undefined}
+            />
+          ) : null
         }
         notesSlot={notesSlot}
         activitiesSlot={activitiesSlot}
@@ -2237,6 +2238,45 @@ export default function InboxV2ClientPage({
     </TooltipGlass>
   ) : null;
 
+  const mobilePaneToggle = (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-0.5">
+      <button
+        type="button"
+        onClick={() => setMobilePaneTab("chat")}
+        className={cn(
+          "flex items-center gap-1 rounded-[calc(var(--radius-md)-2px)] px-2 py-1 text-[11px] font-semibold transition-colors",
+          mobilePaneTab === "chat"
+            ? "bg-[var(--brand-primary)] text-white shadow-sm"
+            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+        )}
+      >
+        <IconMessageCircle size={13} stroke={2} />
+        Chat
+      </button>
+      <button
+        type="button"
+        onClick={() => setMobilePaneTab("negocio")}
+        className={cn(
+          "flex items-center gap-1 rounded-[calc(var(--radius-md)-2px)] px-2 py-1 text-[11px] font-semibold transition-colors",
+          mobilePaneTab === "negocio"
+            ? "bg-[var(--brand-primary)] text-white shadow-sm"
+            : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+        )}
+      >
+        <IconBriefcase size={13} stroke={2} />
+        Negócio
+      </button>
+    </div>
+  );
+
+  const mobileCallButton = (
+    <DealCallButton
+      dealId={firstDealId}
+      phone={chatContact?.phone || null}
+      contactId={activeContactId ?? undefined}
+    />
+  );
+
   // Layout COM cabeçalho de página (estilo "Caixa de entrada" da
   // referência): NavRail fixo à esquerda; à direita o header no topo e
   // as 3 colunas (lista/chat/contato) numa grade abaixo.
@@ -2249,15 +2289,17 @@ export default function InboxV2ClientPage({
           <div
             className={cn(
               "relative flex min-h-0 min-w-0 flex-col overflow-hidden",
-              headerCollapsed ? "gap-0" : "gap-4",
+              headerCollapsed ? "gap-0" : activeId ? "gap-1" : "gap-4",
             )}
           >
             {renderCollapsiblePageHeader(
               <PageHeader
                 icon={pageHeader.icon}
                 title={pageHeader.title}
+                titleAccessory={activeId ? mobilePaneToggle : undefined}
+                pinAccessoryEnd={!!activeId}
+                className={activeId ? "max-md:gap-y-0 max-md:pb-0" : undefined}
                 center={activeId ? undefined : inboxSearchFilterWithPeriodNode}
-                actions={activeId ? <PageTourButton tourId="inbox" /> : undefined}
               />,
             )}
             {!activeId ? (
@@ -2266,7 +2308,7 @@ export default function InboxV2ClientPage({
               </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                {/* Barra compacta: Voltar | busca/filtro | Chat | Negócio */}
+                {/* Barra compacta: Voltar | busca/filtro | ligação */}
                 <div className="flex min-w-0 shrink-0 items-center gap-1 overflow-hidden border-b border-[var(--glass-border)] bg-[var(--glass-bg)] px-2 py-1.5">
                   <button
                     type="button"
@@ -2279,34 +2321,7 @@ export default function InboxV2ClientPage({
                   <div className="min-w-0 flex-1">
                     {compactInboxSearchFilterNode}
                   </div>
-                  <div className="flex shrink-0 items-center gap-0.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setMobilePaneTab("chat")}
-                      className={cn(
-                        "flex items-center gap-1 rounded-[calc(var(--radius-md)-2px)] px-2 py-1 text-[11px] font-semibold transition-colors",
-                        mobilePaneTab === "chat"
-                          ? "bg-[var(--brand-primary)] text-white shadow-sm"
-                          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                      )}
-                    >
-                      <IconMessageCircle size={13} stroke={2} />
-                      Chat
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMobilePaneTab("negocio")}
-                      className={cn(
-                        "flex items-center gap-1 rounded-[calc(var(--radius-md)-2px)] px-2 py-1 text-[11px] font-semibold transition-colors",
-                        mobilePaneTab === "negocio"
-                          ? "bg-[var(--brand-primary)] text-white shadow-sm"
-                          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
-                      )}
-                    >
-                      <IconBriefcase size={13} stroke={2} />
-                      Negócio
-                    </button>
-                  </div>
+                  <div className="shrink-0">{mobileCallButton}</div>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {mobilePaneTab === "chat" ? chatNode : asideNode}
