@@ -49,8 +49,9 @@ type Toast = {
 };
 
 type MessageToastContextValue = {
-  registerActiveConversation: (id: string | null) => void;
-  registerActiveTeamChatRoom: (id: string | null) => void;
+  /** Marca a conversa como aberta (sem toast). Devolve o unregister. */
+  registerActiveConversation: (id: string) => () => void;
+  registerActiveTeamChatRoom: (id: string) => () => void;
   notifyInboxMessage: (payload: InboxMessageToastPayload) => void;
   notifyTeamChatMessage: (payload: TeamChatToastPayload) => void;
 };
@@ -86,6 +87,23 @@ async function showNativeNotificationIfNeeded(
   } catch {
     // Fallback silencioso: o toast ainda está visível dentro do app.
   }
+}
+
+/**
+ * Contagem por id: vários `useInboxRealtime` podem estar montados (inbox,
+ * sales-hub, chat do deal) e o cleanup de um não pode liberar o id que
+ * outro ainda tem aberto.
+ */
+function retainId(map: Map<string, number>, id: string): () => void {
+  map.set(id, (map.get(id) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const next = (map.get(id) ?? 0) - 1;
+    if (next > 0) map.set(id, next);
+    else map.delete(id);
+  };
 }
 
 function contactInitials(name?: string | null): string {
@@ -253,21 +271,23 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
 export function MessageToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [mounted, setMounted] = useState(false);
-  const activeConversationsRef = useRef(new Set<string>());
-  const activeTeamChatRoomsRef = useRef(new Set<string>());
+  const activeConversationsRef = useRef(new Map<string, number>());
+  const activeTeamChatRoomsRef = useRef(new Map<string, number>());
   const recentRef = useRef(new Map<string, number>());
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const registerActiveConversation = useCallback((id: string | null) => {
-    if (id) activeConversationsRef.current.add(id);
-  }, []);
+  const registerActiveConversation = useCallback(
+    (id: string) => retainId(activeConversationsRef.current, id),
+    [],
+  );
 
-  const registerActiveTeamChatRoom = useCallback((id: string | null) => {
-    if (id) activeTeamChatRoomsRef.current.add(id);
-  }, []);
+  const registerActiveTeamChatRoom = useCallback(
+    (id: string) => retainId(activeTeamChatRoomsRef.current, id),
+    [],
+  );
 
   const notifyInboxMessage = useCallback((payload: InboxMessageToastPayload) => {
     if (payload.direction !== "in") return;
@@ -368,15 +388,15 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
 export function useRegisterActiveConversation(conversationId: string | null) {
   const { registerActiveConversation } = useMessageToast();
   useEffect(() => {
-    registerActiveConversation(conversationId);
-    return () => registerActiveConversation(null);
+    if (!conversationId) return;
+    return registerActiveConversation(conversationId);
   }, [registerActiveConversation, conversationId]);
 }
 
 export function useRegisterActiveTeamChatRoom(roomId: string | null) {
   const { registerActiveTeamChatRoom } = useMessageToast();
   useEffect(() => {
-    registerActiveTeamChatRoom(roomId);
-    return () => registerActiveTeamChatRoom(null);
+    if (!roomId) return;
+    return registerActiveTeamChatRoom(roomId);
   }, [registerActiveTeamChatRoom, roomId]);
 }

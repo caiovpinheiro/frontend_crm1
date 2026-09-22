@@ -8,13 +8,19 @@ import { useCallback, useEffect, useState } from "react";
  * localStorage e sincroniza entre abas.
  *
  * O som é sintetizado via Web Audio API (sem asset externo). Navegadores
- * exigem um gesto do usuário para iniciar áudio — resumimos o AudioContext
- * no clique do botão de mudo (gesto) e na primeira interação, então o
- * primeiro ping pode não soar até o operador interagir com a página.
+ * exigem um gesto do usuário para iniciar áudio — o AudioContext é
+ * destravado no clique do botão de mudo e em qualquer pointerdown/keydown
+ * (listener em `NavMessageAlertsProvider`). Fora de gesto o `resume()`
+ * falha em silêncio, então o ping não tenta: com o contexto travado ele
+ * dispara `INBOX_AUDIO_LOCKED_EVENT` e não toca.
  */
 
 const STORAGE_KEY = "inbox:sound-muted";
 const CHANGE_EVENT = "inbox:sound-muted-changed";
+/** Um ping foi descartado porque o AudioContext não está `running`. */
+export const INBOX_AUDIO_LOCKED_EVENT = "inbox:audio-locked";
+/** O AudioContext passou a `running` depois de um gesto. */
+export const INBOX_AUDIO_UNLOCKED_EVENT = "inbox:audio-unlocked";
 
 export function isInboxSoundMuted(): boolean {
   if (typeof window === "undefined") return false;
@@ -42,15 +48,25 @@ function getCtx(): AudioContext | null {
   return audioCtx;
 }
 
+/**
+ * `true` só com o contexto `running`. `suspended` (sem gesto) e o
+ * `interrupted` do Safari contam como travado.
+ */
+export function isInboxAudioRunning(): boolean {
+  return audioCtx?.state === "running";
+}
+
 /** Destrava o AudioContext num gesto do usuário (clique/tecla). */
 export async function resumeAudio(): Promise<void> {
   const ctx = getCtx();
-  if (ctx && ctx.state === "suspended") {
-    try {
-      await ctx.resume();
-    } catch {
-      /* ignore */
-    }
+  if (!ctx || ctx.state === "running" || ctx.state === "closed") return;
+  try {
+    await ctx.resume();
+  } catch {
+    /* ignore */
+  }
+  if ((ctx.state as string) === "running") {
+    window.dispatchEvent(new CustomEvent(INBOX_AUDIO_UNLOCKED_EVENT));
   }
 }
 
@@ -66,7 +82,10 @@ export function playInboxPing(): void {
   lastPingAt = nowMs;
   const ctx = getCtx();
   if (!ctx) return;
-  if (ctx.state === "suspended") void ctx.resume();
+  if (ctx.state !== "running") {
+    window.dispatchEvent(new CustomEvent(INBOX_AUDIO_LOCKED_EVENT));
+    return;
+  }
   try {
     const now = ctx.currentTime;
     // Dois tons curtos ascendentes (nota de notificação agradável).
