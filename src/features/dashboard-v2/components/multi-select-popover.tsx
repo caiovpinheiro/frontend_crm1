@@ -7,7 +7,7 @@
  * com checkbox/cor de tag.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown, IconInfoCircle } from "@tabler/icons-react";
 
@@ -24,13 +24,9 @@ import {
   usePortalPopover,
 } from "@/features/pipeline-v2/extras/use-portal-popover";
 
-export interface MultiSelectOption {
-  value: string;
-  label: string;
-  /** Cor opcional (ex.: tag) renderizada como swatch. */
-  color?: string;
-  sub?: string;
-}
+import { matchMultiSelectOptions, type MultiSelectOption } from "./multi-select-popover.utils";
+export type { MultiSelectOption } from "./multi-select-popover.utils";
+export { matchMultiSelectOptions } from "./multi-select-popover.utils";
 
 interface MultiSelectPopoverProps {
   label: string;
@@ -50,6 +46,8 @@ interface MultiSelectPopoverProps {
   single?: boolean;
   value?: string;
   onValueChange?: (value: string) => void;
+  /** Notifica mudanças no texto de busca (debounced) para busca assíncrona. */
+  onSearchQueryChange?: (query: string) => void;
 }
 
 export function MultiSelectPopover({
@@ -67,6 +65,7 @@ export function MultiSelectPopover({
   single,
   value,
   onValueChange,
+  onSearchQueryChange,
 }: MultiSelectPopoverProps) {
   const isSingle = Boolean(single);
   const effectiveSelected = isSingle ? (value ? [value] : []) : selected;
@@ -77,17 +76,19 @@ export function MultiSelectPopover({
     usePortalPopover();
   const portalContainer = useModalPortalContainer();
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 200);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    onSearchQueryChange?.(debouncedQuery);
+  }, [debouncedQuery, onSearchQueryChange]);
 
   const count = selected.length;
-  const visibleOptions = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return options;
-    return options.filter((opt) => {
-      const label = (opt.label ?? "").toLowerCase();
-      const sub = (opt.sub ?? "").toLowerCase();
-      return label.includes(needle) || sub.includes(needle);
-    });
-  }, [options, query]);
+  const visibleOptions = useMemo(() => matchMultiSelectOptions(options, debouncedQuery), [options, debouncedQuery]);
 
   function toggleValue(itemValue: string) {
     if (isSingle) {
@@ -208,7 +209,7 @@ export function MultiSelectPopover({
                 </p>
               ) : visibleOptions.length === 0 ? (
                 <p className="px-2 py-3 text-center font-body text-[12px] italic text-[var(--text-muted)]">
-                  Nenhuma opção com “{query.trim()}”.
+                  Nenhuma opção com “{debouncedQuery}".
                 </p>
               ) : (
                 visibleOptions.map((opt) => {

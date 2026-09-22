@@ -3334,7 +3334,58 @@ function StepTestPublish({
   const [testing, setTesting] = React.useState(false);
   const [openWhyId, setOpenWhyId] = React.useState<string | null>(null);
   const [testContactId, setTestContactId] = React.useState<string>("");
+  const [contactSearch, setContactSearch] = React.useState("");
+  const [debouncedContactSearch, setDebouncedContactSearch] = React.useState("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedContactSearch(contactSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [contactSearch]);
+
+  const contactsQuery = useQuery({
+    queryKey: ["ai-agents-v2-test-contacts", debouncedContactSearch],
+    queryFn: async () => {
+      const res = await apiFetch(`/api/contacts?search=${encodeURIComponent(debouncedContactSearch)}&perPage=20`);
+      return parseApiResponse<{ items: Array<{ id: string; name: string | null; phone: string | null; email: string | null }> }>(
+        res,
+        "Erro ao buscar contatos.",
+      );
+    },
+    enabled: debouncedContactSearch.length >= 2,
+    staleTime: 60_000,
+  });
+
+  const selectedContact = React.useMemo(() => {
+    if (!testContactId) return null;
+    return (
+      (catalogs.contacts ?? []).find((c) => c.id === testContactId) ??
+      contactsQuery.data?.items.find((c) => c.id === testContactId) ??
+      null
+    );
+  }, [testContactId, catalogs.contacts, contactsQuery.data]);
+
+  const contactOptions = React.useMemo(() => {
+    const generic = { value: "", label: "Contato genérico" };
+    const searched = (contactsQuery.data?.items ?? []).map((c) => ({
+      value: c.id,
+      label: c.name || c.phone || c.email || c.id,
+      sub: c.phone || c.email || undefined,
+    }));
+    const selectedOption = selectedContact
+      ? {
+          value: selectedContact.id,
+          label: selectedContact.name || selectedContact.phone || selectedContact.email || selectedContact.id,
+          sub: selectedContact.phone || selectedContact.email || undefined,
+        }
+      : undefined;
+    const options: Array<{ value: string; label: string; sub?: string }> = [generic];
+    if (selectedOption && !searched.some((s) => s.value === selectedOption.value)) {
+      options.push(selectedOption);
+    }
+    options.push(...searched);
+    return options;
+  }, [contactsQuery.data, selectedContact]);
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -3382,17 +3433,11 @@ function StepTestPublish({
           <div className="flex items-center gap-2">
             <MultiSelectPopover
               label="Simular como contato genérico"
-              options={[
-                { value: "", label: "Contato genérico" },
-                ...catalogs.contacts.map((c) => ({
-                  value: c.id,
-                  label: c.name || c.phone || c.email || c.id,
-                  sub: c.phone || c.email || undefined,
-                })),
-              ]}
+              options={contactOptions}
               single
               value={testContactId}
               onValueChange={setTestContactId}
+              onSearchQueryChange={setContactSearch}
               searchable
               width={320}
             />
