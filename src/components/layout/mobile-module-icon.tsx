@@ -7,6 +7,7 @@ import {
   CircleUser,
   Kanban,
   LayoutDashboard,
+  Lightbulb,
   Megaphone,
   MessageSquare,
   MessagesSquare,
@@ -27,6 +28,7 @@ import {
  */
 const REGISTRY: Record<string, LucideIcon> = {
   LayoutDashboard,
+  Lightbulb,
   MessageSquare,
   MessagesSquare,
   Kanban,
