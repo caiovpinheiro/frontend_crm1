@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/crm/page-header"
 import { SearchFilterBar } from "@/components/crm/search-filter-bar"
 import { pageActionsMenuTriggerClass } from "@/components/crm/page-toolbar"
 import { useIsMobile } from "@/hooks/use-media-query"
+import { cn } from "@/lib/utils"
 
 /**
  * Lucide 1.x icons are forwardRef objects — never `typeof icon === "function"`.
@@ -47,6 +48,7 @@ export function SectionHeader({
   menu = true,
   menuSlot,
   stackSearchOnMobile = false,
+  searchBelowClassName,
   shrinkActions = false,
   pinAccessoryEnd = false,
   children,
@@ -70,6 +72,8 @@ export function SectionHeader({
   menuSlot?: ReactNode
   /** Mobile: busca em linha própria, abaixo do título e das ações. */
   stackSearchOnMobile?: boolean
+  /** Classe da busca quando ela fica na linha de baixo (mobile). */
+  searchBelowClassName?: string
   /** Ações no tamanho do conteúdo; a busca preenche o resto da linha. */
   shrinkActions?: boolean
   /** Acessório do título encostado na lateral direita da linha. */
@@ -125,7 +129,7 @@ export function SectionHeader({
         shrinkActions={shrinkActions}
       />
       {searchBelow && searchNode ? (
-        <div className="w-full min-w-0 px-1">{searchNode}</div>
+        <div className={cn("w-full min-w-0 px-1", searchBelowClassName)}>{searchNode}</div>
       ) : null}
       {children}
     </header>

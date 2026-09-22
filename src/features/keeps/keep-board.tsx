@@ -155,7 +155,10 @@ export function KeepBoard({
   function onCardPointerDown(note: KeepNote, event: ReactPointerEvent) {
     if (event.button !== 0) return;
     start.current = { id: note.id, x: event.clientX, y: event.clientY };
-    const target = event.currentTarget as HTMLElement;
+    const from = event.target as HTMLElement | null;
+    const target =
+      (from?.closest?.("[data-keep-id]") as HTMLElement | null) ??
+      (event.currentTarget as HTMLElement);
     const move = (e: PointerEvent) => {
       const s = start.current;
       if (!s) return;
@@ -178,7 +181,8 @@ export function KeepBoard({
           grabY: e.clientY - r.top,
         });
         try {
-          target.setPointerCapture(e.pointerId);
+          const handle = from?.closest?.("[data-keep-drag]") as HTMLElement | null;
+          (handle ?? target).setPointerCapture(e.pointerId);
         } catch {
           /* ignore */
         }

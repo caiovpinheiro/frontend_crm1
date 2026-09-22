@@ -364,6 +364,7 @@ export default function BwipoKeepsClientPage() {
               icon={Lightbulb}
               title="Bwipo Keeps"
               stackSearchOnMobile
+              searchBelowClassName="-mt-2 mb-3"
               pinAccessoryEnd={isMobile && folder === "notes"}
               titleAccessory={
                 isMobile && folder === "notes" ? (
