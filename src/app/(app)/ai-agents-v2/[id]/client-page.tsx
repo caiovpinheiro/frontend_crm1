@@ -25,7 +25,10 @@ import {
   IconRoute,
   IconArrowRight,
   IconMoodSad2,
+  IconMoodSmile,
   IconMessageCircle2,
+  IconTextSize,
+  IconListCheck,
   IconChevronDown,
   IconChevronUp,
   IconGripVertical,
@@ -125,6 +128,11 @@ type TestResult = {
   inputTokens: number;
   outputTokens: number;
   latencyMs: number;
+  tone?: string;
+  responseLength?: string;
+  globalRules?: string[];
+  systemPrompt?: string;
+  expandedByLength?: boolean;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -138,6 +146,12 @@ const TOOL_LABELS: Record<string, string> = {
 function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? name;
 }
+
+const RESPONSE_LENGTH_LABELS: Record<string, string> = {
+  short: "Curta",
+  medium: "Média",
+  long: "Detalhada",
+};
 
 type ChatTurn = {
   id: string;
@@ -2876,7 +2890,38 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
         )}
         {result.handoff && <Badge variant="secondary">Passou para uma pessoa</Badge>}
         {result.closed && <Badge variant="secondary">Encerrou a conversa</Badge>}
+        {result.expandedByLength && (
+          <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200 bg-amber-50">
+            <IconAlertCircle className="size-3" />
+            Resposta foi curta demais; modelo reconvidado com mais tokens
+          </Badge>
+        )}
+        {result.tone && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-1 text-xs font-medium">
+            <IconMoodSmile className="size-3.5 text-muted-foreground" />
+            Tom: <strong className="font-semibold">{result.tone}</strong>
+          </span>
+        )}
+        {result.responseLength && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-1 text-xs font-medium">
+            <IconTextSize className="size-3.5 text-muted-foreground" />
+            Tamanho: <strong className="font-semibold">{RESPONSE_LENGTH_LABELS[result.responseLength] ?? result.responseLength}</strong>
+          </span>
+        )}
       </div>
+
+      {result.globalRules && result.globalRules.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <IconListCheck className="size-3.5" /> Regras gerais enviadas
+          </p>
+          <ul className="list-inside list-disc rounded-lg bg-background px-3 py-2 text-[13px]">
+            {result.globalRules.map((rule, i) => (
+              <li key={i}>{rule}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div>
         <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
