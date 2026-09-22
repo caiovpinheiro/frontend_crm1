@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Palette, Paperclip, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, GripVertical, Palette, Paperclip, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
@@ -36,21 +36,39 @@ export function KeepCard({
   const image = note.attachments.find((a) => a.mimeType.startsWith("image/"));
   const [paletteOpen, setPaletteOpen] = useState(false);
 
+  function onCardPointerDown(event: ReactPointerEvent) {
+    if (!onMovePointerDown) return;
+    const fromHandle = Boolean((event.target as HTMLElement | null)?.closest?.("[data-keep-drag]"));
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    if (mobile && !fromHandle) return;
+    onMovePointerDown(event);
+  }
+
   return (
     <article
       data-tour="keeps-card"
       data-keep-id={note.id}
       data-keep-color={note.color || undefined}
-      onPointerDown={onMovePointerDown}
+      onPointerDown={onMovePointerDown ? onCardPointerDown : undefined}
       className={cn(
         CARD_SURFACE_CLASS,
-        "keep-note-card w-full p-4 text-left shadow-none transition-colors hover:border-primary/40",
-        onMovePointerDown && "cursor-grab touch-none active:cursor-grabbing",
+        "keep-note-card relative w-full p-4 text-left shadow-none transition-colors hover:border-primary/40",
+        onMovePointerDown && "md:cursor-grab md:touch-none md:active:cursor-grabbing",
         ghost && "opacity-40",
         floating && "rotate-1 border-primary/40 shadow-lg",
       )}
     >
-      <button type="button" onClick={onOpen} className="w-full text-left">
+      {onMovePointerDown ? (
+        <button
+          type="button"
+          data-keep-drag=""
+          aria-label="Arrastar nota"
+          className="absolute right-2 top-2 z-10 inline-flex size-7 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground active:cursor-grabbing md:hidden"
+        >
+          <GripVertical className="size-4" />
+        </button>
+      ) : null}
+      <button type="button" onClick={onOpen} className={cn("w-full text-left", onMovePointerDown && "max-md:pr-6")}>
         {note.title ? (
           <h3 className="mb-1.5 text-sm font-semibold leading-snug text-foreground">{note.title}</h3>
         ) : null}
