@@ -47,9 +47,29 @@ Após cada resposta de teste, o painel **"Por que respondeu isso?"** mostra uma 
 - todos os campos e valores carregados (os que têm `read`/`cite`);
 - ou a mensagem "Nenhum contato encontrado para esta conversa.".
 
+### 4. Informações fixas da empresa
+- **Campo na tela:** `Informações fixas` (lista de chave + valor).
+- **Caminho no schema:** `variables[]` (`{ key, value }`).
+- **Como o motor usa:** entram no *system prompt* na seção `# Informações fixas da empresa`. Os valores também ficam disponíveis para substituição de `@chave` nas respostas do modelo.
+- **Exemplo:** chave `Nome da empresa` / valor `EduIT` → o modelo pode escrever "Olá, aqui é a EduIT" quando a resposta contiver `@Nome da empresa`.
+
+### 5. Vários negócios abertos
+- **Campo na tela:** `Vários negócios abertos` → `Escolha do negócio`.
+- **Caminho no schema:** `dealSelection` (`"latest"` | `"ask"`, default `"latest"`).
+- **Como o motor usa:**
+  - `latest` (padrão): entre todos os negócios abertos do contato (exceto `LOST`), escolhe o **mais recentemente atualizado** e usa como `selectedDeal`.
+  - `ask`: se houver **mais de um** negócio aberto, o motor não escolhe nenhum. Em vez disso, envia uma mensagem listando os negócios e perguntando qual o cliente quer tratar. Só depois da escolha o atendimento continua sobre o negócio selecionado.
+
+## Bastidores na aba Testar
+
+Após cada resposta de teste, o painel **"Por que respondeu isso?"** mostra:
+- **Cliente carregado:** campos e valores do contato.
+- **Negócio usado:** campos e valores do negócio selecionado.
+- **Por quê:** explica a regra — "Negócio mais recente selecionado automaticamente" ou "Modo 'perguntar': há vários negócios abertos; aguardando escolha do cliente.".
+
 ## Escolher um contato real para testar
 
-Na aba **Testar**, acima do chat, há um seletor **"Simular como contato genérico"**. Ao abrir, ele lista até 200 contatos reais do CRM (nome + telefone/e-mail). Ao escolher um contato, o teste carrega os campos liberados daquele contato e de seu negócio mais recente.
+Na aba **Testar**, acima do chat, há um seletor **"Simular como contato genérico"**. Ao abrir, ele lista até 200 contatos reais do CRM (nome + telefone/e-mail). Ao escolher um contato, o teste carrega os campos liberados daquele contato e de seu(s) negócio(s) aberto(s).
 
 ## Roteiro para conferir no dev
 

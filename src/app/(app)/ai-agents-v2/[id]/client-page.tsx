@@ -138,7 +138,9 @@ type TestResult = {
   crmContext?: {
     contact?: Record<string, unknown> | null;
     selectedDeal?: Record<string, unknown> | null;
+    deals?: Array<Record<string, unknown>>;
   };
+  dealSelectionReason?: string;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -278,6 +280,7 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
   globalRules: [],
   variables: [],
   contextFields: { contact: [], deal: [] },
+  dealSelection: "latest",
   media: {
     audio: { action: "handoff" },
     image: { action: "handoff" },
@@ -1464,6 +1467,21 @@ function StepContext({
     <div className="space-y-6">
       {renderFieldTable("Campos do contato", catalogs.contactCustomFields, contactFields, "contact")}
       {renderFieldTable("Campos do negócio", catalogs.dealCustomFields, dealFields, "deal")}
+
+      <SectionCard title="Vários negócios abertos" description="O que fazer quando o cliente tem mais de um negócio em andamento.">
+        <Field label="Escolha do negócio" tooltip="latest = usa o negócio atualizado mais recentemente. ask = pergunta qual negócio o cliente quer tratar.">
+          <Select
+            value={(config.dealSelection as string) ?? "latest"}
+            onValueChange={(v) => onChange("dealSelection", v)}
+          >
+            <SelectTrigger />
+            <SelectContent>
+              <SelectItem value="latest">Usar o mais recente</SelectItem>
+              <SelectItem value="ask">Perguntar qual negócio</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      </SectionCard>
 
       <SectionCard title="Informações fixas" description="Variáveis como @Nome da empresa, @Link da área do cliente etc.">
         <div className="space-y-2">
@@ -2948,6 +2966,34 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
           </ul>
         ) : (
           <p className="rounded-lg bg-background px-3 py-2 text-[13px] text-muted-foreground">Nenhum contato encontrado para esta conversa.</p>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <IconFile className="size-3.5" /> Negócio usado
+        </p>
+        {result.crmContext?.selectedDeal && Object.keys(result.crmContext.selectedDeal).length > 0 ? (
+          <ul className="space-y-1 rounded-lg bg-background px-3 py-2 text-[13px]">
+            {Object.entries(result.crmContext.selectedDeal).map(([k, v]) => (
+              <li key={k}>
+                <span className="font-medium">{k}:</span>{" "}
+                <span className="text-muted-foreground">{String(v).slice(0, 200)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-lg bg-background px-3 py-2 text-[13px] text-muted-foreground">Nenhum negócio selecionado.</p>
+        )}
+        {result.dealSelectionReason && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            <span className="font-medium">Por quê:</span> {result.dealSelectionReason}
+          </p>
+        )}
+        {result.crmContext?.deals && result.crmContext.deals.length > 1 && !result.crmContext.selectedDeal && (
+          <p className="mt-1 text-xs text-amber-600">
+            {result.crmContext.deals.length} negócios abertos encontrados. Aguardando escolha do cliente.
+          </p>
         )}
       </div>
 
