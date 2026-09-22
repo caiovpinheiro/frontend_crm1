@@ -10,6 +10,7 @@ import {
   IconPencil,
   IconPlayerPlay,
   IconBrain,
+  IconTrash,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../_v2-page-shell";
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/hooks/use-confirm";
 
 type V2AgentRow = {
   id: string;
@@ -71,9 +73,17 @@ async function createAgent(payload: { name: string; preset: string }) {
   return parseApiResponse<{ id: string }>(res, "Erro ao criar agente.");
 }
 
+async function deleteAgent(id: string) {
+  const res = await apiFetch(`/api/ai-agents-v2/${id}`, {
+    method: "DELETE",
+  });
+  return parseApiResponse<{ ok: true }>(res, "Erro ao excluir agente.");
+}
+
 export default function AIAgentsV2ListClientPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [creating, setCreating] = React.useState(false);
   const [newName, setNewName] = React.useState("");
   const [newPreset, setNewPreset] = React.useState("");
@@ -97,6 +107,25 @@ export default function AIAgentsV2ListClientPage() {
       router.push(`/ai-agents-v2/${result.id}`);
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteAgent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-agents-v2"] });
+    },
+  });
+
+  async function handleDelete(agent: V2AgentRow) {
+    const ok = await confirm({
+      title: "Excluir agente?",
+      description: `O agente "${agent.name}" será excluído permanentemente. Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      cancelLabel: "Cancelar",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteMutation.mutate(agent.id);
+  }
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -163,6 +192,16 @@ export default function AIAgentsV2ListClientPage() {
                       <Link href={`/ai-agents-v2/${agent.id}?tab=test`}>
                         <IconPlayerPlay className="size-3.5" /> Testar
                       </Link>
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="shrink-0"
+                      title="Excluir agente"
+                      onClick={() => handleDelete(agent)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <IconTrash className="size-4" />
                     </Button>
                   </div>
                 </CardContent>
