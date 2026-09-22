@@ -149,6 +149,7 @@ type TestResult = {
   };
   dealSelectionReason?: string;
   scrubbedFields?: string[];
+  stage?: "idle" | "confirming" | "identifying" | "active" | "closed";
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -474,8 +475,9 @@ async function testAgent(
   userMessage: string,
   history: Array<{ role: "user" | "assistant"; content: string }>,
   contactId?: string,
+  stage?: TestResult["stage"],
 ): Promise<TestResult> {
-  const body: Record<string, unknown> = { userMessage, history };
+  const body: Record<string, unknown> = { userMessage, history, stage };
   if (contactId) body.contactId = contactId;
   const res = await apiFetch(`/api/ai-agents-v2/${id}/test`, {
     method: "POST",
@@ -2067,6 +2069,18 @@ function StepEntry({
                 onChange={(e) => onChange("entry.confirmationMessage", e.target.value)}
               />
             </Field>
+            <Field label="Momento da confirmação" tooltip="Junto com a boas-vindas (uma mensagem só) ou no turno seguinte (duas trocas).">
+              <Select
+                value={(entry.confirmationMode as string) ?? "combined"}
+                onValueChange={(v) => onChange("entry.confirmationMode", v)}
+              >
+                <SelectTrigger />
+                <SelectContent>
+                  <SelectItem value="combined">Junto com a boas-vindas</SelectItem>
+                  <SelectItem value="separate_turn">No turno seguinte</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           </>
         )}
       </SectionCard>
@@ -3348,6 +3362,7 @@ function StepTestPublish({
   const [testContactId, setTestContactId] = React.useState<string>("");
   const [contactSearch, setContactSearch] = React.useState("");
   const [debouncedContactSearch, setDebouncedContactSearch] = React.useState("");
+  const [testStage, setTestStage] = React.useState<TestResult["stage"]>("idle");
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -3417,8 +3432,9 @@ function StepTestPublish({
     setMessage("");
     setTesting(true);
     try {
-      const r = await testAgent(agentId, text, history, testContactId || undefined);
+      const r = await testAgent(agentId, text, history, testContactId || undefined, testStage);
       setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, result: r } : t)));
+      if (r.stage) setTestStage(r.stage);
       setOpenWhyId(turnId);
     } catch (err) {
       setTurns((prev) =>
@@ -3432,6 +3448,7 @@ function StepTestPublish({
   const restart = () => {
     setTurns([]);
     setOpenWhyId(null);
+    setTestStage("idle");
   };
 
   return (
