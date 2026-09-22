@@ -26,6 +26,7 @@ import {
   IconArrowRight,
   IconMoodSad2,
   IconMoodSmile,
+  IconAlertTriangle,
   IconMessageCircle2,
   IconTextSize,
   IconListCheck,
@@ -141,6 +142,7 @@ type TestResult = {
     deals?: Array<Record<string, unknown>>;
   };
   dealSelectionReason?: string;
+  scrubbedFields?: string[];
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -3064,6 +3066,17 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {result.scrubbedFields && result.scrubbedFields.length > 0 && (
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-amber-600">
+            <IconAlertTriangle className="size-3.5" /> Informações removidas da resposta
+          </p>
+          <p className="rounded-lg bg-background px-3 py-2 text-[13px]">
+            Um ou mais campos marcados apenas como "Ler" foram detectados no texto que o modelo gerou e removidos antes de serem enviados ao cliente.
+          </p>
         </div>
       )}
 
