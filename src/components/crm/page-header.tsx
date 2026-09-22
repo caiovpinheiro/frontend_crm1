@@ -118,7 +118,7 @@ export type PageHeaderBack = {
 
 /** Cluster de busca + ações. No mobile ocupa a 2ª linha inteira. */
 export const PAGE_HEADER_CONTROLS_CLASS =
-  "flex w-full min-w-0 basis-full items-center justify-end gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:ml-auto md:w-auto md:flex-1 md:basis-auto md:overflow-visible"
+  "flex w-full min-w-0 basis-full items-center justify-start gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:ml-auto md:w-auto md:flex-1 md:basis-auto md:justify-end md:overflow-visible"
 
 /** Slot da busca — até 32rem; no mobile cede espaço às ações, sem encobrir o título. */
 export const PAGE_HEADER_SEARCH_SLOT_CLASS =
@@ -217,7 +217,7 @@ export function PageHeader({
         <div className={PAGE_HEADER_CONTROLS_CLASS}>
           {center ? <div className={PAGE_HEADER_SEARCH_SLOT_CLASS}>{center}</div> : null}
           {actions ? (
-            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:shrink-0 md:flex-none">{actions}</div>
           ) : null}
         </div>
       ) : null}
