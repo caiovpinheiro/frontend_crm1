@@ -10,6 +10,7 @@ import { SelectNative } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { isSafeLogoUrl } from "@/lib/safe-href";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   PIPELINE_TEMPLATE_LIST,
@@ -448,18 +449,14 @@ function StepEmpresa(props: {
   );
 }
 
-// Tamanho maximo do logo em bytes quando armazenado como base64 na tabela
-// Organization. Logos tipicos pesam 30-200KB; 1MB deixa folga confortavel
-// sem inchar o DB.
-// TODO(storage): migrar pra Vercel Blob / S3 quando tivermos infra — aqui
-// o logo vai como data URL direto em Organization.logoUrl (coluna TEXT).
+// Limite do arquivo no cliente; o POST /api/organization/logo valida
+// magic bytes (JPG/PNG/WEBP/GIF, sem SVG) e grava no storage da org.
 const MAX_LOGO_BYTES = 1024 * 1024; // 1MB
 const ACCEPTED_LOGO_MIME = [
   "image/png",
   "image/jpeg",
   "image/jpg",
   "image/webp",
-  "image/svg+xml",
   "image/gif",
 ];
 
@@ -496,7 +493,13 @@ function StepBranding(props: {
 }) {
   const [mode, setMode] = useState<"upload" | "url">(() => {
     if (!props.logoUrl) return "upload";
-    return props.logoUrl.startsWith("data:") ? "upload" : "url";
+    if (
+      props.logoUrl.startsWith("data:") ||
+      props.logoUrl.startsWith("/api/storage/")
+    ) {
+      return "upload";
+    }
+    return "url";
   });
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
@@ -504,7 +507,9 @@ function StepBranding(props: {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hasLogo = props.logoUrl.length > 0;
-  const isDataUrl = props.logoUrl.startsWith("data:");
+  const isUploadedLogo =
+    props.logoUrl.startsWith("data:") ||
+    props.logoUrl.startsWith("/api/storage/");
 
   function handleFiles(files: FileList | null) {
     setUploadError(null);
@@ -513,7 +518,7 @@ function StepBranding(props: {
 
     if (!ACCEPTED_LOGO_MIME.includes(file.type)) {
       setUploadError(
-        "Formato não suportado. Use PNG, JPG, WebP, SVG ou GIF.",
+        "Formato não suportado. Use PNG, JPG, WebP ou GIF.",
       );
       return;
     }
@@ -526,20 +531,36 @@ function StepBranding(props: {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== "string") {
-        setUploadError("Não consegui ler o arquivo. Tenta de novo?");
-        return;
+    const body = new FormData();
+    body.append("file", file);
+    void (async () => {
+      try {
+        const res = await fetch("/api/organization/logo", {
+          method: "POST",
+          body,
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          url?: unknown;
+          message?: unknown;
+        };
+        if (!res.ok) {
+          setUploadError(
+            typeof data.message === "string"
+              ? data.message
+              : "Não consegui enviar o logo.",
+          );
+          return;
+        }
+        if (typeof data.url !== "string" || !data.url) {
+          setUploadError("Resposta inválida ao enviar o logo.");
+          return;
+        }
+        setImgError(false);
+        props.setLogoUrl(data.url);
+      } catch {
+        setUploadError("Falha ao enviar o arquivo.");
       }
-      setImgError(false);
-      props.setLogoUrl(result);
-    };
-    reader.onerror = () => {
-      setUploadError("Falha ao ler o arquivo.");
-    };
-    reader.readAsDataURL(file);
+    })();
   }
 
   function clearLogo() {
@@ -553,6 +574,11 @@ function StepBranding(props: {
     const cleaned = sanitizePastedUrl(raw);
     setImgError(false);
     props.setLogoUrl(cleaned);
+    if (cleaned && !isSafeLogoUrl(cleaned)) {
+      setUploadError("Use um link https de imagem (JPG, PNG, WEBP ou GIF).");
+    } else {
+      setUploadError(null);
+    }
   }
 
   return (
@@ -632,7 +658,7 @@ function StepBranding(props: {
               }}
               aria-label="Enviar logo"
             >
-              {isDataUrl ? (
+              {isUploadedLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={props.logoUrl}
@@ -645,12 +671,12 @@ function StepBranding(props: {
                 </div>
               )}
               <div className="text-sm font-medium">
-                {isDataUrl
+                {isUploadedLogo
                   ? "Logo pronto. Clique pra trocar."
                   : "Arraste uma imagem ou clique pra selecionar"}
               </div>
               <div className="text-xs text-muted-foreground">
-                PNG, JPG, WebP, SVG ou GIF · até {formatBytes(MAX_LOGO_BYTES)}
+                PNG, JPG, WebP ou GIF · até {formatBytes(MAX_LOGO_BYTES)}
               </div>
               <input
                 ref={fileInputRef}
@@ -663,7 +689,7 @@ function StepBranding(props: {
             {uploadError && (
               <p className="mt-2 text-xs text-destructive">{uploadError}</p>
             )}
-            {isDataUrl && (
+            {isUploadedLogo && (
               <button
                 type="button"
                 onClick={clearLogo}
@@ -678,7 +704,7 @@ function StepBranding(props: {
           <div>
             <Input
               id="logo-url"
-              value={isDataUrl ? "" : props.logoUrl}
+              value={isUploadedLogo ? "" : props.logoUrl}
               onChange={(e) => handleUrlChange(e.target.value)}
               placeholder="https://dnawork.com.br/logo.png"
               inputMode="url"
@@ -686,10 +712,10 @@ function StepBranding(props: {
               spellCheck={false}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Cole o link direto do arquivo (termina em .png, .jpg, .svg…).
+              Cole o link direto do arquivo (termina em .png, .jpg, .webp…).
               Páginas de galeria ou Google Imagens não funcionam.
             </p>
-            {imgError && !isDataUrl && hasLogo && (
+            {imgError && !isUploadedLogo && hasLogo && (
               <p className="mt-1 text-xs text-destructive">
                 Não consegui carregar essa imagem. Verifica se o link abre
                 direto a imagem no navegador.

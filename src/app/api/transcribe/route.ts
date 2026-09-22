@@ -1,24 +1,22 @@
 /**
  * POST /api/transcribe  (rota frontend — servidor Next.js)
  *
- * Transcreve um áudio via Groq Whisper.
- * Resolve URLs relativas (/api/storage/…, /api/media/proxy?url=…)
- * buscando o áudio do backend antes de enviar ao Groq.
+ * Encaminha o download do áudio ao backend autenticado (cookie), sem
+ * fetch direto da URL extraída do proxy Meta (SSRF).
  *
  * Body : { url: string }
  * Resp : { transcript: string }
  */
 import { NextResponse, type NextRequest } from "next/server";
 
-const GROQ_URL   = "https://api.groq.com/openai/v1/audio/transcriptions";
+const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 const GROQ_MODEL = "whisper-large-v3-turbo";
+const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 
-/** URL base do backend (sem barra final). */
 function backendBase(): string {
   return (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim().replace(/\/$/, "");
 }
 
-/** Path interno a partir de URL absoluta da API (`api.bwipo.com/api/storage/…`). */
 function toInternalMediaPath(url: string): string {
   if (url.startsWith("/")) return url;
   try {
@@ -36,57 +34,38 @@ function toInternalMediaPath(url: string): string {
   return url;
 }
 
-/** Baixa bytes de áudio resolvendo a URL interna. */
 async function fetchAudioBytes(
   rawUrl: string,
   cookieHeader: string,
 ): Promise<{ buffer: ArrayBuffer; mime: string; filename: string } | null> {
   const url = toInternalMediaPath(rawUrl);
-  // ── 1. Proxy Meta: /api/media/proxy?url=<encoded> ──────────────────────
-  if (url.startsWith("/api/media/proxy")) {
-    const qs = url.includes("?") ? url.split("?")[1] : "";
-    const target = new URLSearchParams(qs).get("url");
-    if (!target) return null;
-    try {
-      const res = await fetch(target, {
-        signal: AbortSignal.timeout(15_000),
-        headers: { "User-Agent": "CRM-Transcribe/1.0" },
-      });
-      if (!res.ok) return null;
-      const mime = res.headers.get("content-type")?.split(";")[0] ?? "audio/ogg";
-      return {
-        buffer: await res.arrayBuffer(),
-        mime,
-        filename: `audio.${mime.split("/").pop() ?? "ogg"}`,
-      };
-    } catch {
-      return null;
-    }
-  }
+  const isInternal =
+    url.startsWith("/api/media/proxy") ||
+    url.startsWith("/api/storage/") ||
+    url.startsWith("/uploads/");
+  if (!isInternal) return null;
 
-  // ── 2. Storage tenant ou /uploads: busca no backend com cookie de auth ─
-  if (url.startsWith("/api/storage/") || url.startsWith("/uploads/")) {
-    const base = backendBase();
-    if (!base) return null;
-    const backendPath = url.startsWith("/uploads/")
-      ? `/api${url}`
-      : url;
-    try {
-      const res = await fetch(`${base}${backendPath}`, {
-        headers: { Cookie: cookieHeader },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) return null;
-      const mime = res.headers.get("content-type")?.split(";")[0] ?? "audio/ogg";
-      const rawName = backendPath.split("/").pop() ?? "audio.ogg";
-      const filename = rawName.includes(".") ? rawName : "audio.ogg";
-      return { buffer: await res.arrayBuffer(), mime, filename };
-    } catch {
-      return null;
-    }
+  const base = backendBase();
+  const backendPath = url.startsWith("/uploads/") ? `/api${url}` : url;
+  const href = base ? `${base}${backendPath}` : backendPath;
+  try {
+    const res = await fetch(href, {
+      headers: { Cookie: cookieHeader },
+      signal: AbortSignal.timeout(20_000),
+      redirect: "error",
+    });
+    if (!res.ok) return null;
+    const len = Number(res.headers.get("content-length") ?? "0");
+    if (len > MAX_AUDIO_BYTES) return null;
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > MAX_AUDIO_BYTES) return null;
+    const mime = res.headers.get("content-type")?.split(";")[0] ?? "audio/ogg";
+    const rawName = backendPath.split("?")[0]?.split("/").pop() ?? "audio.ogg";
+    const filename = rawName.includes(".") ? rawName : "audio.ogg";
+    return { buffer, mime, filename };
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -107,7 +86,10 @@ export async function POST(request: NextRequest) {
 
   const url = (body as Record<string, unknown>)?.url;
   if (typeof url !== "string" || !url) {
-    return NextResponse.json({ error: "Campo 'url' é obrigatório." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Campo 'url' é obrigatório." },
+      { status: 400 },
+    );
   }
 
   const cookieHeader = request.headers.get("cookie") ?? "";
@@ -119,7 +101,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Garante extensão válida para o Groq
   const ext = resolved.filename.includes(".")
     ? resolved.filename.split(".").pop()!
     : "ogg";

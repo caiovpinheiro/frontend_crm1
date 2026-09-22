@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
+import { unknownTenantHtml } from "@/lib/html-escape";
 import { isPreviewMode } from "@/lib/preview-mode";
 import {
   isSingleHostCrm,
@@ -110,29 +111,8 @@ function apexOrigin(req: NextRequest): string {
 }
 
 function unknownTenantResponse(req: NextRequest, slug: string): NextResponse {
-  const html = `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Organização não encontrada</title>
-  <style>
-    body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#0b1220;color:#e8eefc}
-    main{max-width:28rem;padding:2rem;text-align:center}
-    a{color:#7dd3fc}
-    code{background:#1e293b;padding:.1rem .35rem;border-radius:.25rem}
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Organização não encontrada</h1>
-    <p>O endereço <code>${slug}</code> não é um workspace válido.</p>
-    <p><a href="${apexOrigin(req)}/">Voltar para o início</a></p>
-  </main>
-</body>
-</html>`;
   return withSecurityHeaders(
-    new NextResponse(html, {
+    new NextResponse(unknownTenantHtml(slug, apexOrigin(req)), {
       status: 404,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     }),
