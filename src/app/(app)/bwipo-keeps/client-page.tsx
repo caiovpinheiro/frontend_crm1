@@ -12,6 +12,7 @@ import { PageChrome } from "@/components/crm/page-header";
 import { HeaderPillToggle, SectionHeader } from "@/components/crm/section-header";
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { AppLoading } from "@/components/crm/app-loading";
+import { useIsMobile } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { KeepCard } from "@/features/keeps/keep-card";
 import { KeepBoard, type KeepBoardSection } from "@/features/keeps/keep-board";
@@ -146,6 +147,7 @@ function CategorySectionHeader({
 }
 
 export default function BwipoKeepsClientPage() {
+  const isMobile = useIsMobile();
   const [folder, setFolder] = useState<KeepFolder>("notes");
   const [viewMode, setViewMode] = useState<KeepViewMode>("normal");
   const [q, setQ] = useState("");
@@ -362,6 +364,21 @@ export default function BwipoKeepsClientPage() {
               icon={Lightbulb}
               title="Bwipo Keeps"
               stackSearchOnMobile
+              pinAccessoryEnd={isMobile && folder === "notes"}
+              titleAccessory={
+                isMobile && folder === "notes" ? (
+                  <div data-tour="keeps-view-mode">
+                    <HeaderPillToggle
+                      value={viewMode}
+                      onChange={setViewMode}
+                      options={[
+                        { key: "normal", label: "Keeps" },
+                        { key: "categories", label: "Categorias" },
+                      ]}
+                    />
+                  </div>
+                ) : null
+              }
               searchSlot={
                 <div data-tour="keeps-search" className="w-full">
                 <SearchFilterBar
@@ -403,8 +420,8 @@ export default function BwipoKeepsClientPage() {
                 </div>
               }
               actions={
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {folder === "notes" ? (
+                <div className="flex min-w-0 flex-nowrap items-center gap-2 md:flex-wrap md:justify-end">
+                  {folder === "notes" && !isMobile ? (
                     <div data-tour="keeps-view-mode">
                     <HeaderPillToggle
                       value={viewMode}
@@ -416,7 +433,7 @@ export default function BwipoKeepsClientPage() {
                     />
                     </div>
                   ) : null}
-                  <div data-tour="keeps-folders">
+                  <div data-tour="keeps-folders" className="min-w-0">
                   <HeaderPillToggle
                     value={folder}
                     onChange={setFolder}
@@ -430,7 +447,7 @@ export default function BwipoKeepsClientPage() {
                 </div>
               }
               menuSlot={
-                <div className="flex items-center gap-1">
+                <div className={cn("flex shrink-0 items-center gap-1", isMobile && "ml-auto")}>
                 <PageTourButton tourId="bwipo-keeps" />
                 <div data-tour="keeps-actions">
                 <PageActionsMenu
