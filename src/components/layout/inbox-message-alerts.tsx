@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Alerta global de mensagem recebida no inbox (bip + toast), montado no
+ * Alerta global de mensagem recebida no inbox (bip, toast e notificação
+ * nativa com a aba oculta), montado no
  * layout `(app)` — vale em qualquer tela do CRM, não só com o chat aberto.
  * Antes o bip vivia em `useInboxRealtime` e só existia onde havia um
  * thread montado (inbox, sales-hub, chat do deal).
@@ -16,7 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { IconVolume as Volume2 } from "@tabler/icons-react";
+import { IconBell as Bell, IconVolume as Volume2, IconX as X } from "@tabler/icons-react";
 
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import { getConversation, type ConversationListRow } from "@/features/inbox-v2/api";
@@ -34,8 +35,10 @@ import {
   useInboxSoundMuted,
 } from "@/features/inbox-v2/hooks/use-inbox-sound";
 import { useInboxSoundOwner } from "@/features/inbox-v2/hooks/use-inbox-sound-owner";
+import { usePushSubscription } from "@/hooks/use-push-subscription";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { apiUrl } from "@/lib/api";
+import { isNativePlatform } from "@/lib/native/capacitor";
 import { cn } from "@/lib/utils";
 
 type NewMessageEnvelope = {
@@ -141,7 +144,10 @@ export function InboxMessageAlerts() {
         }
       }
 
-      notifyRef.current({ ...data, card: toToastCard(card) });
+      notifyRef.current(
+        { ...data, card: toToastCard(card) },
+        { native: audience === "mine" },
+      );
     }
 
     const unsubscribe = subscribeSSEEvents("/api/sse/messages", {
@@ -158,7 +164,100 @@ export function InboxMessageAlerts() {
   }, [ready]);
 
   if (!ready) return null;
-  return <InboxAudioUnlockButton />;
+  return (
+    <div className="pointer-events-none fixed bottom-4 left-1/2 z-[100] flex -translate-x-1/2 flex-col items-center gap-2 max-md:bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)] md:left-[calc(var(--nav-rail-w,0px)+1rem)] md:translate-x-0 md:items-start">
+      <NotificationPermissionButton />
+      <InboxAudioUnlockButton />
+    </div>
+  );
+}
+
+const PILL_CLASS = cn(
+  "pointer-events-auto inline-flex items-center gap-1.5 rounded-full border bg-popover/95 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-md backdrop-blur-sm",
+  "transition-colors hover:bg-accent hover:text-foreground",
+);
+
+const PERMISSION_DISMISS_KEY = "inbox:notification-prompt-dismissed";
+
+/**
+ * Pedido de permissão de notificação, só com `permission === "default"`.
+ * O pedido sai do clique (gesto, aba visível) — nunca da chegada de uma
+ * mensagem com a aba oculta. Com Web Push disponível também inscreve o
+ * aparelho (mesmo fluxo de Configurações > Notificações). "×" esconde até
+ * fechar a aba.
+ */
+function NotificationPermissionButton() {
+  const push = usePushSubscription();
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  const [dismissed, setDismissed] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!("Notification" in window) || isNativePlatform()) return;
+    setPermission(Notification.permission);
+    try {
+      setDismissed(window.sessionStorage.getItem(PERMISSION_DISMISS_KEY) === "1");
+    } catch {
+      setDismissed(false);
+    }
+    // Permissão mudada nas configurações do navegador com o app aberto.
+    let status: PermissionStatus | null = null;
+    const sync = () => setPermission(Notification.permission);
+    navigator.permissions
+      ?.query({ name: "notifications" as PermissionName })
+      .then((s) => {
+        status = s;
+        s.addEventListener("change", sync);
+      })
+      .catch(() => {});
+    return () => status?.removeEventListener("change", sync);
+  }, []);
+
+  if (permission !== "default" || dismissed) return null;
+
+  const enable = async () => {
+    setBusy(true);
+    try {
+      if (push.isSupported) await push.subscribe();
+      else await Notification.requestPermission();
+    } catch {
+      /* o estado abaixo reflete o resultado */
+    } finally {
+      setBusy(false);
+      setPermission(Notification.permission);
+    }
+  };
+
+  const dismiss = () => {
+    setDismissed(true);
+    try {
+      window.sessionStorage.setItem(PERMISSION_DISMISS_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <div className={cn(PILL_CLASS, "gap-0 p-0 hover:bg-popover/95")}>
+      <button
+        type="button"
+        onClick={() => void enable()}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 rounded-l-full py-1.5 pl-3 pr-2 hover:text-foreground disabled:opacity-60"
+      >
+        <Bell className="size-3.5" />
+        {busy ? "Ativando…" : "Ativar notificações"}
+      </button>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dispensar"
+        className="rounded-r-full py-1.5 pl-1 pr-2.5 hover:text-foreground"
+      >
+        <X className="size-3.5" />
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -191,12 +290,7 @@ function InboxAudioUnlockButton() {
           if (isInboxAudioRunning()) setLocked(false);
         });
       }}
-      className={cn(
-        "fixed bottom-4 left-1/2 z-[100] -translate-x-1/2 md:left-[calc(var(--nav-rail-w,0px)+1rem)] md:translate-x-0",
-        "max-md:bottom-[calc(env(safe-area-inset-bottom,0px)+4.5rem)]",
-        "inline-flex items-center gap-1.5 rounded-full border bg-popover/95 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-md backdrop-blur-sm",
-        "transition-colors hover:bg-accent hover:text-foreground",
-      )}
+      className={PILL_CLASS}
     >
       <Volume2 className="size-3.5" />
       Clique para ativar o som

@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { ensureNotificationPermission } from "@/lib/native/permissions";
 import type { TeamChatMessage } from "@/features/team-chat/types";
 
 export type InboxMessageToastPayload = {
@@ -52,7 +51,15 @@ type MessageToastContextValue = {
   /** Marca a conversa como aberta (sem toast). Devolve o unregister. */
   registerActiveConversation: (id: string) => () => void;
   registerActiveTeamChatRoom: (id: string) => () => void;
-  notifyInboxMessage: (payload: InboxMessageToastPayload) => void;
+  /**
+   * Toast in-page (fora da conversa aberta). `native: true` também mostra
+   * a notificação do sistema quando a aba está oculta — mesmo na conversa
+   * aberta, com a mesma tag do Web Push para o SO substituir.
+   */
+  notifyInboxMessage: (
+    payload: InboxMessageToastPayload,
+    options?: { native?: boolean },
+  ) => void;
   notifyTeamChatMessage: (payload: TeamChatToastPayload) => void;
 };
 
@@ -64,29 +71,80 @@ export function useMessageToast() {
   return ctx;
 }
 
+const SW_READY_TIMEOUT_MS = 3_000;
+
+async function readyServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (!("serviceWorker" in navigator)) return null;
+  // `ready` nunca resolve sem SW registrado (dev, navegador sem suporte).
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS)),
+  ]).catch(() => null);
+}
+
+/**
+ * Notificação do sistema com a aba oculta. Nunca pede permissão aqui: o
+ * prompt fora de gesto é ignorado ou bloqueado (o pedido é o botão
+ * "Ativar notificações"). Sai pelo service worker para dividir a fila e a
+ * `tag` com o Web Push (o SO substitui em vez de empilhar) e para o
+ * clique cair no `notificationclick` com `data.url`. `new Notification`
+ * só como fallback sem SW (e lança no Chrome Android).
+ */
 async function showNativeNotificationIfNeeded(
   title: string,
   options: NotificationOptions & { data?: Record<string, unknown> },
 ) {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (document.visibilityState === "visible") return;
-
-  if (Notification.permission === "default") {
-    const res = await ensureNotificationPermission();
-    if (!res.ok) return;
-  }
   if (Notification.permission !== "granted") return;
 
+  const full: NotificationOptions & { renotify?: boolean } = {
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    requireInteraction: false,
+    ...options,
+  };
   try {
-    new Notification(title, {
-      icon: "/icon.svg",
-      badge: "/icon.svg",
-      requireInteraction: false,
-      ...options,
-    });
+    const reg = await readyServiceWorker();
+    if (reg) {
+      await reg.showNotification(title, full);
+      return;
+    }
+    new Notification(title, full);
   } catch {
     // Fallback silencioso: o toast ainda está visível dentro do app.
   }
+}
+
+/** Mesmo sufixo de canal do título do Web Push (`notifyInboundMessage`). */
+function pushChannelLabel(card: InboxMessageToastPayload["card"]): string {
+  const raw = card?.channel;
+  const type = String(typeof raw === "string" ? raw : raw?.type ?? "").toLowerCase();
+  if (type === "instagram") return " · Instagram";
+  if (type === "meta" || type === "facebook" || type === "messenger") return " · Meta";
+  if (type === "email") return " · Email";
+  return "";
+}
+
+function showInboxNativeNotification(
+  conversationId: string,
+  payload: InboxMessageToastPayload,
+) {
+  const card = payload.card;
+  const name = card?.contact?.name?.trim() || "Nova mensagem";
+  const number = card?.number;
+  void showNativeNotificationIfNeeded(`${name}${pushChannelLabel(card)}`, {
+    body: formatInboxPreview(payload),
+    // Mesma tag do Web Push (web-push.ts): uma notificação por conversa.
+    tag: `conv:${conversationId}`,
+    renotify: false,
+    icon: card?.contact?.picture || "/icon.svg",
+    data: {
+      url: number != null ? `/inbox?c=${number}` : `/inbox?c=${conversationId}`,
+      conversationId,
+      contactId: payload.contactId,
+    },
+  } as NotificationOptions);
 }
 
 /**
@@ -289,23 +347,29 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     [],
   );
 
-  const notifyInboxMessage = useCallback((payload: InboxMessageToastPayload) => {
-    if (payload.direction !== "in") return;
-    const conversationId = payload.conversationId;
-    if (!conversationId) return;
-    if (activeConversationsRef.current.has(conversationId)) return;
+  const notifyInboxMessage = useCallback(
+    (payload: InboxMessageToastPayload, options?: { native?: boolean }) => {
+      if (payload.direction !== "in") return;
+      const conversationId = payload.conversationId;
+      if (!conversationId) return;
+      // Antes do corte da conversa aberta e do dedupe: com a aba oculta o
+      // operador não vê a conversa, e a tag por conversa já substitui.
+      if (options?.native) showInboxNativeNotification(conversationId, payload);
+      if (activeConversationsRef.current.has(conversationId)) return;
 
-    const now = Date.now();
-    const last = recentRef.current.get(conversationId);
-    if (last && now - last < 4000) return;
-    recentRef.current.set(conversationId, now);
+      const now = Date.now();
+      const last = recentRef.current.get(conversationId);
+      if (last && now - last < 4000) return;
+      recentRef.current.set(conversationId, now);
 
-    const id = `inbox:${conversationId}:${now}`;
-    setToasts((prev) => {
-      const filtered = prev.filter((t) => !(t.kind === "inbox" && t.inboxPayload?.conversationId === conversationId));
-      return [...filtered, { id, kind: "inbox", inboxPayload: payload, createdAt: now }];
-    });
-  }, []);
+      const id = `inbox:${conversationId}:${now}`;
+      setToasts((prev) => {
+        const filtered = prev.filter((t) => !(t.kind === "inbox" && t.inboxPayload?.conversationId === conversationId));
+        return [...filtered, { id, kind: "inbox", inboxPayload: payload, createdAt: now }];
+      });
+    },
+    [],
+  );
 
   const notifyTeamChatMessage = useCallback((payload: TeamChatToastPayload) => {
     const roomId = payload.roomId;
