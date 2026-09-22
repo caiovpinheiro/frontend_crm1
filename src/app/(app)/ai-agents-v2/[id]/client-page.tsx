@@ -3115,6 +3115,18 @@ function normalizeActionEntry(entry: Record<string, unknown>): { action: Record<
   return { action: entry, label: type };
 }
 
+function formatCrmValue(v: unknown): string {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "object") {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return "[objeto]";
+    }
+  }
+  return String(v);
+}
+
 function WhyPanel({ result, onEditTheme, onEditRule }: {
   result: TestResult;
   onEditTheme?: () => void;
@@ -3189,7 +3201,7 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
             {Object.entries(result.crmContext.contact).map(([k, v]) => (
               <li key={k}>
                 <span className="font-medium">{k}:</span>{" "}
-                <span className="text-muted-foreground">{String(v).slice(0, 200)}</span>
+                <span className="text-muted-foreground">{formatCrmValue(v).slice(0, 200)}</span>
               </li>
             ))}
           </ul>
@@ -3207,7 +3219,7 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
             {Object.entries(result.crmContext.selectedDeal).map(([k, v]) => (
               <li key={k}>
                 <span className="font-medium">{k}:</span>{" "}
-                <span className="text-muted-foreground">{String(v).slice(0, 200)}</span>
+                <span className="text-muted-foreground">{formatCrmValue(v).slice(0, 200)}</span>
               </li>
             ))}
           </ul>
