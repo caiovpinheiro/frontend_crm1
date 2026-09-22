@@ -1407,57 +1407,65 @@ function StepContext({
 
     return (
       <SectionCard title={title} description="Campos do CRM que o agente pode ler, citar ou atualizar.">
-        <div className="rounded-lg border">
-          <div className="grid grid-cols-[1fr,auto,auto,auto,auto] items-center gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
-            <span>Campo</span>
-            <HeaderCell label="Ler" tooltip="O agente pode usar o valor para entender o contexto." />
-            <HeaderCell label="Citar" tooltip="O agente pode repetir o valor em mensagens ao cliente." />
-            <HeaderCell label="Atualizar" tooltip="O agente pode alterar o valor via ações (ex.: mudar etapa)." />
-            <span />
-          </div>
-          {stored.map((s) => {
-            const label = fieldLabel(s.key, catalogFields);
-            return (
-              <div
-                key={s.key}
-                className="grid grid-cols-[1fr,auto,auto,auto,auto] items-center gap-2 border-b px-3 py-2 last:border-0"
-              >
-                <span className="flex flex-col text-sm">
-                  {label}
-                  <span className="text-xs text-muted-foreground">{exampleValue(s.key, label)}</span>
-                </span>
-                {["read", "cite", "write"].map((p) => (
-                  <input
-                    key={p}
-                    type="checkbox"
-                    checked={s.permissions.includes(p)}
-                    onChange={() => toggle(s.key, p)}
-                    className="mx-auto size-4 accent-primary"
-                  />
-                ))}
-                <Button variant="ghost" size="icon" onClick={() => remove(s.key)} aria-label="Remover campo">
-                  <IconTrash className="size-4" />
-                </Button>
-              </div>
-            );
-          })}
-          {stored.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">Nenhum campo selecionado.</p>}
-          {options.length > 0 && (
-            <div className="flex items-center gap-2 border-t px-3 py-2">
-              <Select value="" onValueChange={(v) => v && add(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Adicionar campo do CRM…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div className="overflow-x-auto">
+          <div className="min-w-[360px] rounded-lg border">
+            <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_40px_40px_40px_40px] sm:items-center sm:gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
+              <span>Campo</span>
+              <HeaderCell label="Ler" tooltip="O agente pode usar o valor para entender o contexto." />
+              <HeaderCell label="Citar" tooltip="O agente pode repetir o valor em mensagens ao cliente." />
+              <HeaderCell label="Atualizar" tooltip="O agente pode alterar o valor via ações (ex.: mudar etapa)." />
+              <span className="sr-only">Remover</span>
             </div>
-          )}
+            {stored.map((s) => {
+              const label = fieldLabel(s.key, catalogFields);
+              const permLabel: Record<string, string> = { read: "Ler", cite: "Citar", write: "Atualizar" };
+              return (
+                <div
+                  key={s.key}
+                  className="flex flex-col gap-2 border-b px-3 py-3 last:border-0 sm:grid sm:grid-cols-[minmax(0,1fr)_40px_40px_40px_40px] sm:items-center sm:gap-2 sm:py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground">{exampleValue(s.key, label)}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 sm:contents">
+                    {["read", "cite", "write"].map((p) => (
+                      <label key={p} className="flex items-center gap-1.5 sm:contents">
+                        <span className="text-sm text-muted-foreground sm:hidden">{permLabel[p]}</span>
+                        <input
+                          type="checkbox"
+                          checked={s.permissions.includes(p)}
+                          onChange={() => toggle(s.key, p)}
+                          className="size-4 accent-primary sm:mx-auto"
+                          aria-label={`${permLabel[p]} ${label}`}
+                        />
+                      </label>
+                    ))}
+                    <Button variant="ghost" size="icon" onClick={() => remove(s.key)} aria-label={`Remover ${label}`}>
+                      <IconTrash className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+            {stored.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">Nenhum campo selecionado.</p>}
+            {options.length > 0 && (
+              <div className="flex items-center gap-2 border-t px-3 py-2">
+                <Select value="" onValueChange={(v) => v && add(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Adicionar campo do CRM…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {options.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         </div>
       </SectionCard>
     );
