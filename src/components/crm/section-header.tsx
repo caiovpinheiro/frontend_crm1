@@ -47,6 +47,7 @@ export function SectionHeader({
   menu = true,
   menuSlot,
   stackSearchOnMobile = false,
+  shrinkActions = false,
   children,
 }: {
   icon: LucideIcon | ReactNode
@@ -68,6 +69,8 @@ export function SectionHeader({
   menuSlot?: ReactNode
   /** Mobile: busca em linha própria, abaixo do título e das ações. */
   stackSearchOnMobile?: boolean
+  /** Ações no tamanho do conteúdo; a busca preenche o resto da linha. */
+  shrinkActions?: boolean
   children?: ReactNode
 }) {
   const iconNode = renderHeaderIcon(icon)
@@ -115,6 +118,7 @@ export function SectionHeader({
         titleAccessory={titleAccessory}
         center={center}
         actions={actionsNode}
+        shrinkActions={shrinkActions}
       />
       {searchBelow && searchNode ? (
         <div className="w-full min-w-0 px-1">{searchNode}</div>
@@ -139,7 +143,7 @@ export function HeaderTabs<T extends string>({
 }) {
   return (
     <nav
-      className="toolbar-hscroll min-w-0 w-max max-w-full shrink-0 overflow-x-auto overscroll-x-contain"
+      className="toolbar-hscroll min-w-0 max-w-full flex-1 overflow-x-auto overscroll-x-contain md:w-max md:flex-none md:shrink-0"
       style={{ WebkitOverflowScrolling: "touch" }}
     >
       <div className="inline-flex w-max flex-nowrap items-center gap-1 rounded-full border border-border bg-card p-1">

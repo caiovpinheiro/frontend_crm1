@@ -24,7 +24,72 @@ import { resolveChatMediaUrl } from "@/lib/chat-media-url"
 import { EventRow, NoteRow, type ConversationEventAction } from "@/components/crm/chat-timeline"
 import { formatPhoneDisplay } from "@/lib/phone"
 import type { ConnectionRef } from "@/features/inbox-v2/api/types"
-import { PhoneIncoming, PhoneOff, PhoneOutgoing } from "lucide-react"
+import { PhoneIncoming, PhoneOff, PhoneOutgoing, ShoppingBag } from "lucide-react"
+
+function formatOrderMoney(amount: number, currency: string): string {
+  const code = currency?.trim() || "BRL"
+  try {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: code }).format(amount)
+  } catch {
+    return `${amount.toFixed(2)} ${code}`
+  }
+}
+
+function CatalogOrderBubble({
+  order,
+  time,
+  className,
+}: {
+  order: NonNullable<Message["catalogOrder"]>
+  time: string
+  className?: string
+}) {
+  const lineTotal = (price: number, qty: number) => price * qty
+  return (
+    <div className={cn("flex w-full justify-start", className)}>
+      <div className="w-full max-w-[22rem] overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-sm">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <ShoppingBag className="size-4 text-primary" aria-hidden />
+          <p className="text-sm font-semibold">Pedido do catálogo</p>
+        </div>
+        {order.text ? (
+          <p className="px-3 pt-2 text-sm text-muted-foreground">{order.text}</p>
+        ) : null}
+        <ul className="flex flex-col gap-2 px-3 py-2">
+          {order.items.map((item) => (
+            <li key={`${item.productRetailerId}-${item.productId ?? "x"}`} className="flex min-w-0 items-center gap-2">
+              {item.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.imageUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
+              ) : (
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-[10px] text-muted-foreground">
+                  {item.productId ? "SKU" : "?"}
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{item.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {item.quantity} × {formatOrderMoney(item.itemPrice, item.currency)}
+                  {!item.productId ? ` · ${item.productRetailerId}` : ""}
+                </p>
+              </div>
+              <p className="shrink-0 text-sm tabular-nums">
+                {formatOrderMoney(lineTotal(item.itemPrice, item.quantity), item.currency)}
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="flex items-center justify-between border-t border-border px-3 py-2 text-sm">
+          <span className="text-muted-foreground">{time}</span>
+          <span className="font-semibold tabular-nums">
+            Total {formatOrderMoney(order.total, order.currency)}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 import {
   IconRobot,
   IconClipboardList,
@@ -302,6 +367,21 @@ export interface Message {
    * em grupos futuramente). Renderiza como badge flutuante na base.
    */
   reactions?: Array<{ emoji: string; from: string; at?: string }>
+  catalogOrder?: {
+    catalogId: string
+    text: string | null
+    currency: string
+    total: number
+    items: Array<{
+      productRetailerId: string
+      quantity: number
+      itemPrice: number
+      currency: string
+      productId: string | null
+      name: string
+      imageUrl: string | null
+    }>
+  } | null
   /**
    * Favoritada pelo agente LOGADO (marcador pessoal — outros agentes não
    * veem essa marcação). Alimenta a estrela preenchida no menu e o label
@@ -1535,6 +1615,20 @@ export function MessageBubble({
         logContent={message.content}
         onPinNote={onPinNote}
         onAddToLog={onAddToLog}
+      />
+    )
+  }
+
+  if (
+    String(message.messageType ?? "").toLowerCase() === "order" &&
+    message.catalogOrder &&
+    message.catalogOrder.items.length > 0
+  ) {
+    return (
+      <CatalogOrderBubble
+        order={message.catalogOrder}
+        time={message.time}
+        className={className}
       />
     )
   }

@@ -1,6 +1,7 @@
 "use client";
 
-import { apiUrl, parseApiResponse } from "@/lib/api";
+import { apiUrl, getApiBaseUrl, parseApiResponse } from "@/lib/api";
+import { isAllowedOAuthPopupOrigin } from "@/lib/oauth-message-origin";
 import type { ChannelProvider, ChannelType } from "@/lib/prisma-enum-types";
 import { IconAt as AtSign, IconCheck as Check, IconChevronDown as ChevronDown, IconChevronLeft as ChevronLeft, IconCopy as Copy, IconExternalLink as ExternalLink, IconGlobe as Globe, IconLoader2 as Loader2, IconMail as Mail, IconMessageCircle as MessageCircle, IconQrcode as QrCode, IconShare2 as Share2, IconSparkles as Sparkles, IconWebhook as Webhook } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
@@ -351,6 +352,15 @@ export function CreateChannelDialog({
       clearInterval(closedWatch);
     };
     const listener = (event: MessageEvent) => {
+      if (event.source !== popup) return;
+      if (
+        !isAllowedOAuthPopupOrigin(event.origin, {
+          pageOrigin: window.location.origin,
+          apiBaseUrl: getApiBaseUrl(),
+        })
+      ) {
+        return;
+      }
       const raw = typeof event.data === "string" ? event.data : "";
       if (!raw) return;
       let msg: {

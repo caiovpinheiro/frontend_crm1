@@ -92,6 +92,7 @@ type NewMessagePayload = {
   senderName?: string;
   /** Slim list row from the bus (`InboxSseCard`). */
   card?: ConversationListRow;
+  catalogOrder?: InboxMessageDto["catalogOrder"];
 };
 
 /**
@@ -603,6 +604,10 @@ function appendSseMessageToOpenChat(
     createdAt: ts,
     senderName,
     channelId: data.card?.channelId ?? null,
+    catalogOrder:
+      data.catalogOrder && Array.isArray(data.catalogOrder.items)
+        ? data.catalogOrder
+        : undefined,
   };
   qc.setQueryData<MessagesResponse>(messagesKey(activeId), (old) => {
     if (!old?.messages) return old;

@@ -620,6 +620,10 @@ export function toMessageBubble(
             .map((r) => ({ emoji: r.emoji, from: r.from, at: r.at }))
         : undefined,
     isFavorited: dto.favoritedByMe || undefined,
+    catalogOrder:
+      dto.catalogOrder && Array.isArray(dto.catalogOrder.items)
+        ? dto.catalogOrder
+        : undefined,
   };
 }
 
