@@ -20,6 +20,7 @@ import {
   IconInfoCircle,
   IconLoader2,
   IconRefresh,
+  IconSearch,
   IconBulb,
   IconTool,
   IconRoute,
@@ -65,7 +66,7 @@ import { ChipInput } from "@/components/ai-agents/chip-input";
 import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
 import { looksLikeOpenAiApiKey } from "@/lib/agent-key";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -110,8 +111,13 @@ type Catalogs = {
 type KnowledgeDoc = {
   id: string;
   title: string;
-  status?: string;
+  source: string;
+  mimeType?: string;
+  sizeBytes: number;
+  status: "PENDING" | "INDEXING" | "READY" | "FAILED";
+  errorMessage?: string | null;
   chunkCount?: number;
+  createdAt: string;
 };
 
 type TestResult = {
@@ -479,9 +485,9 @@ async function testAgent(
   return parseApiResponse<TestResult>(res, "Erro ao testar agente.");
 }
 
-async function fetchKnowledgeDocs(id: string): Promise<{ docs: KnowledgeDoc[] }> {
+async function fetchKnowledgeDocs(id: string): Promise<{ items: KnowledgeDoc[]; total: number }> {
   const res = await apiFetch(`/api/ai-agents/${id}/knowledge`);
-  return parseApiResponse<{ docs: KnowledgeDoc[] }>(res, "Erro ao carregar materiais.");
+  return parseApiResponse<{ items: KnowledgeDoc[]; total: number }>(res, "Erro ao carregar materiais.");
 }
 
 async function uploadKnowledgeDoc(id: string, file: File): Promise<KnowledgeDoc> {
@@ -492,6 +498,51 @@ async function uploadKnowledgeDoc(id: string, file: File): Promise<KnowledgeDoc>
     body: form,
   });
   return parseApiResponse<KnowledgeDoc>(res, "Erro ao enviar material.");
+}
+
+async function pasteKnowledgeDoc(id: string, payload: { title: string; content: string }): Promise<KnowledgeDoc> {
+  const res = await apiFetch(`/api/ai-agents/${id}/knowledge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseApiResponse<KnowledgeDoc>(res, "Erro ao salvar material.");
+}
+
+async function deleteKnowledgeDoc(id: string, docId: string): Promise<void> {
+  const res = await apiFetch(`/api/ai-agents/${id}/knowledge/${docId}`, {
+    method: "DELETE",
+  });
+  await parseApiResponse<{ ok: boolean }>(res, "Erro ao remover material.");
+}
+
+async function retryKnowledgeDoc(id: string, docId: string): Promise<KnowledgeDoc> {
+  const res = await apiFetch(`/api/ai-agents/${id}/knowledge/${docId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "reindex" }),
+  });
+  return parseApiResponse<KnowledgeDoc>(res, "Erro ao tentar novamente.");
+}
+
+async function testKnowledgeSearch(
+  id: string,
+  query: string,
+): Promise<{ query: string; chunks: Array<{ docId: string; docTitle: string; content: string; distance: number }> }> {
+  const res = await apiFetch(`/api/ai-agents-v2/${id}/test-search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  return parseApiResponse(res, "Erro ao testar busca de materiais.");
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1582,26 +1633,123 @@ function StepMaterials({
   config: Record<string, unknown>;
   onChange: (path: string, value: unknown) => void;
 }) {
+  const { confirm: confirmDelete } = useConfirm();
   const docsQuery = useQuery({
     queryKey: ["ai-agents", agentId, "knowledge"],
     queryFn: () => fetchKnowledgeDocs(agentId),
+    refetchInterval: (query) => {
+      const items = (query.state.data?.items ?? []) as KnowledgeDoc[];
+      const processing = items.some((d) => d.status === "PENDING" || d.status === "INDEXING");
+      return processing ? 3000 : false;
+    },
   });
+
   const [file, setFile] = React.useState<File | null>(null);
+  const [pasteTitle, setPasteTitle] = React.useState("");
+  const [pasteContent, setPasteContent] = React.useState("");
+
   const uploadMutation = useMutation({
     mutationFn: (f: File) => uploadKnowledgeDoc(agentId, f),
+    onSuccess: () => {
+      setFile(null);
+      docsQuery.refetch();
+    },
+  });
+
+  const pasteMutation = useMutation({
+    mutationFn: () => pasteKnowledgeDoc(agentId, { title: pasteTitle, content: pasteContent }),
+    onSuccess: () => {
+      setPasteTitle("");
+      setPasteContent("");
+      docsQuery.refetch();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (docId: string) => deleteKnowledgeDoc(agentId, docId),
     onSuccess: () => docsQuery.refetch(),
   });
 
+  const retryMutation = useMutation({
+    mutationFn: (docId: string) => retryKnowledgeDoc(agentId, docId),
+    onSuccess: () => docsQuery.refetch(),
+  });
+
+  const [testQuery, setTestQuery] = React.useState("");
+  const [testSearchResult, setTestSearchResult] = React.useState<{
+    query: string;
+    chunks: Array<{ docId: string; docTitle: string; content: string; distance: number }>;
+  } | null>(null);
+  const testSearchMutation = useMutation({
+    mutationFn: () => testKnowledgeSearch(agentId, testQuery),
+    onSuccess: (data) => setTestSearchResult(data),
+  });
+
   const allowedIds = (config.allowedKnowledgeDocIds as string[]) ?? [];
+  const items = docsQuery.data?.items ?? [];
+
+  const statusLabel: Record<KnowledgeDoc["status"], string> = {
+    PENDING: "Processando",
+    INDEXING: "Indexando",
+    READY: "Pronto",
+    FAILED: "Falhou",
+  };
+
+  const statusVariant: Record<KnowledgeDoc["status"], "default" | "secondary" | "destructive" | "outline"> = {
+    PENDING: "secondary",
+    INDEXING: "secondary",
+    READY: "default",
+    FAILED: "destructive",
+  };
+
+  async function handleDelete(doc: KnowledgeDoc) {
+    const ok = await confirmDelete({
+      title: "Remover material",
+      description: `Remover "${doc.title}"? O agente não poderá mais consultar este documento.`,
+      confirmLabel: "Remover",
+      destructive: true,
+    });
+    if (ok) deleteMutation.mutate(doc.id);
+  }
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Enviar material" description="Textos, Word e planilhas viram documentos de consulta. PDF ainda não é suportado.">
-        <Field label="Arquivo" tooltip="O sistema extrai o texto e divide em trechos para a IA consultar. Tamanho máximo 10 MB." hint="Formatos: .doc, .docx, .txt, .md, .csv. PDF será rejeitado.">
+      <SectionCard title="Escrever direto" description="Cole um texto curto ou uma FAQ; o sistema divide em trechos para a IA consultar.">
+        <Field label="Título" hint="Ex.: FAQ de matrícula">
+          <Input value={pasteTitle} onChange={(e) => setPasteTitle(e.target.value)} />
+        </Field>
+        <Field label="Conteúdo" hint="Texto puro ou Markdown.">
+          <Textarea
+            value={pasteContent}
+            onChange={(e) => setPasteContent(e.target.value)}
+            rows={6}
+          />
+        </Field>
+        <Button
+          disabled={!pasteTitle.trim() || !pasteContent.trim() || pasteMutation.isPending}
+          onClick={() => pasteMutation.mutate()}
+        >
+          {pasteMutation.isPending ? (
+            <IconLoader2 className="size-4 animate-spin" />
+          ) : (
+            <IconUpload className="size-4" />
+          )}{" "}
+          Salvar texto
+        </Button>
+        {!!pasteMutation.error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{(pasteMutation.error as Error)?.message ?? "Erro ao salvar material."}</span>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Enviar arquivo" description="Arraste ou escolha um arquivo. O sistema extrai o texto e divide em trechos.">
+        <Field label="Arquivo" tooltip="Formatos aceitos: .txt, .md, .csv, .tsv, .docx e .pdf. Tamanho máximo 10 MB. PDFs escaneados não são lidos." hint="Formatos: .txt, .md, .csv, .docx, .pdf. Máx. 10 MB.">
           <div className="flex gap-2">
             <Input
               type="file"
-              accept=".doc,.docx,.txt,.md,.csv"
+              accept=".txt,.md,.csv,.tsv,.doc,.docx,.pdf"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
             <Button
@@ -1625,7 +1773,7 @@ function StepMaterials({
         )}
       </SectionCard>
 
-      <SectionCard title="Materiais disponíveis" description="Selecione quais o agente pode consultar globalmente.">
+      <SectionCard title="Materiais disponíveis" description="Selecione quais o agente pode consultar globalmente. Materiais em processamento atualizam sozinhos.">
         {docsQuery.isLoading ? (
           <Skeleton className="h-32" />
         ) : (
@@ -1633,30 +1781,101 @@ function StepMaterials({
             <MultiSelectPopover
               label="Materiais permitidos"
               tooltip="Documentos que o agente pode citar em qualquer assunto. Assuntos também podem ter sua própria lista."
-              options={(docsQuery.data?.docs ?? []).map((d) => ({ value: d.id, label: d.title }))}
+              options={items.map((d) => ({ value: d.id, label: d.title }))}
               selected={allowedIds}
               onChange={(v) => onChange("allowedKnowledgeDocIds", v)}
               emptyLabel="Nenhum material enviado"
             />
             <div className="mt-4 space-y-2">
-              {(docsQuery.data?.docs ?? []).map((d) => (
-                <div key={d.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="flex items-center gap-3">
-                    <IconFile className="size-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">{d.title}</p>
+              {items.map((d) => (
+                <div key={d.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <IconFile className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{d.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {d.status ?? "ok"} · {d.chunkCount ?? 0} trechos
+                        {formatFileSize(d.sizeBytes)} · {formatDate(d.createdAt)} · {d.chunkCount ?? 0} trechos
                       </p>
+                      {d.status === "FAILED" && d.errorMessage && (
+                        <p className="mt-1 text-xs text-destructive">{d.errorMessage}</p>
+                      )}
                     </div>
                   </div>
-                  <Badge variant={allowedIds.includes(d.id) ? "default" : "outline"}>
-                    {allowedIds.includes(d.id) ? "Usado" : "Não usado"}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={statusVariant[d.status]}>{statusLabel[d.status]}</Badge>
+                    {d.status === "FAILED" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={retryMutation.isPending && retryMutation.variables === d.id}
+                        onClick={() => retryMutation.mutate(d.id)}
+                      >
+                        <IconRefresh className="size-4" />
+                        <span className="sr-only">Tentar indexar {d.title} novamente</span>
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      disabled={deleteMutation.isPending && deleteMutation.variables === d.id}
+                      onClick={() => handleDelete(d)}
+                    >
+                      <IconTrash className="size-4" />
+                      <span className="sr-only">Remover {d.title}</span>
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           </>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Testar busca" description="Escreva uma pergunta para ver quais trechos dos materiais seriam encontrados, sem chamar o modelo.">
+        <div className="flex gap-2">
+          <Input
+            placeholder="Ex.: qual o prazo de emissão do documento X?"
+            value={testQuery}
+            onChange={(e) => setTestQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && testQuery.trim()) {
+                testSearchMutation.mutate();
+              }
+            }}
+          />
+          <Button
+            disabled={!testQuery.trim() || testSearchMutation.isPending}
+            onClick={() => testSearchMutation.mutate()}
+          >
+            {testSearchMutation.isPending ? (
+              <IconLoader2 className="size-4 animate-spin" />
+            ) : (
+              <IconSearch className="size-4" />
+            )}
+            Buscar
+          </Button>
+        </div>
+        {testSearchMutation.error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{(testSearchMutation.error as Error)?.message ?? "Erro ao testar busca."}</span>
+          </div>
+        )}
+        {testSearchResult && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              {testSearchResult.chunks.length === 0
+                ? "Nenhum trecho encontrado para esta pergunta."
+                : `${testSearchResult.chunks.length} trecho(s) encontrado(s):`}
+            </p>
+            {testSearchResult.chunks.map((chunk, i) => (
+              <div key={i} className="rounded-lg border p-3 text-sm">
+                <p className="font-medium">{chunk.docTitle}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{chunk.content.slice(0, 300)}{chunk.content.length > 300 ? "…" : ""}</p>
+              </div>
+            ))}
+          </div>
         )}
       </SectionCard>
     </div>
