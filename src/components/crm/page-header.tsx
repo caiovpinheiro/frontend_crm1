@@ -138,6 +138,8 @@ interface PageHeaderProps {
    * Tipicamente um `<SearchFilterBar />` (`h-10 rounded-full`).
    */
   center?: React.ReactNode
+  /** Acessório do título encostado na lateral direita da linha. */
+  pinAccessoryEnd?: boolean
   /**
    * Calendário, switchers e hamburger — à DIREITA, depois da busca.
    */
@@ -155,14 +157,22 @@ function Identity({
   title,
   back,
   titleAccessory,
+  pinAccessoryEnd = false,
 }: {
   icon: React.ReactNode
   title: React.ReactNode
   back?: PageHeaderBack
   titleAccessory?: React.ReactNode
+  /** Acessório no fim da linha, encostado na lateral direita. */
+  pinAccessoryEnd?: boolean
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 border-0 bg-transparent shadow-none outline-none">
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-3 border-0 bg-transparent shadow-none outline-none",
+        pinAccessoryEnd && "w-full",
+      )}
+    >
       {back ? (
         <Link
           href={back.href}
@@ -178,7 +188,7 @@ function Identity({
         {icon}
       </span>
 
-      <div className="flex min-w-0 items-center gap-2">
+      <div className={cn("flex min-w-0 items-center gap-2", pinAccessoryEnd && "flex-1")}>
         <div
           role="heading"
           aria-level={1}
@@ -186,8 +196,13 @@ function Identity({
         >
           {title}
         </div>
-        {titleAccessory ? <div className="flex shrink-0 items-center">{titleAccessory}</div> : null}
+        {titleAccessory && !pinAccessoryEnd ? (
+          <div className="flex shrink-0 items-center">{titleAccessory}</div>
+        ) : null}
       </div>
+      {titleAccessory && pinAccessoryEnd ? (
+        <div className="flex shrink-0 items-center">{titleAccessory}</div>
+      ) : null}
     </div>
   )
 }
@@ -198,6 +213,7 @@ export function PageHeader({
   back,
   titleAccessory,
   center,
+  pinAccessoryEnd = false,
   actions,
   shrinkActions = false,
   className,
@@ -217,7 +233,13 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0 max-md:w-full md:shrink-0">
-        <Identity icon={icon} title={title} back={back} titleAccessory={titleAccessory} />
+        <Identity
+          icon={icon}
+          title={title}
+          back={back}
+          titleAccessory={titleAccessory}
+          pinAccessoryEnd={pinAccessoryEnd}
+        />
       </div>
       {hasControls ? (
         <div className={PAGE_HEADER_CONTROLS_CLASS}>

@@ -2052,7 +2052,7 @@ function PendingQueueCards({
           </p>
         </div>
       ) : (
-        <ListHScroll scrollerClassName="pb-1">
+        <div className="min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1">
           <DataView
             view={view}
             columnClass={QUEUE_COLUMN_CLASS}
@@ -2145,7 +2145,7 @@ function PendingQueueCards({
               );
             })}
           </DataView>
-        </ListHScroll>
+        </div>
       )}
 
       {!illustrative && pageTotal > 0 ? (
