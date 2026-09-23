@@ -11,9 +11,10 @@ type MobileTableScrollProps = {
 };
 
 /**
- * Envolve listas/tabelas largas. A largura mínima empurra o overflow-x
- * para o scrollport da página — header e linhas ficam no mesmo fluxo
- * (colunas alinhadas + sticky no Y).
+ * Envolve listas/tabelas largas. No desktop a largura mínima segue no
+ * scrollport da página (colunas alinhadas + sticky no Y). No mobile o
+ * X fica neste bloco: a página, os cards e a barra de baixo não saem
+ * da tela.
  */
 export function MobileTableScroll({
   children,
@@ -21,8 +22,16 @@ export function MobileTableScroll({
   className,
 }: MobileTableScrollProps) {
   return (
-    <StickyHScroll className={cn(className)} minWidth={minWidth} fades={false}>
-      {children}
-    </StickyHScroll>
+    <div
+      className={cn(
+        "w-full min-w-0 max-w-full",
+        "max-md:overflow-x-auto max-md:overscroll-x-contain max-md:[-webkit-overflow-scrolling:touch]",
+        className,
+      )}
+    >
+      <StickyHScroll minWidth={minWidth} fades={false}>
+        {children}
+      </StickyHScroll>
+    </div>
   );
 }

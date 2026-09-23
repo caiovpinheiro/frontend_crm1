@@ -26,6 +26,7 @@ export const SETTINGS_HUB_BACK: PageHeaderBack = {
 type SettingsHeaderSlotSetters = {
   setCenter: (node: React.ReactNode) => void;
   setActions: (node: React.ReactNode) => void;
+  setTitleAccessory: (node: React.ReactNode) => void;
 };
 
 const SettingsHeaderSlotsContext =
@@ -55,6 +56,7 @@ export function SettingsV2Shell({
   back,
   center,
   actions,
+  shrinkActions = false,
 }: {
   title: string;
   description?: string;
@@ -67,12 +69,19 @@ export function SettingsV2Shell({
   center?: React.ReactNode;
   /** Controles/ações opcionais, renderizados à direita do PageHeader. */
   actions?: React.ReactNode;
+  /** Ações no tamanho do conteúdo; a busca ocupa o resto da linha. */
+  shrinkActions?: boolean;
 }) {
   const [slotCenter, setSlotCenter] = React.useState<React.ReactNode>(null);
   const [slotActions, setSlotActions] = React.useState<React.ReactNode>(null);
+  const [slotTitleAccessory, setSlotTitleAccessory] = React.useState<React.ReactNode>(null);
 
   const slotSetters = React.useMemo<SettingsHeaderSlotSetters>(
-    () => ({ setCenter: setSlotCenter, setActions: setSlotActions }),
+    () => ({
+      setCenter: setSlotCenter,
+      setActions: setSlotActions,
+      setTitleAccessory: setSlotTitleAccessory,
+    }),
     [],
   );
 
@@ -87,6 +96,9 @@ export function SettingsV2Shell({
             description={description ?? "Configurações"}
             center={center ?? slotCenter}
             actions={actions ?? slotActions}
+            shrinkActions={shrinkActions}
+            titleAccessory={slotTitleAccessory}
+            titleAccessoryFills={Boolean(slotTitleAccessory)}
           />
         }
         bodyClassName="gap-3 pr-1 sm:gap-3.5 [-webkit-overflow-scrolling:touch]"

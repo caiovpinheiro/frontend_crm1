@@ -141,6 +141,7 @@ export default function TeamV2ClientPage() {
       title="Equipe"
       description="Usuários, funções, permissões, expediente e departamentos"
       icon={<IconUsers size={22} />}
+      shrinkActions
     >
       <TeamContent />
     </SettingsV2Shell>
@@ -549,10 +550,7 @@ function TeamContent() {
     [activeTab, search, roleFilterGroup, expedienteSearch],
   );
 
-  // Segmented control compartilhado pelas 3 abas. É reusado tanto no
-  // header próprio de Usuários/Expediente quanto injetado no header do
-  // DepartmentsTab (via tabsSlot) — garante que as abas fiquem sempre
-  // visíveis, inclusive na aba Departamentos.
+  // Abas na linha do título (Equipe). A busca e o menu ficam na linha de baixo.
   const segmentedControl = React.useMemo(() => {
     const tabValue =
       activeTab === 2 ? "departamentos" : activeTab === 1 ? "expediente" : "usuarios";
@@ -573,6 +571,13 @@ function TeamContent() {
     );
   }, [activeTab, canManageDepartments]);
 
+  const headerSlots = useSettingsHeaderSlots();
+  React.useEffect(() => {
+    if (!headerSlots) return;
+    headerSlots.setTitleAccessory(segmentedControl);
+    return () => headerSlots.setTitleAccessory(null);
+  }, [headerSlots, segmentedControl]);
+
   const editFnRole = editTarget
     ? userFunctionRole(editTarget, adminRole?.id)
     : undefined;
@@ -589,9 +594,8 @@ function TeamContent() {
 
   const actionsNode = React.useMemo(
     () => (
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {activeTab === 0 ? <ViewToggle value={view} onChange={setView} /> : null}
-        {segmentedControl}
         <PageActionsMenu
           aria-label="Ações da equipe"
           items={
@@ -616,7 +620,7 @@ function TeamContent() {
         />
       </div>
     ),
-    [activeTab, segmentedControl, view],
+    [activeTab, view],
   );
 
   return (
@@ -629,7 +633,7 @@ function TeamContent() {
         <TeamHeaderSlots center={searchNode} actions={actionsNode} />
       )}
       {activeTab === 2 ? (
-        <DepartmentsTab tabsSlot={segmentedControl} />
+        <DepartmentsTab />
       ) : activeTab === 1 ? (
         <ExpedienteTab
           search={expedienteSearch}
