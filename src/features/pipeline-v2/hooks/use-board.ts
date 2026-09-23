@@ -110,9 +110,11 @@ export function useBoard(params: {
     // SSE grava lastMessage na hora. Um refetch com cache de 45s não pode
     // voltar o card para a mensagem anterior (a fila do Flow pularia).
     structuralSharing: (oldData, newData) =>
-      mergeBoardKeepingLiveActivity(oldData, newData, {
-        retainOutliers: sort?.field === "lastInteraction",
-      }),
+      mergeBoardKeepingLiveActivity(
+        oldData as BoardStageDto[] | undefined,
+        newData as BoardStageDto[],
+        { retainOutliers: sort?.field === "lastInteraction" },
+      ),
   });
 }
 
@@ -168,9 +170,11 @@ export function useBoardSearch(params: {
     // buscado — sem piscar em branco entre teclas (já debounced no caller).
     placeholderData: (prev) => prev,
     structuralSharing: (oldData, newData) =>
-      mergeBoardKeepingLiveActivity(oldData, newData, {
-        retainOutliers: params.sort?.field === "lastInteraction",
-      }),
+      mergeBoardKeepingLiveActivity(
+        oldData as BoardStageDto[] | undefined,
+        newData as BoardStageDto[],
+        { retainOutliers: params.sort?.field === "lastInteraction" },
+      ),
   });
 }
 
@@ -225,8 +229,10 @@ export function useBoardFiltered(params: {
     // kanban) ainda fazem fallback pro GET em cache no 1º POST.
     placeholderData: (previousData) => previousData,
     structuralSharing: (oldData, newData) =>
-      mergeBoardKeepingLiveActivity(oldData, newData, {
-        retainOutliers: params.sort?.field === "lastInteraction",
-      }),
+      mergeBoardKeepingLiveActivity(
+        oldData as BoardStageDto[] | undefined,
+        newData as BoardStageDto[],
+        { retainOutliers: params.sort?.field === "lastInteraction" },
+      ),
   });
 }
