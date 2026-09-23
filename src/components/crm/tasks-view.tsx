@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Mail,
   Phone,
+  Play,
   Plus,
   Users,
   type LucideIcon,
@@ -238,6 +239,12 @@ function TaskBlock({
           type={task.type}
           className={cn("shrink-0", compact ? "mt-px size-2.5" : "mt-0.5 size-3")}
         />
+        {task.startedByName ? (
+          <Play
+            className={cn("shrink-0 fill-current", compact ? "mt-px size-2.5" : "mt-0.5 size-3")}
+            aria-label={`${task.startedByName} executando`}
+          />
+        ) : null}
         <div className="min-w-0 flex-1">
           <p className={cn("truncate font-semibold", compact ? "text-[10px] leading-tight" : "text-xs")}>
             {task.title}

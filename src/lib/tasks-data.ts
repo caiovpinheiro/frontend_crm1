@@ -28,6 +28,8 @@ export type Task = {
   entityKind: CalendarEntityKind
   dealId?: string | null
   contactId?: string | null
+  /** Nome de quem está executando. Vazio se ninguém assumiu ou se já foi concluída. */
+  startedByName?: string | null
 }
 
 export const TASK_TYPE_ORDER: TaskType[] = ["tarefa", "reuniao", "ligacao", "evento", "email"]
