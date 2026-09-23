@@ -115,6 +115,7 @@ async function fetchTagsFallback(): Promise<FilterOptionsResponse["tags"]> {
       id: String(t.id ?? ""),
       name: String(t.name ?? ""),
       color: String(t.color ?? "#94a3b8"),
+      number: typeof t.number === "number" ? t.number : undefined,
     }));
   } catch {
     return [];

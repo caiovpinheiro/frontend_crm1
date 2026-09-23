@@ -65,7 +65,7 @@ import {
   TEAM_USERS_QUERY_PREFIX,
   useTeamUsersQuery,
 } from "@/features/shared/queries/team-users";
-import { useIsDesktop } from "@/hooks/use-media-query";
+import { useIsDesktop, useIsMobile } from "@/hooks/use-media-query";
 
 import {
   SETTINGS_HUB_BACK,
@@ -180,6 +180,7 @@ function TeamContent() {
   const canManageDepartments =
     session?.user?.role === "ADMIN" || session?.user?.role === "MANAGER";
   const isDesktop = useIsDesktop();
+  const isMobile = useIsMobile();
   const searchParams = useSearchParams();
 
   // Funções disponíveis: Administrador + demais papéis (Gestor/Operador +
@@ -735,7 +736,11 @@ function TeamContent() {
           <DataView
             view={view}
             columnClass="grid items-center gap-3"
-            style={{ gridTemplateColumns: USER_LIST_GRID }}
+            style={{
+              gridTemplateColumns: isMobile
+                ? "32px minmax(0,1fr) minmax(9rem,200px) 4.5rem max-content"
+                : USER_LIST_GRID,
+            }}
             header={
               <>
                 <span>
@@ -747,7 +752,9 @@ function TeamContent() {
                   />
                 </span>
                 <SortableHeader label="Nome" sort={dirFor("name")} onSort={() => toggleSort("name")} />
-                <SortableHeader label="E-mail" sort={dirFor("email")} onSort={() => toggleSort("email")} />
+                {isMobile ? null : (
+                  <SortableHeader label="E-mail" sort={dirFor("email")} onSort={() => toggleSort("email")} />
+                )}
                 <ListColumnLabel>Função</ListColumnLabel>
                 <ListColumnLabel>Telefonia</ListColumnLabel>
                 <ListColumnLabel align="right">Ações</ListColumnLabel>
@@ -799,6 +806,10 @@ function TeamContent() {
                         {u.name}
                       </span>
                     )}
+                    <span className="mt-0.5 flex min-w-0 items-center gap-1 font-body text-[12px] text-[var(--text-secondary)] md:hidden">
+                      <IconMail size={12} className="shrink-0 text-[var(--text-muted)]" />
+                      <span className="truncate">{u.email}</span>
+                    </span>
                     <span
                       className={cn(
                         "mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-px font-display text-[10px] font-bold",
@@ -812,10 +823,12 @@ function TeamContent() {
                 </div>
 
                 {/* E-mail */}
-                <div className="flex min-w-0 items-center gap-1.5 font-body text-[13px] text-[var(--text-secondary)]">
-                  <IconMail size={13} className="shrink-0 text-[var(--text-muted)]" />
-                  <span className="truncate">{u.email}</span>
-                </div>
+                {isMobile ? null : (
+                  <div className="flex min-w-0 items-center gap-1.5 font-body text-[13px] text-[var(--text-secondary)]">
+                    <IconMail size={13} className="shrink-0 text-[var(--text-muted)]" />
+                    <span className="truncate">{u.email}</span>
+                  </div>
+                )}
 
                 {/* Função */}
                 <div className="min-w-0">
