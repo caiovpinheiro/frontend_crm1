@@ -8,6 +8,7 @@ import type {
   PermissionsCatalog,
   RoleSidebarItem,
   RoleSummary,
+  PipelineGrantEntry,
   StageGrantEntry,
 } from "./types";
 
@@ -16,6 +17,7 @@ type RoleGrantPayload = {
   sharedInbox?: boolean;
   mediaAccess?: boolean;
   stageGrants?: StageGrantEntry[];
+  pipelineGrants?: PipelineGrantEntry[];
   fieldGrants?: FieldGrantEntry[];
 };
 
