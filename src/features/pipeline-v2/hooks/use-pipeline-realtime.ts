@@ -130,8 +130,9 @@ export function patchBoardLastMessage(
   data: {
     contactId?: string;
     direction?: string;
-    content?: string;
+    content?: string | null;
     timestamp?: string;
+    cardOmitted?: string;
   },
 ): boolean {
   if (!data.contactId) return false;
@@ -141,7 +142,13 @@ export function patchBoardLastMessage(
     typeof data.timestamp === "string" && data.timestamp
       ? data.timestamp
       : new Date().toISOString();
-  const content = typeof data.content === "string" ? data.content : "";
+  // Evento redigido (sem texto): não apaga a prévia do card.
+  const content =
+    typeof data.content === "string"
+      ? data.content
+      : data.cardOmitted
+        ? null
+        : "";
 
   const boards = qc.getQueriesData<BoardStageDto[]>({
     predicate: (q) => isBoardQueryKey(q.queryKey),
@@ -244,6 +251,7 @@ export function usePipelineRealtime(enabled = true) {
           content?: string;
           timestamp?: string;
           messageType?: string;
+          cardOmitted?: string;
         };
         if (skipsBoardPreview(payload.messageType)) return;
         // Payload sem contactId (legado): fallback à invalidação

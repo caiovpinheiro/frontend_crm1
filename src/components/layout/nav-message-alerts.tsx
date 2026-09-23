@@ -24,8 +24,10 @@ import {
 import type { TeamChatMessage } from "@/features/team-chat/types";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { isEventMessageType } from "@/components/crm/chat-timeline/classify";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { useUserRole } from "@/hooks/use-user-role";
+import { markJustArrived } from "@/lib/just-arrived";
 import { cn } from "@/lib/utils";
 
 const SOUND_KEY = "bwipo:nav-alert-sound-muted";
@@ -265,6 +267,19 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     if (!ready) return;
     return subscribeSSEEvents("/api/sse/messages", {
+      new_message: (raw) => {
+        const data = raw as {
+          conversationId?: string;
+          contactId?: string;
+          messageType?: string;
+          cardOmitted?: string;
+          card?: { id?: string };
+        };
+        if (!data.conversationId) return;
+        if (isEventMessageType(data.messageType)) return;
+        if (data.cardOmitted === "hidden") return;
+        markJustArrived([data.conversationId, data.card?.id, data.contactId]);
+      },
       team_chat_room_updated: () => {
         void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
       },
