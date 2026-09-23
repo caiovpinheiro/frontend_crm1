@@ -111,7 +111,11 @@ export function DealQueueSortMenu({
 
   return (
     <div className={cn("relative shrink-0", fullWidth && "w-full min-w-0")}>
-      <TooltipHost label={`Ordenar — ${SORT_LABELS[sortMode]}`} side="top">
+      <TooltipHost
+        label={`Ordenar — ${SORT_LABELS[sortMode]}`}
+        side="top"
+        triggerClassName={fullWidth ? "flex w-full min-w-0" : undefined}
+      >
         <button
           ref={triggerRef}
           type="button"
@@ -122,7 +126,7 @@ export function DealQueueSortMenu({
           className={cn(
             "inline-flex items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] font-semibold tracking-tight text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-strong)]",
             fullWidth
-              ? "h-8 w-full justify-between gap-1.5 px-2.5 text-[12px]"
+              ? "h-8 w-full min-w-0 justify-between gap-1.5 overflow-hidden px-2.5 text-[12px]"
               : iconOnly
                 ? "size-8 shrink-0 p-0"
                 : cn(

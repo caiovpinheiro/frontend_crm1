@@ -130,6 +130,8 @@ export interface TooltipHostProps {
   align?: TooltipContentProps["align"];
   children: React.ReactNode;
   className?: string;
+  /** Classe do elemento que envolve o filho (o trigger). */
+  triggerClassName?: string;
   contentClassName?: string;
   arrow?: boolean;
   delayDuration?: number;
@@ -144,6 +146,7 @@ export function TooltipHost({
   align = "center",
   children,
   className,
+  triggerClassName,
   contentClassName,
   arrow = true,
   delayDuration,
@@ -151,7 +154,7 @@ export function TooltipHost({
   return (
     <Tooltip delayDuration={delayDuration} className={className}>
       <TooltipTrigger asChild>
-        <span className="inline-flex">{children}</span>
+        <span className={cn("inline-flex", triggerClassName)}>{children}</span>
       </TooltipTrigger>
       <TooltipContent side={side} align={align} arrow={arrow} className={contentClassName}>
         {label}
