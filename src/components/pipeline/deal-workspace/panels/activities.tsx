@@ -8,6 +8,7 @@ import {
   IconMail as Mail,
   IconMessageCircle as MessageCircle,
   IconNotes,
+  IconPlayerPlay,
   IconPhoneCall as PhoneCall,
   IconPlus as Plus,
   IconTrash as Trash2,
@@ -116,6 +117,32 @@ export function ActivitiesPanel({
     });
   };
 
+  const handleStart = (dto: ActivityListItemDto) => {
+    updateMutation.mutate(
+      { id: dto.id, payload: { inProgress: true } },
+      {
+        onSuccess: () => toast.success("Você está executando esta tarefa."),
+        onError: (err) => {
+          void activitiesQuery.refetch();
+          toast.error(err.message || "Não foi possível executar a tarefa.");
+        },
+      },
+    );
+  };
+
+  const handleComplete = (dto: ActivityListItemDto) => {
+    updateMutation.mutate(
+      {
+        id: dto.id,
+        payload: { completed: true, completedAt: new Date().toISOString() },
+      },
+      {
+        onSuccess: () => toast.success("Tarefa concluída."),
+        onError: (err) => toast.error(err.message || "Não foi possível concluir a tarefa."),
+      },
+    );
+  };
+
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id, {
       onSuccess: () => onCreated?.(),
@@ -158,6 +185,8 @@ export function ActivitiesPanel({
           <ActivityTimeline
             activities={activities}
             onToggle={handleToggle}
+            onStart={handleStart}
+            onComplete={handleComplete}
             onDelete={handleDelete}
             onOpenDetails={(a) => setDetailActivity(dtoToActivity(a))}
             togglePending={updateMutation.isPending}
@@ -198,6 +227,8 @@ export function ActivitiesPanel({
 function ActivityTimeline({
   activities,
   onToggle,
+  onStart,
+  onComplete,
   onDelete,
   onOpenDetails,
   togglePending,
@@ -205,6 +236,8 @@ function ActivityTimeline({
 }: {
   activities: ActivityListItemDto[];
   onToggle: (a: ActivityListItemDto) => void;
+  onStart: (a: ActivityListItemDto) => void;
+  onComplete: (a: ActivityListItemDto) => void;
   onDelete: (id: string) => void;
   onOpenDetails: (a: ActivityListItemDto) => void;
   togglePending: boolean;
@@ -290,6 +323,11 @@ function ActivityTimeline({
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-success-text)]">
                           <CheckCircle2 className="size-3" /> Concluida
                         </span>
+                      ) : a.startedBy ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-primary)]">
+                          <IconPlayerPlay className="size-3 fill-current" />
+                          {a.startedBy.name} executando
+                        </span>
                       ) : (
                         <Circle className="size-3 text-[var(--text-faint)]" />
                       )}
@@ -310,6 +348,34 @@ function ActivityTimeline({
                     <p className="mt-1.5 text-[11px] tracking-tight text-[var(--color-ink-muted)]">
                       {assigneeLabel} · {formatDateTime(a.scheduledAt ?? a.createdAt)}
                     </p>
+                    {!a.completed ? (
+                      <div
+                        className="mt-2 flex flex-wrap gap-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        {!a.startedBy ? (
+                          <button
+                            type="button"
+                            disabled={togglePending}
+                            onClick={() => onStart(a)}
+                            className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-[var(--text-primary)] hover:bg-[var(--color-bg-subtle)] disabled:opacity-50"
+                          >
+                            <IconPlayerPlay className="size-3" />
+                            Executar
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={togglePending}
+                          onClick={() => onComplete(a)}
+                          className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary)] px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="size-3" />
+                          Concluir
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                   <div
                     className="flex shrink-0 flex-col gap-1"

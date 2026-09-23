@@ -564,6 +564,9 @@ export interface ActivityListItemDto {
   scheduledAt: string | null;
   completedAt: string | null;
   createdAt: string;
+  /** Quem clicou em Executar. Null quando ninguém está nela, ou depois de concluir. */
+  startedAt?: string | null;
+  startedBy?: { id: string; name: string; avatarUrl: string | null } | null;
   user: { id: string; name: string; email: string | null; avatarUrl: string | null } | null;
   department?: { id: string; name: string; color: string | null; icon: string | null } | null;
   contact: { id: string; name: string; email: string | null } | null;
@@ -665,6 +668,8 @@ export interface UpdateActivityPayload {
   dealId?: string | null;
   userId?: string | null;
   departmentId?: string | null;
+  /** true marca o usuário da sessão como quem está executando. */
+  inProgress?: boolean;
 }
 
 export function updateActivity(
