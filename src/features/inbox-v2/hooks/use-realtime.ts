@@ -1160,6 +1160,7 @@ export function useInboxRealtime(options: {
               }
             } else if (
               snapshot &&
+              !isClosedInboxRow(snapshot) &&
               newMessageLikelyOnTabs(
                 activeInboxListTabs(qc),
                 {
