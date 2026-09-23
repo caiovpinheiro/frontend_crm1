@@ -80,6 +80,43 @@ function usePipelinesWithStages() {
   return usePipelinesQuery<PipelineWithStages>();
 }
 
+function funnelGrantKey(role: {
+  id: string;
+  stageGrants?: { stageId: string; canView: boolean; canEdit: boolean }[];
+  pipelineGrants?: { pipelineId: string; canView: boolean }[];
+}): string {
+  const stages = [...(role.stageGrants ?? [])]
+    .map((g) => `${g.stageId}:${g.canView ? 1 : 0}:${g.canEdit ? 1 : 0}`)
+    .sort()
+    .join(",");
+  const pipes = [...(role.pipelineGrants ?? [])]
+    .map((g) => `${g.pipelineId}:${g.canView ? 1 : 0}`)
+    .sort()
+    .join(",");
+  return `${role.id}|${stages}|${pipes}`;
+}
+
+function funnelGrantsStick(
+  role: {
+    stageGrants?: { stageId: string; canView: boolean; canEdit: boolean }[];
+    pipelineGrants?: { pipelineId: string; canView: boolean }[];
+  },
+  stageHidden: Set<string>,
+  pipelineHidden: Set<string>,
+): boolean {
+  const deniedStages = new Set(
+    (role.stageGrants ?? [])
+      .filter((g) => !g.canView && !g.canEdit)
+      .map((g) => g.stageId),
+  );
+  const deniedPipes = new Set(
+    (role.pipelineGrants ?? []).filter((g) => !g.canView).map((g) => g.pipelineId),
+  );
+  for (const id of stageHidden) if (!deniedStages.has(id)) return false;
+  for (const id of pipelineHidden) if (!deniedPipes.has(id)) return false;
+  return true;
+}
+
 function useEntityFields(entity: string) {
   return useQuery<CustomFieldDef[]>({
     queryKey: ["custom-fields", entity],
@@ -157,7 +194,8 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
   const [stageHidden, setStageHidden] = useState<Set<string>>(new Set());
   const [editStageIds, setEditStageIds] = useState<string[]>([]);
   const [funnelReady, setFunnelReady] = useState(false);
-  const hydratedRoleId = useRef<string | null>(null);
+  const hydratedGrantKey = useRef<string | null>(null);
+  const funnelDirty = useRef(false);
   const [fieldGrants, setFieldGrants] = useState<Record<string, FieldGrantEntry>>({});
   const { data: funnelPipelines = [] } = usePipelinesWithStages();
   // Menu lateral do papel — controlado localmente e enviado no save. Quando
@@ -200,13 +238,15 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
   }, [role, allCatalogKeys]);
 
   useEffect(() => {
-    hydratedRoleId.current = null;
+    hydratedGrantKey.current = null;
+    funnelDirty.current = false;
     setFunnelReady(false);
   }, [roleId]);
 
   useEffect(() => {
-    if (!role) return;
-    if (hydratedRoleId.current === role.id) return;
+    if (!role || funnelDirty.current) return;
+    const grantKey = funnelGrantKey(role);
+    if (hydratedGrantKey.current === grantKey) return;
     const grants = role.stageGrants ?? [];
     const explicitDeny = grants.some((g) => !g.canView && !g.canEdit);
     if (grants.length > 0 && !explicitDeny && funnelPipelines.length === 0) return;
@@ -232,7 +272,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
       }
       setStageHidden(hidden);
     }
-    hydratedRoleId.current = role.id;
+    hydratedGrantKey.current = grantKey;
     setFunnelReady(true);
   }, [role, funnelPipelines]);
 
@@ -258,10 +298,11 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
     const sidebarPayload: RoleSidebarItem[] | null = sidebarOverride
       ? toPersistItems(sidebarItems)
       : null;
+    const sendFunnelUi = funnelReady || funnelDirty.current;
     const stagePayload: StageGrantEntry[] =
       isAdminPreset
         ? []
-        : !funnelReady && role
+        : !sendFunnelUi && role
           ? (role.stageGrants ?? [])
           : [
               ...[...stageHidden].map((stageId) => ({
@@ -276,7 +317,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
     const pipelinePayload: PipelineGrantEntry[] =
       isAdminPreset
         ? []
-        : !funnelReady && role
+        : !sendFunnelUi && role
           ? (role.pipelineGrants ?? [])
           : [...pipelineHidden].map((pipelineId) => ({ pipelineId, canView: false }));
     const fieldPayload: FieldGrantEntry[] = Object.values(fieldGrants);
@@ -295,7 +336,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
         });
         onSaved?.(created.id);
       } else if (roleId) {
-        await updateRole.mutateAsync({
+        const saved = await updateRole.mutateAsync({
           id: roleId,
           ...(isSystem ? {} : { name: name.trim(), description: description.trim() }),
           permissions,
@@ -306,6 +347,13 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           pipelineGrants: pipelinePayload,
           fieldGrants: fieldPayload,
         });
+        if (sendFunnelUi && !isAdminPreset && !funnelGrantsStick(saved, stageHidden, pipelineHidden)) {
+          funnelDirty.current = true;
+          setError("O bloqueio de funil ou etapa não foi gravado. Salve de novo.");
+          return;
+        }
+        funnelDirty.current = false;
+        hydratedGrantKey.current = funnelGrantKey(saved);
         onSaved?.(roleId);
       }
       // Visibilidade de conversas vive em OrganizationSetting (por papel-base),
@@ -527,8 +575,14 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           pipelines={funnelPipelines}
           pipelineHidden={pipelineHidden}
           stageHidden={stageHidden}
-          setPipelineHidden={setPipelineHidden}
-          setStageHidden={setStageHidden}
+          setPipelineHidden={(update) => {
+            funnelDirty.current = true;
+            setPipelineHidden(update);
+          }}
+          setStageHidden={(update) => {
+            funnelDirty.current = true;
+            setStageHidden(update);
+          }}
           disabled={isAdminPreset || saving}
         />
         {isAdminPreset && (
@@ -904,7 +958,7 @@ function MiniToggle({
   disabled?: boolean;
 }) {
   return (
-    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer")}>
+    <div className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer")}>
       <span className="text-[11.5px] font-semibold text-[var(--text-secondary)]">{label}</span>
       <button
         type="button"
@@ -925,7 +979,7 @@ function MiniToggle({
           )}
         />
       </button>
-    </label>
+    </div>
   );
 }
 
