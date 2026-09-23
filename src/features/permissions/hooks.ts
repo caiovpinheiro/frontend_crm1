@@ -8,6 +8,7 @@ import type {
   PermissionsCatalog,
   RoleSidebarItem,
   RoleSummary,
+  PipelineGrantEntry,
   StageGrantEntry,
 } from "./types";
 
@@ -16,6 +17,7 @@ type RoleGrantPayload = {
   sharedInbox?: boolean;
   mediaAccess?: boolean;
   stageGrants?: StageGrantEntry[];
+  pipelineGrants?: PipelineGrantEntry[];
   fieldGrants?: FieldGrantEntry[];
 };
 
@@ -85,7 +87,8 @@ export function useUpdateRole() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       }),
-    onSuccess: (_, { id }) => {
+    onSuccess: (role, { id }) => {
+      qc.setQueryData(["roles", id], role);
       void qc.invalidateQueries({ queryKey: ["roles"] });
       void qc.invalidateQueries({ queryKey: ["roles", id] });
       // A sidebar do usuario logado deriva dos roles — invalida pra refletir

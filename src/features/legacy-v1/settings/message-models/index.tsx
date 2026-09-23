@@ -497,6 +497,7 @@ export default function MessageModelsHubPage() {
           onSearch={setOvQuery}
           placeholder="Buscar por nome, conteúdo ou variável..."
           popoverTitle="Filtrar por canal"
+          openOnFocus={false}
           onClearAll={() => {
             setOvQuery("");
             setOvFilter("all");
@@ -526,6 +527,7 @@ export default function MessageModelsHubPage() {
           onSearch={setFlowQuery}
           placeholder="Buscar flow por nome ou Meta flow id..."
           popoverTitle="Filtrar por estado"
+          openOnFocus={false}
           onClearAll={() => {
             setFlowQuery("");
             setFlowFilter("all");

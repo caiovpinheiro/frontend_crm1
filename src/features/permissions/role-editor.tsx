@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useMemo,
+  useRef,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
@@ -45,7 +46,12 @@ import {
   useRole,
   useUpdateRole,
 } from "./hooks";
-import type { FieldGrantEntry, RoleSidebarItem, StageGrantEntry } from "./types";
+import type {
+  FieldGrantEntry,
+  PipelineGrantEntry,
+  RoleSidebarItem,
+  StageGrantEntry,
+} from "./types";
 import {
   RolePermissionsEditor,
   type PermissionsEditorMode,
@@ -72,6 +78,43 @@ async function getJson<T>(path: string): Promise<T> {
 function usePipelinesWithStages() {
   // `stages` já vem no payload canônico do GET /api/pipelines.
   return usePipelinesQuery<PipelineWithStages>();
+}
+
+function funnelGrantKey(role: {
+  id: string;
+  stageGrants?: { stageId: string; canView: boolean; canEdit: boolean }[];
+  pipelineGrants?: { pipelineId: string; canView: boolean }[];
+}): string {
+  const stages = [...(role.stageGrants ?? [])]
+    .map((g) => `${g.stageId}:${g.canView ? 1 : 0}:${g.canEdit ? 1 : 0}`)
+    .sort()
+    .join(",");
+  const pipes = [...(role.pipelineGrants ?? [])]
+    .map((g) => `${g.pipelineId}:${g.canView ? 1 : 0}`)
+    .sort()
+    .join(",");
+  return `${role.id}|${stages}|${pipes}`;
+}
+
+function funnelGrantsStick(
+  role: {
+    stageGrants?: { stageId: string; canView: boolean; canEdit: boolean }[];
+    pipelineGrants?: { pipelineId: string; canView: boolean }[];
+  },
+  stageHidden: Set<string>,
+  pipelineHidden: Set<string>,
+): boolean {
+  const deniedStages = new Set(
+    (role.stageGrants ?? [])
+      .filter((g) => !g.canView && !g.canEdit)
+      .map((g) => g.stageId),
+  );
+  const deniedPipes = new Set(
+    (role.pipelineGrants ?? []).filter((g) => !g.canView).map((g) => g.pipelineId),
+  );
+  for (const id of stageHidden) if (!deniedStages.has(id)) return false;
+  for (const id of pipelineHidden) if (!deniedPipes.has(id)) return false;
+  return true;
 }
 
 function useEntityFields(entity: string) {
@@ -147,8 +190,14 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
   // Grants migrados de Grupos: etapas do funil, campos e extras.
   const [sharedInbox, setSharedInbox] = useState(true);
   const [mediaAccess, setMediaAccess] = useState(true);
-  const [stageGrants, setStageGrants] = useState<Record<string, { canView: boolean; canEdit: boolean }>>({});
+  const [pipelineHidden, setPipelineHidden] = useState<Set<string>>(new Set());
+  const [stageHidden, setStageHidden] = useState<Set<string>>(new Set());
+  const [editStageIds, setEditStageIds] = useState<string[]>([]);
+  const [funnelReady, setFunnelReady] = useState(false);
+  const hydratedGrantKey = useRef<string | null>(null);
+  const funnelDirty = useRef(false);
   const [fieldGrants, setFieldGrants] = useState<Record<string, FieldGrantEntry>>({});
+  const { data: funnelPipelines = [] } = usePipelinesWithStages();
   // Menu lateral do papel — controlado localmente e enviado no save. Quando
   // o admin nunca mexeu, `sidebarOverride` fica false: nao envia `sidebarItems`
   // no payload (backend mantem `null` = usa catalogo padrao). Ao habilitar o
@@ -182,14 +231,50 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
       setSidebarItems(toEditorItems(hasOverride ? role.sidebarItems : null));
       setSharedInbox(role.sharedInbox ?? true);
       setMediaAccess(role.mediaAccess ?? true);
-      const sg: Record<string, { canView: boolean; canEdit: boolean }> = {};
-      for (const g of role.stageGrants ?? []) sg[g.stageId] = { canView: g.canView, canEdit: g.canEdit };
-      setStageGrants(sg);
       const fg: Record<string, FieldGrantEntry> = {};
       for (const f of role.fieldGrants ?? []) fg[`${f.entity}.${f.fieldKey}`] = f;
       setFieldGrants(fg);
     }
   }, [role, allCatalogKeys]);
+
+  useEffect(() => {
+    hydratedGrantKey.current = null;
+    funnelDirty.current = false;
+    setFunnelReady(false);
+  }, [roleId]);
+
+  useEffect(() => {
+    if (!role || funnelDirty.current) return;
+    const grantKey = funnelGrantKey(role);
+    if (hydratedGrantKey.current === grantKey) return;
+    const grants = role.stageGrants ?? [];
+    const explicitDeny = grants.some((g) => !g.canView && !g.canEdit);
+    if (grants.length > 0 && !explicitDeny && funnelPipelines.length === 0) return;
+    setPipelineHidden(
+      new Set(
+        (role.pipelineGrants ?? []).filter((g) => !g.canView).map((g) => g.pipelineId),
+      ),
+    );
+    setEditStageIds(grants.filter((g) => g.canEdit).map((g) => g.stageId));
+    if (explicitDeny || grants.length === 0) {
+      setStageHidden(
+        new Set(grants.filter((g) => !g.canView && !g.canEdit).map((g) => g.stageId)),
+      );
+    } else {
+      const allow = new Set(
+        grants.filter((g) => g.canView || g.canEdit).map((g) => g.stageId),
+      );
+      const hidden = new Set<string>();
+      for (const pl of funnelPipelines) {
+        for (const st of pl.stages) {
+          if (!allow.has(st.id)) hidden.add(st.id);
+        }
+      }
+      setStageHidden(hidden);
+    }
+    hydratedGrantKey.current = grantKey;
+    setFunnelReady(true);
+  }, [role, funnelPipelines]);
 
   const isSystem = role?.isSystem ?? false;
   const isAdminPreset = role?.systemPreset === "ADMIN";
@@ -204,7 +289,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
   const fieldRestrictions = Object.values(fieldGrants).filter(
     (f) => !f.canView || !f.canEdit,
   ).length;
-  const stageRules = Object.values(stageGrants).filter((v) => v.canView || v.canEdit).length;
+  const funnelBlocks = pipelineHidden.size + stageHidden.size;
   const assignments = role?.assignments ?? [];
 
   async function handleSave() {
@@ -213,9 +298,28 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
     const sidebarPayload: RoleSidebarItem[] | null = sidebarOverride
       ? toPersistItems(sidebarItems)
       : null;
-    const stagePayload: StageGrantEntry[] = Object.entries(stageGrants)
-      .filter(([, v]) => v.canView || v.canEdit)
-      .map(([stageId, v]) => ({ stageId, canView: v.canView, canEdit: v.canEdit }));
+    const sendFunnelUi = funnelReady || funnelDirty.current;
+    const stagePayload: StageGrantEntry[] =
+      isAdminPreset
+        ? []
+        : !sendFunnelUi && role
+          ? (role.stageGrants ?? [])
+          : [
+              ...[...stageHidden].map((stageId) => ({
+                stageId,
+                canView: false,
+                canEdit: false,
+              })),
+              ...editStageIds
+                .filter((id) => !stageHidden.has(id))
+                .map((stageId) => ({ stageId, canView: true, canEdit: true })),
+            ];
+    const pipelinePayload: PipelineGrantEntry[] =
+      isAdminPreset
+        ? []
+        : !sendFunnelUi && role
+          ? (role.pipelineGrants ?? [])
+          : [...pipelineHidden].map((pipelineId) => ({ pipelineId, canView: false }));
     const fieldPayload: FieldGrantEntry[] = Object.values(fieldGrants);
     try {
       if (isNew) {
@@ -227,11 +331,12 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           sharedInbox,
           mediaAccess,
           stageGrants: stagePayload,
+          pipelineGrants: pipelinePayload,
           fieldGrants: fieldPayload,
         });
         onSaved?.(created.id);
       } else if (roleId) {
-        await updateRole.mutateAsync({
+        const saved = await updateRole.mutateAsync({
           id: roleId,
           ...(isSystem ? {} : { name: name.trim(), description: description.trim() }),
           permissions,
@@ -239,8 +344,16 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           sharedInbox,
           mediaAccess,
           stageGrants: stagePayload,
+          pipelineGrants: pipelinePayload,
           fieldGrants: fieldPayload,
         });
+        if (sendFunnelUi && !isAdminPreset && !funnelGrantsStick(saved, stageHidden, pipelineHidden)) {
+          funnelDirty.current = true;
+          setError("O bloqueio de funil ou etapa não foi gravado. Salve de novo.");
+          return;
+        }
+        funnelDirty.current = false;
+        hydratedGrantKey.current = funnelGrantKey(saved);
         onSaved?.(roleId);
       }
       // Visibilidade de conversas vive em OrganizationSetting (por papel-base),
@@ -391,8 +504,8 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           as <strong className="font-semibold text-[var(--text-primary)]">permissões</strong> de cada módulo, a{" "}
           <strong className="font-semibold text-[var(--text-primary)]">visibilidade por funil e por campo</strong> e os{" "}
           <strong className="font-semibold text-[var(--text-primary)]">acessos extras</strong> (caixa
-          compartilhada e mídia). As restrições de funil/campo só valem com o escopo granular ativado; o
-          preset Admin sempre tem acesso total.
+          compartilhada e mídia). Funis e etapas bloqueados somem do Kanban, Inbox, Flow e buscas para
+          todos os usuários deste papel. O preset Admin sempre tem acesso total.
         </p>
       </div>
 
@@ -451,10 +564,32 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
 
       <CollapsibleSection
         icon={<IconFilter size={16} />}
-        title="Visibilidade por funil"
-        sub={stageRules > 0 ? `${stageRules} etapa(s) com regra` : "quais deals este papel enxerga e edita"}
+        title="Funis"
+        sub={
+          funnelBlocks > 0
+            ? `${funnelBlocks} bloqueio(s) de visualização`
+            : "quais funis e etapas este papel visualiza"
+        }
       >
-        <StagePanel grants={stageGrants} setGrants={setStageGrants} />
+        <FunnelPanel
+          pipelines={funnelPipelines}
+          pipelineHidden={pipelineHidden}
+          stageHidden={stageHidden}
+          setPipelineHidden={(update) => {
+            funnelDirty.current = true;
+            setPipelineHidden(update);
+          }}
+          setStageHidden={(update) => {
+            funnelDirty.current = true;
+            setStageHidden(update);
+          }}
+          disabled={isAdminPreset || saving}
+        />
+        {isAdminPreset && (
+          <p className="px-4 py-3 text-[11.5px] text-[var(--text-muted)]">
+            O preset Admin visualiza todos os funis e etapas.
+          </p>
+        )}
       </CollapsibleSection>
 
       <CollapsibleSection
@@ -571,54 +706,96 @@ function CollapsibleSection({
 
 // ─── Painel de etapas do funil ────────────────────────────────────────────────
 
-function StagePanel({
-  grants,
-  setGrants,
+function FunnelPanel({
+  pipelines,
+  pipelineHidden,
+  stageHidden,
+  setPipelineHidden,
+  setStageHidden,
+  disabled,
 }: {
-  grants: Record<string, { canView: boolean; canEdit: boolean }>;
-  setGrants: Dispatch<SetStateAction<Record<string, { canView: boolean; canEdit: boolean }>>>;
+  pipelines: PipelineWithStages[];
+  pipelineHidden: Set<string>;
+  stageHidden: Set<string>;
+  setPipelineHidden: Dispatch<SetStateAction<Set<string>>>;
+  setStageHidden: Dispatch<SetStateAction<Set<string>>>;
+  disabled?: boolean;
 }) {
-  const { data: pipelines = [] } = usePipelinesWithStages();
+  function togglePipeline(pipelineId: string, visible: boolean) {
+    setPipelineHidden((prev) => {
+      const next = new Set(prev);
+      if (visible) next.delete(pipelineId);
+      else next.add(pipelineId);
+      return next;
+    });
+  }
 
-  function set(stageId: string, patch: Partial<{ canView: boolean; canEdit: boolean }>) {
-    setGrants((p) => {
-      const cur = p[stageId] ?? { canView: true, canEdit: false };
-      return { ...p, [stageId]: { ...cur, ...patch } };
+  function toggleStage(stageId: string, visible: boolean) {
+    setStageHidden((prev) => {
+      const next = new Set(prev);
+      if (visible) next.delete(stageId);
+      else next.add(stageId);
+      return next;
     });
   }
 
   if (pipelines.length === 0) {
     return (
       <p className="px-4 py-4 text-[12px] text-[var(--text-muted)]">
-        Nenhum funil encontrado. Sem regras, o papel enxerga todas as etapas.
+        Nenhum funil encontrado. Sem bloqueios, o papel visualiza todos os funis e etapas.
       </p>
     );
   }
 
   return (
     <div>
-      {pipelines.map((pl) =>
-        pl.stages.map((st) => {
-          const g = grants[st.id] ?? { canView: true, canEdit: false };
-          return (
-            <div
-              key={st.id}
-              className="flex items-center gap-3 border-b border-[var(--glass-border-subtle)] px-4 py-2.5 last:border-b-0 hover:bg-black/[0.015]"
-            >
+      {pipelines.map((pl) => {
+        const pipelineOn = !pipelineHidden.has(pl.id);
+        return (
+          <div key={pl.id} className="border-b border-[var(--glass-border-subtle)] last:border-b-0">
+            <div className="flex items-center gap-3 bg-black/[0.02] px-4 py-2.5">
               <div className="min-w-0">
                 <span className="font-display text-[10px] font-bold uppercase tracking-[0.4px] text-[var(--text-muted)]">
-                  {pl.name}
+                  Funil
                 </span>
-                <div className="truncate text-[13.5px] font-semibold text-[var(--text-primary)]">{st.name}</div>
+                <div className="truncate text-[13.5px] font-semibold text-[var(--text-primary)]">{pl.name}</div>
               </div>
-              <div className="ml-auto flex items-center gap-4">
-                <MiniToggle label="Ver" checked={g.canView} onChange={(v) => set(st.id, { canView: v })} />
-                <MiniToggle label="Editar" checked={g.canEdit} onChange={(v) => set(st.id, { canEdit: v })} />
+              <div className="ml-auto">
+                <MiniToggle
+                  label="Visualizar"
+                  checked={pipelineOn}
+                  disabled={disabled}
+                  onChange={(v) => togglePipeline(pl.id, v)}
+                />
               </div>
             </div>
-          );
-        }),
-      )}
+            {pl.stages.map((st) => {
+              const stageOn = pipelineOn && !stageHidden.has(st.id);
+              return (
+                <div
+                  key={st.id}
+                  className="flex items-center gap-3 border-t border-[var(--glass-border-subtle)] px-4 py-2.5 pl-8 hover:bg-black/[0.015]"
+                >
+                  <div className="min-w-0">
+                    <span className="font-display text-[10px] font-bold uppercase tracking-[0.4px] text-[var(--text-muted)]">
+                      Etapa
+                    </span>
+                    <div className="truncate text-[13.5px] font-semibold text-[var(--text-primary)]">{st.name}</div>
+                  </div>
+                  <div className="ml-auto">
+                    <MiniToggle
+                      label="Visualizar"
+                      checked={stageOn}
+                      disabled={disabled || !pipelineOn}
+                      onChange={(v) => toggleStage(st.id, v)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -773,19 +950,22 @@ function MiniToggle({
   label,
   checked,
   onChange,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2">
+    <div className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer")}>
       <span className="text-[11.5px] font-semibold text-[var(--text-secondary)]">{label}</span>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         aria-label={label}
+        disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cn(
           "relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors",
@@ -799,7 +979,7 @@ function MiniToggle({
           )}
         />
       </button>
-    </label>
+    </div>
   );
 }
 

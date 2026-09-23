@@ -17,7 +17,11 @@ export type BoardDeal = {
     email: string | null;
     phone?: string | null;
     avatarUrl?: string | null;
+    /** Número sequencial do contato, quando a API manda. */
+    number?: number | null;
   } | null;
+  /** Motivo de perda (deal LOST), quando a API manda. */
+  lostReason?: string | null;
   /**
    * Responsável único do deal. Por regra de herança, o mesmo
    * usuário também é o responsável do contato (Contact.assignedTo)

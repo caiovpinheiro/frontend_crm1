@@ -86,6 +86,12 @@ type NewMessagePayload = {
   senderName?: string;
   /** Slim list row from the bus (`InboxSseCard`). */
   card?: ConversationListRow;
+  /**
+   * Por que veio sem `card`: `"hidden"` = este usuário não lista a
+   * conversa (o servidor também tira texto/mídia do evento); `"budget"` =
+   * o bus não montou o snapshot a tempo.
+   */
+  cardOmitted?: "hidden" | "budget";
   catalogOrder?: InboxMessageDto["catalogOrder"];
 };
 
@@ -1071,10 +1077,13 @@ export function useInboxRealtime(options: {
                 true,
               );
             if (touchesOpen) {
-              try {
-                appendSseMessageToOpenChat(qc, openId, data);
-              } catch (e) {
-                console.error("[sse] appendSseMessageToOpenChat failed", e);
+              // `hidden` chega sem texto/mídia: a bolha sai só do refetch.
+              if (data.cardOmitted !== "hidden") {
+                try {
+                  appendSseMessageToOpenChat(qc, openId, data);
+                } catch (e) {
+                  console.error("[sse] appendSseMessageToOpenChat failed", e);
+                }
               }
               // Hidrata id/mídia; refetch imediato como fallback caso o
               // setQueryData/merge tenham falhado ou a query esteja fresh.
@@ -1133,7 +1142,12 @@ export function useInboxRealtime(options: {
               )
             ) {
               applyConversationRowToInboxCaches(qc, snapshot);
-            } else if (newMessageLikelyOnTabs(activeInboxListTabs(qc), data, userIdRef.current)) {
+            } else if (
+              // `hidden`: o servidor já disse que este usuário não lista a
+              // conversa — o GET ?ids= voltaria vazio.
+              data.cardOmitted !== "hidden" &&
+              newMessageLikelyOnTabs(activeInboxListTabs(qc), data, userIdRef.current)
+            ) {
               scheduleMissingCardHydrate(qc, data.conversationId);
             }
           }
@@ -1248,6 +1262,7 @@ export function useInboxRealtime(options: {
         } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
         } else if (
+          (raw as { cardOmitted?: string } | null)?.cardOmitted !== "hidden" &&
           !findCachedConversationRow(qc, id) &&
           conversationUpdatedLikelyOnTabs(activeInboxListTabs(qc), payload)
         ) {

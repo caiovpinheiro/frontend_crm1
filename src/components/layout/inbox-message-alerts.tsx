@@ -10,7 +10,9 @@
  * Tipo da conversa em `inboxAlertKind` (lê o `card` do SSE) e canais pela
  * config do admin (`GET /api/agents/me/alert-config`). Sem card:
  * `cardOmitted: "hidden"` = o usuário não lista a conversa → nada;
- * `"budget"` = o bus não montou o snapshot → busca o card antes de decidir.
+ * `"budget"` = o bus não montou o snapshot. Aí só a aba do responsável
+ * (`assignedToId` do evento) busca o card — sem isto TODAS as abas da org
+ * fariam GET :id juntas, justo quando o banco já está lento.
  *
  * Som com dono único entre abas (`useInboxSoundOwner`).
  */
@@ -50,6 +52,8 @@ type NewMessageEnvelope = {
   conversationId?: string;
   contactId?: string;
   direction?: string;
+  /** Responsável no momento do evento (publicadores do webhook mandam). */
+  assignedToId?: string | null;
   content?: string;
   timestamp?: string;
   messageType?: string;
@@ -134,6 +138,7 @@ export function InboxMessageAlerts() {
       let card = data.card ?? null;
       if (!card) {
         if (data.cardOmitted !== "budget") return;
+        if (!data.assignedToId || data.assignedToId !== meRef.current) return;
         try {
           card = await getConversation(conversationId);
         } catch {

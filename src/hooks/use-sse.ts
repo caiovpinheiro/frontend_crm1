@@ -20,9 +20,12 @@ export type SSEReconnectHandler = () => void;
  * de nova mensagem existem para funcionar em segundo plano, e o stream não
  * tem replay — o que chega com a conexão fechada é perdido para sempre.
  *
- * Reconexão: `onerror` fecha e reconecta em 5s (mesmo backoff fixo que
- * cada consumidor tinha quando abria a própria conexão). Reabrir depois de
- * um gap dispara `onReconnect` (inbox/pipeline reidratam).
+ * Reconexão: `onerror` fecha e reconecta com backoff exponencial e jitter
+ * (5s, 10s, 20s… até 60s, ±30%), zerado a cada open. Fixo em 5s, um deploy
+ * derrubava todas as abas e elas voltavam juntas (cada conexão monta o
+ * gate de visibilidade no backend), e sessão expirada batia 401 a cada 5s
+ * para sempre. Reabrir depois de um gap dispara `onReconnect`
+ * (inbox/pipeline reidratam).
  */
 
 /** Eventos entregues por padrão aos assinantes do `useSSE` (compat). */
@@ -36,7 +39,16 @@ const DEFAULT_EVENTS: readonly string[] = [
   "system_presence_update",
 ];
 
-const RECONNECT_DELAY_MS = 5_000;
+const RECONNECT_BASE_MS = 5_000;
+const RECONNECT_MAX_MS = 60_000;
+const RECONNECT_JITTER = 0.3;
+
+/** Espera da tentativa `attempt` (0 = primeira): exponencial + jitter. */
+export function sseReconnectDelayMs(attempt: number, random = Math.random): number {
+  const base = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** Math.max(0, attempt));
+  const jitter = 1 + (random() * 2 - 1) * RECONNECT_JITTER;
+  return Math.round(base * jitter);
+}
 
 class SharedSSEConnection {
   private es: EventSource | null = null;
@@ -48,6 +60,8 @@ class SharedSSEConnection {
   /** Só dispara `onReconnect` depois de um open bem-sucedido + gap. */
   private everOpened = false;
   private sawGap = false;
+  /** Falhas seguidas desde o último open (backoff). */
+  private failures = 0;
 
   constructor(private readonly url: string) {}
 
@@ -99,6 +113,7 @@ class SharedSSEConnection {
     this.es = es;
     this.attachMissing();
     es.onopen = () => {
+      this.failures = 0;
       const shouldNotify = this.everOpened && this.sawGap;
       this.everOpened = true;
       this.sawGap = false;
@@ -118,10 +133,12 @@ class SharedSSEConnection {
       this.attached.clear();
       if (this.retryTimer || this.subscribers.size === 0) return;
       if (!this.shouldRun()) return;
+      const delay = sseReconnectDelayMs(this.failures);
+      this.failures += 1;
       this.retryTimer = setTimeout(() => {
         this.retryTimer = null;
         this.connect();
-      }, RECONNECT_DELAY_MS);
+      }, delay);
     };
   }
 

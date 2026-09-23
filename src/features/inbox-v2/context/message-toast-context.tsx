@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getTabBadge, setTabBadge } from "@/lib/tab-badge";
+import { isTabAlertActive, setTabAlert } from "@/lib/tab-badge";
 import { cn } from "@/lib/utils";
 import type { TeamChatMessage } from "@/features/team-chat/types";
 
@@ -59,8 +59,8 @@ type MessageToastContextValue = {
    * - `toast` (padrão `true`): toast in-page, fora da conversa aberta;
    * - `native`: notificação do sistema com a aba oculta — mesmo na
    *   conversa aberta, com a mesma tag do Web Push para o SO substituir;
-   * - `tab`: contador no título/favicon DESTA aba se a conversa está
-   *   aberta nela e a janela está fora de foco. Zera ao focar.
+   * - `tab`: ícone de balão no favicon DESTA aba se a conversa está
+   *   aberta nela e a janela está fora de foco. Volta ao normal ao focar.
    */
   notifyInboxMessage: (payload: InboxMessageToastPayload, options?: InboxNotifyOptions) => void;
   notifyTeamChatMessage: (payload: TeamChatToastPayload) => void;
@@ -340,10 +340,10 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     setMounted(true);
   }, []);
 
-  // Contador da aba (canal `tab`) zera quando o operador volta para ela.
+  // Ícone da aba (canal `tab`) volta ao normal quando o operador volta a ela.
   useEffect(() => {
     const clear = () => {
-      if (getTabBadge() > 0) setTabBadge(0);
+      if (isTabAlertActive()) setTabAlert(false);
     };
     window.addEventListener("focus", clear);
     return () => window.removeEventListener("focus", clear);
@@ -369,7 +369,7 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
       if (options?.native) showInboxNativeNotification(conversationId, payload);
       const isOpenHere = activeConversationsRef.current.has(conversationId);
       if (options?.tab && isOpenHere && !document.hasFocus()) {
-        setTabBadge(getTabBadge() + 1);
+        setTabAlert(true);
       }
       if (isOpenHere) return;
       if (options?.toast === false) return;
