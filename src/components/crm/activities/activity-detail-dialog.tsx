@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { CheckSquare } from "lucide-react"
 import { useSession } from "next-auth/react"
@@ -12,7 +13,9 @@ import {
   IconLoader2,
   IconBan,
   IconCalendarEvent,
+  IconCircleCheck,
   IconPencil,
+  IconPlayerPlay,
   IconTrash,
 } from "@tabler/icons-react"
 
@@ -38,7 +41,9 @@ import {
   useActivityComments,
   useCreateActivityComment,
   useDeleteActivityComment,
+  useUpdateActivity,
   useUpdateActivityComment,
+  invalidateActivities,
 } from "@/features/directory-v2/hooks"
 import {
   ACTIVITY_KINDS,
@@ -108,6 +113,8 @@ export function ActivityDetailDialog({
     open && historyOpen && isManagerUp && Boolean(activityId),
   )
 
+  const qc = useQueryClient()
+  const progressMut = useUpdateActivity()
   const createMut = useCreateActivityComment(activityId)
   const updateMut = useUpdateActivityComment(activityId)
   const deleteMut = useDeleteActivityComment(activityId)
@@ -195,9 +202,49 @@ export function ActivityDetailDialog({
     toast.success("Nota excluída.")
   }
 
+  const runProgress = async (payload: { inProgress: true } | { completed: true; completedAt: string }, ok: string) => {
+    if (!activityId || progressMut.isPending) return
+    try {
+      await progressMut.mutateAsync({ id: activityId, payload })
+      toast.success(ok)
+    } catch (e) {
+      invalidateActivities(qc)
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar a tarefa.")
+    }
+  }
+
   const footer =
-    activity && (onReschedule || onCancel || onDelete) ? (
+    activity && (activity.status !== "concluida" || onDelete) ? (
       <>
+        {activity.status !== "concluida" && !activity.startedBy && (
+          <ButtonGlass
+            type="button"
+            variant="glass"
+            className={formDialogCancelClass}
+            disabled={progressMut.isPending}
+            onClick={() => runProgress({ inProgress: true }, "Você está executando esta tarefa.")}
+          >
+            <IconPlayerPlay size={14} />
+            Executar
+          </ButtonGlass>
+        )}
+        {activity.status !== "concluida" && (
+          <ButtonGlass
+            type="button"
+            variant="primary"
+            className="rounded-full px-4"
+            disabled={progressMut.isPending}
+            onClick={() =>
+              runProgress(
+                { completed: true, completedAt: new Date().toISOString() },
+                "Tarefa concluída.",
+              )
+            }
+          >
+            <IconCircleCheck size={14} />
+            Concluir
+          </ButtonGlass>
+        )}
         {onReschedule && activity.status !== "concluida" && (
           <ButtonGlass
             type="button"
@@ -264,7 +311,11 @@ export function ActivityDetailDialog({
                     )}
                     <span className="font-body text-[12px] text-[var(--text-muted)]">
                       {activity.start ? `${activity.start.slice(0, 10)} · ${activityTime(activity)}` : "—"}
-                      {activity.status === "concluida" ? " · Concluída" : ""}
+                      {activity.status === "concluida"
+                        ? " · Concluída"
+                        : activity.startedBy
+                          ? ` · ${activity.startedBy.name} executando`
+                          : ""}
                     </span>
                   </div>
 
