@@ -5,7 +5,7 @@
  *
  * Por departamento e por usuário: para cada tipo de conversa (minhas,
  * fila do departamento, outras visíveis), quais canais avisam (som,
- * toast, Windows — página e push —, contador na aba).
+ * toast, Windows — página e push —, ícone da aba).
  *
  * Resolução (igual ao backend `lib/inbox-alert-config.ts`): config do
  * usuário vale inteira; senão soma (OR) dos departamentos configurados
@@ -123,7 +123,7 @@ export function InboxAlertsSettings() {
           Como cada pessoa é avisada de mensagem recebida. A configuração do usuário vale
           inteira; sem ela, vale a soma dos departamentos configurados dele; sem nenhuma,
           o padrão. &quot;Windows&quot; inclui o push com o navegador fechado. &quot;Aba&quot; é o
-          contador no título da aba onde a conversa está aberta, fora de foco. O agente
+          ícone da aba onde a conversa está aberta, que vira um balão verde fora de foco. O agente
           ainda pode silenciar o som no próprio computador.
         </p>
 
