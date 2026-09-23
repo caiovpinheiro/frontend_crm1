@@ -196,6 +196,13 @@ const AUTONOMY_OPTIONS = [
   { value: "auto", label: "Responder sozinho" },
 ];
 
+const TYPING_PACE_OPTIONS = [
+  { value: "10", label: "Rápida (10 ms por caractere)" },
+  { value: "25", label: "Humana média (25 ms por caractere)" },
+  { value: "50", label: "Deliberada (50 ms por caractere)" },
+  { value: "90", label: "Lenta (90 ms por caractere)" },
+];
+
 const ON_DEAL_NOT_FOUND_OPTIONS = [
   { value: "ask_identification", label: "Perguntar dados de identificação" },
   { value: "create_deal", label: "Criar negócio" },
@@ -287,6 +294,9 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
   responseBehavior: "balanced",
   responseLength: "medium",
   autonomyMode: "suggest",
+  simulateTyping: true,
+  typingPerCharMs: 25,
+  markMessagesRead: true,
   allowedDomains: [],
   tone: "",
   globalRules: [],
@@ -1265,6 +1275,55 @@ function StepStart({
             </Select>
           </Field>
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Comportamento no WhatsApp"
+        description="Antes de responder, o agente pode mostrar que está digitando e marcar a mensagem do cliente como lida."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Simular “digitando…”</p>
+              <p className="text-xs text-muted-foreground">O indicador aparece no WhatsApp do cliente, proporcional ao tamanho da resposta. A Meta mantém até 25 segundos.</p>
+            </div>
+            <Switch
+              checked={config.simulateTyping !== false}
+              onCheckedChange={(v) => onChange("simulateTyping", v)}
+              id="simulate-typing"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Marcar como lida</p>
+              <p className="text-xs text-muted-foreground">Os dois ticks azuis na mensagem recebida, antes da resposta. Com “digitando” ligado, a leitura já acontece junto.</p>
+            </div>
+            <Switch
+              checked={config.markMessagesRead !== false}
+              onCheckedChange={(v) => onChange("markMessagesRead", v)}
+              id="mark-read"
+            />
+          </div>
+        </div>
+        {config.simulateTyping !== false && (
+          <Field label="Velocidade de digitação" tooltip="Base de 1,5 s mais este tempo por caractere. Máximo de 25 s por limitação da Meta.">
+            <Select
+              value={String(config.typingPerCharMs ?? 25)}
+              onValueChange={(v) => onChange("typingPerCharMs", Number(v) || 25)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TYPING_PACE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
       </SectionCard>
 
       <SectionCard title="Canais e alcance" description="Por onde ele atende e para quem pode responder.">
