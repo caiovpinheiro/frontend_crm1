@@ -285,7 +285,7 @@ function asIdList(value: unknown): string[] {
 
 function filterQuery(filters: DashboardFiltersState, fieldIds?: string[]): URLSearchParams {
   const sp = new URLSearchParams();
-  sp.set("period", filters.period ?? "last_30");
+  sp.set("period", filters.period ?? "today");
   if (filters.period === "custom" && filters.startDate && filters.endDate) {
     sp.set("startDate", filters.startDate);
     sp.set("endDate", filters.endDate);
