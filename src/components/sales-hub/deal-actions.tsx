@@ -145,13 +145,19 @@ export function useMoveMutation({
     onMutate: async (vars: MovePayload) => {
       const qk = boardQueryKey(pipelineId, statusFilter);
       await queryClient.cancelQueries({ queryKey: qk });
-      const prev = queryClient.getQueryData<BoardStage[]>(qk);
-      if (prev)
+      // A fila do Flow pagina com sufixo `lastInteraction:*` na queryKey.
+      // O prefixo cobre o board padrão e essa variante.
+      const snapshots = queryClient.getQueriesData<BoardStage[]>({
+        queryKey: qk,
+      });
+      for (const [key, prev] of snapshots) {
+        if (!prev) continue;
         queryClient.setQueryData(
-          qk,
+          key,
           applyQuickMove(prev, vars.dealId, vars.fromStageId, vars.toStageId),
         );
-      return { prev };
+      }
+      return { snapshots };
     },
     onSuccess: (data, vars) => {
       const dest = stages.find((s) => s.id === vars.toStageId);
@@ -177,11 +183,9 @@ export function useMoveMutation({
       onMoved?.(vars.dealId);
     },
     onError: (e, _v, ctx) => {
-      if (ctx?.prev)
-        queryClient.setQueryData(
-          boardQueryKey(pipelineId, statusFilter),
-          ctx.prev,
-        );
+      for (const [key, prev] of ctx?.snapshots ?? []) {
+        queryClient.setQueryData(key, prev);
+      }
       toast.error(e instanceof Error ? e.message : "Erro ao mover negócio");
     },
     onSettled: (_data, _err, vars) => {

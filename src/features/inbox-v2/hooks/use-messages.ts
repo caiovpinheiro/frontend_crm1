@@ -21,7 +21,7 @@ import {
   type ReactionDto,
 } from "../api";
 
-import { schedulePipelineBoardInvalidation } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { patchBoardLastMessage } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { applyOutboundPreviewToInboxCaches } from "./apply-outbound-inbox-card";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
@@ -258,9 +258,14 @@ export function useMessages(conversationId: string | null) {
 }
 
 /** Mutation: enviar mensagem de texto ou nota interna. */
-export function useSendMessage(conversationId: string | null) {
+export function useSendMessage(
+  conversationId: string | null,
+  opts?: { contactId?: string | null },
+) {
   const qc = useQueryClient();
   const { data: session } = useSession();
+  const contactIdRef = useRef(opts?.contactId ?? null);
+  contactIdRef.current = opts?.contactId ?? null;
   return useMutation<
     {
       message: InboxMessageDto;
@@ -320,9 +325,18 @@ export function useSendMessage(conversationId: string | null) {
           messageType: data.message?.messageType,
           timestamp: data.message?.createdAt,
         });
+        // Mesmo patch do SSE `new_message`: a fila do Flow reposiciona
+        // na hora. O evento repetido (mesmo timestamp) vira no-op.
+        const contactId = contactIdRef.current;
+        if (contactId) {
+          patchBoardLastMessage(qc, {
+            contactId,
+            direction: "out",
+            content: data.message?.content ?? "",
+            timestamp: data.message?.createdAt,
+          });
+        }
       }
-      // Rodapé "aguardando resposta" dos cards vem do board (lastMessage).
-      schedulePipelineBoardInvalidation(qc);
     },
   });
 }
@@ -510,7 +524,6 @@ export function useSendAttachment(conversationId: string | null) {
           timestamp: data.message?.createdAt,
         });
       }
-      schedulePipelineBoardInvalidation(qc);
     },
   });
 }

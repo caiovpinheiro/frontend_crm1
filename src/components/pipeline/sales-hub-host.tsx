@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +45,7 @@ import {
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
 import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
+import { setBoardPinnedDealIds } from "@/features/pipeline-v2/board-live-activity";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
@@ -96,14 +97,8 @@ function readQueueSort(): DealQueueSortMode {
   if (typeof window === "undefined") return "message_new";
   try {
     const raw = localStorage.getItem(SALESHUB_QUEUE_SORT_LS);
-    if (
-      raw === "message_new" ||
-      raw === "message_old" ||
-      raw === "created_new" ||
-      raw === "created_old"
-    ) {
-      return raw;
-    }
+    if (raw === "message_old" || raw === "created_old") return "message_old";
+    if (raw === "message_new" || raw === "created_new") return "message_new";
   } catch {
     /* noop */
   }
@@ -167,17 +162,14 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   // nunca entram no board e as contagens ficam em 0.
   const status = "ALL" as const;
 
-  const boardSort = useMemo<BoardSortParam | undefined>(() => {
-    if (sortKey === "created_newest")
-      return { field: "createdAt", direction: "desc" };
-    if (sortKey === "created_oldest")
-      return { field: "createdAt", direction: "asc" };
-    if (sortKey === "interaction_newest")
-      return { field: "lastInteraction", direction: "desc" };
-    if (sortKey === "interaction_oldest")
+  // A fila ordena pela última mensagem (cliente). O board pagina por
+  // última interação da conversa para a janela de cada etapa acompanhar
+  // essa ordem — não pela criação do lead nem pela position do kanban.
+  const boardSort = useMemo<BoardSortParam>(() => {
+    if (sortMode === "message_old")
       return { field: "lastInteraction", direction: "asc" };
-    return undefined;
-  }, [sortKey]);
+    return { field: "lastInteraction", direction: "desc" };
+  }, [sortMode]);
 
   const rawSearch = (filters.search ?? search).trim();
   const [debouncedSearch, setDebouncedSearch] = useState(rawSearch);
@@ -382,18 +374,36 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     });
   }, [boardRaw, filters.valueFrom, filters.valueTo]);
 
-  const stages = board as BoardStage[];
+  // Troca de ordenação muda a queryKey do board. Enquanto o GET novo não
+  // chega, a fila continua com os cards anteriores já reordenados no
+  // cliente — sem esvaziar e sem saltar o scroll.
+  const activeBoardQuery = hasServerBoard ? boardFiltered : boardNormal;
+  const boardHoldRef = useRef<{
+    pipelineId: string;
+    stages: typeof board;
+  } | null>(null);
+  if (pipelineId && board.length > 0) {
+    boardHoldRef.current = { pipelineId, stages: board };
+  }
+  const stages = (
+    board.length > 0
+      ? board
+      : activeBoardQuery.isFetching &&
+          boardHoldRef.current?.pipelineId === pipelineId
+        ? boardHoldRef.current.stages
+        : board
+  ) as BoardStage[];
 
   const dealById = useMemo(() => {
-    const map = new Map<string, (typeof board)[number]["deals"][number]>();
-    for (const s of board) {
+    const map = new Map<string, (typeof stages)[number]["deals"][number]>();
+    for (const s of stages) {
       for (const d of s.deals) {
         map.set(d.id, d);
         if (d.number != null) map.set(String(d.number), d);
       }
     }
     return map;
-  }, [board]);
+  }, [stages]);
 
   // Resolve ?deal=<número> pelo board sem esperar GET /deals/:id.
   useEffect(() => {
@@ -431,6 +441,17 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   /** Prefer CUID (board seed / detail) over `?deal=<número>` cru. */
   const resolvedDealId =
     dealDetail?.id ?? boardDealSeed?.id ?? activeDealId;
+
+  // Mantém o card aberto no cache do board quando a página da ordenação
+  // não o devolveria (ex.: "mais antigas" depois de responder).
+  const pinnedBoardDealId =
+    dealDetail?.id ??
+    boardDealSeed?.id ??
+    (activeDealId && !/^\d+$/.test(activeDealId) ? activeDealId : null);
+  useEffect(() => {
+    setBoardPinnedDealIds(pinnedBoardDealId ? [pinnedBoardDealId] : []);
+    return () => setBoardPinnedDealIds([]);
+  }, [pinnedBoardDealId]);
 
   // Mesma fonte do kanban (`_v2-client`): contact panel + dealPanelFields.
   const dealContactId =
