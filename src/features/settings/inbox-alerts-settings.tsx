@@ -113,54 +113,57 @@ export function InboxAlertsSettings() {
   });
 
   return (
-    <GlassCard variant="overlay" className="min-w-0 overflow-hidden p-3.5 sm:p-6">
-      <h2 className="text-pretty font-display text-base font-extrabold tracking-tight text-[var(--text-primary)] sm:text-lg">
-        Alertas do inbox
-      </h2>
-      <p className="mt-1 text-pretty break-words text-sm text-[var(--text-muted)]">
-        Como cada pessoa é avisada de mensagem recebida. A configuração do usuário vale
-        inteira; sem ela, vale a soma dos departamentos configurados dele; sem nenhuma,
-        o padrão. &quot;Windows&quot; inclui o push com o navegador fechado. &quot;Aba&quot; é o
-        contador no título da aba onde a conversa está aberta, fora de foco. O agente
-        ainda pode silenciar o som no próprio computador.
-      </p>
-
-      {isLoading ? (
-        <div className="mt-5 flex items-center gap-2 text-sm text-[var(--text-muted)]">
-          <Loader2 className="size-4 animate-spin" /> Carregando…
-        </div>
-      ) : error || !data ? (
-        <p className="mt-5 text-sm text-[var(--color-destructive)]">
-          Não foi possível carregar as configurações.
+    // Âncora do atalho "Alertas do inbox" em Configurações > Comunicação.
+    <div id="alertas-do-inbox" className="min-w-0 scroll-mt-4">
+      <GlassCard variant="overlay" className="min-w-0 overflow-hidden p-3.5 sm:p-6">
+        <h2 className="text-pretty font-display text-base font-extrabold tracking-tight text-[var(--text-primary)] sm:text-lg">
+          Alertas do inbox
+        </h2>
+        <p className="mt-1 text-pretty break-words text-sm text-[var(--text-muted)]">
+          Como cada pessoa é avisada de mensagem recebida. A configuração do usuário vale
+          inteira; sem ela, vale a soma dos departamentos configurados dele; sem nenhuma,
+          o padrão. &quot;Windows&quot; inclui o push com o navegador fechado. &quot;Aba&quot; é o
+          contador no título da aba onde a conversa está aberta, fora de foco. O agente
+          ainda pode silenciar o som no próprio computador.
         </p>
-      ) : (
-        <Tabs defaultValue="departments" className="mt-5">
-          <TabsList>
-            <TabsTrigger value="departments">Departamentos</TabsTrigger>
-            <TabsTrigger value="users">Usuários</TabsTrigger>
-          </TabsList>
-          <TabsContent value="departments" className="mt-3 flex flex-col gap-2">
-            {data.departments.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">Nenhum departamento.</p>
-            ) : (
-              data.departments.map((d) => (
-                <ConfigRow
-                  key={d.id}
-                  scope="department"
-                  id={d.id}
-                  name={d.name}
-                  config={d.config}
-                  inherited={{ config: data.defaults, source: "Padrão" }}
-                />
-              ))
-            )}
-          </TabsContent>
-          <TabsContent value="users" className="mt-3">
-            <UsersList data={data} />
-          </TabsContent>
-        </Tabs>
-      )}
-    </GlassCard>
+
+        {isLoading ? (
+          <div className="mt-5 flex items-center gap-2 text-sm text-[var(--text-muted)]">
+            <Loader2 className="size-4 animate-spin" /> Carregando…
+          </div>
+        ) : error || !data ? (
+          <p className="mt-5 text-sm text-[var(--color-destructive)]">
+            Não foi possível carregar as configurações.
+          </p>
+        ) : (
+          <Tabs defaultValue="departments" className="mt-5">
+            <TabsList>
+              <TabsTrigger value="departments">Departamentos</TabsTrigger>
+              <TabsTrigger value="users">Usuários</TabsTrigger>
+            </TabsList>
+            <TabsContent value="departments" className="mt-3 flex flex-col gap-2">
+              {data.departments.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">Nenhum departamento.</p>
+              ) : (
+                data.departments.map((d) => (
+                  <ConfigRow
+                    key={d.id}
+                    scope="department"
+                    id={d.id}
+                    name={d.name}
+                    config={d.config}
+                    inherited={{ config: data.defaults, source: "Padrão" }}
+                  />
+                ))
+              )}
+            </TabsContent>
+            <TabsContent value="users" className="mt-3">
+              <UsersList data={data} />
+            </TabsContent>
+          </Tabs>
+        )}
+      </GlassCard>
+    </div>
   );
 }
 
