@@ -213,7 +213,16 @@ function TaskBlock({
   const meta = taskTypeMeta[task.type]
   const entity = ENTITY_KIND_META[task.entityKind ?? "tarefa"]
   const start = taskStart(task)
-  const typeLabel = task.dealId ? `${entity.label} · ${meta.label}` : meta.label
+  const typeLabel =
+    task.dealId && entity.label !== meta.label
+      ? `${entity.label} · ${meta.label}`
+      : meta.label
+  const who =
+    task.startedByName
+      ? `${task.startedByName} executando`
+      : task.completedByName
+        ? `concluída por ${task.completedByName}`
+        : null
   const tone: ChipColorKey | null =
     task.status === "concluida"
       ? "green"
@@ -259,10 +268,8 @@ function TaskBlock({
           <p className="truncate text-[10px] opacity-80">
             {formatTime(start)}
             <span className="mx-1">·</span>
-            {typeLabel}
-            {task.startedByName ? ` · ${task.startedByName} executando` : ""}
-            {task.completedByName ? ` · concluída por ${task.completedByName}` : ""}
-            {task.contact ? ` · ${task.contact}` : ""}
+            {who ?? typeLabel}
+            {!who && task.contact ? ` · ${task.contact}` : ""}
           </p>
           {!compact && task.linkLabel && task.linkHref && (
             <Link
