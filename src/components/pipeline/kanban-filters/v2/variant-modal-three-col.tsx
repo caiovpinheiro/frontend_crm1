@@ -9,7 +9,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { IconCheck } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 import { useIsDesktop } from "@/hooks/use-media-query";
@@ -98,12 +98,36 @@ type ModalProps = VariantProps & {
 };
 
 /** Chips de tags — coluna dedicada (multi-seleção com busca). */
+function NoTagsButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center rounded-[7px] border px-2 py-1 font-display text-[11.5px] font-semibold transition-colors",
+        active
+          ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
+          : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)] hover:border-[var(--brand-primary)]/40",
+      )}
+    >
+      Sem tags
+    </button>
+  );
+}
+
+function newestTags<T extends { id: string; number?: number }>(tags: T[], limit: number): T[] {
+  return [...tags]
+    .sort((a, b) => (b.number ?? 0) - (a.number ?? 0) || b.id.localeCompare(a.id))
+    .slice(0, limit);
+}
+
 function TagsChipColumn({
   draft,
   options,
   setDraftField,
 }: Pick<SectionProps, "draft" | "options" | "setDraftField">) {
   const [q, setQ] = React.useState("");
+  const [listOpen, setListOpen] = React.useState(false);
   const allTags = React.useMemo(() => options?.tags ?? [], [options?.tags]);
   const selectedIds = draft.tagIds ?? [];
   const selected = new Set(selectedIds);
@@ -114,6 +138,16 @@ function TagsChipColumn({
     if (!needle) return allTags;
     return allTags.filter((t) => t.name.toLowerCase().includes(needle));
   }, [allTags, q]);
+
+  const recentTags = React.useMemo(() => {
+    const top = newestTags(allTags, 10);
+    const topIds = new Set(top.map((t) => t.id));
+    const picked = new Set(selectedIds);
+    const selectedOutside = allTags.filter((t) => picked.has(t.id) && !topIds.has(t.id));
+    return [...selectedOutside, ...top];
+  }, [allTags, selectedIds]);
+
+  const mobileTags = q.trim() ? filtered : recentTags;
 
   function toggle(id: string) {
     const next = selected.has(id)
@@ -169,13 +203,27 @@ function TagsChipColumn({
             );
           })}
         </div>
-        <input
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Localizar tags…"
-          className="h-9 w-full rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 font-body text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]/40 focus:ring-2 focus:ring-[var(--brand-primary)]/20"
-        />
+        <div className="flex items-center gap-1.5">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Localizar tags…"
+            className="h-9 min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 font-body text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]/40 focus:ring-2 focus:ring-[var(--brand-primary)]/20"
+          />
+          <button
+            type="button"
+            aria-expanded={listOpen}
+            aria-label={listOpen ? "Mostrar as tags recentes" : "Mostrar todas as tags"}
+            onClick={() => setListOpen((open) => !open)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)] md:hidden"
+          >
+            <IconChevronDown
+              size={16}
+              className={cn("transition-transform duration-200", listOpen && "rotate-180")}
+            />
+          </button>
+        </div>
         {(selectedIds.length > 0 || draft.withoutTags) && (
           <button
             type="button"
@@ -192,9 +240,9 @@ function TagsChipColumn({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex flex-wrap content-start gap-1.5 pt-1">
-          <button
-            type="button"
+        <div className={cn("flex flex-wrap content-start gap-1.5 pt-1", "max-md:hidden")}>
+          <NoTagsButton
+            active={!!draft.withoutTags}
             onClick={() => {
               const next = !draft.withoutTags;
               setDraftField("withoutTags", next || undefined);
@@ -203,29 +251,79 @@ function TagsChipColumn({
                 setDraftField("tagMode", undefined);
               }
             }}
-            className={cn(
-              "inline-flex items-center rounded-[7px] border px-2 py-1 font-display text-[11.5px] font-semibold transition-colors",
-              draft.withoutTags
-                ? "border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
-                : "border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-secondary)] hover:border-[var(--brand-primary)]/40",
-            )}
-          >
-            Sem tags
-          </button>
-          {filtered.map((tag) => {
+          />
+          {filtered.map((tag) => (
+            <TagChip
+              key={tag.id}
+              name={tag.name}
+              color={tag.color}
+              count={tag.dealCount}
+              selected={selected.has(tag.id)}
+              onClick={() => toggle(tag.id)}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <p className="w-full py-6 text-center font-body text-[12px] text-[var(--text-muted)]">
+              {q.trim() ? "Nenhuma tag encontrada." : "Nenhuma tag cadastrada."}
+            </p>
+          )}
+        </div>
+
+        <div className={cn("flex flex-wrap content-start gap-1.5 pt-1 md:hidden", listOpen && "hidden")}>
+          <NoTagsButton
+            active={!!draft.withoutTags}
+            onClick={() => {
+              const next = !draft.withoutTags;
+              setDraftField("withoutTags", next || undefined);
+              if (next) {
+                setDraftField("tagIds", undefined);
+                setDraftField("tagMode", undefined);
+              }
+            }}
+          />
+          {mobileTags.map((tag) => (
+            <TagChip
+              key={tag.id}
+              name={tag.name}
+              color={tag.color}
+              count={tag.dealCount}
+              selected={selected.has(tag.id)}
+              onClick={() => toggle(tag.id)}
+            />
+          ))}
+          {mobileTags.length === 0 && (
+            <p className="w-full py-6 text-center font-body text-[12px] text-[var(--text-muted)]">
+              {q.trim() ? "Nenhuma tag encontrada." : "Nenhuma tag cadastrada."}
+            </p>
+          )}
+        </div>
+
+        <div className={cn("hidden flex-col pt-1 md:!hidden", listOpen && "flex")}>
+          {(q.trim() ? filtered : allTags).map((tag) => {
             const on = selected.has(tag.id);
             return (
-              <TagChip
+              <button
                 key={tag.id}
-                name={tag.name}
-                color={tag.color}
-                count={tag.dealCount}
-                selected={on}
+                type="button"
                 onClick={() => toggle(tag.id)}
-              />
+                aria-pressed={on}
+                className={cn(
+                  "flex w-full items-center gap-2 border-b border-[var(--glass-border)] px-1 py-2.5 text-left",
+                  on && "bg-primary/10",
+                )}
+              >
+                <span
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: tag.color || "#94a3b8" }}
+                />
+                <span className="min-w-0 flex-1 truncate font-body text-[13px] text-[var(--text-primary)]">
+                  {tag.name}
+                </span>
+                {on ? <IconCheck size={14} className="shrink-0 text-[var(--brand-primary)]" /> : null}
+              </button>
             );
           })}
-          {filtered.length === 0 && (
+          {(q.trim() ? filtered : allTags).length === 0 && (
             <p className="w-full py-6 text-center font-body text-[12px] text-[var(--text-muted)]">
               {q.trim() ? "Nenhuma tag encontrada." : "Nenhuma tag cadastrada."}
             </p>

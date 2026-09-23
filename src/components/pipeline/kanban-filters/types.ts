@@ -98,7 +98,7 @@ export type FilterOptionsResponse = {
     }[];
   }[];
   users: { id: string; name: string; avatarUrl?: string | null; role: string; type: string }[];
-  tags: { id: string; name: string; color: string; dealCount?: number }[];
+  tags: { id: string; name: string; color: string; dealCount?: number; number?: number }[];
   dealCustomFields: CustomField[];
   contactCustomFields: CustomField[];
   sources: string[];
