@@ -564,9 +564,10 @@ export interface ActivityListItemDto {
   scheduledAt: string | null;
   completedAt: string | null;
   createdAt: string;
-  /** Quem clicou em Executar. Null quando ninguém está nela, ou depois de concluir. */
+  /** Quem clicou em Executar. Permanece depois de concluir. */
   startedAt?: string | null;
   startedBy?: { id: string; name: string; avatarUrl: string | null } | null;
+  completedBy?: { id: string; name: string; avatarUrl: string | null } | null;
   user: { id: string; name: string; email: string | null; avatarUrl: string | null } | null;
   department?: { id: string; name: string; color: string | null; icon: string | null } | null;
   contact: { id: string; name: string; email: string | null } | null;

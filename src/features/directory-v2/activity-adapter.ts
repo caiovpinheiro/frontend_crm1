@@ -76,7 +76,10 @@ export function dtoToActivity(dto: ActivityListItemDto): Activity {
     assigneeUserId: dto.user?.id ?? null,
     departmentId: dto.department?.id ?? null,
     assigneeLabel: dto.department?.name ?? dto.user?.name ?? null,
-    startedBy: dto.completed ? null : dto.startedBy ?? null,
+    startedBy: dto.startedBy ?? null,
+    startedAt: dto.startedAt ?? null,
+    completedBy: dto.completedBy ?? null,
+    completedAt: dto.completedAt ?? null,
   };
 }
 
@@ -119,6 +122,9 @@ export function activityToTask(activity: Activity): Task {
       : contactId
         ? `/contacts/${contactId}`
         : undefined,
-    startedByName: activity.startedBy?.name ?? null,
+    startedByName:
+      activity.status === "concluida" ? null : activity.startedBy?.name ?? null,
+    completedByName:
+      activity.status === "concluida" ? activity.completedBy?.name ?? null : null,
   };
 }

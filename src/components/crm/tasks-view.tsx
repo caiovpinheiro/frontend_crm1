@@ -253,6 +253,8 @@ function TaskBlock({
             {formatTime(start)}
             <span className="mx-1">·</span>
             {typeLabel}
+            {task.startedByName ? ` · ${task.startedByName} executando` : ""}
+            {task.completedByName ? ` · concluída por ${task.completedByName}` : ""}
             {task.contact ? ` · ${task.contact}` : ""}
           </p>
           {!compact && task.linkLabel && task.linkHref && (
