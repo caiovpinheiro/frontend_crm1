@@ -87,11 +87,14 @@ export function DealQueueSortMenu({
   onSortModeChange,
   compact = false,
   iconOnly = false,
+  fullWidth = false,
 }: {
   sortMode: DealQueueSortMode;
   onSortModeChange: (mode: DealQueueSortMode) => void;
   compact?: boolean;
   iconOnly?: boolean;
+  /** Botão na largura da fila, com o nome da ordenação visível. */
+  fullWidth?: boolean;
 }) {
   const { open, rect, triggerRef, popoverRef, toggle, close } =
     usePortalPopover();
@@ -107,7 +110,7 @@ export function DealQueueSortMenu({
   }, [open, close]);
 
   return (
-    <div className="relative shrink-0">
+    <div className={cn("relative shrink-0", fullWidth && "w-full min-w-0")}>
       <TooltipHost label={`Ordenar — ${SORT_LABELS[sortMode]}`} side="top">
         <button
           ref={triggerRef}
@@ -118,39 +121,43 @@ export function DealQueueSortMenu({
           aria-label={`Ordenar fila: ${SORT_LABELS[sortMode]}`}
           className={cn(
             "inline-flex items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] font-semibold tracking-tight text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-strong)]",
-            iconOnly
-              ? "size-8 shrink-0 p-0"
-              : cn(
-                  compact
-                    ? "gap-1 px-2 py-1 text-[10px]"
-                    : "gap-1.5 px-2.5 py-1.5 text-[12px]",
-                ),
+            fullWidth
+              ? "h-8 w-full justify-between gap-1.5 px-2.5 text-[12px]"
+              : iconOnly
+                ? "size-8 shrink-0 p-0"
+                : cn(
+                    compact
+                      ? "gap-1 px-2 py-1 text-[10px]"
+                      : "gap-1.5 px-2.5 py-1.5 text-[12px]",
+                  ),
             open &&
               "border-[var(--brand-primary)]/40 ring-[3px] ring-[var(--brand-primary)]/15",
           )}
         >
           <ArrowUpDown
             className={cn(
-              "text-[var(--text-muted)]",
-              iconOnly ? "size-3.5" : compact ? "size-3" : "size-3.5",
+              "shrink-0 text-[var(--text-muted)]",
+              iconOnly && !fullWidth ? "size-3.5" : compact ? "size-3" : "size-3.5",
             )}
             strokeWidth={2.2}
           />
-          {!iconOnly ? (
+          {!iconOnly || fullWidth ? (
             <>
               <span
                 className={cn(
-                  "truncate",
-                  compact
-                    ? "max-w-[120px] sm:max-w-[160px]"
-                    : "max-w-[160px] sm:max-w-[200px]",
+                  "truncate text-left",
+                  fullWidth
+                    ? "min-w-0 flex-1"
+                    : compact
+                      ? "max-w-[120px] sm:max-w-[160px]"
+                      : "max-w-[160px] sm:max-w-[200px]",
                 )}
               >
                 {SORT_LABELS[sortMode]}
               </span>
               <ChevronDown
                 className={cn(
-                  "size-3 text-[var(--text-muted)] transition-transform",
+                  "size-3 shrink-0 text-[var(--text-muted)] transition-transform",
                   open && "rotate-180",
                 )}
                 strokeWidth={2.5}
