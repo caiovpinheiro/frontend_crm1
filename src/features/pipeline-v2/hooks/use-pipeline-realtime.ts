@@ -6,6 +6,22 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useSSE } from "@/hooks/use-sse";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import type { BoardStageDto } from "@/features/pipeline-v2/api";
+import { foldActivityOntoDeal } from "@/features/pipeline-v2/board-live-activity";
+
+/** Não entra no preview/ordem do card (igual ao SQL do board). */
+const NON_CHAT_MESSAGE_TYPES = new Set([
+  "note",
+  "ai_draft",
+  "whatsapp_call",
+  "whatsapp_call_recording",
+]);
+
+function skipsBoardPreview(messageType: string | null | undefined): boolean {
+  if (!messageType) return false;
+  if (isEventMessageType(messageType)) return true;
+  const mt = messageType.toLowerCase();
+  return NON_CHAT_MESSAGE_TYPES.has(mt) || mt.startsWith("event");
+}
 
 /** Cobre `pipeline-board`, `pipeline-board-search` e `pipeline-board-filtered`. */
 function isBoardQueryKey(key: readonly unknown[]): boolean {
@@ -95,12 +111,11 @@ function patchBoardLastMessageStatus(
  * o board inteiro (887KB) a cada evento da org. Casa o deal pelo
  * `contact.id` (o payload SSE não traz dealId).
  *
- * Retorna true quando algum card foi patcheado. Quando o contato não
- * está no board cacheado, NÃO invalidamos: deal novo/auto-criado entra
- * no próximo poll de 60s do `useBoard` — preço aceitável pra matar o
- * loop de refetch (ver perf-network-report.md).
+ * Retorna true quando o contato está em algum board cacheado. Quem não
+ * está na página não é inserido aqui — o caller dispara um refetch
+ * debounced para a janela "mais recentes" passar a incluí-lo.
  */
-function patchBoardLastMessage(
+export function patchBoardLastMessage(
   qc: QueryClient,
   data: {
     contactId?: string;
@@ -129,34 +144,18 @@ function patchBoardLastMessage(
     const next = data_.map((stage) => {
       let stageTouched = false;
       const deals = stage.deals.map((deal) => {
-        if (deal.contact?.id !== data.contactId) return deal;
+        const folded = foldActivityOntoDeal(deal, {
+          contactId: data.contactId,
+          direction,
+          content,
+          timestamp: ts,
+        });
+        if (!folded.matched) return deal;
+        found = true;
+        if (!folded.changed) return deal;
         stageTouched = true;
         touched = true;
-        found = true;
-        const lm = deal.lastMessage;
-        return {
-          ...deal,
-          lastMessage: {
-            ...(lm ?? {}),
-            content,
-            createdAt: ts,
-            direction: direction ?? lm?.direction ?? "",
-            // Outbound recém-enviada: ack chega via message_status (patch
-            // acima). Inbound não tem ticks.
-            sendStatus: direction === "out" ? "sent" : null,
-            sendError: null,
-          },
-          // Rodapé "aguardando resposta": inbound empilha (cap 5, como o
-          // backend); outbound do agente/bot limpa a fila de espera.
-          awaitingMessages:
-            direction === "in"
-              ? [...(deal.awaitingMessages ?? []), { content, createdAt: ts }].slice(-5)
-              : direction === "out"
-                ? []
-                : deal.awaitingMessages,
-          unreadCount:
-            direction === "in" ? (deal.unreadCount ?? 0) + 1 : deal.unreadCount,
-        };
+        return folded.deal;
       });
       return stageTouched ? { ...stage, deals } : stage;
     });
@@ -171,7 +170,8 @@ function patchBoardLastMessage(
  * O board carrega `lastMessage`, que define o rodapé "aguardando resposta"
  * e os ticks enviado/entregue/lido no `DealCard`.
  *
- * - `new_message` → patch in-place do card do contato (sem refetch).
+ * - `new_message` → patch in-place do card (a fila do Flow reordena).
+ *   Contato fora da página: um refetch debounced, sem GET a cada evento.
  * - `conversation_updated` → ignora (ticket assign/status/consent não
  *   muda estágio do deal; poll 60s + mutations locais cobrem o board).
  * - `message_status` → patch otimista do `sendStatus` (ticks), sem
@@ -231,14 +231,18 @@ export function usePipelineRealtime(enabled = true) {
           timestamp?: string;
           messageType?: string;
         };
-        if (isEventMessageType(payload.messageType)) return;
+        if (skipsBoardPreview(payload.messageType)) return;
         // Payload sem contactId (legado): fallback à invalidação
         // debounced do board — não dá pra localizar o card.
         if (!payload.contactId) {
           scheduleBoardRefresh();
           return;
         }
-        patchBoardLastMessage(qc, payload);
+        const found = patchBoardLastMessage(qc, payload);
+        // Card fora da página carregada: um refetch debounced traz o
+        // lead para a janela (mais recentes primeiro). Quem já está na
+        // fila só recebe o patch — sem o GET do board inteiro.
+        if (!found) scheduleBoardRefresh();
         return;
       }
 

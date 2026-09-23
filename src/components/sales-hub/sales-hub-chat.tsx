@@ -123,7 +123,7 @@ export function SalesHubChat({
     isPending: messagesPending,
     isError: messagesFailed,
   } = useMessages(conversationId);
-  const sendMessage = useSendMessage(conversationId);
+  const sendMessage = useSendMessage(conversationId, { contactId });
   const reactMessage = useReactMessage(conversationId);
   const pinMessage = usePinMessage(conversationId);
   const unpinMessage = useUnpinMessage(conversationId);
