@@ -766,13 +766,13 @@ export function SalesHubView({
                   {queueStageHeader.count}
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <DealQueueSortMenu
-                  sortMode={sortMode}
-                  onSortModeChange={onSortModeChange}
-                  iconOnly
-                />
-              </div>
+            </div>
+            <div className="mt-2">
+              <DealQueueSortMenu
+                sortMode={sortMode}
+                onSortModeChange={onSortModeChange}
+                fullWidth
+              />
             </div>
             <div
               className="mt-1.5 h-[2px] w-full rounded-full opacity-90"
