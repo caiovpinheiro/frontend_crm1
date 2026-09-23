@@ -141,6 +141,48 @@ interface PushPayload {
   data?: Record<string, unknown>;
 }
 
+/**
+ * Primeiro segmento das rotas do layout `(app)` — onde `InboxMessageAlerts`
+ * mostra o toast. Lista de propósito (não "tudo menos o público"): rota
+ * nova fora da lista só perde a supressão e mostra o push em dobro, em
+ * vez de engolir o aviso numa tela sem toast (onboarding, admin, dev).
+ */
+const APP_SHELL_SEGMENTS = new Set([
+  "activities", "ai-agents", "ai-agents-v2", "analytics", "automations",
+  "bwipo-chat", "bwipo-keeps", "calls", "campaigns", "companies", "contacts",
+  "dashboard", "demands", "developers", "ds-showcase", "email", "fluxo",
+  "grupos-whatsapp", "inbox", "job-openings", "logs", "orbita", "pipeline",
+  "rely", "reports", "saleshub", "settings", "showcase", "tarefas",
+  "team-chat", "v2-permissions", "widgets",
+]);
+
+function isAppShellUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.origin !== self.location.origin) return false;
+    return APP_SHELL_SEGMENTS.has(u.pathname.split("/")[1] ?? "");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Push de conversa (`tag` `conv:<id>`) com uma janela do CRM em foco: o
+ * toast in-page já avisou. Só `focused` — aba visível atrás de outra
+ * janela ainda recebe a notificação. Aba oculta usa a mesma tag no
+ * `showNotification` da página, e o SO substitui.
+ */
+async function inboxToastCoversPush(tag: string | undefined): Promise<boolean> {
+  if (!tag?.startsWith("conv:")) return false;
+  const windows = await self.clients.matchAll({
+    type: "window",
+    includeUncontrolled: true,
+  });
+  return windows.some(
+    (c) => (c as WindowClient).focused === true && isAppShellUrl(c.url),
+  );
+}
+
 self.addEventListener("push", (event: PushEvent) => {
   if (!event.data) return;
 
@@ -180,7 +222,12 @@ self.addEventListener("push", (event: PushEvent) => {
     requireInteraction: false,
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    (async () => {
+      if (await inboxToastCoversPush(tag)) return;
+      await self.registration.showNotification(title, options);
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", (event: NotificationEvent) => {

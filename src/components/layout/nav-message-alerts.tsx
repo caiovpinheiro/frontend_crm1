@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
 
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
+import { resumeAudio as resumeInboxAudio } from "@/features/inbox-v2/hooks/use-inbox-sound";
 import {
   incrementRoomUnreadInCache,
   upsertTeamChatMessage,
@@ -115,12 +116,11 @@ function getCtx(): AudioContext | null {
 
 async function resumeNavAlertAudio(): Promise<void> {
   const ctx = getCtx();
-  if (ctx && ctx.state === "suspended") {
-    try {
-      await ctx.resume();
-    } catch {
-      /* ignore */
-    }
+  if (!ctx || ctx.state === "running" || ctx.state === "closed") return;
+  try {
+    await ctx.resume();
+  } catch {
+    /* ignore */
   }
 }
 
@@ -130,8 +130,8 @@ function playNavAlertPing(): void {
   if (nowMs - lastPingAt < SOUND_DEBOUNCE_MS) return;
   lastPingAt = nowMs;
   const ctx = getCtx();
-  if (!ctx) return;
-  if (ctx.state === "suspended") void ctx.resume();
+  // Fora de gesto o resume() falha em silêncio; travado não toca.
+  if (!ctx || ctx.state !== "running") return;
   try {
     const now = ctx.currentTime;
     const notes = [
@@ -252,13 +252,19 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     };
   }, []);
 
+  // Destrava os dois AudioContext (trilho e inbox) em todo gesto, não só
+  // no primeiro: o Safari volta a `interrupted` e o resume pode falhar.
+  // Com o contexto já `running` as duas chamadas retornam na hora.
   useEffect(() => {
-    const unlock = () => void resumeNavAlertAudio();
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    const unlock = () => {
+      void resumeNavAlertAudio();
+      void resumeInboxAudio();
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true, passive: true });
+    window.addEventListener("keydown", unlock, { capture: true });
     return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("pointerdown", unlock, { capture: true });
+      window.removeEventListener("keydown", unlock, { capture: true });
     };
   }, []);
 

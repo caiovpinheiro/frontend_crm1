@@ -473,8 +473,8 @@ export function useTeamChatRealtime(
   const { registerActiveTeamChatRoom, notifyTeamChatMessage } = useMessageToast();
 
   useEffect(() => {
-    registerActiveTeamChatRoom(activeRoomId);
-    return () => registerActiveTeamChatRoom(null);
+    if (!activeRoomId) return;
+    return registerActiveTeamChatRoom(activeRoomId);
   }, [registerActiveTeamChatRoom, activeRoomId]);
 
   useEffect(() => {
