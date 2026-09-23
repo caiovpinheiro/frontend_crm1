@@ -129,6 +129,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
 
   const { search, setSearch, sortKey, setSortKey } = usePipelineSearchSort();
   const [sortMode, setSortMode] = useState<DealQueueSortMode>(readQueueSort);
+  const [queueRefreshPending, setQueueRefreshPending] = useState(false);
   const { filters, setFilters, patch: patchFilters, clear: clearFilters } =
     useKanbanFilters();
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -261,6 +262,14 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     setBoardExtraByStage({});
     setLoadingMoreQueue(false);
   }, [pipelineId, status, boardSort, hasServerBoard]);
+
+  const refreshActiveBoard = hasServerBoard
+    ? boardFiltered.refetch
+    : boardNormal.refetch;
+  const handleRefreshQueue = useCallback(() => {
+    setQueueRefreshPending(true);
+    void refreshActiveBoard().finally(() => setQueueRefreshPending(false));
+  }, [refreshActiveBoard]);
 
   const handleQueueLoadMore = useCallback((stageId?: string | null) => {
     const stages = boardNormal.data ?? [];
@@ -721,6 +730,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
             searchQuery={hasServerBoard ? "" : search}
             sortMode={sortMode}
             onSortModeChange={setSortMode}
+            onRefreshQueue={handleRefreshQueue}
+            queueRefreshing={queueRefreshPending}
             queueHasMore={queueHasMore}
             queueLoadingMore={loadingMoreQueue}
             onQueueLoadMore={handleQueueLoadMore}
