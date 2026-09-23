@@ -1,10 +1,12 @@
 /**
  * Aviso de mensagem nova na aba do navegador: enquanto ativo, o favicon
- * vira um balão de chat verde (sem contador — o título não muda).
- * `setTabAlert(false)` restaura o ícone original. Estado por aba (módulo).
+ * vira um balão de chat verde e o título ganha "(1) " — fixo, não soma
+ * a cada mensagem. `setTabAlert(false)` restaura ícone e título. Estado
+ * por aba (módulo).
  */
 
 const ORIGINAL_HREF = "tabAlertOriginalHref";
+const TITLE_PREFIX = "(1) ";
 
 /** Balão de chat verde genérico (não é o logo do WhatsApp). */
 const ALERT_ICON =
@@ -27,6 +29,10 @@ export function isTabAlertActive(): boolean {
 export function setTabAlert(on: boolean): void {
   if (typeof document === "undefined" || on === active) return;
   active = on;
+  const base = document.title.startsWith(TITLE_PREFIX)
+    ? document.title.slice(TITLE_PREFIX.length)
+    : document.title;
+  document.title = on ? `${TITLE_PREFIX}${base}` : base;
   const links = document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]');
   for (const link of links) {
     if (on) {
