@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckSquare, Clock } from "lucide-react"
 import { IconSearch, IconX } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
@@ -116,23 +116,43 @@ export function ActivityComposer({
     }))
   }, [availableDeals, contactDetailQuery.data?.deals])
 
+  // Inbox, Flow e Kanban passam `defaultDate={new Date()}`. A tela
+  // re-renderiza com o SSE; uma data nova no array de deps zerava o
+  // formulário inteiro (Departamento voltava para Usuário).
+  const seedRef = useRef({
+    defaultDate,
+    presetContactId,
+    presetContactName,
+    presetDealId,
+    presetDealTitle,
+  })
+  seedRef.current = {
+    defaultDate,
+    presetContactId,
+    presetContactName,
+    presetDealId,
+    presetDealTitle,
+  }
+
   useEffect(() => {
     if (!open) return
-    setDate(dateKey(defaultDate))
+    const seed = seedRef.current
+    const seedDate = seed.defaultDate
+    setDate(dateKey(seedDate))
     setTitle("")
     setKind("tarefa")
-    const hh = String(defaultDate.getHours()).padStart(2, "0")
-    const mm = String(defaultDate.getMinutes()).padStart(2, "0")
+    const hh = String(seedDate.getHours()).padStart(2, "0")
+    const mm = String(seedDate.getMinutes()).padStart(2, "0")
     setTime(
-      defaultDate.getHours() === 0 && defaultDate.getMinutes() === 0
+      seedDate.getHours() === 0 && seedDate.getMinutes() === 0
         ? "09:00"
         : `${hh}:${mm}`,
     )
     setDuration("30")
-    setContactId(presetContactId)
-    setContactName(presetContactName)
-    setDealId(presetDealId)
-    setDealTitle(presetDealTitle)
+    setContactId(seed.presetContactId)
+    setContactName(seed.presetContactName)
+    setDealId(seed.presetDealId)
+    setDealTitle(seed.presetDealTitle)
     setContactSearch("")
     setDebouncedContactSearch("")
     setLocation("")
@@ -140,14 +160,7 @@ export function ActivityComposer({
     setAssignKind("user")
     setAssigneeUserId("")
     setDepartmentId("")
-  }, [
-    open,
-    defaultDate,
-    presetContactId,
-    presetContactName,
-    presetDealId,
-    presetDealTitle,
-  ])
+  }, [open])
 
   useEffect(() => {
     const timer = window.setTimeout(
