@@ -214,6 +214,14 @@ function TaskBlock({
   const entity = ENTITY_KIND_META[task.entityKind ?? "tarefa"]
   const start = taskStart(task)
   const typeLabel = task.dealId ? `${entity.label} · ${meta.label}` : meta.label
+  const tone: ChipColorKey | null =
+    task.status === "concluida"
+      ? "green"
+      : taskMatchesSituation(task, "overdue")
+        ? "red"
+        : task.startedByName
+          ? "orange"
+          : null
 
   return (
     <button
@@ -230,8 +238,7 @@ function TaskBlock({
       }}
       className={cn(
         "w-full overflow-hidden rounded-lg border px-1.5 py-0.5 text-left",
-        CHIP_BLOCK[meta.colorKey],
-        task.status === "concluida" && "opacity-60",
+        CHIP_BLOCK[tone ?? meta.colorKey],
       )}
     >
       <div className="flex min-w-0 items-start gap-1">
