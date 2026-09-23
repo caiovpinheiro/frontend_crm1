@@ -55,8 +55,8 @@ const SORT_LABELS: Record<DealQueueSortMode, string> = {
 };
 
 const SORT_HINTS: Record<DealQueueSortMode, string> = {
-  message_new: "Quem falou por último fica no topo",
-  message_old: "Quem está esperando há mais tempo fica no topo",
+  message_new: "Quem falta responder fica no topo. Respondidos descem.",
+  message_old: "Quem espera há mais tempo fica no topo. Respondidos vão para o fim.",
 };
 
 /** Filtro local da fila (nome, e-mail, telefone, título do negócio). */
@@ -565,7 +565,24 @@ export function DealQueue({
       ? selectionAnchorRef.current.index
       : -1;
   const effectiveLimit = Math.max(renderLimit, anchorIndex + 1);
-  const windowedDeals = visibleDeals.slice(0, effectiveLimit);
+  const windowSlice = visibleDeals.slice(0, effectiveLimit);
+  // Resposta tira o card da janela do topo (ele passa a ser o mais recente).
+  // Mantém o deal aberto no fim do que está na tela, para ele "ir para baixo".
+  const activeFellBelowWindow =
+    !!activeDealId && activeIdx >= effectiveLimit
+      ? visibleDeals[activeIdx]
+      : undefined;
+  const windowedDeals =
+    activeFellBelowWindow &&
+    !windowSlice.some((d) => d.id === activeFellBelowWindow.id)
+      ? [...windowSlice, activeFellBelowWindow]
+      : windowSlice;
+  // O card aberto saiu da janela do topo. Rola até ele no fim da lista visível.
+  useEffect(() => {
+    if (!activeDealId || activeIdx < effectiveLimit) return;
+    const el = itemRefs.current.get(activeDealId);
+    el?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [activeDealId, activeIdx, effectiveLimit]);
   const hasMoreToRender = visibleDeals.length > effectiveLimit;
   const queueSentinelRef = useRef<HTMLDivElement>(null);
   // Dois níveis: 1º janela local (+60); depois rede (+50/etapa).
