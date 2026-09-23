@@ -70,6 +70,7 @@ import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-sel
 import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
 import { looksLikeOpenAiApiKey } from "@/lib/agent-key";
 import { cn, formatDate } from "@/lib/utils";
+import { TestConversations } from "./test-conversations";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -778,6 +779,7 @@ const STEPS = [
   { id: "team", title: "Equipe e horários", subtitle: "Transferir e encerrar" },
   { id: "closure", title: "Encerrar e classificar", subtitle: "Tabulação e pesquisa" },
   { id: "test", title: "Testar e publicar", subtitle: "Conferir antes de ligar" },
+  { id: "test-conversations", title: "Conversas de teste", subtitle: "WhatsApp: passo a passo e erros" },
 ];
 
 export default function AIAgentV2EditPage() {
@@ -1091,6 +1093,7 @@ export default function AIAgentV2EditPage() {
                 onGoToRule={() => handleStepChange(7)}
               />
             )}
+            {step === 12 && <TestConversations agentId={id} />}
           </main>
         </div>
 
