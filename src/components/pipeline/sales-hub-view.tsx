@@ -2,6 +2,10 @@
 
 import { apiUrl } from "@/lib/api";
 import {
+  compareMessageActivity,
+  messageActivityTimestamp,
+} from "@/lib/message-activity-sort";
+import {
   useState,
   useCallback,
   useMemo,
@@ -436,25 +440,16 @@ export function SalesHubView({
       s.deals.map((d) => ({ ...d, stageId: s.id })),
     );
 
-    const getMessageTime = (d: BoardDeal): number =>
-      d.lastMessage?.createdAt ? new Date(d.lastMessage.createdAt).getTime() : 0;
-    const getCreatedTime = (d: BoardDeal): number =>
-      d.createdAt ? new Date(d.createdAt).getTime() : 0;
-
-    return flat.sort((a, b) => {
-      switch (sortMode) {
-        case "message_new":
-          return getMessageTime(b) - getMessageTime(a);
-        case "message_old":
-          return getMessageTime(a) - getMessageTime(b);
-        case "created_new":
-          return getCreatedTime(b) - getCreatedTime(a);
-        case "created_old":
-          return getCreatedTime(a) - getCreatedTime(b);
-        default:
-          return 0;
-      }
-    });
+    // Mesma chave da Caixa de Entrada: horário da última mensagem, não
+    // a criação do lead. `asc` = mais antigas primeiro.
+    const order = sortMode === "message_old" ? "asc" : "desc";
+    return flat.sort((a, b) =>
+      compareMessageActivity(
+        messageActivityTimestamp(a.lastMessage?.createdAt),
+        messageActivityTimestamp(b.lastMessage?.createdAt),
+        order,
+      ),
+    );
   }, [filteredStages, selectedStageId, sortMode]);
 
   // Com o board paginado (50/etapa), `deals.length` sub-reporta — usa o

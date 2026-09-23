@@ -19,6 +19,7 @@ import { isPreviewMode } from "@/lib/preview-mode";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { normalizeSearchQuery } from "@/lib/search-query";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { mergeBoardKeepingLiveActivity } from "../board-live-activity";
 
 /** Página de cards por coluna no Kanban (scroll soma +10). */
 export const BOARD_PAGE_SIZE = 10;
@@ -106,6 +107,12 @@ export function useBoard(params: {
     // Evita o "flash" de tela vazia/"Carregando..." — a query mais cara do
     // app leva ~1-2s, então sem isso o board pisca em branco a cada refetch.
     placeholderData: (prev) => prev,
+    // SSE grava lastMessage na hora. Um refetch com cache de 45s não pode
+    // voltar o card para a mensagem anterior (a fila do Flow pularia).
+    structuralSharing: (oldData, newData) =>
+      mergeBoardKeepingLiveActivity(oldData, newData, {
+        retainOutliers: sort?.field === "lastInteraction",
+      }),
   });
 }
 
@@ -160,6 +167,10 @@ export function useBoardSearch(params: {
     // [jul/26] Preserva os resultados anteriores enquanto o novo termo é
     // buscado — sem piscar em branco entre teclas (já debounced no caller).
     placeholderData: (prev) => prev,
+    structuralSharing: (oldData, newData) =>
+      mergeBoardKeepingLiveActivity(oldData, newData, {
+        retainOutliers: params.sort?.field === "lastInteraction",
+      }),
   });
 }
 
@@ -213,5 +224,9 @@ export function useBoardFiltered(params: {
     // (evita flash de vazio ao mexer em tags/datas/origem). Hosts (Flow/
     // kanban) ainda fazem fallback pro GET em cache no 1º POST.
     placeholderData: (previousData) => previousData,
+    structuralSharing: (oldData, newData) =>
+      mergeBoardKeepingLiveActivity(oldData, newData, {
+        retainOutliers: params.sort?.field === "lastInteraction",
+      }),
   });
 }

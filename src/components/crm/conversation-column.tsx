@@ -4,6 +4,10 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import {
+  compareMessageActivity,
+  messageActivityTimestamp,
+} from "@/lib/message-activity-sort"
+import {
   IconClock,
   IconPlus,
   IconChevronDown,
@@ -339,18 +343,17 @@ function writeOrdenacao(value: Ordenacao) {
   }
 }
 
-/** Mesmo critério de `_v2-client` / `activityTs`: lastMessageAt ?? lastInboundAt. */
-function conversationActivityTs(c: Conversation): number {
-  return c.lastActivityAt ? Date.parse(c.lastActivityAt) || 0 : 0
-}
-
+/** Mesmo critério de `_v2-client`: lastMessageAt ?? lastInboundAt (já em lastActivityAt). */
 function sortConversationsByActivity(
   items: Conversation[],
   dir: "asc" | "desc",
 ): Conversation[] {
-  const mul = dir === "asc" ? 1 : -1
-  return [...items].sort(
-    (a, b) => mul * (conversationActivityTs(a) - conversationActivityTs(b)),
+  return [...items].sort((a, b) =>
+    compareMessageActivity(
+      messageActivityTimestamp(a.lastActivityAt),
+      messageActivityTimestamp(b.lastActivityAt),
+      dir,
+    ),
   )
 }
 
