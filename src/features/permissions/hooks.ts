@@ -87,7 +87,8 @@ export function useUpdateRole() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       }),
-    onSuccess: (_, { id }) => {
+    onSuccess: (role, { id }) => {
+      qc.setQueryData(["roles", id], role);
       void qc.invalidateQueries({ queryKey: ["roles"] });
       void qc.invalidateQueries({ queryKey: ["roles", id] });
       // A sidebar do usuario logado deriva dos roles — invalida pra refletir
