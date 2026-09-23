@@ -821,7 +821,9 @@ export default function AIAgentV2EditPage() {
       setSaveError(null);
       try {
         await updateAgentMeta(id, { name, active, openaiApiKey: openaiKey.trim() || undefined });
-        await saveDraft(id, config);
+        const cfgToSave = { ...config, name };
+        await saveDraft(id, cfgToSave);
+        setConfig(cfgToSave);
         setDirty(false);
         setOpenaiKey("");
         queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
@@ -1036,8 +1038,14 @@ export default function AIAgentV2EditPage() {
                 publishedVersionNumber={agentQuery.data?.lastVersionNumber}
                 validatingKey={validatingKey}
                 keyValidation={keyValidation}
-                onNameChange={setName}
-                onActiveChange={setActive}
+                onNameChange={(v) => {
+                  setName(v);
+                  setDirty(true);
+                }}
+                onActiveChange={(v) => {
+                  setActive(v);
+                  setDirty(true);
+                }}
                 onKeyChange={(v) => {
                   setOpenaiKey(v);
                   setDirty(true);
