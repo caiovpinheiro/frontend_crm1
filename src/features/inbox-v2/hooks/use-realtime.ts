@@ -915,7 +915,9 @@ function applyConversationRowToInboxCaches(
     }
 
     if (!found && belongs && canSafelyPrependToQuery(mergedRow, queryKey)) {
-      if (isClosedInboxRow(mergedRow) && !tabs.every((t) => t === "finalizados")) {
+      // Não prepende ticket encerrado em "todos" — pode estar sem permissão.
+      // O card só entra via refetch após validação do servidor (GET ?ids=).
+      if (isClosedInboxRow(mergedRow) && tabs.some((t) => t === "todos")) {
         continue;
       }
       let siblingRemoved = 0;
