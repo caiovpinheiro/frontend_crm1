@@ -626,25 +626,26 @@ export default function MessageModelsHubPage() {
               : []),
           ];
     return (
-      <div className="flex items-center gap-2">
-        {tabBarNode}
+      <div className="flex shrink-0 items-center">
         <ModelsActionsMenu items={menuItems} />
       </div>
     );
-  }, [safeTab, canSubmitMeta, isGestor, canRepairMedia, tabBarNode, createFlowMutation, refetchMetaFlows]);
+  }, [safeTab, canSubmitMeta, isGestor, canRepairMedia, createFlowMutation, refetchMetaFlows]);
 
   // Injeta busca (centro) + abas/ação (direita) na linha do PageHeader quando
   // rodando dentro do SettingsV2Shell. Sem o shell (rota /old) cai no
   // render inline abaixo.
   React.useEffect(() => {
     if (!headerSlots) return;
+    headerSlots.setTitleAccessory(tabBarNode);
     headerSlots.setCenter(searchNode);
     headerSlots.setActions(actionsNode);
     return () => {
+      headerSlots.setTitleAccessory(null);
       headerSlots.setCenter(null);
       headerSlots.setActions(null);
     };
-  }, [headerSlots, searchNode, actionsNode]);
+  }, [headerSlots, searchNode, actionsNode, tabBarNode]);
 
   const overviewKpis = [
     {
@@ -727,7 +728,10 @@ export default function MessageModelsHubPage() {
       {!headerSlots ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           {searchNode ? <div className="min-w-0 flex-1">{searchNode}</div> : <div />}
-          {actionsNode}
+          <div className="flex shrink-0 items-center gap-2">
+            {tabBarNode}
+            {actionsNode}
+          </div>
         </div>
       ) : null}
 

@@ -17,6 +17,7 @@ export default function MessageModelsV2ClientPage() {
       title="Modelos"
       description="Internos, WhatsApp WABA e Flows (Kommo)"
       icon={<IconTemplate size={22} />}
+      shrinkActions
     >
       <OldMessageModelsPage />
     </SettingsV2Shell>

@@ -141,6 +141,11 @@ interface PageHeaderProps {
   /** Acessório do título encostado na lateral direita da linha. */
   pinAccessoryEnd?: boolean
   /**
+   * No mobile a linha do título é a largura da tela: o título fica no
+   * tamanho do texto e o acessório ocupa o resto, podendo rolar.
+   */
+  titleAccessoryFills?: boolean
+  /**
    * Calendário, switchers e hamburger — à DIREITA, depois da busca.
    */
   actions?: React.ReactNode
@@ -158,6 +163,7 @@ function Identity({
   back,
   titleAccessory,
   pinAccessoryEnd = false,
+  titleAccessoryFills = false,
 }: {
   icon: React.ReactNode
   title: React.ReactNode
@@ -165,12 +171,15 @@ function Identity({
   titleAccessory?: React.ReactNode
   /** Acessório no fim da linha, encostado na lateral direita. */
   pinAccessoryEnd?: boolean
+  /** Acessório cresce e rola no mobile; o título não estica. */
+  titleAccessoryFills?: boolean
 }) {
   return (
     <div
       className={cn(
         "flex min-w-0 items-center gap-3 border-0 bg-transparent shadow-none outline-none",
         pinAccessoryEnd && "w-full",
+        titleAccessoryFills && "max-md:w-full",
       )}
     >
       {back ? (
@@ -188,7 +197,13 @@ function Identity({
         {icon}
       </span>
 
-      <div className={cn("flex min-w-0 items-center gap-2", pinAccessoryEnd && "flex-1")}>
+      <div
+        className={cn(
+          "flex min-w-0 items-center gap-2",
+          pinAccessoryEnd && !titleAccessoryFills && "flex-1",
+          titleAccessoryFills && "shrink-0",
+        )}
+      >
         <div
           role="heading"
           aria-level={1}
@@ -196,12 +211,19 @@ function Identity({
         >
           {title}
         </div>
-        {titleAccessory && !pinAccessoryEnd ? (
+        {titleAccessory && !pinAccessoryEnd && !titleAccessoryFills ? (
           <div className="flex shrink-0 items-center">{titleAccessory}</div>
         ) : null}
       </div>
-      {titleAccessory && pinAccessoryEnd ? (
-        <div className="flex shrink-0 items-center">{titleAccessory}</div>
+      {titleAccessory && (pinAccessoryEnd || titleAccessoryFills) ? (
+        <div
+          className={cn(
+            "flex min-w-0 items-center",
+            titleAccessoryFills ? "max-md:flex-1 md:shrink-0" : "shrink-0",
+          )}
+        >
+          {titleAccessory}
+        </div>
       ) : null}
     </div>
   )
@@ -212,6 +234,7 @@ export function PageHeader({
   title,
   back,
   titleAccessory,
+  titleAccessoryFills = false,
   center,
   pinAccessoryEnd = false,
   actions,
@@ -239,6 +262,7 @@ export function PageHeader({
           back={back}
           titleAccessory={titleAccessory}
           pinAccessoryEnd={pinAccessoryEnd}
+          titleAccessoryFills={titleAccessoryFills}
         />
       </div>
       {hasControls ? (
