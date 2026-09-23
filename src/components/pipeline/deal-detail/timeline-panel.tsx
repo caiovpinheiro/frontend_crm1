@@ -97,6 +97,12 @@ const EVENT_CONFIG: Record<
     bg: "bg-success-soft",
     label: "Tarefa criada",
   },
+  ACTIVITY_STARTED: {
+    Icon: CalendarCheck,
+    ring: "ring-success/30 text-success",
+    bg: "bg-success-soft",
+    label: "Tarefa em execução",
+  },
   ACTIVITY_COMPLETED: {
     Icon: CalendarCheck,
     ring: "ring-success/30 text-success",
@@ -271,8 +277,20 @@ function eventDescription(ev: DealTimelineEvent): string {
     case "NOTE_DELETED":
       return String(m.preview ?? "");
     case "ACTIVITY_ADDED":
-    case "ACTIVITY_COMPLETED":
       return String(m.title ?? "");
+    case "ACTIVITY_STARTED": {
+      const title = String(m.title ?? "Tarefa");
+      const who = m.actorName ? String(m.actorName) : "";
+      return who ? `${title} — ${who} começou a executar` : title;
+    }
+    case "ACTIVITY_COMPLETED": {
+      const title = String(m.title ?? "Tarefa");
+      const who = m.actorName ? String(m.actorName) : "";
+      const starter = m.startedByName ? String(m.startedByName) : "";
+      const done = who ? `concluída por ${who}` : "concluída";
+      const ran = starter && starter !== who ? `execução de ${starter}, ` : "";
+      return `${title} — ${ran}${done}`;
+    }
     case "ACTIVITY_UPDATED": {
       const title = String(m.title ?? "");
       const fields = Array.isArray(m.fields) ? (m.fields as string[]).join(", ") : "";
