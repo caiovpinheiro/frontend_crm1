@@ -1,6 +1,6 @@
 /**
  * Aviso de mensagem nova na aba do navegador: enquanto ativo, o favicon
- * vira um balão de chat verde e o título ganha "(1) " — fixo, não soma
+ * vira um balão de chat verde com bolinha vermelha e o título ganha "(1) " — fixo, não soma
  * a cada mensagem. `setTabAlert(false)` restaura ícone e título. Estado
  * por aba (módulo).
  */
@@ -8,7 +8,7 @@
 const ORIGINAL_HREF = "tabAlertOriginalHref";
 const TITLE_PREFIX = "(1) ";
 
-/** Balão de chat verde genérico (não é o logo do WhatsApp). */
+/** Balão de chat verde genérico (não é o logo do WhatsApp) + bolinha vermelha. */
 const ALERT_ICON =
   "data:image/svg+xml," +
   encodeURIComponent(
@@ -17,6 +17,8 @@ const ALERT_ICON =
       '<circle cx="10.5" cy="15" r="1.8" fill="#fff"/>' +
       '<circle cx="16" cy="15" r="1.8" fill="#fff"/>' +
       '<circle cx="21.5" cy="15" r="1.8" fill="#fff"/>' +
+      // Bolinha vermelha de "não lido" no canto, com aro branco.
+      '<circle cx="25.5" cy="6.5" r="5.5" fill="#E24B4A" stroke="#fff" stroke-width="2"/>' +
       "</svg>",
   );
 
