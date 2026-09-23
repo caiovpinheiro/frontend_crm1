@@ -156,6 +156,21 @@ function patchInboxConversationCard(
   if (!conv) return { found: false, tabMoved: false, fromTab: null, toTab: null };
 
   const prevTab = inboxQueueTabFor(conv);
+  // Evento atrasado (mais antigo que o card): conta a não lida, mas não
+  // pinta uma mensagem velha na prévia. Mesmo segundo passa — o
+  // WhatsApp manda timestamp em segundos e a chegada é a melhor ordem.
+  const stale =
+    conv.lastMessageAt != null &&
+    Date.parse(ts) < Date.parse(conv.lastMessageAt);
+  if (stale) {
+    if (direction === "in") {
+      applyConversationRowToInboxCaches(qc, {
+        ...conv,
+        unreadCount: (conv.unreadCount ?? 0) + 1,
+      });
+    }
+    return { found: true, tabMoved: false, fromTab: prevTab, toTab: prevTab };
+  }
   const next: ConversationListRow = {
     ...conv,
     lastMessageAt: ts,
@@ -165,6 +180,17 @@ function patchInboxConversationCard(
       ? {
           lastInboundAt: ts,
           unreadCount: (conv.unreadCount ?? 0) + 1,
+          // Texto do card = última mensagem do cliente. `hidden` chega
+          // sem texto (redigido no servidor): não apaga a prévia.
+          ...(data.cardOmitted === "hidden"
+            ? {}
+            : {
+                lastInboundPreview: {
+                  content,
+                  messageType: data.messageType || "text",
+                  createdAt: ts,
+                },
+              }),
         }
       : {}),
     ...(data.card

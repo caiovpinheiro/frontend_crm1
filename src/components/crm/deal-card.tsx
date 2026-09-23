@@ -2,6 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { useJustArrived } from "@/lib/just-arrived"
+import { InboundPreview } from "@/components/crm/inbound-preview"
 import { IconCircleX, IconClock, IconMessage } from "@tabler/icons-react"
 import { ChatAvatar, type ChatAvatarChannel } from "@/components/inbox/chat-avatar"
 import { AVATAR_SIZE } from "@/lib/avatar"
@@ -39,9 +41,12 @@ export interface Deal {
   dealNumber: string
   date: string
   message?: {
+    /** Última mensagem do cliente (ou a nossa, com `ours`). */
     text: string
     time: string
-    /** Direção da última msg — ticks só quando `out`. */
+    /** Cliente ainda não escreveu: `text` é a nossa última, apagada. */
+    ours?: boolean
+    /** Direção da última msg (qualquer lado) — ticks e "aguardando". */
     direction?: "in" | "out"
     /** Status de entrega (outbound), mesma semântica do inbox. */
     status?: DeliveryTickStatus
@@ -186,6 +191,7 @@ export function DealCard({ deal, onClick, tagsSlot, tagsAddSlot, ownerSlot, move
   // do modo sejam explícitas e previsíveis.
   const showCheckbox = !!selectionMode && !!onToggleSelect
   const unread = deal.unreadCount ?? 0
+  const justArrived = useJustArrived(deal.contactId)
   // Cliente ainda não respondido — última msg inbound (aguarda reply do agente).
   const unreplied = deal.message?.direction === "in"
   const { settings: inboxSettings } = useInboxSettings()
@@ -279,7 +285,7 @@ export function DealCard({ deal, onClick, tagsSlot, tagsAddSlot, ownerSlot, move
           >
             {/* Message preview — tooltip no texto com a msg completa. */}
             {deal.message && (
-              <div className="mt-1 flex items-start gap-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg-overlay)] px-2.5 py-1 text-[11.5px] italic leading-[1.35] text-[var(--text-secondary)]">
+              <div className="mt-1 flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg-overlay)] px-2.5 py-1 text-[11.5px] leading-[1.35] text-[var(--text-secondary)]">
                 {/* Ícone de conversa com borda azul — mesmo do card de
                     conversa do inbox, para padronizar a leitura visual. */}
                 <span className="mt-px inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[rgba(91,111,245,0.40)] text-[var(--brand-primary)]">
@@ -317,8 +323,13 @@ export function DealCard({ deal, onClick, tagsSlot, tagsAddSlot, ownerSlot, move
                   align="center"
                   sideOffset={8}
                 >
-                  <span className="line-clamp-2 min-w-0 flex-1 cursor-default overflow-hidden">
-                    {deal.message.text}
+                  <span className="flex min-w-0 flex-1 cursor-default overflow-hidden">
+                    <InboundPreview
+                      text={deal.message.text}
+                      unread={unread}
+                      glow={justArrived}
+                      ours={deal.message.ours}
+                    />
                   </span>
                 </TooltipGlass>
                 <span className="shrink-0 text-[10px] not-italic text-[var(--text-muted)]">
