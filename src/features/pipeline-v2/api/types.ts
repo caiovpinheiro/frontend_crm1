@@ -74,6 +74,8 @@ export interface BoardStageDto {
   /** Estágios terminais fixos (estilo Kommo) — sempre os 2 últimos. */
   isWon?: boolean;
   isLost?: boolean;
+  /** Custom fields do negócio exigidos para entrar nesta etapa. */
+  requiredDealFieldIds?: string[];
   conversionRate?: number;
   avgDaysInStage?: number;
   totalCount?: number;
