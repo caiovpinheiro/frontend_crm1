@@ -7,7 +7,8 @@
  * Antes o bip vivia em `useInboxRealtime` e só existia onde havia um
  * thread montado (inbox, sales-hub, chat do deal).
  *
- * Público em `inboxAlertAudience` (lê o `card` do SSE). Sem card:
+ * Tipo da conversa em `inboxAlertKind` (lê o `card` do SSE) e canais pela
+ * config do admin (`GET /api/agents/me/alert-config`). Sem card:
  * `cardOmitted: "hidden"` = o usuário não lista a conversa → nada;
  * `"budget"` = o bus não montou o snapshot → busca o card antes de decidir.
  *
@@ -25,7 +26,11 @@ import {
   useMessageToast,
   type InboxMessageToastPayload,
 } from "@/features/inbox-v2/context/message-toast-context";
-import { inboxAlertAudience } from "@/features/inbox-v2/inbox-alert-audience";
+import {
+  DEFAULT_INBOX_ALERT_CONFIG,
+  inboxAlertKind,
+  type InboxAlertConfig,
+} from "@/features/inbox-v2/inbox-alert-audience";
 import {
   INBOX_AUDIO_LOCKED_EVENT,
   INBOX_AUDIO_UNLOCKED_EVENT,
@@ -52,13 +57,18 @@ type NewMessageEnvelope = {
   cardOmitted?: "hidden" | "budget";
 };
 
-async function fetchMyDepartmentIds(): Promise<string[]> {
-  const res = await fetch(apiUrl("/api/agents/me/departments"));
-  if (!res.ok) throw new Error(`departments ${res.status}`);
-  const data = (await res.json()) as { departmentIds?: unknown };
-  return Array.isArray(data.departmentIds)
-    ? data.departmentIds.filter((id): id is string => typeof id === "string")
-    : [];
+type MyAlertConfig = { config: InboxAlertConfig; departmentIds: string[] };
+
+async function fetchMyAlertConfig(): Promise<MyAlertConfig> {
+  const res = await fetch(apiUrl("/api/agents/me/alert-config"));
+  if (!res.ok) throw new Error(`alert-config ${res.status}`);
+  const data = (await res.json()) as { config?: InboxAlertConfig; departmentIds?: unknown };
+  return {
+    config: data.config ?? DEFAULT_INBOX_ALERT_CONFIG,
+    departmentIds: Array.isArray(data.departmentIds)
+      ? data.departmentIds.filter((id): id is string => typeof id === "string")
+      : [],
+  };
 }
 
 function toToastCard(card: ConversationListRow): InboxMessageToastPayload["card"] {
@@ -85,11 +95,13 @@ export function InboxMessageAlerts() {
   const ready = status === "authenticated" && Boolean(meId);
   const { notifyInboxMessage } = useMessageToast();
 
-  const { data: myDepartmentIds } = useQuery({
-    queryKey: ["agents-me-departments", meId],
-    queryFn: fetchMyDepartmentIds,
+  // Até carregar vale o padrão com fila vazia: só "minhas" alertam.
+  const { data: myAlerts } = useQuery({
+    queryKey: ["agents-me-alert-config", meId],
+    queryFn: fetchMyAlertConfig,
     enabled: ready,
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
     retry: 1,
   });
 
@@ -99,12 +111,12 @@ export function InboxMessageAlerts() {
 
   // O handler do SSE lê o valor atual sem reassinar o stream.
   const meRef = useRef(meId);
-  const deptsRef = useRef(myDepartmentIds);
+  const alertsRef = useRef(myAlerts);
   const soundRef = useRef(sound);
   const notifyRef = useRef(notifyInboxMessage);
   useEffect(() => {
     meRef.current = meId;
-    deptsRef.current = myDepartmentIds;
+    alertsRef.current = myAlerts;
     soundRef.current = sound;
     notifyRef.current = notifyInboxMessage;
   });
@@ -130,10 +142,13 @@ export function InboxMessageAlerts() {
         if (!alive) return;
       }
 
-      const audience = inboxAlertAudience(card, meRef.current, deptsRef.current);
-      if (!audience) return;
+      const alerts = alertsRef.current;
+      const kind = inboxAlertKind(card, meRef.current, alerts?.departmentIds);
+      if (!kind) return;
+      const channels = (alerts?.config ?? DEFAULT_INBOX_ALERT_CONFIG)[kind];
+      if (!channels.sound && !channels.toast && !channels.native && !channels.tab) return;
 
-      if (audience === "mine") {
+      if (channels.sound) {
         const owner = soundRef.current;
         if (owner.isOwner()) {
           playInboxPing();
@@ -146,7 +161,7 @@ export function InboxMessageAlerts() {
 
       notifyRef.current(
         { ...data, card: toToastCard(card) },
-        { native: audience === "mine" },
+        { toast: channels.toast, native: channels.native, tab: channels.tab },
       );
     }
 

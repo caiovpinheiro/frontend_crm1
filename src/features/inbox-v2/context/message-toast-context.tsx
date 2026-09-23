@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getTabBadge, setTabBadge } from "@/lib/tab-badge";
 import { cn } from "@/lib/utils";
 import type { TeamChatMessage } from "@/features/team-chat/types";
 
@@ -47,19 +48,21 @@ type Toast = {
   createdAt: number;
 };
 
+export type InboxNotifyOptions = { toast?: boolean; native?: boolean; tab?: boolean };
+
 type MessageToastContextValue = {
   /** Marca a conversa como aberta (sem toast). Devolve o unregister. */
   registerActiveConversation: (id: string) => () => void;
   registerActiveTeamChatRoom: (id: string) => () => void;
   /**
-   * Toast in-page (fora da conversa aberta). `native: true` também mostra
-   * a notificação do sistema quando a aba está oculta — mesmo na conversa
-   * aberta, com a mesma tag do Web Push para o SO substituir.
+   * Canais do alerta (config do admin, `InboxAlertConfig`):
+   * - `toast` (padrão `true`): toast in-page, fora da conversa aberta;
+   * - `native`: notificação do sistema com a aba oculta — mesmo na
+   *   conversa aberta, com a mesma tag do Web Push para o SO substituir;
+   * - `tab`: contador no título/favicon DESTA aba se a conversa está
+   *   aberta nela e a janela está fora de foco. Zera ao focar.
    */
-  notifyInboxMessage: (
-    payload: InboxMessageToastPayload,
-    options?: { native?: boolean },
-  ) => void;
+  notifyInboxMessage: (payload: InboxMessageToastPayload, options?: InboxNotifyOptions) => void;
   notifyTeamChatMessage: (payload: TeamChatToastPayload) => void;
 };
 
@@ -337,6 +340,15 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     setMounted(true);
   }, []);
 
+  // Contador da aba (canal `tab`) zera quando o operador volta para ela.
+  useEffect(() => {
+    const clear = () => {
+      if (getTabBadge() > 0) setTabBadge(0);
+    };
+    window.addEventListener("focus", clear);
+    return () => window.removeEventListener("focus", clear);
+  }, []);
+
   const registerActiveConversation = useCallback(
     (id: string) => retainId(activeConversationsRef.current, id),
     [],
@@ -348,14 +360,19 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
   );
 
   const notifyInboxMessage = useCallback(
-    (payload: InboxMessageToastPayload, options?: { native?: boolean }) => {
+    (payload: InboxMessageToastPayload, options?: InboxNotifyOptions) => {
       if (payload.direction !== "in") return;
       const conversationId = payload.conversationId;
       if (!conversationId) return;
       // Antes do corte da conversa aberta e do dedupe: com a aba oculta o
       // operador não vê a conversa, e a tag por conversa já substitui.
       if (options?.native) showInboxNativeNotification(conversationId, payload);
-      if (activeConversationsRef.current.has(conversationId)) return;
+      const isOpenHere = activeConversationsRef.current.has(conversationId);
+      if (options?.tab && isOpenHere && !document.hasFocus()) {
+        setTabBadge(getTabBadge() + 1);
+      }
+      if (isOpenHere) return;
+      if (options?.toast === false) return;
 
       const now = Date.now();
       const last = recentRef.current.get(conversationId);

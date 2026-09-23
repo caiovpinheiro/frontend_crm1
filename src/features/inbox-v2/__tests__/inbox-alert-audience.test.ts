@@ -1,54 +1,54 @@
 import { describe, expect, it } from "vitest";
 
-import { inboxAlertAudience } from "../inbox-alert-audience";
+import { inboxAlertKind } from "../inbox-alert-audience";
 
 const ME = "u_me";
 const DEPTS = ["d_vendas"];
 
-describe("inboxAlertAudience", () => {
+describe("inboxAlertKind", () => {
   it("atribuída a mim → mine", () => {
     expect(
-      inboxAlertAudience({ assignedToId: ME, assignedTo: { type: "HUMAN" } }, ME, DEPTS),
+      inboxAlertKind({ assignedToId: ME, assignedTo: { type: "HUMAN" } }, ME, DEPTS),
     ).toBe("mine");
   });
 
-  it("atribuída a outro agente → nada, mesmo no meu departamento", () => {
+  it("atribuída a outro agente → others, mesmo no meu departamento", () => {
     expect(
-      inboxAlertAudience({ assignedToId: "u_outro", departmentId: "d_vendas" }, ME, DEPTS),
-    ).toBeNull();
+      inboxAlertKind({ assignedToId: "u_outro", departmentId: "d_vendas" }, ME, DEPTS),
+    ).toBe("others");
   });
 
-  it("fila da IA → nada", () => {
+  it("fila da IA → others", () => {
     expect(
-      inboxAlertAudience(
+      inboxAlertKind(
         { assignedToId: "u_ia", assignedTo: { type: "AI" }, departmentId: "d_vendas" },
         ME,
         DEPTS,
       ),
-    ).toBeNull();
+    ).toBe("others");
   });
 
   it("sem responsável no meu departamento → queue", () => {
-    expect(
-      inboxAlertAudience({ assignedToId: null, departmentId: "d_vendas" }, ME, DEPTS),
-    ).toBe("queue");
+    expect(inboxAlertKind({ assignedToId: null, departmentId: "d_vendas" }, ME, DEPTS)).toBe(
+      "queue",
+    );
   });
 
-  it("sem responsável fora dos meus departamentos ou sem departamento → nada", () => {
-    expect(
-      inboxAlertAudience({ assignedToId: null, departmentId: "d_suporte" }, ME, DEPTS),
-    ).toBeNull();
-    expect(inboxAlertAudience({ assignedToId: null, departmentId: null }, ME, DEPTS)).toBeNull();
+  it("sem responsável fora dos meus departamentos ou sem departamento → others", () => {
+    expect(inboxAlertKind({ assignedToId: null, departmentId: "d_suporte" }, ME, DEPTS)).toBe(
+      "others",
+    );
+    expect(inboxAlertKind({ assignedToId: null, departmentId: null }, ME, DEPTS)).toBe("others");
   });
 
-  it("departamentos ainda não carregados → só o que é meu", () => {
+  it("departamentos ainda não carregados → fila vira others", () => {
     expect(
-      inboxAlertAudience({ assignedToId: null, departmentId: "d_vendas" }, ME, undefined),
-    ).toBeNull();
-    expect(inboxAlertAudience({ assignedToId: ME }, ME, undefined)).toBe("mine");
+      inboxAlertKind({ assignedToId: null, departmentId: "d_vendas" }, ME, undefined),
+    ).toBe("others");
+    expect(inboxAlertKind({ assignedToId: ME }, ME, undefined)).toBe("mine");
   });
 
   it("sem usuário → nada", () => {
-    expect(inboxAlertAudience({ assignedToId: ME }, null, DEPTS)).toBeNull();
+    expect(inboxAlertKind({ assignedToId: ME }, null, DEPTS)).toBeNull();
   });
 });
