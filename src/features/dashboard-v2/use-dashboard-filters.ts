@@ -7,7 +7,7 @@
  * Exemplo:
  *   /dashboard?period=last_30&pipeline=12,8&stages=negociacao&user=u1,u2
  *
- * Sem query string → padrão "Últimos 30 dias" + o primeiro funil (um de cada vez).
+ * Sem query string → padrão "Hoje" + o primeiro funil (um de cada vez).
  * `pipeline` na URL é CSV de numbers da org; `stages` continuam slugs.
  * `user` = filtro de usuário do painel Negócios.
  */
@@ -72,7 +72,7 @@ function readUrlKeys(sp: URLSearchParams): UrlFilterKeys {
   const period: PeriodKey =
     periodRaw && VALID_PERIODS.includes(periodRaw as PeriodKey)
       ? (periodRaw as PeriodKey)
-      : "last_30";
+      : "today";
   const pipelineRaw = sp.get("pipeline") ?? sp.get("pipelineId") ?? "";
   return {
     period,
@@ -140,7 +140,7 @@ function toSearchParams(
   current?: URLSearchParams,
 ): string {
   const sp = new URLSearchParams();
-  if (f.period && f.period !== "last_30") sp.set("period", f.period);
+  if (f.period && f.period !== "today") sp.set("period", f.period);
   if (f.period === "custom") {
     if (f.startDate) sp.set("startDate", f.startDate);
     if (f.endDate) sp.set("endDate", f.endDate);
@@ -187,11 +187,42 @@ export function countStructuralDashboardFilters(f: DashboardFiltersState): numbe
 
 /** Conta filtros ativos para o badge "Limpar filtros". */
 export function countActiveDashboardFilters(f: DashboardFiltersState): number {
-  return countStructuralDashboardFilters(f) + (f.period !== "last_30" ? 1 : 0);
+  return countStructuralDashboardFilters(f) + (f.period !== "today" ? 1 : 0);
+}
+
+const PERIOD_LABEL: Record<PeriodKey, string> = {
+  today: "Hoje",
+  yesterday: "Ontem",
+  last_7: "Últimos 7 dias",
+  last_30: "Últimos 30 dias",
+  this_month: "Mês atual",
+  last_month: "Mês passado",
+  custom: "Período",
+};
+
+function formatFilterDay(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return iso;
+  return new Date(year, month - 1, day).toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/** Rótulo do filtro de período. Hoje abre o painel; os outros vêm do filtro de cima. */
+export function dashboardPeriodLabel(
+  f: Pick<DashboardFiltersState, "period" | "startDate" | "endDate">,
+): string {
+  if (f.period === "custom" && f.startDate && f.endDate) {
+    const from = formatFilterDay(f.startDate);
+    const to = formatFilterDay(f.endDate);
+    return from === to ? from : `${from} – ${to}`;
+  }
+  return PERIOD_LABEL[f.period] ?? "Hoje";
 }
 
 export const DEFAULT_DASHBOARD_FILTERS: DashboardFiltersState = {
-  period: "last_30",
+  period: "today",
   pipelineIds: [],
   userIds: [],
   stageIds: [],

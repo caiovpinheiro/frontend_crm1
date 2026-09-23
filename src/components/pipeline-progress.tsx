@@ -52,6 +52,8 @@ export type PipelineProgressCohort = {
 export type PipelineProgressPeriod = {
   from: string;
   to: string;
+  /** Nome do filtro (Hoje, Ontem, Últimos 7 dias). */
+  label?: string;
 };
 
 const numberFmt = new Intl.NumberFormat("pt-BR");
@@ -247,7 +249,15 @@ function FunnelSausage({
   );
 }
 
-function NovosColumn({ count, value }: { count: number; value: number }) {
+function NovosColumn({
+  count,
+  value,
+  caption,
+}: {
+  count: number;
+  value: number;
+  caption: string;
+}) {
   return (
     <article className="pipeline-progress-col">
       <span className="h-1.5 w-full rounded-full bg-[var(--pipeline-success)]" aria-hidden />
@@ -261,7 +271,7 @@ function NovosColumn({ count, value }: { count: number; value: number }) {
         {formatMoney(value)}
       </p>
       <p className="mt-auto font-body text-[11px] text-[var(--pipeline-text-muted)]">
-        No período
+        {caption}
       </p>
     </article>
   );
@@ -444,7 +454,12 @@ export function PipelineProgress({
           </h2>
           <p className="mt-0.5 font-body text-[11px] text-[var(--pipeline-text-muted)]">
             Estoque aberto, entradas e perdas por etapa
-            {period && fromLabel && toLabel ? (
+            {period?.label ? (
+              <>
+                {" · "}
+                {period.label}
+              </>
+            ) : period && fromLabel && toLabel ? (
               <>
                 {" · "}
                 <time dateTime={period.from}>{fromLabel}</time>
@@ -498,7 +513,13 @@ export function PipelineProgress({
             }}
           >
             <div className="pipeline-progress-track">
-              {novos ? <NovosColumn count={novos.count} value={novos.value} /> : null}
+              {novos ? (
+                <NovosColumn
+                  count={novos.count}
+                  value={novos.value}
+                  caption={period?.label ?? "No período"}
+                />
+              ) : null}
               {stages.map((stage) => (
                 <StageColumn key={stage.id} stage={stage} />
               ))}
