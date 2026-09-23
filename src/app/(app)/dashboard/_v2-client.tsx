@@ -47,6 +47,7 @@ import {
   useSystemUsageToday,
 } from "@/features/dashboard-v2/hooks";
 import {
+  dashboardPeriodLabel,
   periodToRangeISO,
   useDashboardFilters,
 } from "@/features/dashboard-v2/use-dashboard-filters";
@@ -339,7 +340,10 @@ function ManagerHome({
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
   const agoraQuery = usePainelAgora(clock, tabReady && isService);
   const serviceQuery = usePainelService(filters, clock, tabReady && isService);
-  const period = useMemo(() => periodToRangeISO(filters), [filters]);
+  const period = useMemo(
+    () => ({ ...periodToRangeISO(filters), label: dashboardPeriodLabel(filters) }),
+    [filters],
+  );
   const effectivePipelineId = filters.pipelineIds[0] ?? filters.pipelineId;
   const [addCardOpen, setAddCardOpen] = useState(false);
   const [organizing, setOrganizing] = useState(false);
@@ -426,7 +430,7 @@ function ManagerHome({
     return [...map.entries()].map(([value, label]) => ({ value, label }));
   }, [options?.users, dealsQuery.data, usageQuery.data]);
 
-  const periodActive = filters.period !== "last_30";
+  const periodActive = filters.period !== "today";
 
   const filterBar = (
     <DashboardSearchFilterBar
