@@ -35,6 +35,9 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconGripVertical,
+  IconPencil,
+  IconDownload,
+  IconFileImport,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -537,6 +540,27 @@ async function testKnowledgeSearch(
     body: JSON.stringify({ query }),
   });
   return parseApiResponse(res, "Erro ao testar busca de materiais.");
+}
+
+async function getKnowledgeDoc(
+  id: string,
+  docId: string,
+): Promise<KnowledgeDoc & { content?: string | null; contentReconstructed?: boolean }> {
+  const res = await apiFetch(`/api/ai-agents/${id}/knowledge/${docId}`);
+  return parseApiResponse(res, "Erro ao carregar material.");
+}
+
+async function updateKnowledgeDoc(
+  id: string,
+  docId: string,
+  payload: { title: string; content: string },
+): Promise<KnowledgeDoc> {
+  const res = await apiFetch(`/api/ai-agents/${id}/knowledge/${docId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseApiResponse(res, "Erro ao salvar material.");
 }
 
 function formatFileSize(bytes: number): string {
@@ -1677,6 +1701,88 @@ function StepMaterials({
     onSuccess: () => docsQuery.refetch(),
   });
 
+  const [editingDoc, setEditingDoc] = React.useState<KnowledgeDoc | null>(null);
+  const [editTitle, setEditTitle] = React.useState("");
+  const [editContent, setEditContent] = React.useState("");
+  const [editLoading, setEditLoading] = React.useState(false);
+  const [editError, setEditError] = React.useState<string | null>(null);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      updateKnowledgeDoc(agentId, editingDoc!.id, {
+        title: editTitle.trim(),
+        content: editContent,
+      }),
+    onSuccess: () => {
+      setEditingDoc(null);
+      setEditTitle("");
+      setEditContent("");
+      setEditError(null);
+      docsQuery.refetch();
+    },
+    onError: (err) => setEditError(err instanceof Error ? err.message : "Erro ao salvar."),
+  });
+
+  async function openEdit(doc: KnowledgeDoc) {
+    setEditingDoc(doc);
+    setEditTitle(doc.title);
+    setEditContent("");
+    setEditError(null);
+    setEditLoading(true);
+    try {
+      const full = await getKnowledgeDoc(agentId, doc.id);
+      setEditTitle(full.title);
+      setEditContent(typeof full.content === "string" ? full.content : "");
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Erro ao carregar conteúdo.");
+    } finally {
+      setEditLoading(false);
+    }
+  }
+
+  function closeEdit() {
+    setEditingDoc(null);
+    setEditTitle("");
+    setEditContent("");
+    setEditError(null);
+    updateMutation.reset();
+  }
+
+  async function exportDoc(doc: KnowledgeDoc) {
+    try {
+      const full = await getKnowledgeDoc(agentId, doc.id);
+      const text = typeof full.content === "string" ? full.content : "";
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${doc.title.replace(/[^\w\s-]/g, "").trim() || "material"}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setEditError("Erro ao exportar conteúdo.");
+    }
+  }
+
+  function onImportFileSelected(file: File | undefined) {
+    if (!file) return;
+    const textTypes = ["text/plain", "text/markdown", "text/csv", "text/tab-separated-values"];
+    if (!textTypes.includes(file.type) && !/\.(txt|md|csv|tsv)$/i.test(file.name)) {
+      setEditError("Importação de conteúdo só suporta .txt, .md, .csv ou .tsv no momento.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setEditContent(typeof reader.result === "string" ? reader.result : "");
+      setEditError(null);
+    };
+    reader.onerror = () => setEditError("Erro ao ler arquivo.");
+    reader.readAsText(file);
+  }
+
   const [testQuery, setTestQuery] = React.useState("");
   const [testSearchResult, setTestSearchResult] = React.useState<{
     query: string;
@@ -1818,6 +1924,36 @@ function StepMaterials({
                     )}
                     <Button
                       size="sm"
+                      variant="outline"
+                      onClick={() => openEdit(d)}
+                    >
+                      <IconPencil className="size-4" />
+                      <span className="sr-only">Editar {d.title}</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => exportDoc(d)}
+                    >
+                      <IconDownload className="size-4" />
+                      <span className="sr-only">Exportar {d.title}</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingDoc(d);
+                        setEditTitle(d.title);
+                        setEditContent("");
+                        setEditError(null);
+                        importInputRef.current?.click();
+                      }}
+                    >
+                      <IconFileImport className="size-4" />
+                      <span className="sr-only">Importar conteúdo para {d.title}</span>
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="ghost"
                       className="text-destructive hover:text-destructive"
                       disabled={deleteMutation.isPending && deleteMutation.variables === d.id}
@@ -1833,6 +1969,76 @@ function StepMaterials({
           </>
         )}
       </SectionCard>
+
+      <Dialog open={!!editingDoc} onOpenChange={(open) => !open && closeEdit()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingDoc?.title}</DialogTitle>
+            <DialogDescription>
+              Edite o título e o conteúdo do material. Ao salvar, o agente reindexa o texto.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <input
+              type="file"
+              ref={importInputRef}
+              className="hidden"
+              accept=".txt,.md,.csv,.tsv"
+              onChange={(e) => {
+                onImportFileSelected(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            {editLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <IconLoader2 className="size-4 animate-spin" />
+                Carregando conteúdo...
+              </div>
+            ) : null}
+            <div className="grid gap-1.5">
+              <Label htmlFor="kb-edit-title">Título</Label>
+              <Input
+                id="kb-edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Título do material"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="kb-edit-content">Conteúdo</Label>
+              <Textarea
+                id="kb-edit-content"
+                rows={12}
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="Cole ou importe o conteúdo do material..."
+                className="resize-none font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                {editContent.length.toLocaleString("pt-BR")} caracteres
+              </p>
+            </div>
+            {editError && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeEdit} type="button">
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending || editLoading || !editTitle.trim() || editContent.trim().length < 10}
+              >
+                {updateMutation.isPending && <IconLoader2 className="mr-1.5 size-4 animate-spin" />}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <SectionCard title="Testar busca" description="Escreva uma pergunta para ver quais trechos dos materiais seriam encontrados, sem chamar o modelo.">
         <div className="flex gap-2">
