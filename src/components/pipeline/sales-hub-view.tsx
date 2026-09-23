@@ -791,7 +791,7 @@ export function SalesHubView({
                 </span>
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-1.5">
+            <div className="mt-2 flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <DealQueueSortMenu
                   sortMode={sortMode}

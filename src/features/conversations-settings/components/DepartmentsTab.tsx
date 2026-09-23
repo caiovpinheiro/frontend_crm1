@@ -581,7 +581,7 @@ function EditDepartmentModal({ dept, onClose }: { dept: Department | null; onClo
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}) {
+export function DepartmentsTab() {
   const { data: departments = [], isLoading } = useDepartments();
   const deleteMut = useDeleteDepartment();
   const queryClient = useQueryClient();
@@ -747,8 +747,7 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
 
   const actionsNode = React.useMemo(
     () => (
-      <div className="flex items-center gap-2">
-        {tabsSlot}
+      <div className="flex shrink-0 items-center gap-2">
         <PageActionsMenu
           items={[
             {
@@ -761,7 +760,7 @@ export function DepartmentsTab({ tabsSlot }: { tabsSlot?: React.ReactNode } = {}
         />
       </div>
     ),
-    [tabsSlot],
+    [],
   );
 
   React.useEffect(() => {

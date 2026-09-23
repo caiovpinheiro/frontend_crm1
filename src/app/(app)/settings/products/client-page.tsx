@@ -68,6 +68,7 @@ export default function ProductsV2ClientPage() {
       title="Produtos"
       description="Catálogo, produtos e cotas de desconto"
       icon={<IconPackage size={22} />}
+      shrinkActions
     >
       {tabs.length === 0 ? (
         <RestrictedScreen
@@ -77,6 +78,7 @@ export default function ProductsV2ClientPage() {
       ) : (
         <>
           <SettingsHeaderNav
+            inTitle
             tabs={tabs}
             active={active}
             onChange={setActive}

@@ -23,37 +23,68 @@ export function SettingsHeaderNav({
   active,
   onChange,
   trailing,
+  inTitle = false,
 }: {
   tabs: SettingsTab[];
   active: string;
   onChange: (id: string) => void;
   trailing?: React.ReactNode;
+  /** Abas na linha do título; o restante fica na linha da busca. */
+  inTitle?: boolean;
 }) {
   const slots = useSettingsHeaderSlots();
   const tabKey = tabs.map((t) => `${t.id}:${t.label}:${t.badge ?? ""}`).join("|");
-  const actions = React.useMemo(
+  const tabsNode = React.useMemo(
     () => (
-      <div className="flex items-center gap-2">
-        <HeaderTabs
-          tabs={tabs.map((t) => ({ key: t.id, label: t.label, badge: t.badge }))}
-          value={active}
-          onChange={onChange}
-        />
-        {trailing}
-      </div>
+      <HeaderTabs
+        tabs={tabs.map((t) => ({ key: t.id, label: t.label, badge: t.badge }))}
+        value={active}
+        onChange={onChange}
+      />
     ),
     // tabKey cobre o conteúdo de `tabs` sem nova identidade a cada render.
-    [active, onChange, tabKey, trailing],
+    [active, onChange, tabKey],
+  );
+  const actions = React.useMemo(
+    () =>
+      inTitle ? (
+        trailing ? <div className="flex shrink-0 items-center">{trailing}</div> : null
+      ) : (
+        <div className="flex min-w-0 max-w-full flex-1 items-center gap-2">
+          {tabsNode}
+          {trailing}
+        </div>
+      ),
+    [inTitle, tabsNode, trailing],
   );
 
   React.useEffect(() => {
     if (!slots) return;
+    if (inTitle) {
+      slots.setTitleAccessory(tabsNode);
+      if (actions) slots.setActions(actions);
+      return () => {
+        slots.setTitleAccessory(null);
+        if (actions) slots.setActions(null);
+      };
+    }
     slots.setActions(actions);
     return () => slots.setActions(null);
-  }, [slots, actions]);
+  }, [slots, actions, inTitle, tabsNode]);
 
   if (slots) return null;
-  return <div className="flex justify-end">{actions}</div>;
+  return (
+    <div className="flex justify-end">
+      {inTitle ? (
+        <>
+          {tabsNode}
+          {actions}
+        </>
+      ) : (
+        actions
+      )}
+    </div>
+  );
 }
 
 /** @deprecated Prefira `SettingsHeaderNav` no header. Mantido para fallback no corpo. */

@@ -38,6 +38,8 @@ export type BoardDeal = {
   } | null;
   /** Inbounds aguardando resposta (preview em balões no tooltip). */
   awaitingMessages?: Array<{ content: string; createdAt: string }> | null;
+  /** Última mensagem do CLIENTE — texto exibido no card (kanban/Flow). */
+  lastInboundMessage?: { content: string; createdAt: string } | null;
   /**
    * Canal da conversa "ativa" do contato (ex.: "whatsapp", "instagram").
    * Usado pelo `ChatAvatar` no card pra exibir o badge correto. `null`

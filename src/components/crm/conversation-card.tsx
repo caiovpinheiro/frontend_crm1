@@ -1,6 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { useJustArrived } from "@/lib/just-arrived"
+import { InboundPreview } from "@/components/crm/inbound-preview"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import { ChatAvatar, type ChatAvatarChannel } from "@/components/inbox/chat-avatar"
 import { AVATAR_SIZE } from "@/lib/avatar"
@@ -64,7 +66,10 @@ export interface Conversation {
   avatarColor: ConversationAvatarColor | "blue" | "teal" | "orange" | "purple" | "pink" | "coral"
   status: "online" | "offline" | "none"
   time: string
+  /** Última mensagem do cliente (ou a nossa, com `previewIsOurs`). */
   preview: string
+  /** Cliente ainda não escreveu: `preview` é a nossa última, apagada. */
+  previewIsOurs?: boolean
   assignee?: string
   active?: boolean
   inactive?: boolean
@@ -236,6 +241,9 @@ export function ConversationCard({
     rawType && rawType !== "text" ? typeLabelMap[rawType] ?? null : null
   const isOutgoing = conversation.lastMessageDirection === "out"
   const unread = Number(conversation.unreadCount) || 0
+  const justArrived = useJustArrived(conversation.id, conversation.contactId)
+  // Balão com contador substitui a pílula do topo (mesma informação).
+  const bubbleShowsUnread = unread > 0 && !conversation.previewIsOurs
   const hasChannel = Boolean(String(conversation.channel ?? "").trim())
   const { settings: inboxSettings } = useInboxSettings()
   const { data: departments = [] } = useDepartments(
@@ -326,7 +334,7 @@ export function ConversationCard({
             </span>
             <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
               {conversation.time}
-              <UnreadCountPill count={unread} />
+              {bubbleShowsUnread ? null : <UnreadCountPill count={unread} />}
               {unread <= 0 && conversation.urgent && (
                 <span className="flex h-3 w-3 items-center justify-center rounded-full bg-[var(--color-danger)] text-white">
                   <IconClock size={7} stroke={3} />
@@ -358,14 +366,13 @@ export function ConversationCard({
                 <IconMessage size={8} />
               </span>
             )}
-            <span
-              className={cn(
-                "pointer-events-none line-clamp-1 flex-1 overflow-hidden text-[var(--text-secondary)]",
-                typeLabel && "font-medium",
-              )}
-            >
-              {typeLabel ?? conversation.preview}
-            </span>
+            <InboundPreview
+              className="pointer-events-none"
+              text={typeLabel ?? conversation.preview}
+              unread={conversation.resolved ? 0 : unread}
+              glow={justArrived}
+              ours={conversation.previewIsOurs}
+            />
           </div>
         </div>
       </div>

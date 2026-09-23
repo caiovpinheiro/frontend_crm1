@@ -45,6 +45,7 @@ import { useInboxSoundOwner } from "@/features/inbox-v2/hooks/use-inbox-sound-ow
 import { usePushSubscription } from "@/hooks/use-push-subscription";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { apiUrl } from "@/lib/api";
+import { markJustArrived } from "@/lib/just-arrived";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { cn } from "@/lib/utils";
 
@@ -134,6 +135,11 @@ export function InboxMessageAlerts() {
       const conversationId = data.conversationId;
       if (!conversationId) return;
       if (isEventMessageType(data.messageType)) return;
+      // Brilho de chegada nos cards (inbox por conversa, kanban/Flow por
+      // contato) — independe do público do alerta.
+      if (data.cardOmitted !== "hidden") {
+        markJustArrived([conversationId, data.card?.id, data.contactId]);
+      }
 
       let card = data.card ?? null;
       if (!card) {
