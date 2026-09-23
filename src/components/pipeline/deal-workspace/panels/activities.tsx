@@ -224,6 +224,12 @@ export function ActivitiesPanel({
   );
 }
 
+function personInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  const letters = parts.map((part) => part[0]?.toUpperCase() ?? "").join("");
+  return letters || "?";
+}
+
 function ActivityTimeline({
   activities,
   onToggle,
@@ -323,11 +329,6 @@ function ActivityTimeline({
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-success-text)]">
                           <CheckCircle2 className="size-3" /> Concluida
                         </span>
-                      ) : a.startedBy ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-primary)]">
-                          <IconPlayerPlay className="size-3 fill-current" />
-                          {a.startedBy.name} executando
-                        </span>
                       ) : (
                         <Circle className="size-3 text-[var(--text-faint)]" />
                       )}
@@ -348,6 +349,32 @@ function ActivityTimeline({
                     <p className="mt-1.5 text-[11px] tracking-tight text-[var(--color-ink-muted)]">
                       {assigneeLabel} · {formatDateTime(a.scheduledAt ?? a.createdAt)}
                     </p>
+                    {a.startedBy && !a.completed ? (
+                      <div className="mt-2 flex items-center gap-2 rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 px-2.5 py-2">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-[11px] font-bold text-white">
+                          {personInitials(a.startedBy.name)}
+                        </span>
+                        <span className="min-w-0 text-[13px] font-semibold text-[var(--text-primary)]">
+                          {a.startedBy.name} está executando
+                        </span>
+                      </div>
+                    ) : null}
+                    {a.completed && (a.startedBy || a.completedBy) ? (
+                      <div className="mt-2 space-y-0.5 rounded-xl bg-[var(--color-bg-subtle)] px-2.5 py-2 text-[12px] text-[var(--text-primary)]">
+                        {a.startedBy ? (
+                          <p>
+                            <span className="text-[var(--text-muted)]">Executou </span>
+                            <span className="font-semibold">{a.startedBy.name}</span>
+                          </p>
+                        ) : null}
+                        {a.completedBy ? (
+                          <p>
+                            <span className="text-[var(--text-muted)]">Concluiu </span>
+                            <span className="font-semibold">{a.completedBy.name}</span>
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {!a.completed ? (
                       <div
                         className="mt-2 flex flex-wrap gap-1.5"

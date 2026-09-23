@@ -125,6 +125,12 @@ export const EVENT_CONFIG: Record<string, EventVisualConfig> = {
     bg: "bg-success-soft",
     label: "Tarefa criada",
   },
+  ACTIVITY_STARTED: {
+    Icon: CalendarCheck,
+    ring: "ring-success/30 text-success",
+    bg: "bg-success-soft",
+    label: "Tarefa em execução",
+  },
   ACTIVITY_COMPLETED: {
     Icon: CalendarCheck,
     ring: "ring-success/30 text-success",
@@ -500,10 +506,19 @@ export function eventDescription(ev: FeedEvent): string {
     case "ACTIVITY_DELETED":
     case "ACTIVITY_RENAMED":
       return String(m.title ?? ev.newValue ?? "");
+    case "ACTIVITY_STARTED": {
+      const title = String(m.title ?? "Tarefa");
+      const who = m.actorName ? String(m.actorName) : "";
+      return who ? `${title} — ${who} começou a executar` : title;
+    }
     case "ACTIVITY_COMPLETED": {
-      const title = String(m.title ?? "");
+      const title = String(m.title ?? "Tarefa");
+      const who = m.actorName ? String(m.actorName) : "";
+      const starter = m.startedByName ? String(m.startedByName) : "";
       const result = m.result ? ` — ${String(m.result)}` : "";
-      return `${title}${result}`;
+      const done = who ? `concluída por ${who}` : "concluída";
+      const ran = starter && starter !== who ? `execução de ${starter}, ` : "";
+      return `${title} — ${ran}${done}${result}`;
     }
     case "ACTIVITY_DESCRIPTION_CHANGED":
       return String(m.title ?? "");

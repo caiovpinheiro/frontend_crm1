@@ -64,6 +64,12 @@ export interface ActivityDetailDialogProps {
   onDelete?: (activity: Activity) => void
 }
 
+function personInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
+  const letters = parts.map((part) => part[0]?.toUpperCase() ?? "").join("")
+  return letters || "?"
+}
+
 function formatDateTime(iso: string): string {
   try {
     return new Date(iso).toLocaleString("pt-BR", {
@@ -311,11 +317,7 @@ export function ActivityDetailDialog({
                     )}
                     <span className="font-body text-[12px] text-[var(--text-muted)]">
                       {activity.start ? `${activity.start.slice(0, 10)} · ${activityTime(activity)}` : "—"}
-                      {activity.status === "concluida"
-                        ? " · Concluída"
-                        : activity.startedBy
-                          ? ` · ${activity.startedBy.name} executando`
-                          : ""}
+                      {activity.status === "concluida" ? " · Concluída" : ""}
                     </span>
                   </div>
 
@@ -342,6 +344,36 @@ export function ActivityDetailDialog({
                         </dt>
                         <dd className="mt-0.5 text-[var(--text-primary)]">
                           {activity.contactName || activity.withWhom}
+                        </dd>
+                      </div>
+                    )}
+                    {activity.startedBy && activity.status !== "concluida" && (
+                      <div className="sm:col-span-2 flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-2.5 py-2">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] font-display text-[11px] font-bold text-white">
+                          {personInitials(activity.startedBy.name)}
+                        </span>
+                        <span className="min-w-0 font-body text-[13px] font-semibold text-[var(--text-primary)]">
+                          {activity.startedBy.name} está executando
+                        </span>
+                      </div>
+                    )}
+                    {(activity.startedBy || activity.completedBy) && (
+                      <div className="sm:col-span-2">
+                        <dt className={formLabelClass}>Histórico</dt>
+                        <dd className="mt-1 space-y-1 text-[var(--text-primary)]">
+                          {activity.startedBy ? (
+                            <p>
+                              {activity.status === "concluida" ? "Executou" : "Começou"}{" "}
+                              {activity.startedBy.name}
+                              {activity.startedAt ? ` · ${formatDateTime(activity.startedAt)}` : ""}
+                            </p>
+                          ) : null}
+                          {activity.completedBy ? (
+                            <p>
+                              Concluiu {activity.completedBy.name}
+                              {activity.completedAt ? ` · ${formatDateTime(activity.completedAt)}` : ""}
+                            </p>
+                          ) : null}
                         </dd>
                       </div>
                     )}

@@ -38,8 +38,12 @@ export interface Activity {
   departmentId?: string | null
   /** Rótulo pronto para exibição do responsável (nome do user/depto). */
   assigneeLabel?: string | null
-  /** Quem está executando agora. Some quando a tarefa é concluída. */
+  /** Quem clicou em Executar. Permanece depois de concluir. */
   startedBy?: { id: string; name: string; avatarUrl?: string | null } | null
+  startedAt?: string | null
+  /** Quem clicou em Concluir. */
+  completedBy?: { id: string; name: string; avatarUrl?: string | null } | null
+  completedAt?: string | null
 }
 
 export interface ActivityKindMeta {
