@@ -64,6 +64,14 @@ export interface ActivityDetailDialogProps {
   onDelete?: (activity: Activity) => void
 }
 
+function detailTone(activity: Activity): "done" | "late" | "running" | "open" {
+  if (activity.status === "concluida") return "done"
+  const due = activity.start ? Date.parse(activity.start) : NaN
+  if (Number.isFinite(due) && due < Date.now()) return "late"
+  if (activity.startedBy) return "running"
+  return "open"
+}
+
 function personInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
   const letters = parts.map((part) => part[0]?.toUpperCase() ?? "").join("")
@@ -140,6 +148,7 @@ export function ActivityDetailDialog({
       : null
 
   const meta = activity ? ACTIVITY_KINDS[activity.kind] : null
+  const tone = activity ? detailTone(activity) : "open"
 
   const resetComposer = () => {
     setDraft("")
@@ -305,7 +314,19 @@ export function ActivityDetailDialog({
         footer={footer}
       >
               {activity && (
-                <section className="mb-5 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] p-3.5">
+                <section
+                  className={cn(
+                    "mb-5 rounded-[var(--radius-lg)] border p-3.5",
+                    tone === "done" &&
+                      "border-[var(--color-success)]/40 bg-[var(--color-success-bg)]",
+                    tone === "late" &&
+                      "border-[var(--color-danger)]/45 bg-[var(--color-danger-bg)]",
+                    tone === "running" &&
+                      "border-[var(--color-warn-border)] bg-[var(--color-warn-bg)]",
+                    tone === "open" &&
+                      "border-[var(--glass-border)] bg-[var(--glass-bg-base)]",
+                  )}
+                >
                   <div className="flex flex-wrap items-center gap-2">
                     {meta && (
                       <span
@@ -348,8 +369,8 @@ export function ActivityDetailDialog({
                       </div>
                     )}
                     {activity.startedBy && activity.status !== "concluida" && (
-                      <div className="sm:col-span-2 flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-2.5 py-2">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] font-display text-[11px] font-bold text-white">
+                      <div className="sm:col-span-2 flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-warn-border)] bg-[var(--color-warn-bg)] px-2.5 py-2">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-warn)] font-display text-[11px] font-bold text-white">
                           {personInitials(activity.startedBy.name)}
                         </span>
                         <span className="min-w-0 font-body text-[13px] font-semibold text-[var(--text-primary)]">

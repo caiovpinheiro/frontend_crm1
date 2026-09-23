@@ -224,6 +224,19 @@ export function ActivitiesPanel({
   );
 }
 
+/** Concluída ganha do atraso; atraso ganha de quem está executando. */
+function taskVisualTone(a: {
+  completed: boolean;
+  scheduledAt?: string | null;
+  startedBy?: { name: string } | null;
+}): "done" | "late" | "running" | "open" {
+  if (a.completed) return "done";
+  const due = a.scheduledAt ? Date.parse(a.scheduledAt) : NaN;
+  if (Number.isFinite(due) && due < Date.now()) return "late";
+  if (a.startedBy) return "running";
+  return "open";
+}
+
 function personInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
   const letters = parts.map((part) => part[0]?.toUpperCase() ?? "").join("");
@@ -273,6 +286,7 @@ function ActivityTimeline({
           const Icon = visual.Icon;
           const assigneeLabel =
             a.department?.name ?? a.user?.name ?? "Sem responsável";
+          const tone = taskVisualTone(a);
           return (
             <li key={a.id} className="group relative">
               <button
@@ -281,13 +295,14 @@ function ActivityTimeline({
                 disabled={togglePending}
                 aria-label={a.completed ? "Marcar como pendente" : "Concluir"}
                 className={cn(
-                  "absolute -left-12 top-2 inline-flex size-9 items-center justify-center rounded-full",
-                  visual.bg,
-                  "ring-1",
-                  visual.ring,
-                  visual.fg,
-                  "transition-transform active:scale-95",
-                  a.completed && "opacity-60 grayscale",
+                  "absolute -left-12 top-2 inline-flex size-9 items-center justify-center rounded-full ring-1 transition-transform active:scale-95",
+                  tone === "done" &&
+                    "bg-[var(--color-success-bg)] text-[var(--color-success-text)] ring-[var(--color-success)]/50",
+                  tone === "late" &&
+                    "bg-[var(--color-danger-bg)] text-[var(--color-danger-text)] ring-[var(--color-danger)]/50",
+                  tone === "running" &&
+                    "bg-[var(--color-warn-bg)] text-[var(--color-warn-text)] ring-[var(--color-warn)]/50",
+                  tone === "open" && cn(visual.bg, visual.ring, visual.fg),
                 )}
               >
                 {a.completed ? (
@@ -308,8 +323,12 @@ function ActivityTimeline({
                   }
                 }}
                 className={cn(
-                  "cursor-pointer rounded-2xl border border-border bg-card p-3.5",
+                  "cursor-pointer rounded-2xl border p-3.5",
                   "shadow-[var(--shadow-sm)] lumen-transition hover:shadow-[var(--shadow-md)]",
+                  tone === "done" && "border-[var(--color-success)]/40 bg-[var(--color-success-bg)]",
+                  tone === "late" && "border-[var(--color-danger)]/45 bg-[var(--color-danger-bg)]",
+                  tone === "running" && "border-[var(--color-warn-border)] bg-[var(--color-warn-bg)]",
+                  tone === "open" && "border-border bg-card",
                 )}
               >
                 <div className="flex items-start gap-2">
@@ -325,9 +344,13 @@ function ActivityTimeline({
                       >
                         {ACTIVITY_TYPES.find((t) => t.value === a.type)?.label ?? a.type}
                       </span>
-                      {a.completed ? (
+                      {tone === "done" ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-success-text)]">
                           <CheckCircle2 className="size-3" /> Concluida
+                        </span>
+                      ) : tone === "late" ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-danger-text)]">
+                          Atrasada
                         </span>
                       ) : (
                         <Circle className="size-3 text-[var(--text-faint)]" />
@@ -350,8 +373,8 @@ function ActivityTimeline({
                       {assigneeLabel} · {formatDateTime(a.scheduledAt ?? a.createdAt)}
                     </p>
                     {a.startedBy && !a.completed ? (
-                      <div className="mt-2 flex items-center gap-2 rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 px-2.5 py-2">
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary)] text-[11px] font-bold text-white">
+                      <div className="mt-2 flex items-center gap-2 rounded-xl border border-[var(--color-warn-border)] bg-[var(--color-warn-bg)] px-2.5 py-2">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-warn)] text-[11px] font-bold text-white">
                           {personInitials(a.startedBy.name)}
                         </span>
                         <span className="min-w-0 text-[13px] font-semibold text-[var(--text-primary)]">
@@ -360,7 +383,7 @@ function ActivityTimeline({
                       </div>
                     ) : null}
                     {a.completed && (a.startedBy || a.completedBy) ? (
-                      <div className="mt-2 space-y-0.5 rounded-xl bg-[var(--color-bg-subtle)] px-2.5 py-2 text-[12px] text-[var(--text-primary)]">
+                      <div className="mt-2 space-y-0.5 rounded-xl bg-[var(--color-success-bg)] px-2.5 py-2 text-[12px] text-[var(--text-primary)]">
                         {a.startedBy ? (
                           <p>
                             <span className="text-[var(--text-muted)]">Executou </span>
