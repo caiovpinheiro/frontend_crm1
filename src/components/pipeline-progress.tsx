@@ -261,7 +261,7 @@ function NovosColumn({ count, value }: { count: number; value: number }) {
         {formatMoney(value)}
       </p>
       <p className="mt-auto font-body text-[11px] text-[var(--pipeline-text-muted)]">
-        Entraram no período
+        Criados no período
       </p>
     </article>
   );
