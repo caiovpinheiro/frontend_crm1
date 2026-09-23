@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   IconBolt,
@@ -21,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ScrollMap } from "@/components/crm/scroll-map";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
@@ -204,6 +205,8 @@ interface StageConfig {
   /** Estágios terminais fixos (Ganho/Perdido) — sem drag/rename/reorder. */
   isWon?: boolean;
   isLost?: boolean;
+  /** Campos do negócio exigidos para entrar nesta etapa. */
+  requiredDealFieldIds?: string[];
 }
 
 /** Terminal fixo (Ganho/Perdido): travado na configuração. */
@@ -874,6 +877,159 @@ function AddStageModal({
   );
 }
 
+type DealFieldOption = { id: string; label: string; name: string };
+
+function StageEntryFields({
+  stage,
+  pipelineId,
+}: {
+  stage: StageConfig;
+  pipelineId: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const local = stage.id.startsWith("local-stage-");
+  const selected = stage.requiredDealFieldIds ?? [];
+  const selectedKey = selected.join(",");
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>(selected);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setPicked(selectedKey ? selectedKey.split(",") : []);
+  }, [selectedKey]);
+
+  const { data: fields = [] } = useQuery({
+    queryKey: ["custom-fields", "deal"],
+    enabled: open && !local,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await fetch(apiUrl("/api/custom-fields?entity=deal"), {
+        credentials: "include",
+      });
+      if (!res.ok) return [] as DealFieldOption[];
+      const data = (await res.json().catch(() => [])) as unknown;
+      if (!Array.isArray(data)) return [] as DealFieldOption[];
+      return data.flatMap((row) => {
+        if (!row || typeof row !== "object") return [];
+        const field = row as { id?: unknown; label?: unknown; name?: unknown };
+        if (typeof field.id !== "string") return [];
+        const label =
+          typeof field.label === "string" && field.label.trim()
+            ? field.label.trim()
+            : typeof field.name === "string"
+              ? field.name
+              : "Campo";
+        return [{ id: field.id, label, name: typeof field.name === "string" ? field.name : label }];
+      });
+    },
+  });
+
+  const summary =
+    selected.length === 0
+      ? "Nenhum campo obrigatório"
+      : selected.length === 1
+        ? "1 campo obrigatório para entrar"
+        : `${selected.length} campos obrigatórios para entrar`;
+
+  async function save() {
+    if (!pipelineId || local) return;
+    setSaving(true);
+    try {
+      const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/stages/${stage.id}`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ requiredDealFieldIds: picked }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) throw new Error(body.message ?? "Falha ao salvar os campos da etapa.");
+      toast.success("Campos para entrar nesta etapa atualizados.");
+      setOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["pipeline-board", pipelineId] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar os campos da etapa.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mb-3 px-1">
+      <button
+        type="button"
+        onClick={() => {
+          if (local) return;
+          setOpen((v) => !v);
+        }}
+        disabled={local}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 py-2 text-left font-display text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--brand-primary)]/40 hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className="min-w-0 truncate">{local ? "Salve a etapa para exigir campos" : summary}</span>
+        <span className="shrink-0 text-[var(--text-muted)]">{open ? "Fechar" : "Configurar"}</span>
+      </button>
+      {open && !local ? (
+        <div className="mt-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-2.5">
+          <p className="mb-2 font-display text-[11px] leading-snug text-[var(--text-muted)]">
+            O negócio só entra nesta etapa com estes campos preenchidos.
+          </p>
+          {fields.length === 0 ? (
+            <p className="font-display text-[11px] text-[var(--text-secondary)]">
+              Nenhum campo de negócio cadastrado.{" "}
+              <Link href="/settings/custom-fields?entity=deal" className="font-bold text-[var(--brand-primary)]">
+                Criar campo
+              </Link>
+            </p>
+          ) : (
+            <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+              {fields.map((field) => {
+                const on = picked.includes(field.id);
+                return (
+                  <label
+                    key={field.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 font-display text-[12px] text-[var(--text-primary)] hover:bg-[var(--glass-bg-overlay)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() =>
+                        setPicked((prev) =>
+                          on ? prev.filter((id) => id !== field.id) : [...prev, field.id],
+                        )
+                      }
+                      className="size-3.5 accent-[var(--brand-primary)]"
+                    />
+                    <span className="min-w-0 truncate">{field.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <div className="mt-2 flex justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setPicked(selected);
+                setOpen(false);
+              }}
+              className="rounded-full px-2.5 py-1 font-display text-[11px] font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={saving || fields.length === 0}
+              onClick={() => void save()}
+              className="rounded-full bg-[var(--brand-primary)] px-2.5 py-1 font-display text-[11px] font-bold text-white disabled:opacity-50"
+            >
+              {saving ? "Salvando…" : "Salvar"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // ─── StageColumn ──────────────────────────────────────────────────
 
 interface StageColumnProps {
@@ -990,11 +1146,13 @@ function StageColumn({
       </div>
 
       {/* Subtítulo */}
-      <div className="mb-3 border-b border-[var(--glass-border-subtle)] px-1 pb-2.5 font-display text-xs font-semibold text-[var(--text-secondary)]">
+      <div className="mb-2 border-b border-[var(--glass-border-subtle)] px-1 pb-2.5 font-display text-xs font-semibold text-[var(--text-secondary)]">
         {stage.automations.length === 0
           ? "Sem automações"
           : `${stage.automations.length} automação${stage.automations.length !== 1 ? "ões" : ""}`}
       </div>
+
+      <StageEntryFields stage={stage} pipelineId={pipelineId} />
 
       {/* Lista de cards */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
@@ -1748,6 +1906,7 @@ export default function PipelineSettingsClientPage() {
             automations: stageAutomationsMap[s.id] ?? [],
             isWon: s.isWon,
             isLost: s.isLost,
+            requiredDealFieldIds: s.requiredDealFieldIds ?? [],
           } satisfies StageConfig;
         }
         // Etapa criada localmente (não está no board do backend ainda)
