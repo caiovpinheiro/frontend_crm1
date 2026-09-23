@@ -198,7 +198,7 @@ function FunnelSausage({
     <div className="flex items-center gap-3 px-4 pt-3">
       <div
         className="shrink-0 rounded-xl border border-border bg-card px-3 py-1.5 text-center"
-        aria-label={`${formatCount(novos)} novos no período`}
+        aria-label={`${formatCount(novos)} clientes novos hoje`}
       >
         <p className="font-display text-[18px] font-bold leading-none tabular-nums text-[var(--pipeline-success)]">
           {novos > 0 ? `+${formatCount(novos)}` : "0"}
@@ -261,7 +261,7 @@ function NovosColumn({ count, value }: { count: number; value: number }) {
         {formatMoney(value)}
       </p>
       <p className="mt-auto font-body text-[11px] text-[var(--pipeline-text-muted)]">
-        Criados no período
+        Hoje
       </p>
     </article>
   );
