@@ -271,7 +271,7 @@ export function useDealChatBinding(params: {
     isPending: messagesPending,
     isError: messagesFailed,
   } = useMessages(effectiveConversationId);
-  const sendMutation = useSendMessage(effectiveConversationId);
+  const sendMutation = useSendMessage(effectiveConversationId, { contactId });
   const sendMutateAsync = sendMutation.mutateAsync;
   const reactMutation = useReactMessage(effectiveConversationId);
   const pinNoteMutation = usePinNote(effectiveConversationId);

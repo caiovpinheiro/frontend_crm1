@@ -47,24 +47,16 @@ import {
 } from "@/features/pipeline-v2/extras/use-portal-popover";
 
 type StatusFilter = "OPEN" | "WON" | "LOST" | "ALL";
-export type DealQueueSortMode =
-  | "message_new"
-  | "message_old"
-  | "created_new"
-  | "created_old";
+export type DealQueueSortMode = "message_new" | "message_old";
 
 const SORT_LABELS: Record<DealQueueSortMode, string> = {
-  message_new: "Mensagem mais recente",
-  message_old: "Mensagem mais antiga",
-  created_new: "Criação mais recente",
-  created_old: "Criação mais antiga",
+  message_new: "Mensagens mais recentes primeiro",
+  message_old: "Mensagens mais antigas primeiro",
 };
 
 const SORT_HINTS: Record<DealQueueSortMode, string> = {
-  message_new: "Quem respondeu por último no topo",
-  message_old: "Quem está esperando há mais tempo no topo",
-  created_new: "Leads novos no topo",
-  created_old: "Leads mais antigos no topo",
+  message_new: "Quem falta responder fica no topo. Respondidos descem.",
+  message_old: "Quem espera há mais tempo fica no topo. Respondidos vão para o fim.",
 };
 
 /** Filtro local da fila (nome, e-mail, telefone, título do negócio). */
@@ -95,15 +87,18 @@ export function DealQueueSortMenu({
   onSortModeChange,
   compact = false,
   iconOnly = false,
+  fullWidth = false,
 }: {
   sortMode: DealQueueSortMode;
   onSortModeChange: (mode: DealQueueSortMode) => void;
   compact?: boolean;
   iconOnly?: boolean;
+  /** Botão na largura da fila, com o nome da ordenação visível. */
+  fullWidth?: boolean;
 }) {
   const { open, rect, triggerRef, popoverRef, toggle, close } =
     usePortalPopover();
-  const position = computePopoverPosition(rect, 220, 240);
+  const position = computePopoverPosition(rect, 300, 160);
 
   useEffect(() => {
     if (!open) return;
@@ -115,8 +110,12 @@ export function DealQueueSortMenu({
   }, [open, close]);
 
   return (
-    <div className="relative shrink-0">
-      <TooltipHost label={`Ordenar — ${SORT_LABELS[sortMode]}`} side="top">
+    <div className={cn("relative shrink-0", fullWidth && "w-full min-w-0")}>
+      <TooltipHost
+        label={`Ordenar — ${SORT_LABELS[sortMode]}`}
+        side="top"
+        triggerClassName={fullWidth ? "flex w-full min-w-0" : undefined}
+      >
         <button
           ref={triggerRef}
           type="button"
@@ -126,39 +125,43 @@ export function DealQueueSortMenu({
           aria-label={`Ordenar fila: ${SORT_LABELS[sortMode]}`}
           className={cn(
             "inline-flex items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] font-semibold tracking-tight text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-strong)]",
-            iconOnly
-              ? "size-8 shrink-0 p-0"
-              : cn(
-                  compact
-                    ? "gap-1 px-2 py-1 text-[10px]"
-                    : "gap-1.5 px-2.5 py-1.5 text-[12px]",
-                ),
+            fullWidth
+              ? "h-8 w-full min-w-0 justify-between gap-1.5 overflow-hidden px-2.5 text-[12px]"
+              : iconOnly
+                ? "size-8 shrink-0 p-0"
+                : cn(
+                    compact
+                      ? "gap-1 px-2 py-1 text-[10px]"
+                      : "gap-1.5 px-2.5 py-1.5 text-[12px]",
+                  ),
             open &&
               "border-[var(--brand-primary)]/40 ring-[3px] ring-[var(--brand-primary)]/15",
           )}
         >
           <ArrowUpDown
             className={cn(
-              "text-[var(--text-muted)]",
-              iconOnly ? "size-3.5" : compact ? "size-3" : "size-3.5",
+              "shrink-0 text-[var(--text-muted)]",
+              iconOnly && !fullWidth ? "size-3.5" : compact ? "size-3" : "size-3.5",
             )}
             strokeWidth={2.2}
           />
-          {!iconOnly ? (
+          {!iconOnly || fullWidth ? (
             <>
               <span
                 className={cn(
-                  "truncate",
-                  compact
-                    ? "max-w-[120px] sm:max-w-[160px]"
-                    : "max-w-[160px] sm:max-w-[200px]",
+                  "truncate text-left",
+                  fullWidth
+                    ? "min-w-0 flex-1"
+                    : compact
+                      ? "max-w-[120px] sm:max-w-[160px]"
+                      : "max-w-[160px] sm:max-w-[200px]",
                 )}
               >
                 {SORT_LABELS[sortMode]}
               </span>
               <ChevronDown
                 className={cn(
-                  "size-3 text-[var(--text-muted)] transition-transform",
+                  "size-3 shrink-0 text-[var(--text-muted)] transition-transform",
                   open && "rotate-180",
                 )}
                 strokeWidth={2.5}
@@ -177,12 +180,15 @@ export function DealQueueSortMenu({
                 position: "fixed",
                 top: position.top,
                 left: position.left,
-                width: 240,
+                width: 300,
                 zIndex: "var(--z-popover)",
               }}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="border-b border-[var(--glass-border-subtle)] px-3 py-2 font-display text-[10px] font-bold uppercase tracking-[0.09em] text-[var(--text-muted)]">
+                Ordenar
+              </div>
               {(Object.keys(SORT_LABELS) as DealQueueSortMode[]).map((mode) => {
                 const isActive = mode === sortMode;
                 return (
@@ -196,36 +202,27 @@ export function DealQueueSortMenu({
                       close();
                     }}
                     className={cn(
-                      "flex w-full items-start gap-2 px-3 py-2 text-left transition-colors",
+                      "flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left font-display text-[12px] font-semibold transition-colors",
                       isActive
-                        ? "bg-[var(--color-enterprise-bg)]"
-                        : "hover:bg-[var(--glass-bg-strong)]",
+                        ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
+                        : "text-[var(--text-secondary)] hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)]",
                     )}
                   >
+                    <span className="min-w-0">
+                      <span className="block leading-snug">{SORT_LABELS[mode]}</span>
+                      <span className="mt-0.5 block text-[10px] font-medium text-[var(--text-muted)]">
+                        {SORT_HINTS[mode]}
+                      </span>
+                    </span>
                     <Check
                       className={cn(
-                        "mt-0.5 size-3.5 shrink-0",
+                        "size-3.5 shrink-0",
                         isActive
                           ? "text-[var(--brand-primary)]"
                           : "text-transparent",
                       )}
-                      strokeWidth={2.5}
+                      strokeWidth={2.6}
                     />
-                    <div className="min-w-0">
-                      <div
-                        className={cn(
-                          "truncate font-display text-[13px] font-semibold tracking-tight",
-                          isActive
-                            ? "text-[var(--brand-primary)]"
-                            : "text-[var(--text-primary)]",
-                        )}
-                      >
-                        {SORT_LABELS[mode]}
-                      </div>
-                      <div className="text-[10px] text-[var(--text-muted)]">
-                        {SORT_HINTS[mode]}
-                      </div>
-                    </div>
                   </button>
                 );
               })}
@@ -551,8 +548,45 @@ export function DealQueue({
   const activeIdx = activeDealId
     ? deals.findIndex((d) => d.id === activeDealId)
     : -1;
-  const effectiveLimit = Math.max(renderLimit, activeIdx + 1);
-  const windowedDeals = visibleDeals.slice(0, effectiveLimit);
+  // Janela acompanha a seleção (deep-link / teclado), não o índice depois
+  // que uma mensagem reposiciona o card — senão a fila monta centenas de
+  // cards e o scroll salta.
+  const selectionAnchorRef = useRef<{ id: string | null; index: number }>({
+    id: null,
+    index: -1,
+  });
+  const sortSeenRef = useRef(sortMode);
+  if (sortSeenRef.current !== sortMode) {
+    sortSeenRef.current = sortMode;
+    selectionAnchorRef.current = { id: activeDealId, index: -1 };
+  } else if (selectionAnchorRef.current.id !== activeDealId) {
+    selectionAnchorRef.current = { id: activeDealId, index: activeIdx };
+  } else if (selectionAnchorRef.current.index < 0 && activeIdx >= 0) {
+    selectionAnchorRef.current = { id: activeDealId, index: activeIdx };
+  }
+  const anchorIndex =
+    selectionAnchorRef.current.id === activeDealId
+      ? selectionAnchorRef.current.index
+      : -1;
+  const effectiveLimit = Math.max(renderLimit, anchorIndex + 1);
+  const windowSlice = visibleDeals.slice(0, effectiveLimit);
+  // Resposta tira o card da janela do topo (ele passa a ser o mais recente).
+  // Mantém o deal aberto no fim do que está na tela, para ele "ir para baixo".
+  const activeFellBelowWindow =
+    !!activeDealId && activeIdx >= effectiveLimit
+      ? visibleDeals[activeIdx]
+      : undefined;
+  const windowedDeals =
+    activeFellBelowWindow &&
+    !windowSlice.some((d) => d.id === activeFellBelowWindow.id)
+      ? [...windowSlice, activeFellBelowWindow]
+      : windowSlice;
+  // O card aberto saiu da janela do topo. Rola até ele no fim da lista visível.
+  useEffect(() => {
+    if (!activeDealId || activeIdx < effectiveLimit) return;
+    const el = itemRefs.current.get(activeDealId);
+    el?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [activeDealId, activeIdx, effectiveLimit]);
   const hasMoreToRender = visibleDeals.length > effectiveLimit;
   const queueSentinelRef = useRef<HTMLDivElement>(null);
   // Dois níveis: 1º janela local (+60); depois rede (+50/etapa).

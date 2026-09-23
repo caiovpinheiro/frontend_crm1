@@ -2,6 +2,10 @@
 
 import { apiUrl } from "@/lib/api";
 import {
+  compareMessageActivity,
+  messageActivityTimestamp,
+} from "@/lib/message-activity-sort";
+import {
   useState,
   useCallback,
   useMemo,
@@ -20,6 +24,7 @@ import {
   IconPin as Pin,
   IconPinFilled as PinFilled,
   IconPlus as Plus,
+  IconRefresh,
   IconX as X,
 } from "@tabler/icons-react";
 
@@ -64,6 +69,29 @@ import {
 } from "@/lib/utils";
 
 const ASIDE_PINNED_KEY = "crm:saleshub:aside-pinned:v1";
+
+function isAnsweredDeal(deal: { lastMessage?: { direction?: string | null } | null }): boolean {
+  return String(deal.lastMessage?.direction ?? "").toLowerCase() === "out";
+}
+
+/**
+ * Quem ainda espera fica acima, na ordem escolhida.
+ * Quem já foi respondido fica no fim — a resposta mais nova desce mais.
+ */
+function compareQueueDeals(
+  a: { lastMessage?: { createdAt?: string | null; direction?: string | null } | null },
+  b: { lastMessage?: { createdAt?: string | null; direction?: string | null } | null },
+  order: "asc" | "desc",
+): number {
+  const aAnswered = isAnsweredDeal(a);
+  const bAnswered = isAnsweredDeal(b);
+  if (aAnswered !== bAnswered) return aAnswered ? 1 : -1;
+  return compareMessageActivity(
+    messageActivityTimestamp(a.lastMessage?.createdAt),
+    messageActivityTimestamp(b.lastMessage?.createdAt),
+    aAnswered ? "asc" : order,
+  );
+}
 
 function readAsidePinned(): boolean {
   if (typeof window === "undefined") return false;
@@ -168,6 +196,9 @@ export type SalesHubViewProps = {
   onOpenFullDeal?: (dealId: string) => void;
   sortMode: DealQueueSortMode;
   onSortModeChange: (mode: DealQueueSortMode) => void;
+  /** Recarrega a página do board e reposiciona a fila sem limpar filtros. */
+  onRefreshQueue?: () => void;
+  queueRefreshing?: boolean;
   /**
    * Paginação de rede da fila (board normal, sem filtros server-side):
    * `queueHasMore` sinaliza que alguma etapa tem mais deals no servidor;
@@ -207,6 +238,8 @@ export function SalesHubView({
   onOpenFullDeal,
   sortMode,
   onSortModeChange,
+  onRefreshQueue,
+  queueRefreshing = false,
   queueHasMore,
   queueLoadingMore,
   queueBoardPending = false,
@@ -436,25 +469,11 @@ export function SalesHubView({
       s.deals.map((d) => ({ ...d, stageId: s.id })),
     );
 
-    const getMessageTime = (d: BoardDeal): number =>
-      d.lastMessage?.createdAt ? new Date(d.lastMessage.createdAt).getTime() : 0;
-    const getCreatedTime = (d: BoardDeal): number =>
-      d.createdAt ? new Date(d.createdAt).getTime() : 0;
-
-    return flat.sort((a, b) => {
-      switch (sortMode) {
-        case "message_new":
-          return getMessageTime(b) - getMessageTime(a);
-        case "message_old":
-          return getMessageTime(a) - getMessageTime(b);
-        case "created_new":
-          return getCreatedTime(b) - getCreatedTime(a);
-        case "created_old":
-          return getCreatedTime(a) - getCreatedTime(b);
-        default:
-          return 0;
-      }
-    });
+    // Horário da última mensagem, não a criação do lead.
+    // Quem já foi respondido (última mensagem outbound) fica abaixo de
+    // quem ainda espera — responder manda o card para baixo.
+    const order = sortMode === "message_old" ? "asc" : "desc";
+    return flat.sort((a, b) => compareQueueDeals(a, b, order));
   }, [filteredStages, selectedStageId, sortMode]);
 
   // Com o board paginado (50/etapa), `deals.length` sub-reporta — usa o
@@ -771,13 +790,39 @@ export function SalesHubView({
                   {queueStageHeader.count}
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="min-w-0 flex-1">
                 <DealQueueSortMenu
                   sortMode={sortMode}
                   onSortModeChange={onSortModeChange}
-                  iconOnly
+                  fullWidth
                 />
               </div>
+              {onRefreshQueue ? (
+                <TooltipGlass
+                  label={queueRefreshing ? "Sincronizando fila…" : "Atualizar fila"}
+                  side="bottom"
+                >
+                  <button
+                    type="button"
+                    aria-label={queueRefreshing ? "Sincronizando fila" : "Atualizar fila"}
+                    onClick={onRefreshQueue}
+                    disabled={queueRefreshing}
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)] disabled:opacity-100",
+                      queueRefreshing &&
+                        "border-[var(--brand-primary)]/40 text-[var(--brand-primary)]",
+                    )}
+                  >
+                    <IconRefresh
+                      className={cn("size-3.5", queueRefreshing && "animate-spin")}
+                      strokeWidth={2.2}
+                      aria-hidden
+                    />
+                  </button>
+                </TooltipGlass>
+              ) : null}
             </div>
             <div
               className="mt-1.5 h-[2px] w-full rounded-full opacity-90"

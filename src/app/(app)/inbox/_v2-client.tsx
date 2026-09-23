@@ -28,6 +28,10 @@ import {
 } from "@tabler/icons-react";
 import { Plus } from "lucide-react";
 import { cn, ownerLabel } from "@/lib/utils";
+import {
+  compareMessageActivity,
+  messageActivityTimestamp,
+} from "@/lib/message-activity-sort";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
@@ -568,16 +572,17 @@ export default function InboxV2ClientPage({
       list = list.filter((r) => inIsoDayRange(r.createdAt, createdFrom, createdTo));
     }
     const by = sortBy ?? "lastInboundAt";
-    const sign = (sortOrder ?? "desc") === "asc" ? 1 : -1;
-    const ts = (v: string | null | undefined) => (v ? new Date(v).getTime() : 0);
-    const lastActivityTs = (r: typeof rawRows[number]) =>
-      ts(r.lastMessageAt ?? r.lastInboundAt);
+    const order = (sortOrder ?? "desc") === "asc" ? "asc" : "desc";
+    const lastActivityTs = (r: (typeof rawRows)[number]) =>
+      messageActivityTimestamp(r.lastMessageAt, r.lastInboundAt);
     return [...list].sort((a, b) => {
       if (by === "unreadCount") {
         const d = (b.unreadCount ?? 0) - (a.unreadCount ?? 0);
-        return d !== 0 ? d : lastActivityTs(b) - lastActivityTs(a);
+        return d !== 0
+          ? d
+          : compareMessageActivity(lastActivityTs(a), lastActivityTs(b), "desc");
       }
-      return sign * (lastActivityTs(a) - lastActivityTs(b));
+      return compareMessageActivity(lastActivityTs(a), lastActivityTs(b), order);
     });
   }, [rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
 
