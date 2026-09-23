@@ -47,6 +47,12 @@ export interface StageGrantEntry {
   canEdit: boolean;
 }
 
+/** Bloqueio de um funil inteiro. Ausência da linha = o papel vê o funil. */
+export interface PipelineGrantEntry {
+  pipelineId: string;
+  canView: boolean;
+}
+
 /** Grant por campo (mascaramento) concedido a um papel. */
 export interface FieldGrantEntry {
   /** "deal" | "contact" | "company" | "product" */
@@ -69,6 +75,8 @@ export interface RoleSummary {
   mediaAccess?: boolean;
   /** Visibilidade por etapa do funil (vazio = todas). */
   stageGrants?: StageGrantEntry[];
+  /** Funis bloqueados para o papel (vazio = todos). */
+  pipelineGrants?: PipelineGrantEntry[];
   /** Restrições por campo (vazio = todos liberados). */
   fieldGrants?: FieldGrantEntry[];
   /**
