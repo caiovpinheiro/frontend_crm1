@@ -42,8 +42,8 @@ type BulkActionsBarProps = {
 
 /**
  * Resposta unificada de `POST /api/deals/bulk`. Sync (200) devolve
- * `{ affected, action }`. Async opt-in (202, hoje só `move_stage` com
- * > 50 deals ou `async: true` explícito) devolve `{ operationId, total,
+ * `{ affected, action }`. Async (202: `move_stage`, `change_owner`,
+ * `mark_won`, `mark_lost` com > 2 deals, ou `async: true` explícito) devolve `{ operationId, total,
  * action, message }`. Estreitamos via `status` pra que o caller decida
  * abrir o modal de progresso ou apenas exibir o toast histórico.
  */
