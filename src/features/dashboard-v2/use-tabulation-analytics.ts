@@ -38,6 +38,7 @@ export function useTabulationAnalytics({
   toIso,
   actorUserIds,
   departmentIds,
+  tabulationIds = [],
   page,
   enabled = true,
 }: {
@@ -45,6 +46,7 @@ export function useTabulationAnalytics({
   toIso: string;
   actorUserIds: string[];
   departmentIds: string[];
+  tabulationIds?: string[];
   page: number;
   enabled?: boolean;
 }) {
@@ -61,7 +63,7 @@ export function useTabulationAnalytics({
   }, [rangeStamp, fromIso, toIso, queryClient]);
 
   return useQuery({
-    queryKey: ["tabulation-analytics", fromIso, toIso, actorUserIds, departmentIds, page],
+    queryKey: ["tabulation-analytics", fromIso, toIso, actorUserIds, departmentIds, tabulationIds, page],
     queryFn: async ({ signal }): Promise<TabulationAnalyticsResponse> => {
       const sp = new URLSearchParams();
       if (fromIso) sp.set("from", fromIso);
@@ -75,6 +77,11 @@ export function useTabulationAnalytics({
         sp.set("departmentId", departmentIds[0]!);
       } else if (departmentIds.length > 1) {
         sp.set("departmentIds", departmentIds.join(","));
+      }
+      if (tabulationIds.length === 1) {
+        sp.set("tabulationId", tabulationIds[0]!);
+      } else if (tabulationIds.length > 1) {
+        sp.set("tabulationIds", tabulationIds.join(","));
       }
       sp.set("page", String(page));
       sp.set("perPage", "25");
