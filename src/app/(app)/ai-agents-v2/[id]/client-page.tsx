@@ -1396,6 +1396,27 @@ function StepStart({
           </p>
         )}
       </SectionCard>
+
+      <SectionCard
+        title="Formato da resposta do modelo"
+        description="Em teste: obriga o modelo a devolver a resposta no formato que o agente entende."
+      >
+        <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Resposta sempre no formato do agente</p>
+            <p className="text-xs text-muted-foreground">
+              Sem isso, às vezes o modelo responde em texto solto (“LLM devolveu texto livre” no teste) e a
+              transferência, os dados coletados e as ações daquele turno se perdem. Se o modelo escolhido não aceitar,
+              o agente segue como antes, automaticamente.
+            </p>
+          </div>
+          <Switch
+            checked={config.structuredOutput === true}
+            onCheckedChange={(v) => onChange("structuredOutput", v)}
+            id="structured-output"
+          />
+        </div>
+      </SectionCard>
     </div>
   );
 }
