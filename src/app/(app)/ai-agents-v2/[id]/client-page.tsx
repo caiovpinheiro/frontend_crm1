@@ -71,6 +71,7 @@ import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
 import { looksLikeOpenAiApiKey } from "@/lib/agent-key";
 import { cn, formatDate } from "@/lib/utils";
 import { TestConversations } from "./test-conversations";
+import { CompareHuman } from "./compare-human";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -780,6 +781,7 @@ const STEPS = [
   { id: "closure", title: "Encerrar e classificar", subtitle: "Tabulação e pesquisa" },
   { id: "test", title: "Testar e publicar", subtitle: "Conferir antes de ligar" },
   { id: "test-conversations", title: "Conversas de teste", subtitle: "WhatsApp: passo a passo e erros" },
+  { id: "compare-human", title: "Comparar com humano", subtitle: "Atendimentos reais da equipe" },
 ];
 
 export default function AIAgentV2EditPage() {
@@ -1094,6 +1096,7 @@ export default function AIAgentV2EditPage() {
               />
             )}
             {step === 12 && <TestConversations agentId={id} />}
+            {step === 13 && <CompareHuman agentId={id} />}
           </main>
         </div>
 
