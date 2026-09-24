@@ -73,6 +73,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
+import { CalendarStep } from "./calendar-step";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -774,6 +775,8 @@ function isStepComplete(
         ((cfg.allowedKnowledgeDocIds as string[]) ?? []).length > 0 ||
         ((cfg.knowledgeDocs as unknown[]) ?? []).length > 0
       );
+    case "calendar":
+      return (((cfg.calendar as Record<string, unknown> | undefined)?.events as unknown[]) ?? []).length > 0;
     case "entry":
       return Boolean((cfg.entry as Record<string, unknown> | undefined)?.openingMessage);
     case "themes":
@@ -815,6 +818,14 @@ const STEPS = [
     heading: "Materiais de consulta",
     intro:
       "Envie os documentos que o agente usa para responder. Ele só afirma o que estiver aqui ou nos dados do cliente. Mais abaixo, as mensagens prontas e os produtos que ele pode enviar.",
+  },
+  {
+    id: "calendar",
+    title: "Calendário",
+    subtitle: "Datas e prazos",
+    heading: "Calendário",
+    intro:
+      "Datas e prazos oficiais que o agente usa para responder “quando é”, “qual a próxima” e “ainda dá tempo”. Fica separado dos materiais porque o sistema calcula sozinho o que já passou e o que vem.",
   },
   {
     id: "entry",
@@ -1158,6 +1169,7 @@ export default function AIAgentV2EditPage() {
                     <StepMessagesProducts config={config} catalogs={catalogs} onChange={updateConfig} />
                   </>
                 )}
+                {STEPS[step].id === "calendar" && <CalendarStep agentId={id} config={config} onChange={updateConfig} />}
                 {STEPS[step].id === "entry" && <StepEntry config={config} onChange={updateConfig} />}
                 {STEPS[step].id === "themes" && <StepThemes config={config} catalogs={catalogs} onChange={updateConfig} />}
                 {STEPS[step].id === "rules" && <StepRules config={config} catalogs={catalogs} onChange={updateConfig} />}
