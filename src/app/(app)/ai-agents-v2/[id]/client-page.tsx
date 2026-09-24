@@ -219,12 +219,29 @@ const POST_CLOSE_BEHAVIOR_OPTIONS = [
   { value: "ask_with_options", label: "Perguntar com botões" },
 ];
 
-const MEDIA_ACTION_OPTIONS = [
-  { value: "transcribe", label: "Transcrever / ler o texto" },
-  { value: "describe", label: "Descrever" },
-  { value: "ask_text", label: "Pedir para o cliente enviar em texto" },
-  { value: "handoff", label: "Transferir para a equipe" },
-];
+/** Só o que o motor faz para cada tipo de mídia. */
+const MEDIA_ACTION_OPTIONS: Record<"audio" | "image" | "document", Array<{ value: string; label: string }>> = {
+  audio: [
+    { value: "transcribe", label: "Transcrever e continuar o atendimento" },
+    { value: "ask_text", label: "Pedir para o cliente escrever" },
+    { value: "handoff", label: "Passar para a equipe" },
+  ],
+  image: [
+    { value: "describe", label: "Ler a imagem e continuar o atendimento" },
+    { value: "ask_text", label: "Pedir para o cliente escrever" },
+    { value: "handoff", label: "Passar para a equipe" },
+  ],
+  document: [
+    { value: "ask_text", label: "Pedir para o cliente escrever" },
+    { value: "handoff", label: "Passar para a equipe" },
+  ],
+};
+const MEDIA_KIND_LABEL = { audio: "Áudio", image: "Imagem", document: "Documento" } as const;
+const MEDIA_KIND_HINT = {
+  audio: "Usa o mesmo serviço de transcrição da tela de conversa.",
+  image: "O modelo do agente descreve a imagem e copia o texto que aparece nela (print de erro, comprovante).",
+  document: "Leitura de documento enviado na conversa ainda não está disponível.",
+} as const;
 
 const DEST_KIND_OPTIONS = [
   { value: "department", label: "Departamento" },
@@ -1786,39 +1803,72 @@ function StepContext({
         </div>
       </SectionCard>
 
-      <SectionCard title="Mídia recebida" description="O que fazer com áudio, imagem e documento.">
-        {(["audio", "image", "document"] as const).map((kind) => (
-          <div key={kind} className="grid gap-2 md:grid-cols-2">
-            <Field label={`${kind === "audio" ? "Áudio" : kind === "image" ? "Imagem" : "Documento"}`} tooltip="Comportamento padrão quando o cliente enviar este tipo de mídia.">
-              <Select
-                value={(getPath(config, `media.${kind}.action`, "handoff") as string)}
-                onValueChange={(v) => onChange(`media.${kind}.action`, v)}
-              >
-                <SelectTrigger />
-                <SelectContent>
-                  {MEDIA_ACTION_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Mensagem quando não entender">
-              <Input
-                value={(getPath(config, `media.${kind}.notUnderstoodMessage`, "") as string)}
-                onChange={(e) => onChange(`media.${kind}.notUnderstoodMessage`, e.target.value)}
-              />
-            </Field>
-          </div>
-        ))}
-        <div className="flex items-center gap-3 pt-2">
+      <SectionCard
+        title="Mídia que o cliente manda"
+        description="Áudio e imagem podem virar texto para o agente seguir o atendimento. Se não der para entender, ele avisa e pede para o cliente escrever."
+      >
+        {(["audio", "image", "document"] as const).map((kind) => {
+          const options = MEDIA_ACTION_OPTIONS[kind];
+          const current = getPath(config, `media.${kind}.action`, "handoff") as string;
+          // Valor antigo que não vale para este tipo (ex.: "transcrever" documento).
+          const value = options.some((o) => o.value === current) ? current : "handoff";
+          const understands = value === "transcribe" || value === "describe";
+          return (
+            <div key={kind} className="grid gap-3 rounded-xl border p-3 md:grid-cols-2">
+              <Field label={MEDIA_KIND_LABEL[kind]} hint={MEDIA_KIND_HINT[kind]}>
+                <Select value={value} onValueChange={(v) => onChange(`media.${kind}.action`, v)}>
+                  <SelectTrigger />
+                  <SelectContent>
+                    {options.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              {understands && (
+                <Field label="Se não conseguir entender" hint="Vazio usa uma mensagem padrão pedindo para escrever.">
+                  <Input
+                    value={(getPath(config, `media.${kind}.notUnderstoodMessage`, "") as string)}
+                    onChange={(e) => onChange(`media.${kind}.notUnderstoodMessage`, e.target.value)}
+                    placeholder="Não consegui entender. Pode me escrever o que precisa?"
+                  />
+                </Field>
+              )}
+              {value === "ask_text" && (
+                <Field label="Mensagem pedindo para escrever" hint="Vazio usa uma mensagem padrão.">
+                  <Input
+                    value={(getPath(config, `media.${kind}.askTextMessage`, "") as string)}
+                    onChange={(e) => onChange(`media.${kind}.askTextMessage`, e.target.value)}
+                    placeholder="Não consigo ouvir áudios por aqui. Pode me escrever?"
+                  />
+                </Field>
+              )}
+              {value === "handoff" && (
+                <Field label="Mensagem ao passar para a equipe" hint="Vazio usa a mensagem de transferência do agente.">
+                  <Input
+                    value={(getPath(config, `media.${kind}.handoffMessage`, "") as string)}
+                    onChange={(e) => onChange(`media.${kind}.handoffMessage`, e.target.value)}
+                  />
+                </Field>
+              )}
+            </div>
+          );
+        })}
+        <div className="flex items-start gap-3 pt-1">
           <Switch
             checked={!!getPath(config, "media.confirmUnderstanding", true)}
             onCheckedChange={(v) => onChange("media.confirmUnderstanding", v)}
             id="confirmMedia"
           />
-          <Label htmlFor="confirmMedia">Confirmar entendimento antes de agir</Label>
+          <div className="space-y-0.5">
+            <Label htmlFor="confirmMedia">Confirmar o entendimento quando o pedido estiver ambíguo</Label>
+            <p className="text-xs text-muted-foreground">
+              “Entendi que você quer cancelar, é isso?” Evita agir em cima de uma transcrição errada. Pedido claro é
+              respondido direto.
+            </p>
+          </div>
         </div>
       </SectionCard>
     </div>
