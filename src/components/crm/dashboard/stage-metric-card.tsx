@@ -47,7 +47,7 @@ export function StageMetricCard({
       </header>
       <ul
         data-dashboard-no-drag
-        className="mt-4 flex max-h-72 flex-col gap-2.5 overflow-y-auto pr-1"
+        className="mt-4 flex flex-col gap-2.5 pr-1"
       >
         {users.map((user) => (
           <li key={user.id}>
