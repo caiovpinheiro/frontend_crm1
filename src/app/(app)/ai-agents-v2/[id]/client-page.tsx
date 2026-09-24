@@ -1801,7 +1801,7 @@ function StepContext({
             value={(config.dealSelection as string) ?? "latest"}
             onValueChange={(v) => onChange("dealSelection", v)}
           >
-            <SelectTrigger />
+            <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="latest">Usar o mais recente</SelectItem>
               <SelectItem value="ask">Perguntar qual negócio</SelectItem>
@@ -1861,7 +1861,7 @@ function StepContext({
             <div key={kind} className="grid gap-3 rounded-xl border p-3 md:grid-cols-2">
               <Field label={MEDIA_KIND_LABEL[kind]} hint={MEDIA_KIND_HINT[kind]}>
                 <Select value={value} onValueChange={(v) => onChange(`media.${kind}.action`, v)}>
-                  <SelectTrigger />
+                  <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                   <SelectContent>
                     {options.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
@@ -2590,7 +2590,7 @@ function StepEntry({
                 value={(entry.confirmationMode as string) ?? "combined"}
                 onValueChange={(v) => onChange("entry.confirmationMode", v)}
               >
-                <SelectTrigger />
+                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="combined">Junto com a boas-vindas</SelectItem>
                   <SelectItem value="separate_turn">No turno seguinte</SelectItem>
@@ -2607,7 +2607,7 @@ function StepEntry({
             value={(entry.onDealNotFound as string) ?? "ask_identification"}
             onValueChange={(v) => onChange("entry.onDealNotFound", v)}
           >
-            <SelectTrigger />
+            <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
             <SelectContent>
               {ON_DEAL_NOT_FOUND_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value}>
@@ -2790,7 +2790,7 @@ function StepThemes({
                     onChange("themes", next);
                   }}
                 >
-                  <SelectTrigger />
+                  <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="self">Este próprio agente</SelectItem>
                     {catalogs.aiAgents.map((a) => (
@@ -3125,7 +3125,7 @@ function StepOutputs({
             value={(unknown.action as string) ?? "handoff"}
             onValueChange={(v) => onChange("fallback.unknown.action", v)}
           >
-            <SelectTrigger />
+            <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="handoff">Passar para a equipe</SelectItem>
               <SelectItem value="silence">Não responder</SelectItem>
@@ -3189,7 +3189,7 @@ function StepOutputs({
                 value={(getPath(config, "sentiment.threshold", "dissatisfied") as string)}
                 onValueChange={(v) => onChange("sentiment.threshold", v)}
               >
-                <SelectTrigger />
+                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="any">Qualquer insatisfação</SelectItem>
                   <SelectItem value="dissatisfied">Insatisfeito</SelectItem>
@@ -3202,7 +3202,7 @@ function StepOutputs({
                 value={(getPath(config, "sentiment.action", "handoff") as string)}
                 onValueChange={(v) => onChange("sentiment.action", v)}
               >
-                <SelectTrigger />
+                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="handoff">Transferir</SelectItem>
                   <SelectItem value="notify_and_continue">Notificar e continuar</SelectItem>
@@ -3284,7 +3284,7 @@ function StepTeam({
                 value={(bh.outsideAction as string) ?? "message"}
                 onValueChange={(v) => onChange("businessHours.outsideAction", v)}
               >
-                <SelectTrigger />
+                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="message">Enviar mensagem</SelectItem>
                   <SelectItem value="handoff">Transferir</SelectItem>
@@ -3544,7 +3544,7 @@ function StepClosure({
               value={(closure[c.key] as string) ?? "short_reply"}
               onValueChange={(v) => onChange(`closure.${c.key}`, v)}
             >
-              <SelectTrigger />
+              <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
               <SelectContent>
                 {POST_CLOSE_BEHAVIOR_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value}>
@@ -3609,7 +3609,7 @@ function StepClosure({
                 value={(tabulation.when as string) ?? "on_close"}
                 onValueChange={(v) => onChange("tabulation.when", v)}
               >
-                <SelectTrigger />
+                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="on_close">Ao encerrar</SelectItem>
                   <SelectItem value="on_transfer">Ao transferir</SelectItem>
