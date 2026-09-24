@@ -140,7 +140,7 @@ function LegendList({
   formatValue: (value: number) => string;
 }) {
   return (
-    <ul className="flex max-h-56 min-w-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+    <ul className="flex min-w-0 flex-1 flex-col gap-2 pr-1">
       {rows.map((row) => (
         <li key={row.id} className="flex items-baseline justify-between gap-3 text-[13px]">
           <span className="flex min-w-0 items-center gap-2">

@@ -108,7 +108,7 @@ export function TaskInsightCard({
           />
         </div>
       ) : null}
-      <ul className="mt-3 max-h-64 space-y-3 overflow-auto">
+      <ul className="mt-3 space-y-3">
         {groups.map((group) => (
           <li key={group.id}>
             <p className="text-xs font-semibold text-foreground">

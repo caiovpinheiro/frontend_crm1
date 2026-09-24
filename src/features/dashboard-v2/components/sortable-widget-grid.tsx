@@ -44,8 +44,8 @@ function shouldAutoSize(id: string) {
   return id !== "evolution";
 }
 
-/** Backend layout h max is 50; stay at the ceiling so long agent lists fit. */
-const MAX_AUTO_ROWS = 50;
+/** Teto alto para a lista caber no card sem rolagem interna. */
+const MAX_AUTO_ROWS = 120;
 const AUTO_SIZE_DEBOUNCE_MS = 220;
 
 const RAIL_ACTION_CLASS = cn(
@@ -246,7 +246,6 @@ export function SortableWidgetGrid({
         <div
           className={cn(
             "min-w-0",
-            fillCell && "min-h-0 flex-1 overflow-y-auto",
           )}
         >
           <div
