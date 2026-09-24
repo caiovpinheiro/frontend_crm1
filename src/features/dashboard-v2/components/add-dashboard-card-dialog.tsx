@@ -118,7 +118,7 @@ export function AddDashboardCardDialog({
   const stagePresent = Boolean(stageId && present.has(stageWidgetId(stageId)));
   const showChartType =
     mode === "dynamic"
-      ? kind !== "stage" && kind !== "tasks"
+      ? kind !== "stage"
       : presetId === "usage";
 
   function reset() {
@@ -176,6 +176,7 @@ export function AddDashboardCardDialog({
         title:
           title.trim() ||
           (taskGroup === "department" ? "Tarefas por departamento" : "Tarefas por usuário"),
+        chartType,
       });
       reset();
       onOpenChange(false);
