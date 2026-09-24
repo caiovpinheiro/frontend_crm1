@@ -17,7 +17,7 @@ import {
 } from "@/components/crm/dashboard/painel-service";
 import { OperatorDashboardWidget } from "@/components/crm/dashboard/operator-dashboard";
 import { SystemUsageCard } from "@/components/crm/dashboard/system-usage-card";
-import { CustomMetricCard } from "@/components/crm/dashboard/custom-metric-card";
+import { CustomMetricCard, TaskInsightCard } from "@/components/crm/dashboard/custom-metric-card";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import {
   TABULATION_WIDGET_LABELS,
@@ -43,6 +43,7 @@ import {
   usePainelCustomFields,
   usePainelDeals,
   usePainelEventCards,
+  usePainelInsights,
   usePainelService,
   useSystemUsageToday,
 } from "@/features/dashboard-v2/hooks";
@@ -355,6 +356,7 @@ function ManagerHome({
   );
   const customFieldsQuery = usePainelCustomFields(filters, fieldIds, tabReady && isDeals);
   const eventCards = usePainelEventCards(filters, grid.cards, tabReady && isDeals);
+  const insightsQuery = usePainelInsights(filters, grid.cards, tabReady && isDeals);
   const usageQuery = useSystemUsageToday(tabReady && isDeals);
 
   const departmentsQuery = useDepartments(tabReady && isService);
@@ -555,6 +557,36 @@ function ManagerHome({
                 const cardId = id.slice(5);
                 const def = grid.cards.find((c) => c.id === cardId);
                 if (!def) return <PainelSkeleton className="min-h-32" />;
+                if (def.type === "inboundOwners" || def.type === "inboundStage") {
+                  const data = insightsQuery.data;
+                  const block =
+                    def.type === "inboundOwners"
+                      ? data?.inboundOwners
+                      : data?.stages.find((s) => s.stageId === def.stageId);
+                  const rows = (block && "byUser" in block ? block.byUser : []).filter((r) =>
+                    filters.userIds.length ? filters.userIds.includes(r.id) : true,
+                  );
+                  return (
+                    <CustomMetricCard
+                      def={def}
+                      value={block?.total ?? null}
+                      unit="count"
+                      rows={rows}
+                    />
+                  );
+                }
+                if (def.type === "tasks") {
+                  const block = insightsQuery.data?.tasks.find(
+                    (t) => t.group === (def.taskGroup ?? "user"),
+                  );
+                  return (
+                    <TaskInsightCard
+                      title={def.title}
+                      total={block?.total ?? 0}
+                      groups={block?.groups ?? []}
+                    />
+                  );
+                }
                 if (def.type === "event") {
                   const hit = eventCards.find((e) => e.card.id === def.id);
                   const data = hit?.data;
