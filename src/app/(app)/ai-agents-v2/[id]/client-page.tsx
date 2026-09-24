@@ -74,6 +74,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
 import { CalendarStep } from "./calendar-step";
+import { TextListEditor } from "./text-list-editor";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -245,7 +246,7 @@ const MEDIA_ACTION_OPTIONS: Record<"audio" | "image" | "document", Array<{ value
 };
 const MEDIA_KIND_LABEL = { audio: "Áudio", image: "Imagem", document: "Documento" } as const;
 const MEDIA_KIND_HINT = {
-  audio: "Usa o mesmo serviço de transcrição da tela de conversa.",
+  audio: "Transcrito com a chave do próprio agente (a mesma conta que ele usa para responder).",
   image: "O modelo do agente descreve a imagem e copia o texto que aparece nela (print de erro, comprovante).",
   document: "Leitura de documento enviado na conversa ainda não está disponível.",
 } as const;
@@ -1602,14 +1603,18 @@ function StepTone({ config, onChange }: { config: Record<string, unknown>; onCha
         </div>
       </SectionCard>
 
-      <SectionCard title="Regras que ele sempre segue" description="Uma por linha. Exemplos: nunca prometer prazo, sempre pedir confirmação.">
-        <Field label="Regras globais" tooltip="Restrições que se aplicam a todos os assuntos, independentemente do contexto.">
-          <ChipInput
-            values={(config.globalRules as string[]) ?? []}
-            onChange={(v) => onChange("globalRules", v)}
-            placeholder="Adicionar regra"
-          />
-        </Field>
+      <SectionCard
+        title="Regras que ele sempre segue"
+        description="Valem em qualquer assunto. Uma regra por item, escrita como se orientasse alguém novo na equipe. As de cima pesam mais."
+      >
+        <TextListEditor
+          values={(config.globalRules as string[]) ?? []}
+          onChange={(v) => onChange("globalRules", v)}
+          addLabel="Adicionar regra"
+          itemLabel="Regra"
+          placeholder="Ex.: Nunca prometa prazo que não esteja nos materiais."
+          emptyText="Nenhuma regra ainda."
+        />
       </SectionCard>
     </div>
   );
@@ -2761,14 +2766,17 @@ function StepThemes({
                 />
               </Field>
               <Field label="Exemplos de mensagens do cliente" tooltip="Exemplos de mensagens típicas para ajudar o agente a reconhecer o assunto.">
-                <ChipInput
+                <TextListEditor
                   values={(t.examples as string[]) ?? []}
                   onChange={(v) => {
                     const next = themes.slice();
                     next[i] = { ...next[i], examples: v };
                     onChange("themes", next);
                   }}
-                  placeholder="Ex: quero cancelar"
+                  numbered={false}
+                  addLabel="Adicionar exemplo"
+                  itemLabel="Exemplo"
+                  placeholder="Ex.: quero cancelar minha matrícula"
                 />
               </Field>
               <Field label="Como agir" tooltip="Instruções específicas de comportamento para este assunto (tom, passos, regras).">
