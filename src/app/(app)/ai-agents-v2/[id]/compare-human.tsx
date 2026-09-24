@@ -243,8 +243,8 @@ export function CompareHuman({ agentId }: { agentId: string }) {
               <Select value={params.config} onValueChange={(v) => setParams((p) => ({ ...p, config: v as Params["config"] }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="draft">Rascunho (o que está editando)</SelectItem>
-                  <SelectItem value="published">Publicada</SelectItem>
+                  <SelectItem value="draft">Rascunho salvo (ainda não publicado)</SelectItem>
+                  <SelectItem value="published">Publicada (a que atende hoje)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
