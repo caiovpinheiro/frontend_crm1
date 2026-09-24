@@ -2,9 +2,9 @@
 
 /**
  * Comparar com humano: reproduz conversas reais atendidas por pessoas e
- * mostra, ponto a ponto, o que o agente responderia no lugar — com o placar
- * por assunto e a causa de cada diferença (material, comportamento,
- * integração, mídia). Nada é enviado ao cliente.
+ * mostra, ponto a ponto, o que o agente responderia no lugar — com um
+ * resultado único por ponto, o placar por assunto e o que falta para acertar
+ * (material, comportamento, integração, mídia). Nada é enviado ao cliente.
  */
 
 import * as React from "react";
@@ -17,6 +17,7 @@ import {
   IconCopy,
   IconLoader2,
   IconPlayerPlay,
+  IconPlayerStop,
   IconRefresh,
   IconUsers,
 } from "@tabler/icons-react";
@@ -42,6 +43,16 @@ type Verdict = {
   explicacao: string;
 };
 
+type Outcome =
+  | "igual"
+  | "parcial"
+  | "transferiu_certo"
+  | "inventou"
+  | "incorreto"
+  | "deveria_transferir"
+  | "transferiu_sem_precisar"
+  | "diferente";
+
 type Item = {
   id: string;
   conversationId: string;
@@ -56,16 +67,13 @@ type Item = {
   verdict: Verdict | null;
   skipReason: string | null;
   error: string | null;
+  outcome: Outcome | null;
 };
 
 type Metrics = {
   avaliados: number;
-  igual: number;
-  parcial: number;
-  diferente: number;
-  inventou: number;
-  transferenciaCorreta: number;
   resolveuComoHumano: number;
+  resultados: Partial<Record<Outcome, number>>;
 };
 
 type Summary = {
@@ -82,7 +90,7 @@ type Params = { days: number; conversations: number; config: "draft" | "publishe
 
 type Run = {
   id: string;
-  status: "running" | "done" | "error";
+  status: "running" | "done" | "error" | "canceled";
   params: Params;
   total: number;
   done: number;
@@ -110,11 +118,18 @@ const CAUSE: Record<Verdict["causa"], { label: string; hint: string }> = {
   midia: { label: "Mídia", hint: "Dependia de ouvir áudio ou ver imagem." },
 };
 
-const OUTCOME: Record<Verdict["desfecho"], { label: string; variant: "success" | "warning" | "destructive" }> = {
-  igual: { label: "mesmo desfecho", variant: "success" },
-  parcial: { label: "desfecho parcial", variant: "warning" },
-  diferente: { label: "desfecho diferente", variant: "destructive" },
+/** Resultado único de cada ponto (as categorias somam 100% dos avaliados). */
+const OUTCOME: Record<Outcome, { label: string; hint: string; hit: boolean; bar: string; variant: "success" | "warning" | "destructive" | "muted" }> = {
+  igual: { label: "Igual à pessoa", hint: "Levou o cliente ao mesmo resultado.", hit: true, bar: "bg-emerald-500", variant: "success" },
+  parcial: { label: "Resolveu em parte", hint: "Foi na mesma direção, mas cobriu só parte do que a pessoa fez.", hit: true, bar: "bg-emerald-300", variant: "success" },
+  transferiu_certo: { label: "Transferiu certo", hint: "A pessoa precisou consultar um sistema e o agente passou para a equipe.", hit: true, bar: "bg-sky-500", variant: "success" },
+  inventou: { label: "Inventou", hint: "Afirmou algo (prazo, valor, regra, link) que não está no material.", hit: false, bar: "bg-red-600", variant: "destructive" },
+  incorreto: { label: "Informação errada", hint: "Contradiz o que a pessoa disse ou o material.", hit: false, bar: "bg-red-400", variant: "destructive" },
+  deveria_transferir: { label: "Deveria transferir", hint: "A pessoa consultou um sistema; o agente tentou responder sozinho.", hit: false, bar: "bg-amber-500", variant: "warning" },
+  transferiu_sem_precisar: { label: "Transferiu sem precisar", hint: "A pessoa resolveu só conversando; o agente passou para a equipe.", hit: false, bar: "bg-amber-300", variant: "warning" },
+  diferente: { label: "Caminho diferente", hint: "Não inventou nem errou, mas não levou ao que a pessoa fez.", hit: false, bar: "bg-slate-400", variant: "muted" },
 };
+const OUTCOME_ORDER = Object.keys(OUTCOME) as Outcome[];
 
 function pct(n: number, d: number): string {
   return d > 0 ? `${Math.round((n / d) * 100)}%` : "—";
@@ -124,12 +139,8 @@ function dateTime(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-/** Mesmo critério do servidor: transferir quando a pessoa usou o sistema conta como acerto. */
-function resolvedLikeHuman(item: Item): boolean {
-  const v = item.verdict;
-  if (!v) return false;
-  if (v.humanoConsultouSistema) return item.agentHandoff && !v.inventou;
-  return v.desfecho !== "diferente" && !v.inventou && v.correto !== "nao" && !item.agentHandoff;
+function isHit(item: Item): boolean {
+  return !!item.outcome && OUTCOME[item.outcome].hit;
 }
 
 async function postReplay<T>(agentId: string, body: Record<string, unknown>, fallback: string): Promise<T> {
@@ -170,7 +181,8 @@ export function CompareHuman({ agentId }: { agentId: string }) {
 
   const list = runs.data?.runs ?? [];
   const currentId = runId ?? list[0]?.id ?? null;
-  const anyRunning = list.some((r) => r.status === "running");
+  const running = list.find((r) => r.status === "running");
+  const est = estimate.data;
 
   return (
     <div className="space-y-4">
@@ -179,11 +191,25 @@ export function CompareHuman({ agentId }: { agentId: string }) {
           <CardTitle className="flex items-center gap-2 text-base">
             <IconUsers className="size-4" /> Comparar com humano
           </CardTitle>
-          <CardDescription>
-            Pega conversas reais que a sua equipe atendeu e, a cada mensagem do cliente, mostra o que o agente
-            responderia no lugar. Nada é enviado ao cliente. Um avaliador compara as duas respostas e aponta a causa
-            de cada diferença. Documentos, e-mails e senhas aparecem mascarados.
-          </CardDescription>
+          <CardDescription>Mede o quanto o agente já atende como a sua equipe, usando conversas reais.</CardDescription>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+            <li>
+              Pegamos conversas do período em que uma pessoa da equipe respondeu. Cada vez que o cliente escreve e a
+              pessoa responde vira um <span className="font-medium text-foreground">ponto</span> (até 6 por conversa).
+            </li>
+            <li>
+              Em cada ponto, o agente recebe o mesmo histórico e a mesma mensagem e responde numa simulação.{" "}
+              <span className="font-medium text-foreground">Nada é enviado ao cliente.</span>
+            </li>
+            <li>
+              Um avaliador compara a resposta do agente com a da pessoa e dá um resultado ao ponto: acertou (igual, em
+              parte ou transferiu quando precisava) ou errou, com o motivo.
+            </li>
+          </ol>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Pontos em que a pessoa respondeu só com áudio ou arquivo ficam de fora por enquanto. Documentos, e-mails e
+            senhas aparecem mascarados.
+          </p>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -224,17 +250,20 @@ export function CompareHuman({ agentId }: { agentId: string }) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="text-muted-foreground">
+            <div className="text-muted-foreground">
               {estimate.isLoading && "Calculando…"}
               {estimate.isError && ((estimate.error as Error)?.message ?? "Erro ao estimar.")}
-              {estimate.data &&
-                (estimate.data.availableConversations === 0
-                  ? "Nenhuma conversa atendida por pessoas no período."
-                  : `${estimate.data.availableConversations} conversas atendidas por pessoas no período · amostra de ${estimate.data.conversations} · ~${estimate.data.estimatedPoints} pontos · custo estimado US$ ${estimate.data.estimatedCostUsd.toFixed(2)} (${estimate.data.model})`)}
-            </span>
+              {est &&
+                (est.availableConversations === 0
+                  ? "Nenhuma conversa com resposta de pessoa da equipe no período. Aumente o período."
+                  : `${est.availableConversations} ${est.availableConversations === 1 ? "conversa" : "conversas"} com resposta de pessoa da equipe no período. Vamos comparar ${est.conversations} (~${est.estimatedPoints} pontos, custo estimado US$ ${est.estimatedCostUsd.toFixed(2)} com ${est.model}).`)}
+              {est && est.availableConversations > 0 && est.availableConversations < params.conversations && (
+                <span className="block text-xs">Há menos conversas que a amostra pedida. Para uma amostra maior, aumente o período.</span>
+              )}
+            </div>
             <Button
               className="ml-auto gap-1"
-              disabled={start.isPending || anyRunning || !estimate.data?.conversations}
+              disabled={start.isPending || !!running || !est?.conversations}
               onClick={() => start.mutate()}
             >
               {start.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconPlayerPlay className="size-4" />}
@@ -242,7 +271,12 @@ export function CompareHuman({ agentId }: { agentId: string }) {
             </Button>
           </div>
           {start.isError && <p className="text-sm text-destructive">{(start.error as Error)?.message}</p>}
-          {anyRunning && <p className="text-xs text-muted-foreground">Uma comparação está em andamento. Espere terminar para iniciar outra.</p>}
+          {running && (
+            <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              Uma comparação está em andamento. Espere terminar ou interrompa para iniciar outra.
+              <CancelButton agentId={agentId} runId={running.id} />
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -253,7 +287,8 @@ export function CompareHuman({ agentId }: { agentId: string }) {
               {r.status === "running" && <IconLoader2 className="size-3 animate-spin" />}
               {dateTime(r.createdAt)} · {r.params.days}d · {r.params.conversations} conv.
               {r.status === "done" && r.summary && ` · ${pct(r.summary.geral.resolveuComoHumano, r.summary.geral.avaliados)}`}
-              {r.status === "error" && " · erro"}
+              {r.status === "error" && " · parou"}
+              {r.status === "canceled" && " · interrompida"}
             </Button>
           ))}
         </div>
@@ -288,7 +323,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
     if (filter === "skipped") return !!it.skipReason;
     if (it.skipReason) return false;
     if (filter === "invented") return !!it.verdict?.inventou;
-    if (filter === "divergent") return !it.verdict || !resolvedLikeHuman(it);
+    if (filter === "divergent") return !isHit(it);
     return true;
   });
 
@@ -297,14 +332,18 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
       {run.status === "running" && (
         <Card>
           <CardContent className="space-y-2 py-4 text-sm">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <IconLoader2 className="size-4 animate-spin" />
               {run.total > 0 ? `Comparando ${run.done} de ${run.total} pontos…` : "Separando as conversas…"}
               <span className="ml-auto text-muted-foreground">US$ {run.costUsd.toFixed(3)} até agora</span>
+              <CancelButton agentId={agentId} runId={run.id} />
             </div>
             <div className="h-2 rounded bg-muted">
               <div className="h-2 rounded bg-primary transition-all" style={{ width: `${run.total ? (run.done / run.total) * 100 : 0}%` }} />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Cada ponto leva de 10 a 40 segundos. Pode sair da tela: a comparação continua. O placar abaixo é parcial.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -313,39 +352,72 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
           <IconAlertTriangle className="size-4" /> {run.error === "NO_OPENAI_KEY" ? "Configure a chave do modelo para comparar." : run.error}
         </p>
       )}
+      {run.status === "canceled" && (
+        <p className="text-sm text-muted-foreground">
+          Comparação interrompida em {run.done} de {run.total} pontos. O placar mostra só o que foi comparado.
+        </p>
+      )}
 
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">
-            Resolveu como a pessoa: {pct(g.resolveuComoHumano, g.avaliados)}
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              ({g.resolveuComoHumano} de {g.avaliados} pontos avaliados)
-            </span>
+            {g.avaliados > 0
+              ? `Acertou como a pessoa em ${g.resolveuComoHumano} de ${g.avaliados} pontos (${pct(g.resolveuComoHumano, g.avaliados)})`
+              : "Nenhum ponto avaliado ainda"}
+            {run.status === "running" && <span className="ml-2 text-sm font-normal text-muted-foreground">até agora</span>}
           </CardTitle>
           <CardDescription>
-            Conta como acerto: mesmo desfecho (ou parcial) sem inventar nada; ou transferir quando a pessoa precisou
-            consultar o sistema. {summary.naoAvaliaveis > 0 && `${summary.naoAvaliaveis} pontos não avaliáveis (mídia).`}
-            {run.status === "done" && ` Custo: US$ ${run.costUsd.toFixed(3)}.`}
+            Acerto = igual à pessoa, resolveu em parte (sem inventar nem errar) ou transferiu quando a pessoa precisou
+            consultar um sistema.
+            {summary.naoAvaliaveis > 0 &&
+              ` ${summary.naoAvaliaveis} ${summary.naoAvaliaveis === 1 ? "ponto ficou" : "pontos ficaram"} de fora (áudio/arquivo).`}
+            {summary.erros > 0 && ` ${summary.erros} com falha técnica.`}
+            {run.status !== "running" && ` Custo: US$ ${run.costUsd.toFixed(3)}.`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="success">mesmo desfecho {pct(g.igual, g.avaliados)}</Badge>
-            <Badge variant="warning">parcial {pct(g.parcial, g.avaliados)}</Badge>
-            <Badge variant="destructive">diferente {pct(g.diferente, g.avaliados)}</Badge>
-            <Badge variant={g.inventou > 0 ? "destructive" : "outline"}>inventou em {g.inventou}</Badge>
-            <Badge variant="outline">transferência certa {pct(g.transferenciaCorreta, g.avaliados)}</Badge>
-          </div>
+          {g.avaliados > 0 && (
+            <div className="space-y-2">
+              <div className="flex h-3 overflow-hidden rounded bg-muted">
+                {OUTCOME_ORDER.map((o) =>
+                  g.resultados?.[o] ? (
+                    <div
+                      key={o}
+                      className={OUTCOME[o].bar}
+                      style={{ width: `${((g.resultados[o] ?? 0) / g.avaliados) * 100}%` }}
+                      title={OUTCOME[o].label}
+                    />
+                  ) : null,
+                )}
+              </div>
+              <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                {OUTCOME_ORDER.filter((o) => g.resultados?.[o]).map((o) => (
+                  <p key={o} className="flex items-start gap-2">
+                    <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", OUTCOME[o].bar)} />
+                    <span>
+                      <span className="font-medium">
+                        {OUTCOME[o].hit ? "✓" : "✗"} {OUTCOME[o].label}: {g.resultados[o]} ({pct(g.resultados[o] ?? 0, g.avaliados)})
+                      </span>{" "}
+                      <span className="text-muted-foreground">— {OUTCOME[o].hint}</span>
+                    </span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {Object.keys(summary.causas).length > 0 && (
+          {Object.keys(summary.causas).some((c) => c !== "ok") && (
             <div className="space-y-1">
-              <p className="font-medium">Por que difere</p>
+              <p className="font-medium">O que falta para acertar mais</p>
               {(Object.entries(summary.causas) as Array<[Verdict["causa"], number]>)
                 .filter(([c]) => c !== "ok")
                 .sort((a, b) => b[1] - a[1])
                 .map(([c, n]) => (
                   <p key={c} className="text-muted-foreground">
-                    <span className="font-medium text-foreground">{CAUSE[c]?.label ?? c}: {n}</span> — {CAUSE[c]?.hint}
+                    <span className="font-medium text-foreground">
+                      {CAUSE[c]?.label ?? c} ({n} {n === 1 ? "ponto" : "pontos"})
+                    </span>{" "}
+                    — {CAUSE[c]?.hint}
                   </p>
                 ))}
             </div>
@@ -358,25 +430,30 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
                   <tr>
                     <th className="py-1 pr-2">Assunto</th>
                     <th className="py-1 pr-2">Pontos</th>
-                    <th className="py-1 pr-2">Resolveu como a pessoa</th>
-                    <th className="py-1 pr-2">Inventou</th>
-                    <th className="py-1">Transferência certa</th>
+                    <th className="py-1 pr-2">Acertos</th>
+                    <th className="py-1">Erro mais comum</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {summary.porAssunto.map((a) => (
-                    <tr
-                      key={a.assunto}
-                      className={cn("cursor-pointer border-t hover:bg-muted/50", theme === a.assunto && "bg-muted")}
-                      onClick={() => setTheme((t) => (t === a.assunto ? null : a.assunto))}
-                    >
-                      <td className="py-1 pr-2">{a.assunto}</td>
-                      <td className="py-1 pr-2">{a.avaliados}</td>
-                      <td className="py-1 pr-2">{pct(a.resolveuComoHumano, a.avaliados)}</td>
-                      <td className="py-1 pr-2">{a.inventou || "—"}</td>
-                      <td className="py-1">{pct(a.transferenciaCorreta, a.avaliados)}</td>
-                    </tr>
-                  ))}
+                  {summary.porAssunto.map((a) => {
+                    const worst = OUTCOME_ORDER.filter((o) => !OUTCOME[o].hit && a.resultados?.[o]).sort(
+                      (x, y) => (a.resultados[y] ?? 0) - (a.resultados[x] ?? 0),
+                    )[0];
+                    return (
+                      <tr
+                        key={a.assunto}
+                        className={cn("cursor-pointer border-t hover:bg-muted/50", theme === a.assunto && "bg-muted")}
+                        onClick={() => setTheme((t) => (t === a.assunto ? null : a.assunto))}
+                      >
+                        <td className="py-1 pr-2">{a.assunto}</td>
+                        <td className="py-1 pr-2">{a.avaliados}</td>
+                        <td className="py-1 pr-2">
+                          {a.resolveuComoHumano} ({pct(a.resolveuComoHumano, a.avaliados)})
+                        </td>
+                        <td className="py-1 text-muted-foreground">{worst ? OUTCOME[worst].label : "—"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               <p className="mt-1 text-xs text-muted-foreground">Clique num assunto para ver só os pontos dele.</p>
@@ -387,10 +464,10 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
 
       <div className="flex flex-wrap items-center gap-2">
         {([
-          ["divergent", "Onde difere"],
+          ["divergent", "Onde errou"],
           ["invented", "Inventou"],
           ["all", "Todos"],
-          ["skipped", "Não avaliáveis"],
+          ["skipped", "Fora da conta"],
         ] as const).map(([k, label]) => (
           <Button key={k} size="sm" variant={filter === k ? "default" : "outline"} onClick={() => setFilter(k)}>
             {label}
@@ -414,10 +491,31 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
   );
 }
 
+function CancelButton({ agentId, runId }: { agentId: string; runId: string }) {
+  const queryClient = useQueryClient();
+  const cancel = useMutation({
+    mutationFn: async () => {
+      const res = await apiFetch(`/api/ai-agents-v2/${agentId}/replay/${runId}`, { method: "DELETE" });
+      return parseApiResponse<{ ok: boolean }>(res, "Erro ao interromper.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-replay-runs", agentId] });
+      queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-replay-run", agentId, runId] });
+    },
+  });
+  return (
+    <Button size="sm" variant="outline" className="h-7 gap-1" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+      {cancel.isPending ? <IconLoader2 className="size-3 animate-spin" /> : <IconPlayerStop className="size-3" />}
+      Interromper
+    </Button>
+  );
+}
+
 function PointCard({ item }: { item: Item }) {
   const [showSources, setShowSources] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const v = item.verdict;
+  const o = item.outcome ? OUTCOME[item.outcome] : null;
 
   const copyScenario = async () => {
     const scenario = {
@@ -434,14 +532,16 @@ function PointCard({ item }: { item: Item }) {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex flex-wrap items-center gap-2 text-xs">
+          {o && (
+            <Badge variant={o.variant}>
+              {o.hit ? "✓" : "✗"} {o.label}
+            </Badge>
+          )}
+          {item.skipReason && <Badge variant="muted">fora da conta</Badge>}
+          {item.error && <Badge variant="muted">falha técnica</Badge>}
           <Badge variant="outline">{item.themeName || v?.assunto || "Sem assunto"}</Badge>
           {item.at && <span className="text-muted-foreground">{dateTime(item.at)}</span>}
-          {v && <Badge variant={OUTCOME[v.desfecho].variant}>{OUTCOME[v.desfecho].label}</Badge>}
-          {v && resolvedLikeHuman(item) && <Badge variant="success">resolveu como a pessoa</Badge>}
-          {v?.inventou && <Badge variant="destructive">inventou</Badge>}
-          {v?.humanoConsultouSistema && <Badge variant="warning">pessoa consultou o sistema</Badge>}
-          {item.agentHandoff && <Badge variant="secondary">agente transferiu</Badge>}
-          {v && v.causa !== "ok" && <Badge variant="indigo">{CAUSE[v.causa]?.label}</Badge>}
+          {v && o && !o.hit && v.causa !== "ok" && <Badge variant="indigo">falta: {CAUSE[v.causa]?.label.toLowerCase()}</Badge>}
           {v?.tom === "inadequado" && <Badge variant="warning">tom</Badge>}
           <Button variant="ghost" size="sm" className="ml-auto h-7 gap-1" onClick={copyScenario}>
             <IconCopy className="size-3" /> {copied ? "Copiado" : "Copiar como cenário"}
@@ -453,12 +553,17 @@ function PointCard({ item }: { item: Item }) {
           <Bubble title="Cliente" text={item.clientText} />
           <Bubble title="Pessoa da equipe" text={item.humanText} />
           <Bubble
-            title="Agente"
+            title={item.agentHandoff ? "Agente (transferiu para a equipe)" : "Agente"}
             text={item.skipReason ? item.skipReason : item.error ? `Erro: ${item.error}` : item.agentText || "(sem texto)"}
             muted={!!item.skipReason || !!item.error}
           />
         </div>
-        {v?.explicacao && <p className="text-muted-foreground">{v.explicacao}</p>}
+        {o && !o.hit && <p className="text-muted-foreground">{o.hint}</p>}
+        {v?.explicacao && (
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">Avaliador:</span> {v.explicacao}
+          </p>
+        )}
         {v?.inventou && v.invencao && (
           <p className="text-destructive">
             <span className="font-medium">Inventado:</span> {v.invencao}
