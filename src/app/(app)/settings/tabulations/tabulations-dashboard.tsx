@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   IconChartBar,
   IconClipboardList,
+  IconFilter,
   IconLoader2,
   IconRefresh,
   IconTrophy,
@@ -20,12 +22,14 @@ import { KpiCard } from "@/components/crm/kpi-card";
 import { KpiStrip } from "@/components/crm/kpi-strip";
 import { DateRangePicker, type DateRange } from "@/components/crm/date-range-picker";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
+import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
 import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable-widget-stack";
 import {
@@ -41,6 +45,33 @@ import {
 function defaultRange(): DateRange {
   const today = startOfDay(new Date());
   return { from: today, to: today };
+}
+
+type TabulationTreeNode = {
+  id: string;
+  name: string;
+  number?: number | null;
+  children?: TabulationTreeNode[];
+};
+
+function flattenTabulationLeaves(
+  nodes: TabulationTreeNode[],
+  path: string[] = [],
+): { id: string; label: string }[] {
+  const out: { id: string; label: string }[] = [];
+  for (const node of nodes) {
+    const next = [...path, node.name];
+    if (node.children?.length) {
+      out.push(...flattenTabulationLeaves(node.children, next));
+    } else {
+      const pathLabel = next.join(" › ");
+      out.push({
+        id: node.id,
+        label: node.number != null ? `${pathLabel} (#${node.number})` : pathLabel,
+      });
+    }
+  }
+  return out;
 }
 
 export const TABULATION_WIDGET_LABELS: Record<TabulationWidgetId, string> = {
@@ -315,6 +346,10 @@ export function TabulationsDashboard({
   const [range, setRange] = useState<DateRange>(defaultRange);
   const [actorUserIdLocal, setActorUserIdLocal] = useState<string>("");
   const [departmentIdLocal, setDepartmentIdLocal] = useState<string>("");
+  const [tabulationIds, setTabulationIds] = useState<string[]>([]);
+  const [tabFilterOpen, setTabFilterOpen] = useState(false);
+  const [tabDraftIds, setTabDraftIds] = useState<string[]>([]);
+  const [tabFilterQuery, setTabFilterQuery] = useState("");
   const [page, setPage] = useState(1);
   const localOrder = useDashboardWidgetOrder("tabulations", TABULATION_WIDGET_IDS, {
     allowHide: reorderable && !widgetOrder,
@@ -329,9 +364,67 @@ export function TabulationsDashboard({
   const setActorUserId = onActorUserIdChange ?? setActorUserIdLocal;
   const setDepartmentId = onDepartmentIdChange ?? setDepartmentIdLocal;
 
-  const { status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const departmentsQuery = useDepartments();
   const usersQuery = useTeamUsersQuery(sessionStatus !== "unauthenticated");
+  const userId = session?.user?.id;
+  const tabulationCatalogQuery = useQuery({
+    queryKey: ["tabulation-filter-catalog", userId],
+    enabled: Boolean(userId) && !hideLocalFilters,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await apiFetch(`/api/tabulations?userId=${encodeURIComponent(userId!)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Não foi possível carregar as tabulações.");
+      return (await res.json()) as {
+        groups?: { departmentId: string; departmentName: string; tree: TabulationTreeNode[] }[];
+      };
+    },
+  });
+  const tabulationOptions = useMemo(() => {
+    const groups = tabulationCatalogQuery.data?.groups ?? [];
+    const scoped = departmentId
+      ? groups.filter((group) => group.departmentId === departmentId)
+      : groups;
+    const rows = scoped.flatMap((group) =>
+      flattenTabulationLeaves(group.tree ?? []).map((leaf) => ({
+        ...leaf,
+        departmentId: group.departmentId,
+        label: group.departmentName ? `${group.departmentName} · ${leaf.label}` : leaf.label,
+      })),
+    );
+    rows.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    return rows;
+  }, [tabulationCatalogQuery.data, departmentId]);
+  const visibleTabulationOptions = useMemo(() => {
+    const q = tabFilterQuery.trim().toLowerCase();
+    if (!q) return tabulationOptions;
+    return tabulationOptions.filter((row) => row.label.toLowerCase().includes(q));
+  }, [tabulationOptions, tabFilterQuery]);
+
+  useEffect(() => {
+    if (!departmentId || !tabulationCatalogQuery.data) return;
+    const allowed = new Set(tabulationOptions.map((row) => row.id));
+    setTabulationIds((prev) => {
+      const next = prev.filter((id) => allowed.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+    setTabDraftIds((prev) => {
+      const next = prev.filter((id) => allowed.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [departmentId, tabulationCatalogQuery.data, tabulationOptions]);
+
+  function openTabFilter() {
+    setTabDraftIds(tabulationIds);
+    setTabFilterQuery("");
+    setTabFilterOpen(true);
+  }
+
+  function toggleTabulation(id: string) {
+    setTabDraftIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  }
 
   const fromIso = period?.from
     ? period.from
@@ -349,12 +442,13 @@ export function TabulationsDashboard({
     toIso,
     actorUserIds: actorUserId ? [actorUserId] : [],
     departmentIds: departmentId ? [departmentId] : [],
+    tabulationIds,
     page,
   });
 
   useEffect(() => {
     setPage(1);
-  }, [fromIso, toIso, actorUserId, departmentId]);
+  }, [fromIso, toIso, actorUserId, departmentId, tabulationIds]);
 
   const [analyticsPainted, setAnalyticsPainted] = useState(false);
   const analyticsSettled = analyticsQuery.isFetched || analyticsQuery.isError;
@@ -513,6 +607,26 @@ export function TabulationsDashboard({
               }}
             />
           </div>
+          <div className="flex shrink-0 items-end">
+            <button
+              type="button"
+              aria-expanded={tabFilterOpen}
+              aria-label="Filtrar por tabulação"
+              onClick={openTabFilter}
+              className={cn(
+                "inline-flex h-10 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold",
+                tabulationIds.length
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-card text-foreground",
+              )}
+            >
+              <IconFilter size={16} stroke={2.2} />
+              Tabulação
+              {tabulationIds.length > 0 ? (
+                <span className="tabular-nums">{tabulationIds.length}</span>
+              ) : null}
+            </button>
+          </div>
           <ButtonGlass
             type="button"
             variant="glass"
@@ -530,6 +644,62 @@ export function TabulationsDashboard({
           </ButtonGlass>
         </GlassCard>
       ) : null}
+
+      <FilterColumnsModal
+        open={tabFilterOpen}
+        onClose={() => setTabFilterOpen(false)}
+        onClear={() => setTabDraftIds([])}
+        onApply={() => {
+          setTabulationIds(tabDraftIds);
+          setPage(1);
+          setTabFilterOpen(false);
+        }}
+        count={tabDraftIds.length}
+        clearDisabled={tabDraftIds.length === 0}
+        title="Filtros"
+        description="Selecione as tabulações"
+        labelledBy="Filtro de tabulações"
+        wide
+      >
+        <FilterCategoryColumn title="Tabulação" className="w-full max-w-none flex-1">
+          <input
+            type="search"
+            value={tabFilterQuery}
+            onChange={(e) => setTabFilterQuery(e.target.value)}
+            placeholder="Buscar tabulação…"
+            className="mb-1 h-9 w-full rounded-full border border-border bg-card px-3 text-sm outline-none"
+          />
+          {tabulationCatalogQuery.isLoading ? (
+            <p className="w-full px-1 py-1 text-sm text-muted-foreground">Carregando…</p>
+          ) : tabulationCatalogQuery.isError ? (
+            <p className="w-full px-1 py-1 text-sm text-destructive">Não foi possível carregar as tabulações.</p>
+          ) : visibleTabulationOptions.length === 0 ? (
+            <p className="w-full px-1 py-1 text-sm italic text-muted-foreground">Nenhuma tabulação.</p>
+          ) : (
+            <div className="flex w-full flex-wrap content-start gap-1.5">
+              {visibleTabulationOptions.map((option) => {
+                const selected = tabDraftIds.includes(option.id);
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleTabulation(option.id)}
+                    className={cn(
+                      "inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-left text-sm font-semibold whitespace-normal",
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </FilterCategoryColumn>
+      </FilterColumnsModal>
 
       {analyticsQuery.isError && (
         <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-3.5 py-2.5 font-body text-[12.5px] text-destructive">

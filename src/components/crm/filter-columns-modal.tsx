@@ -47,6 +47,7 @@ export function FilterColumnsModal({
   title = "Filtros",
   description = "Selecione as etiquetas em cada categoria",
   labelledBy,
+  wide = false,
   children,
 }: {
   open: boolean
@@ -58,6 +59,8 @@ export function FilterColumnsModal({
   title?: string
   description?: string
   labelledBy?: string
+  /** Uma categoria larga, com etiquetas espalhadas em vez de coluna estreita. */
+  wide?: boolean
   children: ReactNode
 }) {
   const hScrollRef = useRef<HTMLDivElement>(null)
@@ -152,7 +155,9 @@ export function FilterColumnsModal({
           "relative grid h-[min(84vh,720px)] max-h-[min(84vh,720px)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-border bg-[var(--dropdown-solid-bg)] text-foreground shadow-lg",
         )}
         style={{
-          width: `min(calc(100vw - 2rem), ${Math.max(columnCount * 17.5, 28)}rem)`,
+          width: wide
+            ? "min(calc(100vw - 2rem), 72rem)"
+            : `min(calc(100vw - 2rem), ${Math.max(columnCount * 17.5, 28)}rem)`,
           maxWidth: "72rem",
         }}
       >
@@ -210,7 +215,8 @@ export function FilterColumnsModal({
           >
             <div
               className={cn(
-                "flex h-full w-max min-h-0 flex-nowrap items-stretch",
+                "flex h-full min-h-0 flex-nowrap items-stretch",
+                wide ? "w-full" : "w-max",
                 canScrollLeft && "pl-12",
                 canScrollRight && "pr-12",
               )}
