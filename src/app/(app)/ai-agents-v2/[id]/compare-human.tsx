@@ -19,6 +19,7 @@ import {
   IconPlayerPlay,
   IconPlayerStop,
   IconRefresh,
+  IconUpload,
   IconUsers,
 } from "@tabler/icons-react";
 
@@ -28,6 +29,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +89,7 @@ type Summary = {
   porAssunto: Array<{ assunto: string } & Metrics>;
 };
 
-type Params = { days: number; conversations: number; config: "draft" | "published" };
+type Params = { days: number; conversations: number; config: "draft" | "published"; source?: "crm" | "import"; files?: string[] };
 
 type Run = {
   id: string;
@@ -106,6 +108,7 @@ type Estimate = {
   availableConversations: number;
   conversations: number;
   estimatedPoints: number;
+  evaluablePoints?: number;
   estimatedCalls: number;
   estimatedCostUsd: number;
   model: string;
@@ -153,14 +156,41 @@ async function postReplay<T>(agentId: string, body: Record<string, unknown>, fal
   return parseApiResponse<T>(res, fallback);
 }
 
+type Imported = {
+  name: string;
+  text: string;
+  messages: number;
+  participants: Array<{ name: string; messages: number }>;
+  team: string[];
+  error?: string;
+};
+
+type ParsedTranscript = Omit<Imported, "team"> & { teamGuess: string[] };
+
 export function CompareHuman({ agentId }: { agentId: string }) {
   const queryClient = useQueryClient();
+  const [source, setSource] = React.useState<"crm" | "import">("crm");
   const [params, setParams] = React.useState<Params>({ days: 1, conversations: 30, config: "draft" });
+  const [imported, setImported] = React.useState<Imported[]>([]);
   const [runId, setRunId] = React.useState<string | null>(null);
 
+  const usable = imported.filter((t) => !t.error && t.messages > 0);
+  const missingTeam = usable.some((t) => t.team.length === 0);
+  const importBody = {
+    source: "import",
+    config: params.config,
+    transcripts: usable.map((t) => ({ name: t.name, text: t.text, teamAuthors: t.team })),
+  };
+  // A chave não leva o texto inteiro: nome + equipe + tamanho bastam.
+  const importKey = usable.map((t) => `${t.name}|${t.text.length}|${t.team.join(",")}`);
+
   const estimate = useQuery({
-    queryKey: ["ai-agents-v2-replay-estimate", agentId, params],
-    queryFn: () => postReplay<Estimate>(agentId, { ...params, estimate: true }, "Erro ao estimar."),
+    queryKey: ["ai-agents-v2-replay-estimate", agentId, source, params, importKey],
+    queryFn: () =>
+      source === "import"
+        ? postReplay<Estimate>(agentId, { ...importBody, estimate: true }, "Erro ao estimar.")
+        : postReplay<Estimate>(agentId, { ...params, estimate: true }, "Erro ao estimar."),
+    enabled: source === "crm" || (usable.length > 0 && !missingTeam),
   });
 
   const runs = useQuery({
@@ -173,7 +203,8 @@ export function CompareHuman({ agentId }: { agentId: string }) {
   });
 
   const start = useMutation({
-    mutationFn: () => postReplay<{ runId: string }>(agentId, params, "Erro ao iniciar comparação."),
+    mutationFn: () =>
+      postReplay<{ runId: string }>(agentId, source === "import" ? importBody : params, "Erro ao iniciar comparação."),
     onSuccess: (r) => {
       setRunId(r.runId);
       queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-replay-runs", agentId] });
@@ -184,6 +215,8 @@ export function CompareHuman({ agentId }: { agentId: string }) {
   const currentId = runId ?? list[0]?.id ?? null;
   const running = list.find((r) => r.status === "running");
   const est = estimate.data;
+  const canStart =
+    !start.isPending && !running && (source === "crm" ? !!est?.conversations : usable.length > 0 && !missingTeam && !!est?.estimatedPoints);
 
   return (
     <div className="space-y-4">
@@ -195,8 +228,9 @@ export function CompareHuman({ agentId }: { agentId: string }) {
           <CardDescription>Mede o quanto o agente já atende como a sua equipe, usando conversas reais.</CardDescription>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
             <li>
-              Pegamos conversas do período em que uma pessoa da equipe respondeu. Cada vez que o cliente escreve e a
-              pessoa responde vira um <span className="font-medium text-foreground">ponto</span> (até 6 por conversa).
+              Usamos conversas em que uma pessoa da equipe respondeu: do CRM, pelo período, ou conversas que você
+              anexar. Cada vez que o cliente escreve e a pessoa responde vira um{" "}
+              <span className="font-medium text-foreground">ponto</span>.
             </li>
             <li>
               Em cada ponto, o agente recebe o mesmo histórico e a mesma mensagem e responde numa simulação.{" "}
@@ -213,32 +247,47 @@ export function CompareHuman({ agentId }: { agentId: string }) {
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label>Período</Label>
-              <Select value={String(params.days)} onValueChange={(v) => setParams((p) => ({ ...p, days: Number(v) }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Último dia</SelectItem>
-                  <SelectItem value="3">Últimos 3 dias</SelectItem>
-                  <SelectItem value="7">Últimos 7 dias</SelectItem>
-                  <SelectItem value="15">Últimos 15 dias</SelectItem>
-                  <SelectItem value="30">Últimos 30 dias</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Conversas na amostra</Label>
-              <Select value={String(params.conversations)} onValueChange={(v) => setParams((p) => ({ ...p, conversations: Number(v) }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="30">30</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["crm", "Conversas do CRM"],
+              ["import", "Conversas anexadas"],
+            ] as const).map(([k, label]) => (
+              <Button key={k} size="sm" variant={source === k ? "default" : "outline"} onClick={() => setSource(k)}>
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          <div className={cn("grid gap-3", source === "crm" ? "sm:grid-cols-3" : "sm:grid-cols-1 sm:max-w-sm")}>
+            {source === "crm" && (
+              <>
+                <div className="space-y-1">
+                  <Label>Período</Label>
+                  <Select value={String(params.days)} onValueChange={(v) => setParams((p) => ({ ...p, days: Number(v) }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Último dia</SelectItem>
+                      <SelectItem value="3">Últimos 3 dias</SelectItem>
+                      <SelectItem value="7">Últimos 7 dias</SelectItem>
+                      <SelectItem value="15">Últimos 15 dias</SelectItem>
+                      <SelectItem value="30">Últimos 30 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Conversas na amostra</Label>
+                  <Select value={String(params.conversations)} onValueChange={(v) => setParams((p) => ({ ...p, conversations: Number(v) }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="30">30</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             <div className="space-y-1">
               <Label>Versão do agente</Label>
               <Select value={params.config} onValueChange={(v) => setParams((p) => ({ ...p, config: v as Params["config"] }))}>
@@ -250,23 +299,28 @@ export function CompareHuman({ agentId }: { agentId: string }) {
               </Select>
             </div>
           </div>
+
+          {source === "import" && <ImportPanel agentId={agentId} items={imported} onChange={setImported} />}
+
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <div className="text-muted-foreground">
-              {estimate.isLoading && "Calculando…"}
+              {source === "import" && usable.length === 0 && "Anexe ou cole ao menos uma conversa."}
+              {source === "import" && usable.length > 0 && missingTeam && "Marque quem é da equipe em cada conversa."}
+              {estimate.isFetching && !est && "Calculando…"}
               {estimate.isError && ((estimate.error as Error)?.message ?? "Erro ao estimar.")}
-              {est &&
+              {source === "crm" && est &&
                 (est.availableConversations === 0
                   ? "Nenhuma conversa com resposta de pessoa da equipe no período. Aumente o período."
                   : `${est.availableConversations} ${est.availableConversations === 1 ? "conversa" : "conversas"} com resposta de pessoa da equipe no período. Vamos comparar ${est.conversations} (~${est.estimatedPoints} pontos, custo estimado US$ ${est.estimatedCostUsd.toFixed(2)} com ${est.model}).`)}
-              {est && est.availableConversations > 0 && est.availableConversations < params.conversations && (
+              {source === "crm" && est && est.availableConversations > 0 && est.availableConversations < params.conversations && (
                 <span className="block text-xs">Há menos conversas que a amostra pedida. Para uma amostra maior, aumente o período.</span>
               )}
+              {source === "import" && usable.length > 0 && !missingTeam && est &&
+                (est.estimatedPoints === 0
+                  ? "Nenhum ponto para comparar: não há mensagem do cliente seguida de resposta da equipe."
+                  : `${usable.length} ${usable.length === 1 ? "conversa" : "conversas"} · ${est.estimatedPoints} pontos (${est.evaluablePoints ?? est.estimatedPoints} avaliáveis) · custo estimado US$ ${est.estimatedCostUsd.toFixed(2)} com ${est.model}.`)}
             </div>
-            <Button
-              className="ml-auto gap-1"
-              disabled={start.isPending || !!running || !est?.conversations}
-              onClick={() => start.mutate()}
-            >
+            <Button className="ml-auto gap-1" disabled={!canStart} onClick={() => start.mutate()}>
               {start.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconPlayerPlay className="size-4" />}
               Comparar
             </Button>
@@ -286,7 +340,10 @@ export function CompareHuman({ agentId }: { agentId: string }) {
           {list.map((r) => (
             <Button key={r.id} size="sm" variant={currentId === r.id ? "default" : "outline"} onClick={() => setRunId(r.id)} className="gap-1">
               {r.status === "running" && <IconLoader2 className="size-3 animate-spin" />}
-              {dateTime(r.createdAt)} · {r.params.days}d · {r.params.conversations} conv.
+              {dateTime(r.createdAt)} ·{" "}
+              {r.params.source === "import"
+                ? `${r.params.files?.length ?? r.params.conversations} anexada${(r.params.files?.length ?? 0) === 1 ? "" : "s"}`
+                : `${r.params.days}d · ${r.params.conversations} conv.`}
               {r.status === "done" && r.summary && ` · ${pct(r.summary.geral.resolveuComoHumano, r.summary.geral.avaliados)}`}
               {r.status === "error" && " · parou"}
               {r.status === "canceled" && " · interrompida"}
@@ -297,6 +354,123 @@ export function CompareHuman({ agentId }: { agentId: string }) {
 
       {runs.isLoading && <Skeleton className="h-40" />}
       {currentId && <RunDetail agentId={agentId} runId={currentId} />}
+    </div>
+  );
+}
+
+/** Anexar ou colar conversas e marcar quem é da equipe em cada uma. */
+function ImportPanel({ agentId, items, onChange }: { agentId: string; items: Imported[]; onChange: (v: Imported[]) => void }) {
+  const [pasted, setPasted] = React.useState("");
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const toImported = (list: ParsedTranscript[]): Imported[] =>
+    list.map((t) => ({ name: t.name, text: t.text, messages: t.messages, participants: t.participants, team: t.teamGuess, error: t.error }));
+
+  const parse = useMutation({
+    mutationFn: async (input: { files?: File[]; text?: string }) => {
+      let res: Response;
+      if (input.files) {
+        const form = new FormData();
+        input.files.forEach((f) => form.append("files", f));
+        res = await apiFetch(`/api/ai-agents-v2/${agentId}/replay/parse`, { method: "POST", body: form });
+      } else {
+        res = await apiFetch(`/api/ai-agents-v2/${agentId}/replay/parse`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: `Conversa colada ${items.length + 1}`, text: input.text }),
+        });
+      }
+      return parseApiResponse<{ transcripts: ParsedTranscript[] }>(res, "Erro ao ler as conversas.");
+    },
+    onSuccess: (r, input) => {
+      onChange([...items, ...toImported(r.transcripts)].slice(0, 20));
+      if (input.text) setPasted("");
+    },
+  });
+
+  const toggleTeam = (i: number, name: string) =>
+    onChange(
+      items.map((t, j) =>
+        j !== i ? t : { ...t, team: t.team.includes(name) ? t.team.filter((n) => n !== name) : [...t.team, name] },
+      ),
+    );
+
+  return (
+    <div className="space-y-3 rounded-md border p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".txt,.zip,text/plain,application/zip"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            if (files.length) parse.mutate({ files });
+            e.target.value = "";
+          }}
+        />
+        <Button size="sm" variant="outline" className="gap-1" disabled={parse.isPending} onClick={() => fileRef.current?.click()}>
+          {parse.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconUpload className="size-4" />}
+          Anexar conversas
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Exportação do WhatsApp (“Exportar conversa”, .txt ou .zip). Até 20 conversas.
+        </span>
+      </div>
+      <div className="space-y-2">
+        <Textarea
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          rows={4}
+          placeholder={"Ou cole uma conversa, uma mensagem por linha:\nCliente: quero a segunda via\nAna: Claro! Você emite pela área do cliente…"}
+        />
+        <Button size="sm" variant="outline" disabled={!pasted.trim() || parse.isPending} onClick={() => parse.mutate({ text: pasted })}>
+          Adicionar conversa colada
+        </Button>
+      </div>
+      {parse.isError && <p className="text-sm text-destructive">{(parse.error as Error)?.message}</p>}
+
+      {items.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Clique nos nomes para marcar quem é da equipe. Os demais contam como cliente.</p>
+          {items.map((t, i) => (
+            <div key={`${t.name}-${i}`} className="flex flex-wrap items-center gap-2 rounded border bg-muted/30 p-2 text-sm">
+              <span className="font-medium">{t.name}</span>
+              {t.error ? (
+                <span className="text-destructive">{t.error}</span>
+              ) : (
+                <>
+                  <span className="text-muted-foreground">{t.messages} mensagens ·</span>
+                  {t.participants.map((p) => {
+                    const isTeam = t.team.includes(p.name);
+                    return (
+                      <Badge
+                        key={p.name}
+                        variant={isTeam ? "indigo" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => toggleTeam(i, p.name)}
+                        title={isTeam ? "Equipe (clique para marcar como cliente)" : "Cliente (clique para marcar como equipe)"}
+                      >
+                        {p.name} · {isTeam ? "equipe" : "cliente"} ({p.messages})
+                      </Badge>
+                    );
+                  })}
+                  {t.team.length === 0 && <span className="text-xs text-destructive">marque a equipe</span>}
+                </>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto h-7"
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+              >
+                Remover
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
