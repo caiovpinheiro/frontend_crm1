@@ -368,3 +368,37 @@ export async function fetchPainelAgora(
   if (!data.agora.ok) throw new Error(data.agora.error);
   return data.agora.data;
 }
+
+export type InsightUserRow = { id: string; name: string; value: number };
+
+export type PainelInsights = {
+  inboundOwners: { total: number; byUser: InsightUserRow[] } | null;
+  stages: { stageId: string; total: number; byUser: InsightUserRow[] }[];
+  tasks: {
+    group: "user" | "department";
+    total: number;
+    groups: {
+      id: string;
+      name: string;
+      count: number;
+      items: { id: string; title: string; dueAt: string | null }[];
+    }[];
+  }[];
+};
+
+export async function fetchPainelInsights(
+  filters: DashboardFiltersState,
+  opts: { inboundOwners: boolean; stageIds: string[]; taskGroups: ("user" | "department")[] },
+  signal?: AbortSignal,
+): Promise<PainelInsights> {
+  const sp = filterQuery(filters);
+  if (opts.inboundOwners) sp.set("inboundOwners", "1");
+  if (opts.stageIds.length) sp.set("stageIds", opts.stageIds.join(","));
+  if (opts.taskGroups.length) sp.set("taskGroups", opts.taskGroups.join(","));
+  return getJson<PainelInsights>(
+    `/api/painel/insights?${sp.toString()}`,
+    "Erro ao carregar os cards",
+    20_000,
+    signal,
+  );
+}

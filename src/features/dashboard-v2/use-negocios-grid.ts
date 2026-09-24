@@ -64,11 +64,14 @@ const OPTIONAL_CORE_WIDGET_IDS: readonly string[] = [];
 
 export type NegociosCustomCard = {
   id: string;
-  type: "event" | "customField";
+  type: "event" | "customField" | "inboundOwners" | "inboundStage" | "tasks";
   eventType?: string;
   fieldId?: string;
   fieldName?: string;
   agg?: "count" | "sum";
+  stageId?: string;
+  stageName?: string;
+  taskGroup?: "user" | "department";
   title: string;
   chartType?: DashboardChartType;
 };
@@ -241,7 +244,15 @@ function isLayoutItem(v: unknown): v is LayoutItem {
 function isCustomCard(v: unknown): v is NegociosCustomCard {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
-  return typeof o.id === "string" && (o.type === "event" || o.type === "customField") && typeof o.title === "string";
+  return (
+    typeof o.id === "string" &&
+    (o.type === "event" ||
+      o.type === "customField" ||
+      o.type === "inboundOwners" ||
+      o.type === "inboundStage" ||
+      o.type === "tasks") &&
+    typeof o.title === "string"
+  );
 }
 
 function parseUsageChartType(value: unknown): DashboardChartType {
