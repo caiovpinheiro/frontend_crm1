@@ -68,6 +68,7 @@ type Item = {
   skipReason: string | null;
   error: string | null;
   outcome: Outcome | null;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
 type Metrics = {
@@ -513,6 +514,7 @@ function CancelButton({ agentId, runId }: { agentId: string; runId: string }) {
 
 function PointCard({ item }: { item: Item }) {
   const [showSources, setShowSources] = React.useState(false);
+  const [showHistory, setShowHistory] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const v = item.verdict;
   const o = item.outcome ? OUTCOME[item.outcome] : null;
@@ -549,13 +551,35 @@ function PointCard({ item }: { item: Item }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {(item.history?.length ?? 0) > 0 && (
+          <div>
+            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2" onClick={() => setShowHistory((s) => !s)}>
+              Conversa até aqui ({item.history!.length} {item.history!.length === 1 ? "mensagem" : "mensagens"})
+              {showHistory ? <IconChevronUp className="size-3" /> : <IconChevronDown className="size-3" />}
+            </Button>
+            {showHistory && (
+              <div className="mt-2 space-y-1 rounded border bg-muted/40 p-2 text-xs">
+                {item.history!.map((h, i) => (
+                  <p key={i} className="whitespace-pre-wrap">
+                    <span className="font-medium">{h.role === "user" ? "Cliente" : "Atendimento"}:</span> {h.content}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {item.skipReason && (
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">Fora da conta:</span> {item.skipReason}
+          </p>
+        )}
         <div className="grid gap-3 md:grid-cols-3">
           <Bubble title="Cliente" text={item.clientText} />
           <Bubble title="Pessoa da equipe" text={item.humanText} />
           <Bubble
             title={item.agentHandoff ? "Agente (transferiu para a equipe)" : "Agente"}
-            text={item.skipReason ? item.skipReason : item.error ? `Erro: ${item.error}` : item.agentText || "(sem texto)"}
-            muted={!!item.skipReason || !!item.error}
+            text={item.error ? `Erro: ${item.error}` : item.agentText || (item.skipReason ? "(não simulado)" : "(sem texto)")}
+            muted={!!item.error || !item.agentText}
           />
         </div>
         {o && !o.hit && <p className="text-muted-foreground">{o.hint}</p>}
