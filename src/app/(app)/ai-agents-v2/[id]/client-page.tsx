@@ -219,6 +219,12 @@ const POST_CLOSE_BEHAVIOR_OPTIONS = [
   { value: "ask_with_options", label: "Perguntar com botões" },
 ];
 
+const EMOJI_OPTIONS = [
+  { value: "none", label: "Nenhum", example: "A prova será de 02 a 05/10. Quer que eu te passe como acessar?" },
+  { value: "light", label: "Poucos", example: "A prova será de 02 a 05/10 📅 Quer que eu te passe como acessar?" },
+  { value: "moderate", label: "À vontade", example: "📅 Prova: 02 a 05/10\n👉 Quer que eu te passe como acessar? 😊" },
+];
+
 /** Só o que o motor faz para cada tipo de mídia. */
 const MEDIA_ACTION_OPTIONS: Record<"audio" | "image" | "document", Array<{ value: string; label: string }>> = {
   audio: [
@@ -1556,6 +1562,32 @@ function StepTone({ config, onChange }: { config: Record<string, unknown>; onCha
             </SelectContent>
           </Select>
         </Field>
+      </SectionCard>
+
+      <SectionCard title="Emojis" description="Deixam a mensagem mais calorosa e fácil de ler no WhatsApp. Em reclamação ou cobrança ele não usa.">
+        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Emojis">
+          {EMOJI_OPTIONS.map((o) => {
+            const selected = ((config.emojis as string) ?? "none") === o.value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onChange("emojis", o.value)}
+                className={cn(
+                  "flex flex-col gap-1.5 rounded-xl border p-3 text-left transition-colors",
+                  selected ? "border-primary bg-primary/10" : "hover:border-primary/40",
+                )}
+              >
+                <span className="text-sm font-semibold">{o.label}</span>
+                <span className="whitespace-pre-line rounded-lg border bg-card px-2.5 py-1.5 text-xs leading-relaxed text-muted-foreground">
+                  {o.example}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </SectionCard>
 
       <SectionCard title="Regras que ele sempre segue" description="Uma por linha. Exemplos: nunca prometer prazo, sempre pedir confirmação.">
