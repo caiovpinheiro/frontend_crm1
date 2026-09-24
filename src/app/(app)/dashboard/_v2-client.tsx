@@ -584,6 +584,7 @@ function ManagerHome({
                       title={def.title}
                       total={block?.total ?? 0}
                       groups={block?.groups ?? []}
+                      chartType={def.chartType}
                     />
                   );
                 }

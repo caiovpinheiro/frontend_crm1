@@ -2,7 +2,7 @@
 
 import { CategoricalChart } from "@/components/crm/dashboard/categorical-chart";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
-import { resolveChartType } from "@/features/dashboard-v2/chart-types";
+import { resolveChartType, type DashboardChartType } from "@/features/dashboard-v2/chart-types";
 import { DashboardNavSurface } from "@/features/dashboard-v2/components/dashboard-nav-surface";
 import { formatBRL, formatDurationMs, formatNumber } from "@/features/dashboard-v2/format";
 import type { NegociosCustomCard } from "@/features/dashboard-v2/use-negocios-grid";
@@ -78,6 +78,7 @@ export function TaskInsightCard({
   title,
   total,
   groups,
+  chartType,
 }: {
   title: string;
   total: number;
@@ -87,7 +88,9 @@ export function TaskInsightCard({
     count: number;
     items: { id: string; title: string; dueAt: string | null }[];
   }[];
+  chartType?: DashboardChartType;
 }) {
+  const rows = groups.map((group) => ({ id: group.id, name: group.name, value: group.count }));
   return (
     <div className={cn(CARD_SURFACE_CLASS, "block p-4")}>
       <h3 className="truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -96,6 +99,15 @@ export function TaskInsightCard({
       <p className="mt-1 font-display text-[28px] font-bold leading-none tabular-nums text-primary">
         {formatNumber(total)}
       </p>
+      {rows.length > 0 ? (
+        <div data-dashboard-no-drag className="mt-4">
+          <CategoricalChart
+            type={resolveChartType(chartType)}
+            rows={rows}
+            formatValue={(value) => formatNumber(value)}
+          />
+        </div>
+      ) : null}
       <ul className="mt-3 max-h-64 space-y-3 overflow-auto">
         {groups.map((group) => (
           <li key={group.id}>
