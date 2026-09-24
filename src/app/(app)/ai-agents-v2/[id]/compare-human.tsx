@@ -89,7 +89,14 @@ type Summary = {
   porAssunto: Array<{ assunto: string } & Metrics>;
 };
 
-type Params = { days: number; conversations: number; config: "draft" | "published"; source?: "crm" | "import"; files?: string[] };
+type Params = {
+  days: number;
+  conversations: number;
+  config: "draft" | "published";
+  source?: "crm" | "crm_ids" | "import";
+  files?: string[];
+  conversationIds?: string[];
+};
 
 type Run = {
   id: string;
@@ -109,6 +116,9 @@ type Estimate = {
   conversations: number;
   estimatedPoints: number;
   evaluablePoints?: number;
+  notFound?: string[];
+  audioPoints?: number;
+  transcription?: boolean;
   estimatedCalls: number;
   estimatedCostUsd: number;
   model: string;
@@ -169,7 +179,9 @@ type ParsedTranscript = Omit<Imported, "team"> & { teamGuess: string[] };
 
 export function CompareHuman({ agentId }: { agentId: string }) {
   const queryClient = useQueryClient();
-  const [source, setSource] = React.useState<"crm" | "import">("crm");
+  const [source, setSource] = React.useState<"crm" | "crm_ids" | "import">("crm");
+  const [refs, setRefs] = React.useState("");
+  const refsKey = refs.trim();
   const [params, setParams] = React.useState<Params>({ days: 1, conversations: 30, config: "draft" });
   const [imported, setImported] = React.useState<Imported[]>([]);
   const [runId, setRunId] = React.useState<string | null>(null);
@@ -181,16 +193,19 @@ export function CompareHuman({ agentId }: { agentId: string }) {
     config: params.config,
     transcripts: usable.map((t) => ({ name: t.name, text: t.text, teamAuthors: t.team })),
   };
+  const idsBody = { source: "crm_ids", config: params.config, conversationRefs: refs };
   // A chave não leva o texto inteiro: nome + equipe + tamanho bastam.
   const importKey = usable.map((t) => `${t.name}|${t.text.length}|${t.team.join(",")}`);
 
   const estimate = useQuery({
-    queryKey: ["ai-agents-v2-replay-estimate", agentId, source, params, importKey],
+    queryKey: ["ai-agents-v2-replay-estimate", agentId, source, params, importKey, source === "crm_ids" ? refsKey : ""],
     queryFn: () =>
       source === "import"
         ? postReplay<Estimate>(agentId, { ...importBody, estimate: true }, "Erro ao estimar.")
-        : postReplay<Estimate>(agentId, { ...params, estimate: true }, "Erro ao estimar."),
-    enabled: source === "crm" || (usable.length > 0 && !missingTeam),
+        : source === "crm_ids"
+          ? postReplay<Estimate>(agentId, { ...idsBody, estimate: true }, "Erro ao estimar.")
+          : postReplay<Estimate>(agentId, { ...params, estimate: true }, "Erro ao estimar."),
+    enabled: source === "crm" || (source === "crm_ids" ? !!refsKey : usable.length > 0 && !missingTeam),
   });
 
   const runs = useQuery({
@@ -204,7 +219,11 @@ export function CompareHuman({ agentId }: { agentId: string }) {
 
   const start = useMutation({
     mutationFn: () =>
-      postReplay<{ runId: string }>(agentId, source === "import" ? importBody : params, "Erro ao iniciar comparação."),
+      postReplay<{ runId: string }>(
+        agentId,
+        source === "import" ? importBody : source === "crm_ids" ? idsBody : params,
+        "Erro ao iniciar comparação.",
+      ),
     onSuccess: (r) => {
       setRunId(r.runId);
       queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-replay-runs", agentId] });
@@ -216,7 +235,13 @@ export function CompareHuman({ agentId }: { agentId: string }) {
   const running = list.find((r) => r.status === "running");
   const est = estimate.data;
   const canStart =
-    !start.isPending && !running && (source === "crm" ? !!est?.conversations : usable.length > 0 && !missingTeam && !!est?.estimatedPoints);
+    !start.isPending &&
+    !running &&
+    (source === "crm"
+      ? !!est?.conversations
+      : source === "crm_ids"
+        ? !!refsKey && !!est?.estimatedPoints
+        : usable.length > 0 && !missingTeam && !!est?.estimatedPoints);
 
   return (
     <div className="space-y-4">
@@ -249,7 +274,8 @@ export function CompareHuman({ agentId }: { agentId: string }) {
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2">
             {([
-              ["crm", "Conversas do CRM"],
+              ["crm", "Conversas do CRM (período)"],
+              ["crm_ids", "Conversas escolhidas do CRM"],
               ["import", "Conversas anexadas"],
             ] as const).map(([k, label]) => (
               <Button key={k} size="sm" variant={source === k ? "default" : "outline"} onClick={() => setSource(k)}>
@@ -301,6 +327,21 @@ export function CompareHuman({ agentId }: { agentId: string }) {
           </div>
 
           {source === "import" && <ImportPanel agentId={agentId} items={imported} onChange={setImported} />}
+          {source === "crm_ids" && (
+            <div className="space-y-1">
+              <Label>Links das conversas</Label>
+              <Textarea
+                value={refs}
+                onChange={(e) => setRefs(e.target.value)}
+                rows={3}
+                placeholder={"Cole o link da conversa (abra a conversa na caixa de entrada e copie o endereço), um por linha.\nTambém aceita o número do atendimento (#1234)."}
+              />
+              <p className="text-xs text-muted-foreground">
+                Usa a conversa inteira, com quem é cliente, robô e equipe como está no CRM. Áudios são transcritos para
+                entrar na comparação.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <div className="text-muted-foreground">
@@ -314,6 +355,21 @@ export function CompareHuman({ agentId }: { agentId: string }) {
                   : `${est.availableConversations} ${est.availableConversations === 1 ? "conversa" : "conversas"} com resposta de pessoa da equipe no período. Vamos comparar ${est.conversations} (~${est.estimatedPoints} pontos, custo estimado US$ ${est.estimatedCostUsd.toFixed(2)} com ${est.model}).`)}
               {source === "crm" && est && est.availableConversations > 0 && est.availableConversations < params.conversations && (
                 <span className="block text-xs">Há menos conversas que a amostra pedida. Para uma amostra maior, aumente o período.</span>
+              )}
+              {source === "crm_ids" && !refsKey && "Cole o link de ao menos uma conversa."}
+              {source === "crm_ids" && refsKey && est && (
+                <>
+                  {est.conversations === 0
+                    ? "Nenhuma conversa encontrada com esses links nesta organização."
+                    : `${est.conversations} ${est.conversations === 1 ? "conversa" : "conversas"} · ${est.estimatedPoints} pontos · custo estimado US$ ${est.estimatedCostUsd.toFixed(2)} com ${est.model}.`}
+                  {!!est.notFound?.length && <span className="block text-xs">Não encontradas: {est.notFound.join(", ")}</span>}
+                  {!!est.audioPoints && (
+                    <span className="block text-xs">
+                      {est.audioPoints} {est.audioPoints === 1 ? "ponto depende" : "pontos dependem"} de áudio
+                      {est.transcription ? " — serão transcritos." : " — transcrição não configurada no servidor, ficam fora."}
+                    </span>
+                  )}
+                </>
               )}
               {source === "import" && usable.length > 0 && !missingTeam && est &&
                 (est.estimatedPoints === 0
@@ -343,7 +399,9 @@ export function CompareHuman({ agentId }: { agentId: string }) {
               {dateTime(r.createdAt)} ·{" "}
               {r.params.source === "import"
                 ? `${r.params.files?.length ?? r.params.conversations} anexada${(r.params.files?.length ?? 0) === 1 ? "" : "s"}`
-                : `${r.params.days}d · ${r.params.conversations} conv.`}
+                : r.params.source === "crm_ids"
+                  ? `${r.params.conversations} escolhida${r.params.conversations === 1 ? "" : "s"}`
+                  : `${r.params.days}d · ${r.params.conversations} conv.`}
               {r.status === "done" && r.summary && ` · ${pct(r.summary.geral.resolveuComoHumano, r.summary.geral.avaliados)}`}
               {r.status === "error" && " · parou"}
               {r.status === "canceled" && " · interrompida"}
@@ -438,7 +496,9 @@ function ImportPanel({ agentId, items, onChange }: { agentId: string; items: Imp
             <div key={`${t.name}-${i}`} className="flex flex-wrap items-center gap-2 rounded border bg-muted/30 p-2 text-sm">
               <span className="font-medium">{t.name}</span>
               {t.error ? (
-                <span className="text-destructive">{t.error}</span>
+                <span className="text-destructive">
+                  {t.error} Se a conversa está no CRM, use “Conversas escolhidas do CRM” e cole o link.
+                </span>
               ) : (
                 <>
                   <span className="text-muted-foreground">{t.messages} mensagens ·</span>
