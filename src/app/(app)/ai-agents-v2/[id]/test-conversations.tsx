@@ -10,6 +10,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IconAlertTriangle,
+  IconBook,
   IconChevronDown,
   IconChevronUp,
   IconCopy,
@@ -60,6 +61,8 @@ type TestTurn = {
   rule: string | null;
   llmReason: string | null;
   trace: TraceStep[];
+  /** Texto dos trechos da base que o modelo leu no turno. */
+  sources?: Array<{ title: string; content: string; similarity: number | null }>;
   discardedActions: string[];
   latencyMs: number | null;
   tokens: number;
@@ -219,6 +222,7 @@ export function TestConversations({ agentId }: { agentId: string }) {
 
 function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
   const [open, setOpen] = React.useState(false);
+  const [sourcesOpen, setSourcesOpen] = React.useState(false);
   const [reporting, setReporting] = React.useState(false);
   const [comment, setComment] = React.useState("");
   const queryClient = useQueryClient();
@@ -300,6 +304,12 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
             {open ? "Esconder passos" : `Ver passos (${turn.trace.length})`}
           </Button>
         )}
+        {(turn.sources?.length ?? 0) > 0 && (
+          <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => setSourcesOpen((v) => !v)}>
+            <IconBook className="size-3" />
+            {sourcesOpen ? "Esconder trechos" : `Trechos que o agente leu (${turn.sources!.length})`}
+          </Button>
+        )}
         {!turn.feedback && !reporting && (
           <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => setReporting(true)}>
             <IconMessageReport className="size-3" />
@@ -316,6 +326,25 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
             </li>
           ))}
         </ol>
+      )}
+
+      {sourcesOpen && (
+        <div className="mt-2 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Tudo o que a resposta disser e não estiver aqui (nem nos dados do cliente) foi o modelo que acrescentou.
+          </p>
+          {turn.sources!.map((src, i) => (
+            <div key={i} className="rounded-md border bg-muted/40 p-2 text-xs">
+              <p className="mb-1 font-medium">
+                {src.title || "Material"}
+                {src.similarity != null && (
+                  <span className="ml-1 font-normal text-muted-foreground">(similaridade {src.similarity.toFixed(2)})</span>
+                )}
+              </p>
+              <p className="whitespace-pre-wrap text-muted-foreground">{src.content}</p>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* marcar erro */}
