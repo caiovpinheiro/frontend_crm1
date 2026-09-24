@@ -17,9 +17,11 @@ import {
 import {
   fetchPainelAgora,
   fetchPainelDeals,
+  fetchPainelInsights,
   fetchPainelService,
   type PainelAgora,
   type PainelDealsResult,
+  type PainelInsights,
   type PainelServiceResult,
 } from "./painel-api";
 
@@ -476,5 +478,35 @@ export function usePainelEventCards(
       built.value = hit?.count ?? 0;
     }
     return { card, data: built };
+  });
+}
+
+export function usePainelInsights(
+  filters: DashboardFiltersState,
+  cards: NegociosCustomCard[],
+  enabled = true,
+) {
+  const inboundOwners = cards.some((c) => c.type === "inboundOwners");
+  const stageIds = [
+    ...new Set(
+      cards
+        .filter((c) => c.type === "inboundStage" && c.stageId)
+        .map((c) => c.stageId as string),
+    ),
+  ];
+  const taskGroups = [
+    ...new Set(
+      cards
+        .filter((c) => c.type === "tasks")
+        .map((c) => c.taskGroup ?? "user"),
+    ),
+  ];
+  const active = inboundOwners || stageIds.length > 0 || taskGroups.length > 0;
+  return useQuery<PainelInsights>({
+    queryKey: ["painel", "insights", filters, inboundOwners, stageIds, taskGroups],
+    queryFn: ({ signal }) =>
+      fetchPainelInsights(filters, { inboundOwners, stageIds, taskGroups }, signal),
+    enabled: (isPreviewMode() || isPageMockMode() ? false : enabled) && active,
+    staleTime: 30_000,
   });
 }
