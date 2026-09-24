@@ -50,6 +50,9 @@ const DYNAMIC_KINDS = [
   ["customField", "Por campo"],
   ["stage", "Por fase"],
   ["users", "Por usuários"],
+  ["inboundOwners", "Mensagens por consultor"],
+  ["inboundStage", "Mensagens por fase"],
+  ["tasks", "Tarefas"],
 ] as const;
 
 type CatalogMode = (typeof MODE_OPTIONS)[number][0];
@@ -93,6 +96,7 @@ export function AddDashboardCardDialog({
   const [eventType, setEventType] = useState<string>("messages_in");
   const [fieldId, setFieldId] = useState("");
   const [stageId, setStageId] = useState("");
+  const [taskGroup, setTaskGroup] = useState<"user" | "department">("user");
   const [agg, setAgg] = useState<"count" | "sum">("count");
   const [title, setTitle] = useState("");
   const [chartType, setChartType] = useState<DashboardChartType>(DEFAULT_CARD_CHART_TYPE);
@@ -114,7 +118,7 @@ export function AddDashboardCardDialog({
   const stagePresent = Boolean(stageId && present.has(stageWidgetId(stageId)));
   const showChartType =
     mode === "dynamic"
-      ? kind !== "stage"
+      ? kind !== "stage" && kind !== "tasks"
       : presetId === "usage";
 
   function reset() {
@@ -134,6 +138,46 @@ export function AddDashboardCardDialog({
       if (!stageId || present.has(stageWidgetId(stageId))) return;
       onAddStage(stageId);
       setStageId("");
+      onOpenChange(false);
+      return;
+    }
+    if (kind === "inboundOwners") {
+      onCreate({
+        id: crypto.randomUUID(),
+        type: "inboundOwners",
+        title: title.trim() || "Mensagens recebidas por consultor",
+        chartType,
+      });
+      reset();
+      onOpenChange(false);
+      return;
+    }
+    if (kind === "inboundStage") {
+      if (!stageId) return;
+      const stage = stages.find((s) => s.id === stageId);
+      onCreate({
+        id: crypto.randomUUID(),
+        type: "inboundStage",
+        stageId,
+        stageName: stage?.name,
+        title: title.trim() || `Mensagens recebidas · ${stage?.name ?? "Fase"}`,
+        chartType,
+      });
+      setStageId("");
+      reset();
+      onOpenChange(false);
+      return;
+    }
+    if (kind === "tasks") {
+      onCreate({
+        id: crypto.randomUUID(),
+        type: "tasks",
+        taskGroup,
+        title:
+          title.trim() ||
+          (taskGroup === "department" ? "Tarefas por departamento" : "Tarefas por usuário"),
+      });
+      reset();
       onOpenChange(false);
       return;
     }
@@ -170,9 +214,11 @@ export function AddDashboardCardDialog({
       ? Boolean(presetId) && !presetPresent
       : kind === "stage"
         ? Boolean(stageId) && !stagePresent
-        : kind === "customField"
-          ? Boolean(fieldId)
-          : true;
+        : kind === "inboundStage"
+          ? Boolean(stageId)
+          : kind === "customField"
+            ? Boolean(fieldId)
+            : true;
 
   return (
     <FormDialog
@@ -286,9 +332,14 @@ export function AddDashboardCardDialog({
                 </>
               ) : null}
             </>
-          ) : kind === "stage" ? (
+          ) : kind === "stage" || kind === "inboundStage" ? (
             <>
               <span className={formLabelClass}>Fase</span>
+              {kind === "inboundStage" ? (
+                <p className="mb-2 text-sm text-muted-foreground">
+                  Deals abertos nesta fase que receberam mensagem no período, por consultor.
+                </p>
+              ) : null}
               <select
                 className={formControlClass}
                 value={stageId}
@@ -298,11 +349,39 @@ export function AddDashboardCardDialog({
                 {stages.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
-                    {present.has(stageWidgetId(s.id)) ? " (já no painel)" : ""}
+                    {kind === "stage" && present.has(stageWidgetId(s.id)) ? " (já no painel)" : ""}
                   </option>
                 ))}
               </select>
             </>
+          ) : kind === "tasks" ? (
+            <>
+              <span className={formLabelClass}>Agrupar por</span>
+              <p className="mb-2 text-sm text-muted-foreground">
+                Tarefas em aberto no período, com o prazo de cada uma.
+              </p>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ["user", "Usuário"],
+                    ["department", "Departamento"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setTaskGroup(id)}
+                    className={pillClass(taskGroup === id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : kind === "inboundOwners" ? (
+            <p className="mb-2 text-sm text-muted-foreground">
+              Leads distribuídos deste funil que receberam mensagem no período, por consultor.
+            </p>
           ) : (
             <>
               <span className={formLabelClass}>{kind === "users" ? "Métrica" : "Evento"}</span>
