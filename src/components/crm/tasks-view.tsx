@@ -855,6 +855,7 @@ export function TasksView({
   const now = useNow()
   const [view, setView] = useState<CalendarView>("semana")
   const [cursor, setCursor] = useState(() => new Date())
+  const [mobileDay, setMobileDay] = useState<Date | null>(null)
   const [enabledTypes, setEnabledTypes] = useState<Record<TaskType, boolean>>(allTypesOn)
   const [situation, setSituation] = useState<TaskSituationFilter>("all")
   const [search, setSearch] = useState("")
@@ -903,6 +904,11 @@ export function TasksView({
   const visibleTasks = useMemo(
     () => filterByType(periodTasks, enabledTypes),
     [periodTasks, enabledTypes],
+  )
+
+  const mobileDayTasks = useMemo(
+    () => (mobileDay ? filterByType(tasksForDay(mobileDay, catalogTasks), enabledTypes) : []),
+    [mobileDay, catalogTasks, enabledTypes],
   )
 
   const typeCounts = useMemo(() => countByType(periodTasks), [periodTasks])
@@ -998,11 +1004,14 @@ export function TasksView({
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-        <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-64">
+        <aside className={cn("flex w-full shrink-0 flex-col gap-4 lg:w-64", mobileDay && "max-lg:hidden")}>
           <div className={cn(CARD_SURFACE_CLASS, "p-4")}>
             <MiniCalendar
               selectedDate={cursor}
-              onSelectDate={setCursor}
+              onSelectDate={(day) => {
+                setCursor(day)
+                setMobileDay(day)
+              }}
               markedDates={markedDates}
             />
           </div>
@@ -1043,7 +1052,40 @@ export function TasksView({
           </div>
         </aside>
 
-        <section className={cn(CARD_SURFACE_CLASS, "flex min-w-0 flex-1 flex-col overflow-hidden")}>
+        {mobileDay ? (
+          <section className={cn(CARD_SURFACE_CLASS, "flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden")}>
+            <div className="flex items-center gap-2 border-b border-border px-3 py-3">
+              <button
+                type="button"
+                onClick={() => setMobileDay(null)}
+                aria-label="Voltar ao calendário"
+                className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground"
+              >
+                <ChevronLeft className="size-4" aria-hidden="true" />
+              </button>
+              <h2 className="min-w-0 truncate text-base font-semibold capitalize text-foreground">
+                {dayPeriodTitle(mobileDay)}
+              </h2>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              {mobileDayTasks.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Nenhum compromisso neste dia.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {mobileDayTasks.map((task) => (
+                    <li key={task.id}>
+                      <TaskBlock task={task} onOpen={onOpenTask} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        <section className={cn(CARD_SURFACE_CLASS, "hidden min-w-0 flex-1 flex-col overflow-hidden lg:flex")}>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <button
