@@ -70,6 +70,7 @@ import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-sel
 import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
 import { looksLikeOpenAiApiKey } from "@/lib/agent-key";
 import { cn, formatDate } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
 
@@ -597,13 +598,13 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-      </CardHeader>
-      <CardContent className="space-y-4">{children}</CardContent>
-    </Card>
+    <section className="space-y-4 rounded-2xl border bg-card p-5">
+      <div className="space-y-1">
+        <h3 className="text-base font-bold leading-tight">{title}</h3>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -723,6 +724,7 @@ function MultiChip({ label, tooltip, values, onChange, placeholder }: { label: s
 // Wizard
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Etapa preenchida (✓ na trilha). Etapas opcionais contam como feitas. */
 function isStepComplete(
   stepIndex: number,
   cfg: Record<string, unknown> | null,
@@ -737,52 +739,100 @@ function isStepComplete(
     ((cfg.contextFields as Record<string, unknown> | undefined)?.deal as
       | Array<{ key: string }>
       | undefined) ?? [];
-  switch (stepIndex) {
-    case 0:
+  switch (STEPS[stepIndex]?.id) {
+    case "start":
       return Boolean(agentName.trim()) && ((cfg.channelIds as string[]) ?? []).length > 0;
-    case 1:
+    case "tone":
       return Boolean((cfg.tone as string)?.trim() || (cfg.systemPromptTemplate as string)?.trim());
-    case 2:
+    case "context":
       return contactFields.length + dealFields.length > 0;
-    case 3:
+    case "materials":
       return (
         ((cfg.allowedKnowledgeDocIds as string[]) ?? []).length > 0 ||
         ((cfg.knowledgeDocs as unknown[]) ?? []).length > 0
       );
-    case 4:
-      return true;
-    case 5:
+    case "entry":
       return Boolean((cfg.entry as Record<string, unknown> | undefined)?.openingMessage);
-    case 6:
+    case "themes":
       return ((cfg.themes as unknown[]) ?? []).length > 0;
-    case 7:
-    case 8:
-    case 9:
-    case 10:
+    case "rules":
+    case "team":
       return true;
-    case 11:
-      return false;
     default:
       return false;
   }
 }
 
 const STEPS = [
-  { id: "start", title: "Começar", subtitle: "Nome e modelo" },
-  { id: "tone", title: "Jeito de falar", subtitle: "Tom e regras" },
-  { id: "context", title: "O que ele sabe", subtitle: "Dados do cliente" },
-  { id: "materials", title: "Materiais de consulta", subtitle: "Documentos e FAQ" },
-  { id: "messages", title: "Mensagens prontas e produtos", subtitle: "Modelos e catálogo" },
-  { id: "entry", title: "Início da conversa", subtitle: "Como ela começa" },
-  { id: "themes", title: "Assuntos", subtitle: "O que ele atende" },
-  { id: "rules", title: "Regras automáticas", subtitle: "Sempre que… então…" },
-  { id: "outputs", title: "Saídas", subtitle: "Quando parar de responder" },
-  { id: "team", title: "Equipe e horários", subtitle: "Transferir e encerrar" },
-  { id: "closure", title: "Encerrar e classificar", subtitle: "Tabulação e pesquisa" },
-  { id: "test", title: "Testar e publicar", subtitle: "Conferir antes de ligar" },
-  { id: "test-conversations", title: "Conversas de teste", subtitle: "WhatsApp: passo a passo e erros" },
-  { id: "compare-human", title: "Comparar com humano", subtitle: "Atendimentos reais da equipe" },
+  {
+    id: "start",
+    title: "Começar",
+    subtitle: "Nome, canal e modelo",
+    heading: "Vamos criar seu agente",
+    intro: "Dê um nome, escolha onde ele atende e qual modelo de IA ele usa.",
+  },
+  {
+    id: "tone",
+    title: "Jeito de falar",
+    subtitle: "Tom e regras",
+    heading: "Jeito de falar",
+    intro: "Defina a personalidade do agente e as regras que ele nunca pode quebrar.",
+  },
+  {
+    id: "context",
+    title: "O que ele sabe",
+    subtitle: "Dados do cliente",
+    heading: "O que ele sabe do cliente",
+    intro: "Escolha quais dados do CRM o agente pode consultar e cadastre as informações fixas da empresa.",
+  },
+  {
+    id: "materials",
+    title: "Materiais de consulta",
+    subtitle: "Documentos, mensagens e produtos",
+    heading: "Materiais de consulta",
+    intro:
+      "Envie os documentos que o agente usa para responder. Ele só afirma o que estiver aqui ou nos dados do cliente. Mais abaixo, as mensagens prontas e os produtos que ele pode enviar.",
+  },
+  {
+    id: "entry",
+    title: "Início da conversa",
+    subtitle: "Boas-vindas e confirmação",
+    heading: "Início da conversa",
+    intro: "Como o agente cumprimenta, confirma com quem está falando e o que faz quando não encontra o cliente.",
+  },
+  {
+    id: "themes",
+    title: "Assuntos",
+    subtitle: "O que ele atende",
+    heading: "Assuntos que ele atende",
+    intro:
+      "Cada assunto é uma especialidade do agente, com instruções, materiais e ações próprias. Ele identifica o assunto sozinho a cada mensagem.",
+  },
+  {
+    id: "rules",
+    title: "Regras automáticas",
+    subtitle: "Sempre que… então…",
+    heading: "Regras automáticas",
+    intro: "Situações com resposta certa, sem margem para interpretação: “sempre que acontecer isso, faça aquilo”.",
+  },
+  {
+    id: "team",
+    title: "Equipe e encerramento",
+    subtitle: "Transferir, horários e fim",
+    heading: "Equipe, horários e encerramento",
+    intro:
+      "Quando o agente chama uma pessoa, em que horários ele atende, quando para de responder e como a conversa termina.",
+  },
+  {
+    id: "test",
+    title: "Testar e publicar",
+    subtitle: "Conferir antes de ligar",
+    heading: "Testar e publicar",
+    intro:
+      "Converse com o agente como se fosse um cliente, veja por que ele respondeu cada coisa, compare com a sua equipe e só então publique.",
+  },
 ];
+const STEP_INDEX = Object.fromEntries(STEPS.map((st, i) => [st.id, i])) as Record<string, number>;
 
 export default function AIAgentV2EditPage() {
   const { id } = useParams<{ id: string }>();
@@ -790,6 +840,7 @@ export default function AIAgentV2EditPage() {
   const { confirm, dialog } = useConfirm();
 
   const [step, setStep] = React.useState(0);
+  const [testTab, setTestTab] = React.useState("try");
   const [config, setConfig] = React.useState<Record<string, unknown> | null>(null);
   const [name, setName] = React.useState("");
   const [active, setActive] = React.useState(true);
@@ -925,7 +976,7 @@ export default function AIAgentV2EditPage() {
 
   return (
     <TooltipProvider>
-      <AppV2PageShell title={name || "Novo agente de IA"} icon={<IconBrain size={22} />}>
+      <AppV2PageShell title="Agente de IA" icon={<IconBrain size={22} />}>
         {dialog}
         <Dialog open={dictionaryOpen} onOpenChange={setDictionaryOpen}>
           <DialogContent size="lg">
@@ -943,182 +994,216 @@ export default function AIAgentV2EditPage() {
             </div>
           </DialogContent>
         </Dialog>
-        <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-4 p-4">
-        {/* top bar */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold">{name || "Novo agente de IA"}</h1>
-            <p className="text-sm text-muted-foreground">
-              Etapa {step + 1} de {STEPS.length}: {STEPS[step].title}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setDictionaryOpen(true)} className="gap-1">
-              <IconBulb className="size-4" />
-              Dicionário da tela
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!dirty || saving}
-              onClick={() => saveDraftMutation.mutate()}
-              className="gap-1"
-            >
-              <IconDeviceFloppy className="size-4" />
-              Salvar rascunho
-            </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block">
+        <div className="p-2 sm:p-4">
+          <div className="flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border bg-card">
+            {/* cabeçalho */}
+            <header className="flex flex-col gap-3 px-4 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:pt-6">
+              <div className="min-w-0 space-y-1">
+                <h1 className="truncate text-2xl font-bold tracking-tight">{name || "Novo agente de IA"}</h1>
+                <p className="text-sm text-muted-foreground">
+                  Passo {step + 1} de {STEPS.length} ·{" "}
+                  {saving ? "salvando…" : dirty ? "alterações não salvas" : "rascunho salvo"}
+                  {agentQuery.data?.hasUnpublishedChanges && !dirty && " · há mudanças ainda não publicadas"}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={() => setDictionaryOpen(true)} className="gap-1">
+                  <IconBulb className="size-4" />
+                  Dicionário
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!dirty || saving}
+                  onClick={() => saveDraftMutation.mutate()}
+                  className="gap-1"
+                >
+                  <IconDeviceFloppy className="size-4" />
+                  Salvar rascunho
+                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button
+                        onClick={handlePublish}
+                        disabled={publishMutation.isPending || !agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey)}
+                        className="gap-1"
+                      >
+                        <IconRocket className="size-4" />
+                        Publicar
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey) && (
+                    <TooltipContent>
+                      <p>Configure uma chave de modelo válida para publicar.</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </div>
+            </header>
+
+            {saveError && (
+              <div className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive sm:mx-8">
+                <IconAlertCircle className="size-4" />
+                {saveError}
+              </div>
+            )}
+
+            <div className="flex flex-1 flex-col gap-6 px-4 py-5 sm:px-8 sm:py-6 lg:flex-row lg:gap-8">
+              {/* trilha de etapas: coluna no desktop, faixa rolável no celular */}
+              <nav
+                aria-label="Etapas"
+                className="-mx-1 flex shrink-0 gap-2 overflow-x-auto px-1 pb-1 lg:sticky lg:top-4 lg:mx-0 lg:w-[268px] lg:flex-col lg:self-start lg:overflow-visible lg:px-0 lg:pb-0"
+              >
+                {STEPS.map((s, i) => {
+                  const current = i === step;
+                  const done = !current && isStepComplete(i, config, name);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-current={current ? "step" : undefined}
+                      onClick={() => handleStepChange(i)}
+                      className={cn(
+                        "flex min-h-11 shrink-0 items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
+                        current ? "border-primary/40 bg-primary/10" : "bg-card hover:border-primary/30",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                          current
+                            ? "bg-primary text-primary-foreground"
+                            : done
+                              ? "bg-success text-success-foreground"
+                              : "border text-muted-foreground",
+                        )}
+                      >
+                        {done ? <IconCheck size={14} stroke={3} /> : i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block whitespace-nowrap text-sm font-semibold lg:whitespace-normal">{s.title}</span>
+                        <span className="hidden text-xs text-muted-foreground lg:block">{s.subtitle}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* etapa */}
+              <main className="min-w-0 flex-1 space-y-5">
+                <div className="space-y-1.5">
+                  <h2 className="text-2xl font-bold tracking-tight">{STEPS[step].heading}</h2>
+                  <p className="max-w-3xl text-[15px] leading-relaxed text-muted-foreground">{STEPS[step].intro}</p>
+                </div>
+
+                {STEPS[step].id === "start" && (
+                  <StepStart
+                    config={config}
+                    catalogs={catalogs}
+                    name={name}
+                    active={active}
+                    openaiKey={openaiKey}
+                    hasOpenaiKey={agentQuery.data?.hasOwnOpenaiKey ?? false}
+                    openaiKeyHint={agentQuery.data?.openaiApiKeyHint ?? null}
+                    hasUnpublishedChanges={agentQuery.data?.hasUnpublishedChanges ?? false}
+                    publishedVersionNumber={agentQuery.data?.lastVersionNumber}
+                    validatingKey={validatingKey}
+                    keyValidation={keyValidation}
+                    onNameChange={(v) => {
+                      setName(v);
+                      setDirty(true);
+                    }}
+                    onActiveChange={(v) => {
+                      setActive(v);
+                      setDirty(true);
+                    }}
+                    onKeyChange={(v) => {
+                      setOpenaiKey(v);
+                      setDirty(true);
+                      setKeyValidation({ ok: null, message: "" });
+                    }}
+                    onChange={updateConfig}
+                    onValidateKey={() => validateKeyMutation.mutate()}
+                  />
+                )}
+                {STEPS[step].id === "tone" && <StepTone config={config} onChange={updateConfig} />}
+                {STEPS[step].id === "context" && <StepContext config={config} catalogs={catalogs} onChange={updateConfig} />}
+                {STEPS[step].id === "materials" && (
+                  <>
+                    <StepMaterials agentId={id} config={config} onChange={updateConfig} />
+                    <StepMessagesProducts config={config} catalogs={catalogs} onChange={updateConfig} />
+                  </>
+                )}
+                {STEPS[step].id === "entry" && <StepEntry config={config} onChange={updateConfig} />}
+                {STEPS[step].id === "themes" && <StepThemes config={config} catalogs={catalogs} onChange={updateConfig} />}
+                {STEPS[step].id === "rules" && <StepRules config={config} catalogs={catalogs} onChange={updateConfig} />}
+                {STEPS[step].id === "team" && (
+                  <>
+                    <StepTeam config={config} catalogs={catalogs} onChange={updateConfig} />
+                    <StepOutputs config={config} onChange={updateConfig} />
+                    <StepClosure config={config} catalogs={catalogs} onChange={updateConfig} />
+                  </>
+                )}
+                {STEPS[step].id === "test" && (
+                  <Tabs value={testTab} onValueChange={setTestTab} className="space-y-4">
+                    <TabsList>
+                      <TabsTrigger value="try">Testar agora</TabsTrigger>
+                      <TabsTrigger value="whatsapp">Conversas de teste</TabsTrigger>
+                      <TabsTrigger value="compare">Comparar com humano</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="try">
+                      <StepTestPublish
+                        agentId={id}
+                        dirty={dirty}
+                        catalogs={catalogs}
+                        onSave={async () => saveDraftMutation.mutateAsync()}
+                        onGoToTheme={() => handleStepChange(STEP_INDEX.themes)}
+                        onGoToRule={() => handleStepChange(STEP_INDEX.rules)}
+                      />
+                    </TabsContent>
+                    <TabsContent value="whatsapp">
+                      <TestConversations agentId={id} />
+                    </TabsContent>
+                    <TabsContent value="compare">
+                      <CompareHuman agentId={id} />
+                    </TabsContent>
+                  </Tabs>
+                )}
+              </main>
+            </div>
+
+            {/* rodapé */}
+            <footer className="sticky bottom-0 flex items-center justify-between gap-3 border-t bg-muted/40 px-4 py-3 backdrop-blur sm:px-8">
+              <Button
+                variant="outline"
+                disabled={step === 0}
+                onClick={() => handleStepChange(step - 1)}
+                className="gap-1"
+              >
+                <IconChevronLeft className="size-4" /> Voltar
+              </Button>
+              <div className="flex items-center gap-4">
+                <span className="hidden text-sm text-muted-foreground sm:inline">
+                  {step + 1} de {STEPS.length}
+                </span>
+                {step < STEPS.length - 1 ? (
+                  <Button onClick={() => handleStepChange(step + 1)} className="gap-1">
+                    Continuar <IconChevronRight className="size-4" />
+                  </Button>
+                ) : (
                   <Button
-                    size="sm"
                     onClick={handlePublish}
                     disabled={publishMutation.isPending || !agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey)}
                     className="gap-1"
                   >
-                    <IconRocket className="size-4" />
-                    Publicar
+                    <IconRocket className="size-4" /> Publicar
                   </Button>
-                </span>
-              </TooltipTrigger>
-              {!agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey) && (
-                <TooltipContent>
-                  <p>Configure uma chave de modelo válida para publicar.</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
+                )}
+              </div>
+            </footer>
           </div>
         </div>
-
-        {saveError && (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            <IconAlertCircle className="size-4" />
-            {saveError}
-          </div>
-        )}
-
-        <div className="flex flex-1 gap-4 overflow-hidden">
-          {/* steps nav */}
-          <nav className="hidden w-64 shrink-0 flex-col gap-1 overflow-y-auto md:flex">
-            {STEPS.map((s, i) => {
-              const done = i < step;
-              const current = i === step;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => handleStepChange(i)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl border p-3 text-left transition-colors",
-                    current
-                      ? "border-primary bg-primary/10"
-                      : done
-                        ? "border-border bg-muted/40"
-                        : "border-border bg-card hover:bg-muted/30",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-                      current
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : done
-                          ? "border-success bg-success text-success-foreground"
-                          : "border-border bg-muted",
-                    )}
-                  >
-                    {done ? <IconCheck size={14} /> : i + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className={cn("text-sm font-semibold", current && "text-primary")}>{s.title}</p>
-                    <p className="text-xs text-muted-foreground">{s.subtitle}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* main */}
-          <main className="flex-1 overflow-y-auto rounded-xl border bg-card p-5">
-            {step === 0 && (
-              <StepStart
-                config={config}
-                catalogs={catalogs}
-                name={name}
-                active={active}
-                openaiKey={openaiKey}
-                hasOpenaiKey={agentQuery.data?.hasOwnOpenaiKey ?? false}
-                openaiKeyHint={agentQuery.data?.openaiApiKeyHint ?? null}
-                hasUnpublishedChanges={agentQuery.data?.hasUnpublishedChanges ?? false}
-                publishedVersionNumber={agentQuery.data?.lastVersionNumber}
-                validatingKey={validatingKey}
-                keyValidation={keyValidation}
-                onNameChange={(v) => {
-                  setName(v);
-                  setDirty(true);
-                }}
-                onActiveChange={(v) => {
-                  setActive(v);
-                  setDirty(true);
-                }}
-                onKeyChange={(v) => {
-                  setOpenaiKey(v);
-                  setDirty(true);
-                  setKeyValidation({ ok: null, message: "" });
-                }}
-                onChange={updateConfig}
-                onValidateKey={() => validateKeyMutation.mutate()}
-              />
-            )}
-            {step === 1 && <StepTone config={config} onChange={updateConfig} />}
-            {step === 2 && <StepContext config={config} catalogs={catalogs} onChange={updateConfig} />}
-            {step === 3 && (
-              <StepMaterials
-                agentId={id}
-                config={config}
-                onChange={updateConfig}
-              />
-            )}
-            {step === 4 && <StepMessagesProducts config={config} catalogs={catalogs} onChange={updateConfig} />}
-            {step === 5 && <StepEntry config={config} onChange={updateConfig} />}
-            {step === 6 && <StepThemes config={config} catalogs={catalogs} onChange={updateConfig} />}
-            {step === 7 && <StepRules config={config} catalogs={catalogs} onChange={updateConfig} />}
-            {step === 8 && <StepOutputs config={config} onChange={updateConfig} />}
-            {step === 9 && <StepTeam config={config} catalogs={catalogs} onChange={updateConfig} />}
-            {step === 10 && <StepClosure config={config} catalogs={catalogs} onChange={updateConfig} />}
-            {step === 11 && (
-              <StepTestPublish
-                agentId={id}
-                dirty={dirty}
-                catalogs={catalogs}
-                onSave={async () => saveDraftMutation.mutateAsync()}
-                onGoToTheme={() => handleStepChange(6)}
-                onGoToRule={() => handleStepChange(7)}
-              />
-            )}
-            {step === 12 && <TestConversations agentId={id} />}
-            {step === 13 && <CompareHuman agentId={id} />}
-          </main>
-        </div>
-
-        {/* footer nav */}
-        <div className="flex items-center justify-between border-t bg-card p-4">
-          <Button
-            variant="outline"
-            disabled={step === 0}
-            onClick={() => handleStepChange(step - 1)}
-            className="gap-1"
-          >
-            <IconChevronLeft className="size-4" /> Voltar
-          </Button>
-          <Button
-            disabled={step === STEPS.length - 1}
-            onClick={() => handleStepChange(step + 1)}
-            className="gap-1"
-          >
-            Continuar <IconChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
       </AppV2PageShell>
     </TooltipProvider>
   );
