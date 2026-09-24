@@ -1768,19 +1768,30 @@ function StepMaterials({
   const [pasteTitle, setPasteTitle] = React.useState("");
   const [pasteContent, setPasteContent] = React.useState("");
 
+  // Material novo entra direto nos permitidos: antes ficava na lista sem o
+  // agente consultar até alguém marcá-lo, salvar e publicar.
+  const [addedNotice, setAddedNotice] = React.useState<string | null>(null);
+  const allowNewDoc = (doc: KnowledgeDoc) => {
+    const current = (config.allowedKnowledgeDocIds as string[]) ?? [];
+    if (!current.includes(doc.id)) onChange("allowedKnowledgeDocIds", [...current, doc.id]);
+    setAddedNotice(doc.title);
+  };
+
   const uploadMutation = useMutation({
     mutationFn: (f: File) => uploadKnowledgeDoc(agentId, f),
-    onSuccess: () => {
+    onSuccess: (doc) => {
       setFile(null);
+      allowNewDoc(doc);
       docsQuery.refetch();
     },
   });
 
   const pasteMutation = useMutation({
     mutationFn: () => pasteKnowledgeDoc(agentId, { title: pasteTitle, content: pasteContent }),
-    onSuccess: () => {
+    onSuccess: (doc) => {
       setPasteTitle("");
       setPasteContent("");
+      allowNewDoc(doc);
       docsQuery.refetch();
     },
   });
@@ -1889,6 +1900,14 @@ function StepMaterials({
 
   const allowedIds = (config.allowedKnowledgeDocIds as string[]) ?? [];
   const items = docsQuery.data?.items ?? [];
+  // Liberado no agente ou em algum assunto: é o que o motor consulta.
+  const themeDocIds = new Set(
+    ((config.themes as Array<Record<string, unknown>>) ?? []).flatMap((t) => [
+      ...(((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)),
+      ...(((t.knowledgeDocIds as string[]) ?? []).map(String)),
+    ]),
+  );
+  const isReleased = (id: string) => allowedIds.includes(id) || themeDocIds.has(id);
 
   const statusLabel: Record<KnowledgeDoc["status"], string> = {
     PENDING: "Processando",
@@ -1980,6 +1999,19 @@ function StepMaterials({
           <Skeleton className="h-32" />
         ) : (
           <>
+            {addedNotice && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+                <IconAlertCircle className="mt-0.5 size-4 shrink-0 text-primary" />
+                <p className="flex-1">
+                  “{addedNotice}” foi incluído nos materiais permitidos. Para o agente usar no atendimento,{" "}
+                  <span className="font-medium">salve o rascunho e publique</span>. No teste do agente, ele já vale
+                  depois de salvar.
+                </p>
+                <Button size="sm" variant="ghost" className="h-7" onClick={() => setAddedNotice(null)}>
+                  Ok
+                </Button>
+              </div>
+            )}
             <MultiSelectPopover
               label="Materiais permitidos"
               tooltip="Documentos que o agente pode citar em qualquer assunto. Assuntos também podem ter sua própria lista."
@@ -2004,6 +2036,11 @@ function StepMaterials({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {!isReleased(d.id) && (
+                      <Badge variant="outline" title="Não está nos materiais permitidos nem em nenhum assunto: o agente não consulta.">
+                        não liberado
+                      </Badge>
+                    )}
                     <Badge variant={statusVariant[d.status]}>{statusLabel[d.status]}</Badge>
                     {d.status === "FAILED" && (
                       <Button
