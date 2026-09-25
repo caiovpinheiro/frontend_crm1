@@ -76,6 +76,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
 import { IconChip, SURFACE, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
+import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
 import { TextListEditor } from "./text-list-editor";
 
@@ -982,7 +983,7 @@ export default function AIAgentV2EditPage() {
   const [publishInfo, setPublishInfo] = React.useState<{
     next: number;
     first: boolean;
-    changes: Array<{ section: string; items: string[] }>;
+    changes: DiffSection[];
     realClients: boolean;
   } | null>(null);
 
@@ -1038,7 +1039,7 @@ export default function AIAgentV2EditPage() {
     setPublishInfo({
       next: (fresh.lastVersionNumber ?? 0) + 1,
       first,
-      changes: describeChanges(fresh.publishedConfig, fresh.draftConfig),
+      changes: buildPublishDiff(fresh.publishedConfig, fresh.draftConfig, catalogsQuery.data ?? {}),
       realClients: (active || first) && channels > 0 && phones === 0,
     });
   };
@@ -1415,87 +1416,62 @@ async function restoreVersion(id: string, versionNumber: number): Promise<void> 
   await parseApiResponse<unknown>(res, "Erro ao restaurar a versão.");
 }
 
-function stableJson(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
-  if (v && typeof v === "object") {
-    return `{${Object.keys(v as Record<string, unknown>)
-      .sort()
-      .map((k) => `${JSON.stringify(k)}:${stableJson((v as Record<string, unknown>)[k])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(v ?? null);
+/** Itens que entraram (verde) e saíram (vermelho, riscado). */
+function ChangeChips({ added = [], removed = [] }: { added?: string[]; removed?: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {added.map((n, i) => (
+        <span key={`a${i}`} className="rounded-md bg-emerald-50 px-2 py-0.5 text-[13px] text-emerald-800 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/20">
+          + {n}
+        </span>
+      ))}
+      {removed.map((n, i) => (
+        <span key={`r${i}`} className="rounded-md bg-rose-50 px-2 py-0.5 text-[13px] text-rose-700 line-through decoration-rose-300 ring-1 ring-inset ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/20">
+          − {n}
+        </span>
+      ))}
+    </div>
+  );
 }
 
-const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string]> }> = [
-  {
-    section: "Quem é o agente",
-    keys: [["name", "nome"], ["tone", "tom de voz"], ["responseLength", "tamanho das respostas"], ["emojis", "emojis"], ["globalRules", "regras que ele sempre segue"], ["responseBehavior", "estilo de resposta"]],
-  },
-  {
-    section: "O que ele sabe",
-    keys: [["allowedKnowledgeDocIds", "materiais em uso"], ["calendar", "calendário"], ["contextFields", "dados do cliente"], ["variables", "informações da empresa"], ["allowedMessageModelIds", "mensagens prontas"], ["productPolicy", "catálogo"], ["dealSelection", "negócio usado"]],
-  },
-  {
-    section: "Do que ele cuida",
-    keys: [["themes", "assuntos"], ["rules", "atalhos automáticos"], ["enabledTools", "o que ele pode fazer"], ["scope", "fora do escopo"]],
-  },
-  {
-    section: "Começo e fim da conversa",
-    keys: [["entry", "boas-vindas e confirmação"], ["media", "áudio, imagem e arquivo"], ["closure", "encerramento"]],
-  },
-  {
-    section: "Quando chama a equipe",
-    keys: [["handoff", "transferência"], ["businessHours", "horário de atendimento"], ["sentiment", "cliente irritado"], ["fallback", "quando não souber"], ["limits", "limites"]],
-  },
-  {
-    section: "Publicação",
-    keys: [["channelIds", "números de WhatsApp"], ["allowedPhoneNumbers", "fase de teste"], ["autonomyMode", "como ele responde"], ["model", "modelo de IA"], ["simulateTyping", "parecer humano"], ["markMessagesRead", "parecer humano"], ["typingPerCharMs", "parecer humano"], ["allowedDomains", "sites permitidos"], ["structuredOutput", "formato da resposta"]],
-  },
-];
-
-/** Assuntos/atalhos: quantos entraram, saíram e mudaram, com os nomes que entraram. */
-function describeListChange(label: string, before: unknown, after: unknown): string {
-  const a = Array.isArray(before) ? (before as Array<Record<string, unknown>>) : [];
-  const b = Array.isArray(after) ? (after as Array<Record<string, unknown>>) : [];
-  const withId = (xs: Array<Record<string, unknown>>) => xs.every((x) => x && typeof x === "object" && typeof x.id === "string");
-  if (!withId(a) || !withId(b)) {
-    const added = b.filter((x) => !a.some((y) => stableJson(y) === stableJson(x))).length;
-    const removed = a.filter((x) => !b.some((y) => stableJson(y) === stableJson(x))).length;
-    const parts = [added ? `+${added}` : "", removed ? `−${removed}` : ""].filter(Boolean);
-    return parts.length ? `${label}: ${parts.join(", ")}` : `${label} reordenados`;
-  }
-  const byId = new Map(a.map((x) => [x.id as string, x]));
-  const added = b.filter((x) => !byId.has(x.id as string));
-  const removed = a.filter((x) => !b.some((y) => y.id === x.id));
-  const changed = b.filter((x) => byId.has(x.id as string) && stableJson(byId.get(x.id as string)) !== stableJson(x));
-  const name = (x: Record<string, unknown>) => String(x.name ?? x.title ?? "").trim();
-  const parts: string[] = [];
-  if (added.length) parts.push(`+${added.length}${added.some(name) ? ` (${added.map(name).filter(Boolean).join(", ")})` : ""}`);
-  if (removed.length) parts.push(`−${removed.length}`);
-  if (changed.length) parts.push(`${changed.length} alterado${changed.length > 1 ? "s" : ""}`);
-  return parts.length ? `${label}: ${parts.join(", ")}` : `${label} reordenados`;
-}
-
-function describeChanges(published: Record<string, unknown> | undefined, draft: Record<string, unknown> | undefined) {
-  if (!draft) return [];
-  const before = published ?? {};
-  const out: Array<{ section: string; items: string[] }> = [];
-  for (const g of CHANGE_GROUPS) {
-    const items = new Set<string>();
-    for (const [key, label] of g.keys) {
-      if (stableJson(before[key]) === stableJson(draft[key])) continue;
-      if (key === "themes" || key === "rules" || key === "globalRules" || key === "allowedKnowledgeDocIds") {
-        items.add(describeListChange(label, before[key], draft[key]));
-      } else if (key === "calendar") {
-        const n = (x: unknown) => (((x as { events?: unknown[] } | undefined)?.events) ?? []).length;
-        items.add(`calendário: ${n(before[key])} → ${n(draft[key])} datas`);
-      } else {
-        items.add(`${label} alterado`);
-      }
-    }
-    if (items.size) out.push({ section: g.section, items: [...items] });
-  }
-  return out;
+/** Uma mudança: rótulo à esquerda, de → para (ou o que entrou/saiu) à direita. */
+function ChangeRow({ line, compact }: { line: DiffLine; compact?: boolean }) {
+  const long = (line.from?.length ?? 0) + (line.to?.length ?? 0) > 70;
+  return (
+    <div className={cn("grid gap-1 sm:grid-cols-[190px_minmax(0,1fr)] sm:gap-4", compact ? "px-3 py-2" : "px-4 py-2.5")}>
+      <span className="text-[13px] text-muted-foreground">{line.label}</span>
+      <div className="min-w-0 text-[13px]">
+        {line.from !== undefined && line.to !== undefined ? (
+          long ? (
+            <div className="space-y-1">
+              <p className="whitespace-pre-line break-words rounded-md bg-rose-50 px-2 py-1 text-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+                <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">De</span>
+                {line.from}
+              </p>
+              <p className="whitespace-pre-line break-words rounded-md bg-emerald-50 px-2 py-1 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Para</span>
+                {line.to}
+              </p>
+            </div>
+          ) : (
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-rose-700 line-through decoration-rose-300 dark:bg-rose-500/10 dark:text-rose-300">
+                {line.from}
+              </span>
+              <IconArrowRight className="size-3.5 text-muted-foreground" />
+              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+                {line.to}
+              </span>
+            </span>
+          )
+        ) : line.added || line.removed ? (
+          <ChangeChips added={line.added} removed={line.removed} />
+        ) : (
+          <span className="italic text-muted-foreground">{line.note}</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PublishDialog({
@@ -1511,7 +1487,7 @@ function PublishDialog({
   open: boolean;
   nextVersion: number;
   firstPublish: boolean;
-  changes: Array<{ section: string; items: string[] }>;
+  changes: DiffSection[];
   realClients: boolean;
   publishing: boolean;
   onCancel: () => void;
@@ -1521,7 +1497,7 @@ function PublishDialog({
   const [comment, setComment] = React.useState("");
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent size="lg">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>Publicar a versão {nextVersion}?</DialogTitle>
           <DialogDescription>
@@ -1539,11 +1515,37 @@ function PublishDialog({
               {changes.length === 0 ? (
                 <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm text-muted-foreground">Nada mudou desde a última publicação.</p>
               ) : (
-                <div className="max-h-[40vh] space-y-2 overflow-y-auto">
+                <div className="max-h-[48vh] space-y-3 overflow-y-auto pr-1">
                   {changes.map((c) => (
-                    <div key={c.section} className="flex flex-col gap-0.5 rounded-xl bg-muted/60 px-3 py-2 sm:flex-row sm:gap-3">
-                      <span className="shrink-0 text-sm font-semibold sm:w-48">{c.section}</span>
-                      <span className="text-sm text-foreground/80">{c.items.join("; ")}</span>
+                    <div key={c.section} className="overflow-hidden rounded-xl border border-border">
+                      <p className="border-b border-border/70 bg-slate-50 px-4 py-2 text-[13px] font-semibold dark:bg-muted/40">{c.section}</p>
+                      <div className="divide-y divide-border/60">
+                        {c.lines.map((l, i) => (
+                          <ChangeRow key={i} line={l} />
+                        ))}
+                        {c.groups.map((g) => (
+                          <div key={g.label} className="space-y-2.5 px-4 py-3">
+                            <p className="text-[13px] font-medium text-muted-foreground">{g.label}</p>
+                            {(g.added.length > 0 || g.removed.length > 0) && (
+                              <ChangeChips added={g.added.map((n) => `${n} (novo)`)} removed={g.removed.map((n) => `${n} (excluído)`)} />
+                            )}
+                            {g.changed.map((item) => (
+                              <div key={item.name} className="rounded-lg border border-border/70">
+                                <p className="flex items-center gap-1.5 px-3 pt-2 text-[13px] font-semibold">
+                                  <IconPencil className="size-3.5 text-muted-foreground" />
+                                  {item.name}
+                                </p>
+                                <div className="divide-y divide-border/50">
+                                  {item.lines.map((l, i) => (
+                                    <ChangeRow key={i} line={l} compact />
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                            {g.reordered && <p className="text-xs italic text-muted-foreground">Só a ordem mudou.</p>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
