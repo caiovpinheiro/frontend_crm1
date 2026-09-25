@@ -47,7 +47,7 @@ const newId = () => `ev_${Date.now().toString(36)}_${Math.random().toString(36).
 
 function SectionBox({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-5 rounded-2xl border border-border bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 dark:bg-card">
+    <section className="space-y-5 rounded-2xl border border-border bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)] sm:p-6 v2-dark:bg-card">
       <div className="space-y-1">
         <h3 className="text-base font-bold leading-tight">{title}</h3>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
@@ -226,7 +226,7 @@ export function CalendarStep({
                   : "· lidas linha a linha."}
               </span>
             </p>
-            <div className="max-h-80 space-y-1 overflow-y-auto rounded-lg border border-border bg-white p-2 dark:bg-card">
+            <div className="max-h-80 space-y-1 overflow-y-auto rounded-lg border border-border bg-white p-2 v2-dark:bg-card">
               {preview.events.map((e) => (
                 <label key={e.id} className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 text-sm hover:bg-muted/50">
                   <input

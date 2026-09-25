@@ -11,19 +11,19 @@ import { cn } from "@/lib/utils";
 
 /** Cartão branco com borda e sombra leves. Sobrescreve o vidro do <Card>. */
 export const SURFACE =
-  "rounded-2xl border border-border bg-white text-card-foreground shadow-[0_1px_3px_rgba(15,23,42,0.06)] backdrop-blur-none hover:shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:bg-card";
+  "rounded-2xl border border-border bg-white text-card-foreground shadow-[0_1px_3px_rgba(15,23,42,0.06)] backdrop-blur-none hover:shadow-[0_1px_3px_rgba(15,23,42,0.06)] v2-dark:bg-card";
 
 export const TONES = {
-  blue: "bg-blue-50 text-blue-600 ring-blue-100 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-500/20",
-  violet: "bg-violet-50 text-violet-600 ring-violet-100 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/20",
-  emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/20",
-  amber: "bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/20",
-  rose: "bg-rose-50 text-rose-600 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/20",
-  sky: "bg-sky-50 text-sky-600 ring-sky-100 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/20",
-  teal: "bg-teal-50 text-teal-600 ring-teal-100 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/20",
-  slate: "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:ring-slate-500/20",
-  orange: "bg-orange-50 text-orange-600 ring-orange-100 dark:bg-orange-500/15 dark:text-orange-300 dark:ring-orange-500/20",
-  indigo: "bg-indigo-50 text-indigo-600 ring-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/20",
+  blue: "bg-blue-50 text-blue-600 ring-blue-100 v2-dark:bg-blue-500/15 v2-dark:text-blue-300 v2-dark:ring-blue-500/20",
+  violet: "bg-violet-50 text-violet-600 ring-violet-100 v2-dark:bg-violet-500/15 v2-dark:text-violet-300 v2-dark:ring-violet-500/20",
+  emerald: "bg-emerald-50 text-emerald-600 ring-emerald-100 v2-dark:bg-emerald-500/15 v2-dark:text-emerald-300 v2-dark:ring-emerald-500/20",
+  amber: "bg-amber-50 text-amber-600 ring-amber-100 v2-dark:bg-amber-500/15 v2-dark:text-amber-300 v2-dark:ring-amber-500/20",
+  rose: "bg-rose-50 text-rose-600 ring-rose-100 v2-dark:bg-rose-500/15 v2-dark:text-rose-300 v2-dark:ring-rose-500/20",
+  sky: "bg-sky-50 text-sky-600 ring-sky-100 v2-dark:bg-sky-500/15 v2-dark:text-sky-300 v2-dark:ring-sky-500/20",
+  teal: "bg-teal-50 text-teal-600 ring-teal-100 v2-dark:bg-teal-500/15 v2-dark:text-teal-300 v2-dark:ring-teal-500/20",
+  slate: "bg-slate-100 text-slate-600 ring-slate-200 v2-dark:bg-slate-500/15 v2-dark:text-slate-300 v2-dark:ring-slate-500/20",
+  orange: "bg-orange-50 text-orange-600 ring-orange-100 v2-dark:bg-orange-500/15 v2-dark:text-orange-300 v2-dark:ring-orange-500/20",
+  indigo: "bg-indigo-50 text-indigo-600 ring-indigo-100 v2-dark:bg-indigo-500/15 v2-dark:text-indigo-300 v2-dark:ring-indigo-500/20",
 } as const;
 
 export type Tone = keyof typeof TONES;
@@ -126,7 +126,7 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
 }) {
   return (
-    <div role="tablist" className={cn("inline-flex max-w-full flex-wrap gap-1 rounded-xl bg-slate-100 p-1 dark:bg-muted", className)}>
+    <div role="tablist" className={cn("inline-flex max-w-full flex-wrap gap-1 rounded-xl bg-slate-100 p-1 v2-dark:bg-muted", className)}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -140,7 +140,7 @@ export function Segmented<T extends string>({
               "inline-flex items-center gap-1.5 rounded-lg font-medium transition-all",
               size === "sm" ? "h-7 px-2.5 text-xs" : "h-8 px-3 text-[13px]",
               on
-                ? "bg-white text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.12)] dark:bg-card"
+                ? "bg-white text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.12)] v2-dark:bg-card"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -150,12 +150,12 @@ export function Segmented<T extends string>({
                 className={cn(
                   "min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold tabular-nums",
                   o.tone === "danger" && o.count > 0
-                    ? "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                    ? "bg-rose-100 text-rose-700 v2-dark:bg-rose-500/20 v2-dark:text-rose-300"
                     : o.tone === "warning" && o.count > 0
-                      ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                      ? "bg-amber-100 text-amber-700 v2-dark:bg-amber-500/20 v2-dark:text-amber-300"
                       : on
-                        ? "bg-slate-100 text-slate-700 dark:bg-muted dark:text-foreground"
-                        : "bg-white/70 text-slate-500 dark:bg-card/60",
+                        ? "bg-slate-100 text-slate-700 v2-dark:bg-muted v2-dark:text-foreground"
+                        : "bg-white/70 text-slate-500 v2-dark:bg-card/60",
                 )}
               >
                 {o.count}
@@ -170,6 +170,6 @@ export function Segmented<T extends string>({
 
 /** Abas (Tabs) no mesmo estilo do controle segmentado. */
 export const TABS_LIST =
-  "h-auto flex-wrap justify-start gap-1 rounded-xl border-0 bg-slate-200/60 p-1 shadow-none backdrop-blur-none dark:bg-muted";
+  "h-auto flex-wrap justify-start gap-1 rounded-xl border-0 bg-slate-200/60 p-1 shadow-none backdrop-blur-none v2-dark:bg-muted";
 export const TABS_TRIGGER =
-  "h-8 rounded-lg px-3.5 text-[13px] data-[state=active]:border-transparent data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_2px_rgba(15,23,42,0.12)] data-[state=active]:backdrop-blur-none dark:data-[state=active]:bg-card";
+  "h-8 rounded-lg px-3.5 text-[13px] data-[state=active]:border-transparent data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_2px_rgba(15,23,42,0.12)] data-[state=active]:backdrop-blur-none v2-dark:data-[state=active]:bg-card";

@@ -184,9 +184,9 @@ function pct(n: number, d: number): string {
 /** Cor do placar: verde a partir de 70%, âmbar a partir de 40%. */
 function scoreTone(n: number, d: number): { text: string; bar: string; tone: Tone } {
   const r = d > 0 ? n / d : 0;
-  if (r >= 0.7) return { text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500", tone: "emerald" };
-  if (r >= 0.4) return { text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500", tone: "amber" };
-  return { text: "text-rose-600 dark:text-rose-400", bar: "bg-rose-500", tone: "rose" };
+  if (r >= 0.7) return { text: "text-emerald-600 v2-dark:text-emerald-400", bar: "bg-emerald-500", tone: "emerald" };
+  if (r >= 0.4) return { text: "text-amber-600 v2-dark:text-amber-400", bar: "bg-amber-500", tone: "amber" };
+  return { text: "text-rose-600 v2-dark:text-rose-400", bar: "bg-rose-500", tone: "rose" };
 }
 
 function dateTime(iso: string): string {
@@ -253,11 +253,11 @@ function HowItWorks() {
     },
   ];
   return (
-    <div className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-muted/40">
+    <div className="space-y-3 rounded-xl bg-slate-50 p-4 v2-dark:bg-muted/40">
       <ol className="grid gap-3 sm:grid-cols-3">
         {steps.map((s, i) => (
           <li key={s.title} className="flex gap-2.5">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 v2-dark:bg-violet-500/20 v2-dark:text-violet-300">
               {i + 1}
             </span>
             <div className="space-y-0.5">
@@ -484,8 +484,8 @@ export function CompareHuman({ agentId }: { agentId: string }) {
           )}
         </div>
 
-        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center dark:bg-muted/40">
-          <p className={cn("flex-1 text-[13px] text-muted-foreground", estimateWarn && "text-amber-700 dark:text-amber-400")}>
+        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center v2-dark:bg-muted/40">
+          <p className={cn("flex-1 text-[13px] text-muted-foreground", estimateWarn && "text-amber-700 v2-dark:text-amber-400")}>
             {estimateText}
           </p>
           <Button className="gap-1.5 sm:ml-auto" disabled={!canStart} onClick={() => start.mutate()}>
@@ -533,7 +533,7 @@ function RunHistory({ runs, currentId, onSelect }: { runs: Run[]; currentId: str
                 onClick={() => onSelect(r.id)}
                 className={cn(
                   "flex w-full items-center gap-4 px-5 py-2.5 text-left transition-colors",
-                  on ? "bg-blue-50/70 dark:bg-primary/10" : "hover:bg-slate-50 dark:hover:bg-muted/40",
+                  on ? "bg-blue-50/70 v2-dark:bg-primary/10" : "hover:bg-slate-50 v2-dark:hover:bg-muted/40",
                 )}
               >
                 <span className={cn("h-8 w-1 shrink-0 rounded-full", on ? "bg-primary" : "bg-transparent")} />
@@ -552,7 +552,7 @@ function RunHistory({ runs, currentId, onSelect }: { runs: Run[]; currentId: str
                 {r.status === "canceled" && <Pill tone="slate">interrompida</Pill>}
                 {g && g.avaliados > 0 && score && (
                   <div className="flex w-28 shrink-0 items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-muted">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 v2-dark:bg-muted">
                       <div className={cn("h-full rounded-full", score.bar)} style={{ width: pct(g.resolveuComoHumano, g.avaliados) }} />
                     </div>
                     <span className={cn("w-9 text-right text-[13px] font-semibold tabular-nums", score.text)}>
@@ -569,7 +569,7 @@ function RunHistory({ runs, currentId, onSelect }: { runs: Run[]; currentId: str
         <button
           type="button"
           onClick={() => setAll((v) => !v)}
-          className="w-full border-t border-border/70 py-2 text-xs font-medium text-muted-foreground hover:bg-slate-50 hover:text-foreground dark:hover:bg-muted/40"
+          className="w-full border-t border-border/70 py-2 text-xs font-medium text-muted-foreground hover:bg-slate-50 hover:text-foreground v2-dark:hover:bg-muted/40"
         >
           {all ? "Mostrar menos" : `Ver todas (${runs.length})`}
         </button>
@@ -616,7 +616,7 @@ function ImportPanel({ agentId, items, onChange }: { agentId: string; items: Imp
     );
 
   return (
-    <div className="space-y-3 rounded-xl border border-dashed border-border bg-slate-50/60 p-4 dark:bg-muted/30">
+    <div className="space-y-3 rounded-xl border border-dashed border-border bg-slate-50/60 p-4 v2-dark:bg-muted/30">
       <div className="flex flex-wrap items-center gap-2">
         <input
           ref={fileRef}
@@ -630,7 +630,7 @@ function ImportPanel({ agentId, items, onChange }: { agentId: string; items: Imp
             e.target.value = "";
           }}
         />
-        <Button size="sm" variant="outline" className="gap-1 bg-white dark:bg-card" disabled={parse.isPending} onClick={() => fileRef.current?.click()}>
+        <Button size="sm" variant="outline" className="gap-1 bg-white v2-dark:bg-card" disabled={parse.isPending} onClick={() => fileRef.current?.click()}>
           {parse.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconUpload className="size-4" />}
           Anexar conversas
         </Button>
@@ -655,7 +655,7 @@ function ImportPanel({ agentId, items, onChange }: { agentId: string; items: Imp
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Clique nos nomes para marcar quem é da equipe. Os demais contam como cliente.</p>
           {items.map((t, i) => (
-            <div key={`${t.name}-${i}`} className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-white p-2.5 text-sm dark:bg-card">
+            <div key={`${t.name}-${i}`} className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-white p-2.5 text-sm v2-dark:bg-card">
               <span className="font-medium">{t.name}</span>
               {t.error ? (
                 <span className="text-destructive">
@@ -754,7 +754,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
             <span className="ml-auto text-xs text-muted-foreground">{money(run.costUsd, 3)} até agora</span>
             <CancelButton agentId={agentId} runId={run.id} />
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-muted">
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100 v2-dark:bg-muted">
             <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${run.total ? (run.done / run.total) * 100 : 0}%` }} />
           </div>
           <p className="text-xs text-muted-foreground">
@@ -763,12 +763,12 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
         </section>
       )}
       {run.status === "error" && (
-        <p className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+        <p className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 v2-dark:border-rose-500/30 v2-dark:bg-rose-500/10 v2-dark:text-rose-300">
           <IconAlertTriangle className="size-4 shrink-0" /> {run.error === "NO_OPENAI_KEY" ? "Configure a chave do modelo para comparar." : run.error}
         </p>
       )}
       {run.status === "canceled" && (
-        <p className="rounded-xl border border-border bg-white px-4 py-3 text-sm text-muted-foreground dark:bg-card">
+        <p className="rounded-xl border border-border bg-white px-4 py-3 text-sm text-muted-foreground v2-dark:bg-card">
           Comparação interrompida em {run.done} de {run.total} pontos. O placar mostra só o que foi comparado.
         </p>
       )}
@@ -811,7 +811,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
 
         {g.avaliados > 0 && (
           <div className="space-y-4 p-5 sm:p-6">
-            <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-slate-100 dark:bg-muted">
+            <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-slate-100 v2-dark:bg-muted">
               {OUTCOME_ORDER.map((o) =>
                 g.resultados?.[o] ? (
                   <div
@@ -874,7 +874,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
             </div>
             <div className="overflow-x-auto rounded-xl border border-border/70">
               <table className="w-full text-left text-[13px]">
-                <thead className="bg-slate-50 text-xs text-muted-foreground dark:bg-muted/40">
+                <thead className="bg-slate-50 text-xs text-muted-foreground v2-dark:bg-muted/40">
                   <tr>
                     <th className="px-3 py-2 font-medium">Assunto</th>
                     <th className="px-3 py-2 text-right font-medium">Pontos</th>
@@ -892,8 +892,8 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
                       <tr
                         key={a.assunto}
                         className={cn(
-                          "cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-muted/40",
-                          theme === a.assunto && "bg-blue-50/70 dark:bg-primary/10",
+                          "cursor-pointer transition-colors hover:bg-slate-50 v2-dark:hover:bg-muted/40",
+                          theme === a.assunto && "bg-blue-50/70 v2-dark:bg-primary/10",
                         )}
                         onClick={() => setTheme((cur) => (cur === a.assunto ? null : a.assunto))}
                       >
@@ -901,7 +901,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
                         <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{a.avaliados}</td>
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 dark:bg-muted">
+                            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 v2-dark:bg-muted">
                               <div className={cn("h-full rounded-full", t.bar)} style={{ width: pct(a.resolveuComoHumano, a.avaliados) }} />
                             </div>
                             <span className={cn("font-semibold tabular-nums", t.text)}>{pct(a.resolveuComoHumano, a.avaliados)}</span>
@@ -926,7 +926,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
           <button
             type="button"
             onClick={() => setTheme(null)}
-            className="inline-flex h-8 items-center gap-1 rounded-lg bg-blue-50 px-2.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-100 hover:bg-blue-100 dark:bg-primary/15 dark:text-blue-300"
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-blue-50 px-2.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-100 hover:bg-blue-100 v2-dark:bg-primary/15 v2-dark:text-blue-300"
           >
             {theme} <IconX className="size-3" />
           </button>
@@ -937,7 +937,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
       </div>
 
       {visible.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-border bg-white px-4 py-8 text-center text-sm text-muted-foreground dark:bg-card">
+        <p className="rounded-2xl border border-dashed border-border bg-white px-4 py-8 text-center text-sm text-muted-foreground v2-dark:bg-card">
           Nenhum ponto neste filtro.
         </p>
       )}
@@ -1024,7 +1024,7 @@ function PointCard({ item }: { item: Item }) {
             </Pill>
           )
         )}
-        <Pill tone="slate" className="bg-white dark:bg-card">
+        <Pill tone="slate" className="bg-white v2-dark:bg-card">
           {item.themeName || v?.assunto || "Sem assunto"}
         </Pill>
         {v && o && !o.hit && v.causa !== "ok" && CAUSE[v.causa] && (
@@ -1055,7 +1055,7 @@ function PointCard({ item }: { item: Item }) {
         </div>
 
         {(v?.explicacao || (o && !o.hit)) && !item.error && (
-          <div className="flex gap-2.5 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] dark:bg-muted/40">
+          <div className="flex gap-2.5 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[13px] v2-dark:bg-muted/40">
             <IconClipboardCheck className="mt-0.5 size-4 shrink-0 text-violet-500" />
             <p className="leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground">Avaliador: </span>
@@ -1064,7 +1064,7 @@ function PointCard({ item }: { item: Item }) {
           </div>
         )}
         {v?.inventou && v.invencao && (
-          <div className="flex gap-2.5 rounded-xl bg-rose-50 px-3.5 py-2.5 text-[13px] text-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+          <div className="flex gap-2.5 rounded-xl bg-rose-50 px-3.5 py-2.5 text-[13px] text-rose-800 v2-dark:bg-rose-500/10 v2-dark:text-rose-300">
             <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
             <p>
               <span className="font-semibold">Inventado: </span>
@@ -1092,7 +1092,7 @@ function PointCard({ item }: { item: Item }) {
           </div>
         )}
         {showHistory && (
-          <div className="space-y-1.5 rounded-xl bg-[#EFEAE2] p-3 text-[12.5px] dark:bg-muted/40">
+          <div className="space-y-1.5 rounded-xl bg-[#EFEAE2] p-3 text-[12.5px] v2-dark:bg-muted/40">
             {item.history!.map((h, i) => (
               <div key={i} className={cn("flex", h.role === "user" ? "justify-end" : "justify-start")}>
                 <p
@@ -1110,7 +1110,7 @@ function PointCard({ item }: { item: Item }) {
         {showSources && (
           <div className="space-y-2">
             {item.sources.map((s, i) => (
-              <div key={i} className="rounded-xl border border-border/70 bg-slate-50 p-3 text-xs dark:bg-muted/40">
+              <div key={i} className="rounded-xl border border-border/70 bg-slate-50 p-3 text-xs v2-dark:bg-muted/40">
                 <p className="mb-1 font-semibold">
                   {s.title || "Material"} {s.similarity !== null && <span className="font-normal text-muted-foreground">· {s.similarity}</span>}
                 </p>
@@ -1125,10 +1125,10 @@ function PointCard({ item }: { item: Item }) {
 }
 
 const BUBBLE_TONE = {
-  client: { box: "border-border/70 bg-slate-50 dark:bg-muted/40", label: "text-slate-500" },
-  team: { box: "border-emerald-100 bg-emerald-50/60 dark:border-emerald-500/20 dark:bg-emerald-500/10", label: "text-emerald-700 dark:text-emerald-400" },
-  agent: { box: "border-blue-100 bg-blue-50/60 dark:border-blue-500/20 dark:bg-blue-500/10", label: "text-blue-700 dark:text-blue-400" },
-  error: { box: "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10", label: "text-amber-700 dark:text-amber-400" },
+  client: { box: "border-border/70 bg-slate-50 v2-dark:bg-muted/40", label: "text-slate-500" },
+  team: { box: "border-emerald-100 bg-emerald-50/60 v2-dark:border-emerald-500/20 v2-dark:bg-emerald-500/10", label: "text-emerald-700 v2-dark:text-emerald-400" },
+  agent: { box: "border-blue-100 bg-blue-50/60 v2-dark:border-blue-500/20 v2-dark:bg-blue-500/10", label: "text-blue-700 v2-dark:text-blue-400" },
+  error: { box: "border-amber-200 bg-amber-50 v2-dark:border-amber-500/30 v2-dark:bg-amber-500/10", label: "text-amber-700 v2-dark:text-amber-400" },
 } as const;
 
 function Bubble({

@@ -16,6 +16,7 @@ export type NameCatalogs = {
   contactCustomFields?: Array<{ id: string; name: string }>;
   dealCustomFields?: Array<{ id: string; name: string }>;
   models?: Array<{ id: string; name: string }>;
+  pipelines?: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
 };
 
 export type DiffLine = {
@@ -47,7 +48,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "Do que ele cuida",
-    keys: [["themes", "Assuntos"], ["rules", "Atalhos automáticos"], ["enabledTools", "O que ele pode fazer"], ["scope", "Fora do escopo"]],
+    keys: [["themes", "Assuntos"], ["rules", "Atalhos automáticos"], ["enabledTools", "O que ele pode fazer"], ["actionOptions", "O que ele pode fazer"], ["scope", "Fora do escopo"]],
   },
   {
     section: "Começo e fim da conversa",
@@ -113,7 +114,9 @@ const PATH_LABEL: Record<string, string> = {
   "fallback.error.message": "Erro: mensagem",
 
   "scope.message": "Mensagem fora do escopo",
-  "scope.forbidden": "Assuntos proibidos",
+  "scope.forbidden": "Assuntos que ele não trata",
+  "actionOptions.tags": "Etiquetas que pode usar",
+  "actionOptions.stageIds": "Etapas para onde pode mover",
 
   "sentiment.enabled": "Detectar insatisfação",
   "sentiment.threshold": "A partir de",
@@ -195,6 +198,16 @@ const TOOL_LABEL: Record<string, string> = {
   search_crm_records: "Buscar dados do cliente no CRM",
   knowledge_search: "Buscar nos materiais",
   list_message_models: "Listar mensagens prontas",
+  ask_with_options: "Perguntar com botões",
+  add_tag: "Colocar etiqueta",
+  move_stage: "Mover o negócio de etapa",
+  create_activity: "Criar tarefa para a equipe",
+  add_note: "Deixar anotação interna",
+  handoff: "Transferir",
+  send_message_model: "Enviar mensagem pronta",
+  send_product: "Enviar produto",
+  create_deal: "Criar negócio",
+  update_field: "Atualizar campo",
 };
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -246,6 +259,7 @@ function idCatalog(path: string, c: NameCatalogs): Array<{ id: string; name: str
   if (path === "model") return c.models ?? [];
   if (path === "contextFields.contact") return c.contactCustomFields ?? [];
   if (path === "contextFields.deal") return c.dealCustomFields ?? [];
+  if (path === "actionOptions.stageIds") return (c.pipelines ?? []).flatMap((p) => p.stages.map((s) => ({ id: s.id, name: `${p.name} › ${s.name}` })));
   return null;
 }
 
@@ -291,13 +305,13 @@ function itemName(path: string, v: unknown, c: NameCatalogs): string {
     const target = isObj(v.destination) ? ` (${destination(v.destination, c)})` : "";
     return `${ACTION_LABEL[String(v.type)] ?? v.type}${extra ? ` “${clip(String(extra), 80)}”` : ""}${target}`;
   }
-  const n = v.name ?? v.title ?? v.label ?? v.key ?? v.question;
+  const n = v.name ?? v.title ?? v.label ?? v.key ?? v.question ?? v.subject;
   return n ? clip(String(n), 120) : clip(stableJson(v), 120);
 }
 
 function formatValue(path: string, v: unknown, c: NameCatalogs): string {
-  if (v === undefined || v === null) return "(não definido)";
   if (path.endsWith("Destination") || path === "handoff.defaultDestination") return destination(v, c);
+  if (v === undefined || v === null) return "(não definido)";
   if (typeof v === "boolean") return YES_NO[String(v) as "true" | "false"];
   if (typeof v === "number" || typeof v === "string") {
     const s = String(v);
@@ -314,11 +328,21 @@ function formatValue(path: string, v: unknown, c: NameCatalogs): string {
   return clip(stableJson(v), 120);
 }
 
-/** Caminho sem índices: themes.3.name → themes.name. */
+/** Rótulo do campo pelo caminho (listas de assuntos/atalhos sem índice). */
 const labelFor = (path: string) => PATH_LABEL[path];
 
+/** Vazio em qualquer forma (nada, "", [], {} só com vazios). */
+function isEmptyValue(v: unknown): boolean {
+  if (v === undefined || v === null) return true;
+  if (typeof v === "string") return v.trim() === "";
+  if (Array.isArray(v)) return v.length === 0;
+  if (isObj(v)) return Object.values(v).every(isEmptyValue);
+  return false;
+}
+
 function diffValue(path: string, label: string, a: unknown, b: unknown, c: NameCatalogs, out: DiffLine[]) {
-  if (same(a, b)) return;
+  // Campo novo ainda sem valor ("" → nada, [] → nada) não é mudança.
+  if (same(a, b) || (isEmptyValue(a) && isEmptyValue(b))) return;
 
   // Objetos: desce nos campos; destinos são um valor só.
   if ((isObj(a) || isObj(b)) && !path.endsWith("Destination") && path !== "handoff.defaultDestination") {
@@ -341,7 +365,7 @@ function diffValue(path: string, label: string, a: unknown, b: unknown, c: NameC
     const added = bb.filter((x) => !aa.some((y) => same(x, y))).map((x) => itemName(path, x, c));
     const removed = aa.filter((x) => !bb.some((y) => same(x, y))).map((x) => itemName(path, x, c));
     if (added.length || removed.length) out.push({ label, added, removed });
-    else out.push({ label, note: "mesma lista, em outra ordem" });
+    else if (aa.length > 0) out.push({ label, note: "mesma lista, em outra ordem" });
     return;
   }
 

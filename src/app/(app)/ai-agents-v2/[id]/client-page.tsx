@@ -39,6 +39,16 @@ import {
   IconUsers,
   IconFlask,
   IconChecks,
+  IconTag,
+  IconArrowsRightLeft,
+  IconChecklist,
+  IconNote,
+  IconMessageCircleQuestion,
+  IconTarget,
+  IconCircleCheck,
+  IconCircleX,
+  IconChevronRight,
+  IconBan,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -75,7 +85,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
-import { IconChip, SURFACE, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
+import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
 import { TextListEditor } from "./text-list-editor";
@@ -112,6 +122,7 @@ type Catalogs = {
   knowledgeDocs: Array<{ id: string; name: string }>;
   channels: Array<{ id: string; name: string }>;
   pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
+  tags?: Array<{ id: string; name: string }>;
   contactCustomFields: Array<{ id: string; name: string }>;
   dealCustomFields: Array<{ id: string; name: string }>;
   products: Array<{ id: string; name: string }>;
@@ -865,6 +876,7 @@ export default function AIAgentV2EditPage() {
   const [section, setSection] = React.useState<SectionId>("inicio");
   const [knowTab, setKnowTab] = React.useState("materiais");
   const [careTab, setCareTab] = React.useState("assuntos");
+  const [focusTheme, setFocusTheme] = React.useState<{ id: string; at: number } | null>(null);
   const [testsTab, setTestsTab] = React.useState("whatsapp");
   const [testOpen, setTestOpen] = React.useState(true);
   const isWide = useMinWidth(1280);
@@ -1146,8 +1158,9 @@ export default function AIAgentV2EditPage() {
       compact={compact}
       agentName={name}
       onSave={async () => saveDraftMutation.mutateAsync()}
-      onGoToTheme={() => {
+      onGoToTheme={(themeId: string) => {
         setCareTab("assuntos");
+        setFocusTheme({ id: themeId, at: Date.now() });
         goTo("cuida");
       }}
       onGoToRule={() => {
@@ -1220,8 +1233,8 @@ export default function AIAgentV2EditPage() {
                       className={cn(
                         "group flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-2 text-left text-[13.5px] transition-colors",
                         on
-                          ? "bg-slate-100 font-semibold text-foreground dark:bg-muted"
-                          : "text-foreground/75 hover:bg-slate-50 hover:text-foreground dark:hover:bg-muted/60",
+                          ? "bg-slate-100 font-semibold text-foreground v2-dark:bg-muted"
+                          : "text-foreground/75 hover:bg-slate-50 hover:text-foreground v2-dark:hover:bg-muted/60",
                       )}
                     >
                       <IconChip icon={Icon} tone={s.tone} size="sm" className={cn("size-7 [&>svg]:size-4", !on && "opacity-90")} />
@@ -1296,10 +1309,18 @@ export default function AIAgentV2EditPage() {
                   <Tabs value={careTab} onValueChange={setCareTab} className="space-y-4">
                     <TabsList className={TABS_LIST}>
                       <TabsTrigger value="assuntos" className={TABS_TRIGGER}>Assuntos</TabsTrigger>
+                      <TabsTrigger value="acoes" className={TABS_TRIGGER}>O que ele pode fazer</TabsTrigger>
                       <TabsTrigger value="atalhos" className={TABS_TRIGGER}>Atalhos automáticos</TabsTrigger>
+                      <TabsTrigger value="escopo" className={TABS_TRIGGER}>Fora do escopo</TabsTrigger>
                     </TabsList>
                     <TabsContent value="assuntos">
-                      <StepThemes config={config} catalogs={catalogs} onChange={updateConfig} />
+                      <StepThemes agentId={id} config={config} catalogs={catalogs} onChange={updateConfig} focusTheme={focusTheme} />
+                    </TabsContent>
+                    <TabsContent value="acoes">
+                      <StepActions config={config} catalogs={catalogs} onChange={updateConfig} />
+                    </TabsContent>
+                    <TabsContent value="escopo">
+                      <StepScope config={config} onChange={updateConfig} />
                     </TabsContent>
                     <TabsContent value="atalhos">
                       <StepRules config={config} catalogs={catalogs} onChange={updateConfig} />
@@ -1421,12 +1442,12 @@ function ChangeChips({ added = [], removed = [] }: { added?: string[]; removed?:
   return (
     <div className="flex flex-wrap gap-1.5">
       {added.map((n, i) => (
-        <span key={`a${i}`} className="rounded-md bg-emerald-50 px-2 py-0.5 text-[13px] text-emerald-800 ring-1 ring-inset ring-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/20">
+        <span key={`a${i}`} className="rounded-md bg-emerald-50 px-2 py-0.5 text-[13px] text-emerald-800 ring-1 ring-inset ring-emerald-100 v2-dark:bg-emerald-500/15 v2-dark:text-emerald-300 v2-dark:ring-emerald-500/20">
           + {n}
         </span>
       ))}
       {removed.map((n, i) => (
-        <span key={`r${i}`} className="rounded-md bg-rose-50 px-2 py-0.5 text-[13px] text-rose-700 line-through decoration-rose-300 ring-1 ring-inset ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/20">
+        <span key={`r${i}`} className="rounded-md bg-rose-50 px-2 py-0.5 text-[13px] text-rose-700 line-through decoration-rose-300 ring-1 ring-inset ring-rose-100 v2-dark:bg-rose-500/15 v2-dark:text-rose-300 v2-dark:ring-rose-500/20">
           − {n}
         </span>
       ))}
@@ -1444,22 +1465,22 @@ function ChangeRow({ line, compact }: { line: DiffLine; compact?: boolean }) {
         {line.from !== undefined && line.to !== undefined ? (
           long ? (
             <div className="space-y-1">
-              <p className="whitespace-pre-line break-words rounded-md bg-rose-50 px-2 py-1 text-rose-800 dark:bg-rose-500/10 dark:text-rose-300">
+              <p className="whitespace-pre-line break-words rounded-md bg-rose-50 px-2 py-1 text-rose-800 v2-dark:bg-rose-500/10 v2-dark:text-rose-300">
                 <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">De</span>
                 {line.from}
               </p>
-              <p className="whitespace-pre-line break-words rounded-md bg-emerald-50 px-2 py-1 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-300">
+              <p className="whitespace-pre-line break-words rounded-md bg-emerald-50 px-2 py-1 text-emerald-900 v2-dark:bg-emerald-500/10 v2-dark:text-emerald-300">
                 <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">Para</span>
                 {line.to}
               </p>
             </div>
           ) : (
             <span className="inline-flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-rose-700 line-through decoration-rose-300 dark:bg-rose-500/10 dark:text-rose-300">
+              <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-rose-700 line-through decoration-rose-300 v2-dark:bg-rose-500/10 v2-dark:text-rose-300">
                 {line.from}
               </span>
               <IconArrowRight className="size-3.5 text-muted-foreground" />
-              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
+              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-800 v2-dark:bg-emerald-500/10 v2-dark:text-emerald-300">
                 {line.to}
               </span>
             </span>
@@ -1518,7 +1539,7 @@ function PublishDialog({
                 <div className="max-h-[48vh] space-y-3 overflow-y-auto pr-1">
                   {changes.map((c) => (
                     <div key={c.section} className="overflow-hidden rounded-xl border border-border">
-                      <p className="border-b border-border/70 bg-slate-50 px-4 py-2 text-[13px] font-semibold dark:bg-muted/40">{c.section}</p>
+                      <p className="border-b border-border/70 bg-slate-50 px-4 py-2 text-[13px] font-semibold v2-dark:bg-muted/40">{c.section}</p>
                       <div className="divide-y divide-border/60">
                         {c.lines.map((l, i) => (
                           <ChangeRow key={i} line={l} />
@@ -2941,7 +2962,7 @@ function SearchableToggleList({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <label className="flex h-10 flex-1 items-center gap-2 rounded-full border border-border bg-white px-4 focus-within:border-primary/50 dark:bg-card">
+        <label className="flex h-10 flex-1 items-center gap-2 rounded-full border border-border bg-white px-4 focus-within:border-primary/50 v2-dark:bg-card">
           <IconSearch className="size-4 shrink-0 text-muted-foreground" />
           <input
             type="search"
@@ -2982,7 +3003,7 @@ function SearchableToggleList({
           Liberar as {hiddenOff.length} encontradas
         </button>
       )}
-      <div className="h-[420px] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border bg-white dark:bg-card">
+      <div className="h-[420px] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border bg-white v2-dark:bg-card">
         {visible.length === 0 ? (
           <p className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {onlyOn && !q ? "Nenhuma liberada ainda." : "Nada encontrado."}
@@ -3199,26 +3220,210 @@ function destinationLabel(dest: { type?: string; id?: string } | undefined, cata
 
 /** Cores das iniciais dos assuntos, em rodízio. */
 const THEME_TONES = [
-  "bg-violet-50 text-violet-700 ring-violet-100 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/20",
-  "bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/20",
-  "bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/20",
-  "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/20",
-  "bg-rose-50 text-rose-700 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/20",
-  "bg-teal-50 text-teal-700 ring-teal-100 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/20",
+  "bg-violet-50 text-violet-700 ring-violet-100 v2-dark:bg-violet-500/15 v2-dark:text-violet-300 v2-dark:ring-violet-500/20",
+  "bg-emerald-50 text-emerald-700 ring-emerald-100 v2-dark:bg-emerald-500/15 v2-dark:text-emerald-300 v2-dark:ring-emerald-500/20",
+  "bg-sky-50 text-sky-700 ring-sky-100 v2-dark:bg-sky-500/15 v2-dark:text-sky-300 v2-dark:ring-sky-500/20",
+  "bg-amber-50 text-amber-700 ring-amber-100 v2-dark:bg-amber-500/15 v2-dark:text-amber-300 v2-dark:ring-amber-500/20",
+  "bg-rose-50 text-rose-700 ring-rose-100 v2-dark:bg-rose-500/15 v2-dark:text-rose-300 v2-dark:ring-rose-500/20",
+  "bg-teal-50 text-teal-700 ring-teal-100 v2-dark:bg-teal-500/15 v2-dark:text-teal-300 v2-dark:ring-teal-500/20",
 ];
 
+/** Ações que a pessoa libera em "O que ele pode fazer" (mesma lista do motor). */
+const ACTION_DEFS: Array<{ id: string; label: string; hint: string; icon: React.ComponentType<{ className?: string }>; tone: Tone }> = [
+  {
+    id: "ask_with_options",
+    label: "Perguntar com botões de opção",
+    hint: "Quando o cliente precisa escolher um caminho, ele manda a pergunta com até 3 botões.",
+    icon: IconListCheck,
+    tone: "sky",
+  },
+  { id: "add_tag", label: "Colocar etiqueta no cliente", hint: "Só as etiquetas que você escolher.", icon: IconTag, tone: "violet" },
+  {
+    id: "move_stage",
+    label: "Mover o negócio de etapa",
+    hint: "Só para as etapas que você escolher, quando as instruções pedirem.",
+    icon: IconArrowsRightLeft,
+    tone: "teal",
+  },
+  {
+    id: "create_activity",
+    label: "Criar tarefa para a equipe",
+    hint: "Para algo que a equipe precisa fazer depois, sem transferir a conversa agora.",
+    icon: IconChecklist,
+    tone: "amber",
+  },
+  { id: "add_note", label: "Deixar anotação interna", hint: "Um resumo no cliente que só a equipe vê.", icon: IconNote, tone: "slate" },
+];
+const ACTION_IDS = new Set(ACTION_DEFS.map((a) => a.id));
+
+type Recognition = {
+  themeId: string | null;
+  themeName: string | null;
+  method: "trigger" | "semantic" | "kept" | "none";
+  similarity: number | null;
+  ranking: Array<{ id: string; name: string; matched: string[]; similarity: number | null }>;
+  minSimilarity: number;
+  semantic: boolean;
+};
+
+async function testRecognition(agentId: string, message: string, themes: unknown[]): Promise<Recognition> {
+  const res = await apiFetch(`/api/ai-agents-v2/${agentId}/test-theme`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, themes }),
+  });
+  return parseApiResponse<Recognition>(res, "Erro ao testar o reconhecimento.");
+}
+
+/**
+ * "Testar reconhecimento": escreve uma mensagem de cliente e vê qual assunto
+ * ela pegaria, por quais palavras ou pelo sentido. Usa os assuntos da tela,
+ * mesmo antes de salvar.
+ */
+function ThemeRecognitionTest({
+  agentId,
+  themes,
+  focusThemeId,
+  onOpenTheme,
+}: {
+  agentId: string;
+  themes: Array<Record<string, unknown>>;
+  /** Dentro de um assunto: diz se é ele que a mensagem pegaria. */
+  focusThemeId?: string;
+  onOpenTheme?: (id: string) => void;
+}) {
+  const [message, setMessage] = React.useState("");
+  const test = useMutation({ mutationFn: (m: string) => testRecognition(agentId, m, themes) });
+  const r = test.data;
+  const run = () => message.trim() && test.mutate(message.trim());
+  const how = (x: Recognition) =>
+    x.method === "trigger" ? "pelas palavras" : x.method === "semantic" ? `pelo sentido (${Math.round((x.similarity ?? 0) * 100)}%)` : "";
+  const hit = r && focusThemeId ? r.themeId === focusThemeId : false;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <label className="flex h-10 flex-1 items-center gap-2 rounded-xl border border-border bg-white px-3 focus-within:border-primary/50 v2-dark:bg-card">
+          <IconMessageCircleQuestion className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && run()}
+            placeholder="Escreva como o cliente escreveria. Ex.: preciso da segunda via"
+            className="h-full flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            aria-label="Mensagem de teste"
+          />
+        </label>
+        <Button variant="outline" className="h-10 gap-1.5 bg-white v2-dark:bg-card" disabled={!message.trim() || test.isPending} onClick={run}>
+          {test.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconTarget className="size-4" />}
+          Testar
+        </Button>
+      </div>
+      {test.isError && <p className="text-sm text-destructive">{(test.error as Error)?.message}</p>}
+      {r && (
+        <div className="space-y-2.5 rounded-xl border border-border/70 bg-slate-50 p-3 v2-dark:bg-muted/40">
+          {focusThemeId ? (
+            <p className={cn("flex items-start gap-2 text-sm font-medium", hit ? "text-emerald-700 v2-dark:text-emerald-400" : "text-rose-700 v2-dark:text-rose-400")}>
+              {hit ? <IconCircleCheck className="mt-0.5 size-4 shrink-0" /> : <IconCircleX className="mt-0.5 size-4 shrink-0" />}
+              {hit
+                ? `Reconhece este assunto ${how(r)}.`
+                : r.themeId
+                  ? `Iria para outro assunto: ${r.themeName}. Acrescente palavras ou exemplos parecidos com esta mensagem.`
+                  : "Nenhum assunto reconheceria. Acrescente palavras ou exemplos parecidos com esta mensagem."}
+            </p>
+          ) : (
+            <p className="flex items-start gap-2 text-sm font-medium">
+              {r.themeId ? (
+                <>
+                  <IconCircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                  <span>
+                    Iria para <b>{r.themeName}</b> {how(r)}.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <IconCircleX className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                  Nenhum assunto: ele responde só com as regras gerais e os materiais.
+                </>
+              )}
+            </p>
+          )}
+          <ul className="space-y-1.5">
+            {r.ranking.slice(0, 5).map((t) => {
+              const chosen = t.id === r.themeId;
+              const pctSim = t.similarity === null ? null : Math.max(0, Math.min(100, Math.round(t.similarity * 100)));
+              return (
+                <li key={t.id} className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-3 text-[13px]">
+                  <div className="min-w-0">
+                    <button
+                      type="button"
+                      disabled={!onOpenTheme}
+                      onClick={() => onOpenTheme?.(t.id)}
+                      className={cn("truncate text-left", chosen ? "font-semibold" : "text-muted-foreground", onOpenTheme && "hover:underline")}
+                    >
+                      {t.name}
+                    </button>
+                    {t.matched.length > 0 && (
+                      <span className="ml-1.5 inline-flex flex-wrap gap-1 align-middle">
+                        {t.matched.slice(0, 4).map((m) => (
+                          <span key={m} className="rounded bg-emerald-100 px-1.5 text-[11px] text-emerald-800 v2-dark:bg-emerald-500/15 v2-dark:text-emerald-300">
+                            {m}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                  {pctSim !== null ? (
+                    <div className="flex items-center gap-2" title="Proximidade de sentido com o assunto">
+                      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 v2-dark:bg-muted">
+                        <div className={cn("h-full rounded-full", chosen ? "bg-emerald-500" : "bg-slate-400")} style={{ width: `${pctSim}%` }} />
+                        <span className="absolute inset-y-0 w-px bg-slate-500/60" style={{ left: `${Math.round(r.minSimilarity * 100)}%` }} />
+                      </div>
+                      <span className="w-8 text-right text-xs tabular-nums text-muted-foreground">{pctSim}%</span>
+                    </div>
+                  ) : (
+                    <span />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            {r.semantic
+              ? "Palavras cadastradas contam primeiro; sem elas, vale o assunto mais próximo em sentido (acima da marca)."
+              : "Sem chave do modelo válida: o teste usa só as palavras cadastradas."}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StepThemes({
+  agentId,
   config,
   catalogs,
   onChange,
+  focusTheme,
 }: {
+  agentId: string;
   config: Record<string, unknown>;
   catalogs: Catalogs;
   onChange: (path: string, value: unknown) => void;
+  /** Assunto a abrir (vindo do "Editar assunto" do teste); `at` distingue cliques repetidos. */
+  focusTheme?: { id: string; at: number } | null;
 }) {
   const themes = (config.themes as Array<Record<string, unknown>>) ?? [];
-  const [editingIdx, setEditingIdx] = React.useState<number | null>(null);
+  const [openId, setOpenId] = React.useState<string | null>(focusTheme?.id ?? null);
   const [dragIdx, setDragIdx] = React.useState<number | null>(null);
+  const openIdx = openId ? themes.findIndex((t) => String(t.id) === openId) : -1;
+
+  // Novo pedido de abrir um assunto: ajusta durante a renderização.
+  const [seenFocus, setSeenFocus] = React.useState(focusTheme?.at);
+  if (focusTheme && focusTheme.at !== seenFocus) {
+    setSeenFocus(focusTheme.at);
+    setOpenId(focusTheme.id);
+  }
 
   const moveTheme = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= themes.length || to >= themes.length) return;
@@ -3226,7 +3431,6 @@ function StepThemes({
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
     onChange("themes", next);
-    if (editingIdx === from) setEditingIdx(to);
   };
 
   const { confirm: confirmRemove, dialog: confirmRemoveDialog } = useConfirm();
@@ -3238,211 +3442,489 @@ function StepThemes({
       destructive: true,
     });
     if (!ok) return;
+    setOpenId(null);
     onChange("themes", themes.filter((_, j) => j !== i));
-    if (editingIdx === i) setEditingIdx(null);
   };
 
   const addTheme = () => {
+    const id = `theme_${Date.now()}`;
+    onChange("themes", [
+      ...themes,
+      {
+        id,
+        name: "Novo assunto",
+        when: [],
+        examples: [],
+        instructions: "",
+        allowedTools: [],
+        allowedKnowledgeDocIds: [],
+        allowedMessageModelIds: [],
+        productPolicy: { enabled: false },
+        answerBy: "self",
+        directHandoff: false,
+      },
+    ]);
+    setOpenId(id);
+  };
+
+  const patchTheme = (i: number, patch: Record<string, unknown>) => {
     const next = themes.slice();
-    next.push({
-      id: `theme_${Date.now()}`,
-      name: "Novo assunto",
-      when: [],
-      examples: [],
-      instructions: "",
-      allowedTools: [],
-      allowedKnowledgeDocIds: [],
-      allowedMessageModelIds: [],
-      productPolicy: { enabled: false },
-      answerBy: "self",
-      directHandoff: false,
-    });
+    next[i] = { ...next[i], ...patch };
     onChange("themes", next);
-    setEditingIdx(next.length - 1);
   };
 
   return (
     <div className="space-y-4">
       {confirmRemoveDialog}
-      <p className="text-sm text-muted-foreground">
-        Clique num assunto para editar. Ele escolhe o assunto pelas palavras e pelo sentido da mensagem.
-      </p>
-      {themes.map((t, i) => (
-        <Card
-          key={String(t.id) ?? i}
-          draggable
-          onDragStart={() => setDragIdx(i)}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (dragIdx !== null) moveTheme(dragIdx, i);
-            setDragIdx(null);
-          }}
-          onDragEnd={() => setDragIdx(null)}
-          className={cn(SURFACE, editingIdx === i && "border-primary/40 ring-1 ring-primary/15", dragIdx === i && "opacity-50")}
-        >
-          <CardHeader className="p-3 sm:p-4">
-            <div className="flex items-center gap-2">
-              <span className="cursor-grab text-muted-foreground/60 active:cursor-grabbing" title="Arrastar para mudar a ordem">
-                <IconGripVertical className="size-4" />
-              </span>
-              <button
-                type="button"
-                onClick={() => setEditingIdx(editingIdx === i ? null : i)}
-                aria-expanded={editingIdx === i}
-                className="flex min-w-0 flex-1 items-center gap-4 rounded-lg text-left"
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ring-1 ring-inset",
-                    THEME_TONES[i % THEME_TONES.length],
-                  )}
+
+      <section className={cn(SURFACE, "space-y-3 p-5")}>
+        <div className="flex items-start gap-3">
+          <IconChip icon={IconTarget} tone="emerald" size="sm" />
+          <div className="space-y-0.5">
+            <h3 className="text-[15px] font-semibold leading-tight">Testar reconhecimento</h3>
+            <p className="text-[13px] text-muted-foreground">
+              Qual assunto uma mensagem de cliente pegaria. Usa o que está na tela, mesmo antes de salvar.
+            </p>
+          </div>
+        </div>
+        <ThemeRecognitionTest agentId={agentId} themes={themes} onOpenTheme={setOpenId} />
+      </section>
+
+      <section className={cn(SURFACE, "overflow-hidden")}>
+        <div className="flex items-center gap-2 border-b border-border/70 px-5 py-3">
+          <h4 className="text-[13px] font-semibold">Assuntos</h4>
+          <span className="text-xs text-muted-foreground">· {themes.length} · arraste para mudar a ordem</span>
+          <Button size="sm" className="ml-auto h-8 gap-1" onClick={addTheme}>
+            <IconPlus className="size-4" /> Novo assunto
+          </Button>
+        </div>
+        {themes.length === 0 ? (
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+            Nenhum assunto ainda. Sem assuntos ele responde só com as regras gerais e os materiais.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {themes.map((t, i) => {
+              const when = (t.when as string[]) ?? [];
+              const examples = (t.examples as string[]) ?? [];
+              const ownActions = ((t.allowedTools as string[]) ?? []).filter((a) => ACTION_IDS.has(a));
+              const custom = ((t.allowedTools as string[]) ?? []).length > 0;
+              const noInstructions = !String(t.instructions ?? "").trim() && !t.directHandoff;
+              return (
+                <li
+                  key={String(t.id) ?? i}
+                  draggable
+                  onDragStart={() => setDragIdx(i)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIdx !== null) moveTheme(dragIdx, i);
+                    setDragIdx(null);
+                  }}
+                  onDragEnd={() => setDragIdx(null)}
+                  className={cn("group flex items-center gap-2 pl-2 pr-4 transition-colors hover:bg-slate-50 v2-dark:hover:bg-muted/40", dragIdx === i && "opacity-50")}
                 >
-                  {(((t.name as string) || "?").trim()[0] ?? "?").toUpperCase()}
-                </span>
-                <span className="min-w-0 flex-1 space-y-1.5">
-                  <span className="flex items-center gap-2">
-                    <span className="truncate text-[15px] font-semibold">{(t.name as string) || "Assunto sem nome"}</span>
-                    {Boolean(t.directHandoff) && (
-                      <Badge variant="outline" className="shrink-0 border-amber-200 bg-amber-50 text-amber-800">
-                        só encaminha
-                      </Badge>
-                    )}
+                  <span className="cursor-grab p-1 text-muted-foreground/40 group-hover:text-muted-foreground active:cursor-grabbing" title="Arrastar para mudar a ordem">
+                    <IconGripVertical className="size-4" />
                   </span>
-                  <span className="flex flex-wrap gap-1.5">
-                    {((t.when as string[]) ?? []).length === 0 ? (
-                      <span className="text-xs text-muted-foreground">Sem palavras de reconhecimento</span>
-                    ) : (
-                      <>
-                        {((t.when as string[]) ?? []).slice(0, 5).map((w) => (
-                          <span key={w} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-muted dark:text-foreground/80">
-                            {w}
+                  <button type="button" onClick={() => setOpenId(String(t.id))} className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ring-1 ring-inset",
+                        THEME_TONES[i % THEME_TONES.length],
+                      )}
+                    >
+                      {(((t.name as string) || "?").trim()[0] ?? "?").toUpperCase()}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-[14px] font-semibold">{(t.name as string) || "Assunto sem nome"}</span>
+                        {Boolean(t.directHandoff) && (
+                          <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-inset ring-amber-100">
+                            só encaminha
                           </span>
-                        ))}
-                        {((t.when as string[]) ?? []).length > 5 && (
-                          <span className="px-1 py-0.5 text-xs text-muted-foreground">+{((t.when as string[]) ?? []).length - 5}</span>
                         )}
-                      </>
-                    )}
-                  </span>
-                </span>
-                <span className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block">
-                  Se transferir
-                  <span className="block text-sm font-medium text-foreground">
-                    {destinationLabel(t.handoffDestination as { type?: string; id?: string } | undefined, catalogs)}
-                  </span>
-                </span>
-                <IconChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", editingIdx === i && "rotate-180")} />
-              </button>
-              <QuietIconButton label={`Excluir o assunto ${(t.name as string) || ""}`} danger onClick={() => removeTheme(i)}>
-                <IconTrash />
-              </QuietIconButton>
-            </div>
-          </CardHeader>
-          {editingIdx === i && (
-            <CardContent className="space-y-4">
-              <Field label="Nome" hint="Curto, ex.: Cancelamento, Segunda via.">
-                <Input
-                  value={(t.name as string) ?? ""}
-                  onChange={(e) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], name: e.target.value };
-                    onChange("themes", next);
-                  }}
-                />
-              </Field>
-              <Field label="Como reconhecer: palavras ou frases do cliente" hint="Prefira frases de 2 ou mais palavras. Mesmo sem elas, ele reconhece pelo sentido da mensagem.">
-                <ChipInput
-                  values={(t.when as string[]) ?? []}
-                  onChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], when: v };
-                    onChange("themes", next);
-                  }}
-                  placeholder="Ex.: quero cancelar"
-                />
-              </Field>
-              <Field label="Exemplos de mensagens do cliente" hint="Ajudam a reconhecer o assunto pelo sentido.">
-                <TextListEditor
-                  values={(t.examples as string[]) ?? []}
-                  onChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], examples: v };
-                    onChange("themes", next);
-                  }}
-                  numbered={false}
-                  addLabel="Adicionar exemplo"
-                  itemLabel="Exemplo"
-                  placeholder="Ex.: quero cancelar meu pedido"
-                />
-              </Field>
-              <Field label="O que fazer neste assunto" hint="Escreva como orientaria alguém novo na equipe.">
-                <Textarea
-                  value={(t.instructions as string) ?? ""}
-                  onChange={(e) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], instructions: e.target.value };
-                    onChange("themes", next);
-                  }}
-                />
-              </Field>
-              <Field label="Se precisar transferir, para quem" hint="Vazio: usa o destino padrão (Quando chama a equipe).">
-                <DestinationPicker
-                  value={t.handoffDestination as Record<string, string> | undefined}
-                  catalogs={catalogs}
-                  onChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], handoffDestination: v };
-                    onChange("themes", next);
-                  }}
-                />
-              </Field>
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={!!t.directHandoff}
-                  onCheckedChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], directHandoff: v };
-                    onChange("themes", next);
-                  }}
-                  id={`direct-${i}`}
-                />
-                <Label htmlFor={`direct-${i}`}>Só encaminha para a equipe, sem responder</Label>
-              </div>
-              <AdvancedOptions count={2}>
-              <Field label="Materiais extras só deste assunto" hint="Somam aos materiais gerais.">
-                <MultiSelectPopover
-                  label="Materiais"
-                  options={catalogs.knowledgeDocs.map((d) => ({ value: d.id, label: d.name }))}
-                  selected={((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)}
-                  onChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], allowedKnowledgeDocIds: v };
-                    onChange("themes", next);
-                  }}
-                />
-              </Field>
-              <Field label="Mensagens prontas deste assunto" hint="Se escolher alguma, só estas valem neste assunto (a lista geral deixa de valer).">
-                <MultiSelectPopover
-                  label="Modelos"
-                  options={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
-                  selected={((t.allowedMessageModelIds as string[]) ?? []).map(String)}
-                  onChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], allowedMessageModelIds: v };
-                    onChange("themes", next);
-                  }}
-                />
-              </Field>
-              </AdvancedOptions>
-            </CardContent>
+                        {custom && (
+                          <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-800 ring-1 ring-inset ring-sky-100">
+                            {ownActions.length > 0 ? `${ownActions.length} ${ownActions.length === 1 ? "ação própria" : "ações próprias"}` : "sem ações"}
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                        {when.length > 0 ? when.slice(0, 4).join(" · ") : "sem palavras"}
+                        {when.length > 4 && ` +${when.length - 4}`}
+                        {examples.length > 0 && ` · ${examples.length} ${examples.length === 1 ? "exemplo" : "exemplos"}`}
+                        {noInstructions && <span className="text-amber-700 v2-dark:text-amber-400"> · falta o que fazer</span>}
+                      </span>
+                    </span>
+                    <span className="hidden w-40 shrink-0 truncate text-right text-xs text-muted-foreground md:block">
+                      {destinationLabel(t.handoffDestination as { type?: string; id?: string } | undefined, catalogs)}
+                    </span>
+                    <IconChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <Sheet open={openIdx >= 0} onOpenChange={(o) => !o && setOpenId(null)}>
+        <SheetContent className="w-full max-w-[640px] gap-0 border-border bg-white p-0 backdrop-blur-none v2-dark:bg-card">
+          {openIdx >= 0 && (
+            <ThemeEditor
+              key={String(themes[openIdx].id)}
+              agentId={agentId}
+              index={openIdx}
+              theme={themes[openIdx]}
+              themes={themes}
+              config={config}
+              catalogs={catalogs}
+              onPatch={(p) => patchTheme(openIdx, p)}
+              onDelete={() => removeTheme(openIdx)}
+              onClose={() => setOpenId(null)}
+            />
           )}
-        </Card>
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function EditorBlock({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3 border-t border-border/70 px-6 py-5 first:border-t-0">
+      <div className="space-y-0.5">
+        <h4 className="text-[14px] font-semibold">{title}</h4>
+        {description && <p className="text-[13px] text-muted-foreground">{description}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Painel lateral de um assunto: tudo dele num lugar, com o teste no topo. */
+function ThemeEditor({
+  agentId,
+  index,
+  theme: t,
+  themes,
+  config,
+  catalogs,
+  onPatch,
+  onDelete,
+  onClose,
+}: {
+  agentId: string;
+  index: number;
+  theme: Record<string, unknown>;
+  themes: Array<Record<string, unknown>>;
+  config: Record<string, unknown>;
+  catalogs: Catalogs;
+  onPatch: (patch: Record<string, unknown>) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const allowedTools = (t.allowedTools as string[]) ?? [];
+  const custom = allowedTools.length > 0;
+  const themeActions = allowedTools.filter((a) => ACTION_IDS.has(a));
+  const globalActions = ((config.enabledTools as string[]) ?? []).filter((a) => ACTION_IDS.has(a));
+  // Lista própria: mantém consultas que já estavam nela e sempre "transferir",
+  // para a lista nunca ficar vazia (vazia = igual ao agente).
+  const setThemeActions = (actions: string[]) => {
+    const keep = allowedTools.filter((a) => !ACTION_IDS.has(a) && a !== "handoff");
+    onPatch({ allowedTools: ["handoff", ...keep, ...actions] });
+  };
+
+  return (
+    <div className="flex h-full max-h-[100dvh] flex-col">
+      <header className="flex items-center gap-3 border-b border-border/70 px-6 py-4">
+        <span
+          aria-hidden
+          className={cn(
+            "flex size-10 shrink-0 items-center justify-center rounded-xl text-base font-bold ring-1 ring-inset",
+            THEME_TONES[index % THEME_TONES.length],
+          )}
+        >
+          {(((t.name as string) || "?").trim()[0] ?? "?").toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">Assunto</p>
+          <p className="truncate text-lg font-bold leading-tight">{(t.name as string) || "Assunto sem nome"}</p>
+        </div>
+        <QuietIconButton label="Fechar" onClick={onClose}>
+          <IconX />
+        </QuietIconButton>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <EditorBlock title="Testar reconhecimento" description="Uma mensagem de cliente que deveria cair aqui.">
+          <ThemeRecognitionTest agentId={agentId} themes={themes} focusThemeId={String(t.id)} />
+        </EditorBlock>
+
+        <EditorBlock title="Como reconhecer">
+          <Field label="Nome" hint="Curto, ex.: Cancelamento, Segunda via.">
+            <Input value={(t.name as string) ?? ""} onChange={(e) => onPatch({ name: e.target.value })} />
+          </Field>
+          <Field label="Palavras ou frases do cliente" hint="Prefira frases de 2 ou mais palavras. Mesmo sem elas, ele reconhece pelo sentido.">
+            <ChipInput values={(t.when as string[]) ?? []} onChange={(v) => onPatch({ when: v })} placeholder="Ex.: quero cancelar" />
+          </Field>
+          <Field label="Exemplos de mensagens do cliente" hint="Ajudam a reconhecer pelo sentido.">
+            <TextListEditor
+              values={(t.examples as string[]) ?? []}
+              onChange={(v) => onPatch({ examples: v })}
+              numbered={false}
+              addLabel="Adicionar exemplo"
+              itemLabel="Exemplo"
+              placeholder="Ex.: quero cancelar meu pedido"
+            />
+          </Field>
+        </EditorBlock>
+
+        <EditorBlock title="O que fazer" description="Escreva como orientaria alguém novo na equipe.">
+          <Textarea
+            rows={7}
+            value={(t.instructions as string) ?? ""}
+            onChange={(e) => onPatch({ instructions: e.target.value })}
+            disabled={!!t.directHandoff}
+            placeholder={t.directHandoff ? "Este assunto só encaminha: ele não responde." : ""}
+          />
+          <label className="flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2.5">
+            <Switch checked={!!t.directHandoff} onCheckedChange={(v) => onPatch({ directHandoff: v })} />
+            <span className="text-sm">
+              <span className="font-medium">Só encaminha para a equipe</span>
+              <span className="block text-xs text-muted-foreground">Ele avisa o cliente e transfere, sem responder o pedido.</span>
+            </span>
+          </label>
+        </EditorBlock>
+
+        {!t.directHandoff && (
+          <EditorBlock title="O que ele pode fazer neste assunto">
+            <Segmented
+              value={custom ? "custom" : "inherit"}
+              onChange={(v) => (v === "inherit" ? onPatch({ allowedTools: [] }) : setThemeActions(globalActions))}
+              options={[
+                { value: "inherit", label: "Igual ao agente" },
+                { value: "custom", label: "Escolher para este assunto" },
+              ]}
+            />
+            {custom ? (
+              <div className="divide-y divide-border/60 rounded-xl border border-border/70">
+                {ACTION_DEFS.map((a) => {
+                  const on = themeActions.includes(a.id);
+                  return (
+                    <label key={a.id} className="flex cursor-pointer items-center gap-3 px-3 py-2.5">
+                      <IconChip icon={a.icon} tone={a.tone} size="sm" />
+                      <span className="min-w-0 flex-1 text-sm">
+                        <span className="font-medium">{a.label}</span>
+                        <span className="block text-xs text-muted-foreground">{a.hint}</span>
+                      </span>
+                      <Switch
+                        checked={on}
+                        onCheckedChange={(v) => setThemeActions(v ? [...themeActions, a.id] : themeActions.filter((x) => x !== a.id))}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] text-muted-foreground v2-dark:bg-muted/40">
+                {globalActions.length > 0
+                  ? `Usa o que está liberado para o agente: ${ACTION_DEFS.filter((a) => globalActions.includes(a.id))
+                      .map((a) => a.label.toLowerCase())
+                      .join(", ")}.`
+                  : "Nenhuma ação liberada para o agente: ele responde, envia mensagens prontas e transfere."}
+              </p>
+            )}
+            {custom && themeActions.some((a) => a === "add_tag" || a === "move_stage") && (
+              <p className="text-xs text-muted-foreground">Etiquetas e etapas vêm da lista em “O que ele pode fazer”.</p>
+            )}
+          </EditorBlock>
+        )}
+
+        <EditorBlock title="Se precisar transferir" description="Vazio: usa o destino padrão de “Quando chama a equipe”.">
+          <DestinationPicker
+            value={t.handoffDestination as Record<string, string> | undefined}
+            catalogs={catalogs}
+            onChange={(v) => onPatch({ handoffDestination: v })}
+          />
+        </EditorBlock>
+
+        {!t.directHandoff && (
+          <EditorBlock title="Materiais e mensagens prontas deste assunto">
+            <Field label="Materiais extras" hint="Somam aos materiais gerais.">
+              <MultiSelectPopover
+                label="Materiais"
+                options={catalogs.knowledgeDocs.map((d) => ({ value: d.id, label: d.name }))}
+                selected={((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)}
+                onChange={(v) => onPatch({ allowedKnowledgeDocIds: v })}
+              />
+            </Field>
+            <Field label="Mensagens prontas" hint="Se escolher alguma, só estas valem neste assunto (a lista geral deixa de valer).">
+              <MultiSelectPopover
+                label="Mensagens"
+                options={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
+                selected={((t.allowedMessageModelIds as string[]) ?? []).map(String)}
+                onChange={(v) => onPatch({ allowedMessageModelIds: v })}
+              />
+            </Field>
+          </EditorBlock>
+        )}
+      </div>
+
+      <footer className="flex items-center gap-2 border-t border-border/70 px-6 py-3">
+        <Button variant="ghost" className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onDelete}>
+          <IconTrash className="size-4" /> Excluir assunto
+        </Button>
+        <span className="ml-auto text-xs text-muted-foreground">Salvo no rascunho automaticamente</span>
+        <Button onClick={onClose}>Pronto</Button>
+      </footer>
+    </div>
+  );
+}
+
+/** O que está escolhido numa lista suspensa, à vista. */
+function ChosenChips({ items, tone }: { items: string[]; tone: Tone }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((x) => (
+        <Pill key={x} tone={tone}>
+          {x}
+        </Pill>
       ))}
-      <Button variant="ghost" onClick={addTheme}>
-        <IconPlus className="size-4" /> Novo assunto
-      </Button>
+    </div>
+  );
+}
+
+/** "O que ele pode fazer": ações liberadas para o agente todo. */
+function StepActions({
+  config,
+  catalogs,
+  onChange,
+}: {
+  config: Record<string, unknown>;
+  catalogs: Catalogs;
+  onChange: (path: string, value: unknown) => void;
+}) {
+  const enabled = (config.enabledTools as string[]) ?? [];
+  const on = enabled.filter((a) => ACTION_IDS.has(a));
+  const opts = (config.actionOptions as { tags?: string[]; stageIds?: string[] } | undefined) ?? {};
+  const tags = opts.tags ?? [];
+  const stageIds = opts.stageIds ?? [];
+  // Consultas que já estavam na lista continuam; só as ações mudam.
+  const setActions = (actions: string[]) => onChange("enabledTools", [...enabled.filter((a) => !ACTION_IDS.has(a)), ...actions]);
+  const setOpts = (patch: { tags?: string[]; stageIds?: string[] }) => onChange("actionOptions", { tags, stageIds, ...patch });
+  const stageOptions = (catalogs.pipelines ?? []).flatMap((p) => p.stages.map((s) => ({ value: s.id, label: `${p.name} › ${s.name}` })));
+  const themesWithOwn = ((config.themes as Array<Record<string, unknown>>) ?? []).filter((t) => ((t.allowedTools as string[]) ?? []).length > 0);
+
+  return (
+    <div className="space-y-5">
+      <SectionCard title="Sempre pode" description="Não precisa liberar.">
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {["Responder com os materiais e dados do cliente", "Enviar as mensagens prontas liberadas", "Transferir para a equipe", "Encerrar a conversa"].map((x) => (
+            <li key={x} className="flex items-center gap-2 text-sm">
+              <IconCircleCheck className="size-4 shrink-0 text-emerald-500" /> {x}
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
+
+      <SectionCard title="Ações que você libera" description="Ele só faz quando o pedido ou as instruções do assunto pedirem. No teste, nada é executado de verdade.">
+        <div className="divide-y divide-border/60 rounded-xl border border-border/70">
+          {ACTION_DEFS.map((a) => {
+            const checked = on.includes(a.id);
+            return (
+              <div key={a.id} className="space-y-3 px-4 py-3">
+                <label className="flex cursor-pointer items-center gap-3">
+                  <IconChip icon={a.icon} tone={a.tone} size="sm" />
+                  <span className="min-w-0 flex-1 text-sm">
+                    <span className="font-medium">{a.label}</span>
+                    <span className="block text-xs text-muted-foreground">{a.hint}</span>
+                  </span>
+                  <Switch checked={checked} onCheckedChange={(v) => setActions(v ? [...on, a.id] : on.filter((x) => x !== a.id))} />
+                </label>
+                {checked && a.id === "add_tag" && (
+                  <div className="ml-10 space-y-1.5">
+                    <MultiSelectPopover
+                      label="Etiquetas que ele pode usar"
+                      options={(catalogs.tags ?? []).map((t) => ({ value: t.name, label: t.name }))}
+                      selected={tags}
+                      onChange={(v) => setOpts({ tags: v })}
+                    />
+                    {tags.length === 0 ? (
+                      <p className="text-xs text-amber-700 v2-dark:text-amber-400">Sem etiquetas escolhidas, ele só usa as citadas nas instruções.</p>
+                    ) : (
+                      <ChosenChips items={tags} tone="violet" />
+                    )}
+                  </div>
+                )}
+                {checked && a.id === "move_stage" && (
+                  <div className="ml-10 space-y-1.5">
+                    <MultiSelectPopover
+                      label="Etapas para onde ele pode mover"
+                      options={stageOptions}
+                      selected={stageIds}
+                      onChange={(v) => setOpts({ stageIds: v })}
+                    />
+                    {stageIds.length === 0 ? (
+                      <p className="text-xs text-amber-700 v2-dark:text-amber-400">Escolha ao menos uma etapa: sem etapas ele não move.</p>
+                    ) : (
+                      <ChosenChips items={stageIds.map((id) => stageOptions.find((o) => o.value === id)?.label ?? id)} tone="teal" />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {themesWithOwn.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {themesWithOwn.length === 1 ? "1 assunto tem" : `${themesWithOwn.length} assuntos têm`} lista própria e não segue esta:{" "}
+            {themesWithOwn.map((t) => String(t.name ?? "")).join(", ")}.
+          </p>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
+/** "Fora do escopo": assuntos que ele não trata e como recusa. */
+function StepScope({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  const scope = (config.scope as { message?: string; forbidden?: Array<Record<string, unknown>> } | undefined) ?? {};
+  const forbidden = scope.forbidden ?? [];
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-3 rounded-2xl border border-border bg-slate-50 px-5 py-4 v2-dark:bg-muted/40">
+        <IconBan className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <p className="text-[13px] leading-relaxed text-muted-foreground">
+          <span className="font-semibold text-foreground">Ele já recusa sozinho</span> contas e cálculos, conhecimentos gerais,
+          programação, opiniões e dados internos da empresa. Se a mensagem mistura, responde só a parte do atendimento.
+        </p>
+      </div>
+      <SectionCard
+        title="Assuntos que ele não trata"
+        description="Quando o cliente pedir um destes, ele não responde e transfere para a equipe (destino padrão)."
+      >
+        <ChipInput
+          values={forbidden.map((f) => String(f.subject ?? "")).filter(Boolean)}
+          onChange={(v) =>
+            onChange(
+              "scope.forbidden",
+              v.map((subject) => forbidden.find((f) => f.subject === subject) ?? { subject }),
+            )
+          }
+          placeholder="Ex.: negociação de dívida"
+        />
+      </SectionCard>
+      <SectionCard title="Mensagem para recusar" description="Vazio: ele recusa com uma frase gentil própria.">
+        <Textarea
+          rows={3}
+          value={scope.message ?? ""}
+          onChange={(e) => onChange("scope.message", e.target.value)}
+          placeholder="Ex.: Por aqui eu só consigo ajudar com o seu atendimento. Posso te ajudar com mais alguma coisa?"
+        />
+      </SectionCard>
     </div>
   );
 }
@@ -3498,7 +3980,7 @@ function StepRules({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/20">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-100 v2-dark:bg-amber-500/15 v2-dark:text-amber-300 v2-dark:ring-amber-500/20">
                     {i + 1}
                   </span>
                   <Input

@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { IconCheck, IconChevronDown as ChevronDown } from "@tabler/icons-react";
 
+import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
 import { cn } from "@/lib/utils";
 
 export interface SelectNativeProps
@@ -188,6 +189,9 @@ function SelectContent({
     useSelectContext("SelectContent");
   const ref = React.useRef<HTMLDivElement>(null);
   const [position, setPosition] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  // Dentro de um modal/painel (<dialog> no top layer) a lista porta para
+  // dentro dele; no body ela ficava atrás do backdrop e sem clique.
+  const portalContainer = useModalPortalContainer();
 
   React.useEffect(() => {
     collectItemLabels(children, labels, registerLabel);
@@ -245,7 +249,7 @@ function SelectContent({
     >
       {children}
     </div>,
-    document.body,
+    portalContainer ?? document.body,
   );
 }
 

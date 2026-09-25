@@ -155,7 +155,7 @@ export function TestConversations({ agentId }: { agentId: string }) {
             </Button>
           }
         />
-        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-[13px] dark:bg-muted/40">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-[13px] v2-dark:bg-muted/40">
           <span className="text-muted-foreground">Números de teste</span>
           {testNumbers.length > 0 ? (
             testNumbers.map((n) => (
@@ -164,12 +164,12 @@ export function TestConversations({ agentId }: { agentId: string }) {
               </Pill>
             ))
           ) : (
-            <span className="text-amber-700 dark:text-amber-400">
+            <span className="text-amber-700 v2-dark:text-amber-400">
               nenhum — cadastre em “Publicação” › “Fase de teste” e publique.
             </span>
           )}
           <span className="text-xs text-muted-foreground sm:ml-auto">
-            Mande <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px] text-foreground ring-1 ring-border dark:bg-card">#reset</code> para
+            Mande <code className="rounded bg-white px-1 py-0.5 font-mono text-[11px] text-foreground ring-1 ring-border v2-dark:bg-card">#reset</code> para
             recomeçar do zero
           </span>
         </div>
@@ -180,7 +180,7 @@ export function TestConversations({ agentId }: { agentId: string }) {
         <p className="text-sm text-destructive">{(query.error as Error)?.message ?? "Erro ao carregar."}</p>
       )}
       {!query.isLoading && contacts.length === 0 && testNumbers.length > 0 && (
-        <p className="rounded-2xl border border-dashed border-border bg-white px-4 py-8 text-center text-sm text-muted-foreground dark:bg-card">
+        <p className="rounded-2xl border border-dashed border-border bg-white px-4 py-8 text-center text-sm text-muted-foreground v2-dark:bg-card">
           Nenhuma conversa dos números de teste nos últimos 7 dias.
         </p>
       )}
@@ -212,7 +212,7 @@ export function TestConversations({ agentId }: { agentId: string }) {
                 {turns} {turns === 1 ? "mensagem" : "mensagens"}
               </span>
             </header>
-            <div className="space-y-4 bg-[#EFEAE2] px-3 py-4 sm:px-5 dark:bg-muted/30">
+            <div className="space-y-4 bg-[#EFEAE2] px-3 py-4 sm:px-5 v2-dark:bg-muted/30">
               {session.turns.map((turn) =>
                 turn.isReset ? (
                   <p
@@ -239,7 +239,7 @@ function ChatAction({ onClick, children }: { onClick: () => void; children: Reac
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-full bg-white/85 px-2.5 py-0.5 text-[11px] font-medium text-[#54656F] shadow-sm hover:bg-white hover:text-foreground dark:bg-card dark:text-muted-foreground"
+      className="inline-flex items-center gap-1 rounded-full bg-white/85 px-2.5 py-0.5 text-[11px] font-medium text-[#54656F] shadow-sm hover:bg-white hover:text-foreground v2-dark:bg-card v2-dark:text-muted-foreground"
     >
       {children}
     </button>
@@ -299,14 +299,14 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
           {turn.closed && <Pill tone="slate">encerrou</Pill>}
           {turn.discardedActions.length > 0 && <Pill tone="amber">descartou: {turn.discardedActions.join(", ")}</Pill>}
           {turn.latencyMs != null && turn.latencyMs > 0 && (
-            <span className="px-1 text-[10.5px] text-[#54656F] dark:text-muted-foreground">
+            <span className="px-1 text-[10.5px] text-[#54656F] v2-dark:text-muted-foreground">
               {(turn.latencyMs / 1000).toFixed(1)}s · {turn.tokens} tokens
             </span>
           )}
         </div>
 
         {turn.llmReason && (
-          <p className="flex max-w-[85%] gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 text-xs text-[#54656F] dark:bg-card dark:text-muted-foreground">
+          <p className="flex max-w-[85%] gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 text-xs text-[#54656F] v2-dark:bg-card v2-dark:text-muted-foreground">
             <IconBulb className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
             <span>{turn.llmReason}</span>
           </p>
@@ -314,9 +314,9 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
 
         {/* problemas sempre visíveis */}
         {problems.length > 0 && (
-          <div className="max-w-[85%] space-y-1 rounded-lg bg-rose-50 px-2.5 py-1.5 dark:bg-rose-500/10">
+          <div className="max-w-[85%] space-y-1 rounded-lg bg-rose-50 px-2.5 py-1.5 v2-dark:bg-rose-500/10">
             {problems.map((p, i) => (
-              <p key={i} className="flex items-start gap-1 text-xs text-rose-700 dark:text-rose-300">
+              <p key={i} className="flex items-start gap-1 text-xs text-rose-700 v2-dark:text-rose-300">
                 <IconAlertTriangle className="mt-0.5 size-3 shrink-0" />
                 <span>
                   <span className="font-medium">{p.step}:</span> {p.detail}
@@ -349,9 +349,9 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
       </div>
 
       {open && (
-        <ol className="space-y-1 rounded-xl bg-white p-3 shadow-sm dark:bg-card">
+        <ol className="space-y-1 rounded-xl bg-white p-3 shadow-sm v2-dark:bg-card">
           {turn.trace.map((s, i) => (
-            <li key={i} className={cn("flex gap-2 text-xs", isProblem(s) && "text-rose-700 dark:text-rose-300")}>
+            <li key={i} className={cn("flex gap-2 text-xs", isProblem(s) && "text-rose-700 v2-dark:text-rose-300")}>
               <span className="w-14 shrink-0 text-right tabular-nums text-muted-foreground">+{s.at}ms</span>
               <span>
                 <span className="mr-1 font-semibold">{s.step}</span>
@@ -363,12 +363,12 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
       )}
 
       {sourcesOpen && (
-        <div className="space-y-2 rounded-xl bg-white p-3 shadow-sm dark:bg-card">
+        <div className="space-y-2 rounded-xl bg-white p-3 shadow-sm v2-dark:bg-card">
           <p className="text-xs text-muted-foreground">
             Tudo o que a resposta disser e não estiver aqui (nem nos dados do cliente) foi o modelo que acrescentou.
           </p>
           {turn.sources!.map((src, i) => (
-            <div key={i} className="rounded-lg border border-border/70 bg-slate-50 p-2.5 text-xs dark:bg-muted/40">
+            <div key={i} className="rounded-lg border border-border/70 bg-slate-50 p-2.5 text-xs v2-dark:bg-muted/40">
               <p className="mb-1 font-semibold">
                 {src.title || "Material"}
                 {src.similarity != null && (
@@ -383,7 +383,7 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
 
       {/* marcar erro */}
       {reporting && (
-        <div className="space-y-2 rounded-xl bg-white p-3 shadow-sm dark:bg-card">
+        <div className="space-y-2 rounded-xl bg-white p-3 shadow-sm v2-dark:bg-card">
           <Textarea
             rows={3}
             placeholder="Onde o agente errou e o que você esperava? Ex.: devia ter respondido com o passo a passo do material X em vez de transferir."
@@ -425,7 +425,7 @@ function FeedbackView({ feedback }: { feedback: Feedback }) {
   }
 
   return (
-    <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+    <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm shadow-sm v2-dark:border-amber-500/30 v2-dark:bg-amber-500/10">
       <p className="text-xs text-muted-foreground">
         <span className="font-medium text-foreground">Você marcou:</span> {feedback.comment}
       </p>

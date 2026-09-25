@@ -45,7 +45,7 @@ describe("buildPublishDiff", () => {
     expect(g.added).toEqual(["Novo"]);
     expect(g.changed[0].name).toBe("Financeiro");
     expect(g.changed[0].lines).toContainEqual({ label: "Palavras de reconhecimento", added: ["pix"], removed: [] });
-    expect(g.changed[0].lines).toContainEqual({ label: "Se transferir", from: "(não definido)", to: "Departamento: Suporte" });
+    expect(g.changed[0].lines).toContainEqual({ label: "Se transferir", from: "Destino padrão", to: "Departamento: Suporte" });
   });
 
   it("sem mudanças, sem linhas", () => {
