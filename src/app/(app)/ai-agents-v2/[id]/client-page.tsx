@@ -606,7 +606,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl border bg-card p-5">
+    <section className="space-y-4 rounded-2xl bg-muted/40 p-5">
       <div className="space-y-1">
         <h3 className="text-base font-bold leading-tight">{title}</h3>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
@@ -1140,7 +1140,7 @@ export default function AIAgentV2EditPage() {
             {/* seções: coluna no desktop, faixa rolável no celular */}
             <nav
               aria-label="Seções do agente"
-              className="flex shrink-0 gap-1 overflow-x-auto rounded-2xl border bg-card p-2 lg:sticky lg:top-4 lg:w-[232px] lg:flex-col lg:overflow-visible"
+              className="flex shrink-0 gap-1 overflow-x-auto rounded-2xl border bg-card p-2 lg:sticky lg:top-4 lg:w-[216px] lg:flex-col lg:overflow-visible"
             >
               {SECTIONS.map((s) => {
                 const on = s.id === section;
@@ -1165,8 +1165,8 @@ export default function AIAgentV2EditPage() {
               })}
             </nav>
 
-            <main className="min-w-0 flex-1 rounded-2xl border bg-card p-4 sm:p-7">
-              <div className="mx-auto max-w-3xl space-y-5">
+            <main className="min-w-0 flex-1 rounded-2xl border bg-card p-4 sm:p-6">
+              <div className="max-w-[960px] space-y-5">
                 <div className="space-y-1">
                   <h2 className="text-xl font-bold tracking-tight">{current.title}</h2>
                   <p className="text-sm text-muted-foreground">{current.intro}</p>
@@ -1304,7 +1304,7 @@ export default function AIAgentV2EditPage() {
             {showSidePanel && (
               <aside
                 aria-label="Testar o agente"
-                className="sticky top-4 flex h-[calc(100vh-9rem)] w-[380px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-card"
+                className="sticky top-4 flex h-[calc(100vh-9rem)] w-[360px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-card"
               >
                 {testChat(true)}
               </aside>
@@ -2847,6 +2847,100 @@ function StepMaterials({
 // Etapa 5 — Mensagens prontas e produtos
 // ─────────────────────────────────────────────────────────────────────────────
 
+function foldText(v: string): string {
+  return v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/**
+ * Lista longa (dezenas ou centenas de itens) com busca e liga/desliga por
+ * item. Um seletor suspenso ou uma nuvem de etiquetas não dão conta disso.
+ */
+function SearchableToggleList({
+  items,
+  selected,
+  onChange,
+  searchPlaceholder,
+  emptyLabel,
+  onLabel,
+}: {
+  items: Array<{ value: string; label: string }>;
+  selected: string[];
+  onChange: (v: string[]) => void;
+  searchPlaceholder: string;
+  emptyLabel: string;
+  onLabel: string;
+}) {
+  const [query, setQuery] = React.useState("");
+  const [onlyOn, setOnlyOn] = React.useState(false);
+  const chosen = new Set(selected);
+  const q = foldText(query.trim());
+  const visible = items
+    .filter((i) => (!onlyOn || chosen.has(i.value)) && (!q || foldText(i.label).includes(q)))
+    .sort((a, b) => Number(chosen.has(b.value)) - Number(chosen.has(a.value)) || a.label.localeCompare(b.label));
+  const toggle = (value: string) => onChange(chosen.has(value) ? selected.filter((v) => v !== value) : [...selected, value]);
+  const hiddenOff = visible.filter((i) => !chosen.has(i.value));
+
+  if (items.length === 0) return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <label className="flex h-10 flex-1 items-center gap-2 rounded-full border bg-card px-4">
+          <IconSearch className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            className="h-full flex-1 bg-transparent text-sm outline-none"
+          />
+        </label>
+        <div className="inline-flex shrink-0 rounded-full bg-muted p-1" role="radiogroup" aria-label="Mostrar">
+          {[
+            [false, `Todas (${items.length})`],
+            [true, `${onLabel} (${selected.length})`],
+          ].map(([v, l]) => (
+            <button
+              key={String(v)}
+              type="button"
+              role="radio"
+              aria-checked={onlyOn === v}
+              onClick={() => setOnlyOn(v as boolean)}
+              className={cn("rounded-full px-3.5 py-1.5 text-sm", onlyOn === v ? "bg-card font-semibold shadow-sm" : "text-muted-foreground")}
+            >
+              {l as string}
+            </button>
+          ))}
+        </div>
+      </div>
+      {q && hiddenOff.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onChange([...selected, ...hiddenOff.map((i) => i.value)])}
+          className="text-xs font-semibold text-primary hover:underline"
+        >
+          Liberar as {hiddenOff.length} encontradas
+        </button>
+      )}
+      <div className="max-h-[420px] divide-y overflow-y-auto rounded-xl border bg-card">
+        {visible.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            {onlyOn && !q ? "Nenhuma liberada ainda." : "Nada encontrado."}
+          </p>
+        ) : (
+          visible.map((i) => (
+            <label key={i.value} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-muted/50">
+              <span className="min-w-0 flex-1 truncate text-sm">{i.label}</span>
+              <Switch checked={chosen.has(i.value)} onCheckedChange={() => toggle(i.value)} aria-label={i.label} />
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StepMessagesProducts({
   config,
   catalogs,
@@ -2865,14 +2959,13 @@ function StepMessagesProducts({
   return (
     <div className="space-y-6">
       <SectionCard title="Mensagens prontas que ele pode enviar" description="Modelos de mensagem do CRM (com vídeo, imagem ou texto). Ele só envia os que estiverem aqui.">
-        <MultiSelectPopover
-          label="Escolha as mensagens"
-          tooltip="Modelos de mensagem já cadastrados no CRM. O agente só pode enviá-los se estiverem nesta lista.
-Use @Modelo para citar um modelo dentro de uma resposta."
-          options={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
+        <SearchableToggleList
+          items={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
           selected={allowedModels}
           onChange={(v) => onChange("allowedMessageModelIds", v)}
-          emptyLabel="Nenhum modelo cadastrado"
+          searchPlaceholder="Buscar mensagem pronta…"
+          emptyLabel="Nenhuma mensagem pronta cadastrada no CRM."
+          onLabel="Liberadas"
         />
       </SectionCard>
 
