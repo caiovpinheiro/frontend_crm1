@@ -1937,7 +1937,9 @@ function StepMaterials({
   config: Record<string, unknown>;
   onChange: (path: string, value: unknown) => void;
 }) {
-  const { confirm: confirmDelete } = useConfirm();
+  // O `dialog` precisa ser renderizado: sem ele a confirmação abria invisível
+  // e o clique na lixeira não fazia nada.
+  const { confirm: confirmDelete, dialog: confirmDeleteDialog } = useConfirm();
   const docsQuery = useQuery({
     queryKey: ["ai-agents", agentId, "knowledge"],
     queryFn: () => fetchKnowledgeDocs(agentId),
@@ -1982,7 +1984,12 @@ function StepMaterials({
 
   const deleteMutation = useMutation({
     mutationFn: (docId: string) => deleteKnowledgeDoc(agentId, docId),
-    onSuccess: () => docsQuery.refetch(),
+    onSuccess: (_r, docId) => {
+      // Tira o removido dos permitidos: não sobra id de documento que não existe.
+      const current = (config.allowedKnowledgeDocIds as string[]) ?? [];
+      if (current.includes(docId)) onChange("allowedKnowledgeDocIds", current.filter((x) => x !== docId));
+      docsQuery.refetch();
+    },
   });
 
   const retryMutation = useMutation({
@@ -2119,6 +2126,7 @@ function StepMaterials({
 
   return (
     <div className="space-y-6">
+      {confirmDeleteDialog}
       <SectionCard title="Escrever direto" description="Cole um texto curto ou uma FAQ; o sistema divide em trechos para a IA consultar.">
         <Field label="Título" hint="Ex.: FAQ de matrícula">
           <Input value={pasteTitle} onChange={(e) => setPasteTitle(e.target.value)} />
@@ -2183,6 +2191,11 @@ function StepMaterials({
           <Skeleton className="h-32" />
         ) : (
           <>
+            {deleteMutation.isError && (
+              <p className="mb-3 text-sm text-destructive">
+                Não foi possível remover: {(deleteMutation.error as Error)?.message ?? "erro desconhecido"}
+              </p>
+            )}
             {addedNotice && (
               <div className="mb-3 flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
                 <IconAlertCircle className="mt-0.5 size-4 shrink-0 text-primary" />
