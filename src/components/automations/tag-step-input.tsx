@@ -1,6 +1,10 @@
 "use client"
 
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+
 import { InputGlass } from "@/components/crm/input-glass"
+import { createTag } from "@/features/inbox-v2/api"
 import { cn } from "@/lib/utils"
 import { useTagOptions } from "./editor-data"
 
@@ -17,6 +21,9 @@ type Props = {
  * Campo do passo add/remove tag: lista as tags da org logada e filtra
  * conforme o operador digita. A lista fica visível ao montar o node
  * (não depende de foco) para o card crescer sem dropdown cortado.
+ *
+ * Em `allowCreate`, o botão "+ Criar tag" persiste via POST /api/tags
+ * (antes só preenchia o draft com o mesmo texto — parecia travado).
  */
 export function TagStepInput({
   label,
@@ -25,6 +32,7 @@ export function TagStepInput({
   onChange,
   allowCreate = true,
 }: Props) {
+  const qc = useQueryClient()
   const { options, isLoading, isError } = useTagOptions()
   const q = value.trim().toLowerCase()
   const filtered = q
@@ -32,7 +40,27 @@ export function TagStepInput({
     : options
   const exists = options.some((o) => o.value.toLowerCase() === q)
 
+  const createMutation = useMutation({
+    mutationFn: (name: string) => createTag({ name }),
+    onSuccess: (tag) => {
+      const name = tag.name?.trim() || value.trim()
+      onChange(name)
+      void qc.invalidateQueries({ queryKey: ["editor-tags"] })
+      void qc.invalidateQueries({ queryKey: ["tags-for-condition"] })
+      void qc.invalidateQueries({ queryKey: ["inbox-v2-tags"] })
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Falha ao criar tag")
+    },
+  })
+
   const choose = (next: string) => onChange(next)
+
+  const handleCreate = () => {
+    const name = value.trim()
+    if (!name || exists || createMutation.isPending) return
+    createMutation.mutate(name)
+  }
 
   return (
     <div className="cfg-field">
@@ -81,6 +109,7 @@ export function TagStepInput({
               className={cn("cfg-pop-item nodrag", o.value === value && "on")}
               onMouseDown={(e) => {
                 e.preventDefault()
+                e.stopPropagation()
                 choose(o.value)
               }}
             >
@@ -95,12 +124,16 @@ export function TagStepInput({
             <button
               type="button"
               className="cfg-pop-item create nodrag"
+              disabled={createMutation.isPending}
               onMouseDown={(e) => {
                 e.preventDefault()
-                choose(value.trim())
+                e.stopPropagation()
+                handleCreate()
               }}
             >
-              + Criar tag “{value.trim()}”
+              {createMutation.isPending
+                ? "Criando tag…"
+                : `+ Criar tag “${value.trim()}”`}
             </button>
           )}
         </div>
