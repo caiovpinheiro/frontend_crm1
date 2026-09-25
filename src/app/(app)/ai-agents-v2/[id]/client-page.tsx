@@ -192,28 +192,23 @@ type ChatTurn = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BEHAVIOR_OPTIONS = [
-  { value: "objective", label: "Mais objetivo", description: "Respostas diretas, consistentes e sem muita variação." },
+  { value: "objective", label: "Mais previsível", description: "Respostas diretas, consistentes e sem muita variação." },
   { value: "balanced", label: "Equilibrado", description: "Respostas naturais, mantendo consistência e objetividade." },
   { value: "natural", label: "Mais natural", description: "Conversa mais espontânea, com maior variedade na forma de responder." },
   { value: "creative", label: "Mais criativo", description: "Respostas mais variadas e flexíveis, com maior liberdade na comunicação." },
 ];
 
-const AUTONOMY_OPTIONS = [
-  { value: "suggest", label: "Sugerir resposta para a equipe aprovar" },
-  { value: "auto", label: "Responder sozinho" },
-];
-
 const TYPING_PACE_OPTIONS = [
-  { value: "10", label: "Rápida (10 ms por caractere)" },
-  { value: "25", label: "Humana média (25 ms por caractere)" },
-  { value: "50", label: "Deliberada (50 ms por caractere)" },
-  { value: "90", label: "Lenta (90 ms por caractere)" },
+  { value: "10", label: "Rápido" },
+  { value: "25", label: "Normal" },
+  { value: "50", label: "Calmo" },
+  { value: "90", label: "Lento" },
 ];
 
 const ON_DEAL_NOT_FOUND_OPTIONS = [
-  { value: "ask_identification", label: "Perguntar dados de identificação" },
-  { value: "create_deal", label: "Criar negócio" },
-  { value: "handoff", label: "Transferir" },
+  { value: "ask_identification", label: "Pedir os dados (e-mail ou documento)" },
+  { value: "create_deal", label: "Criar um negócio e seguir atendendo" },
+  { value: "handoff", label: "Passar para a equipe" },
 ];
 
 const POST_CLOSE_BEHAVIOR_OPTIONS = [
@@ -255,32 +250,40 @@ const MEDIA_KIND_HINT = {
 
 const DEST_KIND_OPTIONS = [
   { value: "department", label: "Departamento" },
-  { value: "distribution_rule", label: "Distribuição inteligente" },
-  { value: "user", label: "Pessoa" },
-  { value: "ai_agent", label: "Outro agente de IA" },
+  { value: "distribution_rule", label: "Fila automática" },
+  { value: "user", label: "Uma pessoa" },
+  { value: "ai_agent", label: "Outro agente" },
   { value: "automation", label: "Automação" },
 ];
 
 const CONDITION_TYPES = [
-  { value: "message_type", label: "Tipo de mensagem" },
-  { value: "keywords", label: "Contiver palavras" },
-  { value: "contact_tag", label: "Contato tiver etiqueta" },
-  { value: "first_message", label: "For a primeira mensagem" },
-  { value: "out_of_hours", label: "Estiver fora do horário" },
-  { value: "deal_stage", label: "Negócio estiver na etapa" },
-  { value: "no_deal", label: "Cliente não tiver negócio aberto" },
-  { value: "survey_received", label: "Pesquisa respondida" },
-  { value: "media_kind", label: "Tipo de mídia" },
+  { value: "keywords", label: "a mensagem contiver" },
+  { value: "first_message", label: "for a primeira mensagem" },
+  { value: "out_of_hours", label: "estiver fora do horário" },
+  { value: "contact_tag", label: "o cliente tiver a etiqueta" },
+  { value: "deal_stage", label: "o negócio estiver na etapa" },
+  { value: "no_deal", label: "o cliente não tiver negócio aberto" },
+  { value: "media_kind", label: "o cliente mandar mídia do tipo" },
+  { value: "message_type", label: "a mensagem for do tipo" },
 ];
+/** Só estas condições pedem valores; nas outras o campo não fazia sentido. */
+const CONDITIONS_WITH_VALUES = new Set(["keywords", "contact_tag", "deal_stage", "media_kind", "message_type"]);
+const CONDITION_PLACEHOLDER: Record<string, string> = {
+  keywords: "Ex.: atendente, falar com alguém",
+  contact_tag: "Nome da etiqueta",
+  deal_stage: "Nome da etapa",
+  media_kind: "audio, image ou document",
+  message_type: "Ex.: text, audio",
+};
 
 const ACTION_TYPES = [
-  { value: "send_message", label: "Enviar mensagem" },
-  { value: "set_theme", label: "Definir assunto" },
-  { value: "handoff", label: "Passar para uma pessoa" },
-  { value: "add_tag", label: "Adicionar etiqueta" },
-  { value: "close_conversation", label: "Encerrar conversa" },
-  { value: "no_reply", label: "Não responder" },
-  { value: "send_message_model", label: "Enviar mensagem pronta" },
+  { value: "send_message", label: "enviar a mensagem" },
+  { value: "handoff", label: "passar para a equipe" },
+  { value: "set_theme", label: "tratar como o assunto" },
+  { value: "add_tag", label: "adicionar a etiqueta" },
+  { value: "send_message_model", label: "enviar a mensagem pronta" },
+  { value: "close_conversation", label: "encerrar a conversa" },
+  { value: "no_reply", label: "não responder" },
 ];
 // Fora da lista até a tela ter onde preencher os parâmetros (template
 // oficial, variável, dúvida): salvas sem eles, falhavam em silêncio.
@@ -953,6 +956,16 @@ export default function AIAgentV2EditPage() {
       goTo("publicacao");
       return;
     }
+    const dest = (config?.handoff as { defaultDestination?: { id?: string } } | undefined)?.defaultDestination;
+    if (!dest?.id) {
+      await confirm({
+        title: "Falta escolher para quem transferir",
+        description: "Sem isso, quando ele precisar passar a conversa para a equipe, ela não chega a ninguém.",
+        confirmLabel: "Escolher agora",
+      });
+      goTo("equipe");
+      return;
+    }
     const next = (agentQuery.data?.lastVersionNumber ?? 0) + 1;
     const ok = await confirm({
       title: `Publicar a versão ${next}?`,
@@ -1182,6 +1195,7 @@ export default function AIAgentV2EditPage() {
                 {section === "comeco" && (
                   <div className="space-y-6">
                     <StepEntry config={config} onChange={updateConfig} />
+                    <StepMedia config={config} onChange={updateConfig} />
                     <StepClosure config={config} catalogs={catalogs} onChange={updateConfig} />
                   </div>
                 )}
@@ -1404,295 +1418,272 @@ function StepStart({
   const allowedPhoneNumbers = (config.allowedPhoneNumbers as string[]) ?? [];
   const modelId = (config.model as string) ?? "";
   const modelValid = catalogs.models.some((m) => m.id === modelId);
+  const autonomy = (config.autonomyMode as string) ?? "suggest";
 
   const hasKeyForPublish = hasOpenaiKey || looksLikeOpenAiApiKey(openaiKey);
   const showRealClientWarning = active && channelIds.length > 0 && allowedPhoneNumbers.length === 0;
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Estado do agente" description="Se está ligado e qual versão o WhatsApp usa.">
-        <div className="grid gap-4 md:grid-cols-2">
-          {!hideName && (
-            <Field label="Nome do agente" tooltip="Nome exibido na lista e nas conversas.">
-              <Input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="Ex: Atendimento" />
-            </Field>
-          )}
-          <div className={cn("flex items-center gap-3", !hideName && "pt-6")}>
-            <Switch checked={active} onCheckedChange={onActiveChange} id="active" />
-            <Label htmlFor="active">
-              Ligado
-              <span className="ml-2 text-xs text-muted-foreground">atende nos números escolhidos com a versão publicada</span>
-            </Label>
+      <SectionCard title="Estado do agente" description="Se ele está atendendo e qual versão o WhatsApp usa.">
+        {!hideName && (
+          <Field label="Nome do agente">
+            <Input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="Ex.: Atendimento" />
+          </Field>
+        )}
+        <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold">{active ? "Ligado" : "Desligado"}</p>
+            <p className="text-xs text-muted-foreground">
+              {active
+                ? "Atende nos números escolhidos com a versão publicada."
+                : "As conversas dos números escolhidos vão para a distribuição normal."}
+            </p>
           </div>
+          <Switch checked={active} onCheckedChange={onActiveChange} id="active" aria-label="Ligar ou desligar o agente" />
         </div>
-
-        <div className="mt-4 flex items-center gap-3 rounded-xl border bg-muted/40 px-4 py-3 text-sm">
-          <span className="text-muted-foreground">Estado da publicação:</span>
-          {hasUnpublishedChanges ? (
-            <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200 bg-amber-50">
-              <IconAlertCircle className="size-3" />
-              Alterações não publicadas
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-200 bg-emerald-50">
-              <IconCheck className="size-3" />
-              {publishedVersionNumber ? `Publicado (versão ${publishedVersionNumber})` : "Publicado"}
-            </Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
-            A aba <b>Testar</b> usa o rascunho. O WhatsApp usa a versão publicada.
-          </span>
-        </div>
-
+        <p className="text-xs text-muted-foreground">
+          {publishedVersionNumber
+            ? hasUnpublishedChanges
+              ? `O WhatsApp usa a versão ${publishedVersionNumber}. O que você mudou depois só vale no teste até publicar.`
+              : `O WhatsApp usa a versão ${publishedVersionNumber}, igual ao que está aqui.`
+            : "Ainda não publicado: ele só responde no teste."}
+        </p>
         {showRealClientWarning && (
-          <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
             <div>
-              <p className="font-medium">Este agente vai responder clientes reais.</p>
-              <p className="text-xs">
-                Ele está ativo, tem canal vinculado e a lista "Responder só para estes números" está vazia.
-                Preencha essa lista se quiser restringir o teste a números específicos.
-              </p>
+              <p className="font-medium">Ele vai responder clientes reais.</p>
+              <p className="text-xs">Está ligado, com número escolhido e sem números na fase de teste. Para testar só com alguns números, preencha a fase de teste abaixo.</p>
             </div>
           </div>
         )}
       </SectionCard>
 
-      <SectionCard title="Modelo e comportamento" description="Qual modelo usa e como formula as respostas.">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Modelo" tooltip="Modelo da OpenAI usado para gerar as respostas. Valor salvo que não existe mais na lista aparece com aviso.">
-            <Select value={modelId} onValueChange={(v) => onChange("model", v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {catalogs.models.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name}
-                  </SelectItem>
-                ))}
-                {!modelValid && modelId && (
-                  <SelectItem value={modelId}>
-                    {modelId} (não listado)
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-            {!modelValid && modelId && (
-              <p className="mt-1.5 text-xs text-amber-600 flex items-center gap-1">
-                <IconAlertCircle className="size-3" />
-                Modelo salvo não está na lista de modelos suportados.
-              </p>
-            )}
-          </Field>
-          <Field label="Comportamento das respostas" tooltip="Define o quanto o agente varia a forma de responder sem alterar seu conhecimento.">
-            <Select
-              value={(config.responseBehavior as string) ?? "balanced"}
-              onValueChange={(v) => onChange("responseBehavior", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {BEHAVIOR_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Modo de execução" tooltip="Sugerir resposta: nada é enviado ao cliente sem aprovação. Responder sozinho: envia direto.">
-            <Select
-              value={(config.autonomyMode as string) ?? "suggest"}
-              onValueChange={(v) => onChange("autonomyMode", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AUTONOMY_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="Comportamento no WhatsApp"
-        description="Antes de responder, o agente pode mostrar que está digitando e marcar a mensagem do cliente como lida."
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
-            <div>
-              <p className="text-sm font-medium">Simular “digitando…”</p>
-              <p className="text-xs text-muted-foreground">O indicador aparece no WhatsApp do cliente, proporcional ao tamanho da resposta. A Meta mantém até 25 segundos.</p>
-            </div>
-            <Switch
-              checked={config.simulateTyping !== false}
-              onCheckedChange={(v) => onChange("simulateTyping", v)}
-              id="simulate-typing"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
-            <div>
-              <p className="text-sm font-medium">Marcar como lida</p>
-              <p className="text-xs text-muted-foreground">Os dois ticks azuis na mensagem recebida, antes da resposta. Com “digitando” ligado, a leitura já acontece junto.</p>
-            </div>
-            <Switch
-              checked={config.markMessagesRead !== false}
-              onCheckedChange={(v) => onChange("markMessagesRead", v)}
-              id="mark-read"
-            />
-          </div>
-        </div>
-        {config.simulateTyping !== false && (
-          <Field label="Velocidade de digitação" tooltip="Base de 1,5 s mais este tempo por caractere. Máximo de 25 s por limitação da Meta.">
-            <Select
-              value={String(config.typingPerCharMs ?? 25)}
-              onValueChange={(v) => onChange("typingPerCharMs", Number(v) || 25)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TYPING_PACE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Canais e alcance" description="Por onde ele atende e para quem pode responder.">
-        <Field label="Canais vinculados" tooltip="Quais canais de WhatsApp usam este agente quando recebem uma nova conversa.">
+      <SectionCard title="Onde ele atende" description="Os números de WhatsApp que passam as conversas para este agente.">
+        <Field label="Números de WhatsApp que ele atende">
           <MultiSelectPopover
-            label="Canais"
+            label="Escolha um ou mais números"
             options={(catalogs.channels ?? []).map((c) => ({ value: c.id, label: c.name ?? c.id }))}
             selected={channelIds.map(String)}
             onChange={(v) => onChange("channelIds", v)}
           />
+          {channelIds.length === 0 && (
+            <p className="text-xs text-destructive">Obrigatório para ele atender. Para testar aqui ao lado, não precisa.</p>
+          )}
         </Field>
-        <Field label="Responder só para estes números (modo de teste)" tooltip="Se preenchida, o agente ignora qualquer outro número, mesmo ativo e com canal vinculado. Vazio = responde qualquer número.">
+        <Field label="Fase de teste: responder só para estes números" hint="Deixe vazio para atender todo mundo.">
           <ChipInput
             values={allowedPhoneNumbers.map(String)}
             onChange={(v) => onChange("allowedPhoneNumbers", v)}
             placeholder="11999999999"
           />
         </Field>
-        <Field label="Domínios permitidos em links" tooltip="URLs de quais domínios o agente pode enviar ao cliente (segurança de phishing).">
-          <ChipInput
-            values={((config.allowedDomains as string[]) ?? []).map(String)}
-            onChange={(v) => onChange("allowedDomains", v)}
-            placeholder="suaempresa.com.br"
-          />
-        </Field>
       </SectionCard>
 
-      <SectionCard title="Chave de acesso ao modelo" description="Cada agente usa sua própria conta OpenAI. A chave nunca volta completa para a tela.">
-        <div className="grid gap-4 md:grid-cols-[1fr_auto] items-end">
-          <OpenAiKeyField
-            value={openaiKey}
-            onChange={onKeyChange}
-            hasSavedKey={hasOpenaiKey}
-            savedHint={openaiKeyHint ?? undefined}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onValidateKey}
-            disabled={validatingKey || !hasKeyForPublish}
-            className="gap-1"
-          >
+      <SectionCard title="Como ele responde">
+        <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Como ele responde">
+          {[
+            { value: "auto", title: "Responder sozinho", text: "Envia a resposta direto ao cliente." },
+            { value: "suggest", title: "Sugerir para a equipe", text: "A resposta fica como rascunho e alguém da equipe aprova antes de enviar." },
+          ].map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={autonomy === o.value}
+              onClick={() => onChange("autonomyMode", o.value)}
+              className={cn(
+                "flex flex-col gap-1 rounded-xl border p-4 text-left transition-colors",
+                autonomy === o.value ? "border-primary bg-primary/10" : "hover:border-primary/40",
+              )}
+            >
+              <span className="text-sm font-semibold">{o.title}</span>
+              <span className="text-xs text-muted-foreground">{o.text}</span>
+            </button>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Conta do modelo de IA" description="Cole a chave da conta. Ela fica guardada com segurança e só o final aparece aqui.">
+        <div className="grid items-end gap-4 md:grid-cols-[1fr_auto]">
+          <OpenAiKeyField value={openaiKey} onChange={onKeyChange} hasSavedKey={hasOpenaiKey} savedHint={openaiKeyHint ?? undefined} />
+          <Button type="button" variant="outline" size="sm" onClick={onValidateKey} disabled={validatingKey || !hasKeyForPublish} className="gap-1">
             {validatingKey ? <IconLoader2 className="size-4 animate-spin" /> : <IconCheck className="size-4" />}
             Testar chave
           </Button>
         </div>
         {keyValidation.ok === false && (
-          <p className="mt-2 text-sm text-destructive flex items-center gap-1">
+          <p className="flex items-center gap-1 text-sm text-destructive">
             <IconAlertCircle className="size-4" />
-            {keyValidation.message || "Falhou — verifique a chave."}
+            {keyValidation.message || "Não funcionou. Confira a chave."}
           </p>
         )}
         {keyValidation.ok === true && (
-          <p className="mt-2 text-sm text-emerald-600 flex items-center gap-1">
+          <p className="flex items-center gap-1 text-sm text-emerald-600">
             <IconCheck className="size-4" />
-            {keyValidation.message || "Chave válida."}
+            {keyValidation.message || "Chave funcionando."}
           </p>
         )}
         {!hasKeyForPublish && (
-          <p className="mt-2 text-sm text-amber-600 flex items-center gap-1">
+          <p className="flex items-center gap-1 text-sm text-destructive">
             <IconAlertCircle className="size-4" />
-            Sem chave válida o agente não pode ser publicado.
+            Obrigatória para testar e publicar.
           </p>
         )}
       </SectionCard>
 
-      <SectionCard
-        title="Formato da resposta do modelo"
-        description="Em teste: obriga o modelo a devolver a resposta no formato que o agente entende."
-      >
-        <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
-          <div>
-            <p className="text-sm font-medium">Resposta sempre no formato do agente</p>
-            <p className="text-xs text-muted-foreground">
-              Sem isso, às vezes o modelo responde em texto solto (“LLM devolveu texto livre” no teste) e a
-              transferência, os dados coletados e as ações daquele turno se perdem. Se o modelo escolhido não aceitar,
-              o agente segue como antes, automaticamente.
+      <AdvancedOptions count={4}>
+        <SectionCard title="Modelo de IA" description="O padrão atende a maioria dos casos.">
+          <Select value={modelId} onValueChange={(v) => onChange("model", v)}>
+            <SelectTrigger aria-label="Modelo de IA">
+              <SelectValue placeholder="Escolha…" />
+            </SelectTrigger>
+            <SelectContent>
+              {catalogs.models.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+              {!modelValid && modelId && <SelectItem value={modelId}>{modelId} (não listado)</SelectItem>}
+            </SelectContent>
+          </Select>
+          {!modelValid && modelId && (
+            <p className="flex items-center gap-1 text-xs text-amber-600">
+              <IconAlertCircle className="size-3" />
+              Este modelo não está mais na lista. Escolha outro.
             </p>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Parecer humano no WhatsApp" description="Antes de responder, ele pode mostrar “digitando…” e marcar a mensagem como lida.">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+              <p className="text-sm font-medium">Mostrar “digitando…”</p>
+              <Switch checked={config.simulateTyping !== false} onCheckedChange={(v) => onChange("simulateTyping", v)} id="simulate-typing" aria-label="Mostrar digitando" />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+              <p className="text-sm font-medium">Marcar como lida</p>
+              <Switch checked={config.markMessagesRead !== false} onCheckedChange={(v) => onChange("markMessagesRead", v)} id="mark-read" aria-label="Marcar como lida" />
+            </div>
           </div>
-          <Switch
-            checked={config.structuredOutput === true}
-            onCheckedChange={(v) => onChange("structuredOutput", v)}
-            id="structured-output"
+          {config.simulateTyping !== false && (
+            <Field label="Ritmo do “digitando…”">
+              <div className="inline-flex rounded-full bg-muted p-1" role="radiogroup" aria-label="Ritmo do digitando">
+                {TYPING_PACE_OPTIONS.map((o) => {
+                  const on = String(config.typingPerCharMs ?? 25) === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => onChange("typingPerCharMs", Number(o.value))}
+                      className={cn("rounded-full px-4 py-1.5 text-sm", on ? "bg-card font-semibold shadow-sm" : "text-muted-foreground")}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Sites que ele pode mandar como link" description="Links de outros sites são tirados da resposta. Vazio: qualquer site.">
+          <ChipInput
+            values={((config.allowedDomains as string[]) ?? []).map(String)}
+            onChange={(v) => onChange("allowedDomains", v)}
+            placeholder="suaempresa.com.br"
           />
-        </div>
-      </SectionCard>
+        </SectionCard>
+
+        <SectionCard title="Resposta sempre no formato do agente" description="Recomendado. Evita perder transferências e dados quando o modelo responde fora do padrão.">
+          <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+            <p className="text-sm font-medium">Ligado</p>
+            <Switch checked={config.structuredOutput === true} onCheckedChange={(v) => onChange("structuredOutput", v)} id="structured-output" aria-label="Resposta sempre no formato do agente" />
+          </div>
+        </SectionCard>
+      </AdvancedOptions>
+    </div>
+  );
+}
+
+/** Opções que quase ninguém precisa mexer: recolhidas por padrão. */
+function AdvancedOptions({ count, children }: { count: number; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+      >
+        <IconChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
+        {open ? "Esconder opções avançadas" : `Mostrar opções avançadas (${count})`}
+      </button>
+      {open && <div className="space-y-6">{children}</div>}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Etapa 2 — Jeito de falar
+// Quem é o agente
 // ─────────────────────────────────────────────────────────────────────────────
 
+const TONE_STARTERS = [
+  { label: "Profissional e direto", text: "Profissional, direto e educado. Vai ao ponto, sem formalidade excessiva." },
+  { label: "Acolhedor", text: "Simpático e paciente. Explica com calma, em frases completas, e chama o cliente pelo nome no começo da conversa." },
+  { label: "Descontraído", text: "Leve e próximo, como alguém da equipe conversando no WhatsApp, sem gírias e sem perder a clareza." },
+];
+
 function StepTone({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  const tone = (config.tone as string) ?? "";
+  const length = (config.responseLength as string) ?? "medium";
+  const behavior = (config.responseBehavior as string) ?? "balanced";
   return (
     <div className="space-y-6">
-      <SectionCard title="Tom de voz" description="Como o agente deve soar nas mensagens.">
-        <Field label="Descrição do tom" tooltip="Ex: formal, informal, direto, empático. Define a personalidade do agente.">
-          <Textarea
-            value={(config.tone as string) ?? ""}
-            onChange={(e) => onChange("tone", e.target.value)}
-            placeholder="Ex: profissional, direto e educado"
-          />
-        </Field>
+      <SectionCard title="Tom de voz" description="Como ele fala com o cliente. Escolha um ponto de partida e ajuste do seu jeito.">
+        <div className="flex flex-wrap gap-2">
+          {TONE_STARTERS.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => onChange("tone", s.text)}
+              className={cn(
+                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
+                tone === s.text ? "border-primary bg-primary text-primary-foreground" : "hover:border-primary/40",
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <Textarea value={tone} onChange={(e) => onChange("tone", e.target.value)} placeholder="Ex.: profissional, direto e educado" aria-label="Tom de voz" />
+        {!tone.trim() && <p className="text-xs text-destructive">Obrigatório.</p>}
       </SectionCard>
 
-      <SectionCard title="Tamanho das respostas" description="Controle o tamanho médio das mensagens do agente.">
-        <Field label="Tamanho das respostas" tooltip="Tamanho médio desejado para as respostas do agente.">
-          <Select
-            value={(config.responseLength as string) ?? "medium"}
-            onValueChange={(v) => onChange("responseLength", v)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="short">Curtas</SelectItem>
-              <SelectItem value="medium">Médias</SelectItem>
-              <SelectItem value="long">Longas</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
+      <SectionCard title="Tamanho das respostas">
+        <div className="inline-flex rounded-full bg-muted p-1" role="radiogroup" aria-label="Tamanho das respostas">
+          {[
+            ["short", "Curtas"],
+            ["medium", "Médias"],
+            ["long", "Longas"],
+          ].map(([v, l]) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={length === v}
+              onClick={() => onChange("responseLength", v)}
+              className={cn("rounded-full px-5 py-1.5 text-sm", length === v ? "bg-card font-semibold shadow-sm" : "text-muted-foreground")}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Passo a passo sai sempre completo, em qualquer tamanho.</p>
       </SectionCard>
 
       <SectionCard title="Emojis" description="Deixam a mensagem mais calorosa e fácil de ler no WhatsApp. Em reclamação ou cobrança ele não usa.">
@@ -1712,9 +1703,7 @@ function StepTone({ config, onChange }: { config: Record<string, unknown>; onCha
                 )}
               >
                 <span className="text-sm font-semibold">{o.label}</span>
-                <span className="whitespace-pre-line rounded-lg border bg-card px-2.5 py-1.5 text-xs leading-relaxed text-muted-foreground">
-                  {o.example}
-                </span>
+                <span className="whitespace-pre-line rounded-lg border bg-card px-2.5 py-1.5 text-xs leading-relaxed text-muted-foreground">{o.example}</span>
               </button>
             );
           })}
@@ -1730,10 +1719,29 @@ function StepTone({ config, onChange }: { config: Record<string, unknown>; onCha
           onChange={(v) => onChange("globalRules", v)}
           addLabel="Adicionar regra"
           itemLabel="Regra"
-          placeholder="Ex.: Nunca prometa prazo que não esteja nos materiais."
+          placeholder="Ex.: Nunca peça senha nem número de cartão."
           emptyText="Nenhuma regra ainda."
         />
       </SectionCard>
+
+      <AdvancedOptions count={1}>
+        <SectionCard title="Estilo de resposta" description="Quanto ele varia a forma de dizer as coisas. O que ele sabe não muda.">
+          <div className="inline-flex flex-wrap rounded-full bg-muted p-1" role="radiogroup" aria-label="Estilo de resposta">
+            {BEHAVIOR_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={behavior === o.value}
+                onClick={() => onChange("responseBehavior", o.value)}
+                className={cn("rounded-full px-4 py-1.5 text-sm", behavior === o.value ? "bg-card font-semibold shadow-sm" : "text-muted-foreground")}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </SectionCard>
+      </AdvancedOptions>
     </div>
   );
 }
@@ -1823,7 +1831,8 @@ function StepContext({
     const add = (key: string) => {
       onChange(`contextFields.${entity}`, [
         ...stored,
-        { key, label: fieldLabel(key, catalogFields), permissions: [] },
+        // Entra já usável: sem permissão nenhuma o campo ficava inútil até marcar.
+        { key, label: fieldLabel(key, catalogFields), permissions: ["read"] },
       ]);
     };
 
@@ -1846,19 +1855,19 @@ function StepContext({
     };
 
     return (
-      <SectionCard title={title} description="Campos do CRM que o agente pode ler, citar ou atualizar.">
+      <SectionCard title={title} description="Dados do cadastro que ele usa. Marque o que ele pode fazer com cada um.">
         <div className="overflow-x-auto">
           <div className="min-w-[360px] rounded-lg border">
             <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_40px_40px_40px_40px] sm:items-center sm:gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
               <span>Campo</span>
-              <HeaderCell label="Ler" tooltip="O agente pode usar o valor para entender o contexto." />
-              <HeaderCell label="Citar" tooltip="O agente pode repetir o valor em mensagens ao cliente." />
-              <HeaderCell label="Atualizar" tooltip="O agente pode alterar o valor via ações (ex.: mudar etapa)." />
+              <HeaderCell label="Usar" tooltip="Usa o dado para entender a situação, sem repetir ao cliente." />
+              <HeaderCell label="Dizer" tooltip="Pode dizer o dado ao cliente na conversa." />
+              <HeaderCell label="Gravar" tooltip="Pode atualizar o dado ao encerrar a conversa." />
               <span className="sr-only">Remover</span>
             </div>
             {stored.map((s) => {
               const label = fieldLabel(s.key, catalogFields);
-              const permLabel: Record<string, string> = { read: "Ler", cite: "Citar", write: "Atualizar" };
+              const permLabel: Record<string, string> = { read: "Usar", cite: "Dizer", write: "Gravar" };
               return (
                 <div
                   key={s.key}
@@ -1893,7 +1902,7 @@ function StepContext({
               <div className="flex items-center gap-2 border-t px-3 py-2">
                 <Select value="" onValueChange={(v) => v && add(v)}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Adicionar campo do CRM…" />
+                    <SelectValue placeholder="Adicionar campo do cadastro…" />
                   </SelectTrigger>
                   <SelectContent>
                     {options.map((f) => (
@@ -1915,11 +1924,12 @@ function StepContext({
 
   return (
     <div className="space-y-6">
-      {renderFieldTable("Campos do contato", catalogs.contactCustomFields, contactFields, "contact")}
-      {renderFieldTable("Campos do negócio", catalogs.dealCustomFields, dealFields, "deal")}
+      {renderFieldTable("Dados do contato", catalogs.contactCustomFields, contactFields, "contact")}
+      {renderFieldTable("Dados do negócio", catalogs.dealCustomFields, dealFields, "deal")}
 
-      <SectionCard title="Vários negócios abertos" description="O que fazer quando o cliente tem mais de um negócio em andamento.">
-        <Field label="Escolha do negócio" tooltip="latest = usa o negócio atualizado mais recentemente. ask = pergunta qual negócio o cliente quer tratar.">
+      <AdvancedOptions count={1}>
+      <SectionCard title="Se o cliente tiver mais de um negócio aberto">
+        <Field label="Qual negócio ele usa">
           <Select
             value={(config.dealSelection as string) ?? "latest"}
             onValueChange={(v) => onChange("dealSelection", v)}
@@ -1927,18 +1937,19 @@ function StepContext({
             <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="latest">Usar o mais recente</SelectItem>
-              <SelectItem value="ask">Perguntar qual negócio</SelectItem>
+              <SelectItem value="ask">Perguntar ao cliente qual</SelectItem>
             </SelectContent>
           </Select>
         </Field>
       </SectionCard>
+      </AdvancedOptions>
 
-      <SectionCard title="Informações fixas" description="Variáveis como @Nome da empresa, @Link da área do cliente etc.">
+      <SectionCard title="Informações da empresa" description="Escreva @ e o nome da informação nas mensagens (ex.: @NomeDaEmpresa) e o agente troca pelo valor. Ele também usa essas informações para responder.">
         <div className="space-y-2">
           {variables.map((v, i) => (
             <div key={i} className="flex gap-2">
               <Input
-                placeholder="Nome da variável"
+                placeholder="Nome (ex.: NomeDaEmpresa)"
                 value={v.key}
                 onChange={(e) => {
                   const next = variables.slice();
@@ -1965,14 +1976,21 @@ function StepContext({
             </div>
           ))}
           <Button variant="outline" onClick={() => onChange("variables", [...variables, { key: "", value: "" }])}>
-            <IconPlus className="size-4" /> Adicionar variável
+            <IconPlus className="size-4" /> Adicionar informação
           </Button>
         </div>
       </SectionCard>
 
+    </div>
+  );
+}
+
+/** Política de mídia: fica em "Começo e fim da conversa". */
+function StepMedia({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  return (
       <SectionCard
-        title="Mídia que o cliente manda"
-        description="Áudio e imagem podem virar texto para o agente seguir o atendimento. Se não der para entender, ele avisa e pede para o cliente escrever."
+        title="Se o cliente mandar áudio, imagem ou arquivo"
+        description="Áudio e imagem podem virar texto para ele seguir o atendimento. Se não der para entender, ele avisa e pede para o cliente escrever."
       >
         {(["audio", "image", "document"] as const).map((kind) => {
           const options = MEDIA_ACTION_OPTIONS[kind];
@@ -2038,7 +2056,6 @@ function StepContext({
           </div>
         </div>
       </SectionCard>
-    </div>
   );
 }
 
@@ -2245,66 +2262,7 @@ function StepMaterials({
   return (
     <div className="space-y-6">
       {confirmDeleteDialog}
-      <SectionCard title="Escrever direto" description="Cole um texto curto ou uma FAQ; o sistema divide em trechos para a IA consultar.">
-        <Field label="Título" hint="Ex.: Perguntas frequentes sobre entrega">
-          <Input value={pasteTitle} onChange={(e) => setPasteTitle(e.target.value)} />
-        </Field>
-        <Field label="Conteúdo" hint="Texto puro ou Markdown.">
-          <Textarea
-            value={pasteContent}
-            onChange={(e) => setPasteContent(e.target.value)}
-            rows={6}
-          />
-        </Field>
-        <Button
-          disabled={!pasteTitle.trim() || !pasteContent.trim() || pasteMutation.isPending}
-          onClick={() => pasteMutation.mutate()}
-        >
-          {pasteMutation.isPending ? (
-            <IconLoader2 className="size-4 animate-spin" />
-          ) : (
-            <IconUpload className="size-4" />
-          )}{" "}
-          Salvar texto
-        </Button>
-        {!!pasteMutation.error && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
-            <span>{(pasteMutation.error as Error)?.message ?? "Erro ao salvar material."}</span>
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Enviar arquivo" description="Arraste ou escolha um arquivo. O sistema extrai o texto e divide em trechos.">
-        <Field label="Arquivo" tooltip="Formatos aceitos: .txt, .md, .csv, .tsv, .docx e .pdf. Tamanho máximo 10 MB. PDFs escaneados não são lidos." hint="Formatos: .txt, .md, .csv, .docx, .pdf. Máx. 10 MB.">
-          <div className="flex gap-2">
-            <Input
-              type="file"
-              accept=".txt,.md,.csv,.tsv,.doc,.docx,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-            <Button
-              disabled={!file || uploadMutation.isPending}
-              onClick={() => file && uploadMutation.mutate(file)}
-            >
-              {uploadMutation.isPending ? (
-                <IconLoader2 className="size-4 animate-spin" />
-              ) : (
-                <IconUpload className="size-4" />
-              )}{" "}
-              Enviar
-            </Button>
-          </div>
-        </Field>
-        {!!uploadMutation.error && (
-          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
-            <span>{(uploadMutation.error as Error)?.message ?? "Erro ao enviar material."}</span>
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Materiais disponíveis" description="Selecione quais o agente pode consultar globalmente. Materiais em processamento atualizam sozinhos.">
+      <SectionCard title="Materiais" description="Ligue os que ele pode consultar. Os que estão sendo processados atualizam sozinhos.">
         {docsQuery.isLoading ? (
           <Skeleton className="h-32" />
         ) : (
@@ -2353,7 +2311,7 @@ function StepMaterials({
                   <div className="flex items-center gap-2">
                     {!isReleased(d.id) && (
                       <Badge variant="outline" title="Não está nos materiais permitidos nem em nenhum assunto: o agente não consulta.">
-                        não liberado
+                        não usado
                       </Badge>
                     )}
                     <Badge variant={statusVariant[d.status]}>{statusLabel[d.status]}</Badge>
@@ -2413,6 +2371,65 @@ function StepMaterials({
               ))}
             </div>
           </>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Adicionar arquivo" description="O sistema lê o texto do arquivo e divide em trechos. PDF escaneado (foto) não é lido.">
+        <Field label="Arquivo" tooltip="Formatos aceitos: .txt, .md, .csv, .tsv, .docx e .pdf. Tamanho máximo 10 MB. PDFs escaneados não são lidos." hint="Formatos: .txt, .md, .csv, .docx, .pdf. Máx. 10 MB.">
+          <div className="flex gap-2">
+            <Input
+              type="file"
+              accept=".txt,.md,.csv,.tsv,.doc,.docx,.pdf"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            <Button
+              disabled={!file || uploadMutation.isPending}
+              onClick={() => file && uploadMutation.mutate(file)}
+            >
+              {uploadMutation.isPending ? (
+                <IconLoader2 className="size-4 animate-spin" />
+              ) : (
+                <IconUpload className="size-4" />
+              )}{" "}
+              Enviar
+            </Button>
+          </div>
+        </Field>
+        {!!uploadMutation.error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{(uploadMutation.error as Error)?.message ?? "Erro ao enviar material."}</span>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Adicionar texto" description="Cole um texto ou uma lista de perguntas e respostas. O sistema divide em trechos para ele consultar.">
+        <Field label="Título" hint="Ex.: Perguntas frequentes sobre entrega">
+          <Input value={pasteTitle} onChange={(e) => setPasteTitle(e.target.value)} />
+        </Field>
+        <Field label="Conteúdo" hint="Texto puro ou Markdown.">
+          <Textarea
+            value={pasteContent}
+            onChange={(e) => setPasteContent(e.target.value)}
+            rows={6}
+          />
+        </Field>
+        <Button
+          disabled={!pasteTitle.trim() || !pasteContent.trim() || pasteMutation.isPending}
+          onClick={() => pasteMutation.mutate()}
+        >
+          {pasteMutation.isPending ? (
+            <IconLoader2 className="size-4 animate-spin" />
+          ) : (
+            <IconUpload className="size-4" />
+          )}{" "}
+          Salvar texto
+        </Button>
+        {!!pasteMutation.error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{(pasteMutation.error as Error)?.message ?? "Erro ao salvar material."}</span>
+          </div>
         )}
       </SectionCard>
 
@@ -2486,7 +2503,7 @@ function StepMaterials({
         </DialogContent>
       </Dialog>
 
-      <SectionCard title="Testar busca" description="Escreva uma pergunta para ver quais trechos dos materiais seriam encontrados, sem chamar o modelo.">
+      <SectionCard title="O que ele acharia" description="Escreva uma pergunta de cliente para ver quais trechos ele encontraria nos materiais.">
         <div className="flex gap-2">
           <Input
             placeholder="Ex.: qual o prazo de emissão do documento X?"
@@ -2557,9 +2574,9 @@ function StepMessagesProducts({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Mensagens prontas" description="Modelos de mensagem do CRM que o agente pode usar.">
+      <SectionCard title="Mensagens prontas que ele pode enviar" description="Modelos de mensagem do CRM (com vídeo, imagem ou texto). Ele só envia os que estiverem aqui.">
         <MultiSelectPopover
-          label="Modelos permitidos"
+          label="Escolha as mensagens"
           tooltip="Modelos de mensagem já cadastrados no CRM. O agente só pode enviá-los se estiverem nesta lista.
 Use @Modelo para citar um modelo dentro de uma resposta."
           options={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
@@ -2567,60 +2584,27 @@ Use @Modelo para citar um modelo dentro de uma resposta."
           onChange={(v) => onChange("allowedMessageModelIds", v)}
           emptyLabel="Nenhum modelo cadastrado"
         />
-        {catalogs.messageTemplates.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {catalogs.messageTemplates.map((m) => (
-              <Badge key={m.id} variant={allowedModels.includes(m.id) ? "default" : "outline"}>
-                {m.name}
-              </Badge>
-            ))}
-          </div>
-        )}
       </SectionCard>
 
-      <SectionCard title="Produtos e planos" description="Permitir que o agente fale do catálogo.">
+      <SectionCard title="Catálogo" description="Se ele pode falar dos produtos e serviços cadastrados no CRM.">
         <div className="flex items-center gap-3">
           <Switch
             checked={!!pp.enabled}
             onCheckedChange={(v) => onChange("productPolicy", { ...pp, enabled: v })}
             id="prodEnabled"
           />
-          <Label htmlFor="prodEnabled" className="cursor-pointer">Falar de produtos</Label>
+          <Label htmlFor="prodEnabled" className="cursor-pointer">Pode falar do catálogo</Label>
         </div>
         {!!pp.enabled && (
           <div className="space-y-4 pt-2">
             <MultiSelectPopover
-              label="Produtos permitidos"
-              tooltip="Vazio = todos os produtos ativos do CRM. Selecione IDs específicos para restringir o catálogo deste agente."
+              label="Todos os produtos ativos (ou escolha alguns)"
+              tooltip="Vazio: todos os produtos ativos do CRM. Escolha alguns para limitar."
               options={productOptions}
               selected={allowedProductIds}
               onChange={(v) => onChange("productPolicy", { ...pp, allowedProductIds: v })}
               emptyLabel="Nenhum produto cadastrado no CRM"
             />
-            {catalogs.products.length > 0 && (
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {catalogs.products.map((p) => (
-                  <div
-                    key={p.id}
-                    className={cn(
-                      "flex items-center justify-between rounded-lg border p-3 transition-colors",
-                      allowedProductIds.length > 0 && !allowedProductIds.includes(p.id) && "opacity-50",
-                    )}
-                  >
-                    <span className="text-sm">{p.name}</span>
-                    <Switch
-                      checked={allowedProductIds.length === 0 || allowedProductIds.includes(p.id)}
-                      onCheckedChange={(v) => {
-                        const next = new Set(allowedProductIds);
-                        if (v) next.add(p.id);
-                        else next.delete(p.id);
-                        onChange("productPolicy", { ...pp, allowedProductIds: Array.from(next) });
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </SectionCard>
@@ -2653,7 +2637,7 @@ function StepEntry({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Primeira mensagem" description="Como o agente se apresenta quando a conversa começa.">
+      <SectionCard title="Boas-vindas" description="O que ele manda quando o cliente escreve pela primeira vez.">
         <div className="flex items-center gap-3">
           <Switch
             checked={!!entry.openingEnabled}
@@ -2663,7 +2647,7 @@ function StepEntry({
           <Label htmlFor="openingEnabled">Enviar boas-vindas</Label>
         </div>
         {!!entry.openingEnabled && (
-          <Field label="Mensagem de abertura" tooltip="Texto enviado automaticamente na primeira mensagem do cliente.">
+          <Field label="Mensagem de boas-vindas">
             <Textarea
               value={(entry.openingMessage as string) ?? ""}
               onChange={(e) => onChange("entry.openingMessage", e.target.value)}
@@ -2672,18 +2656,18 @@ function StepEntry({
         )}
       </SectionCard>
 
-      <SectionCard title="Confirmar cadastro" description="Antes de atender, confirma quem é o cliente.">
+      <SectionCard title="Confirmar quem é o cliente" description="Antes de atender, ele pergunta se está falando com a pessoa do cadastro.">
         <div className="flex items-center gap-3">
           <Switch
             checked={!!entry.confirmContact}
             onCheckedChange={(v) => onChange("entry.confirmContact", v)}
             id="confirmContact"
           />
-          <Label htmlFor="confirmContact">Confirmar identidade antes de atender</Label>
+          <Label htmlFor="confirmContact">Confirmar antes de atender</Label>
         </div>
         {!!entry.confirmContact && (
           <>
-            <Field label="Campos usados na confirmação" tooltip="Dados que o agente pede ao cliente para confirmar quem ele é.">
+            <Field label="Dados que ele mostra para confirmar" hint="Só aparecem os dados marcados em O que ele sabe › Dados do cliente.">
               <MultiSelectPopover
                 label="Campos"
                 options={fields}
@@ -2691,21 +2675,21 @@ function StepEntry({
                 onChange={(v) => onChange("entry.confirmationFields", v)}
               />
             </Field>
-            <Field label="Mensagem de confirmação" tooltip="Mensagem enviada após encontrar o contato e negócio no CRM.">
+            <Field label="Mensagem de confirmação">
               <Textarea
                 value={(entry.confirmationMessage as string) ?? ""}
                 onChange={(e) => onChange("entry.confirmationMessage", e.target.value)}
               />
             </Field>
-            <Field label="Momento da confirmação" tooltip="Junto com a boas-vindas (uma mensagem só) ou no turno seguinte (duas trocas).">
+            <Field label="Quando perguntar">
               <Select
                 value={(entry.confirmationMode as string) ?? "combined"}
                 onValueChange={(v) => onChange("entry.confirmationMode", v)}
               >
                 <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="combined">Junto com a boas-vindas</SelectItem>
-                  <SelectItem value="separate_turn">No turno seguinte</SelectItem>
+                  <SelectItem value="combined">Na mesma mensagem das boas-vindas</SelectItem>
+                  <SelectItem value="separate_turn">Na mensagem seguinte</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -2713,8 +2697,8 @@ function StepEntry({
         )}
       </SectionCard>
 
-      <SectionCard title="Quando não encontrar o cliente" description="O que fazer se o número ainda não está no CRM.">
-        <Field label="Ação" tooltip="Comportamento inicial quando o telefone ainda não está cadastrado.">
+      <SectionCard title="Se o número não estiver no cadastro">
+        <Field label="O que ele faz">
           <Select
             value={(entry.onDealNotFound as string) ?? "ask_identification"}
             onValueChange={(v) => onChange("entry.onDealNotFound", v)}
@@ -2731,13 +2715,13 @@ function StepEntry({
         </Field>
         {entry.onDealNotFound === "ask_identification" && (
           <>
-            <Field label="Mensagem pedindo identificação" tooltip="Texto usado quando o agente não reconhece o cliente e precisa pedir dados.">
+            <Field label="Mensagem pedindo os dados">
               <Textarea
                 value={(entry.identificationMessage as string) ?? ""}
                 onChange={(e) => onChange("entry.identificationMessage", e.target.value)}
               />
             </Field>
-            <Field label="Tentativas antes de transferir" tooltip="Quantas vezes o agente tenta identificar antes de passar para um humano.">
+            <Field label="Quantas vezes pedir antes de passar para a equipe">
               <Input
                 type="number"
                 value={String(entry.maxAttempts ?? 2)}
@@ -2851,7 +2835,7 @@ function StepThemes({
           </CardHeader>
           {editingIdx === i && (
             <CardContent className="space-y-4">
-              <Field label="Nome" tooltip="Nome curto do assunto (ex.: Cancelamento, Suporte técnico).">
+              <Field label="Nome" hint="Curto, ex.: Cancelamento, Segunda via.">
                 <Input
                   value={(t.name as string) ?? ""}
                   onChange={(e) => {
@@ -2861,7 +2845,7 @@ function StepThemes({
                   }}
                 />
               </Field>
-              <Field label="Quando usar (palavras ou frases)" tooltip="Palavras-chave ou frases que o cliente digitar para o agente usar este assunto.">
+              <Field label="Como reconhecer: palavras ou frases do cliente" hint="Prefira frases de 2 ou mais palavras. Mesmo sem elas, ele reconhece pelo sentido da mensagem.">
                 <ChipInput
                   values={(t.when as string[]) ?? []}
                   onChange={(v) => {
@@ -2869,10 +2853,10 @@ function StepThemes({
                     next[i] = { ...next[i], when: v };
                     onChange("themes", next);
                   }}
-                  placeholder="Adicionar gatilho"
+                  placeholder="Ex.: quero cancelar"
                 />
               </Field>
-              <Field label="Exemplos de mensagens do cliente" tooltip="Exemplos de mensagens típicas para ajudar o agente a reconhecer o assunto.">
+              <Field label="Exemplos de mensagens do cliente" hint="Ajudam a reconhecer o assunto pelo sentido.">
                 <TextListEditor
                   values={(t.examples as string[]) ?? []}
                   onChange={(v) => {
@@ -2886,7 +2870,7 @@ function StepThemes({
                   placeholder="Ex.: quero cancelar meu pedido"
                 />
               </Field>
-              <Field label="Como agir" tooltip="Instruções específicas de comportamento para este assunto (tom, passos, regras).">
+              <Field label="O que fazer neste assunto" hint="Escreva como orientaria alguém novo na equipe.">
                 <Textarea
                   value={(t.instructions as string) ?? ""}
                   onChange={(e) => {
@@ -2896,26 +2880,13 @@ function StepThemes({
                   }}
                 />
               </Field>
-              <Field label="Materiais permitidos neste assunto" tooltip="Documentos de consulta que o agente pode usar só neste assunto.">
-                <MultiSelectPopover
-                  label="Materiais"
-                  options={catalogs.knowledgeDocs.map((d) => ({ value: d.id, label: d.name }))}
-                  selected={((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)}
+              <Field label="Se precisar transferir, para quem" hint="Vazio: usa o destino padrão (Quando chama a equipe).">
+                <DestinationPicker
+                  value={t.handoffDestination as Record<string, string> | undefined}
+                  catalogs={catalogs}
                   onChange={(v) => {
                     const next = themes.slice();
-                    next[i] = { ...next[i], allowedKnowledgeDocIds: v };
-                    onChange("themes", next);
-                  }}
-                />
-              </Field>
-              <Field label="Modelos permitidos neste assunto" tooltip="Modelos de mensagem que este assunto pode enviar.">
-                <MultiSelectPopover
-                  label="Modelos"
-                  options={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
-                  selected={((t.allowedMessageModelIds as string[]) ?? []).map(String)}
-                  onChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], allowedMessageModelIds: v };
+                    next[i] = { ...next[i], handoffDestination: v };
                     onChange("themes", next);
                   }}
                 />
@@ -2930,19 +2901,34 @@ function StepThemes({
                   }}
                   id={`direct-${i}`}
                 />
-                <Label htmlFor={`direct-${i}`}>Passar direto para o destino sem responder</Label>
+                <Label htmlFor={`direct-${i}`}>Só encaminha para a equipe, sem responder</Label>
               </div>
-              <Field label="Destino quando transferir" tooltip="Setor, fila, usuário ou outro agente de IA que recebe este assunto.">
-                <DestinationPicker
-                  value={t.handoffDestination as Record<string, string> | undefined}
-                  catalogs={catalogs}
+              <AdvancedOptions count={2}>
+              <Field label="Materiais extras só deste assunto" hint="Somam aos materiais gerais.">
+                <MultiSelectPopover
+                  label="Materiais"
+                  options={catalogs.knowledgeDocs.map((d) => ({ value: d.id, label: d.name }))}
+                  selected={((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)}
                   onChange={(v) => {
                     const next = themes.slice();
-                    next[i] = { ...next[i], handoffDestination: v };
+                    next[i] = { ...next[i], allowedKnowledgeDocIds: v };
                     onChange("themes", next);
                   }}
                 />
               </Field>
+              <Field label="Mensagens prontas deste assunto" hint="Se escolher alguma, só estas valem neste assunto (a lista geral deixa de valer).">
+                <MultiSelectPopover
+                  label="Modelos"
+                  options={catalogs.messageTemplates.map((m) => ({ value: m.id, label: m.name }))}
+                  selected={((t.allowedMessageModelIds as string[]) ?? []).map(String)}
+                  onChange={(v) => {
+                    const next = themes.slice();
+                    next[i] = { ...next[i], allowedMessageModelIds: v };
+                    onChange("themes", next);
+                  }}
+                />
+              </Field>
+              </AdvancedOptions>
             </CardContent>
           )}
         </Card>
@@ -3027,7 +3013,7 @@ function StepRules({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Quando</p>
+                <p className="text-sm font-semibold">Sempre que</p>
                 {conditions.map((c, ci) => (
                   <div key={ci} className="flex items-start gap-2">
                     <Select
@@ -3038,7 +3024,7 @@ function StepRules({
                         onChange("rules", next);
                       }}
                     >
-                      <SelectTrigger className="w-48">
+                      <SelectTrigger className="w-full sm:w-56">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -3049,15 +3035,19 @@ function StepRules({
                         ))}
                       </SelectContent>
                     </Select>
-                    <ChipInput
-                      values={((c.values as string[]) ?? []).map(String)}
-                      onChange={(v) => {
-                        const next = rules.slice();
-                        (next[i].conditions as Array<Record<string, unknown>>)[ci] = { ...c, values: v };
-                        onChange("rules", next);
-                      }}
-                      placeholder="Valores"
-                    />
+                    {CONDITIONS_WITH_VALUES.has((c.type as string) ?? "keywords") ? (
+                      <ChipInput
+                        values={((c.values as string[]) ?? []).map(String)}
+                        onChange={(v) => {
+                          const next = rules.slice();
+                          (next[i].conditions as Array<Record<string, unknown>>)[ci] = { ...c, values: v };
+                          onChange("rules", next);
+                        }}
+                        placeholder={CONDITION_PLACEHOLDER[(c.type as string) ?? "keywords"] ?? "Valores"}
+                      />
+                    ) : (
+                      <span className="flex-1" />
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -3080,12 +3070,12 @@ function StepRules({
                     onChange("rules", next);
                   }}
                 >
-                  <IconPlus className="size-4" /> Condição
+                  <IconPlus className="size-4" /> e mais uma condição
                 </Button>
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Então</p>
+                <p className="text-sm font-semibold">então</p>
                 {actions.map((a, ai) => (
                   <div key={ai} className="flex flex-col gap-2 rounded-lg border p-3">
                     <div className="flex items-start gap-2">
@@ -3235,14 +3225,14 @@ function StepOutputs({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Quando não souber a resposta" description="Mensagens de saída para cada situação.">
-        <Field label="Sem material de consulta" tooltip="Resposta quando a busca nos materiais não encontra nada e não há dados do cliente. Vazio: passa para a equipe.">
+      <SectionCard title="Quando não souber">
+        <Field label="Se não achar a informação nos materiais" hint="Vazio: passa para a equipe.">
           <Textarea
             value={((fallback.noSource as Record<string, unknown>)?.message as string) ?? ""}
             onChange={(e) => onChange("fallback.noSource.message", e.target.value)}
           />
         </Field>
-        <Field label="Erro técnico" tooltip="Mensagem amigável exibida quando algo falha na geração da resposta.">
+        <Field label="Se der um erro" hint="Vazio: usa a mensagem de transferência.">
           <Textarea
             value={((fallback.error as Record<string, unknown>)?.message as string) ?? ""}
             onChange={(e) => onChange("fallback.error.message", e.target.value)}
@@ -3250,12 +3240,53 @@ function StepOutputs({
         </Field>
       </SectionCard>
 
-      <SectionCard title="Limites de segurança" description="Quando o agente para de responder sozinho.">
+      <SectionCard title="Se o cliente se irritar">
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={!!getPath(config, "sentiment.enabled", false)}
+            onCheckedChange={(v) => onChange("sentiment.enabled", v)}
+            id="sentiment"
+          />
+          <Label htmlFor="sentiment">Reagir quando o cliente se irritar</Label>
+        </div>
+        {!!getPath(config, "sentiment.enabled", false) && (
+          <div className="grid gap-4 md:grid-cols-2 pt-2">
+            <Field label="A partir de">
+              <Select
+                value={(getPath(config, "sentiment.threshold", "dissatisfied") as string)}
+                onValueChange={(v) => onChange("sentiment.threshold", v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Qualquer sinal de insatisfação</SelectItem>
+                  <SelectItem value="dissatisfied">Cliente insatisfeito</SelectItem>
+                  <SelectItem value="angry">Cliente bravo</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="O que ele faz">
+              <Select
+                value={(getPath(config, "sentiment.action", "handoff") as string)}
+                onValueChange={(v) => onChange("sentiment.action", v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="handoff">Passar para a equipe</SelectItem>
+                  <SelectItem value="notify_and_continue">Continuar atendendo</SelectItem>
+                  <SelectItem value="log_only">Só registrar no rastro</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        )}
+      </SectionCard>
+      <AdvancedOptions count={3}>
+      <SectionCard title="Quando ele para de insistir" description="Limites para conversas que não andam.">
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            { path: "limits.maxCourtesyReplies", label: "Respostas de cortesia", tooltip: "Máximo de respostas educadas após o cliente agradecer antes de encerrar." },
-            { path: "limits.nonsenseLimit", label: "Mensagens sem sentido", tooltip: "Quantas mensagens sem sentido o agente tolera antes de parar." },
-            { path: "limits.maxAiTransfers", label: "Máx. transferências IA→IA", tooltip: "Limite de idas e voltas entre agentes de IA antes de ir para fila humana." },
+            { path: "limits.maxCourtesyReplies", label: "Respostas a agradecimentos depois de encerrar", tooltip: "Quantas vezes ele responde a um obrigado depois que a conversa foi encerrada." },
+            { path: "limits.nonsenseLimit", label: "Mensagens fora do assunto seguidas", tooltip: "Quantas mensagens fora do assunto (ou repetidas) ele aceita antes de agir." },
+            { path: "limits.maxAiTransfers", label: "Vezes que pode passar para outro agente de IA", tooltip: "Limite de idas e voltas entre agentes de IA antes de ir para fila humana." },
           ].map((f) => (
             <Field key={f.path} label={f.label} tooltip={f.tooltip}>
               <Input
@@ -3265,7 +3296,7 @@ function StepOutputs({
               />
             </Field>
           ))}
-          <Field label="Ao atingir o limite de mensagens sem sentido" tooltip="Avisar uma vez e parar de responder a esse tipo de mensagem, ou passar para a equipe.">
+          <Field label="Ao chegar nesse limite" tooltip="Avisar uma vez e parar de responder a esse tipo de mensagem, ou passar para a equipe.">
             <Select
               value={(getPath(config, "limits.nonsenseAction", "warn_and_silence") as string) || "warn_and_silence"}
               onValueChange={(v) => onChange("limits.nonsenseAction", v)}
@@ -3279,47 +3310,7 @@ function StepOutputs({
           </Field>
         </div>
       </SectionCard>
-
-      <SectionCard title="Humor do cliente" description="Reage a insatisfação ou raiva.">
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={!!getPath(config, "sentiment.enabled", false)}
-            onCheckedChange={(v) => onChange("sentiment.enabled", v)}
-            id="sentiment"
-          />
-          <Label htmlFor="sentiment">Reagir ao humor do cliente</Label>
-        </div>
-        {!!getPath(config, "sentiment.enabled", false) && (
-          <div className="grid gap-4 md:grid-cols-2 pt-2">
-            <Field label="Quando" tooltip="Nível de insatisfação que dispara a reação.">
-              <Select
-                value={(getPath(config, "sentiment.threshold", "dissatisfied") as string)}
-                onValueChange={(v) => onChange("sentiment.threshold", v)}
-              >
-                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Qualquer insatisfação</SelectItem>
-                  <SelectItem value="dissatisfied">Insatisfeito</SelectItem>
-                  <SelectItem value="angry">Bravo</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Ação" tooltip="O que fazer quando o humor do cliente atinge o limite.">
-              <Select
-                value={(getPath(config, "sentiment.action", "handoff") as string)}
-                onValueChange={(v) => onChange("sentiment.action", v)}
-              >
-                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="handoff">Transferir</SelectItem>
-                  <SelectItem value="notify_and_continue">Continuar atendendo</SelectItem>
-                  <SelectItem value="log_only">Só registrar no rastro</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-        )}
-      </SectionCard>
+      </AdvancedOptions>
     </div>
   );
 }
@@ -3342,16 +3333,19 @@ function StepTeam({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Destino padrão" description="Para quem o agente passa quando nenhuma regra diz o contrário.">
-        <Field label="Destino" tooltip="Para quem a conversa vai quando nenhuma regra específica define o destino.">
+      <SectionCard title="Para quem ele passa a conversa" description="Vale sempre que nenhum assunto ou atalho disser outro destino.">
+        <Field label="Destino">
           <DestinationPicker
             value={handoff.defaultDestination as Record<string, string> | undefined}
             catalogs={catalogs}
             onChange={(v) => onChange("handoff.defaultDestination", v)}
             hideMessage
           />
+          {!(handoff.defaultDestination as { id?: string } | undefined)?.id && (
+            <p className="text-xs text-destructive">Obrigatório: sem isso, as transferências não chegam a ninguém.</p>
+          )}
         </Field>
-        <Field label="Mensagem ao transferir" tooltip="Texto enviado ao cliente antes de passar para uma pessoa.">
+        <Field label="Mensagem ao passar para a equipe">
           <Textarea
             value={(handoff.message as string) ?? ""}
             onChange={(e) => onChange("handoff.message", e.target.value)}
@@ -3373,7 +3367,7 @@ function StepTeam({
             }
             id="bh"
           />
-          <Label htmlFor="bh">Respeitar horário de atendimento</Label>
+          <Label htmlFor="bh">Usar horário de atendimento</Label>
         </div>
         {!!bh?.enabled && (
           <>
@@ -3491,23 +3485,17 @@ function StepClosure({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Encerramento" description="Mensagem de despedida e janela pós-encerramento.">
-        <Field label="Mensagem de despedida" tooltip="Texto enviado quando a conversa é encerrada.">
+      <SectionCard title="Despedida" description="O que ele manda ao encerrar a conversa.">
+        <Field label="Mensagem de despedida" hint="Vazio: encerra sem mensagem.">
           <Textarea
             value={(closure.goodbyeMessage as string) ?? ""}
             onChange={(e) => onChange("closure.goodbyeMessage", e.target.value)}
           />
         </Field>
-        <Field label="Janela pós-encerramento (horas)" tooltip="Por quanto tempo uma nova mensagem do cliente reabre a mesma conversa.">
-          <Input
-            type="number"
-            value={String(closure.postCloseWindowHours ?? 6)}
-            onChange={(e) => onChange("closure.postCloseWindowHours", Number(e.target.value))}
-          />
-        </Field>
       </SectionCard>
 
-      <SectionCard title="Campos a atualizar no encerramento" description="Sempre que a conversa for encerrada por este agente, atualize automaticamente estes campos do contato ou do negócio.">
+      <AdvancedOptions count={4}>
+      <SectionCard title="Dados a gravar ao encerrar" description="Ao encerrar, ele atualiza estes dados do contato ou do negócio.">
         <div className="space-y-2">
           {fieldUpdates.map((fu, i) => (
             <div key={i} className="flex gap-2">
@@ -3561,8 +3549,8 @@ function StepClosure({
         </div>
       </SectionCard>
 
-      <SectionCard title="Devolver para a automação" description="Se este atendimento começou por uma automação, ela pode continuar de onde ficou paralisada, no passo indicado.">
-        <Field label="Id do passo da automação" tooltip="Id do step da automação que deve continuar quando este agente encerrar a conversa. Deixe vazio se não houver automação de origem.">
+      <SectionCard title="Continuar a automação ao encerrar" description="Se o atendimento começou por uma automação, ela continua do passo indicado.">
+        <Field label="Id do passo da automação" hint="Vazio: nenhuma automação continua.">
           <Input
             value={(closure.nextAutomationStepId as string) ?? ""}
             onChange={(e) => onChange("closure.nextAutomationStepId", e.target.value || undefined)}
@@ -3571,7 +3559,14 @@ function StepClosure({
         </Field>
       </SectionCard>
 
-      <SectionCard title="Comportamento após reabertura" description="O que fazer quando o cliente manda nova mensagem depois de encerrado.">
+      <SectionCard title="Depois de encerrar" description="O que ele faz se o cliente escrever de novo pouco depois de encerrada a conversa.">
+        <Field label="Por quantas horas uma nova mensagem continua a mesma conversa">
+          <Input
+            type="number"
+            value={String(closure.postCloseWindowHours ?? 6)}
+            onChange={(e) => onChange("closure.postCloseWindowHours", Number(e.target.value))}
+          />
+        </Field>
         {[
           { key: "courtesyBehavior", label: "Cortesia/despedida", tooltip: "Cliente só agradeceu ou se despediu." },
           { key: "newDemandBehavior", label: "Nova demanda", tooltip: "Cliente trouxe uma solicitação clara após encerramento." },
@@ -3594,6 +3589,7 @@ function StepClosure({
           </Field>
         ))}
       </SectionCard>
+      </AdvancedOptions>
     </div>
   );
 }
