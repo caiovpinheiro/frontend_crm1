@@ -19,6 +19,10 @@ import { ownerLabel } from "@/lib/utils";
 import { sanitizeContactName } from "@/lib/display-name";
 
 import { agentNameFromWhatsappCallSender } from "@/lib/whatsapp-call-chat";
+import {
+  parseChatInteractiveMarkers,
+  stripChatInteractiveMarkers,
+} from "@/lib/chat-interactive-markers";
 import { prettifyChatMessageBody } from "@/lib/whatsapp-outbound-template-label";
 
 import type {
@@ -216,7 +220,7 @@ export function inferLastMessageType(
  * operador via um snippet clicável como link (e não como abrir a conversa).
  */
 export function toPlainCardPreview(content: string): string {
-  return content
+  return stripChatInteractiveMarkers(content)
     .replace(/\[([^\]]+)\]\(\s*(?:https?:\/\/|mailto:|tel:)[^)\s]+\s*\)/gi, "$1")
     .replace(/<\/?a\b[^>]*>/gi, "")
     .replace(/<[^>]+>/g, " ")
@@ -408,23 +412,9 @@ function parseFormResponse(content: string): { title: string; fields: FormField[
 }
 
 /**
- * Extrai os botões de uma mensagem interativa/template.
- *
- * O backend (automation-executor `send_whatsapp_interactive`) grava o
- * conteúdo como `${corpo}\n[Botões: A, B, C]`. Aqui separamos o corpo
- * real dos rótulos dos botões para o bubble renderizá-los como cards
- * (estilo WhatsApp), em vez de exibir o marcador cru `[Botões: ...]`.
+ * Extrai botões/itens de lista gravados pelo automation-executor
+ * (`[Botões: …]` / `[Lista: …]`) para o bubble desenhar cards.
  */
-function parseInteractiveButtons(content: string): { text: string; buttons?: string[] } {
-  const m = content.match(/\n?\[Bot[õo]es:\s*([^\]]+)\]\s*$/i);
-  if (!m) return { text: content };
-  const buttons = m[1]
-    .split(",")
-    .map((b) => b.trim())
-    .filter(Boolean);
-  const text = content.slice(0, m.index).trimEnd();
-  return { text, buttons: buttons.length ? buttons : undefined };
-}
 
 /** InboxMessageDto → Message (bolha do chat). */
 export function toMessageBubble(
@@ -517,7 +507,7 @@ export function toMessageBubble(
 
   // Abre `[Template: nome]` / cabeçalho 📋 e depois separa `[Botões: ...]`.
   const prettyContent = prettifyChatMessageBody(dto.content ?? "");
-  const btnParsed = !formParsed ? parseInteractiveButtons(prettyContent) : null;
+  const btnParsed = !formParsed ? parseChatInteractiveMarkers(prettyContent) : null;
 
   const isCallRec =
     String(dto.messageType ?? "").toLowerCase() === "whatsapp_call_recording";
@@ -601,7 +591,7 @@ export function toMessageBubble(
     replyTo: dto.replyToPreview
       ? {
           messageId: dto.replyToId ?? null,
-          snippet: dto.replyToPreview,
+          snippet: stripChatInteractiveMarkers(dto.replyToPreview),
           // Sem `dto.replyToDirection` explícito no DTO por ora; heurística:
           // se a mensagem atual é inbound (cliente respondeu), o alvo é
           // provavelmente uma out nossa. Facilita a cor do bar lateral.

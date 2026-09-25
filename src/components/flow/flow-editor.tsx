@@ -50,6 +50,7 @@ import {
   clearHandleFromConfig,
   stripDeletedStepTargets,
 } from "@/lib/flow-step-adapter"
+import { clearGhostRootNext } from "@/lib/automation-ghost-next"
 import {
   applySavedLayout,
   automationToFlowGraph,
@@ -186,12 +187,15 @@ function InnerEditor({ automationId }: { automationId: string }) {
     if (!detail || loadedIdRef.current === detail.id) return
     loadedIdRef.current = detail.id
 
+    const repaired = clearGhostRootNext(
+      detail.steps.map((s) => ({ id: s.id, type: s.type, config: s.config })),
+    )
     const source: AutomationFlowSource = {
       id: detail.id,
       name: detail.name,
       triggerType: detail.triggerType,
       triggerConfig: detail.triggerConfig,
-      steps: detail.steps.map((s) => ({ id: s.id, type: s.type, config: s.config })),
+      steps: repaired.steps,
     }
     sourceRef.current = source
     setName(detail.name)
@@ -208,7 +212,7 @@ function InnerEditor({ automationId }: { automationId: string }) {
       dir,
     )
     readyRef.current = false
-    setDirty(false)
+    setDirty(repaired.changed)
     shouldFrameOpenRef.current = true
     setNodes(positioned)
     setEdges(graph.edges)
