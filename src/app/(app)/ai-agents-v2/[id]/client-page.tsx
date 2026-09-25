@@ -640,10 +640,10 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl bg-muted/40 p-5">
+    <section className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-6">
       <div className="space-y-1">
-        <h3 className="text-base font-bold leading-tight">{title}</h3>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        <h3 className="text-[15px] font-semibold leading-tight tracking-tight">{title}</h3>
+        {description && <p className="text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
       </div>
       {children}
     </section>
@@ -768,34 +768,45 @@ type SectionId = "inicio" | "quem" | "sabe" | "cuida" | "comeco" | "equipe" | "p
 const SECTIONS: Array<{
   id: SectionId;
   title: string;
+  /** Rótulo curto do menu: sempre numa linha. */
+  nav: string;
+  group: "config" | "live";
   intro: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: "inicio", title: "Início", intro: "Onde o agente está e o que falta para ele atender.", icon: IconHome },
-  { id: "quem", title: "Quem é o agente", intro: "Como ele fala e o que ele nunca faz.", icon: IconUser },
-  { id: "sabe", title: "O que ele sabe", intro: "Ele só responde o que estiver aqui ou nos dados do cliente.", icon: IconBook },
+  { id: "inicio", title: "Início", nav: "Início", group: "config", intro: "Onde o agente está e o que falta para ele atender.", icon: IconHome },
+  { id: "quem", title: "Quem é o agente", nav: "Quem é o agente", group: "config", intro: "Como ele fala e o que ele nunca faz.", icon: IconUser },
+  { id: "sabe", title: "O que ele sabe", nav: "O que ele sabe", group: "config", intro: "Ele só responde o que estiver aqui ou nos dados do cliente.", icon: IconBook },
   {
     id: "cuida",
     title: "Do que ele cuida",
+    nav: "Do que ele cuida",
+    group: "config",
     intro: "Cada assunto tem seu jeito de agir e para quem transferir. Ele reconhece o assunto pelo que o cliente escreve.",
     icon: IconListCheck,
   },
   {
     id: "comeco",
     title: "Começo e fim da conversa",
+    nav: "Começo e fim",
+    group: "config",
     intro: "Como ele cumprimenta, confirma quem é o cliente e encerra a conversa.",
     icon: IconMessageCircle2,
   },
   {
     id: "equipe",
     title: "Quando chama a equipe",
+    nav: "Chamar a equipe",
+    group: "config",
     intro: "Para quem ele passa a conversa, em que horários atende e quando para de responder.",
     icon: IconUsers,
   },
-  { id: "publicacao", title: "Publicação", intro: "Onde ele atende, para quem, com qual modelo e qual versão.", icon: IconRocket },
+  { id: "publicacao", title: "Publicação", nav: "Publicação", group: "live", intro: "Onde ele atende, para quem, com qual modelo e qual versão.", icon: IconRocket },
   {
     id: "testes",
     title: "Testes",
+    nav: "Testes",
+    group: "live",
     intro: "Veja as conversas dos números de teste e compare as respostas dele com as da sua equipe.",
     icon: IconFlask,
   },
@@ -1175,35 +1186,47 @@ export default function AIAgentV2EditPage() {
             {/* seções: coluna no desktop, faixa rolável no celular */}
             <nav
               aria-label="Seções do agente"
-              className="flex shrink-0 gap-1 overflow-x-auto rounded-2xl border bg-card p-2 lg:sticky lg:top-4 lg:w-[216px] lg:flex-col lg:overflow-visible"
+              className="flex shrink-0 gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card p-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] lg:sticky lg:top-4 lg:w-[208px] lg:flex-col lg:overflow-visible lg:p-3"
             >
-              {SECTIONS.map((s) => {
+              {SECTIONS.map((s, idx) => {
                 const on = s.id === section;
                 const todo = (pending[s.id] ?? []).length > 0;
                 const Icon = s.icon;
+                const groupStart = idx === 0 || SECTIONS[idx - 1].group !== s.group;
                 return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    aria-current={on ? "page" : undefined}
-                    onClick={() => goTo(s.id)}
-                    className={cn(
-                      "flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3 text-left text-sm transition-colors",
-                      on ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-muted",
+                  <React.Fragment key={s.id}>
+                    {groupStart && (
+                      <p
+                        className={cn(
+                          "hidden px-3 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80 lg:block",
+                          idx > 0 && "mt-3 border-t border-border/60 pt-4",
+                        )}
+                      >
+                        {s.group === "config" ? "Configurar" : "Colocar no ar"}
+                      </p>
                     )}
-                  >
-                    <Icon className="size-4 shrink-0" />
-                    <span className="flex-1 whitespace-nowrap lg:whitespace-normal">{s.title}</span>
-                    {todo && <span aria-label="Falta configurar" className="size-2 shrink-0 rounded-full bg-destructive" />}
-                  </button>
+                    <button
+                      type="button"
+                      aria-current={on ? "page" : undefined}
+                      onClick={() => goTo(s.id)}
+                      className={cn(
+                        "group flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-3 text-left text-[13.5px] transition-colors",
+                        on ? "bg-primary/10 font-semibold text-primary" : "text-foreground/75 hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <Icon className={cn("size-[17px] shrink-0", on ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                      <span className="flex-1 truncate whitespace-nowrap">{s.nav}</span>
+                      {todo && <span aria-label="Falta configurar" className="size-1.5 shrink-0 rounded-full bg-destructive" />}
+                    </button>
+                  </React.Fragment>
                 );
               })}
             </nav>
 
-            <main className="min-w-0 flex-1 rounded-2xl border bg-card p-4 sm:p-6">
+            <main className="min-w-0 flex-1">
               <div className="max-w-[960px] space-y-5">
-                <div className="space-y-1">
-                  <h2 className="text-xl font-bold tracking-tight">{current.title}</h2>
+                <div className="space-y-1 px-1 pt-1">
+                  <h2 className="text-[22px] font-bold tracking-tight">{current.title}</h2>
                   <p className="text-sm text-muted-foreground">{current.intro}</p>
                 </div>
 
@@ -1236,7 +1259,7 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "sabe" && (
                   <Tabs value={knowTab} onValueChange={setKnowTab} className="space-y-4">
-                    <TabsList className="flex h-auto flex-wrap justify-start">
+                    <TabsList className="flex h-auto flex-wrap justify-start border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                       <TabsTrigger value="materiais">Materiais</TabsTrigger>
                       <TabsTrigger value="calendario">Calendário</TabsTrigger>
                       <TabsTrigger value="dados">Dados do cliente e da empresa</TabsTrigger>
@@ -1258,7 +1281,7 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "cuida" && (
                   <Tabs value={careTab} onValueChange={setCareTab} className="space-y-4">
-                    <TabsList>
+                    <TabsList className="border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                       <TabsTrigger value="assuntos">Assuntos</TabsTrigger>
                       <TabsTrigger value="atalhos">Atalhos automáticos</TabsTrigger>
                     </TabsList>
@@ -1319,7 +1342,7 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "testes" && (
                   <Tabs value={testsTab} onValueChange={setTestsTab} className="space-y-4">
-                    <TabsList>
+                    <TabsList className="border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                       <TabsTrigger value="whatsapp">Pelo WhatsApp</TabsTrigger>
                       <TabsTrigger value="compare">Comparar com a equipe</TabsTrigger>
                       <TabsTrigger value="try">Conversa de teste</TabsTrigger>
@@ -1661,7 +1684,7 @@ function SectionHome({
           Para o agente funcionar {missing > 0 ? `· falta${missing > 1 ? "m" : ""} ${missing}` : "· tudo pronto"}
         </p>
         {items.map((it) => (
-          <div key={it.title} className="flex items-center gap-3 rounded-xl border px-4 py-3">
+          <div key={it.title} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
             <span
               className={cn(
                 "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
@@ -2904,7 +2927,7 @@ function SearchableToggleList({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <label className="flex h-10 flex-1 items-center gap-2 rounded-full border bg-card px-4">
+        <label className="flex h-10 flex-1 items-center gap-2 rounded-full border border-border/70 bg-card px-4 focus-within:border-primary/50">
           <IconSearch className="size-4 shrink-0 text-muted-foreground" />
           <input
             type="search"
@@ -2926,7 +2949,10 @@ function SearchableToggleList({
               role="radio"
               aria-checked={onlyOn === v}
               onClick={() => setOnlyOn(v as boolean)}
-              className={cn("rounded-full px-3.5 py-1.5 text-sm", onlyOn === v ? "bg-card font-semibold shadow-sm" : "text-muted-foreground")}
+              className={cn(
+                "min-w-[112px] rounded-full px-3.5 py-1.5 text-center text-sm font-semibold tabular-nums",
+                onlyOn === v ? "bg-card shadow-sm" : "text-muted-foreground",
+              )}
             >
               {l as string}
             </button>
@@ -2942,9 +2968,9 @@ function SearchableToggleList({
           Liberar as {hiddenOff.length} encontradas
         </button>
       )}
-      <div className="max-h-[420px] divide-y overflow-y-auto rounded-xl border bg-card">
+      <div className="h-[420px] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70 bg-card">
         {visible.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+          <p className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {onlyOn && !q ? "Nenhuma liberada ainda." : "Nada encontrado."}
           </p>
         ) : (

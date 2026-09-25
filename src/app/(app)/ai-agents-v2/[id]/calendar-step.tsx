@@ -47,7 +47,7 @@ const newId = () => `ev_${Date.now().toString(36)}_${Math.random().toString(36).
 
 function SectionBox({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-4 rounded-2xl border bg-card p-5">
+    <section className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-6">
       <div className="space-y-1">
         <h3 className="text-base font-bold leading-tight">{title}</h3>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
