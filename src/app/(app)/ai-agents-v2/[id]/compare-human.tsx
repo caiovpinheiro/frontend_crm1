@@ -605,7 +605,7 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
             Acerto = igual à pessoa, resolveu em parte (sem inventar nem errar) ou transferiu quando a pessoa precisou
             consultar um sistema.
             {summary.naoAvaliaveis > 0 &&
-              ` ${summary.naoAvaliaveis} ${summary.naoAvaliaveis === 1 ? "ponto ficou" : "pontos ficaram"} de fora (áudio/arquivo).`}
+              ` ${summary.naoAvaliaveis} ${summary.naoAvaliaveis === 1 ? "ponto ficou" : "pontos ficaram"} de fora (só mídia, ou resposta da pessoa sem conteúdo, como "ok" ou "por nada").`}
             {summary.erros > 0 && ` ${summary.erros} com falha técnica.`}
             {run.status !== "running" && ` Custo: US$ ${run.costUsd.toFixed(3)}.`}
           </CardDescription>
