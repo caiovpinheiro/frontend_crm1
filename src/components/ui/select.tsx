@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { IconChevronDown as ChevronDown } from "@tabler/icons-react";
+import { IconCheck, IconChevronDown as ChevronDown } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
 
@@ -263,9 +263,11 @@ function SelectItem({
       type="button"
       data-slot="select-item"
       data-selected={selected === value || undefined}
+      // Selecionado no tom da marca, com ✓. Antes usava --accent (areia),
+      // cor de aviso/lead que destoava do resto do sistema.
       className={cn(
-        "relative flex w-full cursor-default items-center rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-        selected === value && "bg-accent text-accent-foreground",
+        "relative flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted",
+        selected === value && "bg-primary/10 font-medium text-primary hover:bg-primary/15",
         className
       )}
       onClick={() => {
@@ -274,7 +276,8 @@ function SelectItem({
       }}
       {...props}
     >
-      {children}
+      <span className="min-w-0 flex-1">{children}</span>
+      {selected === value && <IconCheck aria-hidden className="size-4 shrink-0" />}
     </button>
   );
 }

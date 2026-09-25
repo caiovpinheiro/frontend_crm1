@@ -48,6 +48,8 @@ interface MultiSelectPopoverProps {
   onValueChange?: (value: string) => void;
   /** Notifica mudanças no texto de busca (debounced) para busca assíncrona. */
   onSearchQueryChange?: (query: string) => void;
+  /** Texto do campo de busca. Padrão: "Buscar <rótulo>…". */
+  searchPlaceholder?: string;
 }
 
 export function MultiSelectPopover({
@@ -66,6 +68,7 @@ export function MultiSelectPopover({
   value,
   onValueChange,
   onSearchQueryChange,
+  searchPlaceholder,
 }: MultiSelectPopoverProps) {
   const isSingle = Boolean(single);
   const effectiveSelected = isSingle ? (value ? [value] : []) : selected;
@@ -89,6 +92,17 @@ export function MultiSelectPopover({
 
   const count = selected.length;
   const visibleOptions = useMemo(() => matchMultiSelectOptions(options, debouncedQuery), [options, debouncedQuery]);
+  const visibleValues = visibleOptions.map((o) => o.value);
+  const allVisibleSelected = visibleValues.length > 0 && visibleValues.every((v) => selected.includes(v));
+
+  function toggleAllVisible() {
+    if (allVisibleSelected) {
+      const drop = new Set(visibleValues);
+      onChange(selected.filter((v) => !drop.has(v)));
+    } else {
+      onChange([...new Set([...selected, ...visibleValues])]);
+    }
+  }
 
   function toggleValue(itemValue: string) {
     if (isSingle) {
@@ -174,20 +188,33 @@ export function MultiSelectPopover({
               portalContainer ? "z-[200]" : "z-(--z-popover)",
             )}
           >
-            <div className="flex items-center justify-between border-b border-[var(--glass-border-subtle)] px-3 py-2">
-              <span className="font-display text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                {labelNode}
-              </span>
-              {!isSingle && count > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onChange([])}
-                  className="font-display text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)]"
-                >
-                  Limpar
-                </button>
-              )}
-            </div>
+            {!isSingle && (
+              <div className="flex items-center justify-between gap-2 border-b border-[var(--glass-border-subtle)] px-3 py-2">
+                <span className="truncate font-display text-[12px] font-semibold text-[var(--text-secondary)]">
+                  {count > 0 ? `${count} selecionado${count > 1 ? "s" : ""}` : labelNode}
+                </span>
+                <div className="flex shrink-0 items-center gap-3">
+                  {options.length > 1 && visibleOptions.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleAllVisible}
+                      className="font-display text-[12px] font-semibold text-[var(--brand-primary)] transition-colors hover:underline"
+                    >
+                      {allVisibleSelected ? "Desmarcar todos" : debouncedQuery ? "Marcar os encontrados" : "Marcar todos"}
+                    </button>
+                  )}
+                  {count > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onChange([])}
+                      className="font-display text-[12px] font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand-primary)]"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {(searchable ?? options.length > 8) ? (
               <div className="border-b border-[var(--glass-border-subtle)] px-2 py-1.5">
@@ -196,7 +223,7 @@ export function MultiSelectPopover({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
-                  placeholder={`Buscar ${label.toLowerCase()}…`}
+                  placeholder={searchPlaceholder ?? `Buscar ${label.toLowerCase()}…`}
                   className="h-8 w-full rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-2.5 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                 />
               </div>
@@ -209,7 +236,7 @@ export function MultiSelectPopover({
                 </p>
               ) : visibleOptions.length === 0 ? (
                 <p className="px-2 py-3 text-center font-body text-[12px] italic text-[var(--text-muted)]">
-                  Nenhuma opção com “{debouncedQuery}".
+                  Nenhuma opção com “{debouncedQuery}”.
                 </p>
               ) : (
                 visibleOptions.map((opt) => {
@@ -219,7 +246,10 @@ export function MultiSelectPopover({
                       key={opt.value}
                       type="button"
                       onClick={() => toggleValue(opt.value)}
-                      className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--glass-bg-subtle)]"
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 text-left transition-colors",
+                        checked ? "bg-[var(--brand-primary)]/8 hover:bg-[var(--brand-primary)]/12" : "hover:bg-[var(--glass-bg-subtle)]",
+                      )}
                     >
                       {!isSingle && (
                         <span
@@ -243,7 +273,12 @@ export function MultiSelectPopover({
                         />
                       )}
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-display text-[12.5px] font-semibold text-[var(--text-primary)]">
+                        <span
+                          className={cn(
+                            "block truncate font-display text-[13px] text-[var(--text-primary)]",
+                            checked ? "font-semibold" : "font-medium",
+                          )}
+                        >
                           {opt.label}
                         </span>
                         {opt.sub && (
@@ -261,15 +296,18 @@ export function MultiSelectPopover({
               )}
             </div>
 
-            <div className="border-t border-[var(--glass-border-subtle)] p-1.5">
-              <button
-                type="button"
-                onClick={close}
-                className="w-full rounded-[var(--radius-sm)] bg-[var(--glass-bg-subtle)] py-1.5 font-display text-[12px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
-              >
-                Fechar
-              </button>
-            </div>
+            {/* Escolha única fecha ao escolher: não precisa de rodapé. */}
+            {!isSingle && (
+              <div className="border-t border-[var(--glass-border-subtle)] p-1.5">
+                <button
+                  type="button"
+                  onClick={close}
+                  className="w-full rounded-[var(--radius-sm)] bg-[var(--brand-primary)] py-2 font-display text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90"
+                >
+                  Concluir
+                </button>
+              </div>
+            )}
           </div>,
           portalContainer ?? document.body,
         )}

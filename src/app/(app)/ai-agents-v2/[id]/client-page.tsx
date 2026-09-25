@@ -39,6 +39,7 @@ import {
   IconBook,
   IconUsers,
   IconFlask,
+  IconChecks,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -1091,6 +1092,7 @@ export default function AIAgentV2EditPage() {
       dirty={dirty}
       catalogs={catalogs}
       compact={compact}
+      agentName={name}
       onSave={async () => saveDraftMutation.mutateAsync()}
       onGoToTheme={() => {
         setCareTab("assuntos");
@@ -1304,7 +1306,7 @@ export default function AIAgentV2EditPage() {
             {showSidePanel && (
               <aside
                 aria-label="Testar o agente"
-                className="sticky top-4 flex h-[calc(100vh-9rem)] w-[360px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-card"
+                className="sticky top-4 flex h-[calc(100vh-9rem)] w-[360px] shrink-0 flex-col"
               >
                 {testChat(true)}
               </aside>
@@ -1315,7 +1317,7 @@ export default function AIAgentV2EditPage() {
         {/* Telas menores: o teste abre por cima, da direita. */}
         <Sheet open={testOpen && !isWide && section !== "testes"} onOpenChange={(o) => setTestOpen(o)}>
           <SheetContent className="w-full max-w-[420px] p-0">
-            <div className="flex h-full flex-col">{testChat(true)}</div>
+            <div className="flex h-full flex-col p-3">{testChat(true)}</div>
           </SheetContent>
         </Sheet>
       </AppV2PageShell>
@@ -4209,8 +4211,11 @@ function StepTestPublish({
   onGoToTheme,
   onGoToRule,
   compact = false,
+  agentName = "",
 }: {
   agentId: string;
+  /** Nome no topo do "WhatsApp" do teste. */
+  agentName?: string;
   dirty: boolean;
   catalogs: Catalogs;
   /** Versão estreita, fixa ao lado das seções. */
@@ -4318,152 +4323,181 @@ function StepTestPublish({
 
   const contactPicker = (
     <MultiSelectPopover
-      label={compact ? "Testar como: cliente sem cadastro" : "Simular como contato genérico"}
+      label="Testar como: cliente sem cadastro"
+      searchPlaceholder="Buscar contato do CRM…"
       options={contactOptions}
       single
       value={testContactId}
       onValueChange={setTestContactId}
       onSearchQueryChange={setContactSearch}
       searchable
-      width={compact ? 300 : 320}
+      width={300}
+      triggerClassName="w-full"
     />
   );
 
-  const restartButton = (
-    <Button variant="outline" size="sm" onClick={restart} disabled={turns.length === 0} className="gap-1">
-      <IconRefresh className="size-3.5" /> Recomeçar
-    </Button>
-  );
+  const clock = (t: ChatTurn) => {
+    const ms = Number(t.id.slice(2));
+    return Number.isFinite(ms) ? new Date(ms).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+  };
+  const initials =
+    agentName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "IA";
 
-  const chat = (
+  // Visual de WhatsApp no celular: quem testa é o cliente (verde, à direita);
+  // o agente responde à esquerda, como o cliente vai ver.
+  const phone = (
     <div
-      ref={scrollRef}
       className={cn(
-        "flex flex-col gap-3 overflow-y-auto bg-[var(--chat-bg,var(--muted))] p-4",
-        compact ? "min-h-0 flex-1" : "max-h-[480px] min-h-[320px] rounded-xl border",
+        "flex min-h-0 flex-col overflow-hidden rounded-[36px] border-[10px] border-neutral-900 bg-neutral-900 shadow-xl",
+        compact ? "flex-1" : "mx-auto h-[720px] w-full max-w-[420px]",
       )}
     >
-      {turns.length === 0 && !testing && (
-        <div className="m-auto space-y-3 text-center">
-          <p className="text-sm text-muted-foreground">Escreva como se fosse o cliente, ou comece por aqui:</p>
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {["oi", "preciso de ajuda", "quero falar com alguém"].map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setMessage(s)}
-                className="rounded-full border bg-card px-3 py-1 text-xs hover:border-primary/40"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+      <div className="flex items-center gap-2.5 rounded-t-[26px] bg-[#075E54] px-3 py-2.5 text-white">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-xs font-bold text-[#053d36]">
+          {initials}
+        </span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-sm font-semibold">{agentName || "Agente"}</p>
+          <p className="text-[11px] text-white/80">{testing ? "digitando…" : "online · teste"}</p>
         </div>
-      )}
-      {turns.map((t) => (
-        <React.Fragment key={t.id}>
-          {/* Bolha do cliente simulado */}
-          <div className="flex justify-start">
-            <div
-              className="max-w-[80%] rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm shadow-sm"
-              style={{ background: "var(--chat-bubble-received-bg, #fff)", color: "var(--chat-bubble-received-text, inherit)" }}
-            >
-              {t.userMessage}
-            </div>
-          </div>
-          {/* Bolha do agente */}
-          {t.result && (
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex justify-end">
-                <div
-                  className="max-w-[85%] whitespace-pre-line rounded-2xl rounded-br-sm px-3.5 py-2 text-sm shadow-sm"
-                  style={{ background: "var(--chat-bubble-sent-bg, var(--primary))", color: "var(--chat-bubble-sent-text, var(--primary-foreground))" }}
-                >
-                  {t.result.reply || <span className="italic opacity-75">(sem resposta ao cliente)</span>}
-                </div>
-              </div>
-              <p className="text-right text-[11px] text-muted-foreground">
-                {[
-                  t.result.themeName ? `Assunto: ${t.result.themeName}` : "Sem assunto",
-                  t.result.appliedRuleName ? `Atalho: ${t.result.appliedRuleName}` : null,
-                  (t.result.ragChunks?.length ?? 0) > 0 ? `leu ${t.result.ragChunks!.length} trecho(s)` : null,
-                  t.result.handoff ? "passou para a equipe" : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-              <button
-                type="button"
-                onClick={() => setOpenWhyId(openWhyId === t.id ? null : t.id)}
-                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                <IconBulb className="size-3.5" />
-                Por que respondeu isso?
-                <IconChevronDown className={cn("size-3 transition-transform", openWhyId === t.id && "rotate-180")} />
-              </button>
-              {openWhyId === t.id && (
-                <div className={cn("w-full", compact ? "max-w-full" : "max-w-[92%]")}>
-                  <WhyPanel
-                    result={t.result}
-                    onEditTheme={t.result.themeId && onGoToTheme ? () => onGoToTheme(t.result!.themeId!) : undefined}
-                    onEditRule={t.result.appliedRuleId && onGoToRule ? () => onGoToRule(t.result!.appliedRuleId!) : undefined}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-          {t.error && (
-            <div className="flex justify-end">
-              <div className="max-w-[80%] rounded-2xl rounded-br-sm border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-sm text-destructive">
-                Não consegui responder: {t.error}
-              </div>
-            </div>
-          )}
-        </React.Fragment>
-      ))}
-      {testing && (
-        <div className="flex justify-end">
-          <div className="flex items-center gap-1.5 rounded-2xl rounded-br-sm bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
-            <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.2s]" />
-            <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.1s]" />
-            <span className="size-1.5 animate-bounce rounded-full bg-current" />
-            <span className="ml-1">digitando…</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+        <button
+          type="button"
+          onClick={restart}
+          disabled={turns.length === 0}
+          aria-label="Recomeçar a conversa"
+          title="Recomeçar"
+          className="rounded-full p-1.5 text-white/90 hover:bg-white/10 disabled:opacity-40"
+        >
+          <IconRefresh className="size-4" />
+        </button>
+      </div>
 
-  const inputRow = (
-    <div className={cn("flex gap-2", compact && "border-t p-3")}>
-      <Input
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Escreva como se fosse o cliente…"
-        onKeyDown={(e) => e.key === "Enter" && !testing && runTest()}
-        disabled={testing}
-        aria-label="Mensagem de teste"
-      />
-      <Button onClick={runTest} disabled={testing || !message.trim()} aria-label="Enviar">
-        <IconSend className="size-4" />
-        {!compact && " Enviar"}
-      </Button>
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto bg-[#EFEAE2] px-3 py-3">
+        <p className="mx-auto mb-1 rounded-md bg-[#FFF3C4] px-2.5 py-1 text-center text-[11px] text-[#54656F] shadow-sm">
+          Teste com o rascunho. Nada é enviado a clientes.
+        </p>
+        {turns.length === 0 && !testing && (
+          <div className="m-auto space-y-2 text-center">
+            <p className="rounded-lg bg-white/80 px-3 py-1.5 text-xs text-[#54656F]">Escreva como se fosse o cliente, ou comece por aqui:</p>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {["oi", "preciso de ajuda", "quero falar com alguém"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setMessage(s)}
+                  className="rounded-full bg-white px-3 py-1 text-xs text-[#111B21] shadow-sm hover:bg-[#F5F6F6]"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {turns.map((t) => (
+          <React.Fragment key={t.id}>
+            <div className="flex justify-end">
+              <div className="max-w-[82%] rounded-lg rounded-tr-none bg-[#D9FDD3] px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
+                <span className="whitespace-pre-line">{t.userMessage}</span>
+                <span className="ml-2 inline-flex translate-y-0.5 items-center gap-0.5 whitespace-nowrap text-[10px] text-[#667781]">
+                  {clock(t)}
+                  <IconChecks className="size-3.5 text-[#53BDEB]" />
+                </span>
+              </div>
+            </div>
+            {t.result && (
+              <div className="flex flex-col items-start gap-1">
+                <div className="max-w-[88%] rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
+                  <span className="whitespace-pre-line">
+                    {t.result.reply || <span className="italic text-[#667781]">(sem resposta ao cliente)</span>}
+                  </span>
+                  <span className="ml-2 inline-block translate-y-0.5 whitespace-nowrap text-[10px] text-[#667781]">{clock(t)}</span>
+                </div>
+                <p className="px-1 text-[10.5px] text-[#54656F]">
+                  {[
+                    t.result.themeName ? `Assunto: ${t.result.themeName}` : "Sem assunto",
+                    t.result.appliedRuleName ? `Atalho: ${t.result.appliedRuleName}` : null,
+                    (t.result.ragChunks?.length ?? 0) > 0 ? `leu ${t.result.ragChunks!.length} trecho(s)` : null,
+                    t.result.handoff ? "passou para a equipe" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setOpenWhyId(openWhyId === t.id ? null : t.id)}
+                  className="flex items-center gap-1 rounded-full bg-white/85 px-2.5 py-0.5 text-[11px] font-semibold text-primary shadow-sm hover:bg-white"
+                >
+                  <IconBulb className="size-3" />
+                  Por que respondeu isso?
+                  <IconChevronDown className={cn("size-3 transition-transform", openWhyId === t.id && "rotate-180")} />
+                </button>
+                {openWhyId === t.id && (
+                  <div className="w-full rounded-xl bg-white p-1 shadow-sm">
+                    <WhyPanel
+                      result={t.result}
+                      onEditTheme={t.result.themeId && onGoToTheme ? () => onGoToTheme(t.result!.themeId!) : undefined}
+                      onEditRule={t.result.appliedRuleId && onGoToRule ? () => onGoToRule(t.result!.appliedRuleId!) : undefined}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {t.error && (
+              <div className="flex justify-start">
+                <div className="max-w-[88%] rounded-lg rounded-tl-none border border-destructive/30 bg-[#FDECEC] px-2.5 py-1.5 text-[13px] text-destructive shadow-sm">
+                  Não consegui responder: {t.error}
+                </div>
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+        {testing && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-1 rounded-lg rounded-tl-none bg-white px-3 py-2.5 shadow-sm">
+              <span className="size-1.5 animate-bounce rounded-full bg-[#8696A0] [animation-delay:-0.2s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#8696A0] [animation-delay:-0.1s]" />
+              <span className="size-1.5 animate-bounce rounded-full bg-[#8696A0]" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 rounded-b-[26px] bg-[#F0F2F5] px-2 py-2">
+        <input
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Mensagem"
+          onKeyDown={(e) => e.key === "Enter" && !testing && runTest()}
+          disabled={testing}
+          aria-label="Mensagem de teste"
+          className="h-10 min-w-0 flex-1 rounded-full bg-white px-4 text-sm text-[#111B21] outline-none placeholder:text-[#8696A0]"
+        />
+        <button
+          type="button"
+          onClick={runTest}
+          disabled={testing || !message.trim()}
+          aria-label="Enviar"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#00A884] text-white disabled:opacity-50"
+        >
+          <IconSend className="size-4" />
+        </button>
+      </div>
     </div>
   );
 
   if (compact) {
     return (
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="flex items-center gap-2 border-b px-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold">Testar agora</p>
-            <p className="truncate text-xs text-muted-foreground">Usa o rascunho · nada é enviado a clientes</p>
-          </div>
-          {restartButton}
+      <div className="flex h-full min-h-0 flex-col gap-2.5">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-bold">Testar agora</p>
+          <div className="min-w-0 flex-1">{contactPicker}</div>
         </div>
-        <div className="border-b px-3 py-2">{contactPicker}</div>
-        {chat}
-        {inputRow}
+        {phone}
       </div>
     );
   }
@@ -4472,17 +4506,10 @@ function StepTestPublish({
     <div className="space-y-4">
       <SectionCard
         title="Conversa de teste"
-        description="Converse com o agente como se fosse o cliente, sem afetar clientes reais. Depois de cada resposta, veja os bastidores em “Por que respondeu isso?”."
+        description="Converse como se fosse o cliente, sem afetar clientes reais. Depois de cada resposta, veja em “Por que respondeu isso?” como ele decidiu."
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">Simulação isolada — nada é enviado pelo canal real nem grava dados do cliente.</p>
-          <div className="flex items-center gap-2">
-            {contactPicker}
-            {restartButton}
-          </div>
-        </div>
-        {chat}
-        {inputRow}
+        <div className="mx-auto w-full max-w-[420px]">{contactPicker}</div>
+        {phone}
       </SectionCard>
     </div>
   );
