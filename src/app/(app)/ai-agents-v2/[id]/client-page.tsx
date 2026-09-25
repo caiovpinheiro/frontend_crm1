@@ -8,11 +8,8 @@ import {
   IconTrash,
   IconSend,
   IconPlus,
-  IconDeviceFloppy,
   IconRocket,
   IconAlertCircle,
-  IconChevronLeft,
-  IconChevronRight,
   IconCheck,
   IconUpload,
   IconX,
@@ -38,6 +35,10 @@ import {
   IconPencil,
   IconDownload,
   IconFileImport,
+  IconHome,
+  IconBook,
+  IconUsers,
+  IconFlask,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -71,6 +72,7 @@ import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
 import { looksLikeOpenAiApiKey } from "@/lib/agent-key";
 import { cn, formatDate } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
 import { CalendarStep } from "./calendar-step";
@@ -286,28 +288,6 @@ const ACTION_TYPES = [
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 /** Dicionário da tela: termo técnico do motor → o que aparece na tela, em português simples. */
-const SCREEN_DICTIONARY: Array<{ term: string; meaning: string }> = [
-  { term: "Modelo (preset)", meaning: "Ponto de partida pronto do agente (ex.: Atendimento, Vendas)." },
-  { term: "Tom de voz", meaning: "Como o agente fala com o cliente." },
-  { term: "Regras que ele sempre segue", meaning: "Instruções fixas, válidas em qualquer assunto." },
-  { term: "Campos do contato e do negócio", meaning: "Dados do CRM que o agente pode usar." },
-  { term: "Informações fixas da empresa", meaning: "Variáveis como @Nome da empresa, sempre disponíveis nas mensagens." },
-  { term: "Materiais de consulta", meaning: "Documentos que o agente pesquisa para responder (também chamado RAG)." },
-  { term: "Como a conversa chega", meaning: "De onde vem a primeira mensagem: cliente, automação ou outra pessoa." },
-  { term: "Confirmar o cadastro", meaning: "Checar com o cliente se os dados encontrados são dele." },
-  { term: "Assuntos / Demandas", meaning: "Os temas que o agente atende (cada um com suas próprias instruções)." },
-  { term: "O que ele pode fazer", meaning: "Lista de ações e ferramentas liberadas para o assunto." },
-  { term: "Regras automáticas", meaning: "Condições que, quando batem, decidem a resposta antes do agente pensar." },
-  { term: "Distribuição inteligente", meaning: "Escolha automática de quem vai atender, pelas regras do CRM." },
-  { term: "Passar para uma pessoa", meaning: "Transferir a conversa para alguém da equipe (também chamado handoff)." },
-  { term: "Passar para um especialista", meaning: "Transferir para outro agente de IA." },
-  { term: "Equipe atendendo / Devolver para o agente", meaning: "Uma pessoa assumiu a conversa; ela pode devolver para o agente quando terminar." },
-  { term: "Classificar o atendimento", meaning: "Marcar a tabulação/motivo do atendimento ao encerrar." },
-  { term: "Sugerir resposta para aprovar", meaning: "Modo rascunho: o agente escreve, mas alguém aprova antes de enviar." },
-  { term: "Por que respondeu isso?", meaning: "Os bastidores da resposta: regra, assunto, ferramentas e motivo." },
-  { term: "Conversa de teste", meaning: "Simulação sem afetar clientes reais (também chamado playground)." },
-];
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Defaults da configuração (garante que todos os campos existam)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -742,155 +722,125 @@ function DestinationPicker({
   );
 }
 
-function MultiChip({ label, tooltip, values, onChange, placeholder }: { label: string; tooltip?: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
-  return (
-    <Field label={label} tooltip={tooltip}>
-      <ChipInput values={values} onChange={onChange} placeholder={placeholder} />
-    </Field>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Wizard
+// Página: seções no menu lateral + teste sempre ao lado
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Etapa preenchida (✓ na trilha). Etapas opcionais contam como feitas. */
-function isStepComplete(
-  stepIndex: number,
-  cfg: Record<string, unknown> | null,
-  agentName: string,
-): boolean {
-  if (!cfg) return false;
-  const contactFields =
-    ((cfg.contextFields as Record<string, unknown> | undefined)?.contact as
-      | Array<{ key: string }>
-      | undefined) ?? [];
-  const dealFields =
-    ((cfg.contextFields as Record<string, unknown> | undefined)?.deal as
-      | Array<{ key: string }>
-      | undefined) ?? [];
-  switch (STEPS[stepIndex]?.id) {
-    case "start":
-      return Boolean(agentName.trim()) && ((cfg.channelIds as string[]) ?? []).length > 0;
-    case "tone":
-      return Boolean((cfg.tone as string)?.trim() || (cfg.systemPromptTemplate as string)?.trim());
-    case "context":
-      return contactFields.length + dealFields.length > 0;
-    case "materials":
-      return (
-        ((cfg.allowedKnowledgeDocIds as string[]) ?? []).length > 0 ||
-        ((cfg.knowledgeDocs as unknown[]) ?? []).length > 0
-      );
-    case "calendar":
-      return (((cfg.calendar as Record<string, unknown> | undefined)?.events as unknown[]) ?? []).length > 0;
-    case "entry":
-      return Boolean((cfg.entry as Record<string, unknown> | undefined)?.openingMessage);
-    case "themes":
-      return ((cfg.themes as unknown[]) ?? []).length > 0;
-    case "rules":
-    case "team":
-      return true;
-    default:
-      return false;
-  }
-}
+type SectionId = "inicio" | "quem" | "sabe" | "cuida" | "comeco" | "equipe" | "publicacao" | "testes";
 
-const STEPS = [
+const SECTIONS: Array<{
+  id: SectionId;
+  title: string;
+  intro: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { id: "inicio", title: "Início", intro: "Onde o agente está e o que falta para ele atender.", icon: IconHome },
+  { id: "quem", title: "Quem é o agente", intro: "Como ele fala e o que ele nunca faz.", icon: IconUser },
+  { id: "sabe", title: "O que ele sabe", intro: "Ele só responde o que estiver aqui ou nos dados do cliente.", icon: IconBook },
   {
-    id: "start",
-    title: "Começar",
-    subtitle: "Nome, canal e modelo",
-    heading: "Vamos criar seu agente",
-    intro: "Dê um nome, escolha onde ele atende e qual modelo de IA ele usa.",
+    id: "cuida",
+    title: "Do que ele cuida",
+    intro: "Cada assunto tem seu jeito de agir e para quem transferir. Ele reconhece o assunto pelo que o cliente escreve.",
+    icon: IconListCheck,
   },
   {
-    id: "tone",
-    title: "Jeito de falar",
-    subtitle: "Tom e regras",
-    heading: "Jeito de falar",
-    intro: "Defina a personalidade do agente e as regras que ele nunca pode quebrar.",
+    id: "comeco",
+    title: "Começo e fim da conversa",
+    intro: "Como ele cumprimenta, confirma quem é o cliente e encerra a conversa.",
+    icon: IconMessageCircle2,
   },
   {
-    id: "context",
-    title: "O que ele sabe",
-    subtitle: "Dados do cliente",
-    heading: "O que ele sabe do cliente",
-    intro: "Escolha quais dados do CRM o agente pode consultar e cadastre as informações fixas da empresa.",
+    id: "equipe",
+    title: "Quando chama a equipe",
+    intro: "Para quem ele passa a conversa, em que horários atende e quando para de responder.",
+    icon: IconUsers,
   },
+  { id: "publicacao", title: "Publicação", intro: "Onde ele atende, para quem, com qual modelo e qual versão.", icon: IconRocket },
   {
-    id: "materials",
-    title: "Materiais de consulta",
-    subtitle: "Documentos, mensagens e produtos",
-    heading: "Materiais de consulta",
-    intro:
-      "Envie os documentos que o agente usa para responder. Ele só afirma o que estiver aqui ou nos dados do cliente. Mais abaixo, as mensagens prontas e os produtos que ele pode enviar.",
-  },
-  {
-    id: "calendar",
-    title: "Calendário",
-    subtitle: "Datas e prazos",
-    heading: "Calendário",
-    intro:
-      "Datas e prazos oficiais que o agente usa para responder “quando é”, “qual a próxima” e “ainda dá tempo”. Fica separado dos materiais porque o sistema calcula sozinho o que já passou e o que vem.",
-  },
-  {
-    id: "entry",
-    title: "Início da conversa",
-    subtitle: "Boas-vindas e confirmação",
-    heading: "Início da conversa",
-    intro: "Como o agente cumprimenta, confirma com quem está falando e o que faz quando não encontra o cliente.",
-  },
-  {
-    id: "themes",
-    title: "Assuntos",
-    subtitle: "O que ele atende",
-    heading: "Assuntos que ele atende",
-    intro:
-      "Cada assunto é uma especialidade do agente, com instruções, materiais e ações próprias. Ele identifica o assunto sozinho a cada mensagem.",
-  },
-  {
-    id: "rules",
-    title: "Regras automáticas",
-    subtitle: "Sempre que… então…",
-    heading: "Regras automáticas",
-    intro: "Situações com resposta certa, sem margem para interpretação: “sempre que acontecer isso, faça aquilo”.",
-  },
-  {
-    id: "team",
-    title: "Equipe e encerramento",
-    subtitle: "Transferir, horários e fim",
-    heading: "Equipe, horários e encerramento",
-    intro:
-      "Quando o agente chama uma pessoa, em que horários ele atende, quando para de responder e como a conversa termina.",
-  },
-  {
-    id: "test",
-    title: "Testar e publicar",
-    subtitle: "Conferir antes de ligar",
-    heading: "Testar e publicar",
-    intro:
-      "Converse com o agente como se fosse um cliente, veja por que ele respondeu cada coisa, compare com a sua equipe e só então publique.",
+    id: "testes",
+    title: "Testes",
+    intro: "Veja as conversas dos números de teste e compare as respostas dele com as da sua equipe.",
+    icon: IconFlask,
   },
 ];
-const STEP_INDEX = Object.fromEntries(STEPS.map((st, i) => [st.id, i])) as Record<string, number>;
+const SECTION_IDS = SECTIONS.map((s) => s.id);
+
+/** O que falta, por seção, para o agente poder atender. Vira o ponto vermelho no menu. */
+function pendingBySection(cfg: Record<string, unknown>, hasKey: boolean): Partial<Record<SectionId, string[]>> {
+  const out: Partial<Record<SectionId, string[]>> = {};
+  const add = (id: SectionId, msg: string) => (out[id] = [...(out[id] ?? []), msg]);
+  if (!String(cfg.tone ?? "").trim()) add("quem", "Falta o tom de voz");
+  const dest = (cfg.handoff as { defaultDestination?: { id?: string } } | undefined)?.defaultDestination;
+  if (!dest?.id) add("equipe", "Falta escolher para quem transferir");
+  if (((cfg.channelIds as string[]) ?? []).length === 0) add("publicacao", "Falta escolher o número de WhatsApp");
+  if (!hasKey) add("publicacao", "Falta a conta do modelo de IA");
+  return out;
+}
+
+function useMinWidth(px: number): boolean {
+  const [ok, setOk] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${px}px)`);
+    const update = () => setOk(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [px]);
+  return ok;
+}
+
+function sectionFromUrl(): SectionId {
+  if (typeof window === "undefined") return "inicio";
+  const q = new URLSearchParams(window.location.search);
+  if (q.get("tab") === "test") return "testes";
+  const s = q.get("section") as SectionId | null;
+  return s && SECTION_IDS.includes(s) ? s : "inicio";
+}
+
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
 
 export default function AIAgentV2EditPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const { confirm, dialog } = useConfirm();
 
-  const [step, setStep] = React.useState(0);
-  const [testTab, setTestTab] = React.useState("try");
+  const [section, setSection] = React.useState<SectionId>("inicio");
+  const [knowTab, setKnowTab] = React.useState("materiais");
+  const [careTab, setCareTab] = React.useState("assuntos");
+  const [testsTab, setTestsTab] = React.useState("whatsapp");
+  const [testOpen, setTestOpen] = React.useState(true);
+  const isWide = useMinWidth(1280);
   const [config, setConfig] = React.useState<Record<string, unknown> | null>(null);
   const [name, setName] = React.useState("");
   const [active, setActive] = React.useState(true);
   const [dirty, setDirty] = React.useState(false);
   const [openaiKey, setOpenaiKey] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [savedAt, setSavedAt] = React.useState<Date | null>(null);
   const [saveError, setSaveError] = React.useState<string | null>(null);
-  const [dictionaryOpen, setDictionaryOpen] = React.useState(false);
   const [keyValidation, setKeyValidation] = React.useState<{ ok: boolean | null; message: string }>({ ok: null, message: "" });
   const [validatingKey, setValidatingKey] = React.useState(false);
+  // Cada alteração soma 1. Um salvamento só limpa "alterado" se nada mudou
+  // enquanto ele estava no ar; senão o próximo salvamento automático leva o resto.
+  const editVersion = React.useRef(0);
+
+  React.useEffect(() => {
+    setSection(sectionFromUrl());
+  }, []);
+
+  const goTo = React.useCallback((next: SectionId) => {
+    setSection(next);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("tab");
+      url.searchParams.set("section", next);
+      window.history.replaceState(null, "", url.toString());
+    } catch {
+      /* URL é conveniência */
+    }
+  }, []);
 
   const agentQuery = useQuery({
     queryKey: ["ai-agents-v2", id],
@@ -911,26 +861,37 @@ export default function AIAgentV2EditPage() {
     }
   }, [agentQuery.data, config]);
 
-  const updateConfig = React.useCallback((path: string, value: unknown) => {
-    setConfig((prev) => {
-      if (!prev) return prev;
-      return setPath(prev, path, value);
-    });
+  const markDirty = React.useCallback(() => {
+    editVersion.current += 1;
     setDirty(true);
   }, []);
+
+  const updateConfig = React.useCallback(
+    (path: string, value: unknown) => {
+      setConfig((prev) => {
+        if (!prev) return prev;
+        return setPath(prev, path, value);
+      });
+      markDirty();
+    },
+    [markDirty],
+  );
 
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
       if (!config) return;
+      const version = editVersion.current;
+      // Chave só vai quando está completa: o salvamento automático não pode
+      // gravar uma chave pela metade enquanto a pessoa digita.
+      const keyToSend = looksLikeOpenAiApiKey(openaiKey) ? openaiKey.trim() : undefined;
       setSaving(true);
       setSaveError(null);
       try {
-        await updateAgentMeta(id, { name, active, openaiApiKey: openaiKey.trim() || undefined });
-        const cfgToSave = { ...config, name };
-        await saveDraft(id, cfgToSave);
-        setConfig(cfgToSave);
-        setDirty(false);
-        setOpenaiKey("");
+        await updateAgentMeta(id, { name, active, openaiApiKey: keyToSend });
+        await saveDraft(id, { ...config, name });
+        if (keyToSend) setOpenaiKey("");
+        if (editVersion.current === version) setDirty(false);
+        setSavedAt(new Date());
         queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
       } catch (err) {
         setSaveError(err instanceof Error ? err.message : "Erro ao salvar.");
@@ -940,6 +901,25 @@ export default function AIAgentV2EditPage() {
       }
     },
   });
+
+  // Salvamento automático: 1,5 s depois da última alteração.
+  React.useEffect(() => {
+    if (!dirty || saving || !config) return;
+    const t = setTimeout(() => {
+      saveDraftMutation.mutate();
+    }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, name, active, openaiKey, dirty, saving]);
+
+  React.useEffect(() => {
+    if (!dirty && !saving) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, saving]);
 
   const publishMutation = useMutation({
     mutationFn: async () => {
@@ -961,36 +941,29 @@ export default function AIAgentV2EditPage() {
     },
   });
 
+  const hasKey = Boolean(agentQuery.data?.hasOwnOpenaiKey) || looksLikeOpenAiApiKey(openaiKey);
+
   const handlePublish = async () => {
-    const hasKey = agentQuery.data?.hasOwnOpenaiKey || looksLikeOpenAiApiKey(openaiKey);
     if (!hasKey) {
       await confirm({
-        title: "Chave ausente",
-        description: "Configure uma chave de modelo válida antes de publicar.",
+        title: "Falta a conta do modelo",
+        description: "Cole a chave da conta do modelo de IA em Publicação antes de publicar.",
         confirmLabel: "Entendi",
       });
+      goTo("publicacao");
       return;
     }
+    const next = (agentQuery.data?.lastVersionNumber ?? 0) + 1;
     const ok = await confirm({
-      title: "Publicar agente",
-      description: "Publicar cria uma nova versão e ativa o agente. Continuar?",
-      confirmLabel: "Publicar",
+      title: `Publicar a versão ${next}?`,
+      description:
+        "O WhatsApp passa a usar esta configuração agora. Conversas em andamento continuam normalmente. O que você testou até aqui é o que vai valer.",
+      confirmLabel: `Publicar versão ${next}`,
     });
     if (!ok) return;
     const res = await publishMutation.mutateAsync();
-    await confirm({ title: "Publicado", description: `Versão ${res.versionNumber} criada com sucesso.` });
-  };
-
-  const handleStepChange = async (next: number) => {
-    if (dirty && next !== step) {
-      try {
-        await saveDraftMutation.mutateAsync();
-      } catch {
-        // fica no passo atual se salvar falhou
-        return;
-      }
-    }
-    setStep(next);
+    queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
+    await confirm({ title: "Publicado", description: `A versão ${res.versionNumber} já está valendo no WhatsApp.` });
   };
 
   if (agentQuery.isLoading || catalogsQuery.isLoading || !config) {
@@ -1013,240 +986,375 @@ export default function AIAgentV2EditPage() {
   }
 
   const catalogs = catalogsQuery.data ?? ({} as Catalogs);
+  const meta = agentQuery.data;
+  const pending = pendingBySection(config, hasKey);
+  const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
+  const lastVersion = meta.lastVersionNumber;
+  const changedSincePublish = Boolean(meta.hasUnpublishedChanges) || dirty;
+  const showSidePanel = testOpen && isWide && section !== "testes";
+
+  const statusBadge = !active ? (
+    <Badge variant="outline" className="border-border bg-muted text-muted-foreground">Desligado</Badge>
+  ) : !lastVersion ? (
+    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Rascunho · nunca publicado</Badge>
+  ) : changedSincePublish ? (
+    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Publicado v{lastVersion} · com alterações</Badge>
+  ) : (
+    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Publicado v{lastVersion}</Badge>
+  );
+
+  const saveStatus = saving
+    ? "Salvando…"
+    : saveError
+      ? "Não foi possível salvar"
+      : dirty
+        ? "Alterações serão salvas em instantes"
+        : savedAt
+          ? `Salvo às ${formatTime(savedAt)}`
+          : "Tudo salvo";
+
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {statusBadge}
+      <span className={cn("hidden text-xs sm:inline", saveError ? "text-destructive" : "text-muted-foreground")}>{saveStatus}</span>
+      {section !== "testes" && (
+        <Button variant="outline" onClick={() => setTestOpen((v) => !v || !isWide)} className="gap-1">
+          <IconMessageCircle2 className="size-4" />
+          {isWide && testOpen ? "Esconder teste" : "Testar"}
+        </Button>
+      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-block">
+            <Button onClick={handlePublish} disabled={publishMutation.isPending} className="gap-1">
+              <IconRocket className="size-4" />
+              Publicar
+            </Button>
+          </span>
+        </TooltipTrigger>
+        {!hasKey && (
+          <TooltipContent>
+            <p>Falta a conta do modelo de IA (em Publicação).</p>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </div>
+  );
+
+  const testChat = (compact: boolean) => (
+    <StepTestPublish
+      agentId={id}
+      dirty={dirty}
+      catalogs={catalogs}
+      compact={compact}
+      onSave={async () => saveDraftMutation.mutateAsync()}
+      onGoToTheme={() => {
+        setCareTab("assuntos");
+        goTo("cuida");
+      }}
+      onGoToRule={() => {
+        setCareTab("atalhos");
+        goTo("cuida");
+      }}
+    />
+  );
 
   return (
     <TooltipProvider>
-      <AppV2PageShell title="Agente de IA" icon={<IconBrain size={22} />}>
+      <AppV2PageShell
+        title={name || "Novo agente de IA"}
+        icon={<IconBrain size={22} />}
+        actions={headerActions}
+        backHref="/ai-agents-v2"
+        backLabel="Agentes"
+      >
         {dialog}
-        <Dialog open={dictionaryOpen} onOpenChange={setDictionaryOpen}>
-          <DialogContent size="lg">
-            <DialogHeader>
-              <DialogTitle>Dicionário da tela</DialogTitle>
-              <DialogDescription>Termos técnicos do motor de IA e o que eles significam em português simples.</DialogDescription>
-            </DialogHeader>
-            <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-              {SCREEN_DICTIONARY.map((d) => (
-                <div key={d.term} className="rounded-lg border px-3 py-2">
-                  <p className="text-sm font-semibold">{d.term}</p>
-                  <p className="text-sm text-muted-foreground">{d.meaning}</p>
-                </div>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
         <div className="p-2 sm:p-4">
-          <div className="flex min-h-[calc(100vh-8rem)] flex-col overflow-clip rounded-2xl border bg-card">
-            {/* cabeçalho */}
-            <header className="flex flex-col gap-3 px-4 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:pt-6">
-              <div className="min-w-0 space-y-1">
-                <h1 className="truncate text-2xl font-bold tracking-tight">{name || "Novo agente de IA"}</h1>
-                <p className="text-sm text-muted-foreground">
-                  Passo {step + 1} de {STEPS.length} ·{" "}
-                  {saving ? "salvando…" : dirty ? "alterações não salvas" : "rascunho salvo"}
-                  {agentQuery.data?.hasUnpublishedChanges && !dirty && " · há mudanças ainda não publicadas"}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => setDictionaryOpen(true)} className="gap-1">
-                  <IconBulb className="size-4" />
-                  Dicionário
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={!dirty || saving}
-                  onClick={() => saveDraftMutation.mutate()}
-                  className="gap-1"
-                >
-                  <IconDeviceFloppy className="size-4" />
-                  Salvar rascunho
-                </Button>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block">
-                      <Button
-                        onClick={handlePublish}
-                        disabled={publishMutation.isPending || !agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey)}
-                        className="gap-1"
-                      >
-                        <IconRocket className="size-4" />
-                        Publicar
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  {!agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey) && (
-                    <TooltipContent>
-                      <p>Configure uma chave de modelo válida para publicar.</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </div>
-            </header>
+          {saveError && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              <IconAlertCircle className="size-4 shrink-0" />
+              <span className="flex-1">Não conseguimos salvar: {saveError}</span>
+              <Button size="sm" variant="outline" onClick={() => saveDraftMutation.mutate()}>
+                Tentar de novo
+              </Button>
+            </div>
+          )}
 
-            {saveError && (
-              <div className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive sm:mx-8">
-                <IconAlertCircle className="size-4" />
-                {saveError}
-              </div>
-            )}
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+            {/* seções: coluna no desktop, faixa rolável no celular */}
+            <nav
+              aria-label="Seções do agente"
+              className="flex shrink-0 gap-1 overflow-x-auto rounded-2xl border bg-card p-2 lg:sticky lg:top-4 lg:w-[232px] lg:flex-col lg:overflow-visible"
+            >
+              {SECTIONS.map((s) => {
+                const on = s.id === section;
+                const todo = (pending[s.id] ?? []).length > 0;
+                const Icon = s.icon;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    aria-current={on ? "page" : undefined}
+                    onClick={() => goTo(s.id)}
+                    className={cn(
+                      "flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3 text-left text-sm transition-colors",
+                      on ? "bg-primary/10 font-semibold text-primary" : "text-foreground/80 hover:bg-muted",
+                    )}
+                  >
+                    <Icon className="size-4 shrink-0" />
+                    <span className="flex-1 whitespace-nowrap lg:whitespace-normal">{s.title}</span>
+                    {todo && <span aria-label="Falta configurar" className="size-2 shrink-0 rounded-full bg-destructive" />}
+                  </button>
+                );
+              })}
+            </nav>
 
-            <div className="flex flex-1 flex-col gap-6 px-4 py-5 sm:px-8 sm:py-6 lg:flex-row lg:gap-8">
-              {/* trilha de etapas: coluna no desktop, faixa rolável no celular */}
-              <nav
-                aria-label="Etapas"
-                className="-mx-1 flex shrink-0 gap-2 overflow-x-auto px-1 pb-1 lg:sticky lg:top-4 lg:mx-0 lg:w-[268px] lg:flex-col lg:self-start lg:overflow-visible lg:px-0 lg:pb-0"
-              >
-                {STEPS.map((s, i) => {
-                  const current = i === step;
-                  const done = !current && isStepComplete(i, config, name);
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      aria-current={current ? "step" : undefined}
-                      onClick={() => handleStepChange(i)}
-                      className={cn(
-                        "flex min-h-11 shrink-0 items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors",
-                        current ? "border-primary/40 bg-primary/10" : "bg-card hover:border-primary/30",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                          current
-                            ? "bg-primary text-primary-foreground"
-                            : done
-                              ? "bg-success text-success-foreground"
-                              : "border text-muted-foreground",
-                        )}
-                      >
-                        {done ? <IconCheck size={14} stroke={3} /> : i + 1}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block whitespace-nowrap text-sm font-semibold lg:whitespace-normal">{s.title}</span>
-                        <span className="hidden text-xs text-muted-foreground lg:block">{s.subtitle}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </nav>
-
-              {/* etapa */}
-              <main className="min-w-0 flex-1 space-y-5">
-                <div className="space-y-1.5">
-                  <h2 className="text-2xl font-bold tracking-tight">{STEPS[step].heading}</h2>
-                  <p className="max-w-3xl text-[15px] leading-relaxed text-muted-foreground">{STEPS[step].intro}</p>
+            <main className="min-w-0 flex-1 rounded-2xl border bg-card p-4 sm:p-7">
+              <div className="mx-auto max-w-3xl space-y-5">
+                <div className="space-y-1">
+                  <h2 className="text-xl font-bold tracking-tight">{current.title}</h2>
+                  <p className="text-sm text-muted-foreground">{current.intro}</p>
                 </div>
 
-                {STEPS[step].id === "start" && (
+                {section === "inicio" && (
+                  <SectionHome
+                    config={config}
+                    active={active}
+                    lastVersion={lastVersion}
+                    changedSincePublish={changedSincePublish}
+                    hasKey={hasKey}
+                    onGo={goTo}
+                    onOpenTest={() => setTestOpen(true)}
+                  />
+                )}
+                {section === "quem" && (
+                  <div className="space-y-6">
+                    <SectionCard title="Nome" description="Como ele aparece na lista de agentes e nas conversas.">
+                      <Input
+                        value={name}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          markDirty();
+                        }}
+                        placeholder="Ex.: Atendimento"
+                        aria-label="Nome do agente"
+                      />
+                    </SectionCard>
+                    <StepTone config={config} onChange={updateConfig} />
+                  </div>
+                )}
+                {section === "sabe" && (
+                  <Tabs value={knowTab} onValueChange={setKnowTab} className="space-y-4">
+                    <TabsList className="flex h-auto flex-wrap justify-start">
+                      <TabsTrigger value="materiais">Materiais</TabsTrigger>
+                      <TabsTrigger value="calendario">Calendário</TabsTrigger>
+                      <TabsTrigger value="dados">Dados do cliente e da empresa</TabsTrigger>
+                      <TabsTrigger value="prontas">Mensagens prontas e catálogo</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="materiais">
+                      <StepMaterials agentId={id} config={config} onChange={updateConfig} />
+                    </TabsContent>
+                    <TabsContent value="calendario">
+                      <CalendarStep agentId={id} config={config} onChange={updateConfig} />
+                    </TabsContent>
+                    <TabsContent value="dados">
+                      <StepContext config={config} catalogs={catalogs} onChange={updateConfig} />
+                    </TabsContent>
+                    <TabsContent value="prontas">
+                      <StepMessagesProducts config={config} catalogs={catalogs} onChange={updateConfig} />
+                    </TabsContent>
+                  </Tabs>
+                )}
+                {section === "cuida" && (
+                  <Tabs value={careTab} onValueChange={setCareTab} className="space-y-4">
+                    <TabsList>
+                      <TabsTrigger value="assuntos">Assuntos</TabsTrigger>
+                      <TabsTrigger value="atalhos">Atalhos automáticos</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="assuntos">
+                      <StepThemes config={config} catalogs={catalogs} onChange={updateConfig} />
+                    </TabsContent>
+                    <TabsContent value="atalhos">
+                      <StepRules config={config} catalogs={catalogs} onChange={updateConfig} />
+                    </TabsContent>
+                  </Tabs>
+                )}
+                {section === "comeco" && (
+                  <div className="space-y-6">
+                    <StepEntry config={config} onChange={updateConfig} />
+                    <StepClosure config={config} catalogs={catalogs} onChange={updateConfig} />
+                  </div>
+                )}
+                {section === "equipe" && (
+                  <div className="space-y-6">
+                    <StepTeam config={config} catalogs={catalogs} onChange={updateConfig} />
+                    <StepOutputs config={config} onChange={updateConfig} />
+                  </div>
+                )}
+                {section === "publicacao" && (
                   <StepStart
                     config={config}
                     catalogs={catalogs}
                     name={name}
+                    hideName
                     active={active}
                     openaiKey={openaiKey}
-                    hasOpenaiKey={agentQuery.data?.hasOwnOpenaiKey ?? false}
-                    openaiKeyHint={agentQuery.data?.openaiApiKeyHint ?? null}
-                    hasUnpublishedChanges={agentQuery.data?.hasUnpublishedChanges ?? false}
-                    publishedVersionNumber={agentQuery.data?.lastVersionNumber}
+                    hasOpenaiKey={meta.hasOwnOpenaiKey ?? false}
+                    openaiKeyHint={meta.openaiApiKeyHint ?? null}
+                    hasUnpublishedChanges={changedSincePublish}
+                    publishedVersionNumber={lastVersion}
                     validatingKey={validatingKey}
                     keyValidation={keyValidation}
                     onNameChange={(v) => {
                       setName(v);
-                      setDirty(true);
+                      markDirty();
                     }}
                     onActiveChange={(v) => {
                       setActive(v);
-                      setDirty(true);
+                      markDirty();
                     }}
                     onKeyChange={(v) => {
                       setOpenaiKey(v);
-                      setDirty(true);
+                      markDirty();
                       setKeyValidation({ ok: null, message: "" });
                     }}
                     onChange={updateConfig}
                     onValidateKey={() => validateKeyMutation.mutate()}
                   />
                 )}
-                {STEPS[step].id === "tone" && <StepTone config={config} onChange={updateConfig} />}
-                {STEPS[step].id === "context" && <StepContext config={config} catalogs={catalogs} onChange={updateConfig} />}
-                {STEPS[step].id === "materials" && (
-                  <>
-                    <StepMaterials agentId={id} config={config} onChange={updateConfig} />
-                    <StepMessagesProducts config={config} catalogs={catalogs} onChange={updateConfig} />
-                  </>
-                )}
-                {STEPS[step].id === "calendar" && <CalendarStep agentId={id} config={config} onChange={updateConfig} />}
-                {STEPS[step].id === "entry" && <StepEntry config={config} onChange={updateConfig} />}
-                {STEPS[step].id === "themes" && <StepThemes config={config} catalogs={catalogs} onChange={updateConfig} />}
-                {STEPS[step].id === "rules" && <StepRules config={config} catalogs={catalogs} onChange={updateConfig} />}
-                {STEPS[step].id === "team" && (
-                  <>
-                    <StepTeam config={config} catalogs={catalogs} onChange={updateConfig} />
-                    <StepOutputs config={config} onChange={updateConfig} />
-                    <StepClosure config={config} catalogs={catalogs} onChange={updateConfig} />
-                  </>
-                )}
-                {STEPS[step].id === "test" && (
-                  <Tabs value={testTab} onValueChange={setTestTab} className="space-y-4">
+                {section === "testes" && (
+                  <Tabs value={testsTab} onValueChange={setTestsTab} className="space-y-4">
                     <TabsList>
-                      <TabsTrigger value="try">Testar agora</TabsTrigger>
-                      <TabsTrigger value="whatsapp">Conversas de teste</TabsTrigger>
-                      <TabsTrigger value="compare">Comparar com humano</TabsTrigger>
+                      <TabsTrigger value="whatsapp">Pelo WhatsApp</TabsTrigger>
+                      <TabsTrigger value="compare">Comparar com a equipe</TabsTrigger>
+                      <TabsTrigger value="try">Conversa de teste</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="try">
-                      <StepTestPublish
-                        agentId={id}
-                        dirty={dirty}
-                        catalogs={catalogs}
-                        onSave={async () => saveDraftMutation.mutateAsync()}
-                        onGoToTheme={() => handleStepChange(STEP_INDEX.themes)}
-                        onGoToRule={() => handleStepChange(STEP_INDEX.rules)}
-                      />
-                    </TabsContent>
                     <TabsContent value="whatsapp">
                       <TestConversations agentId={id} />
                     </TabsContent>
                     <TabsContent value="compare">
                       <CompareHuman agentId={id} />
                     </TabsContent>
+                    <TabsContent value="try">{testChat(false)}</TabsContent>
                   </Tabs>
                 )}
-              </main>
-            </div>
-
-            {/* rodapé */}
-            <footer className="sticky bottom-0 flex items-center justify-between gap-3 border-t bg-muted/40 px-4 py-3 backdrop-blur sm:px-8">
-              <Button
-                variant="outline"
-                disabled={step === 0}
-                onClick={() => handleStepChange(step - 1)}
-                className="gap-1"
-              >
-                <IconChevronLeft className="size-4" /> Voltar
-              </Button>
-              <div className="flex items-center gap-4">
-                <span className="hidden text-sm text-muted-foreground sm:inline">
-                  {step + 1} de {STEPS.length}
-                </span>
-                {step < STEPS.length - 1 ? (
-                  <Button onClick={() => handleStepChange(step + 1)} className="gap-1">
-                    Continuar <IconChevronRight className="size-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handlePublish}
-                    disabled={publishMutation.isPending || !agentQuery.data?.hasOwnOpenaiKey && !looksLikeOpenAiApiKey(openaiKey)}
-                    className="gap-1"
-                  >
-                    <IconRocket className="size-4" /> Publicar
-                  </Button>
-                )}
               </div>
-            </footer>
+            </main>
+
+            {showSidePanel && (
+              <aside
+                aria-label="Testar o agente"
+                className="sticky top-4 flex h-[calc(100vh-9rem)] w-[380px] shrink-0 flex-col overflow-hidden rounded-2xl border bg-card"
+              >
+                {testChat(true)}
+              </aside>
+            )}
           </div>
         </div>
+
+        {/* Telas menores: o teste abre por cima, da direita. */}
+        <Sheet open={testOpen && !isWide && section !== "testes"} onOpenChange={(o) => setTestOpen(o)}>
+          <SheetContent className="w-full max-w-[420px] p-0">
+            <div className="flex h-full flex-col">{testChat(true)}</div>
+          </SheetContent>
+        </Sheet>
       </AppV2PageShell>
     </TooltipProvider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Início
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SectionHome({
+  config,
+  active,
+  lastVersion,
+  changedSincePublish,
+  hasKey,
+  onGo,
+  onOpenTest,
+}: {
+  config: Record<string, unknown>;
+  active: boolean;
+  lastVersion?: number;
+  changedSincePublish: boolean;
+  hasKey: boolean;
+  onGo: (s: SectionId) => void;
+  onOpenTest: () => void;
+}) {
+  const themes = ((config.themes as unknown[]) ?? []).length;
+  const materials = ((config.allowedKnowledgeDocIds as unknown[]) ?? []).length;
+  const channels = ((config.channelIds as unknown[]) ?? []).length;
+  const dest = (config.handoff as { defaultDestination?: { id?: string } } | undefined)?.defaultDestination;
+  const tone = String(config.tone ?? "").trim();
+
+  const items: Array<{ title: string; hint: string; done: boolean; required: boolean; go: SectionId; cta: string }> = [
+    { title: "Tom de voz", hint: tone ? tone.slice(0, 80) : "Como ele fala com o cliente", done: Boolean(tone), required: true, go: "quem", cta: tone ? "Ver" : "Definir" },
+    { title: "Para quem transferir", hint: dest?.id ? "Destino escolhido" : "Sem isso, as transferências não chegam a ninguém", done: Boolean(dest?.id), required: true, go: "equipe", cta: dest?.id ? "Ver" : "Escolher" },
+    { title: "Conta do modelo de IA", hint: hasKey ? "Chave cadastrada" : "Necessária para testar e publicar", done: hasKey, required: true, go: "publicacao", cta: hasKey ? "Ver" : "Cadastrar" },
+    { title: "Número de WhatsApp", hint: channels ? `${channels} número(s)` : "Onde ele vai atender", done: channels > 0, required: true, go: "publicacao", cta: channels ? "Ver" : "Escolher" },
+    { title: "Assuntos ou materiais", hint: `${themes} assunto(s) · ${materials} material(is) em uso`, done: themes + materials > 0, required: false, go: "cuida", cta: "Ver" },
+  ];
+  const missing = items.filter((i) => i.required && !i.done).length;
+
+  const state = !active
+    ? { dot: "bg-muted-foreground", title: "Desligado", text: "As conversas dos números escolhidos vão para a distribuição normal." }
+    : !lastVersion
+      ? { dot: "bg-amber-500", title: "Ainda não publicado", text: "Ele só responde no teste. Publique quando o checklist abaixo estiver completo." }
+      : changedSincePublish
+        ? { dot: "bg-amber-500", title: `Ligado com a versão ${lastVersion}, com alterações ainda não publicadas`, text: "O que você mudou depois disso só vale no teste até publicar." }
+        : { dot: "bg-emerald-500", title: `Ligado com a versão ${lastVersion}`, text: "O WhatsApp usa exatamente o que está aqui." };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl bg-[#0E1C44] p-5 text-white">
+        <div className="flex items-center gap-2.5">
+          <span className={cn("size-2.5 rounded-full", state.dot)} />
+          <p className="text-base font-bold">{state.title}</p>
+        </div>
+        <p className="mt-1.5 text-sm text-white/75">{state.text}</p>
+      </div>
+
+      <div className="space-y-2.5">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          Para o agente funcionar {missing > 0 ? `· falta${missing > 1 ? "m" : ""} ${missing}` : "· tudo pronto"}
+        </p>
+        {items.map((it) => (
+          <div key={it.title} className="flex items-center gap-3 rounded-xl border px-4 py-3">
+            <span
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                it.done ? "bg-emerald-50 text-emerald-700" : it.required ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground",
+              )}
+            >
+              {it.done ? <IconCheck size={14} stroke={3} /> : "!"}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">
+                {it.title}
+                {!it.required && <span className="ml-2 text-xs font-normal text-muted-foreground">recomendado</span>}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">{it.hint}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => onGo(it.go)}>
+              {it.cta}
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-start gap-3 rounded-xl bg-primary/10 p-4 text-sm text-foreground">
+        <IconMessageCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
+        <div className="space-y-2">
+          <p>Comece testando: mande um "oi" no teste ao lado. Cada resposta mostra por que ele respondeu assim e leva ao que ajustar.</p>
+          <Button size="sm" variant="outline" onClick={onOpenTest}>
+            Abrir o teste
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1258,6 +1366,7 @@ function StepStart({
   config,
   catalogs,
   name,
+  hideName = false,
   active,
   openaiKey,
   hasOpenaiKey,
@@ -1275,6 +1384,8 @@ function StepStart({
   config: Record<string, unknown>;
   catalogs: Catalogs;
   name: string;
+  /** O nome fica em "Quem é o agente". */
+  hideName?: boolean;
   active: boolean;
   openaiKey: string;
   hasOpenaiKey: boolean;
@@ -1299,16 +1410,18 @@ function StepStart({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Identidade e disponibilidade" description="Nome, se está ligado e status da publicação.">
+      <SectionCard title="Estado do agente" description="Se está ligado e qual versão o WhatsApp usa.">
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Nome do agente" tooltip="Nome exibido na lista e nas conversas.">
-            <Input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="Ex: Atendimento" />
-          </Field>
-          <div className="flex items-center gap-3 pt-6">
+          {!hideName && (
+            <Field label="Nome do agente" tooltip="Nome exibido na lista e nas conversas.">
+              <Input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="Ex: Atendimento" />
+            </Field>
+          )}
+          <div className={cn("flex items-center gap-3", !hideName && "pt-6")}>
             <Switch checked={active} onCheckedChange={onActiveChange} id="active" />
             <Label htmlFor="active">
-              Ativo
-              <span className="ml-2 text-xs text-muted-foreground">responde em canais reais</span>
+              Ligado
+              <span className="ml-2 text-xs text-muted-foreground">atende nos números escolhidos com a versão publicada</span>
             </Label>
           </div>
         </div>
@@ -3716,10 +3829,13 @@ function StepTestPublish({
   onSave,
   onGoToTheme,
   onGoToRule,
+  compact = false,
 }: {
   agentId: string;
   dirty: boolean;
   catalogs: Catalogs;
+  /** Versão estreita, fixa ao lado das seções. */
+  compact?: boolean;
   onSave: () => Promise<void>;
   onGoToTheme?: (themeId: string) => void;
   onGoToRule?: (ruleId: string) => void;
@@ -3821,6 +3937,158 @@ function StepTestPublish({
     setTestStage("idle");
   };
 
+  const contactPicker = (
+    <MultiSelectPopover
+      label={compact ? "Testar como: cliente sem cadastro" : "Simular como contato genérico"}
+      options={contactOptions}
+      single
+      value={testContactId}
+      onValueChange={setTestContactId}
+      onSearchQueryChange={setContactSearch}
+      searchable
+      width={compact ? 300 : 320}
+    />
+  );
+
+  const restartButton = (
+    <Button variant="outline" size="sm" onClick={restart} disabled={turns.length === 0} className="gap-1">
+      <IconRefresh className="size-3.5" /> Recomeçar
+    </Button>
+  );
+
+  const chat = (
+    <div
+      ref={scrollRef}
+      className={cn(
+        "flex flex-col gap-3 overflow-y-auto bg-[var(--chat-bg,var(--muted))] p-4",
+        compact ? "min-h-0 flex-1" : "max-h-[480px] min-h-[320px] rounded-xl border",
+      )}
+    >
+      {turns.length === 0 && !testing && (
+        <div className="m-auto space-y-3 text-center">
+          <p className="text-sm text-muted-foreground">Escreva como se fosse o cliente, ou comece por aqui:</p>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {["oi", "preciso de ajuda", "quero falar com alguém"].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setMessage(s)}
+                className="rounded-full border bg-card px-3 py-1 text-xs hover:border-primary/40"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {turns.map((t) => (
+        <React.Fragment key={t.id}>
+          {/* Bolha do cliente simulado */}
+          <div className="flex justify-start">
+            <div
+              className="max-w-[80%] rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm shadow-sm"
+              style={{ background: "var(--chat-bubble-received-bg, #fff)", color: "var(--chat-bubble-received-text, inherit)" }}
+            >
+              {t.userMessage}
+            </div>
+          </div>
+          {/* Bolha do agente */}
+          {t.result && (
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex justify-end">
+                <div
+                  className="max-w-[85%] whitespace-pre-line rounded-2xl rounded-br-sm px-3.5 py-2 text-sm shadow-sm"
+                  style={{ background: "var(--chat-bubble-sent-bg, var(--primary))", color: "var(--chat-bubble-sent-text, var(--primary-foreground))" }}
+                >
+                  {t.result.reply || <span className="italic opacity-75">(sem resposta ao cliente)</span>}
+                </div>
+              </div>
+              <p className="text-right text-[11px] text-muted-foreground">
+                {[
+                  t.result.themeName ? `Assunto: ${t.result.themeName}` : "Sem assunto",
+                  t.result.appliedRuleName ? `Atalho: ${t.result.appliedRuleName}` : null,
+                  (t.result.ragChunks?.length ?? 0) > 0 ? `leu ${t.result.ragChunks!.length} trecho(s)` : null,
+                  t.result.handoff ? "passou para a equipe" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              <button
+                type="button"
+                onClick={() => setOpenWhyId(openWhyId === t.id ? null : t.id)}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <IconBulb className="size-3.5" />
+                Por que respondeu isso?
+                <IconChevronDown className={cn("size-3 transition-transform", openWhyId === t.id && "rotate-180")} />
+              </button>
+              {openWhyId === t.id && (
+                <div className={cn("w-full", compact ? "max-w-full" : "max-w-[92%]")}>
+                  <WhyPanel
+                    result={t.result}
+                    onEditTheme={t.result.themeId && onGoToTheme ? () => onGoToTheme(t.result!.themeId!) : undefined}
+                    onEditRule={t.result.appliedRuleId && onGoToRule ? () => onGoToRule(t.result!.appliedRuleId!) : undefined}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {t.error && (
+            <div className="flex justify-end">
+              <div className="max-w-[80%] rounded-2xl rounded-br-sm border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-sm text-destructive">
+                Não consegui responder: {t.error}
+              </div>
+            </div>
+          )}
+        </React.Fragment>
+      ))}
+      {testing && (
+        <div className="flex justify-end">
+          <div className="flex items-center gap-1.5 rounded-2xl rounded-br-sm bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
+            <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.2s]" />
+            <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.1s]" />
+            <span className="size-1.5 animate-bounce rounded-full bg-current" />
+            <span className="ml-1">digitando…</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const inputRow = (
+    <div className={cn("flex gap-2", compact && "border-t p-3")}>
+      <Input
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Escreva como se fosse o cliente…"
+        onKeyDown={(e) => e.key === "Enter" && !testing && runTest()}
+        disabled={testing}
+        aria-label="Mensagem de teste"
+      />
+      <Button onClick={runTest} disabled={testing || !message.trim()} aria-label="Enviar">
+        <IconSend className="size-4" />
+        {!compact && " Enviar"}
+      </Button>
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center gap-2 border-b px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">Testar agora</p>
+            <p className="truncate text-xs text-muted-foreground">Usa o rascunho · nada é enviado a clientes</p>
+          </div>
+          {restartButton}
+        </div>
+        <div className="border-b px-3 py-2">{contactPicker}</div>
+        {chat}
+        {inputRow}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <SectionCard
@@ -3830,112 +4098,12 @@ function StepTestPublish({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">Simulação isolada — nada é enviado pelo canal real nem grava dados do cliente.</p>
           <div className="flex items-center gap-2">
-            <MultiSelectPopover
-              label="Simular como contato genérico"
-              options={contactOptions}
-              single
-              value={testContactId}
-              onValueChange={setTestContactId}
-              onSearchQueryChange={setContactSearch}
-              searchable
-              width={320}
-            />
-            <Button variant="outline" size="sm" onClick={restart} disabled={turns.length === 0} className="gap-1">
-              <IconRefresh className="size-3.5" /> Recomeçar
-            </Button>
+            {contactPicker}
+            {restartButton}
           </div>
         </div>
-
-        <div
-          ref={scrollRef}
-          className="flex max-h-[480px] min-h-[320px] flex-col gap-3 overflow-y-auto rounded-xl border bg-[var(--chat-bg,var(--muted))] p-4"
-        >
-          {turns.length === 0 && !testing && (
-            <p className="m-auto text-sm text-muted-foreground">Digite uma mensagem abaixo para começar a simulação.</p>
-          )}
-          {turns.map((t) => (
-            <React.Fragment key={t.id}>
-              {/* Bolha do cliente simulado */}
-              <div className="flex justify-start">
-                <div
-                  className="max-w-[75%] rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm shadow-sm"
-                  style={{ background: "var(--chat-bubble-received-bg, #fff)", color: "var(--chat-bubble-received-text, inherit)" }}
-                >
-                  {t.userMessage}
-                </div>
-              </div>
-              {/* Bolha do agente */}
-              {t.result && (
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex justify-end">
-                    <div
-                      className="max-w-[75%] rounded-2xl rounded-br-sm px-3.5 py-2 text-sm shadow-sm"
-                      style={{ background: "var(--chat-bubble-sent-bg, var(--primary))", color: "var(--chat-bubble-sent-text, var(--primary-foreground))" }}
-                    >
-                      {t.result.reply || <span className="italic opacity-75">(sem resposta ao cliente)</span>}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setOpenWhyId(openWhyId === t.id ? null : t.id)}
-                    className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                  >
-                    <IconBulb className="size-3.5" />
-                    Por que respondeu isso?
-                    <IconChevronDown className={cn("size-3 transition-transform", openWhyId === t.id && "rotate-180")} />
-                  </button>
-                  {openWhyId === t.id && (
-                    <div className="w-full max-w-[92%]">
-                      <WhyPanel
-                        result={t.result}
-                        onEditTheme={t.result.themeId && onGoToTheme ? () => onGoToTheme(t.result!.themeId!) : undefined}
-                        onEditRule={t.result.appliedRuleId && onGoToRule ? () => onGoToRule(t.result!.appliedRuleId!) : undefined}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-              {t.error && (
-                <div className="flex justify-end">
-                  <div className="max-w-[75%] rounded-2xl rounded-br-sm border border-destructive/30 bg-destructive/10 px-3.5 py-2 text-sm text-destructive">
-                    Não consegui responder: {t.error}
-                  </div>
-                </div>
-              )}
-            </React.Fragment>
-          ))}
-          {testing && (
-            <div className="flex justify-end">
-              <div className="flex items-center gap-1.5 rounded-2xl rounded-br-sm bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
-                <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.2s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.1s]" />
-                <span className="size-1.5 animate-bounce rounded-full bg-current" />
-                <span className="ml-1">digitando…</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <Input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Digite como se fosse o cliente…"
-            onKeyDown={(e) => e.key === "Enter" && !testing && runTest()}
-            disabled={testing}
-          />
-          <Button onClick={runTest} disabled={testing || !message.trim()}>
-            <IconSend className="size-4" /> Enviar
-          </Button>
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Antes de publicar" description="Confira o essencial antes de deixar o agente no ar.">
-        <ul className="space-y-1.5 text-sm text-muted-foreground">
-          <li className="flex items-center gap-2"><IconCheck className="size-4 text-success" /> Teste ao menos uma mensagem de cada assunto importante.</li>
-          <li className="flex items-center gap-2"><IconCheck className="size-4 text-success" /> Confira se os campos citados aparecem certos nas respostas.</li>
-          <li className="flex items-center gap-2"><IconCheck className="size-4 text-success" /> Veja se a transferência para pessoa acontece quando deveria.</li>
-        </ul>
+        {chat}
+        {inputRow}
       </SectionCard>
     </div>
   );

@@ -44,13 +44,17 @@ type V2AgentRow = {
 
 type V2Preset = { key: string; label: string };
 
+// Chaves iguais às do backend (listV2Presets). Antes as chaves eram outras e
+// todo modelo aparecia como "Preset de configuração.".
 const PRESET_HINTS: Record<string, string> = {
-  blank: "Comece do zero e configure cada etapa manualmente.",
-  atendimento: "Responde dúvidas frequentes e abre chamados quando precisar.",
-  recepcao: "Organiza o atendimento: identifica o cliente e entrega para o especialista certo.",
-  vendas: "Acompanha negócios, apresenta produtos e envia propostas.",
-  sdr: "Conversa com quem chegou, entende o interesse e passa para o time de vendas.",
+  reception: "Identifica o cliente e o assunto e entrega para a pessoa certa.",
+  full: "Responde dúvidas com os seus materiais e passa para a equipe quando precisar.",
+  sales: "Apresenta produtos, tira dúvidas e leva o interesse para o time de vendas.",
+  support: "Ajuda com problemas de uso passo a passo e abre o atendimento com a equipe.",
+  blank: "Comece do zero e configure tudo do seu jeito.",
 };
+// "Primeiros dias" cria etapas de acompanhamento que a tela ainda não edita.
+const HIDDEN_PRESETS = new Set(["onboarding"]);
 
 async function fetchAgents(): Promise<V2AgentRow[]> {
   const res = await apiFetch("/api/ai-agents-v2");
@@ -135,9 +139,9 @@ export default function AIAgentsV2ListClientPage() {
 
   return (
     <AppV2PageShell
-      title="Agentes IA v2"
+      title="Agentes de IA"
       icon={<IconBrain size={22} />}
-      description="Motor declarativo: regras, temas, handoff e ações estruturadas."
+      description="Atendem no WhatsApp com o que você ensinar a eles."
     >
       <div className="min-w-0 space-y-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -145,7 +149,7 @@ export default function AIAgentsV2ListClientPage() {
             onClick={() => setCreating(true)}
             className={cn("w-full gap-2 sm:w-auto", pageHeaderPrimaryCtaClass)}
           >
-            <IconPlus className="size-4" /> Novo agente v2
+            <IconPlus className="size-4" /> Novo agente
           </Button>
         </div>
 
@@ -158,7 +162,7 @@ export default function AIAgentsV2ListClientPage() {
         ) : agents.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Nenhum agente v2 criado. Clique em “Novo agente v2” para começar.
+              Nenhum agente ainda. Clique em “Novo agente” para começar.
             </CardContent>
           </Card>
         ) : (
@@ -173,9 +177,7 @@ export default function AIAgentsV2ListClientPage() {
                       </div>
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold">{agent.name}</h3>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {agent.flow}
-                        </p>
+
                       </div>
                     </div>
                     <Badge variant={agent.active ? "default" : "outline"}>
@@ -215,9 +217,9 @@ export default function AIAgentsV2ListClientPage() {
         <DialogContent>
           <form onSubmit={handleCreate}>
             <DialogHeader>
-              <DialogTitle>Novo agente v2</DialogTitle>
+              <DialogTitle>Novo agente</DialogTitle>
               <DialogDescription>
-                Escolha um preset para começar. A configuração completa é editada na próxima tela.
+                Escolha um ponto de partida. Você pode mudar tudo depois.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -238,11 +240,9 @@ export default function AIAgentsV2ListClientPage() {
                   <div className="flex items-center justify-between">
                     <Label>Comece a partir de um modelo</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    O modelo só preenche as próximas etapas com sugestões. Nada fica travado.
-                  </p>
+
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {presets.map((p) => (
+                    {presets.filter((p) => !HIDDEN_PRESETS.has(p.key)).map((p) => (
                       <button
                         key={p.key}
                         type="button"
@@ -256,7 +256,7 @@ export default function AIAgentsV2ListClientPage() {
                       >
                         <span className="text-sm font-semibold">{p.label}</span>
                         <span className="text-xs text-muted-foreground">
-                          {PRESET_HINTS[p.key] ?? "Preset de configuração."}
+                          {PRESET_HINTS[p.key] ?? ""}
                         </span>
                       </button>
                     ))}
