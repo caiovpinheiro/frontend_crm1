@@ -30,7 +30,6 @@ import {
   IconListCheck,
   IconUser,
   IconChevronDown,
-  IconChevronUp,
   IconGripVertical,
   IconPencil,
   IconDownload,
@@ -55,7 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -597,6 +596,40 @@ function formatFileSize(bytes: number): string {
 // Componentes auxiliares
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Ação secundária de linha: só o ícone, sem borda nem cor até passar o mouse. */
+function QuietIconButton({
+  label,
+  onClick,
+  danger = false,
+  disabled = false,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 [&_svg]:size-4",
+        danger && "hover:bg-destructive/10 hover:text-destructive",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function SectionCard({
   title,
   description,
@@ -1063,7 +1096,7 @@ export default function AIAgentV2EditPage() {
       {statusBadge}
       <span className={cn("hidden text-xs sm:inline", saveError ? "text-destructive" : "text-muted-foreground")}>{saveStatus}</span>
       {section !== "testes" && (
-        <Button variant="outline" onClick={() => setTestOpen((v) => !v || !isWide)} className="gap-1">
+        <Button variant="ghost" onClick={() => setTestOpen((v) => !v || !isWide)} className="gap-1">
           <IconMessageCircle2 className="size-4" />
           {isWide && testOpen ? "Esconder teste" : "Testar"}
         </Button>
@@ -1132,7 +1165,7 @@ export default function AIAgentV2EditPage() {
             <div className="mb-3 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
               <IconAlertCircle className="size-4 shrink-0" />
               <span className="flex-1">Não conseguimos salvar: {saveError}</span>
-              <Button size="sm" variant="outline" onClick={() => saveDraftMutation.mutate()}>
+              <Button size="sm" variant="ghost" onClick={() => saveDraftMutation.mutate()}>
                 Tentar de novo
               </Button>
             </div>
@@ -1495,7 +1528,7 @@ function PublishDialog({
             <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ex.: novo assunto de agendamento" />
           </Field>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={onCancel} disabled={publishing}>
+            <Button variant="ghost" onClick={onCancel} disabled={publishing}>
               Cancelar
             </Button>
             <Button onClick={() => onConfirm(comment.trim())} disabled={publishing} className="gap-1">
@@ -1554,7 +1587,7 @@ function VersionHistory({ agentId, lastVersion, onRestored }: { agentId: string;
                   em uso
                 </Badge>
               ) : (
-                <Button variant="outline" size="sm" onClick={() => restore(v.versionNumber)} disabled={restoreMutation.isPending}>
+                <Button variant="ghost" size="sm" onClick={() => restore(v.versionNumber)} disabled={restoreMutation.isPending}>
                   Trazer para o rascunho
                 </Button>
               )}
@@ -1644,7 +1677,7 @@ function SectionHome({
               </p>
               <p className="truncate text-xs text-muted-foreground">{it.hint}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => onGo(it.go)}>
+            <Button variant="ghost" size="sm" onClick={() => onGo(it.go)}>
               {it.cta}
             </Button>
           </div>
@@ -1655,7 +1688,7 @@ function SectionHome({
         <IconMessageCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
         <div className="space-y-2">
           <p>Comece testando: mande um "oi" no teste ao lado. Cada resposta mostra por que ele respondeu assim e leva ao que ajustar.</p>
-          <Button size="sm" variant="outline" onClick={onOpenTest}>
+          <Button size="sm" variant="ghost" onClick={onOpenTest}>
             Abrir o teste
           </Button>
         </div>
@@ -1800,7 +1833,7 @@ function StepStart({
       <SectionCard title="Conta do modelo de IA" description="Cole a chave da conta. Ela fica guardada com segurança e só o final aparece aqui.">
         <div className="grid items-end gap-4 md:grid-cols-[1fr_auto]">
           <OpenAiKeyField value={openaiKey} onChange={onKeyChange} hasSavedKey={hasOpenaiKey} savedHint={openaiKeyHint ?? undefined} />
-          <Button type="button" variant="outline" size="sm" onClick={onValidateKey} disabled={validatingKey || !hasKeyForPublish} className="gap-1">
+          <Button type="button" variant="ghost" size="sm" onClick={onValidateKey} disabled={validatingKey || !hasKeyForPublish} className="gap-1">
             {validatingKey ? <IconLoader2 className="size-4 animate-spin" /> : <IconCheck className="size-4" />}
             Testar chave
           </Button>
@@ -2259,7 +2292,7 @@ function StepContext({
                 }}
               />
               <Button
-                variant="outline"
+                variant="ghost"
                 size="icon"
                 onClick={() => onChange("variables", variables.filter((_, j) => j !== i))}
               >
@@ -2267,7 +2300,7 @@ function StepContext({
               </Button>
             </div>
           ))}
-          <Button variant="outline" onClick={() => onChange("variables", [...variables, { key: "", value: "" }])}>
+          <Button variant="ghost" onClick={() => onChange("variables", [...variables, { key: "", value: "" }])}>
             <IconPlus className="size-4" /> Adicionar informação
           </Button>
         </div>
@@ -2602,41 +2635,28 @@ function StepMaterials({
                   </div>
                   <div className="flex items-center gap-2">
                     {!isReleased(d.id) && (
-                      <Badge variant="outline" title="Não está nos materiais permitidos nem em nenhum assunto: o agente não consulta.">
+                      <Badge variant="outline" className="border-border bg-muted text-muted-foreground" title="Não está nos materiais permitidos nem em nenhum assunto: o agente não consulta.">
                         não usado
                       </Badge>
                     )}
-                    <Badge variant={statusVariant[d.status]}>{statusLabel[d.status]}</Badge>
+                    {d.status !== "READY" && <Badge variant={statusVariant[d.status]}>{statusLabel[d.status]}</Badge>}
                     {d.status === "FAILED" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
+                      <QuietIconButton
+                        label={`Tentar processar ${d.title} de novo`}
                         disabled={retryMutation.isPending && retryMutation.variables === d.id}
                         onClick={() => retryMutation.mutate(d.id)}
                       >
-                        <IconRefresh className="size-4" />
-                        <span className="sr-only">Tentar indexar {d.title} novamente</span>
-                      </Button>
+                        <IconRefresh />
+                      </QuietIconButton>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEdit(d)}
-                    >
-                      <IconPencil className="size-4" />
-                      <span className="sr-only">Editar {d.title}</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => exportDoc(d)}
-                    >
-                      <IconDownload className="size-4" />
-                      <span className="sr-only">Exportar {d.title}</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
+                    <QuietIconButton label={`Editar ${d.title}`} onClick={() => openEdit(d)}>
+                      <IconPencil />
+                    </QuietIconButton>
+                    <QuietIconButton label={`Baixar ${d.title}`} onClick={() => exportDoc(d)}>
+                      <IconDownload />
+                    </QuietIconButton>
+                    <QuietIconButton
+                      label={`Trocar o conteúdo de ${d.title} por um arquivo`}
                       onClick={() => {
                         setEditingDoc(d);
                         setEditTitle(d.title);
@@ -2645,19 +2665,16 @@ function StepMaterials({
                         importInputRef.current?.click();
                       }}
                     >
-                      <IconFileImport className="size-4" />
-                      <span className="sr-only">Importar conteúdo para {d.title}</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
+                      <IconFileImport />
+                    </QuietIconButton>
+                    <QuietIconButton
+                      label={`Remover ${d.title}`}
+                      danger
                       disabled={deleteMutation.isPending && deleteMutation.variables === d.id}
                       onClick={() => handleDelete(d)}
                     >
-                      <IconTrash className="size-4" />
-                      <span className="sr-only">Remover {d.title}</span>
-                    </Button>
+                      <IconTrash />
+                    </QuietIconButton>
                   </div>
                 </div>
               ))}
@@ -2780,7 +2797,7 @@ function StepMaterials({
               </div>
             )}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={closeEdit} type="button">
+              <Button variant="ghost" onClick={closeEdit} type="button">
                 Cancelar
               </Button>
               <Button
@@ -3124,6 +3141,22 @@ function StepEntry({
 // Etapa 7 — Assuntos
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Nome do destino para mostrar na lista (sem destino: vale o padrão). */
+function destinationLabel(dest: { type?: string; id?: string } | undefined, catalogs: Catalogs): string {
+  if (!dest?.type || !dest.id) return "Destino padrão";
+  const list =
+    dest.type === "department"
+      ? catalogs.departments
+      : dest.type === "distribution_rule"
+        ? catalogs.distributionRules
+        : dest.type === "user"
+          ? catalogs.users
+          : dest.type === "ai_agent"
+            ? catalogs.aiAgents
+            : [];
+  return (list ?? []).find((x) => x.id === dest.id)?.name ?? DEST_KIND_OPTIONS.find((o) => o.value === dest.type)?.label ?? "Destino";
+}
+
 function StepThemes({
   config,
   catalogs,
@@ -3144,6 +3177,19 @@ function StepThemes({
     next.splice(to, 0, item);
     onChange("themes", next);
     if (editingIdx === from) setEditingIdx(to);
+  };
+
+  const { confirm: confirmRemove, dialog: confirmRemoveDialog } = useConfirm();
+  const removeTheme = async (i: number) => {
+    const ok = await confirmRemove({
+      title: `Excluir o assunto "${String(themes[i]?.name ?? "")}"?`,
+      description: "As instruções e o destino deste assunto saem do rascunho. Só vale no WhatsApp depois de publicar.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
+    onChange("themes", themes.filter((_, j) => j !== i));
+    if (editingIdx === i) setEditingIdx(null);
   };
 
   const addTheme = () => {
@@ -3167,11 +3213,9 @@ function StepThemes({
 
   return (
     <div className="space-y-4">
+      {confirmRemoveDialog}
       <p className="text-sm text-muted-foreground">
-        Assuntos são os temas que este agente atende (ex.: Cancelamento, Suporte técnico, Financeiro). Cada mensagem do
-        cliente é encaixada em um assunto, que define as instruções, ferramentas e materiais usados na resposta.
-        Arraste pela alça <IconGripVertical className="inline size-3.5 -translate-y-0.5" /> para mudar a ordem em que o
-        agente considera os assuntos.
+        Clique num assunto para editar. Ele escolhe o assunto pelas palavras e pelo sentido da mensagem.
       </p>
       {themes.map((t, i) => (
         <Card
@@ -3187,35 +3231,54 @@ function StepThemes({
           onDragEnd={() => setDragIdx(null)}
           className={cn(dragIdx === i && "opacity-50")}
         >
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2">
-                <span className="mt-1 cursor-grab text-muted-foreground active:cursor-grabbing" title="Arrastar para reordenar">
-                  <IconGripVertical className="size-4" />
+          <CardHeader className="p-3 sm:p-4">
+            <div className="flex items-center gap-2">
+              <span className="cursor-grab text-muted-foreground/60 active:cursor-grabbing" title="Arrastar para mudar a ordem">
+                <IconGripVertical className="size-4" />
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditingIdx(editingIdx === i ? null : i)}
+                aria-expanded={editingIdx === i}
+                className="flex min-w-0 flex-1 items-center gap-4 rounded-lg text-left"
+              >
+                <span className="min-w-0 flex-1 space-y-1.5">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-[15px] font-semibold">{(t.name as string) || "Assunto sem nome"}</span>
+                    {Boolean(t.directHandoff) && (
+                      <Badge variant="outline" className="shrink-0 border-amber-200 bg-amber-50 text-amber-800">
+                        só encaminha
+                      </Badge>
+                    )}
+                  </span>
+                  <span className="flex flex-wrap gap-1.5">
+                    {((t.when as string[]) ?? []).length === 0 ? (
+                      <span className="text-xs text-muted-foreground">Sem palavras de reconhecimento</span>
+                    ) : (
+                      <>
+                        {((t.when as string[]) ?? []).slice(0, 5).map((w) => (
+                          <span key={w} className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground/80">
+                            {w}
+                          </span>
+                        ))}
+                        {((t.when as string[]) ?? []).length > 5 && (
+                          <span className="px-1 py-0.5 text-xs text-muted-foreground">+{((t.when as string[]) ?? []).length - 5}</span>
+                        )}
+                      </>
+                    )}
+                  </span>
                 </span>
-                <div>
-                  <CardTitle className="text-base">{(t.name as string) || "Assunto sem nome"}</CardTitle>
-                  <CardDescription>{((t.when as string[]) ?? []).join(", ") || "Sem gatilhos"}</CardDescription>
-                </div>
-              </div>
-              <div className="flex gap-1">
-                <Button variant="outline" size="icon" disabled={i === 0} onClick={() => moveTheme(i, i - 1)} aria-label="Mover para cima">
-                  <IconChevronUp className="size-4" />
-                </Button>
-                <Button variant="outline" size="icon" disabled={i === themes.length - 1} onClick={() => moveTheme(i, i + 1)} aria-label="Mover para baixo">
-                  <IconChevronDown className="size-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setEditingIdx(editingIdx === i ? null : i)}>
-                  {editingIdx === i ? "Fechar" : "Editar"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => onChange("themes", themes.filter((_, j) => j !== i))}
-                >
-                  <IconTrash className="size-4" />
-                </Button>
-              </div>
+                <span className="hidden shrink-0 text-right text-xs text-muted-foreground sm:block">
+                  Se transferir
+                  <span className="block text-sm font-medium text-foreground">
+                    {destinationLabel(t.handoffDestination as { type?: string; id?: string } | undefined, catalogs)}
+                  </span>
+                </span>
+                <IconChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", editingIdx === i && "rotate-180")} />
+              </button>
+              <QuietIconButton label={`Excluir o assunto ${(t.name as string) || ""}`} danger onClick={() => removeTheme(i)}>
+                <IconTrash />
+              </QuietIconButton>
             </div>
           </CardHeader>
           {editingIdx === i && (
@@ -3318,7 +3381,7 @@ function StepThemes({
           )}
         </Card>
       ))}
-      <Button variant="outline" onClick={addTheme}>
+      <Button variant="ghost" onClick={addTheme}>
         <IconPlus className="size-4" /> Novo assunto
       </Button>
     </div>
@@ -3354,8 +3417,20 @@ function StepRules({
     ]);
   };
 
+  const { confirm: confirmRemove, dialog: confirmRemoveDialog } = useConfirm();
+  const removeRule = async (i: number) => {
+    const ok = await confirmRemove({
+      title: `Excluir o atalho "${String(rules[i]?.name ?? "")}"?`,
+      description: "Sai do rascunho agora. Só vale no WhatsApp depois de publicar.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (ok) onChange("rules", rules.filter((_, j) => j !== i));
+  };
+
   return (
     <div className="space-y-4">
+      {confirmRemoveDialog}
       {rules.map((rule, i) => {
         const conditions = (rule.conditions as Array<Record<string, unknown>>) ?? [];
         const actions = (rule.actions as Array<Record<string, unknown>>) ?? [];
@@ -3363,12 +3438,13 @@ function StepRules({
           <Card key={String(rule.id) ?? i}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-bold">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold">
                     {i + 1}
                   </span>
                   <Input
-                    className="h-8 w-64"
+                    className="h-9 w-full max-w-sm"
+                    aria-label="Nome do atalho"
                     value={(rule.name as string) ?? ""}
                     onChange={(e) => {
                       const next = rules.slice();
@@ -3386,13 +3462,9 @@ function StepRules({
                       onChange("rules", next);
                     }}
                   />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => onChange("rules", rules.filter((_, j) => j !== i))}
-                  >
-                    <IconTrash className="size-4" />
-                  </Button>
+                  <QuietIconButton label={`Excluir o atalho ${(rule.name as string) || ""}`} danger onClick={() => removeRule(i)}>
+                    <IconTrash />
+                  </QuietIconButton>
                 </div>
               </div>
             </CardHeader>
@@ -3433,21 +3505,20 @@ function StepRules({
                     ) : (
                       <span className="flex-1" />
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
+                    <QuietIconButton
+                      label="Remover"
                       onClick={() => {
                         const next = rules.slice();
                         (next[i].conditions as Array<Record<string, unknown>>).splice(ci, 1);
                         onChange("rules", next);
                       }}
                     >
-                      <IconX className="size-4" />
-                    </Button>
+                      <IconX />
+                    </QuietIconButton>
                   </div>
                 ))}
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => {
                     const next = rules.slice();
@@ -3483,17 +3554,16 @@ function StepRules({
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                      <QuietIconButton
+                        label="Remover"
                         onClick={() => {
                           const next = rules.slice();
                           (next[i].actions as Array<Record<string, unknown>>).splice(ai, 1);
                           onChange("rules", next);
                         }}
                       >
-                        <IconX className="size-4" />
-                      </Button>
+                        <IconX />
+                      </QuietIconButton>
                     </div>
                     {a.type === "send_message" && (
                       <Textarea
@@ -3573,7 +3643,7 @@ function StepRules({
                   </div>
                 ))}
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => {
                     const next = rules.slice();
@@ -3588,7 +3658,7 @@ function StepRules({
           </Card>
         );
       })}
-      <Button variant="outline" onClick={addRule}>
+      <Button variant="ghost" onClick={addRule}>
         <IconPlus className="size-4" /> Nova regra
       </Button>
     </div>
@@ -3815,7 +3885,7 @@ function StepTeam({
                 </div>
               ))}
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() =>
                   onChange("businessHours.weekdays", [
@@ -3913,7 +3983,7 @@ function StepClosure({
                   setFieldUpdates(next);
                 }}
               />
-              <Button variant="outline" size="icon" onClick={() => setFieldUpdates(fieldUpdates.filter((_, j) => j !== i))}>
+              <Button variant="ghost" size="icon" onClick={() => setFieldUpdates(fieldUpdates.filter((_, j) => j !== i))}>
                 <IconTrash className="size-4" />
               </Button>
             </div>
@@ -3925,7 +3995,7 @@ function StepClosure({
           )}
           {writableOptions.length > 0 && (
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => setFieldUpdates([...fieldUpdates, { entity: writableOptions[0].entity, key: writableOptions[0].key, value: "" }])}
             >
               <IconPlus className="size-4" /> Adicionar campo

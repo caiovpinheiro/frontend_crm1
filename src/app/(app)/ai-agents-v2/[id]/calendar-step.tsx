@@ -171,7 +171,7 @@ export function CalendarStep({
           </div>
         )}
         <Button
-          variant="outline"
+          variant="ghost"
           className="gap-1 self-start"
           onClick={() => setEvents([...events, { id: newId(), start: today, title: "" }])}
         >
@@ -199,7 +199,7 @@ export function CalendarStep({
               e.target.value = "";
             }}
           />
-          <Button variant="outline" className="gap-1" disabled={importer.isPending} onClick={() => fileRef.current?.click()}>
+          <Button variant="ghost" className="gap-1" disabled={importer.isPending} onClick={() => fileRef.current?.click()}>
             {importer.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconUpload className="size-4" />}
             Enviar arquivo
           </Button>
@@ -263,7 +263,7 @@ export function CalendarStep({
                 {events.length > 0 ? `Substituir as ${events.length} datas atuais` : `Usar ${preview.selected.size} datas`}
               </Button>
               {events.length > 0 && (
-                <Button variant="outline" onClick={() => applyPreview("append")} disabled={preview.selected.size === 0}>
+                <Button variant="ghost" onClick={() => applyPreview("append")} disabled={preview.selected.size === 0}>
                   Adicionar às atuais
                 </Button>
               )}

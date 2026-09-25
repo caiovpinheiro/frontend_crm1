@@ -468,7 +468,7 @@ function ImportPanel({ agentId, items, onChange }: { agentId: string; items: Imp
             e.target.value = "";
           }}
         />
-        <Button size="sm" variant="outline" className="gap-1" disabled={parse.isPending} onClick={() => fileRef.current?.click()}>
+        <Button size="sm" variant="ghost" className="gap-1" disabled={parse.isPending} onClick={() => fileRef.current?.click()}>
           {parse.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconUpload className="size-4" />}
           Anexar conversas
         </Button>
@@ -483,7 +483,7 @@ function ImportPanel({ agentId, items, onChange }: { agentId: string; items: Imp
           rows={4}
           placeholder={"Ou cole uma conversa, uma mensagem por linha:\nCliente: quero a segunda via\nAna: Claro! Você emite pela área do cliente…"}
         />
-        <Button size="sm" variant="outline" disabled={!pasted.trim() || parse.isPending} onClick={() => parse.mutate({ text: pasted })}>
+        <Button size="sm" variant="ghost" disabled={!pasted.trim() || parse.isPending} onClick={() => parse.mutate({ text: pasted })}>
           Adicionar conversa colada
         </Button>
       </div>
@@ -739,7 +739,7 @@ function CancelButton({ agentId, runId }: { agentId: string; runId: string }) {
     },
   });
   return (
-    <Button size="sm" variant="outline" className="h-7 gap-1" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
+    <Button size="sm" variant="ghost" className="h-7 gap-1" disabled={cancel.isPending} onClick={() => cancel.mutate()}>
       {cancel.isPending ? <IconLoader2 className="size-3 animate-spin" /> : <IconPlayerStop className="size-3" />}
       Interromper
     </Button>

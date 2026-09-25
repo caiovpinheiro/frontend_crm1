@@ -127,7 +127,7 @@ export function TextListEditor({
       </ol>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         className="gap-1 border-dashed"
         onClick={() => {
           onChange([...values, ""]);

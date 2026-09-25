@@ -427,7 +427,7 @@ function FeedbackView({ feedback }: { feedback: Feedback }) {
             <div className="space-y-1">
               <p className="font-medium">Pedido para o dev:</p>
               <pre className="whitespace-pre-wrap rounded bg-muted p-2 text-xs">{d.pedidoParaDev}</pre>
-              <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => copy(d.pedidoParaDev!)}>
+              <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => copy(d.pedidoParaDev!)}>
                 <IconCopy className="size-3" />
                 {copied ? "Copiado" : "Copiar"}
               </Button>
