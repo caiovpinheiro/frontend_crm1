@@ -423,7 +423,7 @@ function DetailPane({
         <RoleEditor
           roleId={selection.id === "new" ? null : selection.id}
           onClose={onClear}
-          onSaved={onClear}
+          onSaved={(id) => onSelect({ kind: "role", id })}
         />
       </PaneShell>
     );

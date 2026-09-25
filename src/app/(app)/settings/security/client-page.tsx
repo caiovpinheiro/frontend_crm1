@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -57,6 +57,14 @@ const FLAG_LABELS: Record<string, { label: string; warning?: string }> = {
   },
 };
 
+function selectionFromSearch(params: { get: (key: string) => string | null }): Selection {
+  const role = params.get("role");
+  if (role) return { kind: "role", id: role === "new" ? "new" : role };
+  const user = params.get("user");
+  if (user) return { kind: "user", id: user };
+  return { kind: "none" };
+}
+
 const TABS: SettingsTab[] = [
   { id: "permissions", label: "Permissões", icon: IconShieldCheck },
   { id: "api", label: "API e Webhooks", icon: IconKey },
@@ -81,7 +89,27 @@ export function SecurityClientPage() {
     [params, router],
   );
 
-  const [selection, setSelection] = useState<Selection>({ kind: "none" });
+  const selection = selectionFromSearch(params);
+
+  const onSelect = useCallback(
+    (next: Selection) => {
+      const currentRole = params.get("role");
+      const currentUser = params.get("user");
+      const same =
+        (next.kind === "none" && !currentRole && !currentUser) ||
+        (next.kind === "role" && currentRole === next.id && !currentUser) ||
+        (next.kind === "user" && currentUser === next.id && !currentRole);
+      if (same) return;
+      const sp = new URLSearchParams(params.toString());
+      sp.delete("role");
+      sp.delete("user");
+      if (!sp.get("tab")) sp.set("tab", active);
+      if (next.kind === "role") sp.set("role", next.id);
+      else if (next.kind === "user") sp.set("user", next.id);
+      router.replace(`/settings/security?${sp.toString()}`);
+    },
+    [active, params, router],
+  );
 
   return (
     <SettingsV2Shell
@@ -95,8 +123,8 @@ export function SecurityClientPage() {
       {active === "permissions" && (
         <PermissionsPanel
           selection={selection}
-          onSelect={setSelection}
-          onClear={() => setSelection({ kind: "none" })}
+          onSelect={onSelect}
+          onClear={() => onSelect({ kind: "none" })}
         />
       )}
       {active === "api" && <OldApiTokensPage />}
