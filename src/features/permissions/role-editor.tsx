@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   IconAlertTriangle,
   IconChevronDown,
@@ -322,6 +323,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           : [...pipelineHidden].map((pipelineId) => ({ pipelineId, canView: false }));
     const fieldPayload: FieldGrantEntry[] = Object.values(fieldGrants);
     try {
+      let savedId: string | null = null;
       if (isNew) {
         const created = await createRole.mutateAsync({
           name: name.trim(),
@@ -334,7 +336,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           pipelineGrants: pipelinePayload,
           fieldGrants: fieldPayload,
         });
-        onSaved?.(created.id);
+        savedId = created.id;
       } else if (roleId) {
         const saved = await updateRole.mutateAsync({
           id: roleId,
@@ -354,7 +356,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
         }
         funnelDirty.current = false;
         hydratedGrantKey.current = funnelGrantKey(saved);
-        onSaved?.(roleId);
+        savedId = roleId;
       }
       // Visibilidade de conversas vive em OrganizationSetting (por papel-base),
       // fora do payload do Role — salva em separado quando o preset a expõe.
@@ -372,6 +374,10 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           }),
         });
         if (!res.ok) throw new Error("Erro ao salvar a visibilidade de conversas.");
+      }
+      if (savedId) {
+        onSaved?.(savedId);
+        toast.success("Alterações salvas.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao salvar.");

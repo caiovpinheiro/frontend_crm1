@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { IconBan as Ban, IconCheck as Check, IconChevronDown as ChevronDown, IconChevronRight as ChevronRight, IconEye as Eye, IconLoader2 as Loader2, IconMessagePlus as MessageSquarePlus, IconPlus as Plus, IconRadio as Radio, IconSend as Send, IconSettings as Settings, IconShield as Shield, IconHierarchy as Workflow, IconX as X, type Icon as TablerIcon } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -251,6 +252,7 @@ function UserRolesEditor({
     try {
       await addAssignment.mutateAsync({ roleId: selectedToAdd, userId });
       setSelectedToAdd("");
+      toast.success("Papel atribuído.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao atribuir role.");
     }
@@ -260,6 +262,7 @@ function UserRolesEditor({
     setError(null);
     try {
       await removeAssignment.mutateAsync({ roleId, userId });
+      toast.success("Papel removido.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao remover role.");
     }
@@ -597,6 +600,7 @@ function UserScopeEditor({ userId }: { userId: string }) {
       });
       setDirty(false);
       setSaved(true);
+      toast.success("Acesso salvo.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao salvar acesso.");
     }
