@@ -123,7 +123,7 @@ export function CalendarStep({
     <div className="space-y-5">
       <SectionBox
         title="Datas cadastradas"
-        description="O agente responde datas daqui. O sistema calcula sozinho o que já passou e o que vem, então ele não confunde uma prova de setembro com a próxima. Vale no atendimento depois de publicar."
+        description="O agente responde datas daqui. O sistema calcula sozinho o que já passou e o que vem, então ele não apresenta como próximo um evento que já passou. Vale no atendimento depois de publicar."
       >
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Badge variant="indigo">{counts.next} próximas ou em andamento</Badge>
@@ -208,7 +208,7 @@ export function CalendarStep({
           rows={5}
           value={pasted}
           onChange={(e) => setPasted(e.target.value)}
-          placeholder={"Ou cole aqui, uma data por linha:\n02/10/2026 a 05/10/2026 – Prova\n19/10/2026 – Liberação de notas"}
+          placeholder={"Ou cole aqui, uma data por linha:\n02/10/2026 a 05/10/2026 – Semana de inscrições\n19/10/2026 – Divulgação dos resultados"}
         />
         <Button className="gap-1 self-start" disabled={!pasted.trim() || importer.isPending} onClick={() => importer.mutate({ text: pasted })}>
           {importer.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconCalendarEvent className="size-4" />}

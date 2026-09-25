@@ -222,9 +222,9 @@ const POST_CLOSE_BEHAVIOR_OPTIONS = [
 ];
 
 const EMOJI_OPTIONS = [
-  { value: "none", label: "Nenhum", example: "A prova será de 02 a 05/10. Quer que eu te passe como acessar?" },
-  { value: "light", label: "Poucos", example: "A prova será de 02 a 05/10 📅 Quer que eu te passe como acessar?" },
-  { value: "moderate", label: "À vontade", example: "📅 Prova: 02 a 05/10\n👉 Quer que eu te passe como acessar? 😊" },
+  { value: "none", label: "Nenhum", example: "Sua entrega está prevista para 02/10. Quer que eu te passe como acompanhar?" },
+  { value: "light", label: "Poucos", example: "Sua entrega está prevista para 02/10 📅 Quer que eu te passe como acompanhar?" },
+  { value: "moderate", label: "À vontade", example: "📅 Entrega: 02/10\n👉 Quer que eu te passe como acompanhar? 😊" },
 ];
 
 /** Só o que o motor faz para cada tipo de mídia. */
@@ -266,7 +266,6 @@ const CONDITION_TYPES = [
   { value: "first_message", label: "For a primeira mensagem" },
   { value: "out_of_hours", label: "Estiver fora do horário" },
   { value: "deal_stage", label: "Negócio estiver na etapa" },
-  { value: "field_equals", label: "Campo igual a" },
   { value: "no_deal", label: "Cliente não tiver negócio aberto" },
   { value: "survey_received", label: "Pesquisa respondida" },
   { value: "media_kind", label: "Tipo de mídia" },
@@ -280,10 +279,9 @@ const ACTION_TYPES = [
   { value: "close_conversation", label: "Encerrar conversa" },
   { value: "no_reply", label: "Não responder" },
   { value: "send_message_model", label: "Enviar mensagem pronta" },
-  { value: "send_whatsapp_template", label: "Enviar template oficial" },
-  { value: "set_variable", label: "Definir variável" },
-  { value: "record_knowledge_gap", label: "Registrar dúvida sem resposta" },
 ];
+// Fora da lista até a tela ter onde preencher os parâmetros (template
+// oficial, variável, dúvida): salvas sem eles, falhavam em silêncio.
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -678,10 +676,13 @@ function DestinationPicker({
   value,
   catalogs,
   onChange,
+  hideMessage = false,
 }: {
   value: { type?: string; id?: string; message?: string } | null | undefined;
   catalogs: Catalogs;
   onChange: (v: { type: string; id?: string; message?: string }) => void;
+  /** O destino padrão já tem "Mensagem ao transferir". */
+  hideMessage?: boolean;
 }) {
   const kind = value?.type ?? "department";
   const id = value?.id ?? "";
@@ -725,11 +726,13 @@ function DestinationPicker({
           </Select>
         )}
       </div>
-      <Input
-        placeholder="Mensagem específica deste destino (opcional)"
-        value={value?.message ?? ""}
-        onChange={(e) => onChange({ type: kind, id, message: e.target.value })}
-      />
+      {!hideMessage && (
+        <Input
+          placeholder="Mensagem ao transferir para este destino (opcional; vazio usa a padrão)"
+          value={value?.message ?? ""}
+          onChange={(e) => onChange({ type: kind, id, message: e.target.value })}
+        />
+      )}
       {id && options.length > 0 && !options.find((o) => o.id === id) && (
         <Badge variant="outline" className="text-destructive border-destructive">
           Não encontrado no CRM
@@ -2130,7 +2133,7 @@ function StepMaterials({
     <div className="space-y-6">
       {confirmDeleteDialog}
       <SectionCard title="Escrever direto" description="Cole um texto curto ou uma FAQ; o sistema divide em trechos para a IA consultar.">
-        <Field label="Título" hint="Ex.: FAQ de matrícula">
+        <Field label="Título" hint="Ex.: Perguntas frequentes sobre entrega">
           <Input value={pasteTitle} onChange={(e) => setPasteTitle(e.target.value)} />
         </Field>
         <Field label="Conteúdo" hint="Texto puro ou Markdown.">
@@ -2473,13 +2476,6 @@ Use @Modelo para citar um modelo dentro de uma resposta."
         </div>
         {!!pp.enabled && (
           <div className="space-y-4 pt-2">
-            <Field label="Quantos por vez" tooltip="Máximo de produtos que o agente pode enviar em uma única resposta.">
-              <Input
-                type="number"
-                value={String(pp.maxItems ?? 3)}
-                onChange={(e) => onChange("productPolicy", { ...pp, maxItems: Number(e.target.value) })}
-              />
-            </Field>
             <MultiSelectPopover
               label="Produtos permitidos"
               tooltip="Vazio = todos os produtos ativos do CRM. Selecione IDs específicos para restringir o catálogo deste agente."
@@ -2512,23 +2508,6 @@ Use @Modelo para citar um modelo dentro de uma resposta."
                 ))}
               </div>
             )}
-            <div className="flex flex-wrap gap-4">
-              {[
-                { key: "showPrice", label: "Mostrar preço", tooltip: "Incluir o preço nas respostas sobre produtos." },
-                { key: "showConditions", label: "Mostrar condições", tooltip: "Incluir condições/como funciona." },
-                { key: "showImage", label: "Mostrar imagem", tooltip: "Anexar imagem do produto quando houver." },
-                { key: "showLink", label: "Incluir link", tooltip: "Incluir link para o produto (se o domínio estiver permitido)." },
-              ].map((c) => (
-                <div key={c.key} className="flex items-center gap-2">
-                  <Switch
-                    checked={!!pp[c.key]}
-                    onCheckedChange={(v) => onChange("productPolicy", { ...pp, [c.key]: v })}
-                    id={c.key}
-                  />
-                  <Label htmlFor={c.key} className="cursor-pointer">{c.label}</Label>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </SectionCard>
@@ -2791,7 +2770,7 @@ function StepThemes({
                   numbered={false}
                   addLabel="Adicionar exemplo"
                   itemLabel="Exemplo"
-                  placeholder="Ex.: quero cancelar minha matrícula"
+                  placeholder="Ex.: quero cancelar meu pedido"
                 />
               </Field>
               <Field label="Como agir" tooltip="Instruções específicas de comportamento para este assunto (tom, passos, regras).">
@@ -2803,26 +2782,6 @@ function StepThemes({
                     onChange("themes", next);
                   }}
                 />
-              </Field>
-              <Field label="Quem responde" tooltip="Escolha transferir automaticamente para outro agente de IA, ou deixar este responder.">
-                <Select
-                  value={(t.answerBy as string) ?? "self"}
-                  onValueChange={(v) => {
-                    const next = themes.slice();
-                    next[i] = { ...next[i], answerBy: v };
-                    onChange("themes", next);
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="self">Este próprio agente</SelectItem>
-                    {catalogs.aiAgents.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </Field>
               <Field label="Materiais permitidos neste assunto" tooltip="Documentos de consulta que o agente pode usar só neste assunto.">
                 <MultiSelectPopover
@@ -3059,6 +3018,34 @@ function StepRules({
                         }}
                       />
                     )}
+                    {a.type === "add_tag" && (
+                      <Input
+                        placeholder="Nome da etiqueta"
+                        value={(a.tag as string) ?? ""}
+                        onChange={(e) => {
+                          const next = rules.slice();
+                          (next[i].actions as Array<Record<string, unknown>>)[ai] = { ...a, tag: e.target.value };
+                          onChange("rules", next);
+                        }}
+                      />
+                    )}
+                    {a.type === "send_message_model" && (
+                      <Select
+                        value={(a.modelId as string) ?? ""}
+                        onValueChange={(v) => {
+                          const next = rules.slice();
+                          (next[i].actions as Array<Record<string, unknown>>)[ai] = { ...a, modelId: v };
+                          onChange("rules", next);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Escolha a mensagem pronta…" /></SelectTrigger>
+                        <SelectContent>
+                          {catalogs.messageTemplates.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     {(a.type === "handoff" || a.type === "set_theme") && (
                       <>
                         {a.type === "set_theme" && (
@@ -3132,36 +3119,11 @@ function StepOutputs({
   onChange: (path: string, value: unknown) => void;
 }) {
   const fallback = getPath(config, "fallback", {}) as Record<string, unknown>;
-  const unknown = (fallback.unknown as Record<string, unknown>) ?? {};
 
   return (
     <div className="space-y-6">
       <SectionCard title="Quando não souber a resposta" description="Mensagens de saída para cada situação.">
-        <Field label="Não encontrou nos materiais" tooltip="Mensagem quando a resposta não existe nos materiais nem nos dados do cliente.">
-          <Textarea
-            value={(unknown.message as string) ?? ""}
-            onChange={(e) => onChange("fallback.unknown.message", e.target.value)}
-          />
-        </Field>
-        <Field label="Ação quando não souber" tooltip="O que fazer quando o agente não consegue responder sem inventar.">
-          <Select
-            value={(unknown.action as string) ?? "handoff"}
-            onValueChange={(v) => onChange("fallback.unknown.action", v)}
-          >
-            <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="handoff">Passar para a equipe</SelectItem>
-              <SelectItem value="silence">Não responder</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Cliente pediu para falar com pessoa" tooltip="Resposta usada quando o cliente pede atendimento humano.">
-          <Textarea
-            value={((fallback.humanRequest as Record<string, unknown>)?.message as string) ?? ""}
-            onChange={(e) => onChange("fallback.humanRequest.message", e.target.value)}
-          />
-        </Field>
-        <Field label="Sem material de consulta" tooltip="Resposta quando não há documentos associados ao assunto.">
+        <Field label="Sem material de consulta" tooltip="Resposta quando a busca nos materiais não encontra nada e não há dados do cliente. Vazio: passa para a equipe.">
           <Textarea
             value={((fallback.noSource as Record<string, unknown>)?.message as string) ?? ""}
             onChange={(e) => onChange("fallback.noSource.message", e.target.value)}
@@ -3179,10 +3141,7 @@ function StepOutputs({
         <div className="grid gap-4 md:grid-cols-3">
           {[
             { path: "limits.maxCourtesyReplies", label: "Respostas de cortesia", tooltip: "Máximo de respostas educadas após o cliente agradecer antes de encerrar." },
-            { path: "limits.maxHelpOffers", label: "Ofertas de ajuda", tooltip: "Quantas vezes o agente pode oferecer ajuda extra sem resposta do cliente." },
-            { path: "limits.maxStalledExchanges", label: "Trocas sem avanço", tooltip: "Limite de voltas sem progresso no assunto antes de transferir." },
             { path: "limits.nonsenseLimit", label: "Mensagens sem sentido", tooltip: "Quantas mensagens sem sentido o agente tolera antes de parar." },
-            { path: "limits.silenceMinutes", label: "Minutos de silêncio", tooltip: "Tempo sem resposta do cliente para considerar a conversa parada." },
             { path: "limits.maxAiTransfers", label: "Máx. transferências IA→IA", tooltip: "Limite de idas e voltas entre agentes de IA antes de ir para fila humana." },
           ].map((f) => (
             <Field key={f.path} label={f.label} tooltip={f.tooltip}>
@@ -3193,6 +3152,18 @@ function StepOutputs({
               />
             </Field>
           ))}
+          <Field label="Ao atingir o limite de mensagens sem sentido" tooltip="Avisar uma vez e parar de responder a esse tipo de mensagem, ou passar para a equipe.">
+            <Select
+              value={(getPath(config, "limits.nonsenseAction", "warn_and_silence") as string) || "warn_and_silence"}
+              onValueChange={(v) => onChange("limits.nonsenseAction", v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="warn_and_silence">Avisar e parar de responder</SelectItem>
+                <SelectItem value="handoff">Passar para a equipe</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
       </SectionCard>
 
@@ -3228,8 +3199,8 @@ function StepOutputs({
                 <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="handoff">Transferir</SelectItem>
-                  <SelectItem value="notify_and_continue">Notificar e continuar</SelectItem>
-                  <SelectItem value="log_only">Apenas registrar</SelectItem>
+                  <SelectItem value="notify_and_continue">Continuar atendendo</SelectItem>
+                  <SelectItem value="log_only">Só registrar no rastro</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -3255,7 +3226,6 @@ function StepTeam({
 }) {
   const handoff = getPath(config, "handoff", {}) as Record<string, unknown>;
   const bh = getPath(config, "businessHours", null) as Record<string, unknown> | null;
-  const inactivity = getPath(config, "inactivity", {}) as Record<string, unknown>;
 
   return (
     <div className="space-y-6">
@@ -3265,6 +3235,7 @@ function StepTeam({
             value={handoff.defaultDestination as Record<string, string> | undefined}
             catalogs={catalogs}
             onChange={(v) => onChange("handoff.defaultDestination", v)}
+            hideMessage
           />
         </Field>
         <Field label="Mensagem ao transferir" tooltip="Texto enviado ao cliente antes de passar para uma pessoa.">
@@ -3273,15 +3244,9 @@ function StepTeam({
             onChange={(e) => onChange("handoff.message", e.target.value)}
           />
         </Field>
-        <MultiChip
-          label="Palavras-chave de pedido humano"
-          tooltip="Se o cliente usar uma dessas palavras, o agente transfere para a equipe."
-          values={((handoff.humanRequestKeywords as string[]) ?? []).map(String)}
-          onChange={(v) => onChange("handoff.humanRequestKeywords", v)}
-        />
       </SectionCard>
 
-      <SectionCard title="Horário de atendimento" description="Fora do horário, a ação definida entra em vigor.">
+      <SectionCard title="Horário de atendimento" description="Define o expediente usado pela condição &quot;Fora do horário&quot; das regras. Para agir fora do horário, crie uma regra com essa condição.">
         <div className="flex items-center gap-3">
           <Switch
             checked={!!bh?.enabled}
@@ -3289,7 +3254,7 @@ function StepTeam({
               onChange(
                 "businessHours",
                 v
-                  ? { enabled: true, timezone: "America/Sao_Paulo", weekdays: [], offHoursMessage: "" }
+                  ? { enabled: true, timezone: "America/Sao_Paulo", weekdays: [] }
                   : null,
               )
             }
@@ -3301,25 +3266,6 @@ function StepTeam({
           <>
             <Field label="Fuso horário" tooltip="Fuso usado para calcular se está dentro do expediente.">
               <Input value={(bh.timezone as string) ?? ""} onChange={(e) => onChange("businessHours.timezone", e.target.value)} />
-            </Field>
-            <Field label="Fora do horário" tooltip="O que fazer se o cliente enviar mensagem fora do expediente.">
-              <Select
-                value={(bh.outsideAction as string) ?? "message"}
-                onValueChange={(v) => onChange("businessHours.outsideAction", v)}
-              >
-                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="message">Enviar mensagem</SelectItem>
-                  <SelectItem value="handoff">Transferir</SelectItem>
-                  <SelectItem value="silence">Não responder</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Mensagem fora do horário" tooltip="Resposta automática usada quando o atendimento está fechado.">
-              <Textarea
-                value={(bh.offHoursMessage as string) ?? ""}
-                onChange={(e) => onChange("businessHours.offHoursMessage", e.target.value)}
-              />
             </Field>
             <div className="space-y-2">
               {((bh.weekdays as Array<Record<string, unknown>>) ?? []).map((slot, i) => (
@@ -3393,40 +3339,6 @@ function StepTeam({
         )}
       </SectionCard>
 
-      <SectionCard title="Inatividade" description="Lembrete e encerramento automático se o cliente parar de responder.">
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={!!inactivity.enabled}
-            onCheckedChange={(v) => onChange("inactivity.enabled", v)}
-            id="inactivity"
-          />
-          <Label htmlFor="inactivity">Ativar</Label>
-        </div>
-        {!!inactivity.enabled && (
-          <div className="grid gap-4 md:grid-cols-2 pt-2">
-            <Field label="Lembrete após (min)" tooltip="Tempo de silêncio antes de enviar um lembrete educado.">
-              <Input
-                type="number"
-                value={String(inactivity.nudgeAfter ?? 30)}
-                onChange={(e) => onChange("inactivity.nudgeAfter", Number(e.target.value))}
-              />
-            </Field>
-            <Field label="Encerrar após (min)" tooltip="Tempo de silêncio antes de encerrar a conversa automaticamente.">
-              <Input
-                type="number"
-                value={String(inactivity.closeAfter ?? 1440)}
-                onChange={(e) => onChange("inactivity.closeAfter", Number(e.target.value))}
-              />
-            </Field>
-            <Field label="Mensagem de lembrete" tooltip="Texto enviado para reengajar o cliente antes de encerrar." className="md:col-span-2">
-              <Textarea
-                value={(inactivity.nudgeMessage as string) ?? ""}
-                onChange={(e) => onChange("inactivity.nudgeMessage", e.target.value)}
-              />
-            </Field>
-          </div>
-        )}
-      </SectionCard>
     </div>
   );
 }
@@ -3445,8 +3357,6 @@ function StepClosure({
   onChange: (path: string, value: unknown) => void;
 }) {
   const closure = getPath(config, "closure", {}) as Record<string, unknown>;
-  const survey = getPath(config, "survey", {}) as Record<string, unknown>;
-  const tabulation = getPath(config, "tabulation", {}) as Record<string, unknown>;
   const fieldUpdates = (closure.fieldUpdates as Array<{ entity: "contact" | "deal"; key: string; value: string }>) ?? [];
 
   const contactFields = (getPath(config, "contextFields.contact", []) as Array<{ key: string; label?: string; permissions: string[] }>) ?? [];
@@ -3482,14 +3392,6 @@ function StepClosure({
             onChange={(e) => onChange("closure.postCloseWindowHours", Number(e.target.value))}
           />
         </Field>
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={!!closure.returnToOriginStage}
-            onCheckedChange={(v) => onChange("closure.returnToOriginStage", v)}
-            id="returnStage"
-          />
-          <Label htmlFor="returnStage">Devolver card à etapa de origem ao fechar</Label>
-        </div>
       </SectionCard>
 
       <SectionCard title="Campos a atualizar no encerramento" description="Sempre que a conversa for encerrada por este agente, atualize automaticamente estes campos do contato ou do negócio.">
@@ -3578,78 +3480,6 @@ function StepClosure({
             </Select>
           </Field>
         ))}
-      </SectionCard>
-
-      <SectionCard title="Pesquisa de satisfação" description="Perguntar nota ao encerrar.">
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={!!survey.enabled}
-            onCheckedChange={(v) => onChange("survey.enabled", v)}
-            id="survey"
-          />
-          <Label htmlFor="survey">Ativar pesquisa</Label>
-        </div>
-        {!!survey.enabled && (
-          <>
-            <Field label="Pergunta" tooltip="Texto usado para pedir a nota de satisfação.">
-              <Textarea
-                value={(survey.question as string) ?? ""}
-                onChange={(e) => onChange("survey.question", e.target.value)}
-              />
-            </Field>
-            <div className="flex items-center gap-3">
-              <Switch
-                checked={!!survey.askReason}
-                onCheckedChange={(v) => onChange("survey.askReason", v)}
-                id="askReason"
-              />
-              <Label htmlFor="askReason">Perguntar motivo da nota</Label>
-            </div>
-            <Field label="Frequência máxima (dias)" tooltip="Intervalo mínimo entre pesquisas enviadas ao mesmo cliente.">
-              <Input
-                type="number"
-                value={String(survey.maxFrequencyDays ?? 30)}
-                onChange={(e) => onChange("survey.maxFrequencyDays", Number(e.target.value))}
-              />
-            </Field>
-          </>
-        )}
-      </SectionCard>
-
-      <SectionCard title="Tabulação" description="Classificar o atendimento ao encerrar ou transferir.">
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={!!tabulation.enabled}
-            onCheckedChange={(v) => onChange("tabulation.enabled", v)}
-            id="tabulation"
-          />
-          <Label htmlFor="tabulation">Ativar tabulação</Label>
-        </div>
-        {!!tabulation.enabled && (
-          <>
-            <Field label="Quando" tooltip="Momento em que a classificação deve ser aplicada.">
-              <Select
-                value={(tabulation.when as string) ?? "on_close"}
-                onValueChange={(v) => onChange("tabulation.when", v)}
-              >
-                <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="on_close">Ao encerrar</SelectItem>
-                  <SelectItem value="on_transfer">Ao transferir</SelectItem>
-                  <SelectItem value="always">Sempre</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="flex items-center gap-3">
-              <Switch
-                checked={!!tabulation.required}
-                onCheckedChange={(v) => onChange("tabulation.required", v)}
-                id="tabRequired"
-              />
-              <Label htmlFor="tabRequired">Obrigatória</Label>
-            </div>
-          </>
-        )}
       </SectionCard>
     </div>
   );
