@@ -925,11 +925,14 @@ export default function AIAgentV2EditPage() {
   }, [dirty, saving]);
 
   const publishMutation = useMutation({
-    mutationFn: async () => {
-      if (dirty) await saveDraftMutation.mutateAsync();
-      return publishAgent(id);
-    },
+    mutationFn: async (comment?: string) => publishAgent(id, comment || undefined),
   });
+  const [publishInfo, setPublishInfo] = React.useState<{
+    next: number;
+    first: boolean;
+    changes: Array<{ section: string; items: string[] }>;
+    realClients: boolean;
+  } | null>(null);
 
   const validateKeyMutation = useMutation({
     mutationFn: async () => {
@@ -966,17 +969,45 @@ export default function AIAgentV2EditPage() {
       goTo("equipe");
       return;
     }
-    const next = (agentQuery.data?.lastVersionNumber ?? 0) + 1;
-    const ok = await confirm({
-      title: `Publicar a versão ${next}?`,
-      description:
-        "O WhatsApp passa a usar esta configuração agora. Conversas em andamento continuam normalmente. O que você testou até aqui é o que vai valer.",
-      confirmLabel: `Publicar versão ${next}`,
+    if (dirty) {
+      try {
+        await saveDraftMutation.mutateAsync();
+      } catch {
+        return;
+      }
+    }
+    // Compara o que o servidor tem publicado com o rascunho salvo: os dois
+    // passaram pela mesma normalização, então não aparecem diferenças falsas.
+    const fresh = await queryClient.fetchQuery({ queryKey: ["ai-agents-v2", id], queryFn: () => fetchAgent(id), staleTime: 0 });
+    const draft = fresh.draftConfig ?? fresh.publishedConfig ?? {};
+    const channels = ((draft.channelIds as string[]) ?? []).length;
+    const phones = ((draft.allowedPhoneNumbers as string[]) ?? []).length;
+    const first = !fresh.lastVersionNumber;
+    setPublishInfo({
+      next: (fresh.lastVersionNumber ?? 0) + 1,
+      first,
+      changes: describeChanges(fresh.publishedConfig, fresh.draftConfig),
+      realClients: (active || first) && channels > 0 && phones === 0,
     });
-    if (!ok) return;
-    const res = await publishMutation.mutateAsync();
+  };
+
+  const confirmPublish = async (comment: string) => {
+    if (!publishInfo) return;
+    const first = publishInfo.first;
+    const res = await publishMutation.mutateAsync(comment);
+    setPublishInfo(null);
+    // A primeira publicação liga o agente no servidor; o salvamento
+    // automático não pode desligá-lo de volta com o estado antigo.
+    if (first) setActive(true);
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
+    queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-versions", id] });
     await confirm({ title: "Publicado", description: `A versão ${res.versionNumber} já está valendo no WhatsApp.` });
+  };
+
+  const reloadAfterRestore = () => {
+    setConfig(null);
+    setDirty(false);
+    queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
   };
 
   if (agentQuery.isLoading || catalogsQuery.isLoading || !config) {
@@ -1082,6 +1113,18 @@ export default function AIAgentV2EditPage() {
         backLabel="Agentes"
       >
         {dialog}
+        {publishInfo && (
+          <PublishDialog
+            open
+            nextVersion={publishInfo.next}
+            firstPublish={publishInfo.first}
+            changes={publishInfo.changes}
+            realClients={publishInfo.realClients}
+            publishing={publishMutation.isPending}
+            onCancel={() => setPublishInfo(null)}
+            onConfirm={confirmPublish}
+          />
+        )}
         <div className="p-2 sm:p-4">
           {saveError && (
             <div className="mb-3 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -1236,6 +1279,9 @@ export default function AIAgentV2EditPage() {
                     onValidateKey={() => validateKeyMutation.mutate()}
                   />
                 )}
+                {section === "publicacao" && (
+                  <VersionHistory agentId={id} lastVersion={lastVersion} onRestored={reloadAfterRestore} />
+                )}
                 {section === "testes" && (
                   <Tabs value={testsTab} onValueChange={setTestsTab} className="space-y-4">
                     <TabsList>
@@ -1274,6 +1320,250 @@ export default function AIAgentV2EditPage() {
         </Sheet>
       </AppV2PageShell>
     </TooltipProvider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Publicação: o que muda e versões
+// ─────────────────────────────────────────────────────────────────────────────
+
+type AgentVersion = {
+  versionNumber: number;
+  comment?: string | null;
+  createdAt: string;
+  createdByName?: string | null;
+};
+
+async function fetchVersions(id: string): Promise<AgentVersion[]> {
+  const res = await apiFetch(`/api/ai-agents-v2/${id}/versions`);
+  const data = await parseApiResponse<{ versions: AgentVersion[] }>(res, "Erro ao carregar as versões.");
+  return data.versions;
+}
+
+async function restoreVersion(id: string, versionNumber: number): Promise<void> {
+  const res = await apiFetch(`/api/ai-agents-v2/${id}/versions/${versionNumber}/restore`, { method: "POST" });
+  await parseApiResponse<unknown>(res, "Erro ao restaurar a versão.");
+}
+
+function stableJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(",")}]`;
+  if (v && typeof v === "object") {
+    return `{${Object.keys(v as Record<string, unknown>)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableJson((v as Record<string, unknown>)[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v ?? null);
+}
+
+const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string]> }> = [
+  {
+    section: "Quem é o agente",
+    keys: [["name", "nome"], ["tone", "tom de voz"], ["responseLength", "tamanho das respostas"], ["emojis", "emojis"], ["globalRules", "regras que ele sempre segue"], ["responseBehavior", "estilo de resposta"]],
+  },
+  {
+    section: "O que ele sabe",
+    keys: [["allowedKnowledgeDocIds", "materiais em uso"], ["calendar", "calendário"], ["contextFields", "dados do cliente"], ["variables", "informações da empresa"], ["allowedMessageModelIds", "mensagens prontas"], ["productPolicy", "catálogo"], ["dealSelection", "negócio usado"]],
+  },
+  {
+    section: "Do que ele cuida",
+    keys: [["themes", "assuntos"], ["rules", "atalhos automáticos"], ["enabledTools", "o que ele pode fazer"], ["scope", "fora do escopo"]],
+  },
+  {
+    section: "Começo e fim da conversa",
+    keys: [["entry", "boas-vindas e confirmação"], ["media", "áudio, imagem e arquivo"], ["closure", "encerramento"]],
+  },
+  {
+    section: "Quando chama a equipe",
+    keys: [["handoff", "transferência"], ["businessHours", "horário de atendimento"], ["sentiment", "cliente irritado"], ["fallback", "quando não souber"], ["limits", "limites"]],
+  },
+  {
+    section: "Publicação",
+    keys: [["channelIds", "números de WhatsApp"], ["allowedPhoneNumbers", "fase de teste"], ["autonomyMode", "como ele responde"], ["model", "modelo de IA"], ["simulateTyping", "parecer humano"], ["markMessagesRead", "parecer humano"], ["typingPerCharMs", "parecer humano"], ["allowedDomains", "sites permitidos"], ["structuredOutput", "formato da resposta"]],
+  },
+];
+
+/** Assuntos/atalhos: quantos entraram, saíram e mudaram, com os nomes que entraram. */
+function describeListChange(label: string, before: unknown, after: unknown): string {
+  const a = Array.isArray(before) ? (before as Array<Record<string, unknown>>) : [];
+  const b = Array.isArray(after) ? (after as Array<Record<string, unknown>>) : [];
+  const withId = (xs: Array<Record<string, unknown>>) => xs.every((x) => x && typeof x === "object" && typeof x.id === "string");
+  if (!withId(a) || !withId(b)) {
+    const added = b.filter((x) => !a.some((y) => stableJson(y) === stableJson(x))).length;
+    const removed = a.filter((x) => !b.some((y) => stableJson(y) === stableJson(x))).length;
+    const parts = [added ? `+${added}` : "", removed ? `−${removed}` : ""].filter(Boolean);
+    return parts.length ? `${label}: ${parts.join(", ")}` : `${label} reordenados`;
+  }
+  const byId = new Map(a.map((x) => [x.id as string, x]));
+  const added = b.filter((x) => !byId.has(x.id as string));
+  const removed = a.filter((x) => !b.some((y) => y.id === x.id));
+  const changed = b.filter((x) => byId.has(x.id as string) && stableJson(byId.get(x.id as string)) !== stableJson(x));
+  const name = (x: Record<string, unknown>) => String(x.name ?? x.title ?? "").trim();
+  const parts: string[] = [];
+  if (added.length) parts.push(`+${added.length}${added.some(name) ? ` (${added.map(name).filter(Boolean).join(", ")})` : ""}`);
+  if (removed.length) parts.push(`−${removed.length}`);
+  if (changed.length) parts.push(`${changed.length} alterado${changed.length > 1 ? "s" : ""}`);
+  return parts.length ? `${label}: ${parts.join(", ")}` : `${label} reordenados`;
+}
+
+function describeChanges(published: Record<string, unknown> | undefined, draft: Record<string, unknown> | undefined) {
+  if (!draft) return [];
+  const before = published ?? {};
+  const out: Array<{ section: string; items: string[] }> = [];
+  for (const g of CHANGE_GROUPS) {
+    const items = new Set<string>();
+    for (const [key, label] of g.keys) {
+      if (stableJson(before[key]) === stableJson(draft[key])) continue;
+      if (key === "themes" || key === "rules" || key === "globalRules" || key === "allowedKnowledgeDocIds") {
+        items.add(describeListChange(label, before[key], draft[key]));
+      } else if (key === "calendar") {
+        const n = (x: unknown) => (((x as { events?: unknown[] } | undefined)?.events) ?? []).length;
+        items.add(`calendário: ${n(before[key])} → ${n(draft[key])} datas`);
+      } else {
+        items.add(`${label} alterado`);
+      }
+    }
+    if (items.size) out.push({ section: g.section, items: [...items] });
+  }
+  return out;
+}
+
+function PublishDialog({
+  open,
+  nextVersion,
+  firstPublish,
+  changes,
+  realClients,
+  publishing,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  nextVersion: number;
+  firstPublish: boolean;
+  changes: Array<{ section: string; items: string[] }>;
+  realClients: boolean;
+  publishing: boolean;
+  onCancel: () => void;
+  onConfirm: (comment: string) => void;
+}) {
+  // Montado só enquanto aberto: o comentário começa vazio a cada publicação.
+  const [comment, setComment] = React.useState("");
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <DialogTitle>Publicar a versão {nextVersion}?</DialogTitle>
+          <DialogDescription>
+            {firstPublish
+              ? "Ele passa a atender no WhatsApp com esta configuração."
+              : "O WhatsApp passa a usar esta configuração agora. Conversas em andamento continuam normalmente."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {!firstPublish && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                O que muda desde a versão {nextVersion - 1}
+              </p>
+              {changes.length === 0 ? (
+                <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm text-muted-foreground">Nada mudou desde a última publicação.</p>
+              ) : (
+                <div className="max-h-[40vh] space-y-2 overflow-y-auto">
+                  {changes.map((c) => (
+                    <div key={c.section} className="flex flex-col gap-0.5 rounded-xl bg-muted/60 px-3 py-2 sm:flex-row sm:gap-3">
+                      <span className="shrink-0 text-sm font-semibold sm:w-48">{c.section}</span>
+                      <span className="text-sm text-foreground/80">{c.items.join("; ")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {realClients && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <IconAlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <p>
+                <b>Ele vai responder clientes reais.</b> Não há números na fase de teste. Para testar só com alguns números, preencha a fase de
+                teste em Publicação antes.
+              </p>
+            </div>
+          )}
+          <Field label="O que mudou (opcional)" hint="Aparece no histórico de versões.">
+            <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Ex.: novo assunto de agendamento" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onCancel} disabled={publishing}>
+              Cancelar
+            </Button>
+            <Button onClick={() => onConfirm(comment.trim())} disabled={publishing} className="gap-1">
+              {publishing ? <IconLoader2 className="size-4 animate-spin" /> : <IconRocket className="size-4" />}
+              Publicar versão {nextVersion}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VersionHistory({ agentId, lastVersion, onRestored }: { agentId: string; lastVersion?: number; onRestored: () => void }) {
+  const { confirm, dialog } = useConfirm();
+  const versionsQuery = useQuery({
+    queryKey: ["ai-agents-v2-versions", agentId, lastVersion],
+    queryFn: () => fetchVersions(agentId),
+  });
+  const restoreMutation = useMutation({
+    mutationFn: (n: number) => restoreVersion(agentId, n),
+    onSuccess: onRestored,
+  });
+  const versions = versionsQuery.data ?? [];
+
+  const restore = async (n: number) => {
+    const ok = await confirm({
+      title: `Trazer a versão ${n} para o rascunho?`,
+      description: "O que está no rascunho agora é substituído pela versão escolhida. O WhatsApp só muda quando você publicar de novo.",
+      confirmLabel: "Trazer para o rascunho",
+    });
+    if (ok) restoreMutation.mutate(n);
+  };
+
+  return (
+    <SectionCard title="Versões" description="Cada publicação vira uma versão. Dá para trazer uma antiga de volta para o rascunho.">
+      {dialog}
+      {versionsQuery.isLoading ? (
+        <Skeleton className="h-24" />
+      ) : versions.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhuma versão publicada ainda.</p>
+      ) : (
+        <div className="space-y-2">
+          {versions.map((v) => (
+            <div key={v.versionNumber} className="flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3">
+              <span className="text-sm font-bold">v{v.versionNumber}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">
+                  {formatDate(v.createdAt)}
+                  {v.createdByName ? ` · ${v.createdByName}` : ""}
+                </p>
+                {v.comment && <p className="truncate text-xs text-muted-foreground">{v.comment}</p>}
+              </div>
+              {v.versionNumber === lastVersion ? (
+                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                  em uso
+                </Badge>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => restore(v.versionNumber)} disabled={restoreMutation.isPending}>
+                  Trazer para o rascunho
+                </Button>
+              )}
+            </div>
+          ))}
+          {restoreMutation.isError && (
+            <p className="text-sm text-destructive">{(restoreMutation.error as Error)?.message ?? "Erro ao restaurar."}</p>
+          )}
+        </div>
+      )}
+    </SectionCard>
   );
 }
 
