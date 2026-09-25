@@ -1030,7 +1030,7 @@ export default function AIAgentV2EditPage() {
           </DialogContent>
         </Dialog>
         <div className="p-2 sm:p-4">
-          <div className="flex min-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border bg-card">
+          <div className="flex min-h-[calc(100vh-8rem)] flex-col overflow-clip rounded-2xl border bg-card">
             {/* cabeçalho */}
             <header className="flex flex-col gap-3 px-4 pt-5 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:pt-6">
               <div className="min-w-0 space-y-1">
