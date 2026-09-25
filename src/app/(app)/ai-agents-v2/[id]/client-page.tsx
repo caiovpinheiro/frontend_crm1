@@ -517,8 +517,10 @@ async function testAgent(
   history: Array<{ role: "user" | "assistant"; content: string }>,
   contactId?: string,
   stage?: TestResult["stage"],
+  themeId?: string | null,
 ): Promise<TestResult> {
-  const body: Record<string, unknown> = { userMessage, history, stage };
+  // O assunto da mensagem anterior segue junto, como na conversa real.
+  const body: Record<string, unknown> = { userMessage, history, stage, themeId: themeId ?? null };
   if (contactId) body.contactId = contactId;
   const res = await apiFetch(`/api/ai-agents-v2/${id}/test`, {
     method: "POST",
@@ -3969,7 +3971,8 @@ function StepTestPublish({
     setMessage("");
     setTesting(true);
     try {
-      const r = await testAgent(agentId, text, history, testContactId || undefined, testStage);
+      const lastThemeId = [...turns].reverse().find((t) => t.result?.themeId)?.result?.themeId ?? null;
+      const r = await testAgent(agentId, text, history, testContactId || undefined, testStage, lastThemeId);
       setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, result: r } : t)));
       if (r.stage) setTestStage(r.stage);
       setOpenWhyId(turnId);
