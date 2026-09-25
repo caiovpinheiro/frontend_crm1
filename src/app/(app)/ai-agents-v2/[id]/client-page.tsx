@@ -75,6 +75,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
+import { IconChip, SURFACE, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { CalendarStep } from "./calendar-step";
 import { TextListEditor } from "./text-list-editor";
 
@@ -640,7 +641,7 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-6">
+    <section className={cn(SURFACE, "space-y-5 p-5 sm:p-6")}>
       <div className="space-y-1">
         <h3 className="text-[15px] font-semibold leading-tight tracking-tight">{title}</h3>
         {description && <p className="text-[13px] leading-relaxed text-muted-foreground">{description}</p>}
@@ -771,17 +772,20 @@ const SECTIONS: Array<{
   /** Rótulo curto do menu: sempre numa linha. */
   nav: string;
   group: "config" | "live";
+  /** Cor do ícone no menu e no cabeçalho. */
+  tone: Tone;
   intro: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: "inicio", title: "Início", nav: "Início", group: "config", intro: "Onde o agente está e o que falta para ele atender.", icon: IconHome },
-  { id: "quem", title: "Quem é o agente", nav: "Quem é o agente", group: "config", intro: "Como ele fala e o que ele nunca faz.", icon: IconUser },
-  { id: "sabe", title: "O que ele sabe", nav: "O que ele sabe", group: "config", intro: "Ele só responde o que estiver aqui ou nos dados do cliente.", icon: IconBook },
+  { id: "inicio", title: "Início", nav: "Início", group: "config", tone: "blue", intro: "Onde o agente está e o que falta para ele atender.", icon: IconHome },
+  { id: "quem", title: "Quem é o agente", nav: "Quem é o agente", group: "config", tone: "violet", intro: "Como ele fala e o que ele nunca faz.", icon: IconUser },
+  { id: "sabe", title: "O que ele sabe", nav: "O que ele sabe", group: "config", tone: "amber", intro: "Ele só responde o que estiver aqui ou nos dados do cliente.", icon: IconBook },
   {
     id: "cuida",
     title: "Do que ele cuida",
     nav: "Do que ele cuida",
     group: "config",
+    tone: "emerald",
     intro: "Cada assunto tem seu jeito de agir e para quem transferir. Ele reconhece o assunto pelo que o cliente escreve.",
     icon: IconListCheck,
   },
@@ -790,6 +794,7 @@ const SECTIONS: Array<{
     title: "Começo e fim da conversa",
     nav: "Começo e fim",
     group: "config",
+    tone: "sky",
     intro: "Como ele cumprimenta, confirma quem é o cliente e encerra a conversa.",
     icon: IconMessageCircle2,
   },
@@ -798,15 +803,17 @@ const SECTIONS: Array<{
     title: "Quando chama a equipe",
     nav: "Chamar a equipe",
     group: "config",
+    tone: "rose",
     intro: "Para quem ele passa a conversa, em que horários atende e quando para de responder.",
     icon: IconUsers,
   },
-  { id: "publicacao", title: "Publicação", nav: "Publicação", group: "live", intro: "Onde ele atende, para quem, com qual modelo e qual versão.", icon: IconRocket },
+  { id: "publicacao", title: "Publicação", nav: "Publicação", group: "live", tone: "teal", intro: "Onde ele atende, para quem, com qual modelo e qual versão.", icon: IconRocket },
   {
     id: "testes",
     title: "Testes",
     nav: "Testes",
     group: "live",
+    tone: "orange",
     intro: "Veja as conversas dos números de teste e compare as respostas dele com as da sua equipe.",
     icon: IconFlask,
   },
@@ -1186,7 +1193,7 @@ export default function AIAgentV2EditPage() {
             {/* seções: coluna no desktop, faixa rolável no celular */}
             <nav
               aria-label="Seções do agente"
-              className="flex shrink-0 gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card p-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)] lg:sticky lg:top-4 lg:w-[208px] lg:flex-col lg:overflow-visible lg:p-3"
+              className={cn(SURFACE, "flex shrink-0 gap-1 overflow-x-auto p-2 lg:sticky lg:top-4 lg:w-[216px] lg:flex-col lg:overflow-visible lg:p-3")}
             >
               {SECTIONS.map((s, idx) => {
                 const on = s.id === section;
@@ -1210,11 +1217,13 @@ export default function AIAgentV2EditPage() {
                       aria-current={on ? "page" : undefined}
                       onClick={() => goTo(s.id)}
                       className={cn(
-                        "group flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-3 text-left text-[13.5px] transition-colors",
-                        on ? "bg-primary/10 font-semibold text-primary" : "text-foreground/75 hover:bg-muted hover:text-foreground",
+                        "group flex h-10 shrink-0 items-center gap-2.5 rounded-lg px-2 text-left text-[13.5px] transition-colors",
+                        on
+                          ? "bg-slate-100 font-semibold text-foreground dark:bg-muted"
+                          : "text-foreground/75 hover:bg-slate-50 hover:text-foreground dark:hover:bg-muted/60",
                       )}
                     >
-                      <Icon className={cn("size-[17px] shrink-0", on ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                      <IconChip icon={Icon} tone={s.tone} size="sm" className={cn("size-7 [&>svg]:size-4", !on && "opacity-90")} />
                       <span className="flex-1 truncate whitespace-nowrap">{s.nav}</span>
                       {todo && <span aria-label="Falta configurar" className="size-1.5 shrink-0 rounded-full bg-destructive" />}
                     </button>
@@ -1225,9 +1234,12 @@ export default function AIAgentV2EditPage() {
 
             <main className="min-w-0 flex-1">
               <div className="max-w-[960px] space-y-5">
-                <div className="space-y-1 px-1 pt-1">
-                  <h2 className="text-[22px] font-bold tracking-tight">{current.title}</h2>
-                  <p className="text-sm text-muted-foreground">{current.intro}</p>
+                <div className="flex items-center gap-3.5 px-1 pt-1">
+                  <IconChip icon={current.icon} tone={current.tone} size="lg" />
+                  <div className="min-w-0 space-y-0.5">
+                    <h2 className="text-[22px] font-bold leading-tight tracking-tight">{current.title}</h2>
+                    <p className="text-sm text-muted-foreground">{current.intro}</p>
+                  </div>
                 </div>
 
                 {section === "inicio" && (
@@ -1259,11 +1271,11 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "sabe" && (
                   <Tabs value={knowTab} onValueChange={setKnowTab} className="space-y-4">
-                    <TabsList className="flex h-auto flex-wrap justify-start border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                      <TabsTrigger value="materiais">Materiais</TabsTrigger>
-                      <TabsTrigger value="calendario">Calendário</TabsTrigger>
-                      <TabsTrigger value="dados">Dados do cliente e da empresa</TabsTrigger>
-                      <TabsTrigger value="prontas">Mensagens prontas e catálogo</TabsTrigger>
+                    <TabsList className={cn("flex", TABS_LIST)}>
+                      <TabsTrigger value="materiais" className={TABS_TRIGGER}>Materiais</TabsTrigger>
+                      <TabsTrigger value="calendario" className={TABS_TRIGGER}>Calendário</TabsTrigger>
+                      <TabsTrigger value="dados" className={TABS_TRIGGER}>Dados do cliente e da empresa</TabsTrigger>
+                      <TabsTrigger value="prontas" className={TABS_TRIGGER}>Mensagens prontas e catálogo</TabsTrigger>
                     </TabsList>
                     <TabsContent value="materiais">
                       <StepMaterials agentId={id} config={config} onChange={updateConfig} />
@@ -1281,9 +1293,9 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "cuida" && (
                   <Tabs value={careTab} onValueChange={setCareTab} className="space-y-4">
-                    <TabsList className="border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                      <TabsTrigger value="assuntos">Assuntos</TabsTrigger>
-                      <TabsTrigger value="atalhos">Atalhos automáticos</TabsTrigger>
+                    <TabsList className={TABS_LIST}>
+                      <TabsTrigger value="assuntos" className={TABS_TRIGGER}>Assuntos</TabsTrigger>
+                      <TabsTrigger value="atalhos" className={TABS_TRIGGER}>Atalhos automáticos</TabsTrigger>
                     </TabsList>
                     <TabsContent value="assuntos">
                       <StepThemes config={config} catalogs={catalogs} onChange={updateConfig} />
@@ -1342,10 +1354,10 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "testes" && (
                   <Tabs value={testsTab} onValueChange={setTestsTab} className="space-y-4">
-                    <TabsList className="border border-border/60 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-                      <TabsTrigger value="whatsapp">Pelo WhatsApp</TabsTrigger>
-                      <TabsTrigger value="compare">Comparar com a equipe</TabsTrigger>
-                      <TabsTrigger value="try">Conversa de teste</TabsTrigger>
+                    <TabsList className={TABS_LIST}>
+                      <TabsTrigger value="whatsapp" className={TABS_TRIGGER}>Pelo WhatsApp</TabsTrigger>
+                      <TabsTrigger value="compare" className={TABS_TRIGGER}>Comparar com a equipe</TabsTrigger>
+                      <TabsTrigger value="try" className={TABS_TRIGGER}>Conversa de teste</TabsTrigger>
                     </TabsList>
                     <TabsContent value="whatsapp">
                       <TestConversations agentId={id} />
@@ -1684,7 +1696,7 @@ function SectionHome({
           Para o agente funcionar {missing > 0 ? `· falta${missing > 1 ? "m" : ""} ${missing}` : "· tudo pronto"}
         </p>
         {items.map((it) => (
-          <div key={it.title} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div key={it.title} className={cn(SURFACE, "flex items-center gap-3 rounded-xl px-4 py-3")}>
             <span
               className={cn(
                 "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
@@ -2927,7 +2939,7 @@ function SearchableToggleList({
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <label className="flex h-10 flex-1 items-center gap-2 rounded-full border border-border/70 bg-card px-4 focus-within:border-primary/50">
+        <label className="flex h-10 flex-1 items-center gap-2 rounded-full border border-border bg-white px-4 focus-within:border-primary/50 dark:bg-card">
           <IconSearch className="size-4 shrink-0 text-muted-foreground" />
           <input
             type="search"
@@ -2968,7 +2980,7 @@ function SearchableToggleList({
           Liberar as {hiddenOff.length} encontradas
         </button>
       )}
-      <div className="h-[420px] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70 bg-card">
+      <div className="h-[420px] divide-y divide-border/60 overflow-y-auto rounded-xl border border-border bg-white dark:bg-card">
         {visible.length === 0 ? (
           <p className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {onlyOn && !q ? "Nenhuma liberada ainda." : "Nada encontrado."}
@@ -3183,6 +3195,16 @@ function destinationLabel(dest: { type?: string; id?: string } | undefined, cata
   return (list ?? []).find((x) => x.id === dest.id)?.name ?? DEST_KIND_OPTIONS.find((o) => o.value === dest.type)?.label ?? "Destino";
 }
 
+/** Cores das iniciais dos assuntos, em rodízio. */
+const THEME_TONES = [
+  "bg-violet-50 text-violet-700 ring-violet-100 dark:bg-violet-500/15 dark:text-violet-300 dark:ring-violet-500/20",
+  "bg-emerald-50 text-emerald-700 ring-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-500/20",
+  "bg-sky-50 text-sky-700 ring-sky-100 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/20",
+  "bg-amber-50 text-amber-700 ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/20",
+  "bg-rose-50 text-rose-700 ring-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/20",
+  "bg-teal-50 text-teal-700 ring-teal-100 dark:bg-teal-500/15 dark:text-teal-300 dark:ring-teal-500/20",
+];
+
 function StepThemes({
   config,
   catalogs,
@@ -3255,7 +3277,7 @@ function StepThemes({
             setDragIdx(null);
           }}
           onDragEnd={() => setDragIdx(null)}
-          className={cn(dragIdx === i && "opacity-50")}
+          className={cn(SURFACE, editingIdx === i && "border-primary/40 ring-1 ring-primary/15", dragIdx === i && "opacity-50")}
         >
           <CardHeader className="p-3 sm:p-4">
             <div className="flex items-center gap-2">
@@ -3268,6 +3290,15 @@ function StepThemes({
                 aria-expanded={editingIdx === i}
                 className="flex min-w-0 flex-1 items-center gap-4 rounded-lg text-left"
               >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ring-1 ring-inset",
+                    THEME_TONES[i % THEME_TONES.length],
+                  )}
+                >
+                  {(((t.name as string) || "?").trim()[0] ?? "?").toUpperCase()}
+                </span>
                 <span className="min-w-0 flex-1 space-y-1.5">
                   <span className="flex items-center gap-2">
                     <span className="truncate text-[15px] font-semibold">{(t.name as string) || "Assunto sem nome"}</span>
@@ -3283,7 +3314,7 @@ function StepThemes({
                     ) : (
                       <>
                         {((t.when as string[]) ?? []).slice(0, 5).map((w) => (
-                          <span key={w} className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground/80">
+                          <span key={w} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-muted dark:text-foreground/80">
                             {w}
                           </span>
                         ))}
@@ -3461,11 +3492,11 @@ function StepRules({
         const conditions = (rule.conditions as Array<Record<string, unknown>>) ?? [];
         const actions = (rule.actions as Array<Record<string, unknown>>) ?? [];
         return (
-          <Card key={String(rule.id) ?? i}>
+          <Card key={String(rule.id) ?? i} className={cn(SURFACE, !rule.enabled && "opacity-70")}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-100 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/20">
                     {i + 1}
                   </span>
                   <Input
