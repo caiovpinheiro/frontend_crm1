@@ -98,13 +98,17 @@ type Summary = {
   geral: Metrics;
   causas: Record<string, number>;
   porAssunto: Array<{ assunto: string } & Metrics>;
+  /** Notas 0–100 e tempo (p90, em segundos). */
+  notas?: { atendimento: number | null; soMateriais: number | null; tempoP90s: number | null; avaliados: number };
 };
 
 type Params = {
   days: number;
   conversations: number;
   config: "draft" | "published";
-  source?: "crm" | "crm_ids" | "import";
+  source?: "crm" | "crm_ids" | "import" | "rerun";
+  /** Execução de onde vêm os pontos (source "rerun"). */
+  baseRunId?: string;
   files?: string[];
   conversationIds?: string[];
   /** Modelo testado no lugar do configurado (benchmark). */
@@ -205,7 +209,11 @@ function isHit(item: Item): boolean {
   return !!item.outcome && OUTCOME[item.outcome].hit;
 }
 
-function runSourceLabel(r: Run): string {
+function runSourceLabel(r: Run, runs: Run[] = []): string {
+  if (r.params.source === "rerun") {
+    const base = runs.find((x) => x.id === r.params.baseRunId);
+    return base ? `mesmos pontos de ${dateTime(base.createdAt)}` : "mesmos pontos de outra comparação";
+  }
   if (r.params.source === "import") {
     const n = r.params.files?.length ?? r.params.conversations;
     return `${n} ${n === 1 ? "conversa anexada" : "conversas anexadas"}`;
@@ -214,6 +222,123 @@ function runSourceLabel(r: Run): string {
     return `${r.params.conversations} ${r.params.conversations === 1 ? "conversa escolhida" : "conversas escolhidas"}`;
   }
   return `${r.params.conversations} conversas · ${r.params.days === 1 ? "último dia" : `últimos ${r.params.days} dias`}`;
+}
+
+/** Metas para dar o agente como pronto. */
+const GOAL = { score: 95, seconds: 8 };
+
+/** Cor da nota: verde na meta, âmbar a partir de 70, vermelho abaixo. */
+function noteTone(n: number | null): { text: string; tone: Tone } {
+  if (n === null) return { text: "text-muted-foreground", tone: "slate" };
+  if (n >= GOAL.score) return { text: "text-emerald-600 v2-dark:text-emerald-400", tone: "emerald" };
+  if (n >= 70) return { text: "text-amber-600 v2-dark:text-amber-400", tone: "amber" };
+  return { text: "text-rose-600 v2-dark:text-rose-400", tone: "rose" };
+}
+
+/** As três notas da execução, com a meta e a diferença para a execução de referência. */
+function ScoreTiles({ notas, base }: { notas: NonNullable<Summary["notas"]>; base?: Summary["notas"] | null }) {
+  const delta = (now: number | null, before: number | null | undefined, lowerIsBetter = false) => {
+    if (now === null || before === null || before === undefined) return null;
+    const d = Math.round((now - before) * 10) / 10;
+    if (d === 0) return <span className="text-xs text-muted-foreground">igual à referência</span>;
+    const good = lowerIsBetter ? d < 0 : d > 0;
+    return (
+      <span className={cn("text-xs font-medium", good ? "text-emerald-600 v2-dark:text-emerald-400" : "text-rose-600 v2-dark:text-rose-400")}>
+        {d > 0 ? "+" : ""}{String(d).replace(".", ",")}{lowerIsBetter ? " s" : ""} vs referência
+      </span>
+    );
+  };
+  const timeTone = notas.tempoP90s === null
+    ? noteTone(null)
+    : notas.tempoP90s <= GOAL.seconds ? noteTone(100) : notas.tempoP90s <= GOAL.seconds * 2 ? noteTone(80) : noteTone(0);
+  const tiles = [
+    {
+      label: "Atende como a equipe",
+      value: notas.atendimento === null ? "—" : String(notas.atendimento),
+      suffix: "/100",
+      tone: noteTone(notas.atendimento),
+      hint: "Mesmo desfecho da pessoa vale 1; parcial 0,5; transferir sem precisar 0,25; inventar, errar ou não transferir quando precisava 0. Tom inadequado tira 0,2.",
+      goal: `meta ${GOAL.score}`,
+      diff: delta(notas.atendimento, base?.atendimento),
+    },
+    {
+      label: "Só com os materiais",
+      value: notas.soMateriais === null ? "—" : String(notas.soMateriais),
+      suffix: "/100",
+      tone: noteTone(notas.soMateriais),
+      hint: "Pontos em que ele não afirmou nada (número, prazo, regra, link, passo) que não esteja nos materiais ou na conversa.",
+      goal: `meta ${GOAL.score}`,
+      diff: delta(notas.soMateriais, base?.soMateriais),
+    },
+    {
+      label: "Tempo de resposta",
+      value: notas.tempoP90s === null ? "—" : String(notas.tempoP90s).replace(".", ","),
+      suffix: " s",
+      tone: timeTone,
+      hint: "9 em cada 10 respostas ficam prontas em até este tempo (sem contar o \u201cdigitando…\u201d).",
+      goal: `meta até ${GOAL.seconds} s`,
+      diff: delta(notas.tempoP90s, base?.tempoP90s, true),
+    },
+  ];
+  return (
+    <div className="grid gap-3 p-5 sm:grid-cols-3 sm:p-6">
+      {tiles.map((t) => (
+        <div key={t.label} title={t.hint} className="space-y-1 rounded-xl border border-border/70 px-4 py-3">
+          <p className="text-xs font-medium text-muted-foreground">{t.label}</p>
+          <p className={cn("text-3xl font-bold leading-none tracking-tight tabular-nums", t.tone.text)}>
+            {t.value}
+            {t.value !== "—" && <span className="text-sm font-medium text-muted-foreground">{t.suffix}</span>}
+          </p>
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+            <span>{t.goal}</span>
+            {t.diff}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Roda os mesmos pontos de uma execução com a versão escolhida (compara versões). */
+function RerunPanel({ agentId, run, onStarted }: { agentId: string; run: Run; onStarted: (id: string) => void }) {
+  const queryClient = useQueryClient();
+  const [config, setConfig] = React.useState<Params["config"]>("draft");
+  const body = { source: "rerun", baseRunId: run.id, config, ...(run.params.model ? { model: run.params.model } : {}) };
+  const estimate = useQuery({
+    queryKey: ["ai-agents-v2-replay-rerun-estimate", agentId, run.id, config],
+    queryFn: () => postReplay<Estimate>(agentId, { ...body, estimate: true }, "Erro ao estimar."),
+  });
+  const start = useMutation({
+    mutationFn: () => postReplay<{ runId: string }>(agentId, body, "Erro ao iniciar."),
+    onSuccess: (r) => {
+      onStarted(r.runId);
+      queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-replay-runs", agentId] });
+    },
+  });
+  const points = estimate.data?.estimatedPoints ?? 0;
+  return (
+    <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:p-6">
+      <div className="flex-1 space-y-0.5">
+        <p className="text-[13px] font-medium">Rodar de novo com os mesmos pontos</p>
+        <p className="text-xs text-muted-foreground">
+          Compara versões sem trocar a amostra: a diferença de nota é da mudança, não das conversas sorteadas.
+          {estimate.data && <> {points} pontos · ~{money(estimate.data.estimatedCostUsd)}</>}
+        </p>
+        {start.isError && <p className="text-xs text-destructive">{(start.error as Error)?.message}</p>}
+      </div>
+      <Select value={config} onValueChange={(v) => setConfig(v as Params["config"])}>
+        <SelectTrigger className="h-9 w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="draft">Rascunho salvo</SelectItem>
+          <SelectItem value="published">Versão publicada</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button variant="outline" className="gap-1.5" disabled={start.isPending || points === 0} onClick={() => start.mutate()}>
+        {start.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconRefresh className="size-4" />}
+        Rodar de novo
+      </Button>
+    </div>
+  );
 }
 
 async function postReplay<T>(agentId: string, body: Record<string, unknown>, fallback: string): Promise<T> {
@@ -536,7 +661,7 @@ export function CompareHuman({ agentId }: { agentId: string }) {
       {list.length > 0 && <RunHistory runs={list} currentId={currentId} onSelect={setRunId} modelName={modelName} />}
 
       {runs.isLoading && <Skeleton className="h-40 rounded-2xl" />}
-      {currentId && <RunDetail agentId={agentId} runId={currentId} />}
+      {currentId && <RunDetail agentId={agentId} runId={currentId} runs={list} onStarted={setRunId} />}
     </div>
   );
 }
@@ -581,7 +706,7 @@ function RunHistory({
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-medium">{dateTime(r.createdAt)}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {runSourceLabel(r)} · {r.params.config === "published" ? "versão publicada" : "rascunho"}
+                    {runSourceLabel(r, runs)} · {r.params.config === "published" ? "versão publicada" : "rascunho"}
                     {r.params.model ? ` · ${modelName(r.params.model)}` : ""}
                   </p>
                 </div>
@@ -592,7 +717,13 @@ function RunHistory({
                 )}
                 {r.status === "error" && <Pill tone="rose">parou</Pill>}
                 {r.status === "canceled" && <Pill tone="slate">interrompida</Pill>}
-                {g && g.avaliados > 0 && score && (
+                {r.summary?.notas && r.summary.notas.avaliados > 0 ? (
+                  <div className="flex shrink-0 items-center gap-3 text-[13px] tabular-nums" title="Atende como a equipe · Só com os materiais">
+                    <span className={cn("font-semibold", noteTone(r.summary.notas.atendimento).text)}>{r.summary.notas.atendimento ?? "—"}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className={cn("font-semibold", noteTone(r.summary.notas.soMateriais).text)}>{r.summary.notas.soMateriais ?? "—"}</span>
+                  </div>
+                ) : g && g.avaliados > 0 && score && (
                   <div className="flex w-28 shrink-0 items-center gap-2">
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 v2-dark:bg-muted">
                       <div className={cn("h-full rounded-full", score.bar)} style={{ width: pct(g.resolveuComoHumano, g.avaliados) }} />
@@ -750,7 +881,7 @@ function matchesFilter(it: Item, f: PointFilter): boolean {
   return true;
 }
 
-function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
+function RunDetail({ agentId, runId, runs, onStarted }: { agentId: string; runId: string; runs: Run[]; onStarted: (id: string) => void }) {
   const q = useQuery({
     queryKey: ["ai-agents-v2-replay-run", agentId, runId],
     queryFn: async () => {
@@ -850,6 +981,14 @@ function RunDetail({ agentId, runId }: { agentId: string; runId: string }) {
             {run.status !== "running" && <Pill tone="slate">custo {money(run.costUsd, 3)}</Pill>}
           </div>
         </div>
+
+        {summary.notas && summary.notas.avaliados > 0 && (
+          <ScoreTiles
+            notas={summary.notas}
+            base={run.params.source === "rerun" ? runs.find((x) => x.id === run.params.baseRunId)?.summary?.notas ?? null : null}
+          />
+        )}
+        {run.status !== "running" && g.avaliados > 0 && <RerunPanel agentId={agentId} run={run} onStarted={onStarted} />}
 
         {g.avaliados > 0 && (
           <div className="space-y-4 p-5 sm:p-6">
