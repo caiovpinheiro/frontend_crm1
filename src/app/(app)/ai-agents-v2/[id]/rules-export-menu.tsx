@@ -68,7 +68,7 @@ export function RulesExportMenu({ agentId }: { agentId: string }) {
         await parseApiResponse(res, "Erro ao exportar.");
         throw new Error("Erro ao exportar.");
       }
-      const blob = await res.blob();
+      const blob = new Blob([await res.arrayBuffer()], { type: c.format === "json" ? "application/json;charset=utf-8" : "text/markdown;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -76,7 +76,8 @@ export function RulesExportMenu({ agentId }: { agentId: string }) {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      // Liberar o arquivo na hora fazia o Chrome salvar com nome aleatório, sem extensão.
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao exportar.");
     } finally {

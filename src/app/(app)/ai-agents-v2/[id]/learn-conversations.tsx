@@ -351,7 +351,7 @@ function DocDraft({
     a.href = url;
     a.download = `${title.replace(/[\\/:*?"<>|]+/g, " ").trim() || "material"}.md`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
   return (

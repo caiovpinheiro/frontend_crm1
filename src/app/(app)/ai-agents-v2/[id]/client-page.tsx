@@ -98,6 +98,7 @@ import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
 import { RulesExportMenu } from "./rules-export-menu";
 import { ConfigReviewCard } from "./config-review";
+import { ListenHomeCard, ListenTeam } from "./listen-team";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -1358,6 +1359,13 @@ export default function AIAgentV2EditPage() {
                         goTo("testes");
                       }}
                     />
+                    <ListenHomeCard
+                      agentId={id}
+                      onOpen={() => {
+                        setKnowTab("escutar");
+                        goTo("sabe");
+                      }}
+                    />
                     <ConfigReviewCard
                       agentId={id}
                       models={catalogs.models ?? []}
@@ -1398,6 +1406,7 @@ export default function AIAgentV2EditPage() {
                       <TabsTrigger value="dados" className={TABS_TRIGGER}>Dados do cliente e da empresa</TabsTrigger>
                       <TabsTrigger value="prontas" className={TABS_TRIGGER}>Mensagens prontas e catálogo</TabsTrigger>
                       <TabsTrigger value="aprender" className={TABS_TRIGGER}>Aprender com conversas</TabsTrigger>
+                      <TabsTrigger value="escutar" className={TABS_TRIGGER}>Escutar a equipe</TabsTrigger>
                     </TabsList>
                     <TabsContent value="materiais">
                       <StepMaterials agentId={id} config={config} onChange={updateConfig} />
@@ -1419,6 +1428,21 @@ export default function AIAgentV2EditPage() {
                           if (!current.includes(doc.id)) updateConfig("allowedKnowledgeDocIds", [...current, doc.id]);
                           queryClient.invalidateQueries({ queryKey: ["ai-agents", id, "knowledge"] });
                         }}
+                      />
+                    </TabsContent>
+                    <TabsContent value="escutar">
+                      <ListenTeam
+                        agentId={id}
+                        users={(catalogs.users ?? []).filter((u) => u.type === "HUMAN")}
+                        themes={((config.themes as Array<{ id: string; name: string }>) ?? []).map((t) => ({ id: t.id, name: t.name }))}
+                        dirty={dirty}
+                        saving={saving}
+                        onDocAdded={(doc) => {
+                          const current = (config.allowedKnowledgeDocIds as string[]) ?? [];
+                          if (!current.includes(doc.id)) updateConfig("allowedKnowledgeDocIds", [...current, doc.id]);
+                          queryClient.invalidateQueries({ queryKey: ["ai-agents", id, "knowledge"] });
+                        }}
+                        onConfigApplied={reloadAfterRestore}
                       />
                     </TabsContent>
                   </Tabs>
@@ -3356,7 +3380,7 @@ function StepMaterials({
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
     } catch {
       setEditError("Erro ao exportar conteúdo.");
     }
