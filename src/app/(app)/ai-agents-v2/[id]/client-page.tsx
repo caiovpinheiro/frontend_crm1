@@ -5676,7 +5676,7 @@ function StepClosure({
                   hint={
                     behavior === "handoff"
                       ? "Vazio: a mensagem de transferência de “Chamar a equipe”."
-                      : `Vazio: ${(closure.shortReplyMessage as string)?.trim() ? `“${closure.shortReplyMessage}” (resposta antiga, abaixo)` : "“Por nada! Se precisar de algo novo, é só chamar.”"}`
+                      : "Vazio: “Por nada! Se precisar de algo novo, é só chamar.”"
                   }
                 >
                   <Textarea value={messages[c.caseType] ?? ""} onChange={(e) => onChange(`closure.postCloseMessages.${c.caseType}`, e.target.value)} />
@@ -5688,7 +5688,8 @@ function StepClosure({
         {!!(closure.shortReplyMessage as string)?.trim() && (
           <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 sm:flex-row sm:items-center v2-dark:border-amber-500/30 v2-dark:bg-amber-500/10 v2-dark:text-amber-200">
             <p className="flex-1">
-              Resposta antiga (vale para todo caso sem resposta própria): “{closure.shortReplyMessage as string}”
+              Resposta antiga, que não é mais usada: “{closure.shortReplyMessage as string}”. Se ela era para algum caso acima, copie para
+              o campo dele e apague esta.
             </p>
             <Button variant="outline" size="sm" onClick={() => onChange("closure.shortReplyMessage", undefined)}>
               Apagar
