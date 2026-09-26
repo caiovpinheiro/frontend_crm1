@@ -2520,6 +2520,176 @@ function StepTone({ config, onChange }: { config: Record<string, unknown>; onCha
 // Etapa 3 — O que ele sabe
 // ─────────────────────────────────────────────────────────────────────────────
 
+const FIELD_MASK_OPTIONS = [
+  { value: "none", label: "Inteiro" },
+  { value: "partial", label: "Início e fim" },
+  { value: "email", label: "E-mail" },
+];
+
+type DerivedPart = {
+  kind: "field" | "text";
+  entity?: "contact" | "deal";
+  key?: string;
+  take?: "all" | "first" | "last";
+  count?: number;
+  digitsOnly?: boolean;
+  text?: string;
+};
+type DerivedField = { id: string; label: string; parts: DerivedPart[]; mask?: string };
+
+/** "O que ele sabe › Dados do cliente › Informações montadas". */
+function DerivedFieldsEditor({
+  config,
+  onChange,
+  fields,
+}: {
+  config: Record<string, unknown>;
+  onChange: (path: string, value: unknown) => void;
+  fields: Array<{ entity: "contact" | "deal"; key: string; label: string }>;
+}) {
+  const list = (getPath(config, "derivedFields", []) as DerivedField[] | undefined) ?? [];
+  const save = (next: DerivedField[]) => onChange("derivedFields", next);
+  const patchItem = (i: number, p: Partial<DerivedField>) => save(list.map((d, j) => (j === i ? { ...d, ...p } : d)));
+  const patchPart = (i: number, k: number, p: Partial<DerivedPart>) =>
+    patchItem(i, { parts: list[i].parts.map((part, j) => (j === k ? { ...part, ...p } : part)) });
+  const fieldName = (part: DerivedPart) => fields.find((f) => f.entity === (part.entity ?? "contact") && f.key === part.key)?.label.split(" · ")[1] ?? "campo";
+  const describe = (d: DerivedField) =>
+    d.parts
+      .map((part) => {
+        if (part.kind === "text") return `“${part.text ?? ""}”`;
+        const what = part.take === "first" ? `primeiros ${part.count ?? 0}` : part.take === "last" ? `últimos ${part.count ?? 0}` : "inteiro";
+        return `${fieldName(part)} (${what}${part.digitsOnly ? ", só dígitos" : ""})`;
+      })
+      .join(" + ");
+  return (
+    <SectionCard
+      title="Informações montadas"
+      description="Algo que o agente pode dizer ao cliente montado a partir de campos do cadastro (ex.: senha provisória = começo do documento + número de matrícula). O motor monta o valor; em mensagens use @Nome. Se algum campo usado estiver vazio, a informação não é informada."
+    >
+      <div className="space-y-4">
+        {list.map((d, i) => (
+          <div key={d.id} className="space-y-3 rounded-xl border border-border/70 p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Nome" className="min-w-[200px] flex-1">
+                <Input value={d.label} placeholder="Ex.: Senha provisória" onChange={(e) => patchItem(i, { label: e.target.value })} />
+              </Field>
+              <Field label="Mostrar">
+                <Select value={d.mask ?? "none"} onValueChange={(v) => patchItem(i, { mask: v === "none" ? undefined : v })}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FIELD_MASK_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Button variant="ghost" size="icon" onClick={() => save(list.filter((_, j) => j !== i))} aria-label={`Remover ${d.label || "informação"}`}>
+                <IconTrash className="size-4" />
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {d.parts.map((part, k) => (
+                <div key={k} className="flex flex-wrap items-center gap-2">
+                  <span className="w-5 text-right text-xs text-muted-foreground">{k + 1}.</span>
+                  <Select value={part.kind} onValueChange={(v) => patchPart(i, k, v === "text" ? { kind: "text", text: part.text ?? "" } : { kind: "field", take: part.take ?? "all" })}>
+                    <SelectTrigger className="w-[110px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="field">Campo</SelectItem>
+                      <SelectItem value="text">Texto fixo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {part.kind === "text" ? (
+                    <Input className="w-[200px]" value={part.text ?? ""} placeholder="Ex.: @" onChange={(e) => patchPart(i, k, { text: e.target.value })} />
+                  ) : (
+                    <>
+                      <Select
+                        value={part.key ? `${part.entity ?? "contact"}:${part.key}` : ""}
+                        onValueChange={(v) => {
+                          const [entity, key] = v.split(":");
+                          patchPart(i, k, { entity: entity as "contact" | "deal", key });
+                        }}
+                      >
+                        <SelectTrigger className="w-[240px]">
+                          <SelectValue placeholder="Campo do cadastro…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fields.map((f) => (
+                            <SelectItem key={`${f.entity}:${f.key}`} value={`${f.entity}:${f.key}`}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={part.take ?? "all"} onValueChange={(v) => patchPart(i, k, { take: v as DerivedPart["take"] })}>
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Inteiro</SelectItem>
+                          <SelectItem value="first">Primeiros</SelectItem>
+                          <SelectItem value="last">Últimos</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {part.take && part.take !== "all" && (
+                        <Input
+                          type="number"
+                          min={1}
+                          max={100}
+                          className="w-[80px]"
+                          value={part.count ? String(part.count) : ""}
+                          placeholder="N"
+                          onChange={(e) => patchPart(i, k, { count: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))) })}
+                          aria-label="Quantidade de caracteres"
+                        />
+                      )}
+                      <label className="flex items-center gap-1.5 text-sm">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-primary"
+                          checked={!!part.digitsOnly}
+                          onChange={(e) => patchPart(i, k, { digitsOnly: e.target.checked })}
+                        />
+                        só dígitos
+                      </label>
+                    </>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={() => patchItem(i, { parts: d.parts.filter((_, j) => j !== k) })} aria-label={`Remover parte ${k + 1}`}>
+                    <IconX className="size-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button variant="ghost" size="sm" onClick={() => patchItem(i, { parts: [...d.parts, { kind: "field", take: "all" }] })}>
+                <IconPlus className="size-4" /> Parte
+              </Button>
+            </div>
+            {d.parts.length > 0 && (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-muted-foreground v2-dark:bg-muted/40">
+                <span className="font-medium text-foreground">{d.label || "Informação"}</span> = {describe(d)}
+              </p>
+            )}
+          </div>
+        ))}
+        {fields.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Adicione campos do cadastro acima para montar informações com eles.</p>
+        ) : (
+          <Button
+            variant="outline"
+            onClick={() => save([...list, { id: `d_${Date.now().toString(36)}`, label: "", parts: [{ kind: "field", take: "all" }] }])}
+          >
+            <IconPlus className="size-4" /> Adicionar informação
+          </Button>
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
 function StepContext({
   config,
   catalogs,
@@ -2584,7 +2754,7 @@ function StepContext({
   function renderFieldTable(
     title: string,
     catalogFields: Array<{ id: string; name: string }>,
-    stored: Array<{ key: string; label?: string; permissions: string[] }>,
+    stored: Array<{ key: string; label?: string; permissions: string[]; mask?: string }>,
     entity: string,
   ) {
     const usedKeys = new Set(stored.map((s) => s.key));
@@ -2624,15 +2794,22 @@ function StepContext({
       onChange(`contextFields.${entity}`, list);
     };
 
+    const setMask = (key: string, mask: string) =>
+      onChange(
+        `contextFields.${entity}`,
+        stored.map((s) => (s.key === key ? { ...s, mask: mask === "none" ? undefined : mask } : s)),
+      );
+
     return (
       <SectionCard title={title} description="Dados do cadastro que ele usa. Marque o que ele pode fazer com cada um.">
         <div className="overflow-x-auto">
           <div className="min-w-[360px] rounded-lg border">
-            <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_40px_40px_40px_40px] sm:items-center sm:gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
+            <div className="hidden sm:grid sm:grid-cols-[minmax(0,1fr)_40px_40px_40px_140px_40px] sm:items-center sm:gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground">
               <span>Campo</span>
               <HeaderCell label="Usar" tooltip="Usa o dado para entender a situação, sem repetir ao cliente." />
               <HeaderCell label="Dizer" tooltip="Pode dizer o dado ao cliente na conversa." />
               <HeaderCell label="Gravar" tooltip="Pode atualizar o dado ao encerrar a conversa." />
+              <HeaderCell label="Mostrar" tooltip="Como o valor aparece: inteiro ou mascarado (ex.: 218.xxx.xxx-21). Vale para o que ele diz, a confirmação e as mensagens; o modelo só recebe o valor mascarado." />
               <span className="sr-only">Remover</span>
             </div>
             {stored.map((s) => {
@@ -2641,7 +2818,7 @@ function StepContext({
               return (
                 <div
                   key={s.key}
-                  className="flex flex-col gap-2 border-b px-3 py-3 last:border-0 sm:grid sm:grid-cols-[minmax(0,1fr)_40px_40px_40px_40px] sm:items-center sm:gap-2 sm:py-2"
+                  className="flex flex-col gap-2 border-b px-3 py-3 last:border-0 sm:grid sm:grid-cols-[minmax(0,1fr)_40px_40px_40px_140px_40px] sm:items-center sm:gap-2 sm:py-2"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{label}</p>
@@ -2660,6 +2837,18 @@ function StepContext({
                         />
                       </label>
                     ))}
+                    <Select value={s.mask ?? "none"} onValueChange={(v) => setMask(s.key, v)}>
+                      <SelectTrigger className="h-8 w-[140px] text-xs" aria-label={`Como mostrar ${label}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FIELD_MASK_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Button variant="ghost" size="icon" onClick={() => remove(s.key)} aria-label={`Remover ${label}`}>
                       <IconTrash className="size-4" />
                     </Button>
@@ -2696,6 +2885,14 @@ function StepContext({
     <div className="space-y-6">
       {renderFieldTable("Dados do contato", catalogs.contactCustomFields, contactFields, "contact")}
       {renderFieldTable("Dados do negócio", catalogs.dealCustomFields, dealFields, "deal")}
+      <DerivedFieldsEditor
+        config={config}
+        onChange={onChange}
+        fields={[
+          ...contactFields.map((f) => ({ entity: "contact" as const, key: f.key, label: `Contato · ${fieldLabel(f.key, catalogs.contactCustomFields)}` })),
+          ...dealFields.map((f) => ({ entity: "deal" as const, key: f.key, label: `Negócio · ${fieldLabel(f.key, catalogs.dealCustomFields)}` })),
+        ]}
+      />
 
       <AdvancedOptions count={1}>
       <SectionCard title="Se o cliente tiver mais de um negócio aberto">
