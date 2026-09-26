@@ -5352,6 +5352,19 @@ function StepOutputs({
             onChange={(e) => onChange("fallback.noSource.message", e.target.value)}
           />
         </Field>
+        <Field
+          label="Conferir cada resposta com os materiais"
+          hint="“Afirmação por afirmação” pega também o que não tem número (“a instalação é gratuita”, recurso que não existe). Leva de 1 a 2 segundos a mais por resposta."
+        >
+          <Segmented
+            value={(config.groundingCheck as string) === "rules" ? "rules" : "model"}
+            onChange={(v) => onChange("groundingCheck", v)}
+            options={[
+              { value: "model", label: "Afirmação por afirmação (recomendado)" },
+              { value: "rules", label: "Só números, datas e nomes" },
+            ]}
+          />
+        </Field>
         <Field label="Se o cliente não entender (“?”, “não entendi”)">
           <Segmented
             value={((fallback.confusion as Record<string, unknown> | undefined)?.action as string) === "handoff" ? "handoff" : "rephrase"}

@@ -56,7 +56,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "Quando chama a equipe",
-    keys: [["handoff", "Transferência"], ["businessHours", "Horário de atendimento"], ["sentiment", "Cliente irritado"], ["fallback", "Quando não souber"], ["limits", "Limites"]],
+    keys: [["handoff", "Transferência"], ["businessHours", "Horário de atendimento"], ["sentiment", "Cliente irritado"], ["fallback", "Quando não souber"], ["groundingCheck", "Conferir respostas com os materiais"], ["limits", "Limites"]],
   },
   {
     section: "Publicação",
