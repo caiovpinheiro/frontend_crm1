@@ -85,6 +85,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
+import { FeedbackHomeCard, FeedbackReport, type FeedbackTarget } from "./feedback-report";
 import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
@@ -910,6 +911,19 @@ export default function AIAgentV2EditPage() {
     }
   }, []);
 
+  // Atalho do relatório de feedback para o lugar de corrigir.
+  const openTarget = React.useCallback(
+    (t: FeedbackTarget) => {
+      if (t.section === "sabe" && t.tab) setKnowTab(t.tab);
+      if (t.section === "cuida") {
+        setCareTab(t.tab ?? "assuntos");
+        if (t.themeId) setFocusTheme({ id: t.themeId, at: Date.now() });
+      }
+      goTo(t.section as SectionId);
+    },
+    [goTo],
+  );
+
   const agentQuery = useQuery({
     queryKey: ["ai-agents-v2", id],
     queryFn: () => fetchAgent(id),
@@ -1257,15 +1271,24 @@ export default function AIAgentV2EditPage() {
                 </div>
 
                 {section === "inicio" && (
-                  <SectionHome
-                    config={config}
-                    active={active}
-                    lastVersion={lastVersion}
-                    changedSincePublish={changedSincePublish}
-                    hasKey={hasKey}
-                    onGo={goTo}
-                    onOpenTest={() => setTestOpen(true)}
-                  />
+                  <div className="space-y-6">
+                    <SectionHome
+                      config={config}
+                      active={active}
+                      lastVersion={lastVersion}
+                      changedSincePublish={changedSincePublish}
+                      hasKey={hasKey}
+                      onGo={goTo}
+                      onOpenTest={() => setTestOpen(true)}
+                    />
+                    <FeedbackHomeCard
+                      agentId={id}
+                      onOpen={() => {
+                        setTestsTab("feedback");
+                        goTo("testes");
+                      }}
+                    />
+                  </div>
                 )}
                 {section === "quem" && (
                   <div className="space-y-6">
@@ -1380,6 +1403,7 @@ export default function AIAgentV2EditPage() {
                       <TabsTrigger value="whatsapp" className={TABS_TRIGGER}>Pelo WhatsApp</TabsTrigger>
                       <TabsTrigger value="compare" className={TABS_TRIGGER}>Comparar com a equipe</TabsTrigger>
                       <TabsTrigger value="try" className={TABS_TRIGGER}>Conversa de teste</TabsTrigger>
+                      <TabsTrigger value="feedback" className={TABS_TRIGGER}>Feedback</TabsTrigger>
                     </TabsList>
                     <TabsContent value="whatsapp">
                       <TestConversations agentId={id} />
@@ -1388,6 +1412,9 @@ export default function AIAgentV2EditPage() {
                       <CompareHuman agentId={id} />
                     </TabsContent>
                     <TabsContent value="try">{testChat(false)}</TabsContent>
+                    <TabsContent value="feedback">
+                      <FeedbackReport agentId={id} onNavigate={openTarget} />
+                    </TabsContent>
                   </Tabs>
                 )}
               </div>
