@@ -243,7 +243,15 @@ const POST_CLOSE_BEHAVIOR_OPTIONS = [
   { value: "short_reply", label: "Responder curtinho" },
   { value: "reopen_and_route", label: "Reabrir e encaminhar" },
   { value: "ask_with_options", label: "Perguntar com botões" },
+  { value: "handoff", label: "Transferir para a equipe" },
 ];
+
+/** Casos depois de encerrar; `fallback` = padrão do motor quando não configurado. */
+const POST_CLOSE_CASES = [
+  { key: "courtesyBehavior", caseType: "courtesy", fallback: "no_reply", label: "Agradeceu, confirmou ou se despediu", tooltip: "“valeu”, “deu certo”, “combinado”, botão “não”." },
+  { key: "newDemandBehavior", caseType: "new_demand", fallback: "reopen_and_route", label: "Trouxe um pedido novo", tooltip: "“preciso de…”, “não consegui…”, botão “sim”." },
+  { key: "ambiguousBehavior", caseType: "ambiguous", fallback: "ask_with_options", label: "Não deu para saber", tooltip: "“oi”, “??”. A pergunta com botões sai uma vez por janela." },
+] as const;
 
 const EMOJI_OPTIONS = [
   { value: "none", label: "Nenhum", example: "Sua entrega está prevista para 02/10. Quer que eu te passe como acompanhar?" },
@@ -5524,31 +5532,52 @@ function StepClosure({
             onChange={(e) => onChange("closure.postCloseWindowHours", Number(e.target.value))}
           />
         </Field>
-        {[
-          { key: "courtesyBehavior", label: "Cortesia/despedida", tooltip: "Cliente só agradeceu ou se despediu." },
-          { key: "newDemandBehavior", label: "Nova demanda", tooltip: "Cliente trouxe uma solicitação clara após encerramento." },
-          { key: "ambiguousBehavior", label: "Ambíguo", tooltip: "Não ficou claro se é uma nova demanda ou continuação." },
-        ].map((c) => (
-          <Field key={c.key} label={c.label} tooltip={c.tooltip}>
-            <Select
-              value={(closure[c.key] as string) ?? "short_reply"}
-              onValueChange={(v) => onChange(`closure.${c.key}`, v)}
-            >
-              <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
-              <SelectContent>
-                {POST_CLOSE_BEHAVIOR_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        ))}
-        <Field label="Resposta curtinha" hint="Vazio: “Por nada! Se precisar de algo novo, é só chamar.”">
-          <Textarea value={(closure.shortReplyMessage as string) ?? ""} onChange={(e) => onChange("closure.shortReplyMessage", e.target.value)} />
-        </Field>
-        <Field label="Pergunta com botões" hint="Vazio: “Você precisa de ajuda com algo novo?”. Se o cliente responder outra coisa, vale como pedido novo — ele não pergunta de novo.">
+        {POST_CLOSE_CASES.map((c) => {
+          const behavior = (closure[c.key] as string) ?? c.fallback;
+          const messages = (closure.postCloseMessages as Record<string, string> | undefined) ?? {};
+          const withMessage = behavior === "short_reply" || behavior === "handoff";
+          return (
+            <div key={c.key} className="space-y-2 rounded-xl border border-border/70 p-4">
+              <Field label={c.label} tooltip={c.tooltip}>
+                <Select value={behavior} onValueChange={(v) => onChange(`closure.${c.key}`, v)}>
+                  <SelectTrigger className="w-full sm:w-[320px]">
+                    <SelectValue placeholder="Escolha…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {POST_CLOSE_BEHAVIOR_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              {withMessage && (
+                <Field
+                  label={behavior === "handoff" ? "Aviso ao transferir" : "Resposta"}
+                  hint={
+                    behavior === "handoff"
+                      ? "Vazio: a mensagem de transferência de “Chamar a equipe”."
+                      : `Vazio: ${(closure.shortReplyMessage as string)?.trim() ? `“${closure.shortReplyMessage}” (resposta antiga, abaixo)` : "“Por nada! Se precisar de algo novo, é só chamar.”"}`
+                  }
+                >
+                  <Textarea value={messages[c.caseType] ?? ""} onChange={(e) => onChange(`closure.postCloseMessages.${c.caseType}`, e.target.value)} />
+                </Field>
+              )}
+            </div>
+          );
+        })}
+        {!!(closure.shortReplyMessage as string)?.trim() && (
+          <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 sm:flex-row sm:items-center v2-dark:border-amber-500/30 v2-dark:bg-amber-500/10 v2-dark:text-amber-200">
+            <p className="flex-1">
+              Resposta antiga (vale para todo caso sem resposta própria): “{closure.shortReplyMessage as string}”
+            </p>
+            <Button variant="outline" size="sm" onClick={() => onChange("closure.shortReplyMessage", undefined)}>
+              Apagar
+            </Button>
+          </div>
+        )}
+        <Field label="Pergunta com botões" hint="Vazio: “Você precisa de ajuda com algo novo?”. O botão “sim” segue o caso “pedido novo”; o “não”, o caso “agradeceu”. Resposta diferente vale como pedido novo — ele não pergunta de novo.">
           <Textarea
             value={((closure.postCloseQuestion as Record<string, unknown> | undefined)?.message as string) ?? ""}
             onChange={(e) => onChange("closure.postCloseQuestion.message", e.target.value)}
