@@ -97,6 +97,7 @@ import { CalendarStep } from "./calendar-step";
 import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
 import { RulesExportMenu } from "./rules-export-menu";
+import { ConfigReviewCard } from "./config-review";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -1356,6 +1357,14 @@ export default function AIAgentV2EditPage() {
                         setTestsTab("feedback");
                         goTo("testes");
                       }}
+                    />
+                    <ConfigReviewCard
+                      agentId={id}
+                      models={catalogs.models ?? []}
+                      defaultModel={(config.model as string) ?? ""}
+                      dirty={dirty}
+                      saving={saving}
+                      onApplied={reloadAfterRestore}
                     />
                   </div>
                 )}
