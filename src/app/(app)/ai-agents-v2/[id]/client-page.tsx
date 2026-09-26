@@ -1330,6 +1330,12 @@ export default function AIAgentV2EditPage() {
                       />
                     </SectionCard>
                     <StepTone config={config} onChange={updateConfig} />
+                    <SectionCard
+                      title="Como terminar as respostas"
+                      description="Uma frase que ele põe no fim, conforme o tipo de resposta — por exemplo, pedir que o cliente avise se o passo a passo funcionou."
+                    >
+                      <ReplyEndingEditor value={config.replyEnding} onChange={(v) => updateConfig("replyEnding", v)} />
+                    </SectionCard>
                   </div>
                 )}
                 {section === "sabe" && (
@@ -2200,6 +2206,98 @@ const TONE_STARTERS = [
   { label: "Acolhedor", text: "Simpático e paciente. Explica com calma, em frases completas, e chama o cliente pelo nome no começo da conversa." },
   { label: "Descontraído", text: "Leve e próximo, como alguém da equipe conversando no WhatsApp, sem gírias e sem perder a clareza." },
 ];
+
+type ReplyEndingValue = {
+  inherit?: boolean;
+  procedure: { enabled: boolean; phrases: string[] };
+  info: { enabled: boolean; phrases: string[] };
+};
+
+function normalizeReplyEnding(raw: unknown): ReplyEndingValue {
+  const r = (raw ?? {}) as Partial<ReplyEndingValue>;
+  const rule = (x?: { enabled?: boolean; phrases?: string[] }) => ({ enabled: !!x?.enabled, phrases: Array.isArray(x?.phrases) ? x!.phrases : [] });
+  return { ...(r.inherit !== undefined ? { inherit: r.inherit } : {}), procedure: rule(r.procedure), info: rule(r.info) };
+}
+
+const REPLY_ENDING_RULES: Array<{ key: "procedure" | "info"; title: string; hint: string; placeholder: string; sample: string }> = [
+  {
+    key: "procedure",
+    title: "Depois de um passo a passo",
+    hint: "Quando a resposta traz passos numerados.",
+    placeholder: "Ex.: Faz esses passos e me avisa se funcionou.",
+    sample: "Para acessar:\n1. Abra o aplicativo.\n2. Toque em Entrar.",
+  },
+  {
+    key: "info",
+    title: "Depois de uma informação",
+    hint: "Data, valor, regra ou explicação.",
+    placeholder: "Ex.: Ficou alguma dúvida?",
+    sample: "O prazo é de 5 dias úteis.",
+  },
+];
+
+/** Frases de fecho por tipo de resposta (agente ou assunto). */
+function ReplyEndingEditor({
+  value,
+  onChange,
+  compact = false,
+}: {
+  value: unknown;
+  onChange: (v: ReplyEndingValue) => void;
+  compact?: boolean;
+}) {
+  const v = normalizeReplyEnding(value);
+  const setRule = (key: "procedure" | "info", patch: Partial<{ enabled: boolean; phrases: string[] }>) =>
+    onChange({ ...v, [key]: { ...v[key], ...patch } });
+  return (
+    <div className="space-y-3">
+      <div className={cn("grid items-start gap-3", !compact && "lg:grid-cols-2")}>
+        {REPLY_ENDING_RULES.map((r) => {
+          const rule = v[r.key];
+          const phrases = rule.phrases.filter((p) => p.trim());
+          return (
+            <div key={r.key} className="space-y-3 rounded-xl border border-border/70 p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">{r.title}</span>
+                  <span className="block text-xs text-muted-foreground">{r.hint}</span>
+                </span>
+                <Switch checked={rule.enabled} onCheckedChange={(on) => setRule(r.key, { enabled: on })} aria-label={r.title} />
+              </label>
+              {rule.enabled && (
+                <>
+                  <TextListEditor
+                    values={rule.phrases}
+                    onChange={(list) => setRule(r.key, { phrases: list })}
+                    numbered={false}
+                    addLabel="Adicionar frase"
+                    itemLabel="Frase"
+                    placeholder={r.placeholder}
+                  />
+                  {phrases.length === 0 ? (
+                    <p className="text-xs text-amber-700 v2-dark:text-amber-400">Adicione ao menos uma frase.</p>
+                  ) : (
+                    <div className="rounded-lg bg-[#EFEAE2] p-2.5 v2-dark:bg-muted/30">
+                      <p className="max-w-[90%] whitespace-pre-line rounded-lg rounded-tl-none bg-white px-2.5 py-1.5 text-[12.5px] leading-snug text-[#111B21] shadow-sm">
+                        {r.sample}
+                        {"\n\n"}
+                        <span className="font-medium text-primary">{phrases[0]}</span>
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Nunca vai depois de transferência, encerramento, confirmação de dados, botões de opção ou resposta que já termina com pergunta. Com mais de
+        uma frase, ele alterna e não repete a da mensagem anterior.
+      </p>
+    </div>
+  );
+}
 
 function StepTone({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
   const tone = (config.tone as string) ?? "";
@@ -3919,6 +4017,37 @@ function ThemeEditor({
             )}
             {custom && themeActions.some((a) => a === "add_tag" || a === "move_stage") && (
               <p className="text-xs text-muted-foreground">Etiquetas e etapas vêm da lista em “O que ele pode fazer”.</p>
+            )}
+          </EditorBlock>
+        )}
+
+        {!t.directHandoff && (
+          <EditorBlock title="Como terminar as respostas neste assunto">
+            <Segmented
+              value={(t.replyEnding as { inherit?: boolean } | undefined)?.inherit === false ? "own" : "inherit"}
+              onChange={(v) =>
+                onPatch({
+                  replyEnding:
+                    v === "inherit"
+                      ? undefined
+                      : { ...normalizeReplyEnding((t.replyEnding as unknown) ?? config.replyEnding), inherit: false },
+                })
+              }
+              options={[
+                { value: "inherit", label: "Igual ao agente" },
+                { value: "own", label: "Frases deste assunto" },
+              ]}
+            />
+            {(t.replyEnding as { inherit?: boolean } | undefined)?.inherit === false ? (
+              <ReplyEndingEditor
+                value={t.replyEnding}
+                onChange={(v) => onPatch({ replyEnding: { ...v, inherit: false } })}
+                compact
+              />
+            ) : (
+              <p className="rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] text-muted-foreground v2-dark:bg-muted/40">
+                Usa as frases de “Quem é o agente › Como terminar as respostas”.
+              </p>
             )}
           </EditorBlock>
         )}

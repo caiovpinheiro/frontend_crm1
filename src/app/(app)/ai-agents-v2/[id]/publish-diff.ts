@@ -40,7 +40,7 @@ export type DiffSection = { section: string; lines: DiffLine[]; groups: DiffGrou
 export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string]> }> = [
   {
     section: "Quem é o agente",
-    keys: [["name", "Nome"], ["tone", "Tom de voz"], ["responseLength", "Tamanho das respostas"], ["emojis", "Emojis"], ["globalRules", "Regras que ele sempre segue"], ["responseBehavior", "Estilo de resposta"]],
+    keys: [["name", "Nome"], ["tone", "Tom de voz"], ["responseLength", "Tamanho das respostas"], ["emojis", "Emojis"], ["globalRules", "Regras que ele sempre segue"], ["responseBehavior", "Estilo de resposta"], ["replyEnding", "Como terminar as respostas"]],
   },
   {
     section: "O que ele sabe",
@@ -150,6 +150,16 @@ const PATH_LABEL: Record<string, string> = {
   "themes.answerBy": "Quem responde",
   "themes.directHandoff": "Só encaminha",
   "themes.handoffDestination": "Se transferir",
+  "themes.replyEnding": "Como terminar as respostas",
+  "themes.replyEnding.inherit": "Frases deste assunto",
+  "themes.replyEnding.procedure.enabled": "Fecho depois de passo a passo",
+  "themes.replyEnding.procedure.phrases": "Frases depois de passo a passo",
+  "themes.replyEnding.info.enabled": "Fecho depois de informação",
+  "themes.replyEnding.info.phrases": "Frases depois de informação",
+  "replyEnding.procedure.enabled": "Fecho depois de passo a passo",
+  "replyEnding.procedure.phrases": "Frases depois de passo a passo",
+  "replyEnding.info.enabled": "Fecho depois de informação",
+  "replyEnding.info.phrases": "Frases depois de informação",
 
   "rules.name": "Nome",
   "rules.enabled": "Ligado",
