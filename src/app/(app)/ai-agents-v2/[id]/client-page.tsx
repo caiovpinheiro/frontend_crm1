@@ -89,6 +89,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
 import { FeedbackHomeCard, FeedbackReport, type FeedbackTarget } from "./feedback-report";
+import { LearnFromConversations } from "./learn-conversations";
 import { ActionsReport } from "./actions-report";
 import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
@@ -1292,7 +1293,8 @@ export default function AIAgentV2EditPage() {
             </nav>
 
             <main className="min-w-0 flex-1">
-              <div className="max-w-[960px] space-y-5">
+              {/* Com o teste aberto ao lado, coluna de leitura; sem ele, ocupa a largura (limite para telas ultralargas). */}
+              <div className={cn("space-y-5", showSidePanel ? "max-w-[960px]" : "max-w-[1600px]")}>
                 <div className="flex items-center gap-3.5 px-1 pt-1">
                   <IconChip icon={current.icon} tone={current.tone} size="lg" />
                   <div className="min-w-0 space-y-0.5">
@@ -1350,6 +1352,7 @@ export default function AIAgentV2EditPage() {
                       <TabsTrigger value="calendario" className={TABS_TRIGGER}>Calendário</TabsTrigger>
                       <TabsTrigger value="dados" className={TABS_TRIGGER}>Dados do cliente e da empresa</TabsTrigger>
                       <TabsTrigger value="prontas" className={TABS_TRIGGER}>Mensagens prontas e catálogo</TabsTrigger>
+                      <TabsTrigger value="aprender" className={TABS_TRIGGER}>Aprender com conversas</TabsTrigger>
                     </TabsList>
                     <TabsContent value="materiais">
                       <StepMaterials agentId={id} config={config} onChange={updateConfig} />
@@ -1362,6 +1365,16 @@ export default function AIAgentV2EditPage() {
                     </TabsContent>
                     <TabsContent value="prontas">
                       <StepMessagesProducts config={config} catalogs={catalogs} onChange={updateConfig} />
+                    </TabsContent>
+                    <TabsContent value="aprender">
+                      <LearnFromConversations
+                        agentId={id}
+                        onDocAdded={(doc) => {
+                          const current = (config.allowedKnowledgeDocIds as string[]) ?? [];
+                          if (!current.includes(doc.id)) updateConfig("allowedKnowledgeDocIds", [...current, doc.id]);
+                          queryClient.invalidateQueries({ queryKey: ["ai-agents", id, "knowledge"] });
+                        }}
+                      />
                     </TabsContent>
                   </Tabs>
                 )}
