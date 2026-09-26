@@ -3989,9 +3989,12 @@ function TabulationSettings({
   const byTheme = (tab.byTheme as Record<string, string> | undefined) ?? {};
   const options = catalogs.tabulations ?? [];
   const themes = (getPath(config, "themes", []) as Array<{ id: string; name: string }>) ?? [];
+  const byAgent = tab.strategy === "ai";
+  const allowedIds = (tab.allowedIds as string[] | undefined) ?? [];
+  // A lista abre com a largura do botão: estreito, os nomes quebravam letra a letra.
   const picker = (value: string | undefined, onPick: (v: string | undefined) => void, emptyLabel: string) => (
     <Select value={value || NO_TABULATION} onValueChange={(v) => onPick(v === NO_TABULATION ? undefined : v)}>
-      <SelectTrigger className="w-full sm:max-w-[360px]">
+      <SelectTrigger className="w-full min-w-0 sm:w-[420px] [&>span]:truncate">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -4004,10 +4007,34 @@ function TabulationSettings({
       </SelectContent>
     </Select>
   );
+  const fixedRules = (
+    <>
+      <Field label="Tabulação padrão">{picker(tab.fallbackId as string | undefined, (v) => onChange("tabulation.fallbackId", v), "Nenhuma")}</Field>
+      {themes.length > 0 && (
+        <Field label="Por assunto" hint="Vazio: usa a padrão.">
+          <div className="space-y-2">
+            {themes.map((t) => (
+              <div key={t.id} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                <span className="min-w-0 text-sm sm:w-56 sm:shrink-0 sm:truncate" title={t.name}>
+                  {t.name}
+                </span>
+                {picker(byTheme[t.id], (v) => {
+                  const next = { ...byTheme };
+                  if (v) next[t.id] = v;
+                  else delete next[t.id];
+                  onChange("tabulation.byTheme", next);
+                }, "Padrão")}
+              </div>
+            ))}
+          </div>
+        </Field>
+      )}
+    </>
+  );
   return (
     <SectionCard
       title="Tabulação"
-      description="Ele tabula a conversa com a folha do assunto; sem ela, com a padrão; sem nenhuma, ao encerrar vale a de encerramento automático do departamento. Nunca troca uma tabulação já aplicada."
+      description="Ao encerrar e/ou transferir, ele aplica uma tabulação. Nunca troca uma tabulação já aplicada."
     >
       <label className="flex cursor-pointer items-center gap-3">
         <Switch checked={enabled} onCheckedChange={(v) => onChange("tabulation", { when: "on_close", byTheme: {}, ...tab, enabled: v })} aria-label="Tabular a conversa" />
@@ -4019,23 +4046,48 @@ function TabulationSettings({
           <Field label="Quando">
             <Segmented value={(tab.when as string) || "on_close"} onChange={(v) => onChange("tabulation.when", v)} options={TABULATION_WHEN} />
           </Field>
-          <Field label="Tabulação padrão">{picker(tab.fallbackId as string | undefined, (v) => onChange("tabulation.fallbackId", v), "Nenhuma")}</Field>
-          {themes.length > 0 && (
-            <Field label="Por assunto" hint="Vazio: usa a padrão.">
-              <div className="space-y-2">
-                {themes.map((t) => (
-                  <div key={t.id} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-                    <span className="min-w-0 text-sm sm:w-56 sm:shrink-0 sm:truncate">{t.name}</span>
-                    {picker(byTheme[t.id], (v) => {
-                      const next = { ...byTheme };
-                      if (v) next[t.id] = v;
-                      else delete next[t.id];
-                      onChange("tabulation.byTheme", next);
-                    }, "Padrão")}
-                  </div>
-                ))}
+          <Field label="Como escolher">
+            <Segmented
+              value={byAgent ? "ai" : "fixed"}
+              onChange={(v) => onChange("tabulation.strategy", v)}
+              options={[
+                { value: "fixed", label: "Pelo assunto" },
+                { value: "ai", label: "O agente avalia a conversa" },
+              ]}
+            />
+          </Field>
+          {byAgent ? (
+            <>
+              <p className="rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] text-muted-foreground v2-dark:bg-muted/40">
+                Ele lê o atendimento e escolhe a tabulação que melhor descreve o motivo e o desfecho. O motivo da escolha aparece nos
+                passos da conversa. Se nenhuma servir, vale a regra abaixo.
+              </p>
+              <Field label="Tabulações que ele pode usar" hint="Vazio: as do departamento da conversa.">
+                <MultiSelectPopover
+                  label={allowedIds.length ? `${allowedIds.length} tabulação(ões)` : "As do departamento da conversa"}
+                  options={options.map((o) => ({ value: o.id, label: o.name }))}
+                  selected={allowedIds}
+                  onChange={(v) => onChange("tabulation.allowedIds", v)}
+                  emptyLabel="Nenhuma tabulação cadastrada."
+                  searchable
+                  width={420}
+                />
+              </Field>
+              <Field label="Orientações (opcional)" hint="Ex.: quando usar cada uma, o que conta como resolvido.">
+                <Textarea value={(tab.instructions as string) ?? ""} onChange={(e) => onChange("tabulation.instructions", e.target.value)} />
+              </Field>
+              <div className="space-y-4 border-t border-border/70 pt-4">
+                <p className="text-[13px] font-semibold">Se ele não decidir</p>
+                {fixedRules}
               </div>
-            </Field>
+            </>
+          ) : (
+            <>
+              <p className="text-[13px] text-muted-foreground">
+                A folha do assunto; sem ela, a padrão; sem nenhuma, ao encerrar vale a de encerramento automático do departamento.
+              </p>
+              {fixedRules}
+            </>
           )}
         </div>
       )}
