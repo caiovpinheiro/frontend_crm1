@@ -96,6 +96,7 @@ import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-dif
 import { CalendarStep } from "./calendar-step";
 import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
+import { RulesExportMenu } from "./rules-export-menu";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -1206,6 +1207,7 @@ export default function AIAgentV2EditPage() {
     <div className="flex flex-wrap items-center gap-2">
       {statusBadge}
       <span className={cn("hidden text-xs sm:inline", saveError ? "text-destructive" : "text-muted-foreground")}>{saveStatus}</span>
+      <RulesExportMenu agentId={id} />
       {section !== "testes" && (
         <Button variant="ghost" onClick={() => setTestOpen((v) => !v || !isWide)} className="gap-1">
           <IconMessageCircle2 className="size-4" />
