@@ -107,16 +107,12 @@ export function ConfigReviewCard({
   const current = list.find((r) => r.id === runId) ?? list[0] ?? null;
   const running = list.some((r) => r.status === "running");
 
-  // Ao trocar de revisão (ou ela terminar), pré-marca as graves que dá para aplicar.
+  // Ao trocar de revisão (ou ela terminar), limpa a seleção: nada vem marcado.
   const currentKey = current ? `${current.id}:${current.status}` : "";
   const [pickedFor, setPickedFor] = React.useState("");
   if (pickedFor !== currentKey) {
     setPickedFor(currentKey);
-    setSelected(
-      current?.status === "done"
-        ? new Set(current.suggestions.filter((s) => s.aplicavel && !s.aplicada && s.gravidade === "alta").map((s) => s.id))
-        : new Set(),
-    );
+    setSelected(new Set());
   }
 
   const start = useMutation({
@@ -211,7 +207,7 @@ export function ConfigReviewCard({
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Usa a chave do agente (a mesma de Publicação). Modelos maiores revisam melhor e custam mais; a revisão leva de 30 s a 3 min.
+        Usa a chave do agente (a mesma de Publicação). Modelos maiores revisam melhor e custam mais; a revisão leva de 30 s a 3 min e lê até 80 atendimentos. Confira cada alteração antes de aplicar.
       </p>
 
       {list.length > 1 && (
@@ -291,6 +287,15 @@ export function ConfigReviewCard({
                         </p>
                       )}
                       {s.erro && <p className="text-xs text-rose-600 v2-dark:text-rose-300">{s.erro}</p>}
+                      {s.alteracoes.length > 0 && (
+                        <ul className="space-y-0.5">
+                          {s.alteracoes.map((a, i) => (
+                            <li key={i} className="truncate font-mono text-[11px] text-muted-foreground" title={a.path}>
+                              {OP_LABEL[a.op]} · {a.path}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     {(s.evidencia || s.alteracoes.length > 0) && (
                       <Button
@@ -314,9 +319,6 @@ export function ConfigReviewCard({
                       )}
                       {s.alteracoes.map((a, i) => (
                         <div key={i} className="space-y-1 rounded-lg bg-slate-50 p-2 v2-dark:bg-muted/40">
-                          <p className="font-mono text-[11px]">
-                            {OP_LABEL[a.op]} · {a.path}
-                          </p>
                           <div className="grid gap-2 sm:grid-cols-2">
                             <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-rose-50 p-1.5 text-[11px] v2-dark:bg-rose-500/10">
                               {show(a.before)}
