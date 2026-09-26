@@ -80,7 +80,7 @@ type TestContact = {
   sessions: Array<{ startedAt: string; turns: TestTurn[] }>;
 };
 
-type TestLogsResponse = { testNumbers: string[]; contacts: TestContact[] };
+type TestLogsResponse = { testNumbers: string[]; scope?: "test" | "all"; contacts: TestContact[] };
 
 const CATEGORY_LABEL: Record<Diagnosis["categoria"], string> = {
   configuracao: "Ajuste na configuração",
@@ -139,6 +139,7 @@ export function TestConversations({ agentId }: { agentId: string }) {
   const contacts = query.data?.contacts ?? [];
   const current = contacts.find((c) => c.contactId === selected) ?? contacts[0] ?? null;
   const testNumbers = query.data?.testNumbers ?? [];
+  const allConversations = query.data?.scope === "all";
 
   return (
     <div className="space-y-4">
@@ -147,7 +148,9 @@ export function TestConversations({ agentId }: { agentId: string }) {
           icon={IconBrandWhatsapp}
           tone="emerald"
           title="Conversas pelo WhatsApp"
-          description="O que os números de teste conversaram com o agente nos últimos 7 dias, com o passo a passo de cada decisão."
+          description={allConversations
+            ? "Sem números de teste, o agente atende todo mundo: aqui estão as últimas 30 conversas dele (7 dias), com o passo a passo de cada decisão."
+            : "O que os números de teste conversaram com o agente nos últimos 7 dias, com o passo a passo de cada decisão."}
           actions={
             <Button variant="ghost" size="sm" className="h-8 gap-1 text-muted-foreground" onClick={() => query.refetch()}>
               <IconRefresh className={cn("size-4", query.isFetching && "animate-spin")} />
@@ -165,7 +168,7 @@ export function TestConversations({ agentId }: { agentId: string }) {
             ))
           ) : (
             <span className="text-amber-700 v2-dark:text-amber-400">
-              nenhum — cadastre em “Publicação” › “Fase de teste” e publique.
+              nenhum — o agente atende todo mundo. Para testar sem afetar clientes, cadastre em “Publicação” › “Fase de teste” e publique.
             </span>
           )}
           <span className="text-xs text-muted-foreground sm:ml-auto">
@@ -179,9 +182,9 @@ export function TestConversations({ agentId }: { agentId: string }) {
       {query.isError && (
         <p className="text-sm text-destructive">{(query.error as Error)?.message ?? "Erro ao carregar."}</p>
       )}
-      {!query.isLoading && contacts.length === 0 && testNumbers.length > 0 && (
+      {!query.isLoading && contacts.length === 0 && (
         <p className="rounded-2xl border border-dashed border-border bg-white px-4 py-8 text-center text-sm text-muted-foreground v2-dark:bg-card">
-          Nenhuma conversa dos números de teste nos últimos 7 dias.
+          {allConversations ? "O agente não atendeu nenhuma conversa nos últimos 7 dias." : "Nenhuma conversa dos números de teste nos últimos 7 dias."}
         </p>
       )}
 
