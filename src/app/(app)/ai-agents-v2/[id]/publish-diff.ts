@@ -44,7 +44,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "O que ele sabe",
-    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["derivedFields", "Informações montadas"], ["allowedMessageModelIds", "Mensagens prontas"], ["messageModelAdapt", "Adaptar mensagens prontas"], ["knowledgeSearch", "Busca nos materiais"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"]],
+    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["derivedFields", "Informações montadas"], ["allowedMessageModelIds", "Mensagens prontas"], ["messageModelAdapt", "Adaptar mensagens prontas"], ["knowledgeSearch", "Trechos que ele lê"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"]],
   },
   {
     section: "Do que ele cuida",
@@ -107,14 +107,11 @@ const PATH_LABEL: Record<string, string> = {
   "tabulation.when": "Quando tabular",
   "tabulation.fallbackId": "Tabulação padrão",
   "tabulation.byTheme": "Tabulação por assunto",
+  "themeRecognition.preset": "Reconhecimento de assunto",
+  "knowledgeSearch.preset": "Trechos que ele lê",
   "tabulation.strategy": "Como escolher a tabulação",
   "tabulation.allowedIds": "Tabulações que o agente pode usar",
   "tabulation.instructions": "Orientações para tabular",
-  "themeRecognition.minSimilarity": "Similaridade para escolher assunto",
-  "themeRecognition.switchSimilarity": "Similaridade para trocar assunto",
-  "themeRecognition.switchMargin": "Folga para trocar assunto",
-  "themeRecognition.shortMessageWords": "Palavras para reconsiderar assunto",
-  "knowledgeSearch.minSimilarity": "Similaridade mínima dos trechos",
 
   "closure.postCloseWindowHours": "Janela depois de encerrar (horas)",
   "closure.courtesyBehavior": "Agradecimento depois de encerrar",

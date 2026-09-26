@@ -3677,19 +3677,12 @@ function StepMaterials({
         )}
       </SectionCard>
       <AdvancedOptions count={1}>
-        <SectionCard
-          title="Busca nos materiais"
-          description="Trechos pouco parecidos com a pergunta também vão ao modelo e custam tokens. Com uma régua, os abaixo dela ficam de fora."
-        >
-          <NumberField
-            label="Similaridade mínima dos trechos (0 a 1)"
-            hint="Vazio ou 0: todos os encontrados. Os “Passos” da conversa de teste mostram a similaridade de cada trecho (ex.: 0,62)."
-            value={getPath(config, "knowledgeSearch.minSimilarity", undefined) as number | undefined}
-            step={0.01}
-            min={0}
-            max={1}
-            placeholder="0"
-            onChange={(v) => onChange("knowledgeSearch.minSimilarity", v)}
+        <SectionCard title="Trechos que ele lê" description="Quais trechos dos materiais encontrados na busca vão para o agente responder.">
+          <PresetCards
+            value={(getPath(config, "knowledgeSearch.preset", "all") as string) || "all"}
+            options={KNOWLEDGE_SEARCH_PRESETS}
+            onChange={(v) => onChange("knowledgeSearch", { preset: v })}
+            ariaLabel="Trechos que ele lê"
           />
         </SectionCard>
       </AdvancedOptions>
@@ -4231,56 +4224,70 @@ function NumberField({
   );
 }
 
-/** "Do que ele cuida › Reconhecimento": réguas da escolha e da troca de assunto. */
+/** Cartões de opção (escolha única), como Emojis e Negrito. */
+function PresetCards({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  options: Array<{ value: string; label: string; hint: string }>;
+  onChange: (v: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label={ariaLabel}>
+      {options.map((o) => {
+        const selected = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              "flex flex-col gap-1 rounded-xl border p-3 text-left transition-colors",
+              selected ? "border-primary bg-primary/10" : "hover:border-primary/40",
+            )}
+          >
+            <span className="text-sm font-semibold">{o.label}</span>
+            <span className="text-xs leading-relaxed text-muted-foreground">{o.hint}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const THEME_RECOGNITION_PRESETS = [
+  { value: "strict", label: "Rígido", hint: "Só escolhe um assunto quando a mensagem é bem parecida com ele e raramente troca de assunto no meio da conversa. Menos erro, mais mensagens sem assunto." },
+  { value: "balanced", label: "Equilibrado", hint: "Recomendado. Reconhece pelo sentido e troca de assunto quando o cliente claramente muda de pedido." },
+  { value: "loose", label: "Flexível", hint: "Reconhece mais mensagens e troca de assunto com facilidade. Mais acertos em mensagens vagas, mais risco de assunto errado." },
+];
+
+const KNOWLEDGE_SEARCH_PRESETS = [
+  { value: "all", label: "Todos os encontrados", hint: "Recomendado. Ele lê tudo o que a busca achou e usa o que serve." },
+  { value: "related", label: "Só os relacionados", hint: "Deixa de fora trechos pouco parecidos com a pergunta. Respostas mais focadas e mais baratas." },
+  { value: "close", label: "Só os muito parecidos", hint: "Só trechos bem próximos da pergunta. Use se ele mistura assuntos; pode deixar de achar o que precisa." },
+];
+
+/** "Do que ele cuida › Assuntos › Reconhecimento": opção com nome, sem números. */
 function ThemeRecognitionSettings({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
-  const t = (getPath(config, "themeRecognition", {}) ?? {}) as Record<string, number | undefined>;
+  const preset = (getPath(config, "themeRecognition.preset", "balanced") as string) || "balanced";
   return (
     <SectionCard
       title="Reconhecimento de assunto"
-      description="Réguas usadas para escolher o assunto pelo sentido e para trocar o assunto no meio da conversa. Vazio: o padrão entre parênteses."
+      description="Quanto a mensagem precisa se parecer com um assunto para ele escolher esse assunto — e para trocar de assunto no meio da conversa."
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <NumberField
-          label="Similaridade mínima para escolher (0,40)"
-          hint="Abaixo disto, nenhum assunto pelo sentido."
-          value={t.minSimilarity}
-          step={0.01}
-          min={0}
-          max={1}
-          placeholder="0.40"
-          onChange={(v) => onChange("themeRecognition.minSimilarity", v)}
-        />
-        <NumberField
-          label="Similaridade mínima para trocar (0,50)"
-          hint="Outro assunto só substitui o atual se passar disto."
-          value={t.switchSimilarity}
-          step={0.01}
-          min={0}
-          max={1}
-          placeholder="0.50"
-          onChange={(v) => onChange("themeRecognition.switchSimilarity", v)}
-        />
-        <NumberField
-          label="Folga para trocar (0,05)"
-          hint="Quanto o outro assunto precisa ficar acima do atual."
-          value={t.switchMargin}
-          step={0.01}
-          min={0}
-          max={0.5}
-          placeholder="0.05"
-          onChange={(v) => onChange("themeRecognition.switchMargin", v)}
-        />
-        <NumberField
-          label="Palavras para reconsiderar o assunto (2)"
-          hint="Mensagem com menos palavras (ou curta com pergunta, como “consegue me enviar?”) mantém o assunto atual."
-          value={t.shortMessageWords}
-          step={1}
-          min={0}
-          max={10}
-          placeholder="2"
-          onChange={(v) => onChange("themeRecognition.shortMessageWords", v === undefined ? undefined : Math.min(10, Math.max(0, Math.round(v))))}
-        />
-      </div>
+      <PresetCards
+        value={preset}
+        options={THEME_RECOGNITION_PRESETS}
+        onChange={(v) => onChange("themeRecognition", { preset: v })}
+        ariaLabel="Reconhecimento de assunto"
+      />
+      <p className="text-xs text-muted-foreground">Use “Testar reconhecimento” acima para ver o efeito com mensagens de clientes.</p>
     </SectionCard>
   );
 }
@@ -4559,7 +4566,7 @@ function StepThemes({
         <ThemeRecognitionTest agentId={agentId} themes={themes} onOpenTheme={setOpenId} />
       </section>
 
-      <AdvancedOptions count={4}>
+      <AdvancedOptions count={1}>
         <ThemeRecognitionSettings config={config} onChange={onChange} />
       </AdvancedOptions>
 
