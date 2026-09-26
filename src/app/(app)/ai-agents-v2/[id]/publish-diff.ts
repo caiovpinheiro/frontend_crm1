@@ -40,7 +40,7 @@ export type DiffSection = { section: string; lines: DiffLine[]; groups: DiffGrou
 export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string]> }> = [
   {
     section: "Quem é o agente",
-    keys: [["name", "Nome"], ["tone", "Tom de voz"], ["responseLength", "Tamanho das respostas"], ["emojis", "Emojis"], ["globalRules", "Regras que ele sempre segue"], ["responseBehavior", "Estilo de resposta"], ["replyEnding", "Como terminar as respostas"]],
+    keys: [["name", "Nome"], ["tone", "Tom de voz"], ["responseLength", "Tamanho das respostas"], ["emojis", "Emojis"], ["bold", "Destaques em negrito"], ["globalRules", "Regras que ele sempre segue"], ["responseBehavior", "Estilo de resposta"], ["replyEnding", "Como terminar as respostas"]],
   },
   {
     section: "O que ele sabe",

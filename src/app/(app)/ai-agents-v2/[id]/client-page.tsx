@@ -259,6 +259,29 @@ const EMOJI_OPTIONS = [
   { value: "moderate", label: "À vontade", example: "📅 Entrega: 02/10\n👉 Quer que eu te passe como acompanhar? 😊" },
 ];
 
+const BOLD_OPTIONS = [
+  { value: "auto", label: "Automático", hint: "Como o modelo achar melhor.", example: "Sua entrega está prevista para 02/10. Para acompanhar, toque em Meus pedidos." },
+  { value: "key", label: "Destacar o importante", hint: "Datas, valores, botões e telas; até 4 por mensagem.", example: "Sua entrega está prevista para *02/10*. Para acompanhar, toque em *Meus pedidos*." },
+  { value: "off", label: "Sem negrito", hint: "Tira os asteriscos.", example: "Sua entrega está prevista para 02/10. Para acompanhar, toque em Meus pedidos." },
+];
+
+/** Texto de exemplo com o negrito do WhatsApp (*x*) desenhado. */
+function WhatsAppBoldPreview({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(\*[^*]+\*)/g).map((part, i) =>
+        part.startsWith("*") && part.endsWith("*") && part.length > 2 ? (
+          <b key={i} className="font-semibold text-foreground">
+            {part.slice(1, -1)}
+          </b>
+        ) : (
+          <React.Fragment key={i}>{part}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
 /** Só o que o motor faz para cada tipo de mídia. */
 const MEDIA_ACTION_OPTIONS: Record<"audio" | "image" | "document", Array<{ value: string; label: string }>> = {
   audio: [
@@ -2482,6 +2505,33 @@ function StepTone({ config, onChange }: { config: Record<string, unknown>; onCha
               >
                 <span className="text-sm font-semibold">{o.label}</span>
                 <span className="whitespace-pre-line rounded-lg border bg-card px-2.5 py-1.5 text-xs leading-relaxed text-muted-foreground">{o.example}</span>
+              </button>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Destaques em negrito" description="Negrito do WhatsApp para o cliente achar rápido o que importa na mensagem.">
+        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Destaques em negrito">
+          {BOLD_OPTIONS.map((o) => {
+            const selected = ((config.bold as string) ?? "auto") === o.value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onChange("bold", o.value)}
+                className={cn(
+                  "flex flex-col gap-1.5 rounded-xl border p-3 text-left transition-colors",
+                  selected ? "border-primary bg-primary/10" : "hover:border-primary/40",
+                )}
+              >
+                <span className="text-sm font-semibold">{o.label}</span>
+                <span className="text-xs text-muted-foreground">{o.hint}</span>
+                <span className="rounded-lg border bg-card px-2.5 py-1.5 text-xs leading-relaxed text-muted-foreground">
+                  <WhatsAppBoldPreview text={o.example} />
+                </span>
               </button>
             );
           })}
