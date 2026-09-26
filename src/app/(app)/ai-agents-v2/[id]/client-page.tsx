@@ -131,6 +131,8 @@ type Catalogs = {
   channels: Array<{ id: string; name: string }>;
   pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
   tags?: Array<{ id: string; name: string }>;
+  /** Tabulações (folhas), "Pai › Filha". */
+  tabulations?: Array<{ id: string; name: string }>;
   contactCustomFields: Array<{ id: string; name: string }>;
   dealCustomFields: Array<{ id: string; name: string }>;
   products: Array<{ id: string; name: string }>;
@@ -3301,6 +3303,23 @@ function StepMaterials({
           </div>
         )}
       </SectionCard>
+      <AdvancedOptions count={1}>
+        <SectionCard
+          title="Busca nos materiais"
+          description="Trechos pouco parecidos com a pergunta também vão ao modelo e custam tokens. Com uma régua, os abaixo dela ficam de fora."
+        >
+          <NumberField
+            label="Similaridade mínima dos trechos (0 a 1)"
+            hint="Vazio ou 0: todos os encontrados. Os “Passos” da conversa de teste mostram a similaridade de cada trecho (ex.: 0,62)."
+            value={getPath(config, "knowledgeSearch.minSimilarity", undefined) as number | undefined}
+            step={0.01}
+            min={0}
+            max={1}
+            placeholder="0"
+            onChange={(v) => onChange("knowledgeSearch.minSimilarity", v)}
+          />
+        </SectionCard>
+      </AdvancedOptions>
     </div>
   );
 }
@@ -3798,6 +3817,232 @@ function ThemeRecognitionTest({
   );
 }
 
+/** Campo numérico: vazio = sem valor (vale o padrão do motor). */
+function NumberField({
+  label,
+  hint,
+  value,
+  onChange,
+  step = 1,
+  min,
+  max,
+  placeholder,
+}: {
+  label: string;
+  hint?: string;
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+}) {
+  return (
+    <Field label={label} hint={hint}>
+      <Input
+        type="number"
+        inputMode="decimal"
+        step={step}
+        min={min}
+        max={max}
+        placeholder={placeholder}
+        value={typeof value === "number" ? String(value) : ""}
+        onChange={(e) => {
+          const raw = e.target.value.replace(",", ".");
+          const n = Number(raw);
+          onChange(raw === "" || !Number.isFinite(n) ? undefined : Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n)));
+        }}
+        className="max-w-[180px]"
+      />
+    </Field>
+  );
+}
+
+/** "Do que ele cuida › Reconhecimento": réguas da escolha e da troca de assunto. */
+function ThemeRecognitionSettings({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  const t = (getPath(config, "themeRecognition", {}) ?? {}) as Record<string, number | undefined>;
+  return (
+    <SectionCard
+      title="Reconhecimento de assunto"
+      description="Réguas usadas para escolher o assunto pelo sentido e para trocar o assunto no meio da conversa. Vazio: o padrão entre parênteses."
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <NumberField
+          label="Similaridade mínima para escolher (0,40)"
+          hint="Abaixo disto, nenhum assunto pelo sentido."
+          value={t.minSimilarity}
+          step={0.01}
+          min={0}
+          max={1}
+          placeholder="0.40"
+          onChange={(v) => onChange("themeRecognition.minSimilarity", v)}
+        />
+        <NumberField
+          label="Similaridade mínima para trocar (0,50)"
+          hint="Outro assunto só substitui o atual se passar disto."
+          value={t.switchSimilarity}
+          step={0.01}
+          min={0}
+          max={1}
+          placeholder="0.50"
+          onChange={(v) => onChange("themeRecognition.switchSimilarity", v)}
+        />
+        <NumberField
+          label="Folga para trocar (0,05)"
+          hint="Quanto o outro assunto precisa ficar acima do atual."
+          value={t.switchMargin}
+          step={0.01}
+          min={0}
+          max={0.5}
+          placeholder="0.05"
+          onChange={(v) => onChange("themeRecognition.switchMargin", v)}
+        />
+        <NumberField
+          label="Palavras para reconsiderar o assunto (2)"
+          hint="Mensagem com menos palavras (ou curta com pergunta, como “consegue me enviar?”) mantém o assunto atual."
+          value={t.shortMessageWords}
+          step={1}
+          min={0}
+          max={10}
+          placeholder="2"
+          onChange={(v) => onChange("themeRecognition.shortMessageWords", v === undefined ? undefined : Math.min(10, Math.max(0, Math.round(v))))}
+        />
+      </div>
+    </SectionCard>
+  );
+}
+
+/** "Começo e fim › Cliente sem responder". */
+function InactivitySettings({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  const inactivity = (getPath(config, "inactivity", {}) ?? {}) as Record<string, unknown>;
+  const enabled = !!inactivity.enabled;
+  const nudgeAfter = typeof inactivity.nudgeAfter === "number" ? inactivity.nudgeAfter : 0;
+  const closeAfter = typeof inactivity.closeAfter === "number" ? inactivity.closeAfter : 0;
+  return (
+    <SectionCard
+      title="Cliente sem responder"
+      description="Contado da última mensagem do agente. Use o mesmo prazo que a frase de fecho promete (ex.: “caso não responda em 30 minutos, encerrarei…”)."
+    >
+      <label className="flex cursor-pointer items-center gap-3">
+        <Switch
+          checked={enabled}
+          onCheckedChange={(v) => onChange("inactivity", { nudgeAfter: 0, closeAfter: 30, ...inactivity, enabled: v })}
+          aria-label="Avisar e encerrar por falta de resposta"
+        />
+        <span className="text-sm">Avisar e encerrar por falta de resposta</span>
+      </label>
+      {enabled && (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <NumberField
+              label="Encerrar depois de (minutos)"
+              value={closeAfter || undefined}
+              min={1}
+              placeholder="30"
+              onChange={(v) => onChange("inactivity.closeAfter", Math.max(0, Math.round(v ?? 0)))}
+            />
+            <NumberField
+              label="Avisar antes, depois de (minutos)"
+              hint="0: sem aviso."
+              value={nudgeAfter || undefined}
+              min={0}
+              placeholder="0"
+              onChange={(v) => onChange("inactivity.nudgeAfter", Math.max(0, Math.round(v ?? 0)))}
+            />
+          </div>
+          {nudgeAfter > 0 && closeAfter > 0 && nudgeAfter >= closeAfter && (
+            <p className="text-xs text-amber-700 v2-dark:text-amber-400">O aviso precisa vir antes do encerramento; do jeito que está, ele não é enviado.</p>
+          )}
+          {nudgeAfter > 0 && (
+            <Field label="Aviso" hint="Vazio: “Ainda está por aí? Se precisar de algo, é só me responder.”">
+              <Textarea value={(inactivity.nudgeMessage as string) ?? ""} onChange={(e) => onChange("inactivity.nudgeMessage", e.target.value)} />
+            </Field>
+          )}
+          <Field label="Mensagem ao encerrar" hint="Vazio: encerra sem mensagem.">
+            <Textarea value={(inactivity.closeMessage as string) ?? ""} onChange={(e) => onChange("inactivity.closeMessage", e.target.value)} />
+          </Field>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+const TABULATION_WHEN = [
+  { value: "on_close", label: "Ao encerrar" },
+  { value: "on_transfer", label: "Ao transferir" },
+  { value: "always", label: "Ao encerrar e ao transferir" },
+];
+const NO_TABULATION = "__none__";
+
+/** "Começo e fim › Tabulação". */
+function TabulationSettings({
+  config,
+  catalogs,
+  onChange,
+}: {
+  config: Record<string, unknown>;
+  catalogs: Catalogs;
+  onChange: (path: string, value: unknown) => void;
+}) {
+  const tab = (getPath(config, "tabulation", {}) ?? {}) as Record<string, unknown>;
+  const enabled = !!tab.enabled;
+  const byTheme = (tab.byTheme as Record<string, string> | undefined) ?? {};
+  const options = catalogs.tabulations ?? [];
+  const themes = (getPath(config, "themes", []) as Array<{ id: string; name: string }>) ?? [];
+  const picker = (value: string | undefined, onPick: (v: string | undefined) => void, emptyLabel: string) => (
+    <Select value={value || NO_TABULATION} onValueChange={(v) => onPick(v === NO_TABULATION ? undefined : v)}>
+      <SelectTrigger className="w-full sm:max-w-[360px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_TABULATION}>{emptyLabel}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.id} value={o.id}>
+            {o.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+  return (
+    <SectionCard
+      title="Tabulação"
+      description="Ele tabula a conversa com a folha do assunto; sem ela, com a padrão; sem nenhuma, ao encerrar vale a de encerramento automático do departamento. Nunca troca uma tabulação já aplicada."
+    >
+      <label className="flex cursor-pointer items-center gap-3">
+        <Switch checked={enabled} onCheckedChange={(v) => onChange("tabulation", { when: "on_close", byTheme: {}, ...tab, enabled: v })} aria-label="Tabular a conversa" />
+        <span className="text-sm">Tabular a conversa</span>
+      </label>
+      {enabled && (
+        <div className="space-y-4">
+          {options.length === 0 && <p className="text-xs text-amber-700 v2-dark:text-amber-400">Nenhuma tabulação cadastrada no CRM.</p>}
+          <Field label="Quando">
+            <Segmented value={(tab.when as string) || "on_close"} onChange={(v) => onChange("tabulation.when", v)} options={TABULATION_WHEN} />
+          </Field>
+          <Field label="Tabulação padrão">{picker(tab.fallbackId as string | undefined, (v) => onChange("tabulation.fallbackId", v), "Nenhuma")}</Field>
+          {themes.length > 0 && (
+            <Field label="Por assunto" hint="Vazio: usa a padrão.">
+              <div className="space-y-2">
+                {themes.map((t) => (
+                  <div key={t.id} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                    <span className="min-w-0 text-sm sm:w-56 sm:shrink-0 sm:truncate">{t.name}</span>
+                    {picker(byTheme[t.id], (v) => {
+                      const next = { ...byTheme };
+                      if (v) next[t.id] = v;
+                      else delete next[t.id];
+                      onChange("tabulation.byTheme", next);
+                    }, "Padrão")}
+                  </div>
+                ))}
+              </div>
+            </Field>
+          )}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 function StepThemes({
   agentId,
   config,
@@ -3888,6 +4133,10 @@ function StepThemes({
         </div>
         <ThemeRecognitionTest agentId={agentId} themes={themes} onOpenTheme={setOpenId} />
       </section>
+
+      <AdvancedOptions count={4}>
+        <ThemeRecognitionSettings config={config} onChange={onChange} />
+      </AdvancedOptions>
 
       <section className={cn(SURFACE, "overflow-hidden")}>
         <div className="flex items-center gap-2 border-b border-border/70 px-5 py-3">
@@ -4658,6 +4907,16 @@ function StepOutputs({
             onChange={(e) => onChange("fallback.noSource.message", e.target.value)}
           />
         </Field>
+        <Field label="Se o cliente não entender (“?”, “não entendi”)">
+          <Segmented
+            value={((fallback.confusion as Record<string, unknown> | undefined)?.action as string) === "handoff" ? "handoff" : "rephrase"}
+            onChange={(v) => onChange("fallback.confusion.action", v)}
+            options={[
+              { value: "rephrase", label: "Refazer a pergunta" },
+              { value: "handoff", label: "O agente decide (pode transferir)" },
+            ]}
+          />
+        </Field>
         <Field label="Se der um erro" hint="Vazio: usa a mensagem de transferência.">
           <Textarea
             value={((fallback.error as Record<string, unknown>)?.message as string) ?? ""}
@@ -4776,6 +5035,26 @@ function StepTeam({
             value={(handoff.message as string) ?? ""}
             onChange={(e) => onChange("handoff.message", e.target.value)}
           />
+        </Field>
+      </SectionCard>
+
+      <SectionCard
+        title="Se o cliente escrever enquanto espera na fila"
+        description="Depois de transferir, a conversa espera um atendente. Se o cliente escrever de novo e ninguém da equipe tiver assumido, a conversa volta para o agente."
+      >
+        <Segmented
+          value={(handoff.whileQueued as string) === "answer" ? "answer" : "notify"}
+          onChange={(v) => onChange("handoff.whileQueued", v)}
+          options={[
+            { value: "notify", label: "Só avisar que está na fila" },
+            { value: "answer", label: "Responder normalmente" },
+          ]}
+        />
+        <Field
+          label="Aviso de fila"
+          hint="Vazio: “Você já está na fila de atendimento. Em instantes alguém da equipe continua com você por aqui.” Em “Responder normalmente”, se ele decidir transferir de novo, manda só este aviso."
+        >
+          <Textarea value={(handoff.queuedMessage as string) ?? ""} onChange={(e) => onChange("handoff.queuedMessage", e.target.value)} />
         </Field>
       </SectionCard>
 
@@ -4920,6 +5199,9 @@ function StepClosure({
         </Field>
       </SectionCard>
 
+      <InactivitySettings config={config} onChange={onChange} />
+      <TabulationSettings config={config} catalogs={catalogs} onChange={onChange} />
+
       <AdvancedOptions count={4}>
       <SectionCard title="Dados a gravar ao encerrar" description="Ao encerrar, ele atualiza estes dados do contato ou do negócio.">
         <div className="space-y-2">
@@ -5014,6 +5296,33 @@ function StepClosure({
             </Select>
           </Field>
         ))}
+        <Field label="Resposta curtinha" hint="Vazio: “Por nada! Se precisar de algo novo, é só chamar.”">
+          <Textarea value={(closure.shortReplyMessage as string) ?? ""} onChange={(e) => onChange("closure.shortReplyMessage", e.target.value)} />
+        </Field>
+        <Field label="Pergunta com botões" hint="Vazio: “Você precisa de ajuda com algo novo?”. Se o cliente responder outra coisa, vale como pedido novo — ele não pergunta de novo.">
+          <Textarea
+            value={((closure.postCloseQuestion as Record<string, unknown> | undefined)?.message as string) ?? ""}
+            onChange={(e) => onChange("closure.postCloseQuestion.message", e.target.value)}
+          />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Botão “sim”">
+            <Input
+              maxLength={20}
+              placeholder="Preciso de ajuda"
+              value={((closure.postCloseQuestion as Record<string, unknown> | undefined)?.yesLabel as string) ?? ""}
+              onChange={(e) => onChange("closure.postCloseQuestion.yesLabel", e.target.value)}
+            />
+          </Field>
+          <Field label="Botão “não”">
+            <Input
+              maxLength={20}
+              placeholder="Só agradecer"
+              value={((closure.postCloseQuestion as Record<string, unknown> | undefined)?.noLabel as string) ?? ""}
+              onChange={(e) => onChange("closure.postCloseQuestion.noLabel", e.target.value)}
+            />
+          </Field>
+        </div>
       </SectionCard>
       </AdvancedOptions>
     </div>
