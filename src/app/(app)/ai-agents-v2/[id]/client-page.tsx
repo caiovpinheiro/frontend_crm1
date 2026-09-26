@@ -8,6 +8,7 @@ import {
   IconTrash,
   IconSend,
   IconPlus,
+  IconList,
   IconRocket,
   IconAlertCircle,
   IconCheck,
@@ -179,6 +180,10 @@ type TestResult = {
   dealSelectionReason?: string;
   scrubbedFields?: string[];
   stage?: "idle" | "confirming" | "identifying" | "active" | "closed";
+  /** Botões/lista que a produção mandaria; `reply` traz as opções numeradas. */
+  interactive?: { kind: "buttons" | "list"; body: string; labels: string[]; displayContent: string } | null;
+  /** Opção da mensagem anterior que o cliente escolheu (clique ou número). */
+  chosenOption?: string | null;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -2207,15 +2212,96 @@ const TONE_STARTERS = [
   { label: "Descontraído", text: "Leve e próximo, como alguém da equipe conversando no WhatsApp, sem gírias e sem perder a clareza." },
 ];
 
+/** Botões de resposta rápida do WhatsApp (até 3, rótulo até 20 caracteres). */
+function QuickReplyButtonsEditor({ values, onChange }: { values: string[]; onChange: (v: string[]) => void }) {
+  const list = values.slice(0, 3);
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">Botões de resposta (opcional)</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {list.map((b, i) => (
+          <div key={i} className="flex items-center gap-1 rounded-lg border bg-background pl-2.5 pr-1">
+            <input
+              value={b}
+              maxLength={20}
+              placeholder="Ex.: Sim"
+              aria-label={`Botão ${i + 1}`}
+              onChange={(e) => onChange(list.map((x, j) => (j === i ? e.target.value : x)))}
+              className="h-8 w-28 bg-transparent text-sm outline-none"
+            />
+            <button
+              type="button"
+              aria-label={`Remover botão ${i + 1}`}
+              onClick={() => onChange(list.filter((_, j) => j !== i))}
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <IconX className="size-3.5" />
+            </button>
+          </div>
+        ))}
+        {list.length < 3 && (
+          <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => onChange([...list, ""])}>
+            <IconPlus className="size-3.5" />
+            Botão
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Botões/lista como aparecem no WhatsApp, embaixo da mensagem. */
+function WhatsAppButtons({
+  labels,
+  kind,
+  onPick,
+}: {
+  labels: string[];
+  kind: "buttons" | "list";
+  onPick?: (label: string) => void;
+}) {
+  if (labels.length === 0) return null;
+  return (
+    <div className="mt-0.5 space-y-0.5">
+      {kind === "list" && (
+        <p className="flex items-center justify-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-[12.5px] font-medium text-[#008069] shadow-sm">
+          <IconList className="size-3.5" />
+          Ver opções
+        </p>
+      )}
+      {labels.map((label) => (
+        <button
+          key={label}
+          type="button"
+          disabled={!onPick}
+          onClick={() => onPick?.(label)}
+          className={cn(
+            "block w-full rounded-lg bg-white px-2.5 py-1.5 text-center text-[12.5px] font-medium text-[#008069] shadow-sm",
+            kind === "list" && "text-left font-normal text-[#111B21]",
+            onPick ? "hover:bg-[#F5F6F6]" : "cursor-default",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type ReplyEndingRuleValue = { enabled: boolean; phrases: string[]; buttons?: string[] };
 type ReplyEndingValue = {
   inherit?: boolean;
-  procedure: { enabled: boolean; phrases: string[] };
-  info: { enabled: boolean; phrases: string[] };
+  procedure: ReplyEndingRuleValue;
+  info: ReplyEndingRuleValue;
 };
 
 function normalizeReplyEnding(raw: unknown): ReplyEndingValue {
   const r = (raw ?? {}) as Partial<ReplyEndingValue>;
-  const rule = (x?: { enabled?: boolean; phrases?: string[] }) => ({ enabled: !!x?.enabled, phrases: Array.isArray(x?.phrases) ? x!.phrases : [] });
+  const rule = (x?: { enabled?: boolean; phrases?: string[]; buttons?: string[] }) => ({
+    enabled: !!x?.enabled,
+    phrases: Array.isArray(x?.phrases) ? x!.phrases : [],
+    ...(Array.isArray(x?.buttons) && x!.buttons.length > 0 ? { buttons: x!.buttons } : {}),
+  });
   return { ...(r.inherit !== undefined ? { inherit: r.inherit } : {}), procedure: rule(r.procedure), info: rule(r.info) };
 }
 
@@ -2247,7 +2333,7 @@ function ReplyEndingEditor({
   compact?: boolean;
 }) {
   const v = normalizeReplyEnding(value);
-  const setRule = (key: "procedure" | "info", patch: Partial<{ enabled: boolean; phrases: string[] }>) =>
+  const setRule = (key: "procedure" | "info", patch: Partial<ReplyEndingRuleValue>) =>
     onChange({ ...v, [key]: { ...v[key], ...patch } });
   return (
     <div className="space-y-3">
@@ -2274,15 +2360,22 @@ function ReplyEndingEditor({
                     itemLabel="Frase"
                     placeholder={r.placeholder}
                   />
+                  <QuickReplyButtonsEditor
+                    values={rule.buttons ?? []}
+                    onChange={(list) => setRule(r.key, { buttons: list })}
+                  />
                   {phrases.length === 0 ? (
                     <p className="text-xs text-amber-700 v2-dark:text-amber-400">Adicione ao menos uma frase.</p>
                   ) : (
                     <div className="rounded-lg bg-[#EFEAE2] p-2.5 v2-dark:bg-muted/30">
-                      <p className="max-w-[90%] whitespace-pre-line rounded-lg rounded-tl-none bg-white px-2.5 py-1.5 text-[12.5px] leading-snug text-[#111B21] shadow-sm">
-                        {r.sample}
-                        {"\n\n"}
-                        <span className="font-medium text-primary">{phrases[0]}</span>
-                      </p>
+                      <div className="max-w-[90%]">
+                        <p className="whitespace-pre-line rounded-lg rounded-tl-none bg-white px-2.5 py-1.5 text-[12.5px] leading-snug text-[#111B21] shadow-sm">
+                          {r.sample}
+                          {"\n\n"}
+                          <span className="font-medium text-primary">{phrases[0]}</span>
+                        </p>
+                        <WhatsAppButtons labels={(rule.buttons ?? []).filter((b) => b.trim())} kind="buttons" />
+                      </div>
                     </div>
                   )}
                 </>
@@ -2292,8 +2385,9 @@ function ReplyEndingEditor({
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Nunca vai depois de transferência, encerramento, confirmação de dados, botões de opção ou resposta que já termina com pergunta. Com mais de
-        uma frase, ele alterna e não repete a da mensagem anterior.
+        Nunca vai depois de transferência, encerramento, confirmação de dados, botões de opção ou resposta que pergunta ou pede algo ao cliente. Com
+        mais de uma frase, ele alterna e não repete a da mensagem anterior. Os botões saem no WhatsApp oficial; nos outros canais, como opções
+        numeradas.
       </p>
     </div>
   );
@@ -3325,6 +3419,20 @@ function StepMessagesProducts({
           emptyLabel="Nenhuma mensagem pronta cadastrada no CRM."
           onLabel="Liberadas"
         />
+        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 p-4">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Adaptar o texto à conversa</span>
+            <span className="block text-xs text-muted-foreground">
+              Quando fizer sentido, ele ajusta a saudação e a ordem da mensagem ao que o cliente perguntou. Links, números, datas e passos ficam
+              iguais; se a versão ajustada mudar algum deles, vai o texto original.
+            </span>
+          </span>
+          <Switch
+            checked={config.messageModelAdapt === true}
+            onCheckedChange={(v) => onChange("messageModelAdapt", v)}
+            aria-label="Adaptar o texto à conversa"
+          />
+        </label>
       </SectionCard>
 
       <SectionCard title="Catálogo" description="Se ele pode falar dos produtos e serviços cadastrados no CRM.">
@@ -5209,18 +5317,20 @@ function StepTestPublish({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, testing]);
 
-  const runTest = async () => {
-    const text = message.trim();
+  const runTest = async (choice?: string) => {
+    const text = (choice ?? message).trim();
     if (!text) return;
     if (dirty) await onSave();
     const turnId = `t_${Date.now()}`;
     const history: Array<{ role: "user" | "assistant"; content: string }> = [];
     for (const t of turns) {
       history.push({ role: "user", content: t.userMessage });
-      if (t.result?.reply) history.push({ role: "assistant", content: t.result.reply });
+      // Com botões, o histórico leva a marca "[Botões: …]", como na conversa real.
+      const agentText = t.result?.interactive?.displayContent ?? t.result?.reply;
+      if (agentText) history.push({ role: "assistant", content: agentText });
     }
     setTurns((prev) => [...prev, { id: turnId, userMessage: text }]);
-    setMessage("");
+    if (choice === undefined) setMessage("");
     setTesting(true);
     try {
       const lastThemeId = [...turns].reverse().find((t) => t.result?.themeId)?.result?.themeId ?? null;
@@ -5347,13 +5457,25 @@ function StepTestPublish({
                 </span>
               </div>
             </div>
+            {t.result?.chosenOption && t.result.chosenOption !== t.userMessage.trim() && (
+              <p className="-mt-1 self-end px-1 text-right text-[10.5px] text-[#54656F]">Entendido como a opção “{t.result.chosenOption}”</p>
+            )}
             {t.result && (
               <div className="flex flex-col items-start gap-1">
-                <div className="max-w-[88%] rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
-                  <span className="whitespace-pre-line">
-                    {t.result.reply || <span className="italic text-[#667781]">(sem resposta ao cliente)</span>}
-                  </span>
-                  <span className="ml-2 inline-block translate-y-0.5 whitespace-nowrap text-[10px] text-[#667781]">{clock(t)}</span>
+                <div className="max-w-[88%]">
+                  <div className="rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
+                    <span className="whitespace-pre-line">
+                      {(t.result.interactive?.body ?? t.result.reply) || <span className="italic text-[#667781]">(sem resposta ao cliente)</span>}
+                    </span>
+                    <span className="ml-2 inline-block translate-y-0.5 whitespace-nowrap text-[10px] text-[#667781]">{clock(t)}</span>
+                  </div>
+                  {t.result.interactive && (
+                    <WhatsAppButtons
+                      labels={t.result.interactive.labels}
+                      kind={t.result.interactive.kind}
+                      onPick={t.id === turns[turns.length - 1]?.id && !testing ? (label) => void runTest(label) : undefined}
+                    />
+                  )}
                 </div>
                 <p className="px-1 text-[10.5px] text-[#54656F]">
                   {[
@@ -5410,14 +5532,14 @@ function StepTestPublish({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Mensagem"
-          onKeyDown={(e) => e.key === "Enter" && !testing && runTest()}
+          onKeyDown={(e) => e.key === "Enter" && !testing && void runTest()}
           disabled={testing}
           aria-label="Mensagem de teste"
           className="h-10 min-w-0 flex-1 rounded-full bg-white px-4 text-sm text-[#111B21] outline-none placeholder:text-[#8696A0]"
         />
         <button
           type="button"
-          onClick={runTest}
+          onClick={() => void runTest()}
           disabled={testing || !message.trim()}
           aria-label="Enviar"
           className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#00A884] text-white disabled:opacity-50"

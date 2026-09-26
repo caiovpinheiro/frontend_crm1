@@ -44,7 +44,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "O que ele sabe",
-    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["allowedMessageModelIds", "Mensagens prontas"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"]],
+    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["allowedMessageModelIds", "Mensagens prontas"], ["messageModelAdapt", "Adaptar mensagens prontas"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"]],
   },
   {
     section: "Do que ele cuida",
@@ -160,6 +160,10 @@ const PATH_LABEL: Record<string, string> = {
   "replyEnding.procedure.phrases": "Frases depois de passo a passo",
   "replyEnding.info.enabled": "Fecho depois de informação",
   "replyEnding.info.phrases": "Frases depois de informação",
+  "replyEnding.procedure.buttons": "Botões depois de passo a passo",
+  "replyEnding.info.buttons": "Botões depois de informação",
+  "themes.replyEnding.procedure.buttons": "Botões depois de passo a passo",
+  "themes.replyEnding.info.buttons": "Botões depois de informação",
 
   "rules.name": "Nome",
   "rules.enabled": "Ligado",
