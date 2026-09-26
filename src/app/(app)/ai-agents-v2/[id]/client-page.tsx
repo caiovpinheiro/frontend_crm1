@@ -49,6 +49,7 @@ import {
   IconCircleX,
   IconChevronRight,
   IconBan,
+  IconReportAnalytics,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -86,6 +87,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TestConversations } from "./test-conversations";
 import { CompareHuman } from "./compare-human";
 import { FeedbackHomeCard, FeedbackReport, type FeedbackTarget } from "./feedback-report";
+import { ActionsReport } from "./actions-report";
 import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
@@ -777,7 +779,7 @@ function DestinationPicker({
 // Página: seções no menu lateral + teste sempre ao lado
 // ─────────────────────────────────────────────────────────────────────────────
 
-type SectionId = "inicio" | "quem" | "sabe" | "cuida" | "comeco" | "equipe" | "publicacao" | "testes";
+type SectionId = "inicio" | "quem" | "sabe" | "cuida" | "comeco" | "equipe" | "publicacao" | "testes" | "relatorio";
 
 const SECTIONS: Array<{
   id: SectionId;
@@ -829,6 +831,15 @@ const SECTIONS: Array<{
     tone: "orange",
     intro: "Veja as conversas dos números de teste e compare as respostas dele com as da sua equipe.",
     icon: IconFlask,
+  },
+  {
+    id: "relatorio",
+    title: "Relatório de ações",
+    nav: "Relatório",
+    group: "live",
+    tone: "indigo",
+    intro: "O que ele fez em cada conversa: respostas, transferências, etiquetas, tarefas e o que foi barrado. Filtre e exporte.",
+    icon: IconReportAnalytics,
   },
 ];
 const SECTION_IDS = SECTIONS.map((s) => s.id);
@@ -1114,7 +1125,7 @@ export default function AIAgentV2EditPage() {
   const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
   const lastVersion = meta.lastVersionNumber;
   const changedSincePublish = Boolean(meta.hasUnpublishedChanges) || dirty;
-  const showSidePanel = testOpen && isWide && section !== "testes";
+  const showSidePanel = testOpen && isWide && section !== "testes" && section !== "relatorio";
 
   const statusBadge = !active ? (
     <Badge variant="outline" className="border-border bg-muted text-muted-foreground">Desligado</Badge>
@@ -1397,6 +1408,7 @@ export default function AIAgentV2EditPage() {
                 {section === "publicacao" && (
                   <VersionHistory agentId={id} lastVersion={lastVersion} onRestored={reloadAfterRestore} />
                 )}
+                {section === "relatorio" && <ActionsReport agentId={id} />}
                 {section === "testes" && (
                   <Tabs value={testsTab} onValueChange={setTestsTab} className="space-y-4">
                     <TabsList className={TABS_LIST}>
