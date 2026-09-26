@@ -107,7 +107,11 @@ type Params = {
   source?: "crm" | "crm_ids" | "import";
   files?: string[];
   conversationIds?: string[];
+  /** Modelo testado no lugar do configurado (benchmark). */
+  model?: string;
 };
+
+type ModelOption = { id: string; name: string; provider?: string };
 
 type Run = {
   id: string;
@@ -281,6 +285,15 @@ export function CompareHuman({ agentId }: { agentId: string }) {
   const [refs, setRefs] = React.useState("");
   const refsKey = refs.trim();
   const [params, setParams] = React.useState<Params>({ days: 1, conversations: 30, config: "draft" });
+  const models = useQuery({
+    queryKey: ["ai-agents-v2-catalogs"],
+    queryFn: async () => {
+      const res = await apiFetch("/api/ai-agents-v2/catalogs");
+      return parseApiResponse<{ models: ModelOption[] }>(res, "Erro ao carregar modelos.");
+    },
+    staleTime: 60_000,
+  });
+  const modelName = (id?: string) => (id ? models.data?.models.find((m) => m.id === id)?.name ?? id : null);
   const [imported, setImported] = React.useState<Imported[]>([]);
   const [runId, setRunId] = React.useState<string | null>(null);
   const [howOpen, setHowOpen] = React.useState(false);
@@ -290,9 +303,10 @@ export function CompareHuman({ agentId }: { agentId: string }) {
   const importBody = {
     source: "import",
     config: params.config,
+    ...(params.model ? { model: params.model } : {}),
     transcripts: usable.map((t) => ({ name: t.name, text: t.text, teamAuthors: t.team })),
   };
-  const idsBody = { source: "crm_ids", config: params.config, conversationRefs: refs };
+  const idsBody = { source: "crm_ids", config: params.config, conversationRefs: refs, ...(params.model ? { model: params.model } : {}) };
   // A chave não leva o texto inteiro: nome + equipe + tamanho bastam.
   const importKey = usable.map((t) => `${t.name}|${t.text.length}|${t.team.join(",")}`);
 
@@ -425,7 +439,7 @@ export function CompareHuman({ agentId }: { agentId: string }) {
         <div className="space-y-4">
           <Segmented value={source} onChange={setSource} options={SOURCE_OPTIONS} />
 
-          <div className={cn("grid gap-3", source === "crm" ? "sm:grid-cols-3" : "sm:max-w-sm")}>
+          <div className={cn("grid gap-3", source === "crm" ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:max-w-2xl sm:grid-cols-2")}>
             {source === "crm" && (
               <>
                 <div className="space-y-1.5">
@@ -465,7 +479,24 @@ export function CompareHuman({ agentId }: { agentId: string }) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label>Modelo testado</Label>
+              <Select value={params.model ?? "__agent__"} onValueChange={(v) => setParams((p) => ({ ...p, model: v === "__agent__" ? undefined : v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__agent__">O do agente</SelectItem>
+                  {(models.data?.models ?? []).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          {params.model && (
+            <p className="text-xs text-muted-foreground">
+              Benchmark: o agente responde com {modelName(params.model)}; o avaliador é o mesmo de sempre, para comparar com as outras rodadas.
+            </p>
+          )}
 
           {source === "import" && <ImportPanel agentId={agentId} items={imported} onChange={setImported} />}
           {source === "crm_ids" && (
@@ -502,7 +533,7 @@ export function CompareHuman({ agentId }: { agentId: string }) {
         )}
       </section>
 
-      {list.length > 0 && <RunHistory runs={list} currentId={currentId} onSelect={setRunId} />}
+      {list.length > 0 && <RunHistory runs={list} currentId={currentId} onSelect={setRunId} modelName={modelName} />}
 
       {runs.isLoading && <Skeleton className="h-40 rounded-2xl" />}
       {currentId && <RunDetail agentId={agentId} runId={currentId} />}
@@ -511,7 +542,17 @@ export function CompareHuman({ agentId }: { agentId: string }) {
 }
 
 /** Comparações anteriores: lista compacta, a escolhida aparece abaixo. */
-function RunHistory({ runs, currentId, onSelect }: { runs: Run[]; currentId: string | null; onSelect: (id: string) => void }) {
+function RunHistory({
+  runs,
+  currentId,
+  onSelect,
+  modelName,
+}: {
+  runs: Run[];
+  currentId: string | null;
+  onSelect: (id: string) => void;
+  modelName: (id?: string) => string | null;
+}) {
   const [all, setAll] = React.useState(false);
   const shown = all ? runs : runs.slice(0, 4);
   return (
@@ -541,6 +582,7 @@ function RunHistory({ runs, currentId, onSelect }: { runs: Run[]; currentId: str
                   <p className="text-[13px] font-medium">{dateTime(r.createdAt)}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {runSourceLabel(r)} · {r.params.config === "published" ? "versão publicada" : "rascunho"}
+                    {r.params.model ? ` · ${modelName(r.params.model)}` : ""}
                   </p>
                 </div>
                 {r.status === "running" && (

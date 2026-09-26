@@ -50,6 +50,7 @@ import {
   IconChevronRight,
   IconBan,
   IconReportAnalytics,
+  IconKey,
 } from "@tabler/icons-react";
 
 import { AppV2PageShell } from "../../_v2-page-shell";
@@ -112,6 +113,8 @@ type AgentDetail = {
   lastVersionNumber: number;
   hasOwnOpenaiKey: boolean;
   openaiApiKeyHint: string | null;
+  hasAnthropicKey?: boolean;
+  anthropicApiKeyHint?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -130,7 +133,7 @@ type Catalogs = {
   dealCustomFields: Array<{ id: string; name: string }>;
   products: Array<{ id: string; name: string }>;
   whatsappTemplates: Array<{ id: string; name: string }>;
-  models: Array<{ id: string; name: string }>;
+  models: Array<{ id: string; name: string; provider?: "openai" | "anthropic"; hint?: string; inputPer1M?: number; outputPer1M?: number }>;
   contacts: Array<{ id: string; name: string; phone?: string | null; email?: string | null }>;
 };
 
@@ -465,7 +468,7 @@ async function fetchAgent(id: string): Promise<AgentDetail> {
 
 async function updateAgentMeta(
   id: string,
-  body: { name?: string; active?: boolean; openaiApiKey?: string | null },
+  body: { name?: string; active?: boolean; openaiApiKey?: string | null; anthropicApiKey?: string | null },
 ): Promise<AgentDetail> {
   const res = await apiFetch(`/api/ai-agents-v2/${id}`, {
     method: "PUT",
@@ -515,9 +518,12 @@ async function testAgent(
   contactId?: string,
   stage?: TestResult["stage"],
   themeId?: string | null,
+  /** Outro modelo só neste teste (vazio = o do agente). */
+  model?: string,
 ): Promise<TestResult> {
   // O assunto da mensagem anterior segue junto, como na conversa real.
   const body: Record<string, unknown> = { userMessage, history, stage, themeId: themeId ?? null };
+  if (model) body.model = model;
   if (contactId) body.contactId = contactId;
   const res = await apiFetch(`/api/ai-agents-v2/${id}/test`, {
     method: "POST",
@@ -897,6 +903,7 @@ export default function AIAgentV2EditPage() {
   const [active, setActive] = React.useState(true);
   const [dirty, setDirty] = React.useState(false);
   const [openaiKey, setOpenaiKey] = React.useState("");
+  const [anthropicKey, setAnthropicKey] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [savedAt, setSavedAt] = React.useState<Date | null>(null);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -977,12 +984,14 @@ export default function AIAgentV2EditPage() {
       // Chave só vai quando está completa: o salvamento automático não pode
       // gravar uma chave pela metade enquanto a pessoa digita.
       const keyToSend = looksLikeOpenAiApiKey(openaiKey) ? openaiKey.trim() : undefined;
+      const anthropicToSend = looksLikeAnthropicKey(anthropicKey) ? anthropicKey.trim() : undefined;
       setSaving(true);
       setSaveError(null);
       try {
-        await updateAgentMeta(id, { name, active, openaiApiKey: keyToSend });
+        await updateAgentMeta(id, { name, active, openaiApiKey: keyToSend, anthropicApiKey: anthropicToSend });
         await saveDraft(id, { ...config, name });
         if (keyToSend) setOpenaiKey("");
+        if (anthropicToSend) setAnthropicKey("");
         if (editVersion.current === version) setDirty(false);
         setSavedAt(new Date());
         queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
@@ -1037,13 +1046,19 @@ export default function AIAgentV2EditPage() {
     },
   });
 
-  const hasKey = Boolean(agentQuery.data?.hasOwnOpenaiKey) || looksLikeOpenAiApiKey(openaiKey);
+  // OpenAI sempre (busca nos materiais e áudio); Anthropic quando o modelo é Claude.
+  const modelIsClaude = String(config?.model ?? "").startsWith("claude-");
+  const hasOpenaiKey = Boolean(agentQuery.data?.hasOwnOpenaiKey) || looksLikeOpenAiApiKey(openaiKey);
+  const hasAnthropicKey = Boolean(agentQuery.data?.hasAnthropicKey) || looksLikeAnthropicKey(anthropicKey);
+  const hasKey = hasOpenaiKey && (!modelIsClaude || hasAnthropicKey);
 
   const handlePublish = async () => {
     if (!hasKey) {
       await confirm({
         title: "Falta a conta do modelo",
-        description: "Cole a chave da conta do modelo de IA em Publicação antes de publicar.",
+        description: hasOpenaiKey
+          ? "O modelo escolhido é Claude: cole a chave da Anthropic em Publicação antes de publicar."
+          : "Cole a chave da OpenAI em Publicação antes de publicar (ela também é usada na busca nos materiais).",
         confirmLabel: "Entendi",
       });
       goTo("publicacao");
@@ -1398,6 +1413,14 @@ export default function AIAgentV2EditPage() {
                     }}
                     onKeyChange={(v) => {
                       setOpenaiKey(v);
+                      markDirty();
+                      setKeyValidation({ ok: null, message: "" });
+                    }}
+                    anthropicKey={anthropicKey}
+                    hasAnthropicKey={meta.hasAnthropicKey ?? false}
+                    anthropicKeyHint={meta.anthropicApiKeyHint ?? null}
+                    onAnthropicKeyChange={(v) => {
+                      setAnthropicKey(v);
                       markDirty();
                       setKeyValidation({ ok: null, message: "" });
                     }}
@@ -1798,6 +1821,116 @@ function SectionHome({
 // Etapa 1 — Começar
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Chave Anthropic colada: começa com sk-ant-. */
+function looksLikeAnthropicKey(raw: string): boolean {
+  return /^sk-ant-[A-Za-z0-9_-]{10,}$/.test(raw.trim().replace(/^["']+|["']+$/g, ""));
+}
+
+function formatPrice(v?: number): string {
+  if (v === undefined) return "—";
+  return v.toLocaleString("pt-BR", { minimumFractionDigits: v < 1 ? 2 : 0, maximumFractionDigits: 2 });
+}
+
+/** Lista de modelos por fornecedor, com uso recomendado e preço. */
+function ModelPicker({ value, models, onChange }: { value: string; models: Catalogs["models"]; onChange: (id: string) => void }) {
+  const groups: Array<["openai" | "anthropic", string]> = [
+    ["openai", "OpenAI"],
+    ["anthropic", "Anthropic (Claude)"],
+  ];
+  return (
+    <div className="space-y-4">
+      {groups.map(([provider, label]) => {
+        const list = models.filter((m) => (m.provider ?? "openai") === provider);
+        if (list.length === 0) return null;
+        return (
+          <div key={provider} className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+            <div role="radiogroup" aria-label={`Modelos ${label}`} className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border">
+              {list.map((m) => {
+                const on = m.id === value;
+                return (
+                  <label
+                    key={m.id}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors",
+                      on ? "bg-blue-50/70 v2-dark:bg-primary/10" : "hover:bg-slate-50 v2-dark:hover:bg-muted/40",
+                    )}
+                  >
+                    <input type="radio" name="agent-model" checked={on} onChange={() => onChange(m.id)} className="peer sr-only" />
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "flex size-4 shrink-0 items-center justify-center rounded-full border-2 bg-white peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30 v2-dark:bg-card",
+                        on ? "border-primary" : "border-slate-300 v2-dark:border-border",
+                      )}
+                    >
+                      {on && <span className="size-2 rounded-full bg-primary" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("text-sm", on ? "font-semibold" : "font-medium")}>{m.name}</span>
+                      {m.hint && <span className="block text-xs text-muted-foreground">{m.hint}</span>}
+                    </span>
+                    {m.inputPer1M !== undefined && (
+                      <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground" title="US$ por 1 milhão de tokens: entrada / saída">
+                        US$ {formatPrice(m.inputPer1M)} / {formatPrice(m.outputPer1M)}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-xs text-muted-foreground">Preço em US$ por 1 milhão de tokens (entrada / saída).</p>
+    </div>
+  );
+}
+
+/** Chave da Anthropic do agente: salva mostra só o final. */
+function AnthropicKeyField({
+  value,
+  onChange,
+  hasSavedKey,
+  savedHint,
+  required,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  hasSavedKey: boolean;
+  savedHint: string | null;
+  required: boolean;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const showInput = editing || !hasSavedKey;
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="ag-anthropic-key" className="flex items-center gap-1.5">
+        <IconKey className="size-3.5" /> Chave da Anthropic {required ? "" : <span className="font-normal text-muted-foreground">(só para os modelos Claude)</span>}
+      </Label>
+      {showInput ? (
+        <Input
+          id="ag-anthropic-key"
+          type="password"
+          autoComplete="off"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="sk-ant-…"
+        />
+      ) : (
+        <div className="flex h-10 items-center justify-between rounded-lg border border-border bg-white px-3 text-sm v2-dark:bg-card">
+          <span className="tabular-nums">•••• {savedHint}</span>
+          <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => setEditing(true)}>
+            Trocar
+          </Button>
+        </div>
+      )}
+      {value.trim() && !looksLikeAnthropicKey(value) && <p className="text-xs text-amber-600">A chave da Anthropic começa com sk-ant-.</p>}
+      {required && !hasSavedKey && !value.trim() && <p className="text-xs text-destructive">Obrigatória com um modelo Claude.</p>}
+    </div>
+  );
+}
+
 function StepStart({
   config,
   catalogs,
@@ -1814,6 +1947,10 @@ function StepStart({
   onNameChange,
   onActiveChange,
   onKeyChange,
+  anthropicKey,
+  hasAnthropicKey,
+  anthropicKeyHint,
+  onAnthropicKeyChange,
   onChange,
   onValidateKey,
 }: {
@@ -1833,6 +1970,10 @@ function StepStart({
   onNameChange: (v: string) => void;
   onActiveChange: (v: boolean) => void;
   onKeyChange: (v: string) => void;
+  anthropicKey: string;
+  hasAnthropicKey: boolean;
+  anthropicKeyHint: string | null;
+  onAnthropicKeyChange: (v: string) => void;
   onChange: (path: string, value: unknown) => void;
   onValidateKey: () => void;
 }) {
@@ -1842,7 +1983,10 @@ function StepStart({
   const modelValid = catalogs.models.some((m) => m.id === modelId);
   const autonomy = (config.autonomyMode as string) ?? "suggest";
 
-  const hasKeyForPublish = hasOpenaiKey || looksLikeOpenAiApiKey(openaiKey);
+  const modelIsClaude = modelId.startsWith("claude-");
+  const hasOpenai = hasOpenaiKey || looksLikeOpenAiApiKey(openaiKey);
+  const hasAnthropic = hasAnthropicKey || looksLikeAnthropicKey(anthropicKey);
+  const hasKeyForPublish = hasOpenai && (!modelIsClaude || hasAnthropic);
   const showRealClientWarning = active && channelIds.length > 0 && allowedPhoneNumbers.length === 0;
 
   return (
@@ -1927,9 +2071,27 @@ function StepStart({
         </div>
       </SectionCard>
 
-      <SectionCard title="Conta do modelo de IA" description="Cole a chave da conta. Ela fica guardada com segurança e só o final aparece aqui.">
+      <SectionCard
+        title="Modelo de IA"
+        description="Quem escreve as respostas. Para comparar antes de trocar, teste outro modelo na Conversa de teste ou em Testes › Comparar com a equipe."
+      >
+        <ModelPicker value={modelId} models={catalogs.models} onChange={(v) => onChange("model", v)} />
+        {!modelValid && modelId && (
+          <p className="flex items-center gap-1 text-xs text-amber-600">
+            <IconAlertCircle className="size-3" />
+            O modelo atual ({modelId}) não está mais na lista. Escolha outro.
+          </p>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Contas dos modelos"
+        description="As chaves ficam guardadas com segurança e só o final aparece aqui. A da OpenAI é sempre necessária (busca nos materiais e áudios); a da Anthropic, para os modelos Claude."
+      >
         <div className="grid items-end gap-4 md:grid-cols-[1fr_auto]">
           <OpenAiKeyField value={openaiKey} onChange={onKeyChange} hasSavedKey={hasOpenaiKey} savedHint={openaiKeyHint ?? undefined} />
+          <span />
+          <AnthropicKeyField value={anthropicKey} onChange={onAnthropicKeyChange} hasSavedKey={hasAnthropicKey} savedHint={anthropicKeyHint} required={modelIsClaude} />
           <Button type="button" variant="ghost" size="sm" onClick={onValidateKey} disabled={validatingKey || !hasKeyForPublish} className="gap-1">
             {validatingKey ? <IconLoader2 className="size-4 animate-spin" /> : <IconCheck className="size-4" />}
             Testar chave
@@ -1950,33 +2112,12 @@ function StepStart({
         {!hasKeyForPublish && (
           <p className="flex items-center gap-1 text-sm text-destructive">
             <IconAlertCircle className="size-4" />
-            Obrigatória para testar e publicar.
+            {hasOpenai ? "Com um modelo Claude, a chave da Anthropic é obrigatória para testar e publicar." : "A chave da OpenAI é obrigatória para testar e publicar."}
           </p>
         )}
       </SectionCard>
 
-      <AdvancedOptions count={4}>
-        <SectionCard title="Modelo de IA" description="O padrão atende a maioria dos casos.">
-          <Select value={modelId} onValueChange={(v) => onChange("model", v)}>
-            <SelectTrigger aria-label="Modelo de IA">
-              <SelectValue placeholder="Escolha…" />
-            </SelectTrigger>
-            <SelectContent>
-              {catalogs.models.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.name}
-                </SelectItem>
-              ))}
-              {!modelValid && modelId && <SelectItem value={modelId}>{modelId} (não listado)</SelectItem>}
-            </SelectContent>
-          </Select>
-          {!modelValid && modelId && (
-            <p className="flex items-center gap-1 text-xs text-amber-600">
-              <IconAlertCircle className="size-3" />
-              Este modelo não está mais na lista. Escolha outro.
-            </p>
-          )}
-        </SectionCard>
+      <AdvancedOptions count={3}>
 
         <SectionCard title="Parecer humano no WhatsApp" description="Antes de responder, ele pode mostrar “digitando…” e marcar a mensagem como lida.">
           <div className="grid gap-3 md:grid-cols-2">
@@ -4882,6 +5023,8 @@ function StepTestPublish({
   const [contactSearch, setContactSearch] = React.useState("");
   const [debouncedContactSearch, setDebouncedContactSearch] = React.useState("");
   const [testStage, setTestStage] = React.useState<TestResult["stage"]>("idle");
+  /** Outro modelo só no teste (vazio = o do agente). */
+  const [testModel, setTestModel] = React.useState("");
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -4952,7 +5095,7 @@ function StepTestPublish({
     setTesting(true);
     try {
       const lastThemeId = [...turns].reverse().find((t) => t.result?.themeId)?.result?.themeId ?? null;
-      const r = await testAgent(agentId, text, history, testContactId || undefined, testStage, lastThemeId);
+      const r = await testAgent(agentId, text, history, testContactId || undefined, testStage, lastThemeId, testModel || undefined);
       setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, result: r } : t)));
       if (r.stage) setTestStage(r.stage);
       setOpenWhyId(turnId);
@@ -4984,6 +5127,22 @@ function StepTestPublish({
       width={300}
       triggerClassName="w-full"
     />
+  );
+
+  const modelPicker = (
+    <Select value={testModel || "__agent__"} onValueChange={(v) => setTestModel(v === "__agent__" ? "" : v)}>
+      <SelectTrigger aria-label="Modelo do teste" className="h-9 text-[13px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__agent__">Modelo do agente</SelectItem>
+        {catalogs.models.map((m) => (
+          <SelectItem key={m.id} value={m.id}>
+            Testar com {m.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 
   const clock = (t: ChatTurn) => {
@@ -5147,6 +5306,7 @@ function StepTestPublish({
           <p className="text-sm font-bold">Testar agora</p>
           <div className="min-w-0 flex-1">{contactPicker}</div>
         </div>
+        {modelPicker}
         {phone}
       </div>
     );
@@ -5158,7 +5318,10 @@ function StepTestPublish({
         title="Conversa de teste"
         description="Converse como se fosse o cliente, sem afetar clientes reais. Depois de cada resposta, veja em “Por que respondeu isso?” como ele decidiu."
       >
-        <div className="mx-auto w-full max-w-[420px]">{contactPicker}</div>
+        <div className="mx-auto grid w-full max-w-[420px] gap-2">
+          {contactPicker}
+          {modelPicker}
+        </div>
         {phone}
       </SectionCard>
     </div>
