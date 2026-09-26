@@ -10,9 +10,10 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconAlertCircle, IconCheck, IconChevronDown, IconLoader2, IconWand } from "@tabler/icons-react";
+import { IconAlertCircle, IconArrowBackUp, IconCheck, IconChevronDown, IconCircleCheck, IconLoader2, IconWand, IconX } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,10 @@ type Suggestion = {
   aplicavel: boolean;
   erro?: string;
   aplicada?: boolean;
+  recusada?: boolean;
+  atendimentos?: string[];
+  pontos?: string[];
+  rebaixada?: string;
 };
 
 type Run = {
@@ -47,6 +52,8 @@ type Run = {
   costUsd: number;
   createdAt: string;
   finishedAt: string | null;
+  configHash: string | null;
+  descartadas: number;
 };
 
 const SEVERITY: Record<Suggestion["gravidade"], { label: string; tone: Tone }> = {
@@ -91,6 +98,7 @@ export function ConfigReviewCard({
   onApplied: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { confirm, dialog } = useConfirm();
   const [model, setModel] = React.useState(() => (models.some((m) => m.id === defaultModel) ? defaultModel : models[0]?.id ?? ""));
   const [includeTurns, setIncludeTurns] = React.useState(true);
   const [days, setDays] = React.useState<"7" | "15" | "30">("7");
@@ -100,10 +108,11 @@ export function ConfigReviewCard({
 
   const runs = useQuery({
     queryKey: ["ai-agents-v2-review", agentId],
-    queryFn: async () => (await parseApiResponse<{ runs: Run[] }>(await apiFetch(`/api/ai-agents-v2/${agentId}/review`), "Erro ao carregar as revisões.")).runs,
-    refetchInterval: (q) => ((q.state.data ?? []).some((r) => r.status === "running") ? 4000 : false),
+    queryFn: () => apiFetch(`/api/ai-agents-v2/${agentId}/review`).then((res) => parseApiResponse<{ runs: Run[]; currentConfigHash: string | null }>(res, "Erro ao carregar as revisões.")),
+    refetchInterval: (q) => ((q.state.data?.runs ?? []).some((r) => r.status === "running") ? 4000 : false),
   });
-  const list = runs.data ?? [];
+  const list = runs.data?.runs ?? [];
+  const lastDone = list.find((r) => r.status === "done");
   const current = list.find((r) => r.id === runId) ?? list[0] ?? null;
   const running = list.some((r) => r.status === "running");
 
@@ -139,6 +148,34 @@ export function ConfigReviewCard({
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao aplicar."),
   });
 
+  const refuse = useMutation({
+    mutationFn: (v: { suggestionId: string; refused: boolean }) =>
+      send<{ ok: true }>(`/api/ai-agents-v2/${agentId}/review/${current!.id}/refuse`, v, "Erro ao recusar."),
+    onSuccess: (_r, v) => {
+      if (v.refused) setSelected((cur) => { const next = new Set(cur); next.delete(v.suggestionId); return next; });
+      queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-review", agentId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao recusar."),
+  });
+
+  // Mesma configuração da última revisão: rodar de novo só traz variações.
+  const runReview = async () => {
+    const unchanged = !!lastDone?.configHash && lastDone.configHash === runs.data?.currentConfigHash && !dirty;
+    if (unchanged) {
+      const ok = await confirm({
+        title: "Nada mudou desde a última revisão",
+        description: "A configuração é a mesma da revisão de " + dateTime(lastDone!.createdAt) + ". Rodar de novo tende a trazer só outras formas de dizer as mesmas coisas. Aplique ou recuse as sugestões dela primeiro — a próxima revisão não repete o que foi recusado.",
+        confirmLabel: "Revisar mesmo assim",
+        cancelLabel: "Ver a última",
+      });
+      if (!ok) {
+        setRunId(lastDone!.id);
+        return;
+      }
+    }
+    start.mutate();
+  };
+
   const toggle = (set: Set<string>, id: string) => {
     const next = new Set(set);
     if (next.has(id)) next.delete(id);
@@ -151,17 +188,19 @@ export function ConfigReviewCard({
     ["anthropic", "Anthropic (Claude)"],
   ];
   const suggestions = current?.status === "done" ? current.suggestions : [];
-  const applicable = suggestions.filter((s) => s.aplicavel && !s.aplicada);
+  const applicable = suggestions.filter((s) => s.aplicavel && !s.aplicada && !s.recusada);
+  const openHigh = suggestions.filter((s) => s.gravidade === "alta" && !s.aplicada && !s.recusada).length;
   const blockApply = dirty || saving;
 
   return (
     <section className={cn(SURFACE, "space-y-4 p-5")}>
+      {dialog}
       <div className="flex items-start gap-3">
         <IconChip icon={IconWand} tone="violet" />
         <div className="min-w-0 flex-1">
           <h3 className="text-[15px] font-semibold leading-tight">Revisar com IA</h3>
           <p className="text-[13px] text-muted-foreground">
-            Um modelo lê as regras do agente e os atendimentos recentes e sugere ajustes. Você escolhe o que aplicar — só no rascunho.
+            Um modelo lê as regras do agente e os atendimentos recentes e aponta problemas com prova. Você aplica ou recusa cada um — só no rascunho — e a próxima revisão não repete o que foi decidido.
           </p>
         </div>
       </div>
@@ -201,7 +240,7 @@ export function ConfigReviewCard({
           ]}
           className={cn(!includeTurns && "pointer-events-none opacity-50")}
         />
-        <Button size="sm" className="gap-1.5" disabled={!model || running || start.isPending} onClick={() => start.mutate()}>
+        <Button size="sm" className="gap-1.5" disabled={!model || running || start.isPending} onClick={() => void runReview()}>
           {running || start.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconWand className="size-4" />}
           {running ? "Revisando…" : "Revisar"}
         </Button>
@@ -242,20 +281,30 @@ export function ConfigReviewCard({
 
       {current?.status === "done" && (
         <div className="space-y-3">
+          {openHigh === 0 && (
+            <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 v2-dark:border-emerald-500/30 v2-dark:bg-emerald-500/10 v2-dark:text-emerald-300">
+              <IconCircleCheck className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Nenhum problema grave comprovado{suggestions.length > 0 ? " em aberto" : ""}. {suggestions.length > 0 ? "O que sobrou é ajuste fino: aplique o que fizer sentido e recuse o resto." : "A configuração está coerente com os atendimentos lidos."}
+              </span>
+            </div>
+          )}
           {current.resumo && <p className="rounded-xl bg-slate-50 p-3 text-sm v2-dark:bg-muted/40">{current.resumo}</p>}
           <p className="text-xs text-muted-foreground">
             {suggestions.length} {suggestions.length === 1 ? "sugestão" : "sugestões"} · {applicable.length} com alteração pronta para aplicar
+            {current.descartadas > 0 && ` · ${current.descartadas} descartada(s) por já estarem na configuração ou terem sido recusadas antes`}
             {current.costUsd > 0 && ` · custo ~US$ ${current.costUsd.toFixed(3).replace(".", ",")}`}
           </p>
-          {suggestions.length === 0 && <p className="text-sm text-muted-foreground">O modelo não encontrou ajustes a fazer.</p>}
+          <p className="text-xs text-muted-foreground">Gravidade alta só com um atendimento (T01…) ou ponto de atenção grave da ficha (G-001…) que prove o dano ao cliente.</p>
 
           <ul className="space-y-2">
             {suggestions.map((s) => {
               const sev = SEVERITY[s.gravidade];
               const expanded = open.has(s.id);
-              const canPick = s.aplicavel && !s.aplicada;
+              const canPick = s.aplicavel && !s.aplicada && !s.recusada;
+              const proofs = [...(s.atendimentos ?? []), ...(s.pontos ?? [])];
               return (
-                <li key={s.id} className="rounded-xl border border-border">
+                <li key={s.id} className={cn("rounded-xl border border-border", s.recusada && "opacity-60")}>
                   <div className="flex items-start gap-3 p-3">
                     <input
                       type="checkbox"
@@ -276,6 +325,7 @@ export function ConfigReviewCard({
                             aplicada
                           </Pill>
                         )}
+                        {s.recusada && <Pill tone="slate">recusada</Pill>}
                         {!s.aplicavel && s.alteracoes.length === 0 && <Pill tone="sky">fazer à mão</Pill>}
                         {!s.aplicavel && s.alteracoes.length > 0 && <Pill tone="rose">não aplicável</Pill>}
                       </div>
@@ -287,6 +337,12 @@ export function ConfigReviewCard({
                         </p>
                       )}
                       {s.erro && <p className="text-xs text-rose-600 v2-dark:text-rose-300">{s.erro}</p>}
+                      {proofs.length > 0 && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Prova: <span className="font-mono">{proofs.join(", ")}</span>
+                        </p>
+                      )}
+                      {s.rebaixada && <p className="text-[11px] text-amber-700 v2-dark:text-amber-300">Era alta; ficou média: {s.rebaixada.toLowerCase()}</p>}
                       {s.alteracoes.length > 0 && (
                         <ul className="space-y-0.5">
                           {s.alteracoes.map((a, i) => (
@@ -297,6 +353,19 @@ export function ConfigReviewCard({
                         </ul>
                       )}
                     </div>
+                    {!s.aplicada && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="shrink-0 gap-1 text-xs"
+                        disabled={refuse.isPending}
+                        onClick={() => refuse.mutate({ suggestionId: s.id, refused: !s.recusada })}
+                        title={s.recusada ? "Volta a valer; pode ser sugerida de novo" : "Não faz sentido: a próxima revisão não sugere de novo"}
+                      >
+                        {s.recusada ? <IconArrowBackUp className="size-3.5" /> : <IconX className="size-3.5" />}
+                        {s.recusada ? "Desfazer" : "Recusar"}
+                      </Button>
+                    )}
                     {(s.evidencia || s.alteracoes.length > 0) && (
                       <Button
                         size="sm"
