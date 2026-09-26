@@ -2540,10 +2540,239 @@ type DerivedPart = {
   key?: string;
   take?: "all" | "first" | "last";
   count?: number;
+  /** Legado: o mesmo que charset "digits". */
   digitsOnly?: boolean;
+  charset?: "all" | "digits" | "letters";
+  letterCase?: "keep" | "upper" | "lower" | "capitalize";
   text?: string;
 };
 type DerivedField = { id: string; label: string; parts: DerivedPart[]; mask?: string };
+
+/** Mesma regra do motor (lib/ai-v2/field-mask): caracteres → quantidade → maiúsculas. */
+function derivedPartPreview(raw: string, part: DerivedPart): string {
+  let text = raw.trim();
+  const charset = part.charset ?? (part.digitsOnly ? "digits" : "all");
+  if (charset === "digits") text = text.replace(/\D/g, "");
+  else if (charset === "letters") text = text.replace(/[^\p{L}]/gu, "");
+  const chars = [...text];
+  const n = Math.max(0, Math.floor(part.count ?? 0));
+  if (part.take === "first" && n > 0) text = chars.slice(0, n).join("");
+  else if (part.take === "last" && n > 0) text = chars.slice(-n).join("");
+  if (part.letterCase === "upper") return text.toLocaleUpperCase("pt-BR");
+  if (part.letterCase === "lower") return text.toLocaleLowerCase("pt-BR");
+  if (part.letterCase === "capitalize") return text.charAt(0).toLocaleUpperCase("pt-BR") + text.slice(1).toLocaleLowerCase("pt-BR");
+  return text;
+}
+
+const PART_CHARSET = [
+  { value: "all", label: "caracteres" },
+  { value: "digits", label: "dígitos" },
+  { value: "letters", label: "letras" },
+];
+const PART_CASE = [
+  { value: "keep", label: "como está" },
+  { value: "capitalize", label: "Primeira maiúscula" },
+  { value: "upper", label: "MAIÚSCULAS" },
+  { value: "lower", label: "minúsculas" },
+];
+
+/** Uma informação montada: nome, partes em frase e exemplo ao vivo. */
+function DerivedFieldCard({
+  field,
+  fields,
+  onPatch,
+  onRemove,
+}: {
+  field: DerivedField;
+  fields: Array<{ entity: "contact" | "deal"; key: string; label: string }>;
+  onPatch: (p: Partial<DerivedField>) => void;
+  onRemove: () => void;
+}) {
+  const [samples, setSamples] = React.useState<Record<string, string>>({});
+  const patchPart = (k: number, p: Partial<DerivedPart>) => onPatch({ parts: field.parts.map((part, j) => (j === k ? { ...part, ...p } : part)) });
+  const fieldId = (part: DerivedPart) => `${part.entity ?? "contact"}:${part.key ?? ""}`;
+  const fieldName = (part: DerivedPart) => fields.find((f) => `${f.entity}:${f.key}` === fieldId(part))?.label ?? "campo";
+  const used = [...new Map(field.parts.filter((p) => p.kind === "field" && p.key).map((p) => [fieldId(p), p])).values()];
+  const missing = field.parts.findIndex((p) => p.kind === "field" && !p.key);
+  const preview = (() => {
+    if (field.parts.length === 0) return null;
+    let out = "";
+    for (const part of field.parts) {
+      if (part.kind === "text") {
+        out += part.text ?? "";
+        continue;
+      }
+      const piece = part.key ? derivedPartPreview(samples[fieldId(part)] ?? "", part) : "";
+      if (!piece) return null;
+      out += piece;
+    }
+    return out;
+  })();
+  const selectCls = "h-9 w-auto min-w-[120px]";
+
+  return (
+    <div className="space-y-4 rounded-xl border border-border/70 p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Nome da informação" className="min-w-[200px] flex-1">
+          <Input value={field.label} placeholder="Ex.: Senha provisória" onChange={(e) => onPatch({ label: e.target.value })} />
+        </Field>
+        <Field label="Mostrar ao cliente">
+          <Select value={field.mask ?? "none"} onValueChange={(v) => onPatch({ mask: v === "none" ? undefined : v })}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FIELD_MASK_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Button variant="ghost" size="icon" onClick={onRemove} aria-label={`Remover ${field.label || "informação"}`}>
+          <IconTrash className="size-4" />
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[13px] font-medium">Montada com, nesta ordem:</p>
+        {field.parts.map((part, k) => (
+          <div key={k} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg bg-slate-50 px-3 py-2 text-[13px] v2-dark:bg-muted/40">
+            <span className="w-5 text-right text-xs text-muted-foreground">{k + 1}.</span>
+            {part.kind === "text" ? (
+              <>
+                <span className="text-muted-foreground">o texto</span>
+                <Input className="h-9 w-[160px]" value={part.text ?? ""} placeholder="Ex.: @" onChange={(e) => patchPart(k, { text: e.target.value })} />
+              </>
+            ) : (
+              <>
+                <span className="text-muted-foreground">de</span>
+                <Select
+                  value={part.key ? fieldId(part) : ""}
+                  onValueChange={(v) => {
+                    const [entity, key] = v.split(":");
+                    patchPart(k, { entity: entity as "contact" | "deal", key });
+                  }}
+                >
+                  <SelectTrigger className={cn("h-9 w-[220px]", !part.key && "border-amber-400")}>
+                    <SelectValue placeholder="Escolha o campo…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fields.map((f) => (
+                      <SelectItem key={`${f.entity}:${f.key}`} value={`${f.entity}:${f.key}`}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-muted-foreground">pegar</span>
+                <Select value={part.take ?? "all"} onValueChange={(v) => patchPart(k, { take: v as DerivedPart["take"], ...(v !== "all" && !part.count ? { count: 3 } : {}) })}>
+                  <SelectTrigger className={selectCls}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">todos os</SelectItem>
+                    <SelectItem value="first">os primeiros</SelectItem>
+                    <SelectItem value="last">os últimos</SelectItem>
+                  </SelectContent>
+                </Select>
+                {part.take && part.take !== "all" && (
+                  <Input
+                    type="number"
+                    min={1}
+                    max={100}
+                    className="h-9 w-[70px]"
+                    value={part.count ? String(part.count) : ""}
+                    onChange={(e) => patchPart(k, { count: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))) })}
+                    aria-label="Quantidade"
+                  />
+                )}
+                <Select
+                  value={part.charset ?? (part.digitsOnly ? "digits" : "all")}
+                  onValueChange={(v) => patchPart(k, { charset: v as DerivedPart["charset"], digitsOnly: undefined })}
+                >
+                  <SelectTrigger className={selectCls}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PART_CHARSET.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-muted-foreground">em</span>
+                <Select value={part.letterCase ?? "keep"} onValueChange={(v) => patchPart(k, { letterCase: v as DerivedPart["letterCase"] })}>
+                  <SelectTrigger className={cn(selectCls, "min-w-[160px]")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PART_CASE.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto"
+              onClick={() => onPatch({ parts: field.parts.filter((_, j) => j !== k) })}
+              aria-label={`Remover parte ${k + 1}`}
+            >
+              <IconX className="size-4" />
+            </Button>
+          </div>
+        ))}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={() => onPatch({ parts: [...field.parts, { kind: "field", take: "all" }] })}>
+            <IconPlus className="size-4" /> Campo
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => onPatch({ parts: [...field.parts, { kind: "text", text: "" }] })}>
+            <IconPlus className="size-4" /> Texto fixo
+          </Button>
+        </div>
+        {missing >= 0 && (
+          <p className="text-xs text-amber-700 v2-dark:text-amber-400">Parte {missing + 1}: escolha o campo — sem ele a informação não é montada.</p>
+        )}
+      </div>
+
+      {used.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-dashed border-border px-3 py-3">
+          <p className="text-[13px] font-medium">Testar com valores de exemplo</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {used.map((part) => (
+              <label key={fieldId(part)} className="space-y-1">
+                <span className="block text-xs text-muted-foreground">{fieldName(part)}</span>
+                <Input
+                  className="h-9"
+                  value={samples[fieldId(part)] ?? ""}
+                  placeholder="Digite um valor de exemplo"
+                  onChange={(e) => setSamples((cur) => ({ ...cur, [fieldId(part)]: e.target.value }))}
+                />
+              </label>
+            ))}
+          </div>
+          <p className="text-[13px]">
+            <span className="text-muted-foreground">{field.label || "Resultado"}: </span>
+            {preview ? (
+              <b className="font-mono">{preview}</b>
+            ) : (
+              <span className="text-muted-foreground">
+                {missing >= 0 ? `escolha o campo da parte ${missing + 1}` : "preencha os exemplos para ver o resultado"}
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** "O que ele sabe › Dados do cliente › Informações montadas". */
 function DerivedFieldsEditor({
@@ -2557,142 +2786,27 @@ function DerivedFieldsEditor({
 }) {
   const list = (getPath(config, "derivedFields", []) as DerivedField[] | undefined) ?? [];
   const save = (next: DerivedField[]) => onChange("derivedFields", next);
-  const patchItem = (i: number, p: Partial<DerivedField>) => save(list.map((d, j) => (j === i ? { ...d, ...p } : d)));
-  const patchPart = (i: number, k: number, p: Partial<DerivedPart>) =>
-    patchItem(i, { parts: list[i].parts.map((part, j) => (j === k ? { ...part, ...p } : part)) });
-  const fieldName = (part: DerivedPart) => fields.find((f) => f.entity === (part.entity ?? "contact") && f.key === part.key)?.label.split(" · ")[1] ?? "campo";
-  const describe = (d: DerivedField) =>
-    d.parts
-      .map((part) => {
-        if (part.kind === "text") return `“${part.text ?? ""}”`;
-        const what = part.take === "first" ? `primeiros ${part.count ?? 0}` : part.take === "last" ? `últimos ${part.count ?? 0}` : "inteiro";
-        return `${fieldName(part)} (${what}${part.digitsOnly ? ", só dígitos" : ""})`;
-      })
-      .join(" + ");
   return (
     <SectionCard
       title="Informações montadas"
-      description="Algo que o agente pode dizer ao cliente montado a partir de campos do cadastro (ex.: senha provisória = começo do documento + número de matrícula). O motor monta o valor; em mensagens use @Nome. Se algum campo usado estiver vazio, a informação não é informada."
+      description="Algo que o agente pode dizer ao cliente montado com pedaços de campos do cadastro e textos fixos. O motor monta o valor; em mensagens use @Nome da informação. Se algum campo usado estiver vazio, a informação não é dita."
     >
       <div className="space-y-4">
         {list.map((d, i) => (
-          <div key={d.id} className="space-y-3 rounded-xl border border-border/70 p-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <Field label="Nome" className="min-w-[200px] flex-1">
-                <Input value={d.label} placeholder="Ex.: Senha provisória" onChange={(e) => patchItem(i, { label: e.target.value })} />
-              </Field>
-              <Field label="Mostrar">
-                <Select value={d.mask ?? "none"} onValueChange={(v) => patchItem(i, { mask: v === "none" ? undefined : v })}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FIELD_MASK_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Button variant="ghost" size="icon" onClick={() => save(list.filter((_, j) => j !== i))} aria-label={`Remover ${d.label || "informação"}`}>
-                <IconTrash className="size-4" />
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {d.parts.map((part, k) => (
-                <div key={k} className="flex flex-wrap items-center gap-2">
-                  <span className="w-5 text-right text-xs text-muted-foreground">{k + 1}.</span>
-                  <Select value={part.kind} onValueChange={(v) => patchPart(i, k, v === "text" ? { kind: "text", text: part.text ?? "" } : { kind: "field", take: part.take ?? "all" })}>
-                    <SelectTrigger className="w-[110px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="field">Campo</SelectItem>
-                      <SelectItem value="text">Texto fixo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {part.kind === "text" ? (
-                    <Input className="w-[200px]" value={part.text ?? ""} placeholder="Ex.: @" onChange={(e) => patchPart(i, k, { text: e.target.value })} />
-                  ) : (
-                    <>
-                      <Select
-                        value={part.key ? `${part.entity ?? "contact"}:${part.key}` : ""}
-                        onValueChange={(v) => {
-                          const [entity, key] = v.split(":");
-                          patchPart(i, k, { entity: entity as "contact" | "deal", key });
-                        }}
-                      >
-                        <SelectTrigger className="w-[240px]">
-                          <SelectValue placeholder="Campo do cadastro…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {fields.map((f) => (
-                            <SelectItem key={`${f.entity}:${f.key}`} value={`${f.entity}:${f.key}`}>
-                              {f.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={part.take ?? "all"} onValueChange={(v) => patchPart(i, k, { take: v as DerivedPart["take"] })}>
-                        <SelectTrigger className="w-[120px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Inteiro</SelectItem>
-                          <SelectItem value="first">Primeiros</SelectItem>
-                          <SelectItem value="last">Últimos</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {part.take && part.take !== "all" && (
-                        <Input
-                          type="number"
-                          min={1}
-                          max={100}
-                          className="w-[80px]"
-                          value={part.count ? String(part.count) : ""}
-                          placeholder="N"
-                          onChange={(e) => patchPart(i, k, { count: Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))) })}
-                          aria-label="Quantidade de caracteres"
-                        />
-                      )}
-                      <label className="flex items-center gap-1.5 text-sm">
-                        <input
-                          type="checkbox"
-                          className="size-4 accent-primary"
-                          checked={!!part.digitsOnly}
-                          onChange={(e) => patchPart(i, k, { digitsOnly: e.target.checked })}
-                        />
-                        só dígitos
-                      </label>
-                    </>
-                  )}
-                  <Button variant="ghost" size="icon" onClick={() => patchItem(i, { parts: d.parts.filter((_, j) => j !== k) })} aria-label={`Remover parte ${k + 1}`}>
-                    <IconX className="size-4" />
-                  </Button>
-                </div>
-              ))}
-              <Button variant="ghost" size="sm" onClick={() => patchItem(i, { parts: [...d.parts, { kind: "field", take: "all" }] })}>
-                <IconPlus className="size-4" /> Parte
-              </Button>
-            </div>
-            {d.parts.length > 0 && (
-              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-muted-foreground v2-dark:bg-muted/40">
-                <span className="font-medium text-foreground">{d.label || "Informação"}</span> = {describe(d)}
-              </p>
-            )}
-          </div>
+          <DerivedFieldCard
+            key={d.id}
+            field={d}
+            fields={fields}
+            onPatch={(p) => save(list.map((x, j) => (j === i ? { ...x, ...p } : x)))}
+            onRemove={() => save(list.filter((_, j) => j !== i))}
+          />
         ))}
-        {fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Adicione campos do cadastro acima para montar informações com eles.</p>
-        ) : (
-          <Button
-            variant="outline"
-            onClick={() => save([...list, { id: `d_${Date.now().toString(36)}`, label: "", parts: [{ kind: "field", take: "all" }] }])}
-          >
-            <IconPlus className="size-4" /> Adicionar informação
-          </Button>
-        )}
+        <Button variant="outline" onClick={() => save([...list, { id: `d_${Date.now().toString(36)}`, label: "", parts: [{ kind: "field", take: "all" }] }])}>
+          <IconPlus className="size-4" /> Adicionar informação
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Campos disponíveis: nome, telefone e e-mail do contato e os campos adicionados nas tabelas acima.
+        </p>
       </div>
     </SectionCard>
   );
@@ -2897,6 +3011,10 @@ function StepContext({
         config={config}
         onChange={onChange}
         fields={[
+          // Nome, telefone e e-mail do contato sempre chegam ao motor.
+          ...["name", "phone", "email"]
+            .filter((key) => !contactFields.some((f) => f.key === key))
+            .map((key) => ({ entity: "contact" as const, key, label: `Contato · ${builtinLabels[key] ?? key}` })),
           ...contactFields.map((f) => ({ entity: "contact" as const, key: f.key, label: `Contato · ${fieldLabel(f.key, catalogs.contactCustomFields)}` })),
           ...dealFields.map((f) => ({ entity: "deal" as const, key: f.key, label: `Negócio · ${fieldLabel(f.key, catalogs.dealCustomFields)}` })),
         ]}
