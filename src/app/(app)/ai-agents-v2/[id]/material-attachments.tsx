@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiFetch, apiUrl, parseApiResponse } from "@/lib/api";
 
 type Kind = "image" | "video" | "audio" | "document";
@@ -33,8 +34,19 @@ type Attachment = {
   mimeType: string | null;
   name: string;
   description: string;
+  autoSend: boolean;
+  resendWindow: ResendWindow;
   kind: Kind;
 };
+
+type ResendWindow = "always" | "30m" | "24h" | "7d";
+
+const RESEND_OPTIONS: Array<{ value: ResendWindow; label: string }> = [
+  { value: "7d", label: "Não repetir por 7 dias" },
+  { value: "24h", label: "Pode repetir depois de 24 h" },
+  { value: "30m", label: "Pode repetir depois de 30 min" },
+  { value: "always", label: "Pode repetir sempre" },
+];
 
 const KIND_ICON: Record<Kind, typeof IconPhoto> = {
   image: IconPhoto,
@@ -107,6 +119,19 @@ export function MaterialAttachments({ agentId, docId }: { agentId: string; docId
     onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
   });
 
+  const update = useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: Partial<Pick<Attachment, "autoSend" | "resendWindow">> }) => {
+      const res = await apiFetch(`/api/ai-agents-v2/${agentId}/materials/${docId}/attachments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return parseApiResponse(res, "Erro ao salvar o anexo.");
+    },
+    onError: (e) => setError((e as Error).message),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+  });
+
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiFetch(`/api/ai-agents-v2/${agentId}/materials/${docId}/attachments/${id}`, { method: "DELETE" });
@@ -147,13 +172,14 @@ export function MaterialAttachments({ agentId, docId }: { agentId: string; docId
       </div>
       <p className="text-xs text-muted-foreground">
         Vídeo, imagem, áudio ou PDF (até 16 MB, {max} por material). Quando o agente usar este material, ele pode enviar o anexo depois da
-        resposta — escreva quando enviar. Salvos na hora.
+        resposta — escreva quando enviar, ou marque para enviar sempre. Salvos na hora.
       </p>
       {list.isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
       {items.map((a) => {
         const Icon = KIND_ICON[a.kind];
         return (
-          <div key={a.id} className="flex flex-col gap-2 rounded-lg border border-border/60 p-2 sm:flex-row sm:items-center">
+          <div key={a.id} className="grid gap-2 rounded-lg border border-border/60 p-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex min-w-0 items-center gap-2 sm:w-56 sm:shrink-0">
               <Icon className="size-4 shrink-0 text-muted-foreground" aria-label={KIND_LABEL[a.kind]} />
               <a href={a.url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium hover:underline" title={a.name}>
@@ -174,6 +200,31 @@ export function MaterialAttachments({ agentId, docId }: { agentId: string; docId
                 <IconTrash className="size-4" />
               </Button>
             </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-start gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 shrink-0 accent-primary"
+                checked={a.autoSend}
+                disabled={update.isPending}
+                onChange={(e) => update.mutate({ id: a.id, body: { autoSend: e.target.checked } })}
+              />
+              <span>Enviar sempre que este material for a principal fonte da resposta</span>
+            </label>
+            <Select value={a.resendWindow} onValueChange={(v) => update.mutate({ id: a.id, body: { resendWindow: v as ResendWindow } })}>
+              <SelectTrigger className="h-8 w-full text-xs sm:w-[230px]" aria-label={`Repetição de ${a.name}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RESEND_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           </div>
         );
       })}
