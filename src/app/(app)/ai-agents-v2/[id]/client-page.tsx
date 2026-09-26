@@ -233,7 +233,7 @@ const TYPING_PACE_OPTIONS = [
 ];
 
 const ON_DEAL_NOT_FOUND_OPTIONS = [
-  { value: "ask_identification", label: "Pedir os dados (e-mail ou documento)" },
+  { value: "ask_identification", label: "Pedir e-mail ou documento e passar para a equipe" },
   { value: "create_deal", label: "Criar um negócio e seguir atendendo" },
   { value: "handoff", label: "Passar para a equipe" },
 ];
@@ -2928,7 +2928,11 @@ function StepContext({
     catalogFields: Array<{ id: string; name: string }>,
     stored: Array<{ key: string; label?: string; permissions: string[]; mask?: string }>,
     entity: string,
+    other: { fields: Array<{ id: string; name: string }>; title: string },
   ) {
+    // Campo de mesmo nome na outra tabela: o valor pode estar lá (contato × negócio).
+    const norm = (t: string) => t.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const twinOf = (label: string) => other.fields.find((f) => norm(f.name) === norm(label));
     const usedKeys = new Set(stored.map((s) => s.key));
     const available = catalogFields.filter((f) => !usedKeys.has(f.id));
     const builtins = {
@@ -2995,6 +2999,11 @@ function StepContext({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{label}</p>
                     <p className="text-xs text-muted-foreground">{exampleValue(s.key, label)}</p>
+                    {twinOf(label) && (
+                      <p className="mt-0.5 text-xs text-amber-700 v2-dark:text-amber-400">
+                        Também existe “{twinOf(label)!.name}” em {other.title}. Se o valor está preenchido lá, adicione nessa tabela.
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center justify-between gap-4 sm:contents">
                     {["read", "cite", "write"].map((p) => (
@@ -3055,8 +3064,8 @@ function StepContext({
 
   return (
     <div className="space-y-6">
-      {renderFieldTable("Dados do contato", catalogs.contactCustomFields, contactFields, "contact")}
-      {renderFieldTable("Dados do negócio", catalogs.dealCustomFields, dealFields, "deal")}
+      {renderFieldTable("Dados do contato", catalogs.contactCustomFields, contactFields, "contact", { fields: catalogs.dealCustomFields, title: "Dados do negócio" })}
+      {renderFieldTable("Dados do negócio", catalogs.dealCustomFields, dealFields, "deal", { fields: catalogs.contactCustomFields, title: "Dados do contato" })}
       <DerivedFieldsEditor
         config={config}
         onChange={onChange}
@@ -3962,13 +3971,17 @@ function StepEntry({
         </Field>
         {entry.onDealNotFound === "ask_identification" && (
           <>
+            <p className="text-xs text-muted-foreground">
+              Ele não procura o cadastro pelo que o cliente digita (quem mandasse o documento de outra pessoa veria os dados dela). Quando o cliente
+              manda o e-mail ou o documento, a conversa vai para a equipe, que localiza o cadastro.
+            </p>
             <Field label="Mensagem pedindo os dados">
               <Textarea
                 value={(entry.identificationMessage as string) ?? ""}
                 onChange={(e) => onChange("entry.identificationMessage", e.target.value)}
               />
             </Field>
-            <Field label="Quantas vezes pedir antes de passar para a equipe">
+            <Field label="Quantas vezes pedir se a resposta não trouxer e-mail nem documento">
               <Input
                 type="number"
                 value={String(entry.maxAttempts ?? 2)}
