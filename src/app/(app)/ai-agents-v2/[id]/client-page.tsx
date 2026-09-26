@@ -95,6 +95,7 @@ import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone 
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
 import { TextListEditor } from "./text-list-editor";
+import { MaterialAttachments } from "./material-attachments";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -3570,11 +3571,11 @@ function StepMaterials({
       </SectionCard>
 
       <Dialog open={!!editingDoc} onOpenChange={(open) => !open && closeEdit()}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingDoc?.title}</DialogTitle>
             <DialogDescription>
-              Edite o título e o conteúdo do material. Ao salvar, o agente reindexa o texto.
+              Edite o título e o conteúdo do material. Ao salvar, o agente reindexa o texto. Os anexos abaixo são salvos na hora.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -3617,6 +3618,7 @@ function StepMaterials({
                 {editContent.length.toLocaleString("pt-BR")} caracteres
               </p>
             </div>
+            {editingDoc && <MaterialAttachments agentId={agentId} docId={editingDoc.id} />}
             {editError && (
               <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
