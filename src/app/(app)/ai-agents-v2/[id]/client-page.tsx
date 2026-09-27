@@ -5708,6 +5708,10 @@ const SYSTEM_MESSAGES: Array<{ key: string; label: string; when: string; placeho
   { key: "queueUpset", label: "Fila: cliente reclamando", when: "Na fila, o cliente reclama da espera.", placeholder: "Padrão: alterna textos de desculpa sem repetir o último." },
   { key: "queueCall", label: "Fila: cliente chamando", when: "Na fila, o cliente escreve “alô?”, “alguém?”, “?”.", placeholder: "Padrão: alterna textos de presença sem repetir o último." },
   { key: "queueAgain", label: "Fila: nova mensagem", when: "Na fila, o cliente escreve outra coisa.", placeholder: "Padrão: alterna textos de “recebido” sem repetir o último." },
+  { key: "repeatAfterAnswer", label: "Resposta repetida (depois de explicar)", when: "A resposta sairia igual à anterior, que era uma explicação; ou o modelo não devolveu nada.", placeholder: "Ficou alguma dúvida sobre o que te passei? Me conta o que não ficou claro que eu explico de outro jeito." },
+  { key: "stillHere", label: "Resposta repetida (depois de mensagem curta)", when: "O mesmo, quando a mensagem anterior do agente era curta (cumprimento, pergunta).", placeholder: "Estou por aqui! Me conta o que você precisa que eu te ajudo." },
+  { key: "confusionRephrase", label: "Cliente não entendeu (refaz a pergunta)", when: "O cliente mostra que não entendeu (“?”, “como assim”) e a última mensagem do agente tinha uma pergunta. {{pergunta}} vira essa pergunta.", placeholder: "Desculpa, acho que não fui claro. {{pergunta}}" },
+  { key: "confusionAsk", label: "Cliente não entendeu (sem pergunta)", when: "O mesmo, quando a última mensagem do agente não tinha pergunta.", placeholder: "Desculpa, acho que não fui claro. O que ficou confuso? Me conta que eu explico de outro jeito." },
   { key: "optionsPrompt", label: "Texto acima das opções", when: "Quando a resposta é longa demais para ir junto da lista de opções.", placeholder: "Escolha uma opção:" },
   { key: "optionsButton", label: "Botão da lista de opções", when: "Botão que abre a lista (até 20 caracteres).", placeholder: "Ver opções", max: 20 },
 ];
