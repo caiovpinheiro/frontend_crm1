@@ -2206,6 +2206,8 @@ function StepStart({
         )}
       </SectionCard>
 
+      <SpendingCapCard config={config} onChange={onChange} />
+
       <SectionCard
         title="Contas dos modelos"
         description="As chaves ficam guardadas com segurança e só o final aparece aqui. A da OpenAI é sempre necessária (busca nos materiais e áudios); a da Anthropic, para os modelos Claude."
@@ -6159,6 +6161,44 @@ function WhyPanel({ result, onEditTheme, onEditRule }: {
         {result.inputTokens + result.outputTokens} tokens · {result.latencyMs}ms
       </p>
     </div>
+  );
+}
+
+/**
+ * Teto de gasto do agente. Passou do teto: a conversa vai para a equipe
+ * (mensagem de transferência) até virar o dia/mês no fuso do horário de
+ * atendimento. 0 ou vazio = sem teto.
+ */
+function SpendingCapCard({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  const cap = (getPath(config, "costCap", null) as { maxUsdPerDay?: number; maxUsdPerMonth?: number } | null) ?? null;
+  const tokens = Number(getPath(config, "dailyTokenCap", 0) ?? 0);
+  const setCap = (key: "maxUsdPerDay" | "maxUsdPerMonth", raw: string) => {
+    const value = Math.max(0, Number(raw.replace(",", ".")) || 0);
+    const next = { maxUsdPerDay: cap?.maxUsdPerDay ?? 0, maxUsdPerMonth: cap?.maxUsdPerMonth ?? 0, action: "handoff", [key]: value };
+    onChange("costCap", next.maxUsdPerDay > 0 || next.maxUsdPerMonth > 0 ? next : null);
+  };
+  return (
+    <SectionCard
+      title="Limite de gasto"
+      description="Passou do limite, o agente para de responder e passa a conversa para a equipe até virar o dia ou o mês (no fuso do horário de atendimento). Vazio ou 0: sem limite. O gasto é estimado pelo preço do modelo escolhido."
+    >
+      <div className="grid gap-4 md:grid-cols-3">
+        <Field label="US$ por dia">
+          <Input inputMode="decimal" value={cap?.maxUsdPerDay ? String(cap.maxUsdPerDay) : ""} placeholder="Sem limite" onChange={(e) => setCap("maxUsdPerDay", e.target.value)} />
+        </Field>
+        <Field label="US$ por mês">
+          <Input inputMode="decimal" value={cap?.maxUsdPerMonth ? String(cap.maxUsdPerMonth) : ""} placeholder="Sem limite" onChange={(e) => setCap("maxUsdPerMonth", e.target.value)} />
+        </Field>
+        <Field label="Tokens por dia">
+          <Input
+            inputMode="numeric"
+            value={tokens > 0 ? String(tokens) : ""}
+            placeholder="Sem limite"
+            onChange={(e) => onChange("dailyTokenCap", Math.max(0, Math.floor(Number(e.target.value.replace(/\D/g, "")) || 0)))}
+          />
+        </Field>
+      </div>
+    </SectionCard>
   );
 }
 
