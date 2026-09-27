@@ -71,7 +71,23 @@ type TestTurn = {
   latencyMs: number | null;
   tokens: number;
   feedback: Feedback | null;
+  /** O que saiu de fato para o WhatsApp neste turno (texto e anexos). */
+  deliveries?: Delivery[];
 };
+
+type Delivery = { at: string; type: string; preview: string; status: string | null; error: string | null };
+
+const DELIVERY_TYPE: Record<string, string> = { text: "Texto", image: "Imagem", video: "Vídeo", audio: "Áudio", ptt: "Áudio", document: "Documento", interactive: "Botões" };
+
+function deliveryState(d: Delivery): { label: string; tone: "ok" | "fail" | "wait" } {
+  const s = (d.status ?? "").toLowerCase();
+  if (s === "failed" || s === "error") return { label: "falhou", tone: "fail" };
+  if (s === "read") return { label: "lida", tone: "ok" };
+  if (s === "delivered") return { label: "entregue", tone: "ok" };
+  if (s === "sent") return { label: "enviada", tone: "ok" };
+  if (s === "pending" || s === "queued") return { label: "na fila de envio", tone: "wait" };
+  return { label: s || "sem situação", tone: "wait" };
+}
 
 type TestContact = {
   contactId: string;
@@ -313,6 +329,34 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
             <IconBulb className="mt-0.5 size-3.5 shrink-0 text-amber-500" />
             <span>{turn.llmReason}</span>
           </p>
+        )}
+
+        {/* entrega real: o que o WhatsApp recebeu (ou não) */}
+        {(turn.deliveries?.length ?? 0) > 0 && (
+          <div className="max-w-[85%] space-y-0.5 rounded-lg bg-white/80 px-2.5 py-1.5 v2-dark:bg-card">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wide text-[#54656F] v2-dark:text-muted-foreground">Entrega</p>
+            {turn.deliveries!.map((d, i) => {
+              const st = deliveryState(d);
+              return (
+                <p key={i} className="flex items-start gap-1.5 text-xs">
+                  <span
+                    className={cn(
+                      "mt-1 size-1.5 shrink-0 rounded-full",
+                      st.tone === "ok" ? "bg-emerald-500" : st.tone === "fail" ? "bg-rose-500" : "bg-amber-500",
+                    )}
+                  />
+                  <span className="min-w-0">
+                    <span className="font-medium">{DELIVERY_TYPE[d.type] ?? d.type}</span>
+                    <span className="text-[#54656F] v2-dark:text-muted-foreground"> · {d.preview.length > 60 ? `${d.preview.slice(0, 60)}…` : d.preview} · </span>
+                    <span className={cn(st.tone === "fail" ? "font-medium text-rose-700 v2-dark:text-rose-300" : st.tone === "ok" ? "text-emerald-700 v2-dark:text-emerald-300" : "text-amber-700 v2-dark:text-amber-300")}>
+                      {st.label}
+                    </span>
+                    {d.error && <span className="text-rose-700 v2-dark:text-rose-300"> — {d.error}</span>}
+                  </span>
+                </p>
+              );
+            })}
+          </div>
         )}
 
         {/* problemas sempre visíveis */}
