@@ -307,6 +307,12 @@ function TurnCard({ agentId, turn }: { agentId: string; turn: TestTurn }) {
               <span className="italic">{turn.error ? `Sem resposta — ${turn.error}` : noReply ? "Sem resposta" : "—"}</span>
             )}
           </span>
+          {/* A conversa gravada oculta senha e e-mail; a entrega mostra o que saiu. */}
+          {turn.reply && /\[senha removida\]|\*{3}@/.test(turn.reply) && (turn.deliveries?.some((d) => d.preview && !/\[senha removida\]|\*{3}@/.test(d.preview)) ?? false) && (
+            <p className="mt-1 text-[10.5px] italic text-[#667781] v2-dark:text-muted-foreground">
+              Senha e e-mail aparecem ocultos só nesta tela. O cliente recebeu o texto completo (veja em Entrega).
+            </p>
+          )}
         </div>
 
         {/* resumo da decisão */}
