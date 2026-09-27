@@ -123,6 +123,8 @@ type AgentDetail = {
   anthropicApiKeyHint?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Contador do rascunho: o salvamento manda o que carregou; mudou no servidor → 409. */
+  draftVersion?: number;
 };
 
 type Catalogs = {
@@ -521,12 +523,21 @@ async function updateAgentMeta(
   return parseApiResponse<AgentDetail>(res, "Erro ao salvar agente v2.");
 }
 
-async function saveDraft(id: string, config: Record<string, unknown>): Promise<AgentDetail> {
+/** O rascunho mudou no servidor desde que esta tela o carregou (outra aba/janela salvou). */
+class DraftConflictError extends Error {
+  readonly code = "DRAFT_CONFLICT";
+}
+
+async function saveDraft(id: string, config: Record<string, unknown>, expectedDraftVersion: number | null): Promise<AgentDetail> {
   const res = await apiFetch(`/api/ai-agents-v2/${id}/draft`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ config }),
+    body: JSON.stringify({ config, ...(typeof expectedDraftVersion === "number" ? { expectedDraftVersion } : {}) }),
   });
+  if (res.status === 409) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new DraftConflictError(body?.message ?? "O rascunho foi alterado em outra janela.");
+  }
   return parseApiResponse<AgentDetail>(res, "Erro ao salvar rascunho.");
 }
 
@@ -955,6 +966,10 @@ export default function AIAgentV2EditPage() {
   // Cada alteração soma 1. Um salvamento só limpa "alterado" se nada mudou
   // enquanto ele estava no ar; senão o próximo salvamento automático leva o resto.
   const editVersion = React.useRef(0);
+  // Versão do rascunho que esta tela carregou: vai em cada salvamento. Se
+  // outra aba salvou antes, o servidor responde 409 e a tela recarrega em
+  // vez de sobrescrever calada (uma alteração já foi perdida assim).
+  const draftVersion = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     setSection(sectionFromUrl());
@@ -1001,6 +1016,7 @@ export default function AIAgentV2EditPage() {
       setConfig(mergeDefaults(agentQuery.data.config ?? {}, DEFAULT_CONFIG));
       setName(agentQuery.data.name);
       setActive(agentQuery.data.active);
+      draftVersion.current = typeof agentQuery.data.draftVersion === "number" ? agentQuery.data.draftVersion : null;
     }
   }, [agentQuery.data, config]);
 
@@ -1032,13 +1048,26 @@ export default function AIAgentV2EditPage() {
       setSaveError(null);
       try {
         await updateAgentMeta(id, { name, active, openaiApiKey: keyToSend, anthropicApiKey: anthropicToSend });
-        await saveDraft(id, { ...config, name });
+        const saved = await saveDraft(id, { ...config, name }, draftVersion.current);
+        if (typeof saved.draftVersion === "number") draftVersion.current = saved.draftVersion;
         if (keyToSend) setOpenaiKey("");
         if (anthropicToSend) setAnthropicKey("");
         if (editVersion.current === version) setDirty(false);
         setSavedAt(new Date());
         queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
       } catch (err) {
+        if (err instanceof DraftConflictError) {
+          // Outra aba/janela salvou antes: recarrega a versão do servidor e
+          // avisa; o que foi digitado aqui desde então precisa ser refeito.
+          const fresh = await queryClient.fetchQuery({ queryKey: ["ai-agents-v2", id], queryFn: () => fetchAgent(id), staleTime: 0 });
+          setConfig(mergeDefaults(fresh.config ?? {}, DEFAULT_CONFIG));
+          setName(fresh.name);
+          setActive(fresh.active);
+          draftVersion.current = typeof fresh.draftVersion === "number" ? fresh.draftVersion : null;
+          setDirty(false);
+          setSaveError("este rascunho foi alterado em outra janela ou aba. Carregamos a versão mais nova — refaça a alteração que você tinha acabado de fazer.");
+          return;
+        }
         setSaveError(err instanceof Error ? err.message : "Erro ao salvar.");
         throw err;
       } finally {

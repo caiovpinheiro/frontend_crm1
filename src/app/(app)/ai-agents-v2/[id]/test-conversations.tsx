@@ -119,6 +119,23 @@ function dateTime(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function hourMinute(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Última mensagem da sessão (o #reset abre a sessão, mas a conversa pode ser bem depois). */
+function lastActivity(session: { startedAt: string; turns: TestTurn[] }): string {
+  return session.turns[session.turns.length - 1]?.createdAt ?? session.startedAt;
+}
+
+/** "27/09, 12:03 → 12:37": início (o #reset) e a última mensagem, quando não é o mesmo minuto. */
+function sessionLabel(session: { startedAt: string; turns: TestTurn[] }): string {
+  const start = dateTime(session.startedAt);
+  const end = lastActivity(session);
+  const endLabel = new Date(end).toDateString() === new Date(session.startedAt).toDateString() ? hourMinute(end) : dateTime(end);
+  return dateTime(end) === start ? start : `${start} → ${endLabel}`;
+}
+
 /** Passos que indicam problema — aparecem mesmo com o rastro recolhido. */
 function isProblem(step: TraceStep): boolean {
   if (step.step === "parada" || step.step === "limites") return true;
@@ -168,10 +185,15 @@ export function TestConversations({ agentId }: { agentId: string }) {
             ? "Sem números de teste, o agente atende todo mundo: aqui estão as últimas 30 conversas dele (7 dias), com o passo a passo de cada decisão."
             : "O que os números de teste conversaram com o agente nos últimos 7 dias, com o passo a passo de cada decisão."}
           actions={
-            <Button variant="ghost" size="sm" className="h-8 gap-1 text-muted-foreground" onClick={() => query.refetch()}>
-              <IconRefresh className={cn("size-4", query.isFetching && "animate-spin")} />
-              Atualizar
-            </Button>
+            <div className="flex items-center gap-2">
+              <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                {query.dataUpdatedAt ? `atualiza sozinho a cada 10 s · última leitura ${time(new Date(query.dataUpdatedAt).toISOString())}` : "atualiza sozinho a cada 10 s"}
+              </span>
+              <Button variant="ghost" size="sm" className="h-8 gap-1 text-muted-foreground" onClick={() => query.refetch()}>
+                <IconRefresh className={cn("size-4", query.isFetching && "animate-spin")} />
+                Atualizar
+              </Button>
+            </div>
           }
         />
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-[13px] v2-dark:bg-muted/40">
@@ -212,7 +234,8 @@ export function TestConversations({ agentId }: { agentId: string }) {
         />
       )}
 
-      {current?.sessions.map((session, i) => {
+      {/* Pela última mensagem: a sessão começa no #reset, mas o teste pode ter sido bem depois. */}
+      {[...(current?.sessions ?? [])].sort((a, b) => new Date(lastActivity(b)).getTime() - new Date(lastActivity(a)).getTime()).map((session, i) => {
         const turns = session.turns.filter((t) => !t.isReset).length;
         return (
           <section key={`${session.startedAt}-${i}`} className={cn(SURFACE, "overflow-hidden")}>
@@ -220,7 +243,7 @@ export function TestConversations({ agentId }: { agentId: string }) {
               <IconChip icon={session.turns[0]?.isReset ? IconRotate : IconMessages} tone={i === 0 ? "emerald" : "slate"} size="sm" />
               <div className="min-w-0">
                 <p className="flex items-center gap-2 text-[13px] font-semibold">
-                  Sessão de {dateTime(session.startedAt)}
+                  Sessão de {sessionLabel(session)}
                   {i === 0 && <Pill tone="blue">mais recente</Pill>}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
