@@ -5582,7 +5582,7 @@ function StepTeam({
         </Field>
       </SectionCard>
 
-      <SectionCard title="Horário de atendimento" description="Define o expediente usado pela condição &quot;Fora do horário&quot; das regras. Para agir fora do horário, crie uma regra com essa condição.">
+      <SectionCard title="Horário de atendimento" description="Expediente da equipe. Fora dele, o agente segue respondendo; ao transferir ou avisar a fila, acrescenta quando a equipe volta. Também vale para a condição &quot;Fora do horário&quot; das regras.">
         <div className="flex items-center gap-3">
           <Switch
             checked={!!bh?.enabled}
@@ -5602,6 +5602,12 @@ function StepTeam({
           <>
             <Field label="Fuso horário" tooltip="Fuso usado para calcular se está dentro do expediente.">
               <Input value={(bh.timezone as string) ?? ""} onChange={(e) => onChange("businessHours.timezone", e.target.value)} />
+            </Field>
+            <Field
+              label="Aviso fora do horário"
+              hint="Vai junto da transferência e do aviso de fila fora do expediente. {{horario}} vira os dias e horários acima. Vazio: “Nossa equipe atende {{horario}}. Sua mensagem fica registrada e seguimos com você no próximo horário.”"
+            >
+              <Textarea value={(bh.offHoursMessage as string) ?? ""} onChange={(e) => onChange("businessHours.offHoursMessage", e.target.value)} />
             </Field>
             <div className="space-y-2">
               {((bh.weekdays as Array<Record<string, unknown>>) ?? []).map((slot, i) => (
@@ -5675,7 +5681,64 @@ function StepTeam({
         )}
       </SectionCard>
 
+      <SystemMessagesCard config={config} onChange={onChange} />
     </div>
+  );
+}
+
+/**
+ * Textos que o próprio motor escreve ao cliente (não o modelo). Vazio usa o
+ * padrão; os padrões espelham `SYSTEM_MESSAGE_DEFAULTS` do backend.
+ */
+const SYSTEM_MESSAGES: Array<{ key: string; label: string; when: string; placeholder: string; max?: number }> = [
+  { key: "materialAlreadySent", label: "Material já enviado", when: "O cliente pede de novo uma mensagem pronta enviada há pouco.", placeholder: "Te enviei esse material logo acima 👆 Se ficou alguma dúvida ou algo não funcionou, me conta que eu te ajudo." },
+  { key: "attachmentAbove", label: "Arquivo já está acima", when: "Acrescentado quando a resposta fala de um arquivo que já foi enviado.", placeholder: "O arquivo que mencionei já está logo acima na conversa 👆" },
+  { key: "mediaResent", label: "Reenvio de anexo", when: "O cliente diz que não recebeu o arquivo e ele é reenviado. {{anexo}} vira “o vídeo”, “a imagem”…", placeholder: "Reenviei {{anexo}} agora 👇 Se não aparecer, me avisa." },
+  { key: "mediaResentAfterFailure", label: "Reenvio depois de falha", when: "Igual, quando o primeiro envio falhou. {{Anexo}} com inicial maiúscula.", placeholder: "{{Anexo}} não saiu da primeira vez. Estou reenviando agora 👇 Se não chegar, me avisa que eu chamo alguém da equipe." },
+  { key: "mediaCannotSend", label: "Anexo não sai", when: "O envio falhou de novo; a conversa vai para a equipe.", placeholder: "Não estou conseguindo enviar {{anexo}} por aqui. Vou chamar alguém da equipe para te mandar por outro caminho." },
+  { key: "mediaNotArriving", label: "Anexo não chega", when: "Já foi enviado duas vezes e o cliente segue sem receber; a conversa vai para a equipe.", placeholder: "Já enviei {{anexo}} duas vezes e ele não está chegando aí. Vou chamar alguém da equipe para te mandar por outro caminho." },
+  { key: "humanRequestAsk", label: "Pedido de atendente sem assunto", when: "O cliente pede uma pessoa sem dizer o assunto; a transferência vem na mensagem seguinte.", placeholder: "Claro! Antes de te passar para a equipe, me conta em uma frase o que você precisa, para eu encaminhar certo." },
+  { key: "returnPromiseHandoff", label: "Promessa de retorno", when: "O modelo escreveu “vou verificar e te retorno” sem transferir: a frase é trocada por esta e a conversa vai para a equipe.", placeholder: "Preciso passar isso para um atendente da equipe que vai te ajudar agora." },
+  { key: "loopWarning", label: "Mensagem repetida", when: "O cliente manda a mesma mensagem várias vezes seguidas.", placeholder: "Recebi a mesma mensagem algumas vezes. Se precisar de algo diferente, me conta com outras palavras." },
+  { key: "identificationRetry", label: "Identificação não encontrada", when: "O cliente responde o pedido de identificação sem e-mail nem documento.", placeholder: "Não encontrei um e-mail ou documento na sua mensagem. Pode me enviar o e-mail ou o documento usado no cadastro?" },
+  { key: "queueOutsideHours", label: "Fila fora do horário", when: "Quem escreve na fila fora do expediente, quando o “Aviso de fila” acima está vazio.", placeholder: "Você já está na fila de atendimento. Sua mensagem fica registrada e alguém da equipe continua com você por aqui no próximo horário de atendimento." },
+  { key: "queueCancel", label: "Fila: cliente quer desistir", when: "Na fila, o cliente diz que quer cancelar ou desistir.", placeholder: "Padrão: texto pronto que registra o pedido para a equipe." },
+  { key: "queueUpset", label: "Fila: cliente reclamando", when: "Na fila, o cliente reclama da espera.", placeholder: "Padrão: alterna textos de desculpa sem repetir o último." },
+  { key: "queueCall", label: "Fila: cliente chamando", when: "Na fila, o cliente escreve “alô?”, “alguém?”, “?”.", placeholder: "Padrão: alterna textos de presença sem repetir o último." },
+  { key: "queueAgain", label: "Fila: nova mensagem", when: "Na fila, o cliente escreve outra coisa.", placeholder: "Padrão: alterna textos de “recebido” sem repetir o último." },
+  { key: "optionsPrompt", label: "Texto acima das opções", when: "Quando a resposta é longa demais para ir junto da lista de opções.", placeholder: "Escolha uma opção:" },
+  { key: "optionsButton", label: "Botão da lista de opções", when: "Botão que abre a lista (até 20 caracteres).", placeholder: "Ver opções", max: 20 },
+];
+
+function SystemMessagesCard({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  const values = (getPath(config, "systemMessages", {}) as Record<string, string> | null) ?? {};
+  const customized = SYSTEM_MESSAGES.filter((m) => (values[m.key] ?? "").trim()).length;
+  return (
+    <SectionCard
+      title="Mensagens automáticas"
+      description={`Textos que o próprio sistema escreve ao cliente em situações fixas (fila, reenvio de arquivo, repetição…). Vazio usa o padrão. ${customized > 0 ? `${customized} personalizada(s).` : "Todas no padrão."}`}
+    >
+      <div className="space-y-4">
+        {SYSTEM_MESSAGES.map((m) => (
+          <Field key={m.key} label={m.label} hint={m.when}>
+            {m.max ? (
+              <Input
+                value={values[m.key] ?? ""}
+                maxLength={m.max}
+                placeholder={m.placeholder}
+                onChange={(e) => onChange(`systemMessages.${m.key}`, e.target.value)}
+              />
+            ) : (
+              <Textarea
+                value={values[m.key] ?? ""}
+                placeholder={m.placeholder}
+                onChange={(e) => onChange(`systemMessages.${m.key}`, e.target.value)}
+              />
+            )}
+          </Field>
+        ))}
+      </div>
+    </SectionCard>
   );
 }
 
