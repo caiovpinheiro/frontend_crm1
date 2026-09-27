@@ -82,6 +82,20 @@ type Item = {
   error: string | null;
   outcome: Outcome | null;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  /** Por que o agente respondeu assim: decisão do modelo, causa da transferência e passos-chave. */
+  why?: { reason: string | null; cause: string | null; forwardedTo: string | null; steps: string[] } | null;
+};
+
+const HANDOFF_CAUSE: Record<string, string> = {
+  model: "decisão do modelo",
+  human_request: "cliente pediu pessoa",
+  verification: "citava algo que não está nos materiais",
+  no_source: "nada nos materiais",
+  rule: "atalho",
+  direct_theme: "assunto que só encaminha",
+  sentiment: "cliente irritado",
+  guard: "promessa de retorno",
+  message_model_not_allowed: "mensagem pronta não liberada",
 };
 
 type Metrics = {
@@ -1251,6 +1265,39 @@ function PointCard({ item }: { item: Item }) {
               <span className="font-semibold">Inventado: </span>
               {v.invencao}
             </p>
+          </div>
+        )}
+
+        {item.why && (item.why.reason || item.why.cause || item.why.forwardedTo) && !item.error && (
+          <div className="space-y-1 rounded-xl border border-dashed border-border px-3.5 py-2.5 text-[12.5px] text-muted-foreground">
+            {item.why.forwardedTo && (
+              <p>
+                <span className="font-medium text-foreground">Passou para o agente de IA: </span>
+                {item.why.forwardedTo} — a resposta acima inclui a dele.
+              </p>
+            )}
+            {item.agentHandoff && item.why.cause && (
+              <p>
+                <span className="font-medium text-foreground">Por que transferiu: </span>
+                {HANDOFF_CAUSE[item.why.cause] ?? item.why.cause}
+              </p>
+            )}
+            {item.why.reason && (
+              <p>
+                <span className="font-medium text-foreground">Decisão do agente: </span>
+                {item.why.reason}
+              </p>
+            )}
+            {item.why.steps.length > 0 && (
+              <details>
+                <summary className="cursor-pointer select-none text-xs">Passos ({item.why.steps.length})</summary>
+                <ul className="mt-1 space-y-0.5 text-[11.5px]">
+                  {item.why.steps.map((st, i) => (
+                    <li key={i}>{st}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         )}
 
