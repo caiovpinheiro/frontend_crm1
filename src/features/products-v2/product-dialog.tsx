@@ -35,6 +35,7 @@ import { useCatalogs } from "@/features/catalogs-v2/hooks";
 import { capabilityMeta } from "@/features/catalogs-v2/constants";
 
 import { InventoryPanel } from "./inventory-panel";
+import { ProductMessagePreview } from "./product-message-preview";
 import { OffersSection } from "./offers-section";
 import { StakeholdersSection } from "./stakeholders-section";
 import {
@@ -1403,6 +1404,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
           {/* Seções que exigem produto salvo */}
           {isEdit && productId && (
             <>
+              <div className={sectionClass}>
+                <ProductMessagePreview productId={productId} />
+              </div>
               <OffersSection productId={productId} basePrice={Number(price) || 0} />
               <div className={sectionClass}>
                 <p className={sectionTitleClass}>
