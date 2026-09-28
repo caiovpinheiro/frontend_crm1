@@ -43,6 +43,12 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { SUBTLE_SPRING } from "@/lib/design-system";
 import { MoveToStageMenu } from "@/features/pipeline-v2/extras/move-to-stage-menu";
 import {
+  useMoveDeal,
+  type MoveVars,
+} from "@/features/pipeline-v2/hooks/use-deal-mutations";
+import { usePipelineLossReasons } from "@/features/pipeline-v2/hooks/use-pipeline-loss-reasons";
+import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
+import {
   computePopoverPosition,
   usePortalPopover,
 } from "@/features/pipeline-v2/extras/use-portal-popover";
@@ -318,6 +324,157 @@ export function DealMoveStageButton({
           )
         : null}
     </div>
+  );
+}
+
+/**
+ * Nome da etapa no hero do Flow — o mesmo dropdown do painel do Kanban.
+ * O pai força o botão para branco/uppercase; aqui só o gatilho e o menu.
+ */
+export function HubStageDropdown({
+  dealId,
+  currentStageId,
+  stages,
+  pipelineId,
+  statusFilter,
+}: {
+  dealId: string;
+  currentStageId: string;
+  stages: BoardStage[];
+  pipelineId: string;
+  statusFilter: StatusFilter;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [pendingLost, setPendingLost] = React.useState<MoveVars | null>(null);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const canMove = useCan("deal:change_stage");
+  const move = useMoveDeal(pipelineId, statusFilter);
+  const lossMeta = usePipelineLossReasons(pipelineId, { enabled: !!pendingLost });
+  const current = stages.find((s) => s.id === currentStageId);
+  const disabled = move.isPending || !canMove;
+
+  React.useEffect(() => {
+    if (!pendingLost || lossMeta.isPending) return;
+    if (!lossMeta.data?.lossReasonRequired) {
+      move.mutate(pendingLost);
+      setPendingLost(null);
+    }
+  }, [pendingLost, lossMeta.isPending, lossMeta.data, move]);
+
+  function requestMove(stageId: string, toPipelineId?: string | null) {
+    if (!canMove || stageId === currentStageId) return;
+    const vars: MoveVars = {
+      dealId,
+      fromStageId: currentStageId,
+      toStageId: stageId,
+      toPipelineId: toPipelineId ?? null,
+    };
+    const target = stages.find((s) => s.id === stageId);
+    if (target?.isLost) {
+      setPendingLost(vars);
+      return;
+    }
+    move.mutate(vars);
+  }
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as Node;
+      if (ref.current?.contains(target)) return;
+      const menu = document.getElementById("hub-stage-dropdown-menu");
+      if (menu?.contains(target)) return;
+      setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  React.useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const b = triggerRef.current.getBoundingClientRect();
+    const longest = stages.reduce((n, s) => Math.max(n, s.name.length), 0);
+    const menuWidth = Math.min(
+      Math.max(240, longest * 9 + 72),
+      Math.min(340, window.innerWidth - 16),
+    );
+    const wouldOverflow = b.left + menuWidth > window.innerWidth - 8;
+    const left = wouldOverflow ? Math.max(8, b.right - menuWidth) : b.left;
+    setPos({ top: b.bottom + 6, left, width: menuWidth });
+  }, [open, stages]);
+
+  return (
+    <>
+      <div ref={ref} className="relative min-w-0">
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={disabled}
+          title={canMove ? "Mover de fila" : "Sem permissão para mover entre etapas"}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => {
+            if (!canMove) return;
+            setOpen((v) => !v);
+          }}
+          className={cn(
+            "flex max-w-full items-center gap-1.5 text-left",
+            move.isPending && "cursor-wait",
+            !canMove && "cursor-default",
+          )}
+        >
+          <span
+            className="inline-block size-2 shrink-0 rounded-full"
+            style={{ background: current?.color ?? "var(--brand-primary)" }}
+          />
+          <span className="truncate">{current?.name ?? "Selecionar fase"}</span>
+          <ChevronDown
+            className={cn(
+              "shrink-0 transition-transform duration-150",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+        {open && pos && typeof document !== "undefined"
+          ? createPortal(
+              <div
+                id="hub-stage-dropdown-menu"
+                role="listbox"
+                style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width }}
+                className="z-(--z-popover) overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-white py-1 shadow-[0_8px_24px_rgba(15,20,40,0.14)] v2-dark:bg-[#1a1f2e] v2-dark:shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+              >
+                <MoveToStageMenu
+                  stages={stages}
+                  currentStageId={currentStageId}
+                  currentPipelineId={pipelineId}
+                  isPending={move.isPending}
+                  onSelect={(stageId, toPipeId) => {
+                    requestMove(stageId, toPipeId);
+                    setOpen(false);
+                  }}
+                />
+              </div>,
+              document.body,
+            )
+          : null}
+      </div>
+      <LossReasonDialog
+        open={!!pendingLost && !!lossMeta.data?.lossReasonRequired}
+        onOpenChange={(o) => {
+          if (!o) setPendingLost(null);
+        }}
+        pipelineId={pipelineId}
+        title="Mover para Perdido"
+        description="Informe o motivo da perda para concluir a movimentação."
+        onConfirm={(reason) => {
+          if (!pendingLost) return;
+          move.mutate({ ...pendingLost, lostReason: reason });
+          setPendingLost(null);
+        }}
+      />
+    </>
   );
 }
 
