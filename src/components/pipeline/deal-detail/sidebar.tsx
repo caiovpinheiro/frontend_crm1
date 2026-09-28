@@ -751,7 +751,24 @@ export function DealProductsSection({
     return item.productKind === "COURSE" && item.productType !== "SERVICE";
   }
 
+  async function loadConfiguredProductMessage(item: DealProductItem): Promise<string | null> {
+    const params = new URLSearchParams();
+    if (item.unitPrice != null) params.set("unitPrice", String(item.unitPrice));
+    if (item.discount != null) params.set("discount", String(item.discount));
+    if (item.quantity != null) params.set("quantity", String(item.quantity));
+    const res = await fetch(apiUrl(`/api/products/${item.productId}/message?${params}`));
+    if (!res.ok) return null;
+    const data = (await res.json()) as { text?: string | null };
+    return data.text?.trim() ? data.text : null;
+  }
+
   async function messageForProductItem(item: DealProductItem): Promise<string> {
+    try {
+      const configured = await loadConfiguredProductMessage(item);
+      if (configured) return configured;
+    } catch {
+      // sem modelo: segue o texto atual
+    }
     if (usesCourseOfferCopy(item)) {
       try {
         const message = await loadCourseOfferMessage(item);

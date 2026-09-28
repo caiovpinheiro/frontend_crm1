@@ -32,7 +32,6 @@ import type { BoardStage } from "@/components/pipeline/kanban-board";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import { AppLoading } from "@/components/crm/app-loading";
 import { ConversationPaneSkeleton } from "@/components/crm/conversation-skeleton";
-import { ScrollMap } from "@/components/crm/scroll-map";
 import { useStageUrlSync } from "@/features/pipeline-v2/hooks";
 import { StageRibbon } from "@/components/sales-hub/stage-ribbon";
 import {
@@ -1119,12 +1118,6 @@ export function SalesHubView({
           </aside>
         ) : null}
       </div>
-
-      <ScrollMap
-        boardRef={ribbonScrollRef}
-        columnCount={funnelStages.length + 1}
-        className="max-md:hidden"
-      />
 
       <Dialog open={convListOpen} onOpenChange={setConvListOpen}>
         <DialogContent className="max-w-md">

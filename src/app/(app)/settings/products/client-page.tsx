@@ -4,10 +4,12 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   IconBoxMultiple,
+  IconMessage,
   IconPackage,
   IconTicket,
 } from "@tabler/icons-react";
 
+import { ProductMessagesPage } from "@/features/products-v2/product-messages-page";
 import { ProductsV2Page } from "@/features/products-v2/products-page";
 import { CatalogsManager } from "@/features/catalogs-v2/catalogs-page";
 import { QuotasPage } from "@/features/quotas/quotas-page";
@@ -22,6 +24,7 @@ const TAB_META: (SettingsTab & { permission: string })[] = [
   { id: "catalog", label: "Catálogo", icon: IconBoxMultiple, permission: "catalog:view" },
   { id: "products", label: "Produtos", icon: IconPackage, permission: "product:view" },
   { id: "cotas", label: "Cotas de desconto", icon: IconTicket, permission: "quota:view" },
+  { id: "mensagens", label: "Mensagens", icon: IconMessage, permission: "product:view" },
 ];
 
 export default function ProductsV2ClientPage() {
@@ -66,7 +69,7 @@ export default function ProductsV2ClientPage() {
     <SettingsV2Shell
       back={SETTINGS_HUB_BACK}
       title="Produtos"
-      description="Catálogo, produtos e cotas de desconto"
+      description="Catálogo, produtos, cotas e mensagens de envio"
       icon={<IconPackage size={22} />}
       shrinkActions
     >
@@ -89,6 +92,7 @@ export default function ProductsV2ClientPage() {
             <ProductsV2Page onHeaderMenu={setProductMenu} />
           )}
           {active === "cotas" && <QuotasPage />}
+          {active === "mensagens" && <ProductMessagesPage />}
         </>
       )}
     </SettingsV2Shell>

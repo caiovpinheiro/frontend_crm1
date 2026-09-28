@@ -3,7 +3,6 @@
 /**
  * StageRibbon — controle segmentado das etapas do funil no Flow.
  * Trilha única, segmentos de largura igual; a faixa rola na horizontal quando não cabe.
- * O ScrollMap do Flow (mesmo do Kanban) navega esse recorte.
  */
 
 import { type RefObject } from "react";
@@ -25,7 +24,7 @@ type StageRibbonProps = {
   onSelectStage: (stageId: string | null) => void;
   /** Menos altura — com deal ativo no hub, libera espaço para o chat. */
   compact?: boolean;
-  /** Faixa rolável — o ScrollMap do parent usa o mesmo ref. */
+  /** Faixa rolável do ribbon. */
   scrollerRef?: RefObject<HTMLDivElement | null>;
 };
 
