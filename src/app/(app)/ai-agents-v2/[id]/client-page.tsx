@@ -3868,6 +3868,15 @@ function SearchableToggleList({
   );
 }
 
+/** Material + mensagem pronta no mesmo turno (espelha MESSAGE_MODEL_MODES do backend). */
+const MESSAGE_MODEL_MODE_OPTIONS: Array<{ value: string; label: string; hint: string }> = [
+  { value: "auto", label: "Automático (recomendado)", hint: "Se a mensagem pronta repete o que a resposta explica, vai uma frase de introdução e a mensagem pronta; se traz outra coisa, vão as duas." },
+  { value: "both", label: "Enviar as duas", hint: "A resposta completa, feita com os materiais, e depois a mensagem pronta." },
+  { value: "message_model", label: "Só a mensagem pronta", hint: "Uma frase de introdução e a mensagem pronta (texto e arquivos)." },
+  { value: "answer", label: "Só a resposta", hint: "A resposta feita com os materiais; da mensagem pronta seguem só os arquivos (vídeo, imagem)." },
+  { value: "combine", label: "Combinar numa mensagem só", hint: "O agente junta o conteúdo da mensagem pronta na resposta dele, com os mesmos links e passos; os arquivos seguem depois." },
+];
+
 function StepMessagesProducts({
   config,
   catalogs,
@@ -3908,6 +3917,23 @@ function StepMessagesProducts({
             aria-label="Adaptar o texto à conversa"
           />
         </label>
+        <Field
+          label="Quando há material e mensagem pronta sobre o mesmo pedido"
+          hint={MESSAGE_MODEL_MODE_OPTIONS.find((o) => o.value === ((config.messageModelMode as string) || "auto"))?.hint}
+        >
+          <Select value={(config.messageModelMode as string) || "auto"} onValueChange={(v) => onChange("messageModelMode", v === "auto" ? undefined : v)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MESSAGE_MODEL_MODE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
       </SectionCard>
 
       <SectionCard title="Catálogo" description="Se ele pode falar dos produtos e serviços cadastrados no CRM.">
@@ -4960,6 +4986,28 @@ function ThemeEditor({
                 selected={((t.allowedMessageModelIds as string[]) ?? []).map(String)}
                 onChange={(v) => onPatch({ allowedMessageModelIds: v })}
               />
+            </Field>
+            <Field
+              label="Material e mensagem pronta juntos"
+              hint={
+                (t.messageModelMode as string)
+                  ? MESSAGE_MODEL_MODE_OPTIONS.find((o) => o.value === t.messageModelMode)?.hint
+                  : "Usa a escolha do agente (O que ele sabe › Mensagens prontas)."
+              }
+            >
+              <Select value={(t.messageModelMode as string) || "inherit"} onValueChange={(v) => onPatch({ messageModelMode: v === "inherit" ? undefined : v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inherit">Igual ao agente</SelectItem>
+                  {MESSAGE_MODEL_MODE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
           </EditorBlock>
         )}
