@@ -57,9 +57,8 @@ export function ProfileSidebarCard() {
       <div className="min-w-0">
         <h2 className="text-sm font-semibold text-foreground">Menu lateral</h2>
         <p className="mt-0.5 max-w-xl text-sm text-muted-foreground">
-          Organize a ordem e quais ícones aparecem na NavRail. Só entram
-          módulos que sua permissão libera — por exemplo Bwipo Chat, se você
-          puder ver o chat interno.
+          Organize a ordem e quais ícones aparecem na NavRail. O que o
+          papel desligou não entra nesta lista e não volta para o menu.
         </p>
       </div>
 
