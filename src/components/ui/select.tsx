@@ -180,6 +180,9 @@ function collectItemLabels(
   });
 }
 
+/** Altura máxima da lista (antes `max-h-60`). */
+const LIST_MAX_HEIGHT = 240;
+
 function SelectContent({
   className,
   children,
@@ -188,7 +191,14 @@ function SelectContent({
   const { open, setOpen, triggerRef, labels, registerLabel } =
     useSelectContext("SelectContent");
   const ref = React.useRef<HTMLDivElement>(null);
-  const [position, setPosition] = React.useState<{ top: number; left: number; width: number } | null>(null);
+  const [position, setPosition] = React.useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    up: boolean;
+  } | null>(null);
   // Dentro de um modal/painel (<dialog> no top layer) a lista porta para
   // dentro dele; no body ela ficava atrás do backdrop e sem clique.
   const portalContainer = useModalPortalContainer();
@@ -203,10 +213,20 @@ function SelectContent({
       const trigger = triggerRef.current;
       if (!trigger) return;
       const rect = trigger.getBoundingClientRect();
+      // Posição fixa = coordenadas da janela. Perto do fim da tela a lista
+      // abria para baixo e ficava cortada: sem espaço embaixo, abre para cima,
+      // e a altura acompanha o espaço que sobra.
+      const margin = 8;
+      const below = window.innerHeight - rect.bottom - margin;
+      const above = rect.top - margin;
+      const wanted = Math.min(ref.current?.scrollHeight ?? LIST_MAX_HEIGHT, LIST_MAX_HEIGHT);
+      const up = below < wanted && above > below;
       setPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
+        ...(up ? { bottom: window.innerHeight - rect.top } : { top: rect.bottom }),
+        left: rect.left,
         width: rect.width,
+        maxHeight: Math.max(120, Math.min(LIST_MAX_HEIGHT, up ? above : below)),
+        up,
       });
     };
     updatePosition();
@@ -237,12 +257,15 @@ function SelectContent({
       style={{
         position: "fixed",
         top: position.top,
+        bottom: position.bottom,
         left: position.left,
         width: position.width,
+        maxHeight: position.maxHeight,
         zIndex: 50,
       }}
       className={cn(
-        "mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
+        position.up ? "mb-1" : "mt-1",
+        "overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
         className
       )}
       {...props}
