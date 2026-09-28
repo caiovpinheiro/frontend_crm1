@@ -64,8 +64,8 @@ export function toPersistItems(
 }
 
 /**
- * Itens editáveis no Perfil: o que a permissão do usuário libera
- * (`availableKeys`). Menu antigo do papel não esconde módulo autorizado.
+ * Itens editáveis no Perfil: só o que o papel deixou ligado.
+ * Item desligado na role não aparece aqui — o usuário não religa.
  */
 export function toPersonalEditorItems(
   prefs: SidebarPreferencesResponse | undefined,
@@ -74,8 +74,14 @@ export function toPersonalEditorItems(
   const available = prefs.availableKeys?.length
     ? new Set(prefs.availableKeys)
     : null;
+  const roleOff = new Set(
+    (prefs.roleSidebar?.items ?? [])
+      .filter((it) => it.enabled === false)
+      .map((it) => it.key),
+  );
   return toEditorItems(prefs.sidebar.items).filter((it) => {
     if (available && !available.has(it.key)) return false;
+    if (roleOff.has(it.key)) return false;
     return true;
   });
 }

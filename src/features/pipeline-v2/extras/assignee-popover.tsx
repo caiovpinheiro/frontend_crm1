@@ -67,11 +67,13 @@ export function AssigneePopover({
   const { open, rect, triggerRef, popoverRef, toggle, close } = usePortalPopover();
   const [filter, setFilter] = useState("");
 
-  // Mesma regra do backend: `deal:transfer_owner` libera qualquer negócio;
-  // `deal:edit` cobre entregar um negócio próprio/sem dono.
+  // `deal:transfer_owner` é obrigatório para trocar ou remover o responsável
+  // de um negócio que já tem dono. `deal:edit` só assume card sem dono.
   const canTransferOwner = useCan("deal:transfer_owner");
   const canEditDeal = useCan("deal:edit");
-  const readOnly = Boolean(disabled) || (!canTransferOwner && !canEditDeal);
+  const readOnly =
+    Boolean(disabled) ||
+    (!canTransferOwner && !(canEditDeal && !currentOwnerId));
 
   const { data: users = [], isLoading } = useTeamUsers(open, { includeAi: true });
   const update = useUpdateDeal(pipelineId, statusFilter);
