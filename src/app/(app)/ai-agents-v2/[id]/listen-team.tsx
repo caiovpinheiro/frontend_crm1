@@ -575,19 +575,25 @@ export function ListenHomeCard({ agentId, onOpen }: { agentId: string; onOpen: (
   const s = state.data?.session;
   const open = (state.data?.proposals ?? []).filter((p) => p.status === "open").length;
   const active = s && (s.status === "on" || s.status === "paused");
-  if (!active && open === 0) return null;
+  // Sempre visível: escondido sem escuta ativa, ninguém achava a opção (fica
+  // na 6ª aba de "O que ele sabe").
+  const idle = !active && open === 0;
   return (
     <section className={cn(SURFACE, "flex flex-wrap items-center gap-3 p-5")}>
       <IconChip icon={IconEar} tone="teal" />
       <div className="min-w-0 flex-1">
         <h3 className="text-[15px] font-semibold leading-tight">Escutar a equipe</h3>
         <p className="text-[13px] text-muted-foreground">
-          {active ? `${STATUS[s!.status].label} ${s!.people.map((p) => p.name).join(", ")} · ${until(s!)}` : "Escuta encerrada"}
+          {idle
+            ? "O agente acompanha atendimentos reais de quem você escolher e propõe materiais, jeito de conduzir e tom de voz. Você decide o que entra."
+            : active
+              ? `${STATUS[s!.status].label} ${s!.people.map((p) => p.name).join(", ")} · ${until(s!)}`
+              : "Escuta encerrada"}
           {open > 0 ? ` · ${open} proposta${open === 1 ? "" : "s"} para decidir` : ""}
         </p>
       </div>
-      <Button size="sm" variant="ghost" onClick={onOpen}>
-        Ver
+      <Button size="sm" variant={idle ? "outline" : "ghost"} onClick={onOpen}>
+        {idle ? "Escolher quem escutar" : "Ver"}
       </Button>
     </section>
   );
