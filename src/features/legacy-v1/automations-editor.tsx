@@ -25,7 +25,7 @@ import {
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { AutomationStats } from "@/lib/automation-stats-types";
@@ -802,9 +802,16 @@ export default function AutomationDetailPage() {
     setStepLogsId(stepId);
   }, []);
 
+  // Refetch de ["automation", id] (foco na janela, reconexão) não pode
+  // sobrescrever edição não salva — o passo que o operador acabou de
+  // configurar voltava pro estado do servidor sem aviso.
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+
   useEffect(() => {
     const d = detailQuery.data;
     if (!d) return;
+    if (dirtyRef.current) return;
     setName(d.name);
     setDescription(d.description ?? "");
     setTriggerType(d.triggerType);
