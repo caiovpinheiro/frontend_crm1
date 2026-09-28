@@ -337,7 +337,9 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
 
   useLayoutEffect(() => {
     if (!pipelineId || !canFetch) return;
-    if (normalIdleUnfetched) void boardNormal.refetch();
+    // Com filtro o GET paginado está desligado — refetch nele não serve
+    // a fila e reabre o ciclo de idle.
+    if (!hasServerBoard && normalIdleUnfetched) void boardNormal.refetch();
     if (hasServerBoard && filteredIdleUnfetched) void boardFiltered.refetch();
     // refetch() é estável o bastante; objetos do useQuery mudam todo render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,9 +357,14 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     !boardError &&
     (boardFetching || idleHold);
 
+  // O POST do filtro é lento. `isFetching` também liga no refetch de
+  // fundo. Escurecer a página só enquanto o resultado desse filtro ainda
+  // não chegou — com dado na tela, um refetch não pode parecer refresh.
   const boardRefreshing =
     filtersPendingDebounce ||
-    (hasServerBoard && (boardFiltered.isFetching || boardFiltered.isPending));
+    (hasServerBoard &&
+      (boardFiltered.isPlaceholderData || !boardFiltered.data) &&
+      (boardFiltered.isFetching || boardFiltered.isPending));
 
   // Enquanto o POST não resolve: NÃO zerar a fila (`?? []`). placeholderData
   // do hook cobre filtro→filtro; normal→filtrado cai no GET em cache.
