@@ -597,8 +597,15 @@ export function summarizeStepConfig(stepType: string, config: unknown, lookup?: 
     case "transfer_department":
       return resolveNamed(c.departmentId, lookup, c.departmentName, "Departamento") ?? "Selecionar departamento";
     case "add_tag":
-    case "remove_tag":
-      return resolveNamed(c.tagId, lookup, c.tagName, "Tag") ?? "Definir tag";
+    case "remove_tag": {
+      // O passo guarda só o NOME da tag (`tagName`), sem id — então o
+      // resumo não pode depender de `tagId`/lookup, senão o card fica
+      // preso em "Definir tag" mesmo com a tag escolhida.
+      const byId = resolveNamed(c.tagId, lookup, c.tagName, "Tag");
+      if (byId) return byId;
+      const tagName = typeof c.tagName === "string" ? c.tagName.trim() : "";
+      return tagName && !looksLikeOpaqueId(tagName) ? tagName : "Definir tag";
+    }
     case "update_field":
       return c.field ? `${String(c.field)} = ${String(c.value ?? "")}` : "Campo / valor";
     case "create_activity":
@@ -816,6 +823,9 @@ export function isStepIncomplete(
       return !str(c.agentUserId);
     case "transfer_department":
       return !str(c.departmentId);
+    case "add_tag":
+    case "remove_tag":
+      return !str(c.tagName) && !str(c.tagId);
     default:
       return false;
   }
