@@ -19,6 +19,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IconArrowLeft,
   IconBriefcase as Briefcase,
+  IconEye,
+  IconEyeOff,
   IconMessageOff as MessageSquareOff,
   IconMessages as MessagesIcon,
   IconPin as Pin,
@@ -40,6 +42,12 @@ import {
   type DealQueueSortMode,
 } from "@/components/sales-hub/deal-queue";
 import { SalesHubChat } from "@/components/sales-hub/sales-hub-chat";
+import { HubStageDropdown } from "@/components/sales-hub/deal-actions";
+import {
+  DealProductsSection,
+  DealQuotasSection,
+} from "@/components/pipeline/deal-detail/sidebar";
+import { useHideChatEvents } from "@/components/crm/chat-timeline/hide-events";
 import {
   conversationHasCallingHint,
   WhatsappCallChip,
@@ -373,15 +381,27 @@ export function SalesHubView({
   // Deep-link / seleção externa: se o deal ativo está em outra etapa, foca a aba.
   // Em "Todos" o deal já aparece na fila — focar a etapa dele aqui faria o
   // clique em "Todos" (que abre o 1º deal) saltar para a primeira etapa.
+  // Roda uma vez por deal: o board refaz `stages` a cada refetch e, sem
+  // isso, a fila voltava para a etapa do deal aberto ao clicar em outra.
+  const stageFocusedForDealRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeDealId) return;
-    if (selectedStageIdRef.current === null) return;
+    if (!activeDealId) {
+      stageFocusedForDealRef.current = null;
+      return;
+    }
+    if (stageFocusedForDealRef.current === activeDealId) return;
+    if (selectedStageIdRef.current === null) {
+      stageFocusedForDealRef.current = activeDealId;
+      return;
+    }
     const stage = stages.find((s) =>
       s.deals.some(
         (d) => d.id === activeDealId || String(d.number) === activeDealId,
       ),
     );
-    if (stage && selectedStageId !== stage.id) {
+    if (!stage) return;
+    stageFocusedForDealRef.current = activeDealId;
+    if (selectedStageId !== stage.id) {
       selectedStageIdRef.current = stage.id;
       setSelectedStageId(stage.id);
     }
@@ -489,13 +509,14 @@ export function SalesHubView({
         (activeDealId != null && String(d.number) === activeDealId),
     ) ??
     stages
-      .flatMap((s) => s.deals)
+      .flatMap((s) => s.deals.map((d) => ({ ...d, stageId: s.id })))
       .find(
         (d) =>
           d.id === activeDealId ||
           (activeDealId != null && String(d.number) === activeDealId),
       ) ??
     null;
+  const { hideEvents, toggleHideEvents } = useHideChatEvents();
 
   useMobileChatChrome(!!activeDealId);
 
@@ -925,6 +946,29 @@ export function SalesHubView({
               onConversationReopened={handleConversationReopened}
               headerActionsSlot={
                 <>
+                  <TooltipHost
+                    label={hideEvents ? "Mostrar eventos" : "Ocultar eventos"}
+                    side="bottom"
+                  >
+                    <button
+                      type="button"
+                      aria-label={hideEvents ? "Mostrar eventos" : "Ocultar eventos"}
+                      aria-pressed={hideEvents}
+                      onClick={toggleHideEvents}
+                      className={cn(
+                        "flex size-8 items-center justify-center rounded-full transition-colors",
+                        hideEvents
+                          ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
+                          : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]",
+                      )}
+                    >
+                      {hideEvents ? (
+                        <IconEyeOff className="size-4" strokeWidth={1.7} />
+                      ) : (
+                        <IconEye className="size-4" strokeWidth={1.7} />
+                      )}
+                    </button>
+                  </TooltipHost>
                   <WhatsappCallChip
                     conversationId={activeConversation.id}
                     channel={
@@ -1037,6 +1081,29 @@ export function SalesHubView({
                 isOpen={detailsOpen}
                 onClose={() => setDetailsOpen(false)}
                 deal={detailDeal}
+                funnelSegments={stages.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  color: s.color || "var(--brand-primary)",
+                  position: s.position,
+                }))}
+                stageDropdownSlot={
+                  activeDeal.stageId ? (
+                    <HubStageDropdown
+                      dealId={activeDeal.id}
+                      currentStageId={activeDeal.stageId}
+                      stages={stages}
+                      pipelineId={pipelineId}
+                      statusFilter={statusFilter}
+                    />
+                  ) : undefined
+                }
+                productsSlot={
+                  <div className="flex flex-col gap-3">
+                    <DealProductsSection dealId={activeDeal.id} compact />
+                    <DealQuotasSection dealId={activeDeal.id} />
+                  </div>
+                }
                 // Paridade com o aside do Kanban: chips + "+" no canto
                 // direito, para gerenciar tags sem sair do Flow.
                 tagsSlot={(() => {
