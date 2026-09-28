@@ -29,6 +29,16 @@ function isBoardQueryKey(key: readonly unknown[]): boolean {
   return typeof root === "string" && root.startsWith("pipeline-board");
 }
 
+/**
+ * Board paginado do GET (`["pipeline-board", ...]`).
+ * O POST filtrado/busca não entra: é pesado e a lista já está restrita.
+ * Invalidar esses caches a cada mensagem de quem não está no filtro
+ * deixava o Flow em refresh contínuo.
+ */
+function isPagedBoardQueryKey(key: readonly unknown[]): boolean {
+  return key[0] === "pipeline-board";
+}
+
 const STATUS_RANK: Record<string, number> = {
   pending: 0,
   sent: 1,
@@ -189,14 +199,18 @@ export function usePipelineRealtime(enabled = true) {
     [],
   );
 
-  // Invalidação debounced do board — só payload legado sem contactId
-  // em new_message (não dá pra achar o card). conversation_updated
+  // Invalidação debounced só do board paginado — payload legado sem
+  // contactId, ou contato fora da janela carregada. Não inclui o POST
+  // filtrado/busca: quem não está no filtro não pode refazer essa query
+  // (no Flow a tela ficava em refresh o tempo todo). conversation_updated
   // não entra: atribuir/encerrar ticket não muda a coluna do Kanban.
   const scheduleBoardRefresh = useCallback(() => {
     if (timerRef.current) return;
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
-      qc.invalidateQueries({ predicate: (q) => isBoardQueryKey(q.queryKey) });
+      qc.invalidateQueries({
+        predicate: (q) => isPagedBoardQueryKey(q.queryKey),
+      });
     }, 800);
   }, [qc]);
 
