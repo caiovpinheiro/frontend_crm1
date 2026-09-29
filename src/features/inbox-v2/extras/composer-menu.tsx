@@ -71,6 +71,7 @@ export function ComposerMenu({
   outboundDisabled,
   beforeOutboundSend,
   onOutboundBlocked,
+  onStageFiles,
   enableCallPermission,
 }: {
   conversationId: string | null;
@@ -115,6 +116,8 @@ export function ComposerMenu({
   outboundDisabled?: boolean;
   beforeOutboundSend?: () => boolean | Promise<boolean>;
   onOutboundBlocked?: () => void;
+  /** Encosta os arquivos escolhidos no composer (preview + legenda) em vez de enviar na hora. */
+  onStageFiles?: (files: File[]) => void;
   /** WhatsApp Cloud API — item "Pedir permissão de ligação". */
   enableCallPermission?: boolean;
 }) {
@@ -254,9 +257,11 @@ export function ComposerMenu({
           >
               <FilePickerButton
                 conversationId={conversationId}
+                onOpen={closeMenu}
                 disabled={outboundDisabled}
                 beforeSend={beforeOutboundSend}
                 onBlocked={onOutboundBlocked}
+                onStageFiles={onStageFiles}
                 className="w-full justify-start rounded-[var(--radius-sm)] px-3 py-2 text-left text-[12.5px] text-[var(--text-primary)] transition-colors hover:bg-primary/8 hover:text-primary [&>svg]:transition-colors hover:[&>svg]:text-primary"
               >
                 <span className="inline-flex items-center gap-2.5">
@@ -272,6 +277,7 @@ export function ComposerMenu({
                 disabled={outboundDisabled}
                 beforeSend={beforeOutboundSend}
                 onBlocked={onOutboundBlocked}
+                onStageFiles={onStageFiles}
                 className="w-full justify-start rounded-[var(--radius-sm)] px-3 py-2 text-left text-[12.5px] text-[var(--text-primary)] transition-colors hover:bg-primary/8 hover:text-primary [&>svg]:transition-colors hover:[&>svg]:text-primary"
               >
                 <span className="inline-flex items-center gap-2.5">

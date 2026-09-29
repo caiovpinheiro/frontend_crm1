@@ -23,6 +23,7 @@ import {
   IconCheck,
   IconX,
   IconCornerUpLeft,
+  IconFile,
   IconPaperclip,
 } from "@tabler/icons-react";
 
@@ -54,6 +55,13 @@ import {
 } from "@/lib/composer-insert";
 
 const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 import { ActiveBotsButton } from "./active-bots-button";
 import { AudioRecorderButton, type AudioRecordState } from "./audio-recorder-button";
@@ -296,11 +304,12 @@ export function Composer({
 
   const qc = useQueryClient();
 
-  // Imagens coladas (Ctrl+V) → ficam "encostadas" como anexos pendentes e só
-  // são enviadas quando o operador clica em enviar / pressiona Enter (mesma
-  // ideia do pendingMedia, mas guardando o File binário + URL de preview).
+  // Arquivos colados (Ctrl+V), arrastados ou escolhidos em "Anexar arquivo"
+  // → ficam "encostados" como anexos pendentes e só são enviados quando o
+  // operador clica em enviar / pressiona Enter (mesma ideia do pendingMedia,
+  // mas guardando o File binário + URL de preview; `previewUrl` só p/ imagem).
   const [pendingFiles, setPendingFiles] = useState<
-    { id: string; file: File; previewUrl: string; name: string }[]
+    { id: string; file: File; previewUrl: string | null; name: string }[]
   >([]);
   const pendingFilesRef = useRef(pendingFiles);
   useEffect(() => {
@@ -309,10 +318,14 @@ export function Composer({
   // Revoga as URLs de preview ainda pendentes ao desmontar (evita vazamento).
   useEffect(
     () => () => {
-      pendingFilesRef.current.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+      pendingFilesRef.current.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      });
     },
     [],
   );
+  // Overlay "solte o arquivo aqui" — arrastar arquivo do SO para a página.
+  const [dropActive, setDropActive] = useState(false);
 
   // ── Contexto para interpolação de templates internos ─────────────
   // Reusa a mesma queryKey do ContactAside — evita GET /contacts ×2
@@ -859,25 +872,44 @@ export function Composer({
     });
   }
 
-  // Remove uma imagem colada da fila de pendentes (revoga a URL de preview).
+  // Remove um arquivo da fila de pendentes (revoga a URL de preview).
   function removePendingFile(id: string) {
     setPendingFiles((prev) => {
       const target = prev.find((f) => f.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((f) => f.id !== id);
     });
   }
 
-  // Envia as imagens coladas encostadas (uma a uma) após o texto. Limpa o
-  // estado e revoga as URLs de preview ao final. Silencioso em erro.
-  async function flushPendingFiles() {
-    if (pendingFiles.length === 0 || !conversationId) return;
-    const files = pendingFiles;
+  // Envia os arquivos encostados, um a um, na ordem. `caption` (texto do
+  // composer) vai na legenda do PRIMEIRO arquivo — igual ao WhatsApp. Limpa
+  // o estado e revoga as URLs de preview ao final.
+  async function flushPendingFiles(caption?: string) {
+    const files = pendingFilesRef.current;
+    if (files.length === 0 || !conversationId) return;
     setPendingFiles([]);
-    await Promise.allSettled(
-      files.map((f) => sendAttachment(conversationId, f.file, { fileName: f.name })),
-    );
-    files.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+    pendingFilesRef.current = [];
+    let failed = 0;
+    for (const [index, f] of files.entries()) {
+      try {
+        await sendAttachment(conversationId, f.file, {
+          fileName: f.name,
+          channelId: selectedChannelId,
+          ...(index === 0 && caption ? { caption } : {}),
+        });
+      } catch {
+        failed += 1;
+      }
+    }
+    files.forEach((f) => {
+      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+    });
+    qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+    if (failed > 0) {
+      toast.error(
+        failed === 1 ? "Falha ao enviar 1 anexo" : `Falha ao enviar ${failed} anexos`,
+      );
+    }
   }
 
   // Limite de caption de imagem na WhatsApp Cloud API.
@@ -928,9 +960,36 @@ export function Composer({
         setSequenceSending(false);
       }
     } else {
-      if (before.length > 0 && captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
+      // Arquivo encostado (arrastado / anexado / colado) + texto curto: o
+      // texto vira legenda do primeiro arquivo, em vez de sair como
+      // mensagem separada antes dele.
+      const filesTakeCaption =
+        Boolean(conversationId) &&
+        before.length === 0 &&
+        pendingFilesRef.current.length > 0 &&
+        captionText.length > 0 &&
+        captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
+      if (filesTakeCaption && conversationId) {
+        onChange("");
+        draftRef.current = "";
+        setSequenceSending(true);
+        try {
+          await flushPendingFiles(captionText);
+          applyOutboundPreviewToInboxCaches(qc, conversationId, {
+            content: captionText,
+          });
+        } finally {
+          setSequenceSending(false);
+        }
+        await flushPendingMedia(false);
+        return;
+      }
+      if (
+        (before.length > 0 || pendingFilesRef.current.length > 0) &&
+        captionText.length > WHATSAPP_IMAGE_CAPTION_MAX
+      ) {
         toast.message(
-          "Texto longo demais para legenda do WhatsApp; enviando imagem e texto separados.",
+          "Texto longo demais para legenda do WhatsApp; enviando arquivo e texto separados.",
         );
       }
       await flushPendingMedia(true);
@@ -1039,26 +1098,88 @@ export function Composer({
 
     // Impede que o binário caia como texto no campo.
     e.preventDefault();
+    stageFiles(images, "imagem-colada");
+  }
 
+  // Encosta arquivos como anexos pendentes (preview só para imagem). O
+  // envio ocorre no fluxo normal (botão / Enter) via flushPendingFiles(),
+  // com o texto do composer como legenda do primeiro arquivo.
+  function stageFiles(files: File[], fallbackBaseName = "arquivo") {
+    if (files.length === 0) return;
     if (!conversationId) {
-      toast.error("Selecione uma conversa antes de colar uma imagem");
+      toast.error("Selecione uma conversa antes de anexar");
       return;
     }
-
-    // Encosta cada imagem como anexo pendente (com preview). O envio ocorre
-    // no fluxo normal (botão / Enter) via flushPendingFiles().
+    if (inputDisabled) {
+      warnOutboundBlocked();
+      return;
+    }
+    if (noteMode) {
+      toast.error("Nota interna não aceita anexo. Volte para Mensagem para enviar o arquivo.");
+      return;
+    }
     const now = Date.now();
-    const staged = images.map((file, i) => {
-      const ext = imageExtFromMime(file.type);
+    const staged = files.map((file, i) => {
+      const isImage = file.type.startsWith("image/");
+      const ext = isImage ? imageExtFromMime(file.type) : "bin";
       return {
         id: `${now}-${i}-${Math.random().toString(36).slice(2, 8)}`,
         file,
-        previewUrl: URL.createObjectURL(file),
-        name: file.name?.trim() || `imagem-colada-${now}-${i}.${ext}`,
+        previewUrl: isImage ? URL.createObjectURL(file) : null,
+        name: file.name?.trim() || `${fallbackBaseName}-${now}-${i}.${ext}`,
       };
     });
     setPendingFiles((prev) => [...prev, ...staged]);
+    requestAnimationFrame(() => textareaRef.current?.focus());
   }
+
+  // Arrastar arquivo do computador para a página: a janela inteira vira
+  // alvo (como WhatsApp Web / Slack). Enquanto arrasta, mostra o overlay;
+  // ao soltar, encosta os arquivos no composer — NÃO envia.
+  const stageFilesRef = useRef(stageFiles);
+  stageFilesRef.current = stageFiles;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let depth = 0;
+    const hasFiles = (e: DragEvent) =>
+      Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const onDragEnter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth += 1;
+      setDropActive(true);
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDropActive(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      depth = 0;
+      setDropActive(false);
+      // Outra drop zone da página (ex.: importar CSV) já tratou o evento.
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      stageFilesRef.current(files, "arquivo-arrastado");
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, []);
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Deixa o slash menu consumir Up/Down/Enter/Esc/Tab primeiro
@@ -1161,7 +1282,27 @@ export function Composer({
         </div>
       )}
 
-      {/* Imagens coladas (Ctrl+V) — encostadas; enviadas junto no próximo envio. */}
+      {/* Overlay de drop — arquivo do SO sendo arrastado sobre a página. */}
+      {dropActive && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center bg-[var(--brand-primary)]/10 backdrop-blur-[2px]"
+        >
+          <div className="flex items-center gap-3 rounded-[var(--radius-2xl)] border-2 border-dashed border-[var(--brand-primary)] bg-[var(--glass-bg-strong)] px-6 py-4 shadow-[var(--glass-shadow-lg)]">
+            <IconPaperclip size={22} className="text-[var(--brand-primary)]" />
+            <div className="font-body">
+              <p className="text-[14px] font-semibold text-[var(--text-primary)]">
+                Solte para anexar à conversa
+              </p>
+              <p className="text-[12px] text-[var(--text-secondary)]">
+                O arquivo fica no composer; você escreve a legenda e envia.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Arquivos encostados (colados, arrastados ou anexados) — enviados no próximo envio. */}
       {pendingFiles.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {pendingFiles.map((f) => (
@@ -1169,19 +1310,30 @@ export function Composer({
               key={f.id}
               className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2 py-1.5 shadow-[var(--glass-shadow-sm)]"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={f.previewUrl}
-                alt={f.name}
-                className="h-9 w-9 shrink-0 rounded-[var(--radius-sm)] object-cover"
-              />
-              <span className="max-w-[140px] truncate font-body text-[12px] text-[var(--text-secondary)]">
-                {f.name}
+              {f.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={f.previewUrl}
+                  alt={f.name}
+                  className="h-9 w-9 shrink-0 rounded-[var(--radius-sm)] object-cover"
+                />
+              ) : (
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
+                  <IconFile size={18} />
+                </span>
+              )}
+              <span className="flex min-w-0 flex-col">
+                <span className="max-w-[160px] truncate font-body text-[12px] text-[var(--text-primary)]">
+                  {f.name}
+                </span>
+                <span className="font-body text-[10.5px] text-[var(--text-muted)]">
+                  {formatFileSize(f.file.size)}
+                </span>
               </span>
               <button
                 type="button"
                 onClick={() => removePendingFile(f.id)}
-                aria-label="Remover imagem"
+                aria-label="Remover anexo"
                 className="shrink-0 rounded-full p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]"
               >
                 <IconX size={14} />
@@ -1430,6 +1582,7 @@ export function Composer({
               outboundDisabled={inputDisabled}
               beforeOutboundSend={confirmChannelSwitchIfNeeded}
               onOutboundBlocked={warnOutboundBlocked}
+              onStageFiles={(files) => stageFiles(files)}
               enableCallPermission={enableCallPermission}
             />
             <div ref={emojiWrapRef} className="relative">
