@@ -34,7 +34,8 @@ import type { BoardStage } from "@/components/pipeline/kanban-board";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import { AppLoading } from "@/components/crm/app-loading";
 import { ConversationPaneSkeleton } from "@/components/crm/conversation-skeleton";
-import { useStageUrlSync } from "@/features/pipeline-v2/hooks";
+import { useDealDetail, useStageUrlSync } from "@/features/pipeline-v2/hooks";
+import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { StageRibbon } from "@/components/sales-hub/stage-ribbon";
 import {
   DealQueue,
@@ -143,6 +144,46 @@ async function fetchContactConversations(
     : Array.isArray(data)
       ? data
       : [];
+}
+
+/** Mesma escolha do Kanban: ticket aberto primeiro, senão o mais recente. */
+function pickActiveConversation(
+  rows: ConversationRow[],
+  pickedId: string | null,
+): ConversationRow | null {
+  if (rows.length === 0) return null;
+  if (pickedId) {
+    const picked = rows.find((c) => c.id === pickedId);
+    if (picked) return picked;
+  }
+  return rows.find((c) => c.status !== "RESOLVED") ?? rows[0] ?? null;
+}
+
+type DealConversationSource = {
+  id: string;
+  number?: number | null;
+  channel?: string | null;
+  status?: string | null;
+  updatedAt?: string;
+  lastInboundAt?: string | null;
+  assignedTo?: { id: string; name: string; email?: string | null } | null;
+  departmentId?: string | null;
+  department?: { id: string; requireTabulationOnClose?: boolean } | null;
+};
+
+function conversationFromDeal(c: DealConversationSource): ConversationRow {
+  return {
+    id: c.id,
+    number: c.number ?? null,
+    channel: c.channel ?? "",
+    status: c.status ?? "OPEN",
+    updatedAt: c.updatedAt ?? "",
+    lastInboundAt: c.lastInboundAt ?? null,
+    assignedToId: c.assignedTo?.id ?? null,
+    assignedTo: c.assignedTo ?? null,
+    departmentId: c.departmentId ?? c.department?.id ?? null,
+    department: c.department ?? null,
+  };
 }
 
 function SalesHubChatEmptyState({
@@ -522,30 +563,41 @@ export function SalesHubView({
 
   useMobileChatChrome(!!activeDealId);
 
-  // Resolve a conversa do contato do deal ativo. Usa o mesmo endpoint
-  // que o inbox/deal-detail consome — garante que a conversa carregada
-  // é exatamente a mesma independente do ponto de entrada (inbox, kanban
-  // card, list view ou sales hub).
+  // A lista da caixa (`GET /api/conversations`) aplica visibilidade de
+  // inbox e pode vir vazia mesmo com o negócio aberto no funil. O Kanban
+  // lê os tickets em `GET /api/deals/:id` (contact.conversations). O Flow
+  // usa essa mesma lista e só cai na caixa quando o detalhe não traz nada.
   const activeContactId =
     activeDeal?.contact?.id ?? detailDeal?.contactId ?? null;
-  const { data: contactConversations = [], isLoading: conversationsLoading } =
+  const { data: dealForChat, isLoading: dealChatLoading } = useDealDetail(
+    activeDealId ?? null,
+  );
+  const dealConversations = useMemo(() => {
+    const list =
+      (
+        dealForChat?.contact as
+          | { conversations?: DealConversationSource[] }
+          | null
+          | undefined
+      )?.conversations ?? [];
+    return list.map(conversationFromDeal);
+  }, [dealForChat]);
+  const { data: inboxConversations = [], isLoading: inboxConversationsLoading } =
     useQuery({
       queryKey: ["saleshub-contact-conversations", activeContactId],
       queryFn: () => fetchContactConversations(activeContactId!),
-      enabled: !!activeContactId,
+      enabled: !!activeContactId && dealConversations.length === 0 && !dealChatLoading,
       staleTime: 30_000,
     });
-  const activeConversation = useMemo(() => {
-    if (contactConversations.length === 0) return null;
-    if (pickedConversationId) {
-      return (
-        contactConversations.find((c) => c.id === pickedConversationId) ??
-        contactConversations[0] ??
-        null
-      );
-    }
-    return contactConversations[0] ?? null;
-  }, [contactConversations, pickedConversationId]);
+  const contactConversations =
+    dealConversations.length > 0 ? dealConversations : inboxConversations;
+  const conversationsLoading =
+    (!!activeDealId && dealChatLoading && !dealForChat) ||
+    (dealConversations.length === 0 && inboxConversationsLoading);
+  const activeConversation = useMemo(
+    () => pickActiveConversation(contactConversations, pickedConversationId),
+    [contactConversations, pickedConversationId],
+  );
 
   const queryClient = useQueryClient();
 
@@ -557,8 +609,11 @@ export function SalesHubView({
       queryClient.invalidateQueries({
         queryKey: ["saleshub-contact-conversations", activeContactId],
       });
+      if (activeDealId) {
+        queryClient.invalidateQueries({ queryKey: dealDetailKey(activeDealId) });
+      }
     },
-    [activeContactId, queryClient],
+    [activeContactId, activeDealId, queryClient],
   );
 
   const resolveDealNumber = useCallback(
