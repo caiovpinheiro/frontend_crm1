@@ -305,6 +305,7 @@ function ImportBody({
           e.preventDefault();
           onDrag(true);
         }}
+        data-file-drop-zone=""
         onDragLeave={() => onDrag(false)}
         className={cn(
           "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors",

@@ -1051,6 +1051,7 @@ function UploadStep({
         onClick={!busy ? onSelectFile : undefined}
         onDrop={(e) => { setDragging(false); onDrop(e); }}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        data-file-drop-zone=""
         onDragLeave={() => setDragging(false)}
         className={cn(
           "group relative flex cursor-pointer flex-col items-center justify-center gap-5 overflow-hidden rounded-[var(--radius-xl)] border-2 border-dashed px-8 py-14 text-center transition-all duration-200",
