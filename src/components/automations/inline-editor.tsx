@@ -64,8 +64,13 @@ import { WebhookStepConfig } from "./webhook-step-config"
 import { SendProductInlineConfig } from "./send-product-config"
 import { TabulationStepConfig } from "./tabulation-step-config"
 import {
+  inferUpdateFieldDateMode,
+  isUpdateFieldDateType,
   showsUpdateFieldVariableHint,
+  UPDATE_FIELD_DATE_JSON_HINT,
+  UpdateFieldDateModeToggle,
   UpdateFieldValueControl,
+  type UpdateFieldDateMode,
 } from "./update-field-value"
 import { ActiveChannelMultiSelect } from "./step-channel-picker"
 import { TagStepInput } from "./tag-step-input"
@@ -488,11 +493,14 @@ function Labeled({
   label,
   optional,
   hint,
+  labelAction,
   children,
 }: {
   label: string
   optional?: boolean
   hint?: string
+  /** Controle à direita do rótulo (ex.: alternador Data/JSON). */
+  labelAction?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -500,6 +508,7 @@ function Labeled({
       <span className="cfg-label">
         {label}
         {optional && <em className="cfg-opt">opcional</em>}
+        {labelAction}
       </span>
       {children}
       {hint && <span className="cfg-hint">{hint}</span>}
@@ -1254,6 +1263,22 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
   const meta = fieldSlug ? bySlug.get(fieldSlug) : undefined
   const fieldType = meta?.type ?? ""
   const fieldOpts = meta?.options ?? []
+  const isDate = isUpdateFieldDateType(fieldType)
+  const value = str(config.value)
+  // Campo DATE: "Data" (calendário, como hoje) ou "JSON" (variável `{{now}}`
+  // resolvida na execução). Valor com `{{` salvo já abre em JSON.
+  const [dateMode, setDateMode] = useState<UpdateFieldDateMode>(() =>
+    inferUpdateFieldDateMode(value),
+  )
+  useEffect(() => {
+    setDateMode(inferUpdateFieldDateMode(str(config.value)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldSlug])
+  const switchDateMode = (next: UpdateFieldDateMode) => {
+    setDateMode(next)
+    // Data fixa não é variável e vice-versa: começa limpo no outro modo.
+    if (value) onChange({ ...config, value: "" })
+  }
   return (
     <>
       <Labeled label="Entidade">
@@ -1277,18 +1302,26 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
       </Labeled>
       <Labeled
         label="Valor"
+        labelAction={
+          isDate ? (
+            <UpdateFieldDateModeToggle mode={dateMode} onChange={switchDateMode} variant="inline" />
+          ) : undefined
+        }
         hint={
-          showsUpdateFieldVariableHint(fieldType)
-            ? "Aceita variáveis, ex.: {{lastResponse}}"
-            : undefined
+          isDate && dateMode === "json"
+            ? UPDATE_FIELD_DATE_JSON_HINT
+            : showsUpdateFieldVariableHint(fieldType)
+              ? "Aceita variáveis, ex.: {{lastResponse}}"
+              : undefined
         }
       >
         <UpdateFieldValueControl
           fieldType={fieldType}
           options={fieldOpts}
-          value={str(config.value)}
+          value={value}
           onChange={(v) => onChange({ ...config, value: v })}
           variant="inline"
+          dateMode={dateMode}
         />
       </Labeled>
     </>
