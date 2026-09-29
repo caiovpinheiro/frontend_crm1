@@ -114,7 +114,7 @@ const GROUPS: { title: string; items: PaletteItem[] }[] = [
   },
   {
     title: "IA",
-    items: [{ type: "transfer_to_ai_agent" }, { type: "ask_ai_agent" }],
+    items: [{ type: "transfer_to_ai_agent" }],
   },
 ];
 

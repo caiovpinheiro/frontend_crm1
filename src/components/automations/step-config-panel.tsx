@@ -3519,58 +3519,16 @@ function TransferToAIAgentStepConfig({
   const target = String(draft.target ?? "deal");
   const activeAgents = agents.filter((a) => a.active);
   const selected = activeAgents.find((a) => a.userId === selectedId);
-  const tabulator = isTabulationArchetype(selected?.archetype);
-
-  useEffect(() => {
-    if (!selected) return;
-    setDraft((d) => {
-      const nextTarget = isTabulationArchetype(selected.archetype)
-        ? "contact"
-        : d.target;
-      if (
-        d.agentArchetype === selected.archetype &&
-        d.target === nextTarget
-      ) {
-        return d;
-      }
-      return {
-        ...d,
-        agentArchetype: selected.archetype,
-        target: nextTarget,
-      };
-    });
-  }, [selected, setDraft]);
 
   return (
     <>
       <div className="rounded-lg border border-[var(--color-lavender)]/30 bg-[var(--color-lavender-soft)] p-3 text-[11px] leading-relaxed text-[var(--color-text-primary)]">
         <p className="mb-1 font-semibold">Como funciona</p>
         <p>
-          {tabulator ? (
-            <>
-              Este agente é um <b>classificador</b>: só tabula se o
-              contato trouxe uma demanda. Sem atendimento (silêncio, só
-              mensagem da empresa), <b>não tabula e não encerra</b>.
-              Assume só a conversa — <b>não vira dono do negócio</b>.
-            </>
-          ) : selected?.archetype === "ENCERRAMENTO" ? (
-            <>
-              Este agente espera a próxima mensagem do contato. Se for
-              finalização (ok, obrigado, valeu…), responde{" "}
-              <b>Obrigado. Se precisar estamos aqui para ajudar</b> e
-              encerra — a automação de Encerramento segue. Se for
-              dúvida nova, transfere para humano. <b>Não cumprimenta</b>{" "}
-              na transferência.
-            </>
-          ) : (
-            <>
-              Este passo atribui a conversa a um <b>agente de IA</b>. A
-              partir deste ponto, o agente assume o atendimento — cada nova
-              mensagem do cliente é respondida pelo agente (ou rascunhada
-              pra operador humano aprovar, se o modo for DRAFT). Agente de
-              Tabulação classifica em silêncio, sem falar com o cliente.
-            </>
-          )}
+          Este passo atribui a conversa a um <b>agente de IA</b>. A
+          partir deste ponto, o agente assume o atendimento — cada nova
+          mensagem do cliente é respondida pelo agente (ou rascunhada
+          pra operador humano aprovar, se o modo for DRAFT).
         </p>
       </div>
 
@@ -3581,7 +3539,7 @@ function TransferToAIAgentStepConfig({
         ) : activeAgents.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhum agente IA ativo. Crie um em{" "}
-            <a href="/ai-agents" className="underline">
+            <a href="/ai-agents-v2" className="underline">
               Agentes IA
             </a>
             .
@@ -3622,26 +3580,18 @@ function TransferToAIAgentStepConfig({
         </div>
       )}
 
-      {tabulator ? (
-        <p className="text-[11px] text-muted-foreground">
-          Sem atendimento real o classificador não tabula e não encerra.
-          Se tabular, assume só a conversa — o negócio fica com o
-          responsável atual.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          <Label>Aplicar em</Label>
-          <DropdownGlass
-            triggerClassName="w-full"
-            value={target}
-            options={[
-              { value: "deal", label: "Negócio (deal) — herda no contato e nas conversas" },
-              { value: "contact", label: "Contato — propaga pras conversas abertas" },
-            ]}
-            onValueChange={(v) => setDraft((d) => ({ ...d, target: v }))}
-          />
-        </div>
-      )}
+      <div className="space-y-2">
+        <Label>Aplicar em</Label>
+        <DropdownGlass
+          triggerClassName="w-full"
+          value={target}
+          options={[
+            { value: "deal", label: "Negócio (deal) — herda no contato e nas conversas" },
+            { value: "contact", label: "Contato — propaga pras conversas abertas" },
+          ]}
+          onValueChange={(v) => setDraft((d) => ({ ...d, target: v }))}
+        />
+      </div>
     </>
   );
 }
@@ -3690,7 +3640,7 @@ function AskAIAgentStepConfig({
         ) : activeAgents.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhum agente ativo. Crie um em{" "}
-            <a href="/ai-agents" className="underline">
+            <a href="/ai-agents-v2" className="underline">
               Agentes IA
             </a>
             .
