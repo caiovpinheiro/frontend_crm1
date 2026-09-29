@@ -262,6 +262,8 @@ export function SalesHubView({
   /** Só sobe em troca explícita de etapa (ribbon/atalho) — limpa a fila. */
   const [stageSwitchToken, setStageSwitchToken] = useState(0);
   const selectedStageIdRef = useRef<string | null>(null);
+  // "Buscar na conversa" do kebab → busca inline do ChatArea.
+  const chatSearchRef = useRef<{ open: () => void } | null>(null);
 
   const setStageFromUrl = useCallback((id: string | null) => {
     selectedStageIdRef.current = id;
@@ -944,6 +946,7 @@ export function SalesHubView({
               dealId={activeDeal?.id ?? activeDealId ?? ""}
               pipelineId={pipelineId}
               onConversationReopened={handleConversationReopened}
+              searchControlRef={chatSearchRef}
               headerActionsSlot={
                 <>
                   <TooltipHost
@@ -1020,6 +1023,7 @@ export function SalesHubView({
                       null
                     }
                     isResolved={activeConversation.status === "RESOLVED"}
+                    onSearchInConversation={() => chatSearchRef.current?.open()}
                     assigneeId={activeConversation.assignedToId ?? null}
                     departmentId={
                       activeConversation.departmentId ??

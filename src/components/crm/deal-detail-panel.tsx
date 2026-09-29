@@ -57,6 +57,11 @@ import {
 import { useResolveConversationFlow } from "@/features/inbox-v2/extras/use-resolve-conversation-flow"
 import { RequirePermission } from "@/components/auth/require-permission"
 import { FavoritesPanel } from "@/components/crm/favorites-panel"
+import {
+  ConversationSearchBar,
+  useConversationSearch,
+  type ConversationSearchState,
+} from "@/components/crm/conversation-search"
 import { useSectionOrder } from "@/hooks/use-section-order"
 import { useFieldLayout } from "@/hooks/use-field-layout"
 import { resolveCustomFieldGroups, type CustomFieldDef } from "@/lib/field-layout"
@@ -389,6 +394,13 @@ export function DealDetailPanel({
   const { data: contactSources = [] } = useContactSources(isOpen)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  // Container das mensagens (messagesSlot) — a busca varre o DOM dele.
+  const messagesScrollRef = useRef<HTMLDivElement>(null)
+  const conversationSearch = useConversationSearch({
+    containerRef: messagesScrollRef,
+    query: searchQuery,
+    enabled: searchOpen,
+  })
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   // Optimistic updates para campos nativos do deal
   const [dealNative, setDealNative] = useState<Record<string, string>>({})
@@ -1616,6 +1628,7 @@ export function DealDetailPanel({
                 searchQuery={searchQuery}
                 onSearchOpen={setSearchOpen}
                 onSearchChange={setSearchQuery}
+                searchState={conversationSearch}
                 conversationId={conversationId}
                 isResolved={isResolved}
                 conversationNumber={conversationNumber}
@@ -1651,7 +1664,10 @@ export function DealDetailPanel({
 
               {pinnedMessageSlot}
 
-              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-7 py-6">
+              <div
+                ref={messagesScrollRef}
+                className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-7 py-6"
+              >
                 {messagesSlot}
               </div>
 
@@ -1697,6 +1713,13 @@ export function DealDetailPanel({
 
 /* ─── Subcomponentes locais ─── */
 
+const EMPTY_SEARCH_STATE: ConversationSearchState = {
+  total: 0,
+  position: 0,
+  goOlder: () => {},
+  goNewer: () => {},
+}
+
 /**
  * Barra de abas (Conversa / Atividades / Notas / Timeline) renderizada
  * no header do container de conteúdo. Antes ficava numa linha solta
@@ -1709,6 +1732,7 @@ function TabsBar({
   searchQuery,
   onSearchOpen,
   onSearchChange,
+  searchState,
   conversationId,
   isResolved,
   conversationNumber,
@@ -1726,6 +1750,8 @@ function TabsBar({
   searchQuery?: string
   onSearchOpen?: (open: boolean) => void
   onSearchChange?: (q: string) => void
+  /** Contagem + navegação da busca (hook `useConversationSearch`). */
+  searchState?: ConversationSearchState
   conversationId?: string | null
   isResolved?: boolean
   dealId?: string | null
@@ -1742,7 +1768,6 @@ function TabsBar({
   conversationDepartmentId?: string | null
   conversationRequiresTabulation?: boolean
 }) {
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [favoritesOpen, setFavoritesOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -1766,11 +1791,6 @@ function TabsBar({
     document.addEventListener("mousedown", onOut)
     return () => document.removeEventListener("mousedown", onOut)
   }, [menuOpen])
-
-  /* Foca input ao abrir busca */
-  useEffect(() => {
-    if (searchOpen) searchInputRef.current?.focus()
-  }, [searchOpen])
 
   const hasConversaActions = (activeTab === "conversa" && !!onSearchOpen) || !!conversationId
   const { hideEvents, toggleHideEvents } = useHideChatEvents()
@@ -1825,34 +1845,12 @@ function TabsBar({
 
         {/* Busca inline — ocupa o flex-1 quando aberta */}
         {searchOpen && activeTab === "conversa" ? (
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 py-1.5">
-            <IconSearch size={13} className="shrink-0 text-[var(--text-muted)]" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Buscar na conversa…"
-              value={searchQuery ?? ""}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-              className="flex-1 bg-transparent font-display text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => onSearchChange?.("")}
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)]"
-              >
-                <IconX size={10} />
-              </button>
-            )}
-            <button
-              type="button"
-              aria-label="Fechar busca"
-              onClick={() => { onSearchOpen?.(false); onSearchChange?.("") }}
-              className="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-            >
-              <IconX size={12} />
-            </button>
-          </div>
+          <ConversationSearchBar
+            query={searchQuery ?? ""}
+            onQueryChange={(q) => onSearchChange?.(q)}
+            search={searchState ?? EMPTY_SEARCH_STATE}
+            onClose={() => { onSearchOpen?.(false); onSearchChange?.("") }}
+          />
         ) : null}
 
         {/* Ações à direita — sem spacer flex-1 no meio (ele roubava largura

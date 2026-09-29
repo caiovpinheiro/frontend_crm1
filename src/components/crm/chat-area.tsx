@@ -22,6 +22,7 @@ import {
   useHideChatEvents,
 } from "./chat-timeline"
 import { SessionAlert } from "./session-alert"
+import { ConversationSearchBar, useConversationSearch } from "./conversation-search"
 import {
   formatConnectionLabel,
   type ConnectionRef,
@@ -42,6 +43,7 @@ import {
   IconLock,
   IconChevronDown,
   IconBulb,
+  IconSearch,
 } from "@tabler/icons-react"
 
 export type ChatTabId = "conversa" | "notas" | "atividades" | "timeline" | "chamadas" | "keeps"
@@ -118,6 +120,12 @@ interface ChatAreaProps {
   composerSlot?: React.ReactNode
   /** Slot opcional que substitui os botoes do canto direito do header. */
   headerActionsSlot?: React.ReactNode
+  /**
+   * Controle externo da busca na conversa (ex.: item "Buscar na conversa"
+   * do kebab). O botão de lupa no header sempre existe; este ref só
+   * permite abrir de fora.
+   */
+  searchControlRef?: React.MutableRefObject<{ open: () => void } | null>
   /** Handler do botao "Usar Template" do SessionAlert. */
   onUseTemplate?: () => void
 
@@ -221,6 +229,7 @@ export function ChatArea({
   inputDisabled,
   composerSlot,
   headerActionsSlot,
+  searchControlRef,
   conversationNumber,
   conversationId,
   onUseTemplate,
@@ -293,6 +302,36 @@ export function ChatArea({
     registerKeepsChatTourBridge((tab) => setActiveTab(tab))
     return () => registerKeepsChatTourBridge(null)
   }, [])
+
+  // Busca na conversa — varre o DOM de `messagesRef` (ver conversation-search).
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const searchActive = searchOpen && activeTab === "conversa"
+  const conversationSearch = useConversationSearch({
+    containerRef: messagesRef,
+    query: searchQuery,
+    enabled: searchActive,
+  })
+  const openSearch = useCallback(() => {
+    setActiveTab("conversa")
+    setSearchOpen(true)
+  }, [])
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false)
+    setSearchQuery("")
+  }, [])
+  useEffect(() => {
+    if (!searchControlRef) return
+    searchControlRef.current = { open: openSearch }
+    return () => {
+      searchControlRef.current = null
+    }
+  }, [searchControlRef, openSearch])
+  // Trocar de conversa fecha a busca.
+  useEffect(() => {
+    setSearchOpen(false)
+    setSearchQuery("")
+  }, [conversationId])
 
   // Nome/iniciais do agente logado — só contexto de sessão (composer etc.).
   // Avatar da bolha NÃO usa isso: identifica o remetente da mensagem.
@@ -677,7 +716,14 @@ export function ChatArea({
               "Encerrada" (status resolvido vira faixa verde abaixo). O nº da
               conversa (ticket) foi movido pro canto inferior esquerdo, junto
               ao composer — estilo Kommo. */}
-          {tabsEnabled && (
+          {searchActive ? (
+            <ConversationSearchBar
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              search={conversationSearch}
+              onClose={closeSearch}
+            />
+          ) : tabsEnabled ? (
             <div className="min-w-0 flex-1">
               <ChatTabsBar
                 activeTab={activeTab}
@@ -691,9 +737,21 @@ export function ChatArea({
                 }}
               />
             </div>
-          )}
+          ) : null}
 
           <div className="ml-auto flex shrink-0 items-center gap-1">
+            {!searchActive && (
+              <TooltipGlass label="Buscar na conversa" side="bottom">
+                <button
+                  type="button"
+                  aria-label="Buscar na conversa"
+                  onClick={openSearch}
+                  className="flex size-8 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]"
+                >
+                  <IconSearch className="size-4" strokeWidth={1.7} />
+                </button>
+              </TooltipGlass>
+            )}
             {headerActionsSlot ?? (
               <>
                 {contact.phone && (

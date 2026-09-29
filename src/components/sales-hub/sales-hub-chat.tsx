@@ -75,6 +75,8 @@ export type SalesHubChatProps = {
   pipelineId?: string | null;
   /** Ações à direita do header (Ganho/Perdido, gaveta CRM, kebab…). */
   headerActionsSlot?: React.ReactNode;
+  /** Abre a busca inline do ChatArea a partir do kebab (ver ChatArea). */
+  searchControlRef?: React.MutableRefObject<{ open: () => void } | null>;
   /**
    * Enviar numa conversa encerrada reabre como NOVO ticket (id novo). O
    * host precisa trocar a conversa ativa, senão a UI fica presa no
@@ -96,6 +98,7 @@ export function SalesHubChat({
   dealId,
   pipelineId,
   headerActionsSlot,
+  searchControlRef,
   onConversationReopened,
 }: SalesHubChatProps) {
   const { data: session } = useSession();
@@ -353,6 +356,7 @@ export function SalesHubChat({
         pinnedMessages={pinnedMessagesPreview}
         onUnpinMessage={handleUnpinMessage}
         headerActionsSlot={headerActionsSlot}
+        searchControlRef={searchControlRef}
         className="rounded-none border-0 shadow-none backdrop-blur-none"
         notesSlot={<DealNotesTab dealId={dealId} pipelineId={pipelineId} />}
         activitiesSlot={
