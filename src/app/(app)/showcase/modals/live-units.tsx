@@ -13,8 +13,6 @@ import { NewTabulationModal } from "@/app/(app)/settings/tabulations/client-page
 import { TagFormDialog } from "@/app/(app)/settings/tags/client-page";
 import { EditUserDialog } from "@/app/(app)/settings/team/edit-user-dialog";
 import { WidgetConfigDrawer } from "@/app/(app)/widgets/_components/widget-config-drawer";
-import { AgentPlayground } from "@/components/ai-agents/agent-playground";
-import { AgentWizard } from "@/components/ai-agents/agent-wizard";
 import { StepPickerModal } from "@/components/automations/step-picker-modal";
 import { CreateChannelDialog } from "@/components/channels/create-channel-dialog";
 import { ActivityDetailDialog } from "@/components/crm/activities/activity-detail-dialog";
@@ -34,7 +32,6 @@ import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
 import { AvatarCropDialog } from "@/components/profile/avatar-crop-dialog";
 import { FormDialog, formLabelClass } from "@/components/ui/form-dialog";
 import { InputGlass } from "@/components/crm/input-glass";
-import { CockpitCasesDialog } from "@/features/ai-agents/academic-cockpit/cases-dialog";
 import { NewAutomationModal } from "@/features/automations-v2/new-automation-modal";
 import { CampaignDetailDrawer } from "@/features/campaigns/campaign-detail-drawer";
 import type { CampaignListItem } from "@/features/campaigns/types";
@@ -581,24 +578,6 @@ const LIVE: Record<string, React.ComponentType<HostProps>> = {
   },
   "flow-step": function FlowStep({ onClose }) {
     return <FlowStepPickerModal open onClose={onClose} onSelect={() => onClose()} />;
-  },
-  "agent-wizard": function Wizard({ onClose }) {
-    return <AgentWizard open onOpenChange={closeWhen(onClose)} onCreated={() => onClose()} />;
-  },
-  "agent-playground": function Playground({ onClose }) {
-    return (
-      <AgentPlayground
-        agentId="showcase-agent"
-        agentName="Agente demo"
-        open
-        onOpenChange={closeWhen(onClose)}
-      />
-    );
-  },
-  "cockpit-cases": function Cockpit({ onClose }) {
-    return (
-      <CockpitCasesDialog open={{ key: "spoke_today", title: "Falou hoje" }} onClose={onClose} />
-    );
   },
   "logs-modal": function Logs({ onClose }) {
     return (
