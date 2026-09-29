@@ -63,6 +63,29 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const IMAGE_FILE_EXT = /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i;
+
+/** Windows Explorer muitas vezes entrega `file.type` vazio no arraste. */
+function fileIsImage(file: File): boolean {
+  return file.type.startsWith("image/") || IMAGE_FILE_EXT.test(file.name);
+}
+
+function dragEventHasFiles(e: DragEvent): boolean {
+  const types = e.dataTransfer?.types;
+  if (types) {
+    for (let i = 0; i < types.length; i += 1) {
+      const t = types[i];
+      if (t === "Files" || t === "application/x-moz-file") return true;
+    }
+  }
+  return (e.dataTransfer?.files?.length ?? 0) > 0;
+}
+
+function isForeignFileDropZone(e: DragEvent): boolean {
+  const target = e.target;
+  return target instanceof Element && !!target.closest("[data-file-drop-zone]");
+}
+
 import { ActiveBotsButton } from "./active-bots-button";
 import { AudioRecorderButton, type AudioRecordState } from "./audio-recorder-button";
 import { ChannelSelector } from "./channel-selector";
@@ -1120,7 +1143,7 @@ export function Composer({
     }
     const now = Date.now();
     const staged = files.map((file, i) => {
-      const isImage = file.type.startsWith("image/");
+      const isImage = fileIsImage(file);
       const ext = isImage ? imageExtFromMime(file.type) : "bin";
       return {
         id: `${now}-${i}-${Math.random().toString(36).slice(2, 8)}`,
@@ -1133,51 +1156,49 @@ export function Composer({
     requestAnimationFrame(() => textareaRef.current?.focus());
   }
 
-  // Arrastar arquivo do computador para a página: a janela inteira vira
-  // alvo (como WhatsApp Web / Slack). Enquanto arrasta, mostra o overlay;
-  // ao soltar, encosta os arquivos no composer — NÃO envia.
+  // Arrastar arquivo do computador: escuta em capture no document para o
+  // drop não ser engolido por outro listener da página (board, overlay).
+  // Zonas marcadas com data-file-drop-zone (importar CSV) continuam donas.
   const stageFilesRef = useRef(stageFiles);
   stageFilesRef.current = stageFiles;
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof document === "undefined") return;
     let depth = 0;
-    const hasFiles = (e: DragEvent) =>
-      Array.from(e.dataTransfer?.types ?? []).includes("Files");
     const onDragEnter = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (!dragEventHasFiles(e) || isForeignFileDropZone(e)) return;
       e.preventDefault();
       depth += 1;
       setDropActive(true);
     };
     const onDragOver = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (!dragEventHasFiles(e) || isForeignFileDropZone(e)) return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
     };
     const onDragLeave = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (!dragEventHasFiles(e)) return;
       depth = Math.max(0, depth - 1);
       if (depth === 0) setDropActive(false);
     };
     const onDrop = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
+      if (!dragEventHasFiles(e)) return;
       depth = 0;
       setDropActive(false);
-      // Outra drop zone da página (ex.: importar CSV) já tratou o evento.
-      if (e.defaultPrevented) return;
+      if (isForeignFileDropZone(e)) return;
       e.preventDefault();
       const files = Array.from(e.dataTransfer?.files ?? []);
       stageFilesRef.current(files, "arquivo-arrastado");
     };
-    window.addEventListener("dragenter", onDragEnter);
-    window.addEventListener("dragover", onDragOver);
-    window.addEventListener("dragleave", onDragLeave);
-    window.addEventListener("drop", onDrop);
+    const opts: AddEventListenerOptions = { capture: true };
+    document.addEventListener("dragenter", onDragEnter, opts);
+    document.addEventListener("dragover", onDragOver, opts);
+    document.addEventListener("dragleave", onDragLeave, opts);
+    document.addEventListener("drop", onDrop, opts);
     return () => {
-      window.removeEventListener("dragenter", onDragEnter);
-      window.removeEventListener("dragover", onDragOver);
-      window.removeEventListener("dragleave", onDragLeave);
-      window.removeEventListener("drop", onDrop);
+      document.removeEventListener("dragenter", onDragEnter, opts);
+      document.removeEventListener("dragover", onDragOver, opts);
+      document.removeEventListener("dragleave", onDragLeave, opts);
+      document.removeEventListener("drop", onDrop, opts);
     };
   }, []);
 
@@ -1315,7 +1336,7 @@ export function Composer({
                 <img
                   src={f.previewUrl}
                   alt={f.name}
-                  className="h-9 w-9 shrink-0 rounded-[var(--radius-sm)] object-cover"
+                  className="h-16 w-16 shrink-0 rounded-[var(--radius-sm)] object-cover"
                 />
               ) : (
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
