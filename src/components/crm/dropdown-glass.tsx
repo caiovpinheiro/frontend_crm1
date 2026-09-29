@@ -5,6 +5,7 @@ import * as DropdownPrimitive from "@radix-ui/react-dropdown-menu"
 import { IconCheck, IconChevronDown } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { useModalPortalContainer } from "@/components/ui/modal-portal-context"
+import { DelayedHoverLegend } from "@/components/crm/delayed-hover-legend"
 
 export interface DropdownOption {
   value: string
@@ -181,9 +182,33 @@ export function DropdownGlass({
                 wrapLabels ? "whitespace-normal" : "truncate",
               )}
             >
-              <span className={wrapLabels ? "block leading-tight" : undefined}>
-                {selected?.label ?? placeholder}
-              </span>
+              {(() => {
+                const triggerText =
+                  typeof selected?.label === "string"
+                    ? selected.label
+                    : selected?.searchText ||
+                      (selected ? selected.value : "") ||
+                      placeholder
+                const inner = (
+                  <span
+                    data-legend-measure
+                    className={cn(
+                      "block",
+                      wrapLabels ? "leading-tight" : "truncate",
+                    )}
+                  >
+                    {selected?.label ?? placeholder}
+                  </span>
+                )
+                if (wrapLabels || typeof triggerText !== "string" || !triggerText) {
+                  return inner
+                }
+                return (
+                  <DelayedHoverLegend text={triggerText} className="block min-w-0">
+                    {inner}
+                  </DelayedHoverLegend>
+                )
+              })()}
             </span>
             <IconChevronDown
               size={15}
@@ -258,18 +283,55 @@ export function DropdownGlass({
                   </span>
                 )}
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className={wrapLabels ? "whitespace-normal break-words leading-tight" : "truncate"}>
-                    {option.label}
-                  </span>
+                  {(() => {
+                    const labelText =
+                      typeof option.label === "string"
+                        ? option.label
+                        : option.searchText || option.value
+                    const labelEl = (
+                      <span
+                        data-legend-measure
+                        className={
+                          wrapLabels
+                            ? "whitespace-normal break-words leading-tight"
+                            : "truncate"
+                        }
+                      >
+                        {option.label}
+                      </span>
+                    )
+                    if (wrapLabels || !labelText) return labelEl
+                    return (
+                      <DelayedHoverLegend text={labelText} className="block min-w-0">
+                        {labelEl}
+                      </DelayedHoverLegend>
+                    )
+                  })()}
                   {option.description && (
-                    <span
-                      className={cn(
-                        "font-body text-[11px] font-normal text-[var(--text-muted)]",
-                        wrapLabels ? "mt-0.5 whitespace-normal break-words" : "truncate",
-                      )}
-                    >
-                      {option.description}
-                    </span>
+                    (() => {
+                      const descEl = (
+                        <span
+                          data-legend-measure
+                          className={cn(
+                            "font-body text-[11px] font-normal text-[var(--text-muted)]",
+                            wrapLabels
+                              ? "mt-0.5 whitespace-normal break-words"
+                              : "truncate",
+                          )}
+                        >
+                          {option.description}
+                        </span>
+                      )
+                      if (wrapLabels) return descEl
+                      return (
+                        <DelayedHoverLegend
+                          text={option.description}
+                          className="mt-0.5 block min-w-0"
+                        >
+                          {descEl}
+                        </DelayedHoverLegend>
+                      )
+                    })()
                   )}
                 </span>
                 {option.trailing}

@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { useCan } from "@/hooks/use-my-permissions";
+import { DelayedHoverLegend } from "@/components/crm/delayed-hover-legend";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 
@@ -162,7 +163,7 @@ export function InlineFieldEditor({
     const row = (
       <div
         className={cn(
-          "group flex w-full min-w-0 max-w-full items-center overflow-hidden transition-colors",
+          "group flex w-full min-w-0 max-w-full items-center gap-1 overflow-hidden transition-colors",
           isEmpty
             ? "font-display text-[11px] text-[var(--text-muted)] opacity-60 italic"
             : textClassName ??
@@ -174,40 +175,43 @@ export function InlineFieldEditor({
             type="button"
             onClick={startEdit}
             aria-label={`Editar ${fieldId}`}
+            data-legend-measure
             className="min-w-0 flex-1 truncate text-left leading-snug"
           >
             {displayValue}
           </button>
         ) : (
-          <span className="min-w-0 flex-1 truncate text-left leading-snug">{displayValue}</span>
+          <span
+            data-legend-measure
+            className="min-w-0 flex-1 truncate text-left leading-snug"
+          >
+            {displayValue}
+          </span>
+        )}
+        {!isEmpty && (
+          <TooltipGlass label="Copiar" side="top" delay={300}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleCopy();
+              }}
+              className="flex size-5 shrink-0 items-center justify-center rounded-[6px] text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)] group-hover:opacity-100"
+              aria-label="Copiar"
+            >
+              <IconCopy size={12} stroke={2.2} />
+            </button>
+          </TooltipGlass>
         )}
       </div>
     );
 
     if (isEmpty) return row;
+    // Valor truncado: após 1,5s mostra o nome completo logo abaixo do cursor.
     return (
-      <TooltipGlass
-        label={
-          <span className="flex items-center gap-2">
-            <span className="max-w-[220px] break-all">{value}</span>
-            <button
-              type="button"
-              onPointerDown={(e) => e.preventDefault()}
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleCopy();
-              }}
-              className="flex size-5 shrink-0 items-center justify-center rounded-[6px] bg-white/15 text-white/90 hover:bg-white/25"
-              aria-label="Copiar"
-            >
-              <IconCopy size={12} stroke={2.2} />
-            </button>
-          </span>
-        }
-        side="top"
-      >
+      <DelayedHoverLegend text={value ?? ""} className="block w-full min-w-0">
         {row}
-      </TooltipGlass>
+      </DelayedHoverLegend>
     );
   }
 
