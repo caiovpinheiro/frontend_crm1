@@ -73,6 +73,10 @@ export interface RoleSummary {
   sharedInbox?: boolean;
   /** Extra: baixar/visualizar mídias anexadas (default true). */
   mediaAccess?: boolean;
+  /** Papel personalizado: ver conversas e negócios de toda a equipe. */
+  seeTeam?: boolean;
+  /** Papel personalizado: ver conversas e negócios sem responsável. */
+  seeUnassigned?: boolean;
   /** Visibilidade por etapa do funil (vazio = todas). */
   stageGrants?: StageGrantEntry[];
   /** Funis bloqueados para o papel (vazio = todos). */
