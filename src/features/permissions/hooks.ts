@@ -16,6 +16,8 @@ import type {
 type RoleGrantPayload = {
   sharedInbox?: boolean;
   mediaAccess?: boolean;
+  seeTeam?: boolean;
+  seeUnassigned?: boolean;
   stageGrants?: StageGrantEntry[];
   pipelineGrants?: PipelineGrantEntry[];
   fieldGrants?: FieldGrantEntry[];

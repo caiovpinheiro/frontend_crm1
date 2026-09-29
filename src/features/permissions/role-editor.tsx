@@ -149,10 +149,10 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
   const updateRole = useUpdateRole();
   const deleteRole = useDeleteRole();
 
-  // Visibilidade de conversas (own/all) — configuração por PAPEL-BASE, não
-  // por role custom: o backend guarda em OrganizationSetting `visibility.<ROLE>`
-  // e o enforcement roda em `getVisibilityFilter`. Só exposto para os presets
-  // Operador (MEMBER) e Gestor (MANAGER); Admin sempre vê tudo.
+  // Presets Operador/Gestor: visibilidade da org (`visibility.<ROLE>`).
+  // Papel personalizado: os mesmos toggles, gravados no próprio Role
+  // (`seeTeam` / `seeUnassigned`) e aplicados por cima do papel legado.
+  // Admin sempre vê tudo.
   const rolePreset = role?.systemPreset;
   const visibilityPreset: "MEMBER" | "MANAGER" | null =
     rolePreset === "MEMBER" || rolePreset === "MANAGER" ? rolePreset : null;
@@ -232,6 +232,10 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
       setSidebarItems(toEditorItems(hasOverride ? role.sidebarItems : null));
       setSharedInbox(role.sharedInbox ?? true);
       setMediaAccess(role.mediaAccess ?? true);
+      if (role.systemPreset !== "MEMBER" && role.systemPreset !== "MANAGER" && role.systemPreset !== "ADMIN") {
+        setConvVisibilityAll(role.seeTeam ?? false);
+        setSeeUnassigned(role.seeUnassigned ?? false);
+      }
       const fg: Record<string, FieldGrantEntry> = {};
       for (const f of role.fieldGrants ?? []) fg[`${f.entity}.${f.fieldKey}`] = f;
       setFieldGrants(fg);
@@ -279,6 +283,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
 
   const isSystem = role?.isSystem ?? false;
   const isAdminPreset = role?.systemPreset === "ADMIN";
+  const roleVisibility = !isAdminPreset && !visibilityPreset;
   const loading = roleLoading || catalogLoading;
   const saving = createRole.isPending || updateRole.isPending;
   const deleting = deleteRole.isPending;
@@ -332,6 +337,8 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           sidebarItems: sidebarPayload,
           sharedInbox,
           mediaAccess,
+          seeTeam: convVisibilityAll,
+          seeUnassigned,
           stageGrants: stagePayload,
           pipelineGrants: pipelinePayload,
           fieldGrants: fieldPayload,
@@ -345,6 +352,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
           sidebarItems: sidebarPayload,
           sharedInbox,
           mediaAccess,
+          ...(roleVisibility ? { seeTeam: convVisibilityAll, seeUnassigned } : {}),
           stageGrants: stagePayload,
           pipelineGrants: pipelinePayload,
           fieldGrants: fieldPayload,
@@ -609,9 +617,13 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
       <CollapsibleSection
         icon={<IconMail size={16} />}
         title="Acessos extras"
-        sub={visibilityPreset ? "visibilidade de conversas e funil, caixa compartilhada e mídia" : "caixa compartilhada e mídia"}
+        sub={
+          visibilityPreset || roleVisibility
+            ? "visibilidade de conversas e funil, caixa compartilhada e mídia"
+            : "caixa compartilhada e mídia"
+        }
       >
-        {visibilityPreset && (
+        {(visibilityPreset || roleVisibility) && (
           <ExtraToggle
             icon={<IconEye size={16} />}
             title="Ver conversas e negócios de toda a equipe"
@@ -620,7 +632,7 @@ export function RoleEditor({ roleId, onClose, onSaved }: RoleEditorProps) {
             onChange={setConvVisibilityAll}
           />
         )}
-        {visibilityPreset && (
+        {(visibilityPreset || roleVisibility) && (
           <ExtraToggle
             icon={<IconEyeOff size={16} />}
             title="Ver conversas e negócios sem responsável"
