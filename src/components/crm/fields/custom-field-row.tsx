@@ -10,6 +10,7 @@
 
 import * as React from "react";
 
+import { DelayedHoverLegend } from "@/components/crm/delayed-hover-legend";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,11 +94,20 @@ export function CustomFieldRow({
           )}
         </div>
       ) : (
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--text-primary)]">
-          {f.value || (
-            <span className="font-normal text-[var(--color-ink-muted)]">—</span>
-          )}
-        </span>
+        f.value ? (
+          <DelayedHoverLegend text={f.value} className="min-w-0 flex-1">
+            <span
+              data-legend-measure
+              className="block min-w-0 truncate text-sm font-medium text-[var(--text-primary)]"
+            >
+              {f.value}
+            </span>
+          </DelayedHoverLegend>
+        ) : (
+          <span className="min-w-0 flex-1 text-sm font-normal text-[var(--color-ink-muted)]">
+            —
+          </span>
+        )
       )}
     </div>
   );
