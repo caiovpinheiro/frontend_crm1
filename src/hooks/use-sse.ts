@@ -13,15 +13,19 @@ export type SSEReconnectHandler = () => void;
  * parseado — o `new EventSource` existe só aqui.
  *
  * Ciclo de vida por ref-count: a conexão abre no primeiro assinante e
- * fecha quando o último sai. O close é adiado 1 tick para absorver o
- * duplo mount/unmount de efeitos do StrictMode sem derrubar a conexão.
+ * fecha 30s depois que o último sai. Trocar de tela (inbox → board)
+ * desmonta um assinante e monta outro: a tela seguinte reaproveita a
+ * mesma conexão, sem reconectar nem recarregar dados.
  *
- * Aba oculta: fecha o EventSource e não reconecta. Ao voltar, abre de
- * novo e dispara `onReconnect` (inbox/pipeline reidratam). Chamada
- * WhatsApp ativa segura a conexão via `holdSSEWhileHidden`.
+ * Aba oculta: fecha o EventSource 60s depois de a aba sumir. Se a aba
+ * volta antes, nada acontece (a conexão nunca caiu). Se fechou, ao
+ * voltar abre de novo e dispara `onReconnect` (inbox/pipeline
+ * reidratam). Chamada WhatsApp ativa segura a conexão via
+ * `holdSSEWhileHidden`.
  *
- * Reconexão: `onerror` fecha e reconecta em 5s (mesmo backoff fixo que
- * cada consumidor tinha quando abria a própria conexão).
+ * Reconexão: `onerror` fecha e reconecta com espera crescente (2s, 4s,
+ * 8s… até 30s, ±20% aleatório para as abas não voltarem juntas depois de
+ * um deploy). Volta a 2s depois de um `onopen`.
  */
 
 /** Eventos entregues por padrão aos assinantes do `useSSE` (compat). */
@@ -35,12 +39,27 @@ const DEFAULT_EVENTS: readonly string[] = [
   "system_presence_update",
 ];
 
-const RECONNECT_DELAY_MS = 5_000;
+/** Aba oculta: tempo até fechar a conexão. */
+export const SSE_HIDDEN_TEARDOWN_MS = 60_000;
+/** Último assinante saiu: tempo até fechar (a próxima tela reaproveita). */
+export const SSE_IDLE_CLOSE_MS = 30_000;
+const RECONNECT_BASE_MS = 2_000;
+const RECONNECT_MAX_MS = 30_000;
+const RECONNECT_JITTER = 0.2;
+
+/** 2s, 4s, 8s, 16s, 30s, 30s…, cada um com ±20%. */
+export function sseReconnectDelay(attempt: number, random = Math.random): number {
+  const base = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** attempt);
+  const jitter = 1 + (random() * 2 - 1) * RECONNECT_JITTER;
+  return Math.round(base * jitter);
+}
 
 class SharedSSEConnection {
   private es: EventSource | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryAttempt = 0;
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
+  private hiddenTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly attached = new Set<string>();
   private readonly subscribers = new Map<SSEHandler, ReadonlySet<string>>();
   private readonly reconnectHandlers = new Set<SSEReconnectHandler>();
@@ -78,13 +97,27 @@ class SharedSSEConnection {
 
   private syncVisibility(): void {
     if (this.shouldRun()) {
+      this.cancelHiddenTeardown();
       if (this.es || this.retryTimer) return;
       this.connect();
       return;
     }
     if (!this.es && !this.retryTimer) return;
-    if (this.everOpened) this.sawGap = true;
-    this.teardown();
+    // Sem assinantes quem fecha é o `closeTimer` do unsubscribe.
+    if (this.subscribers.size === 0 || this.hiddenTimer) return;
+    this.hiddenTimer = setTimeout(() => {
+      this.hiddenTimer = null;
+      if (this.shouldRun()) return;
+      if (!this.es && !this.retryTimer) return;
+      if (this.everOpened) this.sawGap = true;
+      this.teardown();
+    }, SSE_HIDDEN_TEARDOWN_MS);
+  }
+
+  private cancelHiddenTeardown(): void {
+    if (!this.hiddenTimer) return;
+    clearTimeout(this.hiddenTimer);
+    this.hiddenTimer = null;
   }
 
   subscribe(
@@ -117,10 +150,11 @@ class SharedSSEConnection {
       this.pruneListeners();
       return;
     }
+    if (this.closeTimer) clearTimeout(this.closeTimer);
     this.closeTimer = setTimeout(() => {
       this.closeTimer = null;
       if (this.subscribers.size === 0) this.teardown();
-    }, 0);
+    }, SSE_IDLE_CLOSE_MS);
   }
 
   private connect(): void {
@@ -133,6 +167,7 @@ class SharedSSEConnection {
       const shouldNotify = this.everOpened && this.sawGap;
       this.everOpened = true;
       this.sawGap = false;
+      this.retryAttempt = 0;
       if (!shouldNotify) return;
       for (const fn of this.reconnectHandlers) {
         try {
@@ -149,14 +184,17 @@ class SharedSSEConnection {
       this.attached.clear();
       if (this.retryTimer || this.subscribers.size === 0) return;
       if (!this.shouldRun()) return;
+      const delay = sseReconnectDelay(this.retryAttempt);
+      this.retryAttempt += 1;
       this.retryTimer = setTimeout(() => {
         this.retryTimer = null;
         this.connect();
-      }, RECONNECT_DELAY_MS);
+      }, delay);
     };
   }
 
   private teardown(): void {
+    this.cancelHiddenTeardown();
     this.es?.close();
     this.es = null;
     this.attached.clear();
