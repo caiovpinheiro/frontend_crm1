@@ -43,8 +43,13 @@ import { useContactSources } from "@/hooks/use-contact-sources";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import {
+  inferUpdateFieldDateMode,
+  isUpdateFieldDateType,
   showsUpdateFieldVariableHint,
+  UPDATE_FIELD_DATE_JSON_HINT,
+  UpdateFieldDateModeToggle,
   UpdateFieldValueControl,
+  type UpdateFieldDateMode,
 } from "@/components/automations/update-field-value";
 import {
   validateEntries as validateWebhookEntries,
@@ -307,6 +312,9 @@ const MESSAGING_STEP_TYPES = new Set([
 export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [] }: Props) {
   const [draft, setDraft] = useState<Record<string, unknown>>({});
   const [updateFieldFilter, setUpdateFieldFilter] = useState("");
+  // Campo DATE do update_field: null = deduz do valor salvo (`{{` → JSON).
+  const [updateFieldDateMode, setUpdateFieldDateMode] =
+    useState<UpdateFieldDateMode | null>(null);
   const declaredVariables = useMemo(
     () => collectDeclaredVariables(allSteps, step?.id ?? ""),
     [allSteps, step?.id],
@@ -875,6 +883,14 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
             );
             const fieldType = (selectedCustom?.type || "").toUpperCase();
             const fieldOpts = selectedCustom?.options ?? [];
+            const isDate = isUpdateFieldDateType(fieldType);
+            const draftValue = String(draft.value ?? "");
+            const dateMode =
+              updateFieldDateMode ?? inferUpdateFieldDateMode(draftValue);
+            const switchDateMode = (next: UpdateFieldDateMode) => {
+              setUpdateFieldDateMode(next);
+              if (draftValue) setDraft((d) => ({ ...d, value: "" }));
+            };
             return (
               <>
                 <div className="space-y-2">
@@ -936,25 +952,40 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
                           description: "Campos personalizados",
                         })),
                     ]}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({ ...d, field: v, value: "" }))
-                    }
+                    onValueChange={(v) => {
+                      setUpdateFieldDateMode(null);
+                      setDraft((d) => ({ ...d, field: v, value: "" }));
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sc-val">Valor</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="sc-val">Valor</Label>
+                    {isDate && (
+                      <UpdateFieldDateModeToggle
+                        mode={dateMode}
+                        onChange={switchDateMode}
+                        variant="panel"
+                      />
+                    )}
+                  </div>
                   <UpdateFieldValueControl
                     fieldType={fieldType}
                     options={fieldOpts}
-                    value={String(draft.value ?? "")}
+                    value={draftValue}
                     onChange={(v) => setDraft((d) => ({ ...d, value: v }))}
                     variant="panel"
+                    dateMode={dateMode}
                   />
-                  {showsUpdateFieldVariableHint(fieldType) && (
+                  {isDate && dateMode === "json" ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      {UPDATE_FIELD_DATE_JSON_HINT}
+                    </p>
+                  ) : showsUpdateFieldVariableHint(fieldType) ? (
                     <p className="text-[11px] text-muted-foreground">
                       Você pode usar variáveis no valor, ex.: {"{{"}lastResponse{"}}"}.
                     </p>
-                  )}
+                  ) : null}
                 </div>
               </>
             );
