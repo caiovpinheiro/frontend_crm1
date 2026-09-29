@@ -432,6 +432,10 @@ export interface MessageBubbleProps {
   onPinNote?: (messageId: string | null) => void
   /** Callback para adicionar conteúdo da nota ao log/timeline do deal. */
   onAddToLog?: (content: string) => void
+  /** Editar o texto de uma nota interna. */
+  onEditNote?: (noteId: string, content: string) => void | Promise<unknown>
+  /** Excluir uma nota interna. */
+  onDeleteNote?: (noteId: string) => void
 
   // ── Ações de mensagem recebida (menu estilo WhatsApp) ────────────
   // Todos opcionais: se não passados, o item some do menu. "Copiar" é
@@ -1507,6 +1511,8 @@ export function MessageBubble({
   isPinned,
   onPinNote,
   onAddToLog,
+  onEditNote,
+  onDeleteNote,
   onReplyMessage,
   onForwardMessage,
   onReactMessage,
@@ -1617,6 +1623,8 @@ export function MessageBubble({
         logContent={message.content}
         onPinNote={onPinNote}
         onAddToLog={onAddToLog}
+        onEditNote={onEditNote}
+        onDeleteNote={onDeleteNote}
       />
     )
   }
