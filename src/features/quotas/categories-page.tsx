@@ -10,6 +10,7 @@ import { IconPencil, IconPlus, IconTicket, IconTrash } from "@tabler/icons-react
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { useConfirm } from "@/hooks/use-confirm";
 import { apiUrl } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -71,6 +72,7 @@ export function CategoriesPage({ search }: { search: string }) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const { data: categories = [], isLoading } = useQuery({
     queryKey: ["discount-categories", search],
@@ -224,9 +226,14 @@ export function CategoriesPage({ search }: { search: string }) {
                   {c.active && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (confirm(`Desativar categoria "${c.name}"?`))
-                          deactivateMut.mutate(c.id);
+                      onClick={async () => {
+                        const ok = await confirm({
+                          title: "Desativar categoria?",
+                          description: `Desativar categoria "${c.name}"?`,
+                          confirmLabel: "Desativar",
+                          variant: "destructive",
+                        });
+                        if (ok) deactivateMut.mutate(c.id);
                       }}
                       aria-label={`Desativar ${c.name}`}
                       className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] hover:text-[var(--color-danger)]"
