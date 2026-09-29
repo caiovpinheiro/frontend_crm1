@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconChevronDown, IconMessageCirclePlus, IconPinFilled, IconX } from "@tabler/icons-react";
+import { IconChevronDown, IconLock, IconMessageCirclePlus, IconPinFilled, IconX } from "@tabler/icons-react";
 
 import { AppLoading } from "@/components/crm/app-loading";
 import { ConversationHistoryLoadRing, ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton";
@@ -34,6 +34,7 @@ import {
   useHideChatEvents,
 } from "@/components/crm/chat-timeline";
 import { SessionAlert } from "@/components/crm/session-alert";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
 import { formatConnectionLabel, type ConnectionRef } from "@/lib/connection-label";
 import {
@@ -47,10 +48,12 @@ import {
   useConversationFeatures,
   useFavoriteMessage,
   useInboxRealtime,
+  useDeleteNote,
   useMessages,
   usePinMessage,
   useUnpinMessage,
   usePinNote,
+  useUpdateNote,
   useReactMessage,
   useSelectedOutboundChannel,
   useSendMessage,
@@ -275,6 +278,9 @@ export function useDealChatBinding(params: {
   const sendMutateAsync = sendMutation.mutateAsync;
   const reactMutation = useReactMessage(effectiveConversationId);
   const pinNoteMutation = usePinNote(effectiveConversationId);
+  const updateNoteMutation = useUpdateNote(effectiveConversationId);
+  const deleteNoteMutation = useDeleteNote(effectiveConversationId);
+  const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
   const pinMessageMutation = usePinMessage(effectiveConversationId);
   const unpinMessageMutation = useUnpinMessage(effectiveConversationId);
   const favoriteMutation = useFavoriteMessage(effectiveConversationId);
@@ -646,6 +652,41 @@ export function useDealChatBinding(params: {
     }
   }, [bubbles, effectiveConversationId, findScrollEl, scrollToEnd, hasOlderTickets]);
 
+  const handleEditNote = useCallback(
+    async (noteId: string, content: string) => {
+      try {
+        await updateNoteMutation.mutateAsync({ noteId, content });
+        toast.success("Nota atualizada");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Falha ao editar nota");
+        throw e;
+      }
+    },
+    [updateNoteMutation],
+  );
+
+  const handleDeleteNote = useCallback(
+    (noteId: string) => {
+      void confirmDialog({
+        title: "Excluir nota interna?",
+        description: "A nota será removida da conversa. Esta ação não pode ser desfeita.",
+        confirmLabel: "Excluir",
+        pendingLabel: "Excluindo…",
+        destructive: true,
+        action: async () => {
+          try {
+            await deleteNoteMutation.mutateAsync({ noteId });
+            toast.success("Nota excluída");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Falha ao excluir nota");
+            throw e;
+          }
+        },
+      });
+    },
+    [confirmDialog, deleteNoteMutation],
+  );
+
   const handleBannerClick = useCallback(() => {
     if (pinnedMessagesPreview.length === 0) return;
     const idx = Math.min(activePinIndex, pinnedMessagesPreview.length - 1);
@@ -949,6 +990,8 @@ export function useDealChatBinding(params: {
                     )
                 : undefined
             }
+            onEditNote={isNoteBubble && effectiveConversationId ? handleEditNote : undefined}
+            onDeleteNote={isNoteBubble && effectiveConversationId ? handleDeleteNote : undefined}
             onReplyMessage={isNoteBubble ? undefined : handleReply}
             onReactMessage={isNoteBubble ? undefined : handleReact}
             onPinMessage={isNoteBubble ? undefined : handlePinMessage}
@@ -1075,11 +1118,43 @@ export function useDealChatBinding(params: {
           o painel "Mensagens favoritas" fica no kebab do DealDetailPanel
           (TabsBar), que já tem `conversationId` disponível. */}
       {pinDurationDialog}
+      {confirmDialogNode}
     </>
   );
 
+  // ── banner da nota fixada — permanece no topo enquanto a nota estiver
+  // fixada (a nota continua no lugar original da conversa também).
+  const pinnedNoteBanner = pinnedNote ? (
+    <div className="mx-4 mt-3 flex items-center gap-2 rounded-lg border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/[0.08] px-3 py-2">
+      <IconLock size={14} className="shrink-0 text-[var(--brand-primary)]" />
+      <button
+        type="button"
+        onClick={() => scrollToMessage(pinnedNote.id)}
+        className="min-w-0 flex-1 cursor-pointer text-left"
+        aria-label="Ir para a nota fixada"
+      >
+        <p className="flex items-center gap-1.5 font-display text-[10px] font-bold uppercase tracking-wider text-[var(--brand-primary)]">
+          <IconPinFilled size={10} aria-hidden />
+          Nota fixada
+        </p>
+        <p className="truncate text-[12.5px] text-[var(--text-secondary)]">
+          {pinnedNote.senderName ? `${pinnedNote.senderName}: ` : ""}
+          {pinnedNote.content}
+        </p>
+      </button>
+      <button
+        type="button"
+        onClick={() => pinNoteMutation.mutate({ noteId: null })}
+        aria-label="Desafixar nota"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
+      >
+        <IconX size={14} />
+      </button>
+    </div>
+  ) : null;
+
   // ── banner de mensagens fixadas (várias, estilo WhatsApp) ─────
-  const pinnedMessageSlot = pinnedMessagesPreview.length > 0 ? (() => {
+  const pinnedMessagesBanner = pinnedMessagesPreview.length > 0 ? (() => {
     const idx = Math.min(activePinIndex, pinnedMessagesPreview.length - 1);
     const current = pinnedMessagesPreview[idx];
     return (
@@ -1115,6 +1190,14 @@ export function useDealChatBinding(params: {
       </div>
     );
   })() : null;
+
+  const pinnedMessageSlot =
+    pinnedNoteBanner || pinnedMessagesBanner ? (
+      <>
+        {pinnedNoteBanner}
+        {pinnedMessagesBanner}
+      </>
+    ) : null;
 
   return {
     messagesNode,
