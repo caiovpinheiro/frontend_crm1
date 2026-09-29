@@ -1016,7 +1016,9 @@ function TextWithMeta({
 }) {
   return (
     <span className={cn("block flow-root break-words [overflow-wrap:anywhere]", className)}>
-      <span className="whitespace-pre-wrap leading-[1.45]">{children}</span>
+      {/* `data-message-text`: escopo varrido pela busca na conversa
+          (`conversation-search.tsx`) — só o texto, sem hora/meta. */}
+      <span data-message-text className="whitespace-pre-wrap leading-[1.45]">{children}</span>
       {metaReserve}
     </span>
   )

@@ -381,6 +381,8 @@ export default function InboxV2ClientPage({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [templateOpen, setTemplateOpen] = useState(false);
+  // "Buscar na conversa" do kebab abre a busca inline do ChatArea.
+  const searchControlRef = useRef<{ open: () => void } | null>(null);
   // Template escolhido no modal (sessão expirada) → abre o painel no Composer.
   const [externalTemplate, setExternalTemplate] = useState<PendingTemplate | null>(null);
   const [asideCollapsed, setAsideCollapsed] = useState(false);
@@ -1931,6 +1933,7 @@ export default function InboxV2ClientPage({
         pinnedMessages={pinnedMessagesPreview}
         onUnpinMessage={handleUnpinMessage}
         onReplyMessage={handleReplyMessage}
+        searchControlRef={searchControlRef}
         headerActionsSlot={
           <>
             <WhatsappCallChip
@@ -1959,6 +1962,7 @@ export default function InboxV2ClientPage({
                 })),
                 departmentName: activeRow.department?.name ?? null,
               }}
+              onSearchInConversation={() => searchControlRef.current?.open()}
               onOpenFavorites={() => setFavoritesOpen(true)}
               onReopenNewConversation={handleReopenNewConversation}
               onResolved={(id) => {
