@@ -168,6 +168,7 @@ export function DropdownGlass({
         {trigger ?? (
           <button
             type="button"
+            data-dropdown-trigger=""
             suppressHydrationWarning
             className={cn(
               FILTER_FIELD_TRIGGER_CLASS,
@@ -182,33 +183,9 @@ export function DropdownGlass({
                 wrapLabels ? "whitespace-normal" : "truncate",
               )}
             >
-              {(() => {
-                const triggerText =
-                  typeof selected?.label === "string"
-                    ? selected.label
-                    : selected?.searchText ||
-                      (selected ? selected.value : "") ||
-                      placeholder
-                const inner = (
-                  <span
-                    data-legend-measure
-                    className={cn(
-                      "block",
-                      wrapLabels ? "leading-tight" : "truncate",
-                    )}
-                  >
-                    {selected?.label ?? placeholder}
-                  </span>
-                )
-                if (wrapLabels || typeof triggerText !== "string" || !triggerText) {
-                  return inner
-                }
-                return (
-                  <DelayedHoverLegend text={triggerText} className="block min-w-0">
-                    {inner}
-                  </DelayedHoverLegend>
-                )
-              })()}
+              <span className={wrapLabels ? "block leading-tight" : undefined}>
+                {selected?.label ?? placeholder}
+              </span>
             </span>
             <IconChevronDown
               size={15}

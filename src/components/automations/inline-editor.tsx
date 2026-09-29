@@ -493,14 +493,11 @@ function Labeled({
   label,
   optional,
   hint,
-  labelAction,
   children,
 }: {
   label: string
   optional?: boolean
   hint?: string
-  /** Controle à direita do rótulo (ex.: alternador Data/JSON). */
-  labelAction?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -508,7 +505,6 @@ function Labeled({
       <span className="cfg-label">
         {label}
         {optional && <em className="cfg-opt">opcional</em>}
-        {labelAction}
       </span>
       {children}
       {hint && <span className="cfg-hint">{hint}</span>}
@@ -1300,21 +1296,17 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
           placeholder="Selecione o campo…"
         />
       </Labeled>
-      <Labeled
-        label="Valor"
-        labelAction={
-          isDate ? (
-            <UpdateFieldDateModeToggle mode={dateMode} onChange={switchDateMode} variant="inline" />
-          ) : undefined
-        }
-        hint={
-          isDate && dateMode === "json"
-            ? UPDATE_FIELD_DATE_JSON_HINT
-            : showsUpdateFieldVariableHint(fieldType)
-              ? "Aceita variáveis, ex.: {{lastResponse}}"
-              : undefined
-        }
-      >
+      <div className="cfg-field">
+        <div className="cfg-label">
+          <span>Valor</span>
+          {isDate && (
+            <UpdateFieldDateModeToggle
+              mode={dateMode}
+              onChange={switchDateMode}
+              variant="inline"
+            />
+          )}
+        </div>
         <UpdateFieldValueControl
           fieldType={fieldType}
           options={fieldOpts}
@@ -1323,7 +1315,12 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
           variant="inline"
           dateMode={dateMode}
         />
-      </Labeled>
+        {isDate && dateMode === "json" ? (
+          <span className="cfg-hint">{UPDATE_FIELD_DATE_JSON_HINT}</span>
+        ) : showsUpdateFieldVariableHint(fieldType) ? (
+          <span className="cfg-hint">Aceita variáveis, ex.: {"{{lastResponse}}"}</span>
+        ) : null}
+      </div>
     </>
   )
 }
