@@ -270,8 +270,8 @@ export function DropdownGlass({
                         data-legend-measure
                         className={
                           wrapLabels
-                            ? "whitespace-normal break-words leading-tight"
-                            : "truncate"
+                            ? "block whitespace-normal break-words leading-tight"
+                            : "block truncate"
                         }
                       >
                         {option.label}
@@ -290,7 +290,7 @@ export function DropdownGlass({
                         <span
                           data-legend-measure
                           className={cn(
-                            "font-body text-[11px] font-normal text-[var(--text-muted)]",
+                            "block font-body text-[11px] font-normal text-[var(--text-muted)]",
                             wrapLabels
                               ? "mt-0.5 whitespace-normal break-words"
                               : "truncate",

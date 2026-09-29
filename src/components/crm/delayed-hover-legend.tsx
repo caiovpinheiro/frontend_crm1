@@ -54,9 +54,14 @@ export function DelayedHoverLegend({
   const isTruncated = () => {
     const root = wrapRef.current
     if (!root) return false
-    const measure =
-      (root.querySelector("[data-legend-measure]") as HTMLElement | null) ?? root
-    return measure.scrollWidth > measure.clientWidth + 1
+    const candidates: HTMLElement[] = [
+      ...(Array.from(root.querySelectorAll("[data-legend-measure]")) as HTMLElement[]),
+      root,
+    ]
+    // Elemento inline devolve clientWidth 0 — ignora e tenta o próximo.
+    return candidates.some(
+      (el) => el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1,
+    )
   }
 
   const onPointerEnter = (e: React.PointerEvent) => {
