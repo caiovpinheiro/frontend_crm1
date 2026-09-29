@@ -4,13 +4,22 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconSettings } from "@tabler/icons-react";
+import {
+  IconAntenna,
+  IconDownload,
+  IconPlus,
+  IconSettings,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react";
 
 import { RequirePermission } from "@/components/auth/require-permission";
 import { AppLoading } from "@/components/crm/app-loading";
 import { NavRailSpacer } from "@/components/crm/nav-rail-spacer";
 import { PipelineHeader } from "@/components/crm/pipeline-header";
-import { PageActionsMenu } from "@/components/crm/page-toolbar";
+import { PageActionsMenu, type PageActionsMenuItem } from "@/components/crm/page-toolbar";
+import { TooltipGlass } from "@/components/crm/tooltip-glass";
+import { useCan } from "@/hooks/use-my-permissions";
 import type { DealDetail } from "@/components/crm/deal-detail-panel";
 import { pickTrackedAttribution } from "@/components/crm/tracked-info-section";
 import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
@@ -32,7 +41,14 @@ import {
   usePipelineUrlSync,
   usePipelines,
 } from "@/features/pipeline-v2/hooks";
-import { PipelineSwitcher } from "@/features/pipeline-v2/extras";
+import { AddDealDialog, PipelineSwitcher } from "@/features/pipeline-v2/extras";
+import { PipelineChannelsModal } from "@/features/pipeline-v2/extras/pipeline-channels-modal";
+import {
+  ExportPanel,
+  ImportPanel,
+  useImportExportBump,
+  type ExportScope,
+} from "@/features/pipeline-v2/import-export";
 import { personNameFromDealTitle, sanitizeContactName } from "@/lib/display-name";
 import {
   pathForPipelineView,
@@ -617,6 +633,13 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   // Sem sessão o middleware redireciona; renderizar o shell aqui prendia a
   // tela para sempre, porque `usePipelines` fica desligada e `pipelineId`
   // nunca sai de null.
+  const [addStageId, setAddStageId] = useState<string | null>(null);
+  const [importExportOpen, setImportExportOpen] = useState<"import" | "export" | null>(null);
+  const [channelsOpen, setChannelsOpen] = useState(false);
+  const bumpImportExport = useImportExportBump();
+  const canImport = useCan("deal:import");
+  const canExport = useCan("deal:export");
+
   if (sessionStatus === "unauthenticated") {
     return null;
   }
@@ -687,13 +710,20 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
           menuSlot={
             <PageActionsMenu
               aria-label="Ações do pipeline"
-              items={[
-                {
-                  icon: <IconSettings size={13} />,
-                  label: "Configurar pipeline",
-                  onClick: () => router.push("/settings/pipeline"),
+              tooltip="Ordenar, importar e exportar"
+              items={flowMenuItems({
+                canAdd: stages.length > 0,
+                canImport,
+                canExport,
+                onAdd: () => {
+                  const first = stages[0];
+                  if (first) setAddStageId(first.id);
                 },
-              ]}
+                onImport: () => setImportExportOpen("import"),
+                onExport: () => setImportExportOpen("export"),
+                onChannels: () => setChannelsOpen(true),
+                onSettings: () => router.push("/settings/pipeline"),
+              })}
             />
           }
         />
@@ -772,6 +802,161 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
           </>
         )}
       </main>
+
+      {pipelineId && (
+        <AddDealDialog
+          open={!!addStageId}
+          onOpenChange={(open) => {
+            if (!open) setAddStageId(null);
+          }}
+          stages={stages.map((s) => ({ id: s.id, name: s.name }))}
+          defaultStageId={addStageId}
+          pipelineId={pipelineId}
+          statusFilter={status}
+        />
+      )}
+
+      {importExportOpen && (
+        <FlowImportExportModal
+          activeTab={importExportOpen}
+          onClose={() => setImportExportOpen(null)}
+          onDone={() => {
+            bumpImportExport();
+            void queryClient.invalidateQueries({ queryKey: ["pipeline-board"] });
+            setImportExportOpen(null);
+          }}
+          exportScope={{
+            pipelineId,
+            filters: queryFilters,
+            status,
+            filteredTotal: stages.reduce(
+              (n, s) => n + (s.totalCount ?? s.deals.length),
+              0,
+            ),
+          }}
+        />
+      )}
+
+      {channelsOpen && pipelineId && (
+        <PipelineChannelsModal
+          pipelineId={pipelineId}
+          pipelineName={pipelines?.find((p) => p.id === pipelineId)?.name}
+          open={channelsOpen}
+          onClose={() => setChannelsOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function flowMenuItems(opts: {
+  canAdd: boolean;
+  canImport: boolean;
+  canExport: boolean;
+  onAdd: () => void;
+  onImport: () => void;
+  onExport: () => void;
+  onChannels: () => void;
+  onSettings: () => void;
+}): PageActionsMenuItem[] {
+  return [
+    {
+      icon: <IconPlus size={14} stroke={2.6} />,
+      label: "Adicionar negócio",
+      onClick: opts.onAdd,
+      primary: true,
+      disabled: !opts.canAdd,
+    },
+    ...(opts.canImport
+      ? [
+          {
+            icon: <IconUpload size={13} />,
+            label: "Importar CSV",
+            onClick: opts.onImport,
+          },
+        ]
+      : []),
+    ...(opts.canExport
+      ? [
+          {
+            icon: <IconDownload size={13} />,
+            label: "Exportar CSV",
+            onClick: opts.onExport,
+          },
+        ]
+      : []),
+    {
+      icon: <IconAntenna size={13} />,
+      label: "Canais do funil",
+      onClick: opts.onChannels,
+      divider: true,
+    },
+    {
+      icon: <IconSettings size={13} />,
+      label: "Configurar pipeline",
+      onClick: opts.onSettings,
+    },
+  ];
+}
+
+function FlowImportExportModal({
+  activeTab,
+  onClose,
+  onDone,
+  exportScope,
+}: {
+  activeTab: "import" | "export";
+  onClose: () => void;
+  onDone: () => void;
+  exportScope: ExportScope;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-black/25 px-4 py-4 backdrop-blur-[2px] sm:px-6 sm:py-6"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-h-[92vh] w-full max-w-[1320px] overflow-y-auto rounded-2xl border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)] shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)]/95 px-6 py-5 backdrop-blur-sm sm:px-8">
+          <div className="flex items-center gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-primary)]/10">
+              {activeTab === "import" ? (
+                <IconUpload size={20} className="text-[var(--brand-primary)]" />
+              ) : (
+                <IconDownload size={20} className="text-[var(--brand-primary)]" />
+              )}
+            </div>
+            <div>
+              <h2 className="font-display text-[17px] font-bold text-[var(--text-primary)]">
+                {activeTab === "import" ? "Importar negócios" : "Exportar dados"}
+              </h2>
+              <p className="mt-0.5 font-body text-[13px] text-[var(--text-muted)]">
+                {activeTab === "import"
+                  ? "CSV de negócios — contatos são criados automaticamente quando nome + email/telefone são informados"
+                  : "Baixar base em CSV"}
+              </p>
+            </div>
+          </div>
+          <TooltipGlass label="Fechar" side="left">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)]"
+            >
+              <IconX size={17} />
+            </button>
+          </TooltipGlass>
+        </div>
+        <div className="p-6 sm:p-8">
+          {activeTab === "import" ? (
+            <ImportPanel fixedEntity="deals" onDone={onDone} />
+          ) : (
+            <ExportPanel scope={exportScope} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
