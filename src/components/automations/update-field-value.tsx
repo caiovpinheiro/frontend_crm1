@@ -67,7 +67,7 @@ export function UpdateFieldDateModeToggle({
     <span
       role="radiogroup"
       aria-label="Modo do valor"
-      className="inline-flex items-center gap-0.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-0.5"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-0.5"
     >
       {pill("date", "Data")}
       {pill("json", "JSON")}
