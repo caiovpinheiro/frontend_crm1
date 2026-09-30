@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiUrl } from "@/lib/api";
+import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 
+import { isBaileysChannelProvider } from "../adapters";
 import { getChannelSession, type SessionInfo } from "../api";
 
 /**
@@ -75,14 +77,37 @@ export function useWhatsappChannels(enabled = true) {
 }
 
 /**
+ * Janela de 24h / template HSM: só WhatsApp Cloud API. Baileys (número
+ * conectado por QR) é WhatsApp mas não tem janela — o `type` sozinho não
+ * distingue, por isso a checagem do `provider`.
+ */
+export function channelUsesWhatsapp24hWindow(
+  channel:
+    | { type?: string | null; provider?: string | null }
+    | null
+    | undefined,
+): boolean {
+  if (!channel) return false;
+  return (
+    usesWhatsapp24hWindow(channel.type) &&
+    !isBaileysChannelProvider(channel.provider)
+  );
+}
+
+/**
  * Janela de 24h do contato no canal do composer. A Meta separa CSV e
  * Acadêmico; o ticket só guarda o channelId do último inbound.
+ *
+ * `opts.provider` (provider do canal consultado): em Baileys não há
+ * sessão de 24h — o GET é pulado e `isFetched` fica false.
  */
 export function useChannelSession(
   conversationId: string | null,
   channelId: string | null,
   enabled: boolean,
+  opts?: { provider?: string | null },
 ) {
+  const baileys = isBaileysChannelProvider(opts?.provider);
   return useQuery<SessionInfo>({
     queryKey: [
       "channel-session",
@@ -91,7 +116,7 @@ export function useChannelSession(
     ],
     queryFn: () =>
       getChannelSession(conversationId as string, channelId as string),
-    enabled: enabled && !!conversationId && !!channelId,
+    enabled: enabled && !!conversationId && !!channelId && !baileys,
     // SSE invalida no inbound. Cache curto evita refetch em todo foco.
     staleTime: 20_000,
     refetchOnWindowFocus: false,

@@ -25,3 +25,6 @@ export { TransferPopover } from "./transfer-popover";
 export { ConversationTimelineTab } from "./conversation-timeline-tab";
 export { InboxFilterButton } from "./filter-panel";
 export { ActiveBotsButton } from "./active-bots-button";
+export { SystemEventRow, ConsentEventRow } from "./chat-event-rows";
+export { AIDraftCard } from "./ai-draft-card";
+export { ForwardDialog } from "./forward-dialog";

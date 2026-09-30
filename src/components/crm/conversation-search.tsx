@@ -98,6 +98,23 @@ function collectOccurrences(container: HTMLElement, query: string): Occurrence[]
   return out
 }
 
+/**
+ * Ctrl+F (Windows/Linux) ou Cmd+F (macOS) — abre a busca da conversa.
+ * Shift/Alt excluídos (Ctrl+Shift+F é "buscar em arquivos" em várias
+ * ferramentas e não deve ser sequestrado).
+ */
+export function isFindShortcut(e: {
+  key: string
+  ctrlKey: boolean
+  metaKey: boolean
+  altKey?: boolean
+  shiftKey?: boolean
+}): boolean {
+  if (!(e.ctrlKey || e.metaKey)) return false
+  if (e.altKey || e.shiftKey) return false
+  return e.key.toLowerCase() === "f"
+}
+
 export type ConversationSearchState = {
   /** Total de ocorrências na conversa carregada. */
   total: number

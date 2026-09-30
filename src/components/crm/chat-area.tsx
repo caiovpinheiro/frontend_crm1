@@ -1,8 +1,11 @@
 "use client"
 
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type FormEvent, Fragment } from "react"
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type FormEvent, type KeyboardEvent, Fragment } from "react"
 import { useSession } from "next-auth/react"
+import { toast } from "sonner"
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions"
+import { useResendMessage } from "@/features/inbox-v2/hooks/use-messages"
+import { isBaileysChannelProvider } from "@/features/inbox-v2/adapters"
 import { cn } from "@/lib/utils"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { registerKeepsChatTourBridge } from "@/features/product-tour/keeps-tour-bridge"
@@ -22,7 +25,10 @@ import {
   useHideChatEvents,
 } from "./chat-timeline"
 import { SessionAlert } from "./session-alert"
-import { ConversationSearchBar, useConversationSearch } from "./conversation-search"
+import { ConsentEventRow, SystemEventRow } from "@/features/inbox-v2/extras/chat-event-rows"
+import { AIDraftCard } from "@/features/inbox-v2/extras/ai-draft-card"
+import { ForwardDialog } from "@/features/inbox-v2/extras/forward-dialog"
+import { ConversationSearchBar, isFindShortcut, useConversationSearch } from "./conversation-search"
 import {
   formatConnectionLabel,
   type ConnectionRef,
@@ -85,6 +91,12 @@ interface ChatAreaProps {
   stages?: { label: string; status: "done" | "active" | "pending" }[]
   daySeparator?: string
   showSessionAlert?: boolean
+  /**
+   * Provider do canal da conversa (`MessagesResponse.channelProvider`).
+   * Canal Baileys não tem janela de 24h: o `SessionAlert` e o bloqueio do
+   * composer legado são ignorados mesmo com `showSessionAlert`.
+   */
+  channelProvider?: string | null
   className?: string
 
   /**
@@ -149,10 +161,39 @@ interface ChatAreaProps {
   // Passa através para MessageBubble. Se nenhum handler for provido,
   // o menu ainda aparece com "Copiar" (que é interno).
   onReplyMessage?: (message: Message) => void
+  /**
+   * "Encaminhar" no menu da bolha. Sem handler, o ChatArea abre o
+   * `ForwardDialog` interno (busca + vários destinos) quando conhece o
+   * `conversationId`; passe o seu para trocar o fluxo.
+   */
   onForwardMessage?: (message: Message) => void
   onReactMessage?: (message: Message, emoji: string | null) => void
   onPinMessage?: (message: Message) => void
   onFavoriteMessage?: (message: Message) => void
+  /**
+   * "Reenviar" em mensagem com falha. Sem handler, o ChatArea usa
+   * `useResendMessage(conversationId)` (texto ou reuse da mídia); passe
+   * o seu para trocar o comportamento (ex.: reenviar por outro canal).
+   */
+  onResendMessage?: (message: Message) => void
+
+  // ── Ações de nota interna (NoteRow) ─────────────────────────────
+  // Só chegam às bolhas com `isNote`; o host liga em
+  // `usePinNote/useUpdateNote/useDeleteNote/useAddNoteToLog`.
+  /** Fixar (`noteId`) ou desafixar (`null`) a nota interna da conversa. */
+  onPinNote?: (noteId: string | null) => void
+  /** Editar o texto de uma nota. Promise mantém o modo de edição até concluir. */
+  onEditNote?: (noteId: string, content: string) => void | Promise<unknown>
+  /** Excluir uma nota interna (confirmação fica a cargo do host). */
+  onDeleteNote?: (noteId: string) => void
+  /** Copiar o texto da nota para o log/timeline do negócio (precisa de deal). */
+  onAddToLog?: (content: string) => void
+  /**
+   * Nota interna fixada (`MessagesResponse.pinnedNoteId` resolvida pelo
+   * host). Banner "Nota fixada" acima da lista: clicar rola até a nota;
+   * o X chama `onPinNote(null)`. A nota continua no lugar original.
+   */
+  pinnedNote?: { id: string; content: string; senderName?: string | null } | null
 
   /**
    * Mensagens fixadas no topo da conversa (banner estilo WhatsApp). Podem
@@ -212,6 +253,7 @@ export function ChatArea({
   messages: messagesProp,
   daySeparator,
   showSessionAlert = false,
+  channelProvider,
   className,
   connection,
   connections,
@@ -244,6 +286,12 @@ export function ChatArea({
   onReactMessage,
   onPinMessage,
   onFavoriteMessage,
+  onResendMessage,
+  onPinNote,
+  onEditNote,
+  onDeleteNote,
+  onAddToLog,
+  pinnedNote,
   pinnedMessages,
   onUnpinMessage,
   conversationResolved,
@@ -312,14 +360,33 @@ export function ChatArea({
     query: searchQuery,
     enabled: searchActive,
   })
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const openSearch = useCallback(() => {
     setActiveTab("conversa")
     setSearchOpen(true)
+    // Já aberta: só refoca (ao montar, a própria barra foca o input).
+    const input = searchInputRef.current
+    if (input) {
+      input.focus()
+      input.select()
+    }
   }, [])
   const closeSearch = useCallback(() => {
     setSearchOpen(false)
     setSearchQuery("")
   }, [])
+  // Ctrl/Cmd+F abre a busca da conversa — só com o foco dentro do chat
+  // (o evento sobe até o <main>, que é focável via tabIndex=-1). Fora do
+  // chat o atalho nativo do navegador segue intacto.
+  const handleChatKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLElement>) => {
+      if (!isFindShortcut(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      openSearch()
+    },
+    [openSearch],
+  )
   useEffect(() => {
     if (!searchControlRef) return
     searchControlRef.current = { open: openSearch }
@@ -672,7 +739,44 @@ export function ChatArea({
 
   const { hideEvents } = useHideChatEvents()
 
-  const effectiveDisabled = inputDisabled ?? showSessionAlert
+  // Reenviar mensagem com falha: fallback interno quando o host não passa
+  // `onResendMessage` — Inbox/Flow/Kanban ganham o botão só com o id.
+  const resendMutation = useResendMessage(conversationId ?? null)
+  const resendMutate = resendMutation.mutate
+  const internalResend = useCallback(
+    (m: Message) => {
+      resendMutate(
+        { content: m.content, mediaUrl: m.mediaUrl ?? null },
+        {
+          onSuccess: (data) => {
+            if (data.metaError) toast.warning(`Reenviada, mas o WhatsApp respondeu: ${data.metaError}`)
+            else toast.success("Mensagem reenviada")
+          },
+          onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao reenviar"),
+        },
+      )
+    },
+    [resendMutate],
+  )
+  const handleResendMessage =
+    onResendMessage ?? (conversationId ? internalResend : undefined)
+
+  // Encaminhar: diálogo interno (busca + seleção múltipla) quando o host
+  // não passa `onForwardMessage`.
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null)
+  const openForward = useCallback((m: Message) => setForwardingMessage(m), [])
+  const useInternalForward = !onForwardMessage && Boolean(conversationId)
+  const handleForwardMessage =
+    onForwardMessage ?? (useInternalForward ? openForward : undefined)
+  // Trocar de conversa fecha o diálogo (a origem mudou).
+  useEffect(() => {
+    setForwardingMessage(null)
+  }, [conversationId])
+
+  // Baileys não tem janela de 24h — nem alerta, nem CTA de template.
+  const sessionAlertVisible =
+    showSessionAlert && !isBaileysChannelProvider(channelProvider)
+  const effectiveDisabled = inputDisabled ?? sessionAlertVisible
   const value = inputValue ?? ""
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -689,11 +793,15 @@ export function ChatArea({
   return (
     <main
       aria-label={`Conversa com ${contact.name}`}
+      // Focável (sem entrar no tab order): clicar na lista dá foco ao chat
+      // e o Ctrl/Cmd+F passa a ser capturado por `handleChatKeyDown`.
+      tabIndex={-1}
+      onKeyDown={handleChatKeyDown}
       className={cn(
         // h-full min-h-0: o pai (inbox mobile) limita a altura; sem isso a
         // lista de mensagens estoura o viewport e o composer some abaixo
         // do clip em conversas longas.
-        "relative flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] backdrop-blur-md shadow-[var(--glass-shadow)]",
+        "relative flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] outline-none backdrop-blur-md shadow-[var(--glass-shadow)]",
         className,
       )}
     >
@@ -722,6 +830,7 @@ export function ChatArea({
               onQueryChange={setSearchQuery}
               search={conversationSearch}
               onClose={closeSearch}
+              inputRef={searchInputRef}
             />
           ) : tabsEnabled ? (
             <div className="min-w-0 flex-1">
@@ -853,6 +962,38 @@ export function ChatArea({
           </div>
         )
       })()}
+      {/* NOTA FIXADA — banner permanente enquanto a nota estiver fixada
+          (portado do deal-chat-binding). Clicar rola até a nota. */}
+      {pinnedNote && (
+        <div className="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-lg border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/[0.08] px-3 py-2">
+          <IconLock size={14} className="shrink-0 text-[var(--brand-primary)]" />
+          <button
+            type="button"
+            onClick={() => scrollToMessage(pinnedNote.id)}
+            className="min-w-0 flex-1 cursor-pointer text-left"
+            aria-label="Ir para a nota fixada"
+          >
+            <p className="flex items-center gap-1.5 font-display text-[10px] font-bold uppercase tracking-wider text-[var(--brand-primary)]">
+              <IconPinFilled size={10} aria-hidden />
+              Nota fixada
+            </p>
+            <p className="truncate text-[12.5px] text-[var(--text-secondary)]">
+              {pinnedNote.senderName ? `${pinnedNote.senderName}: ` : ""}
+              {pinnedNote.content}
+            </p>
+          </button>
+          {onPinNote && (
+            <button
+              type="button"
+              onClick={() => onPinNote(null)}
+              aria-label="Desafixar nota"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
+            >
+              <IconX size={14} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col">
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
@@ -961,8 +1102,16 @@ export function ChatArea({
               }
             }
             const isEvent = message.kind === "event"
+            const isSystemRow = message.kind === "system"
+            const isConsentRow = message.kind === "consent"
+            const isDraftCard = message.kind === "draft"
+            const isNoteBubble = message.isNote === true
             const lane: "in" | "out" | "other" =
-              isEvent || message.isNote ? "other" : message.type === "outgoing" ? "out" : "in"
+              isEvent || isSystemRow || isConsentRow || isDraftCard || isNoteBubble
+                ? "other"
+                : message.type === "outgoing"
+                  ? "out"
+                  : "in"
             const clusterBreak = !isNewDay && lastLane !== null && lastLane !== lane
             lastLane = lane
             return (
@@ -996,18 +1145,39 @@ export function ChatArea({
                       actorId={message.senderUserId}
                       time={message.time}
                     />
+                  ) : isSystemRow ? (
+                    <SystemEventRow body={message.content} time={message.time} />
+                  ) : isConsentRow ? (
+                    <ConsentEventRow
+                      verdict={message.consentVerdict ?? "unknown"}
+                      time={message.time}
+                    />
+                  ) : isDraftCard ? (
+                    <AIDraftCard
+                      messageId={message.id}
+                      content={message.content}
+                      time={message.time}
+                      senderName={message.senderName ?? null}
+                      conversationId={conversationId ?? null}
+                    />
                   ) : (
                     <MessageBubble
                       message={message}
                       agentInitials={agentInitials}
                       agentName={agentName}
                       senderPhotoByName={senderPhotoByName}
+                      isPinned={isNoteBubble && message.id === pinnedNote?.id}
+                      onPinNote={isNoteBubble ? onPinNote : undefined}
+                      onEditNote={isNoteBubble ? onEditNote : undefined}
+                      onDeleteNote={isNoteBubble ? onDeleteNote : undefined}
+                      onAddToLog={isNoteBubble ? onAddToLog : undefined}
                       onReplyMessage={onReplyMessage}
-                      onForwardMessage={onForwardMessage}
+                      onForwardMessage={handleForwardMessage}
                       onReactMessage={onReactMessage}
                       onPinMessage={onPinMessage}
                       onFavoriteMessage={onFavoriteMessage}
                       onJumpToQuotedMessage={scrollToMessage}
+                      onResendMessage={handleResendMessage}
                     />
                   )}
                 </div>
@@ -1065,7 +1235,7 @@ export function ChatArea({
         data-chat-composer-footer
         className="shrink-0 border-t border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)]/95 pb-[max(0.25rem,env(safe-area-inset-bottom,0px))] pt-0.5 backdrop-blur-md"
       >
-      {showSessionAlert && <SessionAlert onUseTemplate={onUseTemplate} />}
+      {sessionAlertVisible && <SessionAlert onUseTemplate={onUseTemplate} />}
 
       {composerSlot ?? (
         <form
@@ -1139,6 +1309,17 @@ export function ChatArea({
       </div>
         </>
       )}
+
+      {useInternalForward && conversationId ? (
+        <ForwardDialog
+          open={forwardingMessage !== null}
+          onOpenChange={(open) => {
+            if (!open) setForwardingMessage(null)
+          }}
+          message={forwardingMessage}
+          sourceConversationId={conversationId}
+        />
+      ) : null}
     </main>
   )
 }
