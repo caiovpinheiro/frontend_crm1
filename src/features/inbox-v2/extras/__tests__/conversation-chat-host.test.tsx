@@ -87,7 +87,7 @@ vi.mock("@/features/inbox-v2/hooks", async () => {
     useSelectedOutboundChannel: h.useSelectedOutboundChannel,
     useChannelSession: h.useChannelSession,
     findLastPublicMessageChannelId: () => "ch-1",
-    channelUsesWhatsapp24hWindow: channels.channelUsesWhatsapp24hWindow,
+    resolveWhatsappSessionScope: channels.resolveWhatsappSessionScope,
   };
 });
 
@@ -820,5 +820,34 @@ describe("ConversationChatHost — 24h × provider do canal", () => {
     renderHost();
     expect(lastChatArea().showSessionAlert).toBe(false);
     expect(lastComposer().disabled).toBe(false);
+    // O ChatArea recebe o provider EFETIVO (canal escolhido), não o da conversa.
+    expect(lastChatArea().channelProvider).toBe("BAILEYS_MD");
+  });
+
+  it("override para um canal Cloud API numa conversa Baileys aplica a janela do destino", () => {
+    h.messagesData = {
+      ...h.messagesData,
+      channelProvider: "BAILEYS_MD",
+      session: { active: true },
+    };
+    h.useWhatsappChannels.mockReturnValue({
+      data: [
+        { id: "ch-1", name: "Número da loja", type: "WHATSAPP", provider: "BAILEYS_MD", status: "CONNECTED", phoneNumber: null },
+        { id: "ch-c", name: "WABA", type: "WHATSAPP", provider: "META_CLOUD", status: "CONNECTED", phoneNumber: null },
+      ],
+    });
+    h.useSelectedOutboundChannel.mockReturnValue({
+      selectedChannelId: "ch-c",
+      setSelectedChannelId: vi.fn(),
+    });
+    h.useChannelSession.mockReturnValue({ data: { active: false }, isFetched: true });
+    renderHost();
+    expect(h.useChannelSession).toHaveBeenLastCalledWith("conv-1", "ch-c", true, {
+      provider: "META_CLOUD",
+    });
+    expect(lastChatArea().showSessionAlert).toBe(true);
+    // Provider efetivo = Cloud API: o ChatArea não pode suprimir o alerta.
+    expect(lastChatArea().channelProvider).toBe("META_CLOUD");
+    expect(lastComposer().disabled).toBe(true);
   });
 });

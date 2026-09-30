@@ -48,8 +48,8 @@ import {
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
 import {
-  channelUsesWhatsapp24hWindow,
   findLastPublicMessageChannelId,
+  resolveWhatsappSessionScope,
   useAddNoteToLog,
   useChannelSession,
   useConversationFeatures,
@@ -298,11 +298,17 @@ export function ConversationChatHost({
   });
   const selectedOutbound = whatsappChannels?.find((c) => c.id === selectedChannelId);
   // Janela de 24h só na Cloud API: Baileys é WhatsApp mas não tem sessão
-  // nem template — o `provider` (canal escolhido ou o da conversa) decide.
-  const channelProvider = messagesData?.channelProvider ?? null;
-  const applyWhatsappSession = channelUsesWhatsapp24hWindow(
-    selectedOutbound ?? { type: messagesData?.channel?.type, provider: channelProvider },
-  );
+  // nem template — o provider do canal escolhido (ou o da conversa) decide.
+  const {
+    applyWhatsappSession,
+    channelProvider,
+    selectedChannelProvider,
+    effectiveProvider,
+  } = resolveWhatsappSessionScope({
+    selectedOutbound,
+    conversationChannelType: messagesData?.channel?.type,
+    conversationChannelProvider: messagesData?.channelProvider,
+  });
   const channelOverrideActive =
     !!selectedChannelId &&
     !!conversationChannelId &&
@@ -312,7 +318,7 @@ export function ConversationChatHost({
       conversationId,
       selectedChannelId,
       applyWhatsappSession && !!conversationId && !!selectedChannelId,
-      { provider: selectedOutbound?.provider },
+      { provider: selectedChannelProvider },
     );
 
   // Mesma regra do /inbox: inbound visível no thread reabre a janela.
@@ -332,7 +338,7 @@ export function ConversationChatHost({
     messagesLastInboundAt: sessionInfo?.lastInboundAt ?? lastInboundAt ?? null,
     threadLastInboundAt,
     channelProvider,
-    selectedChannelProvider: selectedOutbound?.provider,
+    selectedChannelProvider,
   });
   const canReply = messagesData?.canReply ?? true;
   const isResolved = conversationStatus === "RESOLVED";
@@ -645,7 +651,7 @@ export function ConversationChatHost({
         onFavoriteMessage={handleFavoriteMessage}
         pinnedMessages={pinnedMessagesPreview}
         onUnpinMessage={handleUnpinMessage}
-        channelProvider={channelProvider}
+        channelProvider={effectiveProvider}
         onPinNote={onPinNote ?? handlePinNote}
         onEditNote={onEditNote ?? handleEditNote}
         onDeleteNote={onDeleteNote ?? handleDeleteNote}
