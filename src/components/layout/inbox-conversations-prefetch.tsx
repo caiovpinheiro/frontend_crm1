@@ -10,31 +10,43 @@ import {
   inboxListServerFilters,
   prefetchInboxWarmCache,
 } from "@/features/inbox-v2/hooks/use-conversations";
+import { useMyPermissions } from "@/hooks/use-my-permissions";
+import { useUserRole } from "@/hooks/use-user-role";
+import { INBOX_PREFETCH_INTENT_EVENT } from "@/lib/inbox-prefetch-intent";
+import { filterNavItemsByPermissions, getSidebarCatalogItem } from "@/lib/sidebar-catalog";
 
 /**
- * Aquece a lista do Inbox depois do idle, para não competir com o
- * first paint da rota atual (dashboard, pipeline…). No /inbox a própria
- * página busca — prefetch aqui seria duplicata.
+ * Aquece a lista do Inbox quando o usuário sinaliza que vai abri-lo
+ * (hover/foco/toque no item Inbox do menu — `signalInboxPrefetchIntent`)
+ * e só se ele tem o item no menu. No /inbox a própria página busca —
+ * prefetch aqui seria duplicata. Uma vez por montagem do layout.
  */
 export function InboxConversationsPrefetch() {
   const { status } = useSession();
   const pathname = usePathname() ?? "";
   const queryClient = useQueryClient();
+  const { isSuperAdmin } = useUserRole();
+  const { data: myPerms } = useMyPermissions();
   const started = useRef(false);
 
+  const inboxItem = getSidebarCatalogItem("inbox");
+  // Permissões ainda carregando (`undefined`) = não aquece; só super admin passa.
+  const canSeeInbox = Boolean(
+    inboxItem &&
+      (isSuperAdmin || myPerms) &&
+      filterNavItemsByPermissions([inboxItem], {
+        isSuperAdmin,
+        permissions: myPerms?.permissions ?? [],
+      }).length > 0,
+  );
+
   useEffect(() => {
-    if (status === "unauthenticated") return;
+    if (status !== "authenticated") return;
+    if (!canSeeInbox) return;
     if (pathname.startsWith("/inbox")) return;
 
-    let idleId = 0;
-    let timeoutId = 0;
-    let cancelled = false;
-
     const run = () => {
-      if (cancelled || started.current) return;
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
-        return;
-      }
+      if (started.current) return;
       started.current = true;
       const view = readInboxViewForPrefetch();
       void prefetchInboxWarmCache(
@@ -44,44 +56,11 @@ export function InboxConversationsPrefetch() {
       );
     };
 
-    const schedule = () => {
-      if (started.current || cancelled) return;
-      // Não usar `"requestIdleCallback" in window`: o `else` tipa `window`
-      // como `never` no tsc do CI (DOM lib + narrowing do operador `in`).
-      const idleApi = window as Window & {
-        requestIdleCallback?: (
-          callback: IdleRequestCallback,
-          options?: IdleRequestOptions,
-        ) => number;
-        cancelIdleCallback?: (handle: number) => void;
-      };
-      if (typeof idleApi.requestIdleCallback === "function") {
-        idleId = idleApi.requestIdleCallback(run, { timeout: 2_500 });
-      } else {
-        timeoutId = window.setTimeout(run, 1_500);
-      }
-    };
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") schedule();
-    };
-
-    if (typeof document === "undefined" || document.visibilityState === "visible") {
-      schedule();
-    }
-    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener(INBOX_PREFETCH_INTENT_EVENT, run);
     return () => {
-      cancelled = true;
-      document.removeEventListener("visibilitychange", onVisible);
-      const idleApi = window as Window & {
-        cancelIdleCallback?: (handle: number) => void;
-      };
-      if (idleId && typeof idleApi.cancelIdleCallback === "function") {
-        idleApi.cancelIdleCallback(idleId);
-      }
-      if (timeoutId) window.clearTimeout(timeoutId);
+      window.removeEventListener(INBOX_PREFETCH_INTENT_EVENT, run);
     };
-  }, [status, queryClient, pathname]);
+  }, [status, canSeeInbox, queryClient, pathname]);
 
   return null;
 }

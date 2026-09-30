@@ -25,6 +25,7 @@ import { MobileModuleIcon } from "@/components/layout/mobile-module-icon";
 import { useMobileLayout } from "@/hooks/use-mobile-layout";
 import { useThemeV2 } from "@/hooks/use-theme-v2";
 import { useUserRole } from "@/hooks/use-user-role";
+import { inboxPrefetchIntentProps } from "@/lib/inbox-prefetch-intent";
 import { isModuleAllowedForRole, MOBILE_MODULES, MORE_SHEET_ENSURE } from "@/lib/mobile-layout";
 import { cn } from "@/lib/utils";
 
@@ -209,6 +210,7 @@ export function MobileMoreSheet({
                   href={item.href}
                   prefetch={false}
                   onClick={onClose}
+                  {...inboxPrefetchIntentProps(item.href)}
                   className={cn(
                     "flex items-center gap-2.5 rounded-xl border px-3 py-3 transition-colors active:scale-[0.98]",
                     active

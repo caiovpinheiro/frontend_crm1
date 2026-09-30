@@ -18,6 +18,10 @@ import { Bell, BellOff } from "lucide-react";
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
 import { resumeAudio as resumeInboxAudio } from "@/features/inbox-v2/hooks/use-inbox-sound";
 import {
+  useInboxSoundOwner,
+  type SoundOwnerAudioSource,
+} from "@/features/inbox-v2/hooks/use-inbox-sound-owner";
+import {
   incrementRoomUnreadInCache,
   upsertTeamChatMessage,
   useTeamChatRooms,
@@ -27,10 +31,13 @@ import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { useUserRole } from "@/hooks/use-user-role";
+import { EMAIL_ACCOUNTS_POLL_MS, pollWhileVisible } from "@/lib/shell-polling";
 import { cn } from "@/lib/utils";
 
 const SOUND_KEY = "bwipo:nav-alert-sound-muted";
 const SOUND_EVENT = "bwipo:nav-alert-sound-muted-changed";
+/** Disparado em `window` quando o AudioContext do trilho destrava. */
+const NAV_AUDIO_UNLOCKED_EVENT = "bwipo:nav-audio-unlocked";
 const PULSE_MS = 4_000;
 const SOUND_DEBOUNCE_MS = 700;
 
@@ -114,6 +121,10 @@ function getCtx(): AudioContext | null {
   return audioCtx;
 }
 
+function isNavAlertAudioRunning(): boolean {
+  return audioCtx?.state === "running";
+}
+
 async function resumeNavAlertAudio(): Promise<void> {
   const ctx = getCtx();
   if (!ctx || ctx.state === "running" || ctx.state === "closed") return;
@@ -122,7 +133,16 @@ async function resumeNavAlertAudio(): Promise<void> {
   } catch {
     /* ignore */
   }
+  if ((ctx.state as string) === "running") {
+    window.dispatchEvent(new CustomEvent(NAV_AUDIO_UNLOCKED_EVENT));
+  }
 }
+
+/** Fonte de áudio do trilho para a eleição de dona do som (MA-6). */
+const NAV_ALERT_AUDIO: SoundOwnerAudioSource = {
+  isRunning: isNavAlertAudioRunning,
+  unlockedEvent: NAV_AUDIO_UNLOCKED_EVENT,
+};
 
 function playNavAlertPing(): void {
   if (readSoundMuted()) return;
@@ -182,9 +202,17 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
   const pathname = usePathname() ?? "";
   const visible = useDocumentVisible();
   const qc = useQueryClient();
-  const meId = (session?.user as { id?: string } | undefined)?.id ?? "";
+  const sessionUser = session?.user as { id?: string; organizationId?: string | null } | undefined;
+  const meId = sessionUser?.id ?? "";
+  const orgId = sessionUser?.organizationId ?? "";
 
   const ready = status === "authenticated";
+  // Só uma aba toca o som do trilho (Bwipo Chat / e-mail); o pulso visual
+  // continua em todas.
+  const sound = useInboxSoundOwner(
+    ready && orgId && meId ? `nav-sound:${orgId}:${meId}` : null,
+    NAV_ALERT_AUDIO,
+  );
   const canEmail = ready && canSeeNav("nav:email", myPerms?.permissions, isSuperAdmin);
 
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -222,9 +250,10 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     queryKey: ["nav-email-accounts"],
     queryFn: listEmailAccounts,
     enabled: canEmail,
-    staleTime: 30_000,
-    refetchInterval: visible ? 60_000 : false,
-    refetchOnWindowFocus: true,
+    // Contador de não lidas do e-mail: sem SSE de conta, o poll é a fonte —
+    // 5 min basta para o badge; sem refetch por foco (MA-5).
+    staleTime: 60_000,
+    ...pollWhileVisible(visible, EMAIL_ACCOUNTS_POLL_MS),
     retry: 1,
   });
   const emailUnread = useMemo(
@@ -232,14 +261,15 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     [emailQuery.data],
   );
 
+  const isSoundOwner = sound.isOwner;
   const flash = useCallback((source: NavAlertSource) => {
     const setPulse = source === "team-chat" ? setChatPulse : setEmailPulse;
     const timerRef = source === "team-chat" ? chatPulseTimer : emailPulseTimer;
     setPulse(true);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setPulse(false), PULSE_MS);
-    playNavAlertPing();
-  }, []);
+    if (isSoundOwner()) playNavAlertPing();
+  }, [isSoundOwner]);
 
   useEffect(() => {
     setMutedState(readSoundMuted());
@@ -315,7 +345,9 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
             [data.roomId!]: (prev[data.roomId!] || 0) + 1,
           }));
         }
-        void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
+        // Sem invalidar `team-chat-rooms` aqui: o cache já foi patchado
+        // acima e, com a tela do chat aberta, `useTeamChatRealtime` refaz
+        // a lista — invalidar nos dois era 2 GET /rooms por mensagem (FE-15).
 
         if (!data.message || isSystem) return;
         if (isOwn) return;
