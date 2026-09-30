@@ -79,6 +79,7 @@ import { cn } from "@/lib/utils";
 import { MetaSendErrorBalloon } from "@/components/crm/meta-send-error-balloon";
 import { EventRow, classifyTimelineItem, isRedundantOpenStatusEvent } from "@/components/crm/chat-timeline";
 import { ChannelLabel, DaySeparator, StickyDayPill, useStickyDayLabel } from "@/components/crm/message-bubble";
+import { clearBoardUnreadForContact } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 
 /** Texto da nota em uma linha (banner fixado estilo WhatsApp). */
 function notePreviewOneLine(content: string, maxChars = 140): string {
@@ -994,10 +995,13 @@ export function ChatWindow({
 
   React.useEffect(() => {
     if (conversationId)
-      fetch(apiUrl(`/api/conversations/${conversationId}/read`), { method: "POST" }).catch(
-        () => {},
-      );
-  }, [conversationId, queryClient]);
+      fetch(apiUrl(`/api/conversations/${conversationId}/read`), { method: "POST" })
+        .then((res) => {
+          // Cards do funil/Flow do mesmo contato deixam de mostrar não lidas.
+          if (res.ok && contactId) clearBoardUnreadForContact(queryClient, contactId);
+        })
+        .catch(() => {});
+  }, [conversationId, contactId, queryClient]);
 
   // Ao trocar de conversa: pular instantaneamente para a última mensagem (sem
   // animação e sem "rolagem visível pelo topo"). Enquanto as mensagens ainda

@@ -116,6 +116,32 @@ function patchBoardLastMessageStatus(
 }
 
 /**
+ * Conversa aberta (chat do negócio, Flow): zera as não lidas dos cards do
+ * contato em todos os boards em cache. O POST /read já zera no servidor,
+ * mas o board vem de cache-aside e o card ficava com o contador.
+ */
+export function clearBoardUnreadForContact(qc: QueryClient, contactId: string) {
+  const boards = qc.getQueriesData<BoardStageDto[]>({
+    predicate: (q) => isBoardQueryKey(q.queryKey),
+  });
+  for (const [queryKey, data] of boards) {
+    if (!Array.isArray(data)) continue;
+    let touched = false;
+    const next = data.map((stage) => {
+      let stageTouched = false;
+      const deals = stage.deals.map((deal) => {
+        if (deal.contact?.id !== contactId || !deal.unreadCount) return deal;
+        stageTouched = true;
+        touched = true;
+        return { ...deal, unreadCount: 0 };
+      });
+      return stageTouched ? { ...stage, deals } : stage;
+    });
+    if (touched) qc.setQueryData(queryKey, next);
+  }
+}
+
+/**
  * Patch in-place do `lastMessage`/preview do card no board (P0-2): um
  * `new_message` atualiza o card do contato afetado em vez de invalidar
  * o board inteiro (887KB) a cada evento da org. Casa o deal pelo

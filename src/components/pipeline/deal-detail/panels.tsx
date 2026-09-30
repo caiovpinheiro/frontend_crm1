@@ -175,6 +175,7 @@ export function ConversationsPanel({
         <ChatWindow
           conversationId={selected.id}
           conversationStatus={convStatus || selected.status}
+          contactId={contactId}
           onResolve={(s) => onStatusChange(s)}
           onReopen={(s) => onStatusChange(s)}
           compactChrome
