@@ -695,6 +695,10 @@ export default function KanbanV2ClientPage({
   // Presença "quem está vendo" (estilo Kommo) — chaveada pelo CUID real do
   // deal (não pelo ?deal=<número>), pra ambas as janelas baterem na mesma sala.
   const dealViewers = useEntityViewers("deal", dealDetail?.id ?? null);
+  const dealViewersSlot = useMemo(
+    () => <DealViewersStack viewers={dealViewers} variant="banner" />,
+    [dealViewers],
+  );
 
   // Quando dealDetail carrega via lookup por número sequencial (?deal=102),
   // troca activeDealId para o CUID real (mutations usam CUID).
@@ -1215,7 +1219,7 @@ export default function KanbanV2ClientPage({
         isOpen={!!activeDealId}
         onClose={() => setActiveDeal(null)}
         deal={dealDetailVm ?? undefined}
-        viewersSlot={<DealViewersStack viewers={dealViewers} variant="banner" />}
+        viewersSlot={dealViewersSlot}
         stageRibbonSlot={
           stagePickerDealId && activeDealStageId ? (
             <div className="flex items-center gap-1">

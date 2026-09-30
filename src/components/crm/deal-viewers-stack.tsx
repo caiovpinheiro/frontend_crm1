@@ -9,8 +9,8 @@ import type { EntityViewer } from "@/features/pipeline-v2/hooks";
  * Variantes:
  *  - "stack"  → pilha de avatares sobrepostos (até 5 + "+N"), p/ headers.
  *      `compact` remove o rótulo "Vendo agora".
- *  - "banner" → aviso em linha "Fulano também está nesse negócio", alinhado à
- *      direita — usado no rodapé (abaixo do composer).
+ *  - "banner" → aviso em linha "Fulano também está nesse negócio", na mesma
+ *      linha de Nota interna.
  */
 export function DealViewersStack({
   viewers,
@@ -83,28 +83,28 @@ function ViewersBanner({ viewers }: { viewers: EntityViewer[] }) {
   const verb = names.length === 1 ? "está" : "estão";
 
   return (
-    <div className="flex min-w-0 items-center justify-end gap-2 text-[11px] text-[var(--text-muted)]">
-      <div className="flex items-center">
+    <div className="flex min-w-0 max-w-[280px] items-center gap-2 rounded-full bg-[var(--brand-primary)]/10 px-2 py-1 text-[13px] text-[var(--text-secondary)]">
+      <div className="flex shrink-0 items-center">
         {shown.map((v, i) => (
           <div
             key={v.userId}
             className="rounded-full ring-2 ring-[var(--glass-bg-panel)]"
-            style={{ marginLeft: i === 0 ? 0 : -6, zIndex: shown.length - i }}
+            style={{ marginLeft: i === 0 ? 0 : -8, zIndex: shown.length - i }}
           >
-            <UserAvatar name={v.name} imageUrl={v.avatarUrl} size={20} status="online" />
+            <UserAvatar name={v.name} imageUrl={v.avatarUrl} size={26} status="online" />
           </div>
         ))}
         {overflow > 0 && (
           <div
-            className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--glass-bg-strong)] text-[10px] font-bold text-[var(--text-secondary)] ring-2 ring-[var(--glass-bg-panel)]"
-            style={{ marginLeft: -6 }}
+            className="flex h-[26px] min-w-[26px] items-center justify-center rounded-full bg-[var(--glass-bg-strong)] px-1 text-[11px] font-bold text-[var(--text-secondary)] ring-2 ring-[var(--glass-bg-panel)]"
+            style={{ marginLeft: -8 }}
           >
             +{overflow}
           </div>
         )}
       </div>
       <span className="truncate">
-        <strong className="font-semibold text-[var(--text-secondary)]">{nameLabel}</strong>{" "}
+        <strong className="font-semibold text-[var(--text-primary)]">{nameLabel}</strong>{" "}
         também {verb} nesse negócio
       </span>
     </div>
