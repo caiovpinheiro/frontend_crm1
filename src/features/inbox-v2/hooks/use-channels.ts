@@ -95,6 +95,41 @@ export function channelUsesWhatsapp24hWindow(
 }
 
 /**
+ * Escopo da janela de 24h para o composer de uma conversa: o canal
+ * escolhido no composer (`OutboundChannelOption`, com provider) ou, sem
+ * escolha válida, o canal atual da conversa (`channel.type` +
+ * `channelProvider` do GET messages). Devolve o que o host passa a
+ * `useChannelSession`, `isWhatsappComposerSessionExpired` e ao ChatArea.
+ */
+export function resolveWhatsappSessionScope(args: {
+  selectedOutbound?: { type?: string | null; provider?: string | null } | null;
+  conversationChannelType?: string | null;
+  conversationChannelProvider?: string | null;
+}): {
+  /** Aplica a regra de 24h (WhatsApp Cloud API; nunca Baileys/Instagram). */
+  applyWhatsappSession: boolean;
+  /** Provider do canal atual da conversa (`MessagesResponse.channelProvider`). */
+  channelProvider: string | null;
+  /** Provider do canal escolhido no composer (`OutboundChannelOption.provider`). */
+  selectedChannelProvider: string | null;
+  /** Provider por onde a próxima mensagem sai — `channelProvider` do ChatArea. */
+  effectiveProvider: string | null;
+} {
+  const channelProvider = args.conversationChannelProvider ?? null;
+  const selectedChannelProvider = args.selectedOutbound?.provider ?? null;
+  const scope = args.selectedOutbound ?? {
+    type: args.conversationChannelType,
+    provider: channelProvider,
+  };
+  return {
+    applyWhatsappSession: channelUsesWhatsapp24hWindow(scope),
+    channelProvider,
+    selectedChannelProvider,
+    effectiveProvider: selectedChannelProvider ?? channelProvider,
+  };
+}
+
+/**
  * Janela de 24h do contato no canal do composer. A Meta separa CSV e
  * Acadêmico; o ticket só guarda o channelId do último inbound.
  *
