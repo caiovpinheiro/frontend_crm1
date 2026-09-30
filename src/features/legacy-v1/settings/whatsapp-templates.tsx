@@ -231,6 +231,22 @@ async function upsertTemplateConfig(payload: Record<string, unknown>): Promise<T
   return data as TemplateConfig;
 }
 
+/**
+ * A Meta recusa cabeçalho ou corpo que começa ou termina na variável, e
+ * também duas variáveis coladas. `{{1}}` sozinho cai nesse caso.
+ */
+function metaVariablePlacementError(text: string, where: "cabeçalho" | "corpo"): string | null {
+  const t = text.trim();
+  if (!/\{\{[^}]+\}\}/.test(t)) return null;
+  if (/^\{\{/.test(t) || /\}\}$/.test(t)) {
+    return `O ${where} não pode começar nem terminar com a variável. A Meta recusa. Escreva um texto em volta, por exemplo: Pedido {{1}} confirmado.`;
+  }
+  if (/\}\}\s*\{\{/.test(t)) {
+    return `O ${where} não pode ter duas variáveis coladas. Coloque um texto entre elas.`;
+  }
+  return null;
+}
+
 function extractHeaderText(components: unknown[] | undefined): string {
   if (!components?.length) return "";
   for (const c of components) {
@@ -799,6 +815,13 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     }
     if (headerFormat === "TEXT" && headerText.trim().length > 60) {
       toast.error("O cabeçalho de texto da Meta tem no máximo 60 caracteres.");
+      return;
+    }
+    const placement =
+      (headerFormat === "TEXT" ? metaVariablePlacementError(headerText, "cabeçalho") : null) ??
+      (category !== "AUTHENTICATION" ? metaVariablePlacementError(body, "corpo") : null);
+    if (placement) {
+      toast.error(placement);
       return;
     }
 
