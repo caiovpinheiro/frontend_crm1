@@ -126,6 +126,15 @@ export interface ConversationListRow {
     /** Motivo quando sendStatus=failed. */
     sendError?: string | null;
   } | null;
+  /**
+   * Última mensagem do CLIENTE — texto e horário exibidos no card. Sem
+   * ela (só nós falamos), o card mostra a nossa última, apagada.
+   */
+  lastInboundPreview?: {
+    content: string;
+    messageType: string;
+    createdAt: string;
+  } | null;
   unreadCount?: number;
   tags?: { id: string; name: string; color: string | null }[];
   hasError?: boolean;

@@ -219,6 +219,30 @@ export const WEBHOOK_VARIABLE_OPTIONS: WebhookVariableOption[] = [
     hint: "Gerado no momento do disparo",
     defaultKeyPath: "timestamp",
   },
+  {
+    group: "Sistema",
+    key: "now",
+    token: "{{now}}",
+    label: "Agora (data/hora ISO)",
+    hint: "Momento em que o passo executa — em campo de data vira a data de hoje",
+    defaultKeyPath: "now",
+  },
+  {
+    group: "Sistema",
+    key: "today",
+    token: "{{today}}",
+    label: "Hoje (AAAA-MM-DD)",
+    hint: "Data de hoje no fuso de São Paulo",
+    defaultKeyPath: "today",
+  },
+  {
+    group: "Sistema",
+    key: "hoje",
+    token: "{{hoje}}",
+    label: "Hoje (dd/mm/aaaa)",
+    hint: "Data de hoje por extenso numérico, para texto",
+    defaultKeyPath: "hoje",
+  },
 
   // ─── Evento ──────────────────────────────────────────────
   {

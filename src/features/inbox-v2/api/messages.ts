@@ -437,6 +437,34 @@ export async function pinNote(
   return res.json();
 }
 
+/** PATCH /api/messages/:id — edita o texto de uma nota interna. */
+export async function updateNote(
+  noteId: string,
+  content: string,
+): Promise<{ id: string; content: string }> {
+  const res = await fetch(apiUrl(`/api/messages/${noteId}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message ?? "Falha ao editar nota");
+  }
+  return res.json();
+}
+
+/** DELETE /api/messages/:id — exclui uma nota interna. */
+export async function deleteNote(noteId: string): Promise<void> {
+  const res = await fetch(apiUrl(`/api/messages/${noteId}`), {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message ?? "Falha ao excluir nota");
+  }
+}
+
 /**
  * PUT /api/conversations/:id/pin-message
  * FIXA uma mensagem (várias por conversa, máx. 3 — estilo WhatsApp).

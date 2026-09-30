@@ -49,6 +49,8 @@ export interface BoardDealDto {
    * Alimenta o tooltip em balões no DealCard quando unread > 1.
    */
   awaitingMessages?: Array<{ content: string; createdAt: string }> | null;
+  /** Última mensagem do CLIENTE — texto exibido no card (kanban/Flow). */
+  lastInboundMessage?: { content: string; createdAt: string } | null;
   channel?: string | null;
   productName?: string | null;
   productType?: "PRODUCT" | "SERVICE" | null;

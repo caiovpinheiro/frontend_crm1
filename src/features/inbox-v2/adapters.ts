@@ -263,16 +263,23 @@ export function toConversationCard(
   // tiver, cai pra string vazia (mostra apenas o tipo, se conhecido).
   // Texto plano: markdown/HTML no preview virava “link” no card e o
   // clique parecia disparar ação além de abrir a conversa.
+  // Card mostra só a última mensagem do CLIENTE. Sem ela (só nós
+  // falamos), a nossa última aparece apagada. `undefined` = backend antigo
+  // sem o campo: mantém o comportamento anterior (última de qualquer lado).
+  const inbound = row.lastInboundPreview;
+  const legacyPreview = inbound === undefined;
+  const previewIsOurs = !legacyPreview && !inbound;
   const previewText = toPlainCardPreview(
     prettifyChatMessageBody(
-      row.lastMessage?.preview ??
+      inbound?.content ??
+        row.lastMessage?.preview ??
         row.lastMessagePreview?.content ??
         "",
     ),
   );
   const lastMessageType = inferLastMessageType(
     previewText,
-    row.lastMessagePreview?.messageType ?? null,
+    inbound?.messageType ?? row.lastMessagePreview?.messageType ?? null,
   );
   const dir = String(
     row.lastMessage?.direction ?? row.lastMessagePreview?.direction ?? "",
@@ -304,8 +311,11 @@ export function toConversationCard(
     imageUrl: row.contact?.avatarUrl ?? null,
     avatarColor: colorFromName(name),
     status: deriveOnline(row.lastInboundAt),
-    time: formatRelative(lastActivity),
+    // Horário da última mensagem do cliente (a ordem da lista segue a
+    // última atividade — `lastActivityAt`).
+    time: formatRelative(inbound?.createdAt ?? lastActivity),
     preview: previewText,
+    previewIsOurs: previewIsOurs && previewText.length > 0,
     assignee: ownerLabel(row.assignedTo?.name, row.assignedTo?.type),
     // unreadCount alimenta o UnreadCountPill (pílula lilás) + rodapé "aguardando resposta".
     // `urgent` permanece para filtros/tabs (ex.: coluna "urgentes").

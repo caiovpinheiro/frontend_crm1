@@ -155,6 +155,19 @@ export function toDealCard(deal: BoardDealDto): Deal {
     messageDirection === "out"
       ? normalizeDeliveryStatus(lastMessage?.sendStatus)
       : undefined;
+  // Card mostra só a última mensagem do CLIENTE; sem ela, a nossa última
+  // apagada. `undefined` = backend antigo sem o campo: comportamento
+  // anterior (última de qualquer lado).
+  const inboundRaw = deal.lastInboundMessage;
+  const inbound =
+    inboundRaw === undefined
+      ? undefined
+      : inboundRaw && !isInternalOrSystemPreview(inboundRaw.content)
+        ? inboundRaw
+        : null;
+  const shown =
+    inbound === undefined ? lastMessage : inbound ?? lastMessage;
+  const shownIsOurs = inbound === null && lastMessage != null;
   return {
     id: deal.id,
     name: contactName,
@@ -165,14 +178,15 @@ export function toDealCard(deal: BoardDealDto): Deal {
     dealNumber: deal.number != null ? `#${deal.number}` : `#${deal.id.slice(0, 4)}`,
     date: formatDateBr(deal.updatedAt ?? deal.createdAt),
     timeAgo: deal.expectedClose ? formatRelative(deal.expectedClose) : undefined,
-    message: lastMessage
+    message: shown
       ? {
-          text: lastMessage.content,
-          time: formatRelative(lastMessage.createdAt),
+          text: shown.content,
+          time: formatRelative(shown.createdAt),
+          ours: shownIsOurs,
           direction: messageDirection,
           status: messageStatus,
           sendError:
-            messageDirection === "out" ? lastMessage.sendError ?? null : null,
+            messageDirection === "out" ? lastMessage?.sendError ?? null : null,
           awaitingTexts: (deal.awaitingMessages ?? [])
             .map((m) => (m.content ?? "").trim())
             .filter(Boolean),

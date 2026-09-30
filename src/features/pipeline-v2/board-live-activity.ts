@@ -6,9 +6,17 @@ type BoardDeal = BoardStageDto["deals"][number];
 export type ActivityPreview = {
   contactId?: string;
   direction?: string | null;
-  content: string;
+  /**
+   * `null` = evento sem texto (redigido no servidor: o usuário não lista
+   * a conversa). Atualiza horário/ordem/não lidas e mantém a prévia.
+   */
+  content: string | null;
   timestamp: string;
 };
+
+function lastMessageContent(deal: BoardDeal): string {
+  return deal.lastMessage?.content ?? "";
+}
 
 /**
  * Aplica uma mensagem (enviada ou recebida) no card. Timestamp mais antigo
@@ -24,7 +32,8 @@ export function foldActivityOntoDeal<T extends BoardDeal>(
   }
   const direction =
     data.direction === "in" || data.direction === "out" ? data.direction : null;
-  const content = data.content;
+  const content = data.content ?? lastMessageContent(deal);
+  const hasText = data.content != null;
   const ts = data.timestamp;
   const lm = deal.lastMessage;
   const nextTs = messageActivityTimestamp(ts);
@@ -49,8 +58,12 @@ export function foldActivityOntoDeal<T extends BoardDeal>(
         sendStatus: direction === "out" ? "sent" : null,
         sendError: null,
       },
+      // Texto do card = última mensagem do cliente.
+      ...(direction === "in" && hasText
+        ? { lastInboundMessage: { content, createdAt: ts } }
+        : {}),
       awaitingMessages:
-        direction === "in"
+        direction === "in" && hasText
           ? [...(deal.awaitingMessages ?? []), { content, createdAt: ts }].slice(-5)
           : direction === "out"
             ? []
