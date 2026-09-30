@@ -101,6 +101,7 @@ import { ComposerMenu } from "./composer-menu";
 import { QuickReplyPopover } from "./quick-reply-popover";
 import type { QuickReplyCatalogItem } from "./quick-reply-catalog";
 import { ConversationResolveButton } from "./conversation-resolve-button";
+import { ScheduledMessagesBanner } from "./scheduled-messages-banner";
 import {
   TemplateComposePanel,
   whatsappTemplateToPending,
@@ -1246,9 +1247,20 @@ export function Composer({
     }
   }
 
+  // Canal Baileys não tem janela de 24h → o diálogo de agendamento não
+  // oferece template fallback. Canal desconhecido: mantém a opção (Meta).
+  const scheduleSendChannel = availableChannels?.find(
+    (c) => c.id === (selectedChannelId ?? conversationChannelId),
+  );
+  const scheduleTemplateFallback = scheduleSendChannel
+    ? scheduleSendChannel.provider !== "BAILEYS_MD"
+    : true;
+
   return (
     <div ref={rootRef} className="relative mx-3 mb-1 max-md:mx-2 max-md:mb-1 sm:mx-4">
       {confirmDialogNode}
+      {/* Agendamentos pendentes da conversa — acima do input, em todo host */}
+      <ScheduledMessagesBanner conversationId={conversationId} />
       {/* Painel de validação do template do WhatsApp — flutua acima do composer */}
       {pendingTemplate && conversationId ? (
         <TemplateComposePanel
@@ -1616,6 +1628,7 @@ export function Composer({
             <ComposerMenu
               conversationId={conversationId}
               channelId={selectedChannelId ?? conversationChannelId ?? null}
+              scheduleTemplateFallback={scheduleTemplateFallback}
               className="h-9 w-9 shrink-0"
               noteMode={noteMode}
               onToggleNote={onSendNote ? () => setNoteMode((v) => !v) : undefined}
