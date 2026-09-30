@@ -107,8 +107,7 @@ export function reconcileTemplateVariables(
  * vazios. O operador continua livre para sobrescrever: valor já preenchido
  * nunca é tocado.
  *
- * Só vale para o corpo — `operatorVariables` indexa por chave, sem componente,
- * e cabeçalho e corpo podem ter a mesma chave (`{{1}}`).
+ * Cabeçalho e corpo podem ter a mesma chave (`{{1}}`); o padrão usa o componente.
  */
 export function applyOperatorVariableDefaults(
   vars: TemplateVariableInput[],
@@ -116,9 +115,13 @@ export function applyOperatorVariableDefaults(
 ): TemplateVariableInput[] {
   if (!operatorVariables?.length) return vars;
   return vars.map((v) => {
-    if ((v.component ?? "body") !== "body") return v;
     if ((v.value ?? "").trim()) return v;
-    const crmField = operatorVariableCrmField(operatorVariables, String(v.key ?? "").trim());
+    const component = v.component === "header" ? "header" : "body";
+    const crmField = operatorVariableCrmField(
+      operatorVariables,
+      String(v.key ?? "").trim(),
+      component,
+    );
     return crmField ? { ...v, value: crmField } : v;
   });
 }
