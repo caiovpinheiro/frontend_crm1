@@ -133,7 +133,7 @@ type Catalogs = {
   users: Array<{ id: string; name: string; type: string }>;
   aiAgents: Array<{ id: string; name: string }>;
   messageTemplates: Array<{ id: string; name: string }>;
-  knowledgeDocs: Array<{ id: string; name?: string; title?: string }>;
+  knowledgeDocs: Array<{ id: string; name: string; title?: string }>;
   channels: Array<{ id: string; name: string }>;
   pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
   tags?: Array<{ id: string; name: string }>;
@@ -4976,7 +4976,7 @@ function ThemeEditor({
                 label="Materiais"
                 options={catalogs.knowledgeDocs.map((d) => ({
                   value: d.id,
-                  label: d.name?.trim() || d.title?.trim() || "Material sem nome",
+                  label: (d.name || d.title || "Material sem nome").trim() || "Material sem nome",
                 }))}
                 selected={((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)}
                 onChange={(v) => onPatch({ allowedKnowledgeDocIds: v })}
