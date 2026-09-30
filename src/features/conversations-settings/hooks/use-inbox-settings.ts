@@ -11,6 +11,12 @@ export interface InboxSettings {
   keepDepartmentOnEnd: boolean;
   /** Protocolo aguardar + encerramento com agente (saídas no canvas). */
   closingProtocolEnabled: boolean;
+  /**
+   * Cliente volta após automação encerrar o atendimento anterior (24h):
+   * `new_ticket` devolve ao atendente anterior só enquanto ninguém foi
+   * atribuído na conversa atual; `always` a cada mensagem; `off` nunca.
+   */
+  returnToPreviousAgent: "new_ticket" | "always" | "off";
   audioTranscription: "none" | "all" | "on_demand";
   transcriptionLanguage: "pt-BR" | "en-US" | "es-ES";
   /**
@@ -32,6 +38,7 @@ const DEFAULTS: InboxSettings = {
   keepAgentOnEnd: false,
   keepDepartmentOnEnd: false,
   closingProtocolEnabled: false,
+  returnToPreviousAgent: "new_ticket",
   audioTranscription: "none",
   transcriptionLanguage: "pt-BR",
   showInboundSignal: true,
@@ -61,6 +68,11 @@ export async function fetchInboxSettings(): Promise<InboxSettings> {
     keepAgentOnEnd: data["conversation.keepAgentOnEnd"] === "true",
     keepDepartmentOnEnd: data["conversation.keepDepartmentOnEnd"] === "true",
     closingProtocolEnabled: data["conversation.closingProtocolEnabled"] === "true",
+    returnToPreviousAgent:
+      data["conversation.returnToPreviousAgent"] === "always" ||
+      data["conversation.returnToPreviousAgent"] === "off"
+        ? data["conversation.returnToPreviousAgent"]
+        : "new_ticket",
     audioTranscription: (data["conversation.audioTranscription"] as InboxSettings["audioTranscription"]) ?? "none",
     transcriptionLanguage: (data["conversation.transcriptionLanguage"] as InboxSettings["transcriptionLanguage"]) ?? "pt-BR",
     // Default ligado: ausência da chave mantém o comportamento atual.

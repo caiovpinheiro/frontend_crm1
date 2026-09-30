@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import {
+  IconArrowBackUp,
   IconArrowRight,
   IconHourglass,
   IconMail,
@@ -193,6 +194,19 @@ export function ConversationsConfigTab() {
             description="Liga o motor: aguardar resposta, sem resposta inicia encerramento e um agente lê o contexto. As saídas Encerrar e Devolver ficam no passo do canvas — o destino é do fluxo."
             checked={settings.closingProtocolEnabled}
             onChange={(v) => save("closingProtocolEnabled", v)}
+            disabled={busy}
+          />
+          <SelectRow
+            icon={<IconArrowBackUp size={20} />}
+            label="Volta ao atendente anterior"
+            description="Quando uma automação encerrou o atendimento anterior nas últimas 24 h e o cliente escreve de novo."
+            value={settings.returnToPreviousAgent}
+            options={[
+              { value: "new_ticket", label: "Até alguém assumir" },
+              { value: "always", label: "A cada mensagem" },
+              { value: "off", label: "Não devolver" },
+            ]}
+            onChange={(v) => save("returnToPreviousAgent", v)}
             disabled={busy}
           />
         </div>
