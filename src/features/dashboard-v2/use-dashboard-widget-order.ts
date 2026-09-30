@@ -43,6 +43,7 @@ export const SERVICE_BOARD_WIDGET_IDS = [
 
 export const OPERATOR_WIDGET_IDS = [
   "kpis",
+  "inboundStages",
   "conversations",
   "tasks",
   "stalled",
