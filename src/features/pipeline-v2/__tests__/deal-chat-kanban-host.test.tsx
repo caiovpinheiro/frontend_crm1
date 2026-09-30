@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -152,10 +153,13 @@ import { ConversationChatHost } from "@/features/inbox-v2/extras/conversation-ch
 import { ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton";
 import { DealChatBindingHost, DealChatEmptyState } from "../extras/deal-chat-binding";
 
+// Contadores de commit (efeito sem deps roda a cada render do componente).
 const renders = { board: 0, page: 0 };
 
 function BoardSpy() {
-  renders.board += 1;
+  useEffect(() => {
+    renders.board += 1;
+  });
   return <div data-testid="board" />;
 }
 
@@ -169,7 +173,9 @@ function KanbanPage({
   contactId: string | null;
   viewers?: React.ReactNode;
 }) {
-  renders.page += 1;
+  useEffect(() => {
+    renders.page += 1;
+  });
   return (
     <>
       <BoardSpy />

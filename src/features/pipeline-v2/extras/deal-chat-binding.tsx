@@ -46,11 +46,14 @@ export function useDealChatBinding(params: {
   // endpoint `skipSend` (cria OU reutiliza a conversa WhatsApp do contato),
   // mesmo comportamento do deal detail legado (`ConversationsPanel`).
   const qc = useQueryClient();
-  const [ensuredId, setEnsuredId] = useState<string | null>(null);
-  const autoEnsuredRef = useRef(false);
-  // Contato do POST em voo. O painel é reusado entre cards (o hook não
-  // desmonta ao trocar de deal), então uma resposta atrasada podia vincular
-  // a conversa do deal anterior ao card aberto agora.
+  // Conversa garantida, carimbada com o contato: o painel é reusado entre
+  // cards (o hook não desmonta ao trocar de deal), então trocar de contato
+  // "esquece" a anterior sem efeito de reset, e uma resposta atrasada do
+  // card anterior nunca vincula ao card aberto agora.
+  const [ensured, setEnsured] = useState<{ contactId: string; id: string } | null>(null);
+  const ensuredId = ensured && ensured.contactId === contactId ? ensured.id : null;
+  // Contato para o qual o auto-ensure já disparou / do POST em voo.
+  const autoEnsuredForRef = useRef<string | null>(null);
   const ensureTargetRef = useRef<string | null>(null);
 
   // `contactId` chega pelo seed do board ANTES do GET /api/deals/:id
@@ -90,25 +93,19 @@ export function useDealChatBinding(params: {
       qc.invalidateQueries({ queryKey: ["conversation-timeline", conv.id] });
       qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
       if (ensureTargetRef.current !== cid) return;
-      setEnsuredId(conv.id);
+      setEnsured({ contactId: cid, id: conv.id });
     },
     onError: (err: Error) => toast.error(err.message || "Falha ao iniciar conversa"),
   });
 
-  // Reseta o controle de auto-ensure ao trocar de deal/contato.
-  useEffect(() => {
-    autoEnsuredRef.current = false;
-    ensureTargetRef.current = null;
-    setEnsuredId(null);
-  }, [contactId]);
-
-  // `isPending` nas deps: trocar de card com o POST do contato anterior em
-  // voo adiava o ensure do novo; quando o anterior assenta, tenta de novo.
+  // Dispara uma vez por contato. `isPending` nas deps: trocar de card com o
+  // POST do contato anterior em voo adia o ensure do novo; quando o anterior
+  // assenta, tenta de novo.
   useEffect(() => {
     if (!canAutoEnsure) return;
     if (conversationId || !contactId) return;
-    if (ensuredId || autoEnsuredRef.current || ensureMutation.isPending) return;
-    autoEnsuredRef.current = true;
+    if (ensuredId || autoEnsuredForRef.current === contactId || ensureMutation.isPending) return;
+    autoEnsuredForRef.current = contactId;
     ensureTargetRef.current = contactId;
     ensureMutation.mutate(contactId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
