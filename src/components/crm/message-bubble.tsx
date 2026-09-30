@@ -119,6 +119,8 @@ import {
   IconPhone,
   IconTool,
   IconShieldCheck,
+  IconClockExclamation,
+  IconRefresh,
 } from "@tabler/icons-react"
 
 type MediaKind = "image" | "audio" | "video" | "document" | null
@@ -470,6 +472,45 @@ export interface MessageBubbleProps {
   onFavoriteMessage?: (message: Message) => void
   /** Ao clicar na citação: rola até a mensagem original no thread. */
   onJumpToQuotedMessage?: (messageId: string) => void
+  /** "Reenviar" numa mensagem enviada com `status: "failed"`. */
+  onResendMessage?: (message: Message) => void
+}
+
+/** Sem `delivered`/`read` por mais que isto: aviso "entrega não confirmada". */
+export const STALE_DELIVERY_MS = 5 * 60_000
+
+/**
+ * Mensagem ficou em `sent`/`pending` sem virar `delivered` por > 5 min.
+ * Pode ser número pausado, quality rating rebaixado ou mensagem engolida
+ * pela Cloud API — não é falha definitiva (o sweeper marca `failed`
+ * depois), só um aviso proativo pro operador.
+ */
+export function isDeliveryStale(
+  status: Message["status"],
+  createdAt: string | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (status !== "sent" && status !== "pending") return false
+  if (!createdAt) return false
+  const ts = Date.parse(createdAt)
+  if (!Number.isFinite(ts)) return false
+  return now - ts > STALE_DELIVERY_MS
+}
+
+/** Reavalia sozinho quando o limite de 5 min é cruzado com a bolha na tela. */
+function useDeliveryStale(status: Message["status"], createdAt: string | undefined): boolean {
+  const [stale, setStale] = useState(() => isDeliveryStale(status, createdAt))
+  useEffect(() => {
+    const next = isDeliveryStale(status, createdAt)
+    setStale(next)
+    if (next || (status !== "sent" && status !== "pending") || !createdAt) return
+    const ts = Date.parse(createdAt)
+    if (!Number.isFinite(ts)) return
+    const remaining = Math.max(0, ts + STALE_DELIVERY_MS - Date.now() + 250)
+    const timer = setTimeout(() => setStale(isDeliveryStale(status, createdAt)), remaining)
+    return () => clearTimeout(timer)
+  }, [status, createdAt])
+  return stale
 }
 
 /**
@@ -1575,8 +1616,13 @@ export const MessageBubble = memo(function MessageBubble({
   onPinMessage,
   onFavoriteMessage,
   onJumpToQuotedMessage,
+  onResendMessage,
 }: MessageBubbleProps) {
   const isOutgoing = message.type === "outgoing"
+  const deliveryStale = useDeliveryStale(
+    isOutgoing ? message.status : undefined,
+    message.createdAt,
+  )
   const isBot = message.isBot ?? false
   const isCampaign = message.isCampaign === true
   const isNote = message.isNote === true
@@ -2008,6 +2054,22 @@ export const MessageBubble = memo(function MessageBubble({
                   <MetaSendErrorBalloon sendError={message.sendError} />
                 </TooltipContent>
               </Tooltip>
+            ) : isOutgoing && deliveryStale ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="pointer-events-auto inline-flex cursor-help text-amber-300"
+                    aria-label="Entrega não confirmada"
+                    data-delivery-stale
+                  >
+                    <IconClockExclamation size={13} stroke={2.4} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" className="max-w-[240px] text-left leading-tight">
+                  Entrega não confirmada após 5 min — o número pode estar
+                  pausado, sinalizado ou com qualidade rebaixada na Meta.
+                </TooltipContent>
+              </Tooltip>
             ) : isOutgoing && message.status ? (
               <StatusTicks status={message.status} onLightBg={false} />
             ) : null}
@@ -2038,6 +2100,23 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
       </div>
+
+      {/* Falha de envio: "Reenviar" cria uma NOVA mensagem com o mesmo
+          conteúdo (texto ou reuse da mídia) — paridade com o ChatWindow. */}
+      {isOutgoing && message.status === "failed" && onResendMessage ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onResendMessage(message)
+          }}
+          aria-label="Reenviar mensagem"
+          className="mt-0.5 inline-flex items-center gap-1 self-end rounded-full px-2 py-0.5 font-display text-[11px] font-semibold text-[var(--color-danger)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)]"
+        >
+          <IconRefresh size={12} stroke={2.4} aria-hidden />
+          Reenviar
+        </button>
+      ) : null}
 
       {/* Nome do remetente apenas no tooltip do avatar (acima) */}
     </div>

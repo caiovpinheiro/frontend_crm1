@@ -13,6 +13,7 @@ import {
   pinMessage,
   unpinMessage,
   pinNote,
+  resendMessage,
   sendAttachment,
   sendMessage,
   sendReaction,
@@ -338,6 +339,38 @@ export function useSendMessage(
             timestamp: data.message?.createdAt,
           });
         }
+      }
+    },
+  });
+}
+
+/**
+ * Mutation: reenviar mensagem que falhou (`status: failed`) como nova
+ * mensagem — texto via POST /messages, mídia via reuse do anexo. Mesmos
+ * efeitos colaterais do envio normal (reabertura, preview do card).
+ */
+export function useResendMessage(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<
+    Awaited<ReturnType<typeof resendMessage>>,
+    Error,
+    { content?: string | null; mediaUrl?: string | null; replyToId?: string | null }
+  >({
+    mutationFn: (vars) => resendMessage(conversationId as string, vars),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+      if (data.reopenedConversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(data.reopenedConversationId) });
+        emitConversationReopened(data.reopenedConversationId);
+        qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
+        qc.invalidateQueries({ queryKey: ["deal"] });
+        qc.invalidateQueries({ queryKey: ["contact"] });
+      } else {
+        applyOutboundPreviewToInboxCaches(qc, conversationId, {
+          content: data.message?.content,
+          messageType: data.message?.messageType,
+          timestamp: data.message?.createdAt,
+        });
       }
     },
   });

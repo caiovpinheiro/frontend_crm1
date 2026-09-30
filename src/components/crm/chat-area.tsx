@@ -2,7 +2,9 @@
 
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type FormEvent, type KeyboardEvent, Fragment } from "react"
 import { useSession } from "next-auth/react"
+import { toast } from "sonner"
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions"
+import { useResendMessage } from "@/features/inbox-v2/hooks/use-messages"
 import { isBaileysChannelProvider } from "@/features/inbox-v2/adapters"
 import { cn } from "@/lib/utils"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
@@ -161,6 +163,12 @@ interface ChatAreaProps {
   onReactMessage?: (message: Message, emoji: string | null) => void
   onPinMessage?: (message: Message) => void
   onFavoriteMessage?: (message: Message) => void
+  /**
+   * "Reenviar" em mensagem com falha. Sem handler, o ChatArea usa
+   * `useResendMessage(conversationId)` (texto ou reuse da mídia); passe
+   * o seu para trocar o comportamento (ex.: reenviar por outro canal).
+   */
+  onResendMessage?: (message: Message) => void
 
   // ── Ações de nota interna (NoteRow) ─────────────────────────────
   // Só chegam às bolhas com `isNote`; o host liga em
@@ -271,6 +279,7 @@ export function ChatArea({
   onReactMessage,
   onPinMessage,
   onFavoriteMessage,
+  onResendMessage,
   onPinNote,
   onEditNote,
   onDeleteNote,
@@ -723,6 +732,28 @@ export function ChatArea({
 
   const { hideEvents } = useHideChatEvents()
 
+  // Reenviar mensagem com falha: fallback interno quando o host não passa
+  // `onResendMessage` — Inbox/Flow/Kanban ganham o botão só com o id.
+  const resendMutation = useResendMessage(conversationId ?? null)
+  const resendMutate = resendMutation.mutate
+  const internalResend = useCallback(
+    (m: Message) => {
+      resendMutate(
+        { content: m.content, mediaUrl: m.mediaUrl ?? null },
+        {
+          onSuccess: (data) => {
+            if (data.metaError) toast.warning(`Reenviada, mas o WhatsApp respondeu: ${data.metaError}`)
+            else toast.success("Mensagem reenviada")
+          },
+          onError: (e) => toast.error(e instanceof Error ? e.message : "Falha ao reenviar"),
+        },
+      )
+    },
+    [resendMutate],
+  )
+  const handleResendMessage =
+    onResendMessage ?? (conversationId ? internalResend : undefined)
+
   // Baileys não tem janela de 24h — nem alerta, nem CTA de template.
   const sessionAlertVisible =
     showSessionAlert && !isBaileysChannelProvider(channelProvider)
@@ -1118,6 +1149,7 @@ export function ChatArea({
                       onPinMessage={onPinMessage}
                       onFavoriteMessage={onFavoriteMessage}
                       onJumpToQuotedMessage={scrollToMessage}
+                      onResendMessage={handleResendMessage}
                     />
                   )}
                 </div>

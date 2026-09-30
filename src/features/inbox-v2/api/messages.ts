@@ -241,6 +241,43 @@ export async function sendAttachmentReuse(
   };
 }
 
+/**
+ * Reenvia uma mensagem que FALHOU como uma nova mensagem — mesmo caminho
+ * do ChatWindow legado (POST /messages com o mesmo texto; o backend
+ * escolhe o canal atual da conversa). Mídia: reaproveita o arquivo já no
+ * storage da org via POST /attachments `{ reuseUrl }`, sem reenviar bytes.
+ */
+export async function resendMessage(
+  conversationId: string,
+  source: {
+    content?: string | null;
+    mediaUrl?: string | null;
+    replyToId?: string | null;
+  },
+): Promise<{
+  message: InboxMessageDto;
+  reopenedConversationId?: string;
+  metaError?: string;
+}> {
+  const content = (source.content ?? "").trim();
+  const mediaUrl = (source.mediaUrl ?? "").trim();
+  if (mediaUrl) {
+    // "[image]" / "📎 doc.pdf" são placeholders do backend, não legenda.
+    const isPlaceholder = /^\[[^\]]+\]\s*(👁)?$/.test(content) || /^📎/.test(content);
+    return sendAttachmentReuse(conversationId, {
+      reuseUrl: mediaUrl,
+      ...(content && !isPlaceholder ? { caption: content } : {}),
+    });
+  }
+  if (!content) {
+    throw new Error("Mensagem sem conteúdo para reenviar");
+  }
+  return sendMessage(conversationId, {
+    content,
+    ...(source.replyToId ? { replyToId: source.replyToId } : {}),
+  });
+}
+
 export type ConversationProductSendResult = {
   used?: "catalog" | "legacy" | "ask";
   fallback?: boolean;
