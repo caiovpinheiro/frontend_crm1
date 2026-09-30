@@ -76,13 +76,14 @@ export function TooltipGlass({
   side = "top",
   align = "center",
   sideOffset = 8,
+  delay,
   className,
   plain = false,
 }: TooltipGlassProps) {
   if (!label) return children;
 
   return (
-    <TooltipPrimitive.Root>
+    <TooltipPrimitive.Root delayDuration={delay}>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content

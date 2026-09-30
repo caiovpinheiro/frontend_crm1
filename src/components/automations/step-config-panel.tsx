@@ -43,8 +43,13 @@ import { useContactSources } from "@/hooks/use-contact-sources";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import {
+  inferUpdateFieldDateMode,
+  isUpdateFieldDateType,
   showsUpdateFieldVariableHint,
+  UPDATE_FIELD_DATE_JSON_HINT,
+  UpdateFieldDateModeToggle,
   UpdateFieldValueControl,
+  type UpdateFieldDateMode,
 } from "@/components/automations/update-field-value";
 import {
   validateEntries as validateWebhookEntries,
@@ -307,6 +312,9 @@ const MESSAGING_STEP_TYPES = new Set([
 export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [] }: Props) {
   const [draft, setDraft] = useState<Record<string, unknown>>({});
   const [updateFieldFilter, setUpdateFieldFilter] = useState("");
+  // Campo DATE do update_field: null = deduz do valor salvo (`{{` → JSON).
+  const [updateFieldDateMode, setUpdateFieldDateMode] =
+    useState<UpdateFieldDateMode | null>(null);
   const declaredVariables = useMemo(
     () => collectDeclaredVariables(allSteps, step?.id ?? ""),
     [allSteps, step?.id],
@@ -875,6 +883,14 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
             );
             const fieldType = (selectedCustom?.type || "").toUpperCase();
             const fieldOpts = selectedCustom?.options ?? [];
+            const isDate = isUpdateFieldDateType(fieldType);
+            const draftValue = String(draft.value ?? "");
+            const dateMode =
+              updateFieldDateMode ?? inferUpdateFieldDateMode(draftValue);
+            const switchDateMode = (next: UpdateFieldDateMode) => {
+              setUpdateFieldDateMode(next);
+              if (draftValue) setDraft((d) => ({ ...d, value: "" }));
+            };
             return (
               <>
                 <div className="space-y-2">
@@ -936,25 +952,40 @@ export function StepConfigPanel({ open, onOpenChange, step, onSave, allSteps = [
                           description: "Campos personalizados",
                         })),
                     ]}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({ ...d, field: v, value: "" }))
-                    }
+                    onValueChange={(v) => {
+                      setUpdateFieldDateMode(null);
+                      setDraft((d) => ({ ...d, field: v, value: "" }));
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sc-val">Valor</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="sc-val">Valor</Label>
+                    {isDate && (
+                      <UpdateFieldDateModeToggle
+                        mode={dateMode}
+                        onChange={switchDateMode}
+                        variant="panel"
+                      />
+                    )}
+                  </div>
                   <UpdateFieldValueControl
                     fieldType={fieldType}
                     options={fieldOpts}
-                    value={String(draft.value ?? "")}
+                    value={draftValue}
                     onChange={(v) => setDraft((d) => ({ ...d, value: v }))}
                     variant="panel"
+                    dateMode={dateMode}
                   />
-                  {showsUpdateFieldVariableHint(fieldType) && (
+                  {isDate && dateMode === "json" ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      {UPDATE_FIELD_DATE_JSON_HINT}
+                    </p>
+                  ) : showsUpdateFieldVariableHint(fieldType) ? (
                     <p className="text-[11px] text-muted-foreground">
                       Você pode usar variáveis no valor, ex.: {"{{"}lastResponse{"}}"}.
                     </p>
-                  )}
+                  ) : null}
                 </div>
               </>
             );
@@ -3519,58 +3550,16 @@ function TransferToAIAgentStepConfig({
   const target = String(draft.target ?? "deal");
   const activeAgents = agents.filter((a) => a.active);
   const selected = activeAgents.find((a) => a.userId === selectedId);
-  const tabulator = isTabulationArchetype(selected?.archetype);
-
-  useEffect(() => {
-    if (!selected) return;
-    setDraft((d) => {
-      const nextTarget = isTabulationArchetype(selected.archetype)
-        ? "contact"
-        : d.target;
-      if (
-        d.agentArchetype === selected.archetype &&
-        d.target === nextTarget
-      ) {
-        return d;
-      }
-      return {
-        ...d,
-        agentArchetype: selected.archetype,
-        target: nextTarget,
-      };
-    });
-  }, [selected, setDraft]);
 
   return (
     <>
       <div className="rounded-lg border border-[var(--color-lavender)]/30 bg-[var(--color-lavender-soft)] p-3 text-[11px] leading-relaxed text-[var(--color-text-primary)]">
         <p className="mb-1 font-semibold">Como funciona</p>
         <p>
-          {tabulator ? (
-            <>
-              Este agente é um <b>classificador</b>: só tabula se o
-              contato trouxe uma demanda. Sem atendimento (silêncio, só
-              mensagem da empresa), <b>não tabula e não encerra</b>.
-              Assume só a conversa — <b>não vira dono do negócio</b>.
-            </>
-          ) : selected?.archetype === "ENCERRAMENTO" ? (
-            <>
-              Este agente espera a próxima mensagem do contato. Se for
-              finalização (ok, obrigado, valeu…), responde{" "}
-              <b>Obrigado. Se precisar estamos aqui para ajudar</b> e
-              encerra — a automação de Encerramento segue. Se for
-              dúvida nova, transfere para humano. <b>Não cumprimenta</b>{" "}
-              na transferência.
-            </>
-          ) : (
-            <>
-              Este passo atribui a conversa a um <b>agente de IA</b>. A
-              partir deste ponto, o agente assume o atendimento — cada nova
-              mensagem do cliente é respondida pelo agente (ou rascunhada
-              pra operador humano aprovar, se o modo for DRAFT). Agente de
-              Tabulação classifica em silêncio, sem falar com o cliente.
-            </>
-          )}
+          Este passo atribui a conversa a um <b>agente de IA</b>. A
+          partir deste ponto, o agente assume o atendimento — cada nova
+          mensagem do cliente é respondida pelo agente (ou rascunhada
+          pra operador humano aprovar, se o modo for DRAFT).
         </p>
       </div>
 
@@ -3581,7 +3570,7 @@ function TransferToAIAgentStepConfig({
         ) : activeAgents.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhum agente IA ativo. Crie um em{" "}
-            <a href="/ai-agents" className="underline">
+            <a href="/ai-agents-v2" className="underline">
               Agentes IA
             </a>
             .
@@ -3622,26 +3611,18 @@ function TransferToAIAgentStepConfig({
         </div>
       )}
 
-      {tabulator ? (
-        <p className="text-[11px] text-muted-foreground">
-          Sem atendimento real o classificador não tabula e não encerra.
-          Se tabular, assume só a conversa — o negócio fica com o
-          responsável atual.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          <Label>Aplicar em</Label>
-          <DropdownGlass
-            triggerClassName="w-full"
-            value={target}
-            options={[
-              { value: "deal", label: "Negócio (deal) — herda no contato e nas conversas" },
-              { value: "contact", label: "Contato — propaga pras conversas abertas" },
-            ]}
-            onValueChange={(v) => setDraft((d) => ({ ...d, target: v }))}
-          />
-        </div>
-      )}
+      <div className="space-y-2">
+        <Label>Aplicar em</Label>
+        <DropdownGlass
+          triggerClassName="w-full"
+          value={target}
+          options={[
+            { value: "deal", label: "Negócio (deal) — herda no contato e nas conversas" },
+            { value: "contact", label: "Contato — propaga pras conversas abertas" },
+          ]}
+          onValueChange={(v) => setDraft((d) => ({ ...d, target: v }))}
+        />
+      </div>
     </>
   );
 }
@@ -3690,7 +3671,7 @@ function AskAIAgentStepConfig({
         ) : activeAgents.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhum agente ativo. Crie um em{" "}
-            <a href="/ai-agents" className="underline">
+            <a href="/ai-agents-v2" className="underline">
               Agentes IA
             </a>
             .

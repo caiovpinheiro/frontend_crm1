@@ -30,7 +30,6 @@ import { useResolveConversationFlow } from "./use-resolve-conversation-flow";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
 import type { WhatsappTemplate } from "@/features/inbox-v2/api";
 
-import { FilePickerButton } from "./file-picker-button";
 import { WhatsappTemplatePickerModal } from "./template-picker-popover";
 import { ScheduleDialog } from "./schedule-dialog";
 import { TaskDialog } from "./task-dialog";
@@ -69,8 +68,8 @@ export function ComposerMenu({
   assignedToId,
   requireTabulationOnClose,
   outboundDisabled,
-  beforeOutboundSend,
   onOutboundBlocked,
+  onStageFiles,
   enableCallPermission,
 }: {
   conversationId: string | null;
@@ -115,6 +114,8 @@ export function ComposerMenu({
   outboundDisabled?: boolean;
   beforeOutboundSend?: () => boolean | Promise<boolean>;
   onOutboundBlocked?: () => void;
+  /** Encosta os arquivos escolhidos no composer (preview + legenda) em vez de enviar na hora. */
+  onStageFiles?: (files: File[]) => void;
   /** WhatsApp Cloud API — item "Pedir permissão de ligação". */
   enableCallPermission?: boolean;
 }) {
@@ -125,6 +126,10 @@ export function ComposerMenu({
   const [automationOpen, setAutomationOpen] = useState(false);
   const [internalOpen, setInternalOpen] = useState(false);
   const [callPermissionOpen, setCallPermissionOpen] = useState(false);
+  // Inputs fora do popover: o menu fecha ao abrir o seletor do SO, e um
+  // <input> dentro do popover seria desmontado antes do `change`.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const callTemplatesQuery = useQuery({
     queryKey: ["call-permission-templates"],
@@ -190,6 +195,25 @@ export function ComposerMenu({
       onFollowedUp,
     });
 
+  function openNativePicker(input: HTMLInputElement | null) {
+    if (!conversationId) {
+      toast.error("Selecione uma conversa antes de anexar");
+      return;
+    }
+    if (outboundDisabled) {
+      onOutboundBlocked?.();
+      return;
+    }
+    input?.click();
+    closeMenu();
+  }
+
+  function takeStagedFiles(list: FileList | null) {
+    const files = Array.from(list ?? []);
+    if (files.length === 0) return;
+    onStageFiles?.(files);
+  }
+
   function closeMenu() {
     setOpen(false);
   }
@@ -225,6 +249,29 @@ export function ComposerMenu({
 
   return (
     <div className="relative">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        aria-hidden
+        onChange={(e) => {
+          takeStagedFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        aria-hidden
+        onChange={(e) => {
+          takeStagedFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
       <ButtonGlass
         type="button"
         variant="icon"
@@ -252,32 +299,21 @@ export function ComposerMenu({
             style={{ backgroundColor: "var(--dropdown-solid-bg)" }}
             className="flex w-56 flex-col gap-px rounded-[var(--radius-lg)] border border-border p-1.5 shadow-2xl ring-1 ring-black/10 dark:ring-white/10"
           >
-              <FilePickerButton
-                conversationId={conversationId}
-                disabled={outboundDisabled}
-                beforeSend={beforeOutboundSend}
-                onBlocked={onOutboundBlocked}
-                className="w-full justify-start rounded-[var(--radius-sm)] px-3 py-2 text-left text-[12.5px] text-[var(--text-primary)] transition-colors hover:bg-primary/8 hover:text-primary [&>svg]:transition-colors hover:[&>svg]:text-primary"
+              <button
+                type="button"
+                className={itemClass}
+                onClick={() => openNativePicker(fileInputRef.current)}
               >
-                <span className="inline-flex items-center gap-2.5">
-                  <IconPaperclip size={15} /> Anexar arquivo
-                </span>
-              </FilePickerButton>
+                <IconPaperclip size={15} /> Anexar arquivo
+              </button>
 
-              <FilePickerButton
-                conversationId={conversationId}
-                accept="image/*"
-                capture="environment"
-                onOpen={closeMenu}
-                disabled={outboundDisabled}
-                beforeSend={beforeOutboundSend}
-                onBlocked={onOutboundBlocked}
-                className="w-full justify-start rounded-[var(--radius-sm)] px-3 py-2 text-left text-[12.5px] text-[var(--text-primary)] transition-colors hover:bg-primary/8 hover:text-primary [&>svg]:transition-colors hover:[&>svg]:text-primary"
+              <button
+                type="button"
+                className={itemClass}
+                onClick={() => openNativePicker(cameraInputRef.current)}
               >
-                <span className="inline-flex items-center gap-2.5">
-                  <IconCamera size={15} /> Tirar foto
-                </span>
-              </FilePickerButton>
+                <IconCamera size={15} /> Tirar foto
+              </button>
 
               <button
                 type="button"

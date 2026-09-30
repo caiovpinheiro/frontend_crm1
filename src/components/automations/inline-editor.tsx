@@ -64,8 +64,13 @@ import { WebhookStepConfig } from "./webhook-step-config"
 import { SendProductInlineConfig } from "./send-product-config"
 import { TabulationStepConfig } from "./tabulation-step-config"
 import {
+  inferUpdateFieldDateMode,
+  isUpdateFieldDateType,
   showsUpdateFieldVariableHint,
+  UPDATE_FIELD_DATE_JSON_HINT,
+  UpdateFieldDateModeToggle,
   UpdateFieldValueControl,
+  type UpdateFieldDateMode,
 } from "./update-field-value"
 import { ActiveChannelMultiSelect } from "./step-channel-picker"
 import { TagStepInput } from "./tag-step-input"
@@ -1254,6 +1259,22 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
   const meta = fieldSlug ? bySlug.get(fieldSlug) : undefined
   const fieldType = meta?.type ?? ""
   const fieldOpts = meta?.options ?? []
+  const isDate = isUpdateFieldDateType(fieldType)
+  const value = str(config.value)
+  // Campo DATE: "Data" (calendário, como hoje) ou "JSON" (variável `{{now}}`
+  // resolvida na execução). Valor com `{{` salvo já abre em JSON.
+  const [dateMode, setDateMode] = useState<UpdateFieldDateMode>(() =>
+    inferUpdateFieldDateMode(value),
+  )
+  useEffect(() => {
+    setDateMode(inferUpdateFieldDateMode(str(config.value)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldSlug])
+  const switchDateMode = (next: UpdateFieldDateMode) => {
+    setDateMode(next)
+    // Data fixa não é variável e vice-versa: começa limpo no outro modo.
+    if (value) onChange({ ...config, value: "" })
+  }
   return (
     <>
       <Labeled label="Entidade">
@@ -1275,22 +1296,31 @@ function UpdateFieldEditor({ config, onChange }: { config: Cfg; onChange: (next:
           placeholder="Selecione o campo…"
         />
       </Labeled>
-      <Labeled
-        label="Valor"
-        hint={
-          showsUpdateFieldVariableHint(fieldType)
-            ? "Aceita variáveis, ex.: {{lastResponse}}"
-            : undefined
-        }
-      >
+      <div className="cfg-field">
+        <div className="cfg-label">
+          <span>Valor</span>
+          {isDate && (
+            <UpdateFieldDateModeToggle
+              mode={dateMode}
+              onChange={switchDateMode}
+              variant="inline"
+            />
+          )}
+        </div>
         <UpdateFieldValueControl
           fieldType={fieldType}
           options={fieldOpts}
-          value={str(config.value)}
+          value={value}
           onChange={(v) => onChange({ ...config, value: v })}
           variant="inline"
+          dateMode={dateMode}
         />
-      </Labeled>
+        {isDate && dateMode === "json" ? (
+          <span className="cfg-hint">{UPDATE_FIELD_DATE_JSON_HINT}</span>
+        ) : showsUpdateFieldVariableHint(fieldType) ? (
+          <span className="cfg-hint">Aceita variáveis, ex.: {"{{lastResponse}}"}</span>
+        ) : null}
+      </div>
     </>
   )
 }

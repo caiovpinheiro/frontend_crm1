@@ -204,3 +204,54 @@ describe("ordenação do Flow pela última mensagem", () => {
     setBoardPinnedDealIds([]);
   });
 });
+
+describe("foldActivityOntoDeal — prévia do cliente", () => {
+  const base = () =>
+    deal({
+      id: "d1",
+      contactId: "ct1",
+      lastMessage: {
+        content: "olá",
+        createdAt: "2026-09-23T13:16:00.000Z",
+        direction: "in",
+      } as BoardDealDto["lastMessage"],
+    });
+
+  it("mensagem do cliente vira lastInboundMessage", () => {
+    const out = foldActivityOntoDeal(base(), {
+      contactId: "ct1",
+      direction: "in",
+      content: "eizes",
+      timestamp: "2026-09-23T13:16:01.000Z",
+    });
+    expect(out.deal.lastInboundMessage).toEqual({
+      content: "eizes",
+      createdAt: "2026-09-23T13:16:01.000Z",
+    });
+    expect(out.deal.unreadCount).toBe(1);
+  });
+
+  it("resposta do agente não troca a prévia do cliente", () => {
+    const withIn = { ...base(), lastInboundMessage: { content: "olá", createdAt: "2026-09-23T13:16:00.000Z" } };
+    const out = foldActivityOntoDeal(withIn, {
+      contactId: "ct1",
+      direction: "out",
+      content: "Oi, tudo bem?",
+      timestamp: "2026-09-23T13:17:00.000Z",
+    });
+    expect(out.deal.lastInboundMessage?.content).toBe("olá");
+    expect(out.deal.lastMessage?.direction).toBe("out");
+  });
+
+  it("evento sem texto (redigido) mantém a prévia e conta a não lida", () => {
+    const out = foldActivityOntoDeal(base(), {
+      contactId: "ct1",
+      direction: "in",
+      content: null,
+      timestamp: "2026-09-23T13:18:00.000Z",
+    });
+    expect(out.deal.lastMessage?.content).toBe("olá");
+    expect(out.deal.lastInboundMessage).toBeUndefined();
+    expect(out.deal.unreadCount).toBe(1);
+  });
+});

@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 
 import {
   addNoteToLog,
+  deleteNote,
   favoriteMessage,
   getFavoriteMessages,
   getMessages,
@@ -15,6 +16,7 @@ import {
   sendAttachment,
   sendMessage,
   sendReaction,
+  updateNote,
   type FavoriteMessageDto,
   type InboxMessageDto,
   type MessagesResponse,
@@ -350,6 +352,32 @@ export function usePinNote(conversationId: string | null) {
     { noteId: string | null }
   >({
     mutationFn: ({ noteId }) => pinNote(conversationId as string, noteId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+    },
+  });
+}
+
+/** Mutation: editar o texto de uma nota interna. */
+export function useUpdateNote(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<
+    { id: string; content: string },
+    Error,
+    { noteId: string; content: string }
+  >({
+    mutationFn: ({ noteId, content }) => updateNote(noteId, content),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+    },
+  });
+}
+
+/** Mutation: excluir uma nota interna (o backend desafixa se era a fixada). */
+export function useDeleteNote(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { noteId: string }>({
+    mutationFn: ({ noteId }) => deleteNote(noteId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
     },

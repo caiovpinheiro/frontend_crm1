@@ -24,6 +24,7 @@ export function FilePickerButton({
   disabled,
   beforeSend,
   onBlocked,
+  onStageFiles,
 }: {
   conversationId: string | null;
   children: React.ReactNode;
@@ -38,6 +39,12 @@ export function FilePickerButton({
   beforeSend?: () => boolean | Promise<boolean>;
   /** Chamado quando o picker é bloqueado (sessão encerrada, etc.). */
   onBlocked?: () => void;
+  /**
+   * Quando informado, os arquivos escolhidos NÃO são enviados aqui: vão
+   * para o composer (preview + legenda) e saem no próximo envio. Permite
+   * vários arquivos de uma vez.
+   */
+  onStageFiles?: (files: File[]) => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const sendAttachment = useSendAttachment(conversationId);
@@ -58,11 +65,17 @@ export function FilePickerButton({
   }
 
   async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
+    const file = files[0];
     if (!file) return;
     e.target.value = ""; // permite reanexar o mesmo arquivo depois
     if (disabled) {
       onBlocked?.();
+      return;
+    }
+    if (onStageFiles) {
+      // Confirmação de canal e envio acontecem no composer, ao enviar.
+      onStageFiles(files);
       return;
     }
     if (beforeSend) {
@@ -85,6 +98,7 @@ export function FilePickerButton({
         type="file"
         accept={accept}
         capture={capture}
+        multiple={!!onStageFiles && !capture}
         onChange={handleChange}
         className="hidden"
         aria-hidden
