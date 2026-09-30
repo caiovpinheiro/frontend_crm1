@@ -27,6 +27,7 @@ import {
 } from "@/features/dashboard-v2/dashboard-persist";
 
 import type { DashboardFiltersState, PeriodKey } from "./api";
+import { dashboardFiltersSettled } from "./dashboard-filters-gate";
 
 export const DASHBOARD_FILTERS_KEY_PREFIX = "dashboard-filters";
 
@@ -270,6 +271,8 @@ export function useDashboardFilters(
   const searchParams = useSearchParams();
   const { ready, userId, keyPart } = useDashboardStorageScope();
   const restoredRef = useRef(false);
+  // Restore do localStorage concluído — parte do gate `settled`.
+  const [restored, setRestored] = useState(false);
 
   const urlFilters = useMemo(
     () =>
@@ -364,6 +367,7 @@ export function useDashboardFilters(
   useEffect(() => {
     if (!ready || !keyPart || !userId || restoredRef.current) return;
     restoredRef.current = true;
+    setRestored(true);
     const sp = new URLSearchParams(searchParams.toString());
     if (urlHasDashboardFilters(sp)) {
       writeJson(scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart), urlFilters);
@@ -377,6 +381,14 @@ export function useDashboardFilters(
     if (!isFiltersState(saved)) return;
     setFilters(saved);
   }, [ready, keyPart, userId, searchParams, urlFilters, setFilters]);
+
+  // Painéis só disparam com os filtros assentados (funil resolvido para
+  // CUID, restore feito) — senão 6–7 GETs saem, abortam e refazem.
+  const settled = dashboardFiltersSettled({
+    restored,
+    pipelines,
+    pipelineIds: filters.pipelineIds,
+  });
 
   const patch = useCallback(
     (partial: Partial<DashboardFiltersState>) => {
@@ -395,7 +407,7 @@ export function useDashboardFilters(
     setFilters(DEFAULT_DASHBOARD_FILTERS);
   }, [setFilters]);
 
-  return { filters, setFilters, patch, clear };
+  return { filters, setFilters, patch, clear, settled };
 }
 
 /**

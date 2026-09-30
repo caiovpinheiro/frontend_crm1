@@ -18,6 +18,11 @@ import {
   writeJson,
 } from "@/features/dashboard-v2/dashboard-persist";
 import { snapshotNegociosTabulationsIfNeeded } from "@/features/dashboard-v2/use-dashboard-widget-order";
+import {
+  remoteLayoutSignature,
+  shouldWriteRemoteLayout,
+  type LayoutChangeSource,
+} from "@/features/dashboard-v2/layout-remote-gate";
 
 export type LayoutItem = {
   i: string;
@@ -479,6 +484,8 @@ export function useNegociosGrid() {
   });
   const [hydrated, setHydrated] = useState(false);
   const remoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Assinatura do último payload enviado (ou hidratado) — PUT só quando muda.
+  const lastRemoteSig = useRef<string | null>(null);
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -490,6 +497,7 @@ export function useNegociosGrid() {
     if (local) {
       setStore(local);
       writeJson(scopedKey(NEGOCIOS_GRID_KEY_PREFIX, keyPart), local);
+      lastRemoteSig.current = remoteLayoutSignature(toRemotePayload(local));
       setHydrated(true);
       return undefined;
     }
@@ -499,6 +507,7 @@ export function useNegociosGrid() {
       if (remote) {
         setStore(remote);
         writeJson(scopedKey(NEGOCIOS_GRID_KEY_PREFIX, keyPart), remote);
+        lastRemoteSig.current = remoteLayoutSignature(toRemotePayload(remote));
       } else {
         setStore(emptyStore());
       }
@@ -509,14 +518,30 @@ export function useNegociosGrid() {
     };
   }, [ready, keyPart, userId]);
 
+  /**
+   * `source: "auto"` (auto-size de altura, reconciliação de etapas) fica só
+   * no localStorage; `"user"` grava no servidor se o payload mudou.
+   */
   const persist = useCallback(
-    (next: NegociosGridStore) => {
+    (next: NegociosGridStore, source: LayoutChangeSource = "user") => {
       if (!hydrated || !storageKey) return;
       setStore(next);
       writeJson(storageKey, next);
+      const payload = toRemotePayload(next);
+      const nextSignature = remoteLayoutSignature(payload);
+      if (
+        !shouldWriteRemoteLayout({
+          source,
+          lastSignature: lastRemoteSig.current,
+          nextSignature,
+        })
+      ) {
+        return;
+      }
       if (remoteTimer.current) clearTimeout(remoteTimer.current);
       remoteTimer.current = setTimeout(() => {
-        void putRemoteDashboardLayout(toRemotePayload(next));
+        lastRemoteSig.current = nextSignature;
+        void putRemoteDashboardLayout(payload);
       }, 800);
     },
     [hydrated, storageKey],
@@ -531,23 +556,26 @@ export function useNegociosGrid() {
   const hiddenWidgetIds = store.hiddenWidgetIds ?? EMPTY_HIDDEN;
 
   const commit = useCallback(
-    (patch: Partial<NegociosGridStore>) => {
+    (patch: Partial<NegociosGridStore>, source: LayoutChangeSource = "user") => {
       const current = storeRef.current;
-      persist({
-        version: 2,
-        layout: current.layout,
-        cards: current.cards,
-        usageChartType: current.usageChartType,
-        hiddenWidgetIds: current.hiddenWidgetIds ?? EMPTY_HIDDEN,
-        foldedAutoStages: current.foldedAutoStages ?? true,
-        ...patch,
-      });
+      persist(
+        {
+          version: 2,
+          layout: current.layout,
+          cards: current.cards,
+          usageChartType: current.usageChartType,
+          hiddenWidgetIds: current.hiddenWidgetIds ?? EMPTY_HIDDEN,
+          foldedAutoStages: current.foldedAutoStages ?? true,
+          ...patch,
+        },
+        source,
+      );
     },
     [persist],
   );
 
   const setLayout = useCallback(
-    (layout: Layout) => {
+    (layout: Layout, source: LayoutChangeSource = "user") => {
       if (!hydrated) return;
       const current = storeRef.current;
       const hidden = current.hiddenWidgetIds ?? EMPTY_HIDDEN;
@@ -557,7 +585,7 @@ export function useNegociosGrid() {
         adoptSavedLayout(layout, current.cards, stageIds, hidden),
       );
       if (sameLayout(next, current.layout)) return;
-      commit({ layout: next });
+      commit({ layout: next }, source);
     },
     [commit, hydrated],
   );
@@ -574,7 +602,8 @@ export function useNegociosGrid() {
         adoptSavedLayout(current.layout, current.cards, expectedVisible, hidden),
       );
       if (sameLayout(next, current.layout)) return;
-      commit({ layout: next });
+      // Reconciliação com as etapas do funil: não é ação da pessoa → só local.
+      commit({ layout: next }, "auto");
     },
     [commit, hydrated],
   );

@@ -26,6 +26,7 @@ import {
   sameLayout,
   type Layout,
 } from "@/features/dashboard-v2/use-negocios-grid";
+import type { LayoutChangeSource } from "@/features/dashboard-v2/layout-remote-gate";
 import { cn } from "@/lib/utils";
 
 import "react-grid-layout/css/styles.css";
@@ -113,7 +114,11 @@ export function SortableWidgetGrid({
   onRemove,
 }: {
   layout: Layout;
-  onLayoutChange: (layout: Layout) => void;
+  /**
+   * `source` distingue drag/resize da pessoa (`user`, persiste no servidor)
+   * do ajuste automático de altura (`auto`, só local).
+   */
+  onLayoutChange: (layout: Layout, source: LayoutChangeSource) => void;
   labels: Record<string, string>;
   render: (id: string) => ReactNode;
   disabled?: boolean;
@@ -139,12 +144,12 @@ export function SortableWidgetGrid({
   persistEnabledRef.current = persistEnabled;
   onLayoutChangeRef.current = onLayoutChange;
 
-  const commit = useCallback((next: Layout) => {
+  const commit = useCallback((next: Layout, source: LayoutChangeSource) => {
     if (!persistEnabledRef.current) return;
     const compacted = compactNegociosLayout(next);
     if (sameLayout(compacted, layoutRef.current)) return;
     applyingRef.current = true;
-    onLayoutChangeRef.current(compacted);
+    onLayoutChangeRef.current(compacted, source);
     queueMicrotask(() => {
       applyingRef.current = false;
     });
@@ -162,7 +167,8 @@ export function SortableWidgetGrid({
       changed = true;
     });
     pendingHeights.current.clear();
-    if (changed) commit(next);
+    // Auto-size: nunca vira PUT /dashboard/layout — só localStorage.
+    if (changed) commit(next, "auto");
   }, [commit]);
 
   const flushHeightsRef = useRef(flushHeights);
@@ -317,14 +323,14 @@ export function SortableWidgetGrid({
           }}
           onDragStop={(next) => {
             interactingRef.current = false;
-            if (Array.isArray(next)) commit(next as Layout);
+            if (Array.isArray(next)) commit(next as Layout, "user");
           }}
           onResizeStart={() => {
             interactingRef.current = true;
           }}
           onResizeStop={(next) => {
             interactingRef.current = false;
-            if (Array.isArray(next)) commit(next as Layout);
+            if (Array.isArray(next)) commit(next as Layout, "user");
           }}
         >
           {ids.map((id) => (

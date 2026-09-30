@@ -67,13 +67,13 @@ import { useCan } from "@/hooks/use-my-permissions";
 import { useStuckTimeout } from "@/hooks/use-stuck-timeout";
 
 import {
-  useBoard,
   useDealsList,
   usePipelineUrlSync,
   usePipelines,
   useTeamUsers,
 } from "@/features/pipeline-v2/hooks";
 import { toDealListRow } from "@/features/pipeline-v2/adapters";
+import { stagesForList } from "@/features/pipeline-v2/list-stages";
 import {
   ExportPanel,
   ImportPanel,
@@ -211,17 +211,12 @@ export default function V2PipelineListClientPage() {
     enabled: canFetch && !!pipelineId,
   });
 
-  const boardQuery = useBoard({
-    pipelineId,
-    status: "OPEN",
-    enabled: canFetch && !!pipelineId,
-  });
-  const stages = (boardQuery.data ?? []).map((s) => ({
-    id: s.id,
-    name: s.name,
-    color: s.color ?? undefined,
-    isLost: Boolean(s.isLost),
-  }));
+  // Etapas vêm do GET /api/pipelines já carregado acima — a lista não
+  // precisa do board (175 KB com 100 cards/coluna) só para nomes/cores.
+  const stages = useMemo(
+    () => stagesForList(pipelinesQuery.data, pipelineId),
+    [pipelinesQuery.data, pipelineId],
+  );
   const { data: teamUsers = [] } = useTeamUsers(canFetch && selectedIds.size > 0);
 
   const total = dealsQuery.data?.total ?? 0;
