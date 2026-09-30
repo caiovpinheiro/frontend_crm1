@@ -802,9 +802,9 @@ export const UNITS: ModalUnit[] = [
     id: "step-config",
     group: "automations",
     title: "Configurar passo",
-    file: "components/automations/step-config-panel.tsx",
+    file: "components/automations/node-inline-config.tsx",
     kind: "note",
-    note: "Acoplado ao nó selecionado no editor.",
+    note: "Edição inline acoplada ao nó selecionado no canvas (o modal StepConfigPanel foi removido).",
     href: "/automations",
   },
   {

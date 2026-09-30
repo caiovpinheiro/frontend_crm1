@@ -4,8 +4,8 @@
  * NodeInlineConfig — slot plugável que expande a edição inline dentro
  * dos cards de nodes do canvas de produção (workflow-canvas). Só
  * renderiza quando o node está `selected` e o `stepType` tem esquema
- * declarativo em STEP_FIELDS. Substitui o modal StepConfigPanel para
- * os tipos cobertos por editor-fields.
+ * declarativo em STEP_FIELDS. Substituiu o antigo modal StepConfigPanel
+ * (removido) para os tipos cobertos por editor-fields.
  */
 
 import { NodeConfigEditor } from "./inline-editor";
