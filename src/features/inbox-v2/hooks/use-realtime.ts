@@ -64,8 +64,8 @@ import {
  *    falhou, troca de aba/filtro, refresh explícito, reconnect com gap.
  *  - message_status: update otimista do tick; refetch só em `failed`
  *    (delivered/read não disparam GET messages de novo).
- *  - Reconexão automática em onerror com espera crescente (2s, 4s, 8s…
- *    até 30s, ±20%; ver `use-sse.ts`). Reconnect após gap: um refetch de
+ *  - Reconexão automática em onerror com espera crescente (5s, 10s, 20s…
+ *    até 60s, ±30%; ver `use-sse.ts`). Reconnect após gap: um refetch de
  *    lista + counts.
  *
  * Aviso sonoro: só em inbound destinado a este operador (assignedToId),
