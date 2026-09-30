@@ -13,8 +13,10 @@ export type SSEReconnectHandler = () => void;
  * parseado — o `new EventSource` existe só aqui.
  *
  * Ciclo de vida por ref-count: a conexão abre no primeiro assinante e
- * fecha quando o último sai. O close é adiado 1 tick para absorver o
- * duplo mount/unmount de efeitos do StrictMode sem derrubar a conexão.
+ * fecha 30s depois que o último sai. Trocar de tela (inbox → board)
+ * desmonta um assinante e monta outro: a tela seguinte reaproveita a
+ * mesma conexão, sem reconectar nem recarregar dados (e o duplo
+ * mount/unmount do StrictMode também não derruba a conexão).
  *
  * Aba oculta NÃO derruba a conexão: aviso sonoro, contador e Notification
  * de nova mensagem existem para funcionar em segundo plano, e o stream não
@@ -38,6 +40,9 @@ const DEFAULT_EVENTS: readonly string[] = [
   "presence_update",
   "system_presence_update",
 ];
+
+/** Último assinante saiu: tempo até fechar (a próxima tela reaproveita). */
+export const SSE_IDLE_CLOSE_MS = 30_000;
 
 const RECONNECT_BASE_MS = 5_000;
 const RECONNECT_MAX_MS = 60_000;
@@ -100,10 +105,11 @@ class SharedSSEConnection {
       this.pruneListeners();
       return;
     }
+    if (this.closeTimer) clearTimeout(this.closeTimer);
     this.closeTimer = setTimeout(() => {
       this.closeTimer = null;
       if (this.subscribers.size === 0) this.teardown();
-    }, 0);
+    }, SSE_IDLE_CLOSE_MS);
   }
 
   private connect(): void {

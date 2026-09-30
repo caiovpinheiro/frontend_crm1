@@ -67,8 +67,8 @@ import {
  *    falhou, troca de aba/filtro, refresh explícito, reconnect com gap.
  *  - message_status: update otimista do tick; refetch só em `failed`
  *    (delivered/read não disparam GET messages de novo).
- *  - Reconexão automática com backoff fixo de 5s em onerror.
- *    Reconnect após gap: um refetch de lista + counts + mensagens do
+ *  - Reconexão automática em onerror com espera crescente (5s, 10s, 20s…
+ *    até 60s, ±30%; ver `use-sse.ts`). Reconnect após gap: um refetch de lista + counts + mensagens do
  *    ticket aberto (o gap não tem replay).
  *
  * Aviso sonoro e toast: `InboxMessageAlerts` (layout global), não aqui.
