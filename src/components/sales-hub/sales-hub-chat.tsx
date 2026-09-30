@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
@@ -57,6 +58,8 @@ import {
   SESSION_CLOSED_TOAST,
 } from "@/features/inbox-v2/extras/channel-switch-confirm";
 import { DealNotesTab } from "@/features/pipeline-v2/extras";
+import { clearBoardUnreadForContact } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { markConversationRead } from "@/features/inbox-v2/api/conversations";
 import { CallHistoryList } from "@/features/softphone/components/call-history-list";
 import { DealCallButton } from "@/features/softphone/components/deal-call-button";
 
@@ -116,6 +119,16 @@ export function SalesHubChat({
     setDraft("");
     setReplyTo(null);
   }, [conversationId]);
+
+  // Abrir a conversa no Flow marca como lida (como no inbox) e tira o
+  // contador dos cards do contato na fila.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!conversationId) return;
+    markConversationRead(conversationId)
+      .then(() => clearBoardUnreadForContact(queryClient, contactId))
+      .catch(() => {});
+  }, [conversationId, contactId, queryClient]);
 
   const {
     data: messagesData,
