@@ -1374,11 +1374,15 @@ dialog *  { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.18) transpar
   border-color: var(--border);
 }
 
-/* Prévia do cliente não lida (cards do inbox, kanban e Flow): balão no
-   gradiente Bwipo. `.bw-inbound-glow` pulsa na chegada (3×) e para. */
+/* Prévia do cliente não lida (cards do inbox, kanban e Flow): balão
+   suave, fundo azul claro e texto escuro. */
 .bw-inbound-bubble {
-  background: linear-gradient(120deg, #00C9E8 0%, #0754F5 45%, #5420EF 100%);
-  color: #fff;
+  background: #EAF0FF;
+  color: #1E3A8A;
+}
+.dark .bw-inbound-bubble {
+  background: rgba(99, 120, 245, 0.20);
+  color: #C7D2FE;
 }
 @keyframes bw-inbound-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(84, 32, 239, 0); }
