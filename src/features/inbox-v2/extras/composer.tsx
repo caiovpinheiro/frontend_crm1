@@ -452,12 +452,15 @@ export function Composer({
     return already ? text : `*${sig}*: ${text}`;
   }
 
+  const productSendLock = useRef(false);
   async function sendProductOfferSteps(steps: ComposerInsertStep[]) {
     const cid = conversationId;
     if (!cid) {
       toast.error("Abra a conversa para enviar os produtos.");
       return;
     }
+    if (productSendLock.current) return;
+    productSendLock.current = true;
     setSequenceSending(true);
     try {
       const productIds = steps
@@ -483,7 +486,6 @@ export function Composer({
             });
           }
           if (result.used === "catalog") {
-            qc.invalidateQueries({ queryKey: messagesKey(cid) });
             applyOutboundPreviewToInboxCaches(qc, cid, {
               content:
                 productIds.length <= 1
@@ -523,6 +525,7 @@ export function Composer({
                 caption: captionText,
                 channelId: selectedChannelId,
                 waitUntilSent: true,
+                deferChatUntilSent: true,
               });
             } else {
               if (captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
@@ -536,6 +539,7 @@ export function Composer({
                 mimeType: media.mimeType ?? undefined,
                 channelId: selectedChannelId,
                 waitUntilSent: true,
+                deferChatUntilSent: true,
               });
               if (captionText) {
                 await Promise.resolve(onSend(captionText));
@@ -552,11 +556,11 @@ export function Composer({
           );
         }
       }
-      qc.invalidateQueries({ queryKey: messagesKey(cid) });
       applyOutboundPreviewToInboxCaches(qc, cid, {
         content: steps[steps.length - 1]?.text?.trim() || "produto",
       });
     } finally {
+      productSendLock.current = false;
       setSequenceSending(false);
     }
   }
