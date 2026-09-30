@@ -498,20 +498,23 @@ export function isDeliveryStale(
   return now - ts > STALE_DELIVERY_MS
 }
 
-/** Reavalia sozinho quando o limite de 5 min é cruzado com a bolha na tela. */
+/**
+ * Reavalia sozinho quando o limite de 5 min é cruzado com a bolha na tela:
+ * agenda um re-render para esse instante (setState só no timer, nunca no
+ * corpo do effect).
+ */
 function useDeliveryStale(status: Message["status"], createdAt: string | undefined): boolean {
-  const [stale, setStale] = useState(() => isDeliveryStale(status, createdAt))
+  const [, bump] = useState(0)
   useEffect(() => {
-    const next = isDeliveryStale(status, createdAt)
-    setStale(next)
-    if (next || (status !== "sent" && status !== "pending") || !createdAt) return
+    if ((status !== "sent" && status !== "pending") || !createdAt) return
     const ts = Date.parse(createdAt)
     if (!Number.isFinite(ts)) return
-    const remaining = Math.max(0, ts + STALE_DELIVERY_MS - Date.now() + 250)
-    const timer = setTimeout(() => setStale(isDeliveryStale(status, createdAt)), remaining)
+    const remaining = ts + STALE_DELIVERY_MS - Date.now() + 250
+    if (remaining <= 0) return
+    const timer = setTimeout(() => bump((n) => n + 1), remaining)
     return () => clearTimeout(timer)
   }, [status, createdAt])
-  return stale
+  return isDeliveryStale(status, createdAt)
 }
 
 /**
@@ -774,17 +777,17 @@ function AudioPlayer({
   const [armed, setArmed] = useState(() => isImmediateMediaSrc(url))
   const pendingPlayRef = useRef(false)
   // Fonte efetiva do <audio>: começa na URL original; no primeiro erro de
-  // decodificação (Safari/iOS × OGG/Opus) troca pelo MP3 do backend.
-  const [src, setSrc] = useState<string | null>(url)
-  useEffect(() => {
-    setSrc(url)
-  }, [url])
+  // decodificação (Safari/iOS × OGG/Opus) troca pelo MP3 do backend. O
+  // fallback fica atado à URL que o gerou — URL nova volta ao original
+  // sem effect.
+  const [fallback, setFallback] = useState<{ forUrl: string | null; src: string } | null>(null)
+  const src = fallback && fallback.forUrl === url ? fallback.src : url
   const handleAudioError = useCallback(() => {
     const next = nextAudioSourceAfterError(src, url)
     if (!next) return
     pendingPlayRef.current = playing
     setPlaying(false)
-    setSrc(next)
+    setFallback({ forUrl: url, src: next })
   }, [src, url, playing])
 
   const SPEEDS = [0.5, 1, 1.5, 2] as const

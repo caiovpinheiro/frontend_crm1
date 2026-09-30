@@ -10,7 +10,7 @@
  * do backend.
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import {
@@ -143,23 +143,38 @@ export function ForwardDialog({
   message: Message | null
   sourceConversationId: string
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="md">
+        {/* O corpo desmonta ao fechar (Radix Presence): busca/seleção
+            começam limpas a cada abertura sem effect de reset. */}
+        <ForwardDialogBody
+          message={message}
+          sourceConversationId={sourceConversationId}
+          onOpenChange={onOpenChange}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ForwardDialogBody({
+  message,
+  sourceConversationId,
+  onOpenChange,
+}: {
+  message: Message | null
+  sourceConversationId: string
+  onOpenChange: (open: boolean) => void
+}) {
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [sending, setSending] = useState(false)
   const forward = useForwardMessage(sourceConversationId)
 
-  // Abriu de novo: começa limpo.
-  useEffect(() => {
-    if (!open) return
-    setQuery("")
-    setSelected(new Set())
-    setSending(false)
-  }, [open])
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ["inbox-v2", "forward-picker"],
     queryFn: listConversationsForForwardPicker,
-    enabled: open,
     staleTime: 30_000,
   })
   const rows = useMemo(
@@ -207,67 +222,65 @@ export function ForwardDialog({
   const preview = (message?.content ?? "").trim()
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="md">
-        <DialogHeader>
-          <DialogTitle>Encaminhar mensagem</DialogTitle>
-          <DialogDescription>
-            O texto será enviado para o contato de cada conversa escolhida.
-            Mídias aparecem apenas como aviso no texto.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>Encaminhar mensagem</DialogTitle>
+        <DialogDescription>
+          O texto será enviado para o contato de cada conversa escolhida.
+          Mídias aparecem apenas como aviso no texto.
+        </DialogDescription>
+      </DialogHeader>
 
-        {preview ? (
-          <blockquote className="line-clamp-3 rounded-[var(--radius-md)] border-l-2 border-[var(--brand-primary)] bg-[var(--glass-bg-subtle)] px-3 py-2 text-[12.5px] text-[var(--text-secondary)]">
-            {preview}
-          </blockquote>
-        ) : null}
+      {preview ? (
+        <blockquote className="line-clamp-3 rounded-[var(--radius-md)] border-l-2 border-[var(--brand-primary)] bg-[var(--glass-bg-subtle)] px-3 py-2 text-[12.5px] text-[var(--text-secondary)]">
+          {preview}
+        </blockquote>
+      ) : null}
 
-        <label className="flex items-center gap-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 py-1.5">
-          <IconSearch size={14} className="shrink-0 text-[var(--text-muted)]" aria-hidden />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nome ou telefone…"
-            aria-label="Buscar conversa de destino"
-            autoFocus
-            className="min-w-0 flex-1 bg-transparent font-display text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-          />
-        </label>
+      <label className="flex items-center gap-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 py-1.5">
+        <IconSearch size={14} className="shrink-0 text-[var(--text-muted)]" aria-hidden />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar por nome ou telefone…"
+          aria-label="Buscar conversa de destino"
+          autoFocus
+          className="min-w-0 flex-1 bg-transparent font-display text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+        />
+      </label>
 
-        <div className="max-h-64 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--glass-border)] p-1">
-          {isLoading ? (
-            <div className="flex justify-center py-6" role="status" aria-label="Carregando conversas">
-              <IconLoader2 size={22} className="animate-spin text-[var(--text-muted)]" />
-            </div>
-          ) : isError ? (
-            <p className="py-6 text-center text-[13px] text-[var(--color-danger)]">Não foi possível carregar as conversas.</p>
-          ) : (
-            <ForwardPickerList rows={rows} selected={selected} onToggle={toggle} disabled={sending} />
-          )}
-        </div>
+      <div className="max-h-64 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--glass-border)] p-1">
+        {isLoading ? (
+          <div className="flex justify-center py-6" role="status" aria-label="Carregando conversas">
+            <IconLoader2 size={22} className="animate-spin text-[var(--text-muted)]" />
+          </div>
+        ) : isError ? (
+          <p className="py-6 text-center text-[13px] text-[var(--color-danger)]">Não foi possível carregar as conversas.</p>
+        ) : (
+          <ForwardPickerList rows={rows} selected={selected} onToggle={toggle} disabled={sending} />
+        )}
+      </div>
 
-        <DialogFooter>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            disabled={sending}
-            className="inline-flex h-9 items-center rounded-full border border-[var(--glass-border)] px-4 font-display text-[12.5px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={sending || selected.size === 0 || !message}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 font-display text-[12.5px] font-semibold text-white shadow-[0_2px_8px_rgba(91,111,245,0.35)] transition-colors hover:bg-[var(--brand-primary-dark)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {sending ? <IconLoader2 size={14} className="animate-spin" aria-hidden /> : <IconSend2 size={14} aria-hidden />}
-            {selected.size > 1 ? `Encaminhar (${selected.size})` : "Encaminhar"}
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          disabled={sending}
+          className="inline-flex h-9 items-center rounded-full border border-[var(--glass-border)] px-4 font-display text-[12.5px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSend()}
+          disabled={sending || selected.size === 0 || !message}
+          className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--brand-primary)] px-4 font-display text-[12.5px] font-semibold text-white shadow-[0_2px_8px_rgba(91,111,245,0.35)] transition-colors hover:bg-[var(--brand-primary-dark)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {sending ? <IconLoader2 size={14} className="animate-spin" aria-hidden /> : <IconSend2 size={14} aria-hidden />}
+          {selected.size > 1 ? `Encaminhar (${selected.size})` : "Encaminhar"}
+        </button>
+      </DialogFooter>
+    </>
   )
 }

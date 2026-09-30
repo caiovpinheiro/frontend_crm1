@@ -762,16 +762,23 @@ export function ChatArea({
     onResendMessage ?? (conversationId ? internalResend : undefined)
 
   // Encaminhar: diálogo interno (busca + seleção múltipla) quando o host
-  // não passa `onForwardMessage`.
-  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null)
-  const openForward = useCallback((m: Message) => setForwardingMessage(m), [])
+  // não passa `onForwardMessage`. O estado guarda a conversa de origem:
+  // trocar de conversa "fecha" o diálogo sem efeito (derivação no render).
+  const [forwarding, setForwarding] = useState<{
+    conversationId: string
+    message: Message
+  } | null>(null)
+  const forwardingMessage =
+    forwarding && forwarding.conversationId === conversationId ? forwarding.message : null
+  const openForward = useCallback(
+    (m: Message) => {
+      if (conversationId) setForwarding({ conversationId, message: m })
+    },
+    [conversationId],
+  )
   const useInternalForward = !onForwardMessage && Boolean(conversationId)
   const handleForwardMessage =
     onForwardMessage ?? (useInternalForward ? openForward : undefined)
-  // Trocar de conversa fecha o diálogo (a origem mudou).
-  useEffect(() => {
-    setForwardingMessage(null)
-  }, [conversationId])
 
   // Baileys não tem janela de 24h — nem alerta, nem CTA de template.
   const sessionAlertVisible =
@@ -1314,7 +1321,7 @@ export function ChatArea({
         <ForwardDialog
           open={forwardingMessage !== null}
           onOpenChange={(open) => {
-            if (!open) setForwardingMessage(null)
+            if (!open) setForwarding(null)
           }}
           message={forwardingMessage}
           sourceConversationId={conversationId}
