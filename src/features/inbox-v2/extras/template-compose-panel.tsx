@@ -32,7 +32,9 @@ import {
   messagesKey,
 } from "@/features/inbox-v2/hooks";
 import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channels";
+import { buildTemplateComponents } from "@/lib/meta-whatsapp/build-template-components";
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
+import { chatTemplateSlots } from "@/components/automations/template-variables";
 
 import { ChannelPickModal } from "./channel-pick-modal";
 import {
@@ -50,6 +52,8 @@ export interface PendingTemplate {
   label?: string;
   /** Corpo com placeholders `{{N}}`. */
   content: string;
+  /** Cabeçalho de texto aprovado, quando existir. */
+  headerText?: string;
   /** Id na Graph (Cloud API). */
   metaTemplateId?: string | null;
   /** Categoria WABA (MARKETING / UTILITY / AUTHENTICATION) — informativa. */
@@ -66,6 +70,7 @@ export function whatsappTemplateToPending(tpl: WhatsappTemplate): PendingTemplat
     name: tpl.metaTemplateName ?? tpl.name,
     label: tpl.name,
     content: tpl.body ?? "",
+    headerText: tpl.headerText ?? "",
     metaTemplateId: tpl.metaTemplateId ?? null,
     category: tpl.category ?? null,
     language: tpl.language ?? null,
@@ -82,18 +87,20 @@ function categoryMeta(category?: string | null): { label: string; color: string 
   return null;
 }
 
-function extractPlaceholders(content: string, vars: OperatorVariableMeta[] | null | undefined): string[] {
-  const fromMeta = vars?.map((v) => v.key).filter(Boolean) ?? [];
-  if (fromMeta.length) return fromMeta;
-  const set = new Set<string>();
-  const re = /\{\{([^}]+)\}\}/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(content))) set.add(m[1].trim());
-  const keys = Array.from(set);
-  // Ordena numéricos por valor ({{1}}, {{2}}...), mantém os demais na ordem.
-  const numeric = keys.filter((k) => /^\d+$/.test(k)).sort((a, b) => Number(a) - Number(b));
-  const named = keys.filter((k) => !/^\d+$/.test(k));
-  return [...numeric, ...named];
+function slotId(component: string, key: string): string {
+  return `${component}::${key}`;
+}
+
+function fillComponentText(
+  text: string,
+  component: "header" | "body",
+  values: Record<string, string>,
+): string {
+  return text.replace(/\{\{([^}]+)\}\}/g, (_, raw: string) => {
+    const key = raw.trim();
+    const value = values[slotId(component, key)]?.trim();
+    return value ? value : `{{${key}}}`;
+  });
 }
 
 const fieldClass =
@@ -217,53 +224,55 @@ export function TemplateComposePanel({
     if (needsChannelPick) setPickOpen(true);
   }, [needsChannelPick]);
 
-  const placeholders = useMemo(
-    () => extractPlaceholders(template.content, template.operatorVariables),
+  const slots = useMemo(
+    () => chatTemplateSlots(template.content, template.headerText, template.operatorVariables),
     [template],
   );
 
-  // Reseta os valores ao trocar de template (preserva chaves iguais).
+  // Reseta os valores ao trocar de template (preserva o mesmo componente+chave).
   useEffect(() => {
     setVars((prev) => {
       const next: Record<string, string> = {};
-      for (const k of placeholders) next[k] = prev[k] ?? "";
+      for (const slot of slots) {
+        const id = slotId(slot.component, slot.key);
+        next[id] = prev[id] ?? "";
+      }
       return next;
     });
-  }, [placeholders]);
+  }, [slots]);
 
+  const renderedHeader = useMemo(
+    () => fillComponentText(template.headerText ?? "", "header", vars),
+    [template.headerText, vars],
+  );
   const renderedPreview = useMemo(
-    () =>
-      template.content.replace(/\{\{([^}]+)\}\}/g, (_, raw: string) => {
-        const k = raw.trim();
-        const v = vars[k]?.trim();
-        return v ? v : `{{${k}}}`;
-      }),
+    () => fillComponentText(template.content, "body", vars),
     [template.content, vars],
   );
 
-  const allFilled = placeholders.every((k) => vars[k]?.trim().length);
+  const allFilled = slots.every((slot) => vars[slotId(slot.component, slot.key)]?.trim().length);
 
   const sendMutation = useMutation({
     mutationFn: (channelOverride?: string | null) => {
       const channelId = channelOverride ?? effectiveChannelId;
-      const components = placeholders.length
-        ? [
-            {
-              type: "body",
-              parameters: placeholders.map((k) => ({
-                type: "text",
-                text: vars[k] ?? "",
-              })),
-            },
-          ]
+      const components = slots.length
+        ? buildTemplateComponents(
+            slots.map((slot) => ({
+              component: slot.component,
+              key: slot.key,
+              value: vars[slotId(slot.component, slot.key)] ?? "",
+            })),
+          )
         : undefined;
       // `handleSendClick` já validou o JSON; aqui só monta o payload
       // (o caminho "reenviar após escolher canal" também passa por aqui).
       const flow = parseFlowActionData(flowJson);
       if (!flow.ok) throw new Error(flow.error);
+      const headerLine = renderedHeader.trim();
+      const bodyLine = renderedPreview || template.content;
       return sendTemplate(conversationId, {
         templateName: template.name,
-        bodyPreview: renderedPreview || template.content,
+        bodyPreview: headerLine ? `${headerLine}\n${bodyLine}` : bodyLine,
         languageCode: template.language ?? "pt_BR",
         components,
         flowToken: flowToken.trim() || null,
@@ -285,8 +294,10 @@ export function TemplateComposePanel({
         qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
         qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       } else {
+        const headerLine = renderedHeader.trim();
+        const bodyLine = renderedPreview || template.content;
         applyOutboundPreviewToInboxCaches(qc, conversationId, {
-          content: renderedPreview || template.content,
+          content: headerLine ? `${headerLine}\n${bodyLine}` : bodyLine,
           messageType: "template",
         });
       }
@@ -394,29 +405,43 @@ export function TemplateComposePanel({
             Template do WhatsApp — corpo não editável
           </p>
 
-          <p className="mt-2 max-h-[160px] overflow-y-auto whitespace-pre-wrap rounded-[var(--radius-sm)] border border-[var(--glass-border)]/60 bg-[var(--glass-bg-strong)] px-2.5 py-2 text-[12.5px] leading-relaxed text-[var(--text-primary)]">
-            {renderedPreview || template.content}
-          </p>
+          <div className="mt-2 max-h-[160px] overflow-y-auto whitespace-pre-wrap rounded-[var(--radius-sm)] border border-[var(--glass-border)]/60 bg-[var(--glass-bg-strong)] px-2.5 py-2 text-[12.5px] leading-relaxed text-[var(--text-primary)]">
+            {renderedHeader.trim() ? (
+              <p className="font-semibold">{renderedHeader}</p>
+            ) : null}
+            <p>{renderedPreview || template.content}</p>
+          </div>
 
-          {placeholders.length > 0 ? (
+          {slots.length > 0 ? (
             <div className="mt-2.5 space-y-2">
               <p className="text-[10.5px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 Preencha e valide as variáveis
               </p>
-              {placeholders.map((k) => {
-                const meta = template.operatorVariables?.find((v) => v.key === k);
-                const label = meta?.label?.trim() || `Variável {{${k}}}`;
+              {slots.map((slot) => {
+                const id = slotId(slot.component, slot.key);
+                const meta = template.operatorVariables?.find(
+                  (v) =>
+                    (v.component === "header" ? "header" : "body") === slot.component &&
+                    String(v.key ?? "").trim() === slot.key,
+                );
+                const custom = meta?.label?.trim();
+                const label =
+                  custom && custom !== slot.key
+                    ? custom
+                    : slot.component === "header"
+                      ? "Cabeçalho"
+                      : "Corpo";
                 return (
-                  <label key={k} className="flex flex-col gap-1">
+                  <label key={id} className="flex flex-col gap-1">
                     <span className="text-[11px] font-medium text-[var(--text-muted)]">
                       {label}{" "}
-                      <code className="font-mono text-[10.5px] text-[var(--text-primary)]">{`{{${k}}}`}</code>
+                      <code className="font-mono text-[10.5px] text-[var(--text-primary)]">{`{{${slot.key}}}`}</code>
                     </span>
                     <input
                       type="text"
-                      value={vars[k] ?? ""}
-                      onChange={(e) => setVars((prev) => ({ ...prev, [k]: e.target.value }))}
-                      placeholder={meta?.example ? `Ex.: ${meta.example}` : `Valor para {{${k}}}`}
+                      value={vars[id] ?? ""}
+                      onChange={(e) => setVars((prev) => ({ ...prev, [id]: e.target.value }))}
+                      placeholder={meta?.example ? `Ex.: ${meta.example}` : `Valor para {{${slot.key}}}`}
                       className={fieldClass}
                     />
                   </label>

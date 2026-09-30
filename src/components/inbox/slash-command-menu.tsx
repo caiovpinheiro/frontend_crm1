@@ -102,6 +102,7 @@ export type SlashItem = SlashItemHighlight &
       name: string;
       label: string;
       bodyPreview: string;
+      headerPreview?: string;
       category: string | null;
       language: string;
       hasButtons: boolean;
@@ -216,6 +217,7 @@ type MetaRow = {
   language: string;
   category: string | null;
   bodyPreview: string;
+  headerPreview?: string;
   hasButtons?: boolean;
   hasVariables?: boolean;
   buttonTypes?: string[];
@@ -593,6 +595,7 @@ export function useSlashMenu({
           name: m.metaTemplateName,
           label: m.label,
           bodyPreview: m.bodyPreview ?? "",
+          headerPreview: m.headerPreview ?? "",
           category: m.category,
           language: m.language,
           hasButtons: m.hasButtons === true,

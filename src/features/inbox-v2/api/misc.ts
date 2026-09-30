@@ -388,6 +388,8 @@ export interface WhatsappTemplate {
   metaTemplateName?: string;
   hasButtons?: boolean;
   hasVariables?: boolean;
+  /** Texto do cabeçalho aprovado na Meta, quando o template tem HEADER TEXT. */
+  headerText?: string;
   /** Metadados das variáveis do corpo (rótulos/exemplos) para validação no envio. */
   operatorVariables?: OperatorVariableMeta[] | null;
 }
@@ -406,6 +408,7 @@ interface AgentEnabledTemplateRaw {
   language?: string;
   category?: string | null;
   bodyPreview?: string;
+  headerPreview?: string;
   hasButtons?: boolean;
   hasVariables?: boolean;
   operatorVariables?: OperatorVariableMeta[] | null;
@@ -430,6 +433,7 @@ export async function listAgentEnabledTemplates(
     metaTemplateId: row.metaTemplateId,
     metaTemplateName: row.metaTemplateName,
     body: row.bodyPreview ?? "",
+    headerText: row.headerPreview ?? "",
     category: row.category ?? undefined,
     language: row.language,
     hasButtons: row.hasButtons,
