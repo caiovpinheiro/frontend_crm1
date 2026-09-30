@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { IconArrowLeft, IconMessageCircle } from "@tabler/icons-react";
 
@@ -16,9 +17,14 @@ import {
   type FunnelSegment,
 } from "@/components/crm/deal-details-panel";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
-import { ChatWindow } from "@/components/inbox/chat-window-lazy";
+import { ConversationChatHost } from "@/features/inbox-v2/extras/conversation-chat-host";
 
-import { useDealDetail, useEntityViewers, usePipelines } from "@/features/pipeline-v2/hooks";
+import {
+  dealDetailKey,
+  useDealDetail,
+  useEntityViewers,
+  usePipelines,
+} from "@/features/pipeline-v2/hooks";
 import type {
   DealContactConversation,
   DealPanelField,
@@ -32,14 +38,36 @@ import type {
  *  - `GET /api/pipelines`     → usePipelines (stages leves pro funil;
  *    evita o board completo ~900KB)
  *
- * O chat real (mensagens da conversa do contato) fica como
- * placeholder por enquanto — o `deal-chat-binding` existente está
- * acoplado ao slide-over do Kanban; ligá-lo aqui exige mais um passe
- * de refactor. Deixei o slot pronto para a próxima iteração.
+ * O chat é o host canônico (`ConversationChatHost`, o mesmo do Flow):
+ * mensagens paginadas, envio, 24h/template, fixar/favoritar, busca,
+ * abas, marcar como lida. Enviar/reabrir numa conversa encerrada cria
+ * um ticket novo — a página troca a aba ativa para ele.
  */
 
 interface V2DealDetailClientPageProps {
   dealId: string;
+}
+
+/**
+ * `GET /api/deals/:id` devolve mais campos por conversa do que o tipo
+ * exportado (`DealContactConversation`) descreve — os mesmos que o Flow
+ * lê em `sales-hub-view.tsx` (`DealConversationSource`).
+ */
+export type DealPageConversation = DealContactConversation & {
+  number?: number | null;
+  closedAt?: string | null;
+  lastInboundAt?: string | null;
+  assignedTo?: { id: string; name?: string | null } | null;
+  departmentId?: string | null;
+  department?: { id: string; requireTabulationOnClose?: boolean } | null;
+};
+
+/** Mesma escolha do Kanban/Flow: ticket aberto primeiro, senão o mais recente. */
+export function pickDefaultConversation<T extends { id: string; status?: string | null }>(
+  rows: T[],
+): T | null {
+  if (rows.length === 0) return null;
+  return rows.find((c) => c.status !== "RESOLVED") ?? rows[0] ?? null;
 }
 
 function brl(value: number | string | null | undefined): string {
@@ -117,28 +145,50 @@ interface DealDetailExtra {
     phone?: string | null;
     email?: string | null;
     source?: string | null;
-    conversations?: DealContactConversation[];
+    conversations?: DealPageConversation[];
   } | null;
 }
 
 export default function V2DealDetailClientPage({ dealId }: V2DealDetailClientPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const dealQuery = useDealDetail(dealId);
   // Presença "quem está vendo" (estilo Kommo) — outros usuários com este
   // deal aberto agora. Lista já vem sem você mesmo.
   const viewers = useEntityViewers("deal", dealId);
   const deal = dealQuery.data as (typeof dealQuery.data & DealDetailExtra) | undefined;
 
-  const conversations = deal?.contact?.conversations ?? [];
-  const [selectedConv, setSelectedConv] = useState<DealContactConversation | null>(null);
-  const [autoLoaded, setAutoLoaded] = useState(false);
-
-  useEffect(() => {
-    if (deal && !autoLoaded && conversations.length > 0 && !selectedConv) {
-      setSelectedConv(conversations[0] ?? null);
-      setAutoLoaded(true);
+  const conversations = useMemo(
+    () => deal?.contact?.conversations ?? [],
+    [deal?.contact?.conversations],
+  );
+  // Aba escolhida pelo operador (ou o ticket novo após reabrir). `null` =
+  // escolha padrão (aberto primeiro). Após reabrir, o id novo ainda não
+  // está na lista até o detail refazer o GET — usamos um stub OPEN.
+  const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
+  const activeConv = useMemo<DealPageConversation | null>(() => {
+    if (selectedConvId) {
+      return (
+        conversations.find((c) => c.id === selectedConvId) ?? {
+          id: selectedConvId,
+          status: "OPEN",
+        }
+      );
     }
-  }, [deal, autoLoaded, conversations, selectedConv]);
+    return pickDefaultConversation(conversations);
+  }, [conversations, selectedConvId]);
+
+  const handleSelectConv = useCallback((id: string) => setSelectedConvId(id), []);
+  const handleConversationReopened = useCallback(
+    (newConversationId: string) => {
+      setSelectedConvId(newConversationId);
+      queryClient.invalidateQueries({ queryKey: dealDetailKey(dealId) });
+    },
+    [dealId, queryClient],
+  );
+  const handleConversationResolved = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: dealDetailKey(dealId) });
+  }, [dealId, queryClient]);
 
   // Funil visual: stages já vêm em GET /api/pipelines — NÃO puxar o board
   // inteiro (~900KB / ~8s em prod) só para desenhar segmentos de cor.
@@ -294,12 +344,16 @@ export default function V2DealDetailClientPage({ dealId }: V2DealDetailClientPag
         )}
 
         <DealChatPanel
-          conversationId={selectedConv?.id ?? null}
-          conversationStatus={selectedConv?.status ?? undefined}
-          contactId={deal?.contact?.id}
+          dealId={dealId}
+          pipelineId={pipelineId ?? null}
+          loading={dealQuery.isLoading && !deal}
+          contact={deal?.contact ?? null}
+          dealTitle={deal?.title ?? null}
           conversations={conversations}
-          selectedConvId={selectedConv?.id ?? null}
-          onSelectConv={setSelectedConv}
+          activeConv={activeConv}
+          onSelectConv={handleSelectConv}
+          onConversationReopened={handleConversationReopened}
+          onConversationResolved={handleConversationResolved}
         />
       </div>
     </div>
@@ -324,21 +378,67 @@ function DealErrorPanel({ message }: { message: string }) {
 }
 
 function DealChatPanel({
-  conversationId,
-  conversationStatus,
-  contactId,
+  dealId,
+  pipelineId,
+  loading,
+  contact,
+  dealTitle,
   conversations,
-  selectedConvId,
+  activeConv,
   onSelectConv,
+  onConversationReopened,
+  onConversationResolved,
 }: {
-  conversationId: string | null;
-  conversationStatus?: string;
-  contactId?: string;
-  conversations: DealContactConversation[];
-  selectedConvId: string | null;
-  onSelectConv: (conv: DealContactConversation) => void;
+  dealId: string;
+  pipelineId: string | null;
+  loading: boolean;
+  contact: NonNullable<DealDetailExtra["contact"]> | null;
+  dealTitle: string | null;
+  conversations: DealPageConversation[];
+  activeConv: DealPageConversation | null;
+  onSelectConv: (conversationId: string) => void;
+  onConversationReopened: (newConversationId: string) => void;
+  onConversationResolved: (conversationId: string) => void;
 }) {
-  if (conversations.length === 0) {
+  const contactId = contact?.id ?? null;
+  const contactName = contact?.name ?? null;
+  const contactPhone = contact?.phone ?? null;
+  const activeChannel = activeConv?.channel ?? null;
+  const hostContact = useMemo(
+    () =>
+      contactId
+        ? {
+            id: contactId,
+            name: contactName || dealTitle || "",
+            phone: contactPhone,
+            channel: activeChannel,
+          }
+        : null,
+    [contactId, contactName, contactPhone, dealTitle, activeChannel],
+  );
+  const hostConversation = useMemo(
+    () =>
+      activeConv
+        ? {
+            status: activeConv.status ?? null,
+            number: activeConv.number ?? null,
+            closedAt: activeConv.closedAt ?? null,
+            lastInboundAt: activeConv.lastInboundAt ?? null,
+            assignedToId: activeConv.assignedTo?.id ?? null,
+          }
+        : null,
+    [activeConv],
+  );
+
+  if (loading) {
+    return (
+      <main className="flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] shadow-[var(--glass-shadow)]">
+        <AppLoading variant="inline" className="min-h-0 flex-1" />
+      </main>
+    );
+  }
+
+  if (conversations.length === 0 || !activeConv || !hostContact) {
     return (
       <main className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] p-10 text-center backdrop-blur-md shadow-[var(--glass-shadow)]">
         <div className="grid size-16 place-items-center rounded-[var(--radius-lg)] bg-[var(--color-enterprise-bg)] text-[var(--brand-primary)]">
@@ -361,29 +461,44 @@ function DealChatPanel({
   return (
     <main className="flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] shadow-[var(--glass-shadow)]">
       {conversations.length > 1 && (
-        <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--glass-border)] p-2">
+        <div
+          role="tablist"
+          aria-label="Conversas do contato"
+          className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--glass-border)] p-2"
+        >
           {conversations.map((conv) => (
             <button
               key={conv.id}
               type="button"
-              onClick={() => onSelectConv(conv)}
+              role="tab"
+              aria-selected={activeConv.id === conv.id}
+              onClick={() => onSelectConv(conv.id)}
               className={`rounded-lg px-3 py-1.5 text-[12px] font-bold transition-colors ${
-                selectedConvId === conv.id
+                activeConv.id === conv.id
                   ? "bg-[var(--brand-primary)] text-white"
                   : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-strong)]"
               }`}
             >
               {conv.channel ?? conv.inboxName ?? conv.id.slice(0, 6)}
+              {conv.number != null ? ` #${conv.number}` : ""}
             </button>
           ))}
         </div>
       )}
-      <div className="min-h-0 flex-1">
-        <ChatWindow
-          conversationId={conversationId}
-          conversationStatus={conversationStatus}
-          contactId={contactId}
-          compactChrome
+      <div className="flex min-h-0 flex-1 flex-col">
+        <ConversationChatHost
+          key={activeConv.id}
+          conversationId={activeConv.id}
+          conversation={hostConversation}
+          contact={hostContact}
+          dealId={dealId}
+          pipelineId={pipelineId}
+          departmentId={activeConv.departmentId ?? activeConv.department?.id ?? null}
+          requireTabulationOnClose={
+            activeConv.department?.requireTabulationOnClose ?? false
+          }
+          onConversationReopened={onConversationReopened}
+          onResolved={onConversationResolved}
         />
       </div>
     </main>
