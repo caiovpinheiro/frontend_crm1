@@ -909,15 +909,6 @@ export const UNITS: ModalUnit[] = [
     kind: "live",
   },
   {
-    id: "contact-panel",
-    group: "system",
-    title: "Painel do contato",
-    file: "components/contacts/contact-panel.tsx",
-    kind: "note",
-    note: "Sheet acoplado a um contactId — ver /contacts.",
-    href: "/contacts",
-  },
-  {
     id: "demand-drawer",
     group: "system",
     title: "Item de demanda",
