@@ -133,7 +133,7 @@ type Catalogs = {
   users: Array<{ id: string; name: string; type: string }>;
   aiAgents: Array<{ id: string; name: string }>;
   messageTemplates: Array<{ id: string; name: string }>;
-  knowledgeDocs: Array<{ id: string; name: string }>;
+  knowledgeDocs: Array<{ id: string; name: string; title?: string }>;
   channels: Array<{ id: string; name: string }>;
   pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
   tags?: Array<{ id: string; name: string }>;
@@ -193,6 +193,8 @@ type TestResult = {
   interactive?: { kind: "buttons" | "list"; body: string; labels: string[]; displayContent: string } | null;
   /** Opção da mensagem anterior que o cliente escolheu (clique ou número). */
   chosenOption?: string | null;
+  /** Texto da mensagem pronta que sairia em seguida, no WhatsApp. */
+  materialText?: string;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -4974,7 +4976,10 @@ function ThemeEditor({
             <Field label="Materiais extras" hint="Somam aos materiais gerais.">
               <MultiSelectPopover
                 label="Materiais"
-                options={catalogs.knowledgeDocs.map((d) => ({ value: d.id, label: d.name }))}
+                options={catalogs.knowledgeDocs.map((d) => ({
+                  value: d.id,
+                  label: (d.name || d.title || "Material sem nome").trim() || "Material sem nome",
+                }))}
                 selected={((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)}
                 onChange={(v) => onPatch({ allowedKnowledgeDocIds: v })}
               />
@@ -6349,7 +6354,9 @@ function StepTestPublish({
     for (const t of turns) {
       history.push({ role: "user", content: t.userMessage });
       // Com botões, o histórico leva a marca "[Botões: …]", como na conversa real.
-      const agentText = t.result?.interactive?.displayContent ?? t.result?.reply;
+      const agentText = [t.result?.interactive?.displayContent ?? t.result?.reply, t.result?.materialText]
+        .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+        .join("\n\n");
       if (agentText) history.push({ role: "assistant", content: agentText });
     }
     setTurns((prev) => [...prev, { id: turnId, userMessage: text }]);
@@ -6360,7 +6367,6 @@ function StepTestPublish({
       const r = await testAgent(agentId, text, history, testContactId || undefined, testStage, lastThemeId, testModel || undefined);
       setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, result: r } : t)));
       if (r.stage) setTestStage(r.stage);
-      setOpenWhyId(turnId);
     } catch (err) {
       setTurns((prev) =>
         prev.map((t) => (t.id === turnId ? { ...t, error: err instanceof Error ? err.message : "Erro no teste" } : t)),
@@ -6492,6 +6498,11 @@ function StepTestPublish({
                     </span>
                     <span className="ml-2 inline-block translate-y-0.5 whitespace-nowrap text-[10px] text-[#667781]">{clock(t)}</span>
                   </div>
+                  {t.result.materialText?.trim() ? (
+                    <div className="mt-1 rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
+                      <span className="whitespace-pre-line">{t.result.materialText}</span>
+                    </div>
+                  ) : null}
                   {t.result.interactive && (
                     <WhatsAppButtons
                       labels={t.result.interactive.labels}

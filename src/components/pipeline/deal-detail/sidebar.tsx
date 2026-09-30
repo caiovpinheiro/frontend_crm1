@@ -1143,6 +1143,12 @@ export function DealProductsSection({
                     </div>
                     <div className="mt-0.5 flex items-center gap-1 text-[11.5px] text-[var(--color-ink-soft)]">
                       <span>{item.quantity} un.</span>
+                      {item.courseMode ? (
+                        <>
+                          <span className="opacity-40">·</span>
+                          <span>{item.courseMode}</span>
+                        </>
+                      ) : null}
                       {item.courseDuration ? (
                         <>
                           <span className="opacity-40">·</span>
@@ -1166,6 +1172,7 @@ export function DealProductsSection({
                     <ProductCustomFieldsInline
                       values={customFieldsByProduct[item.productId]}
                       omitDuration={!!item.courseDuration}
+                      omitMode={!!item.courseMode}
                     />
                   </div>
 
@@ -1797,13 +1804,16 @@ function presenceLabel(status: "ONLINE" | "OFFLINE" | "AWAY") {
 function ProductCustomFieldsInline({
   values,
   omitDuration = false,
+  omitMode = false,
 }: {
   values?: ProductCustomFieldValue[];
   omitDuration?: boolean;
+  omitMode?: boolean;
 }) {
   const filled = (values ?? []).filter((v) => {
     if (!v.value?.trim()) return false;
     if (omitDuration && /dura/i.test(v.label)) return false;
+    if (omitMode && /modalidade/i.test(v.label)) return false;
     return true;
   });
   if (filled.length === 0) return null;
