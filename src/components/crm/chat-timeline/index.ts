@@ -1,11 +1,13 @@
 export type {
   ClassifiedTimelineItem,
+  ConsentVerdict,
   ConversationEventAction,
   TimelineClassifyInput,
   TimelineItemKind,
 } from "./types";
 export {
   classifyTimelineItem,
+  detectConsentVerdict,
   eventActorIsSubject,
   inferEventActionFromText,
   isConversationActorAsAuthorText,
@@ -13,6 +15,7 @@ export {
   isConversationLifecycleText,
   isConversationOpenEventText,
   isEventMessageType,
+  isMetaSystemEventItem,
   isRedundantOpenStatusEvent,
   normalizeConversationEventText,
   normalizeQueueEventText,

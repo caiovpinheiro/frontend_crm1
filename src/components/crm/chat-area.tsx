@@ -23,6 +23,7 @@ import {
   useHideChatEvents,
 } from "./chat-timeline"
 import { SessionAlert } from "./session-alert"
+import { ConsentEventRow, SystemEventRow } from "@/features/inbox-v2/extras/chat-event-rows"
 import { ConversationSearchBar, isFindShortcut, useConversationSearch } from "./conversation-search"
 import {
   formatConnectionLabel,
@@ -1051,9 +1052,15 @@ export function ChatArea({
               }
             }
             const isEvent = message.kind === "event"
+            const isSystemRow = message.kind === "system"
+            const isConsentRow = message.kind === "consent"
             const isNoteBubble = message.isNote === true
             const lane: "in" | "out" | "other" =
-              isEvent || isNoteBubble ? "other" : message.type === "outgoing" ? "out" : "in"
+              isEvent || isSystemRow || isConsentRow || isNoteBubble
+                ? "other"
+                : message.type === "outgoing"
+                  ? "out"
+                  : "in"
             const clusterBreak = !isNewDay && lastLane !== null && lastLane !== lane
             lastLane = lane
             return (
@@ -1085,6 +1092,13 @@ export function ChatArea({
                       text={message.content}
                       actor={message.senderName ?? ""}
                       actorId={message.senderUserId}
+                      time={message.time}
+                    />
+                  ) : isSystemRow ? (
+                    <SystemEventRow body={message.content} time={message.time} />
+                  ) : isConsentRow ? (
+                    <ConsentEventRow
+                      verdict={message.consentVerdict ?? "unknown"}
                       time={message.time}
                     />
                   ) : (

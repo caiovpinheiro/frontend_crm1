@@ -21,7 +21,13 @@ import { StatusTicks } from "@/components/crm/status-ticks"
 import { UserAvatar } from "@/components/crm/user-avatar"
 import { avatarInitials } from "@/lib/avatar"
 import { resolveChatMediaUrl } from "@/lib/chat-media-url"
-import { EventRow, NoteRow, type ConversationEventAction } from "@/components/crm/chat-timeline"
+import {
+  EventRow,
+  NoteRow,
+  type ConsentVerdict,
+  type ConversationEventAction,
+  type TimelineItemKind,
+} from "@/components/crm/chat-timeline"
 import { formatPhoneDisplay } from "@/lib/phone"
 import type { ConnectionRef } from "@/features/inbox-v2/api/types"
 import { PhoneIncoming, PhoneOff, PhoneOutgoing, ShoppingBag } from "lucide-react"
@@ -111,6 +117,8 @@ import {
   IconStarFilled,
   IconSpeakerphone,
   IconPhone,
+  IconTool,
+  IconShieldCheck,
 } from "@tabler/icons-react"
 
 type MediaKind = "image" | "audio" | "video" | "document" | null
@@ -315,14 +323,23 @@ export interface Message {
   /** Tipo de mídia: "audio", "image", "document", "video", "text" etc. */
   messageType?: string
   /**
-   * Discriminante da timeline do chat: mensagem, nota humana ou evento
-   * automático (sistema/IA). Quando ausente, `isNote` continua valendo.
+   * Discriminante da timeline do chat: mensagem, nota humana, evento
+   * automático (sistema/IA), evento de sistema da Meta, resposta de
+   * permissão de ligação ou rascunho de IA. Quando ausente, `isNote`
+   * continua valendo. (`TimelineItemKind` em chat-timeline/types.)
    */
-  kind?: "message" | "note" | "event"
+  kind?: TimelineItemKind
   /**
    * Ação do evento (ícone). Só relevante quando `kind === "event"`.
    */
   eventAction?: ConversationEventAction
+  /** Veredito da permissão de ligação — só quando `kind === "consent"`. */
+  consentVerdict?: ConsentVerdict
+  /**
+   * Nome/categoria do template WABA (extraídos do conteúdo bruto pelo
+   * adapter). Alimenta o badge "Marketing / Utility / Autenticação".
+   */
+  templateMeta?: { name: string | null; category: string | null } | null
   /**
    * Nota interna — não enviada ao cliente. Quando true, a bolha é
    * renderizada com estilo diferenciado (fundo amarelo, borda lateral,
@@ -453,6 +470,39 @@ export interface MessageBubbleProps {
   onFavoriteMessage?: (message: Message) => void
   /** Ao clicar na citação: rola até a mensagem original no thread. */
   onJumpToQuotedMessage?: (messageId: string) => void
+}
+
+/**
+ * Badge do template WABA: categoria (custo) + nome no tooltip. Sem
+ * categoria conhecida cai no rótulo genérico "Template".
+ */
+export function templateBadgeInfo(
+  meta: Message["templateMeta"] | undefined,
+): {
+  label: string
+  category: "marketing" | "utility" | "authentication" | null
+  title: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+} {
+  const cat = (meta?.category ?? "").trim().toLowerCase()
+  const isMkt = cat === "marketing"
+  const isUtility = cat === "utility" || cat === "utilidade"
+  const isAuth = cat === "authentication" || cat.includes("autentica")
+  const label = isMkt ? "Marketing" : isUtility ? "Utility" : isAuth ? "Autenticação" : "Template"
+  const hint = isMkt
+    ? "Custo mais alto — mensagem promocional"
+    : isUtility
+      ? "Custo moderado — mensagem transacional"
+      : isAuth
+        ? "Custo baixo — autenticação"
+        : "Modelo de mensagem aprovado pela Meta"
+  const name = meta?.name?.trim()
+  return {
+    label,
+    category: isMkt ? "marketing" : isUtility ? "utility" : isAuth ? "authentication" : null,
+    title: name ? `${label} · ${name} — ${hint}` : `${label} — ${hint}`,
+    icon: isMkt ? IconSpeakerphone : isUtility ? IconTool : isAuth ? IconShieldCheck : IconFile,
+  }
 }
 
 /** Emojis exibidos na barra rápida de reações — padrão WhatsApp. */
@@ -1877,22 +1927,27 @@ export const MessageBubble = memo(function MessageBubble({
               template) ou aparecer sozinho (agente enviando template
               manualmente). Usa cor accent que contrasta com ambos os
               fundos (bolha azul regular e bolha automação tintada). */}
-          {message.messageType === "template" && (
-            <div className={cn("mb-1.5 flex items-center gap-1.5", isBot && "-mt-0.5")}>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-[9.5px] font-bold uppercase tracking-widest",
-                  isOutgoing && !isBot
-                    ? "bg-white/22 text-white ring-1 ring-inset ring-white/25"
-                    : "bg-[color-mix(in_srgb,#0ea5e9_14%,white)] text-[#0369a1] ring-1 ring-inset ring-[color-mix(in_srgb,#0ea5e9_35%,transparent)]",
-                )}
-                title="Mensagem enviada usando um template aprovado da Meta"
-              >
-                <IconFile size={10} />
-                Template
-              </span>
-            </div>
-          )}
+          {message.messageType === "template" && (() => {
+            const tpl = templateBadgeInfo(message.templateMeta)
+            const TplIcon = tpl.icon
+            return (
+              <div className={cn("mb-1.5 flex items-center gap-1.5", isBot && "-mt-0.5")}>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-[9.5px] font-bold uppercase tracking-widest",
+                    isOutgoing && !isBot
+                      ? "bg-white/22 text-white ring-1 ring-inset ring-white/25"
+                      : "bg-[color-mix(in_srgb,#0ea5e9_14%,white)] text-[#0369a1] ring-1 ring-inset ring-[color-mix(in_srgb,#0ea5e9_35%,transparent)]",
+                  )}
+                  title={tpl.title}
+                  data-template-category={tpl.category ?? undefined}
+                >
+                  <TplIcon size={10} />
+                  {tpl.label}
+                </span>
+              </div>
+            )
+          })()}
           {/* Citação: cliente respondeu uma mensagem específica.
               Barra vertical + trecho curto, estilo WhatsApp. */}
           {message.replyTo?.snippet && (

@@ -19,7 +19,10 @@ import { ownerLabel } from "@/lib/utils";
 import { sanitizeContactName } from "@/lib/display-name";
 
 import { agentNameFromWhatsappCallSender } from "@/lib/whatsapp-call-chat";
-import { prettifyChatMessageBody } from "@/lib/whatsapp-outbound-template-label";
+import {
+  parseTemplateMeta,
+  prettifyChatMessageBody,
+} from "@/lib/whatsapp-outbound-template-label";
 
 import type {
   ContactDetail,
@@ -440,6 +443,28 @@ function parseInteractiveButtons(content: string): { text: string; buttons?: str
   return { text, buttons: buttons.length ? buttons : undefined };
 }
 
+/**
+ * Nome/categoria do template WABA a partir do conteúdo BRUTO gravado no
+ * histórico — antes do `prettifyChatMessageBody`, que remove o cabeçalho
+ * `📋 *nome*` / `_categoria_`. Fallback: formato "Nome:/Modelo: x" +
+ * "Categoria: y" (mensagens sem corpo do template).
+ */
+export function extractTemplateMeta(
+  content: string | null | undefined,
+): { name: string | null; category: string | null } | null {
+  const t = (content ?? "").trim();
+  if (!t) return null;
+  const header = t.match(/^📋\s*\*([^*\n]+)\*[ \t]*(?:\n[ \t]*_([^_\n]+)_)?/);
+  if (header) {
+    return {
+      name: header[1].trim() || null,
+      category: header[2]?.trim() || null,
+    };
+  }
+  const meta = parseTemplateMeta(t);
+  return meta ? { name: meta.name || null, category: meta.category } : null;
+}
+
 /** InboxMessageDto → Message (bolha do chat). */
 export function toMessageBubble(
   dto: InboxMessageDto,
@@ -596,8 +621,26 @@ export function toMessageBubble(
       if (classified.kind === "note" && !isAutomationRun) {
         return { kind: "note" as const, isNote: true as const };
       }
+      // Evento de sistema da Meta (troca de número) / resposta de
+      // permissão de ligação: linhas próprias no ChatArea, sem bolha.
+      if (classified.kind === "system") {
+        return { kind: "system" as const, isNote: undefined };
+      }
+      if (classified.kind === "consent") {
+        return {
+          kind: "consent" as const,
+          consentVerdict: classified.consentVerdict,
+          isNote: undefined,
+        };
+      }
       return { kind: "message" as const, isNote: undefined };
     })(),
+    // Badge de categoria do template (Marketing / Utility / Autenticação):
+    // lido do conteúdo bruto, já que o corpo exibido perde o cabeçalho.
+    templateMeta:
+      String(dto.messageType ?? "").toLowerCase() === "template"
+        ? extractTemplateMeta(dto.content)
+        : undefined,
     mediaUrl: dto.mediaUrl ?? dto.media?.url ?? undefined,
     // Ticks de entrega (estilo WhatsApp) — apenas para mensagens out.
     status: isInbound ? undefined : toBubbleStatus(dto),
