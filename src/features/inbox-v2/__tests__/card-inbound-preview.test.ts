@@ -24,8 +24,8 @@ function row(over: Partial<ConversationListRow> = {}): ConversationListRow {
   } as ConversationListRow;
 }
 
-describe("toConversationCard — prévia só do cliente", () => {
-  it("mostra a última do cliente, não a resposta do agente", () => {
+describe("toConversationCard — prévia só do cliente sem resposta", () => {
+  it("some depois que o agente respondeu", () => {
     const card = toConversationCard(
       row({
         lastInboundPreview: {
@@ -35,8 +35,30 @@ describe("toConversationCard — prévia só do cliente", () => {
         },
       }),
     );
+    expect(card.preview).toBe("");
+    expect(card.previewIsOurs).toBe(false);
+    expect(card.time).not.toBe("");
+  });
+
+  it("mostra a mensagem do cliente enquanto ninguém respondeu", () => {
+    const card = toConversationCard(
+      row({
+        lastMessagePreview: {
+          content: "eizes",
+          messageType: "text",
+          mediaUrl: null,
+          direction: "in",
+        },
+        lastInboundPreview: {
+          content: "eizes",
+          messageType: "text",
+          createdAt: "2026-09-23T13:16:00.000Z",
+        },
+      }),
+    );
     expect(card.preview).toBe("eizes");
     expect(card.previewIsOurs).toBe(false);
+    expect(card.lastMessageDirection).toBe("in");
   });
 
   it("sem mensagem do cliente: a nossa, apagada", () => {

@@ -13,10 +13,10 @@ interface InboundPreviewProps {
 }
 
 /**
- * Prévia dos cards (inbox, kanban e Flow): só a última mensagem do
- * cliente. Não lida = balão no gradiente Bwipo com contador vermelho e
+ * Prévia dos cards (inbox, kanban e Flow) enquanto o cliente espera
+ * resposta. Não lida = balão no gradiente Bwipo com contador vermelho e
  * brilho na chegada; lida = balão neutro; sem mensagem do cliente = a
- * nossa última em cinza itálico, só como contexto.
+ * nossa última em cinza itálico. Quem já respondeu não monta este balão.
  */
 export function InboundPreview({ text, unread, glow = false, ours = false, className }: InboundPreviewProps) {
   if (ours) {
