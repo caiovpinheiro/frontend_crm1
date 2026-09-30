@@ -156,13 +156,17 @@ function SelectContent({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open, setOpen]);
 
-  if (!open) return null;
+  // Os itens precisam ficar montados mesmo fechado: o rótulo do valor
+  // escolhido é lido deles. Se só montam ao abrir, trocar de aba remonta
+  // o select e o gatilho volta a mostrar o placeholder com o valor salvo.
   return (
     <div
       ref={ref}
+      hidden={!open}
       data-slot="select-content"
       className={cn(
         "absolute z-50 mt-1 max-h-60 w-full min-w-36 overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
+        !open && "hidden",
         className
       )}
       {...props}
