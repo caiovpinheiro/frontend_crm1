@@ -33,7 +33,6 @@ import {
   messageActivityTimestamp,
 } from "@/lib/message-activity-sort";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
-import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -107,6 +106,7 @@ import {
   useInboxRealtime,
   isInboxConversationDeniedError,
   purgePhantomInboxConversation,
+  resolveWhatsappSessionScope,
   useFavoriteMessage,
   useMarkConversationRead,
   useMessages,
@@ -1173,9 +1173,15 @@ export default function InboxV2ClientPage({
     },
   );
   const selectedOutbound = whatsappChannels?.find((c) => c.id === selectedChannelId);
-  const applyWhatsappSession = usesWhatsapp24hWindow(
-    selectedOutbound?.type ?? messagesData?.channel?.type,
-  );
+  // Janela de 24h só em WhatsApp Cloud API: canal Baileys (provider
+  // `BAILEYS_MD` em `channels[].provider` / `channelProvider` do GET
+  // messages) não tem sessão nem template HSM.
+  const sessionScope = resolveWhatsappSessionScope({
+    selectedOutbound,
+    conversationChannelType: messagesData?.channel?.type,
+    conversationChannelProvider: messagesData?.channelProvider,
+  });
+  const applyWhatsappSession = sessionScope.applyWhatsappSession;
 
   // Override de canal ativo: revalida a janela de 24h no canal de DESTINO
   // (o `session` do GET messages reflete só o canal da conversa).
@@ -1191,6 +1197,7 @@ export default function InboxV2ClientPage({
       conversationApiId,
       selectedChannelId,
       applyWhatsappSession && channelOverrideActive,
+      { provider: sessionScope.selectedChannelProvider },
     );
 
   function handleSelect(id: string) {
@@ -1325,6 +1332,8 @@ export default function InboxV2ClientPage({
     messagesLastInboundAt:
       sessionInfo?.lastInboundAt ?? activeRow?.lastInboundAt ?? null,
     threadLastInboundAt,
+    channelProvider: sessionScope.channelProvider,
+    selectedChannelProvider: sessionScope.selectedChannelProvider,
   });
   // Bloco C (25/jun/26): backend pode setar `canReply:false` quando o
   // usuário não tem `channel.send`. Default true preserva compat com
@@ -1928,6 +1937,7 @@ export default function InboxV2ClientPage({
         messages={messageBubbles}
         stages={stagePillsView}
         showSessionAlert={sessionExpiredEffective}
+        channelProvider={sessionScope.effectiveProvider}
         connection={messagesData?.channel ?? null}
         connections={messagesData?.channels}
         conversationNumber={activeRow?.number ?? null}
