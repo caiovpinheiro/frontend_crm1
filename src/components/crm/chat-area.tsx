@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type FormEvent, Fragment } from "react"
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type FormEvent, type KeyboardEvent, Fragment } from "react"
 import { useSession } from "next-auth/react"
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions"
 import { isBaileysChannelProvider } from "@/features/inbox-v2/adapters"
@@ -23,7 +23,7 @@ import {
   useHideChatEvents,
 } from "./chat-timeline"
 import { SessionAlert } from "./session-alert"
-import { ConversationSearchBar, useConversationSearch } from "./conversation-search"
+import { ConversationSearchBar, isFindShortcut, useConversationSearch } from "./conversation-search"
 import {
   formatConnectionLabel,
   type ConnectionRef,
@@ -343,14 +343,33 @@ export function ChatArea({
     query: searchQuery,
     enabled: searchActive,
   })
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const openSearch = useCallback(() => {
     setActiveTab("conversa")
     setSearchOpen(true)
+    // Já aberta: só refoca (ao montar, a própria barra foca o input).
+    const input = searchInputRef.current
+    if (input) {
+      input.focus()
+      input.select()
+    }
   }, [])
   const closeSearch = useCallback(() => {
     setSearchOpen(false)
     setSearchQuery("")
   }, [])
+  // Ctrl/Cmd+F abre a busca da conversa — só com o foco dentro do chat
+  // (o evento sobe até o <main>, que é focável via tabIndex=-1). Fora do
+  // chat o atalho nativo do navegador segue intacto.
+  const handleChatKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLElement>) => {
+      if (!isFindShortcut(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+      openSearch()
+    },
+    [openSearch],
+  )
   useEffect(() => {
     if (!searchControlRef) return
     searchControlRef.current = { open: openSearch }
@@ -723,11 +742,15 @@ export function ChatArea({
   return (
     <main
       aria-label={`Conversa com ${contact.name}`}
+      // Focável (sem entrar no tab order): clicar na lista dá foco ao chat
+      // e o Ctrl/Cmd+F passa a ser capturado por `handleChatKeyDown`.
+      tabIndex={-1}
+      onKeyDown={handleChatKeyDown}
       className={cn(
         // h-full min-h-0: o pai (inbox mobile) limita a altura; sem isso a
         // lista de mensagens estoura o viewport e o composer some abaixo
         // do clip em conversas longas.
-        "relative flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] backdrop-blur-md shadow-[var(--glass-shadow)]",
+        "relative flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] outline-none backdrop-blur-md shadow-[var(--glass-shadow)]",
         className,
       )}
     >
@@ -756,6 +779,7 @@ export function ChatArea({
               onQueryChange={setSearchQuery}
               search={conversationSearch}
               onClose={closeSearch}
+              inputRef={searchInputRef}
             />
           ) : tabsEnabled ? (
             <div className="min-w-0 flex-1">
