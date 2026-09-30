@@ -155,9 +155,9 @@ export function toDealCard(deal: BoardDealDto): Deal {
     messageDirection === "out"
       ? normalizeDeliveryStatus(lastMessage?.sendStatus)
       : undefined;
-  // Card mostra só a última mensagem do CLIENTE; sem ela, a nossa última
-  // apagada. `undefined` = backend antigo sem o campo: comportamento
-  // anterior (última de qualquer lado).
+  // Balão só enquanto o cliente espera resposta. Se a última mensagem é
+  // nossa, a marcação some. Sem mensagem do cliente, a nossa última fica
+  // apagada. `undefined` = backend antigo sem o campo: última de qualquer lado.
   const inboundRaw = deal.lastInboundMessage;
   const inbound =
     inboundRaw === undefined
@@ -165,9 +165,18 @@ export function toDealCard(deal: BoardDealDto): Deal {
       : inboundRaw && !isInternalOrSystemPreview(inboundRaw.content)
         ? inboundRaw
         : null;
-  const shown =
-    inbound === undefined ? lastMessage : inbound ?? lastMessage;
-  const shownIsOurs = inbound === null && lastMessage != null;
+  const answered = inbound != null && messageDirection === "out";
+  const failedOut =
+    answered && messageStatus === "failed" && lastMessage != null;
+  const shown = answered && !failedOut
+    ? null
+    : inbound === undefined
+      ? lastMessage
+      : failedOut
+        ? lastMessage
+        : inbound ?? lastMessage;
+  const shownIsOurs =
+    failedOut || (!answered && inbound === null && lastMessage != null);
   return {
     id: deal.id,
     name: contactName,

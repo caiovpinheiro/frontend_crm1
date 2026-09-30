@@ -242,8 +242,10 @@ export function ConversationCard({
   const isOutgoing = conversation.lastMessageDirection === "out"
   const unread = Number(conversation.unreadCount) || 0
   const justArrived = useJustArrived(conversation.id, conversation.contactId)
-  // Balão com contador substitui a pílula do topo (mesma informação).
-  const bubbleShowsUnread = unread > 0 && !conversation.previewIsOurs
+  // Balão + contador só enquanto o cliente espera resposta.
+  const awaitingReply =
+    !isOutgoing && !conversation.previewIsOurs && Boolean(conversation.preview)
+  const bubbleShowsUnread = awaitingReply && unread > 0
   const hasChannel = Boolean(String(conversation.channel ?? "").trim())
   const { settings: inboxSettings } = useInboxSettings()
   const { data: departments = [] } = useDepartments(
@@ -334,7 +336,9 @@ export function ConversationCard({
             </span>
             <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
               {conversation.time}
-              {bubbleShowsUnread ? null : <UnreadCountPill count={unread} />}
+              {awaitingReply && !bubbleShowsUnread ? (
+                <UnreadCountPill count={unread} />
+              ) : null}
               {unread <= 0 && conversation.urgent && (
                 <span className="flex h-3 w-3 items-center justify-center rounded-full bg-[var(--color-danger)] text-white">
                   <IconClock size={7} stroke={3} />
@@ -343,10 +347,8 @@ export function ConversationCard({
             </span>
           </div>
 
-          {/* Preview — 1 linha, texto plano (não parece link: sem itálico,
-              sem âncora). Ícone só indica tipo; clique seleciona o card. */}
-          <div className="mt-0.5 flex items-center gap-1 text-[11px] leading-[1.35] text-[var(--text-secondary)] @max-[220px]:hidden">
-            {isOutgoing && conversation.lastMessageStatus === "failed" ? (
+          {isOutgoing && conversation.lastMessageStatus === "failed" ? (
+            <div className="mt-0.5 flex items-center @max-[220px]:hidden">
               <TooltipGlass
                 label={
                   summarizeSendError(conversation.lastMessageSendError) ||
@@ -358,7 +360,12 @@ export function ConversationCard({
                   <StatusTicks status="failed" onLightBg size="card" />
                 </span>
               </TooltipGlass>
-            ) : null}
+            </div>
+          ) : null}
+          {/* Prévia só da mensagem do cliente ainda sem resposta, ou a
+              nossa apagada quando ele ainda não escreveu. */}
+          {(awaitingReply || conversation.previewIsOurs) && (
+          <div className="mt-0.5 flex items-center gap-1 text-[11px] leading-[1.35] text-[var(--text-secondary)] @max-[220px]:hidden">
             {TypeIcon ? (
               <TypeIcon size={12} className="shrink-0 text-[var(--brand-primary)]" />
             ) : (
@@ -370,10 +377,11 @@ export function ConversationCard({
               className="pointer-events-none"
               text={typeLabel ?? conversation.preview}
               unread={conversation.resolved ? 0 : unread}
-              glow={justArrived}
+              glow={justArrived && awaitingReply}
               ours={conversation.previewIsOurs}
             />
           </div>
+          )}
         </div>
       </div>
 

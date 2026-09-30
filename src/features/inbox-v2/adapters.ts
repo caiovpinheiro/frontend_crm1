@@ -263,24 +263,6 @@ export function toConversationCard(
   // tiver, cai pra string vazia (mostra apenas o tipo, se conhecido).
   // Texto plano: markdown/HTML no preview virava “link” no card e o
   // clique parecia disparar ação além de abrir a conversa.
-  // Card mostra só a última mensagem do CLIENTE. Sem ela (só nós
-  // falamos), a nossa última aparece apagada. `undefined` = backend antigo
-  // sem o campo: mantém o comportamento anterior (última de qualquer lado).
-  const inbound = row.lastInboundPreview;
-  const legacyPreview = inbound === undefined;
-  const previewIsOurs = !legacyPreview && !inbound;
-  const previewText = toPlainCardPreview(
-    prettifyChatMessageBody(
-      inbound?.content ??
-        row.lastMessage?.preview ??
-        row.lastMessagePreview?.content ??
-        "",
-    ),
-  );
-  const lastMessageType = inferLastMessageType(
-    previewText,
-    inbound?.messageType ?? row.lastMessagePreview?.messageType ?? null,
-  );
   const dir = String(
     row.lastMessage?.direction ?? row.lastMessagePreview?.direction ?? "",
   ).toLowerCase();
@@ -290,6 +272,26 @@ export function toConversationCard(
       : dir === "in" || dir === "inbound"
         ? "in"
         : undefined;
+  // Balão só da mensagem do cliente que ainda não foi respondida. Se a
+  // última é nossa, a marcação some. Sem mensagem do cliente, a nossa
+  // última aparece apagada. `undefined` = backend antigo sem o campo.
+  const inbound = row.lastInboundPreview;
+  const legacyPreview = inbound === undefined;
+  const answered = inbound != null && lastMessageDirection === "out";
+  const previewIsOurs = !legacyPreview && !inbound;
+  const previewSource = answered
+    ? ""
+    : inbound?.content ??
+      row.lastMessage?.preview ??
+      row.lastMessagePreview?.content ??
+      "";
+  const previewText = toPlainCardPreview(prettifyChatMessageBody(previewSource));
+  const lastMessageType = inferLastMessageType(
+    previewText,
+    answered
+      ? null
+      : inbound?.messageType ?? row.lastMessagePreview?.messageType ?? null,
+  );
   // Prefer sendStatus do preview (batch atual); fallback lastMessage.status.
   const lastMessageStatus =
     lastMessageDirection === "out"
@@ -311,9 +313,11 @@ export function toConversationCard(
     imageUrl: row.contact?.avatarUrl ?? null,
     avatarColor: colorFromName(name),
     status: deriveOnline(row.lastInboundAt),
-    // Horário da última mensagem do cliente (a ordem da lista segue a
-    // última atividade — `lastActivityAt`).
-    time: formatRelative(inbound?.createdAt ?? lastActivity),
+    // Sem resposta: horário da mensagem do cliente. Já respondida: horário
+    // da última atividade (a nossa). A ordem da lista segue `lastActivityAt`.
+    time: formatRelative(
+      answered ? lastActivity : inbound?.createdAt ?? lastActivity,
+    ),
     preview: previewText,
     previewIsOurs: previewIsOurs && previewText.length > 0,
     assignee: ownerLabel(row.assignedTo?.name, row.assignedTo?.type),

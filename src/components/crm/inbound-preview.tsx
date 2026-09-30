@@ -13,10 +13,11 @@ interface InboundPreviewProps {
 }
 
 /**
- * Prévia dos cards (inbox, kanban e Flow): só a última mensagem do
- * cliente. Não lida = balão suave (fundo azul claro, texto escuro, até 2
+ * Prévia dos cards (inbox, kanban e Flow) enquanto o cliente espera
+ * resposta. Não lida = balão suave (fundo azul claro, texto escuro, até 2
  * linhas) com contador azul; lida = texto cinza sem balão; sem mensagem
- * do cliente = a nossa última em cinza itálico, só como contexto.
+ * do cliente = a nossa última em cinza itálico. Quem já respondeu não
+ * monta este balão.
  */
 export function InboundPreview({ text, unread, ours = false, className }: InboundPreviewProps) {
   if (ours) {
