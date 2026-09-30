@@ -599,8 +599,9 @@ export function toMessageBubble(
     formFields: formParsed?.fields,
     formTitle: formParsed?.title,
     messageType: dto.messageType ?? undefined,
-    // Timeline: event (log automático) vs note (anotação humana).
-    // Legado: notas do sistema/Agente IA viram event. ai_draft fica fora.
+    // Timeline: event (log automático) vs note (anotação humana) vs
+    // system/consent (Meta) vs draft (IA). Legado: notas do sistema/
+    // Agente IA viram event.
     ...(() => {
       const classified = classifyTimelineItem({
         messageType: dto.messageType,
@@ -632,6 +633,10 @@ export function toMessageBubble(
           consentVerdict: classified.consentVerdict,
           isNote: undefined,
         };
+      }
+      // Rascunho de agente IA: card de aprovar/descartar (AIDraftCard).
+      if (classified.kind === "draft") {
+        return { kind: "draft" as const, isNote: undefined };
       }
       return { kind: "message" as const, isNote: undefined };
     })(),

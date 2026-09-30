@@ -26,6 +26,7 @@ import {
 } from "./chat-timeline"
 import { SessionAlert } from "./session-alert"
 import { ConsentEventRow, SystemEventRow } from "@/features/inbox-v2/extras/chat-event-rows"
+import { AIDraftCard } from "@/features/inbox-v2/extras/ai-draft-card"
 import { ConversationSearchBar, isFindShortcut, useConversationSearch } from "./conversation-search"
 import {
   formatConnectionLabel,
@@ -1085,9 +1086,10 @@ export function ChatArea({
             const isEvent = message.kind === "event"
             const isSystemRow = message.kind === "system"
             const isConsentRow = message.kind === "consent"
+            const isDraftCard = message.kind === "draft"
             const isNoteBubble = message.isNote === true
             const lane: "in" | "out" | "other" =
-              isEvent || isSystemRow || isConsentRow || isNoteBubble
+              isEvent || isSystemRow || isConsentRow || isDraftCard || isNoteBubble
                 ? "other"
                 : message.type === "outgoing"
                   ? "out"
@@ -1131,6 +1133,14 @@ export function ChatArea({
                     <ConsentEventRow
                       verdict={message.consentVerdict ?? "unknown"}
                       time={message.time}
+                    />
+                  ) : isDraftCard ? (
+                    <AIDraftCard
+                      messageId={message.id}
+                      content={message.content}
+                      time={message.time}
+                      senderName={message.senderName ?? null}
+                      conversationId={conversationId ?? null}
                     />
                   ) : (
                     <MessageBubble

@@ -441,20 +441,48 @@ export async function transcribeMessage(messageId: string): Promise<{
   return data as { transcript: string };
 }
 
-/** POST /api/ai-agents/drafts/:messageId/approve */
-export async function approveAiDraft(messageId: string): Promise<void> {
-  const res = await fetch(apiUrl(`/api/ai-agents/drafts/${messageId}/approve`), {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error("Falha ao aprovar rascunho");
+/**
+ * POST /api/ai-agents/drafts/:messageId/approve — envia o rascunho do
+ * agente IA ao cliente. `content` (opcional) manda o texto editado pelo
+ * operador; sem ele o backend usa o rascunho original.
+ */
+export async function approveAiDraft(
+  messageId: string,
+  content?: string,
+): Promise<void> {
+  const trimmed = content?.trim();
+  const res = await fetch(
+    apiUrl(`/api/ai-agents/drafts/${encodeURIComponent(messageId)}/approve`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(trimmed ? { content: trimmed } : {}),
+    },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof (data as { message?: unknown })?.message === "string"
+        ? (data as { message: string }).message
+        : "Falha ao aprovar rascunho",
+    );
+  }
 }
 
-/** POST /api/ai-agents/drafts/:messageId/discard */
+/** POST /api/ai-agents/drafts/:messageId/discard — remove o rascunho. */
 export async function discardAiDraft(messageId: string): Promise<void> {
-  const res = await fetch(apiUrl(`/api/ai-agents/drafts/${messageId}/discard`), {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error("Falha ao descartar rascunho");
+  const res = await fetch(
+    apiUrl(`/api/ai-agents/drafts/${encodeURIComponent(messageId)}/discard`),
+    { method: "POST" },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof (data as { message?: unknown })?.message === "string"
+        ? (data as { message: string }).message
+        : "Falha ao descartar rascunho",
+    );
+  }
 }
 
 /**

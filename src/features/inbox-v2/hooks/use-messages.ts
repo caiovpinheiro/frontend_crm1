@@ -6,7 +6,9 @@ import { useSession } from "next-auth/react";
 
 import {
   addNoteToLog,
+  approveAiDraft,
   deleteNote,
+  discardAiDraft,
   favoriteMessage,
   getFavoriteMessages,
   getMessages,
@@ -371,6 +373,36 @@ export function useResendMessage(conversationId: string | null) {
           messageType: data.message?.messageType,
           timestamp: data.message?.createdAt,
         });
+      }
+    },
+  });
+}
+
+/**
+ * Mutation: aprovar rascunho de agente IA (modo DRAFT) — envia ao cliente
+ * o texto original ou o editado pelo operador. Refetch da conversa: o
+ * rascunho some e a mensagem enviada entra no lugar.
+ */
+export function useApproveAiDraft(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { messageId: string; content?: string }>({
+    mutationFn: ({ messageId, content }) => approveAiDraft(messageId, content),
+    onSuccess: () => {
+      if (conversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+      }
+    },
+  });
+}
+
+/** Mutation: descartar rascunho de agente IA. */
+export function useDiscardAiDraft(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { messageId: string }>({
+    mutationFn: ({ messageId }) => discardAiDraft(messageId),
+    onSuccess: () => {
+      if (conversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
       }
     },
   });

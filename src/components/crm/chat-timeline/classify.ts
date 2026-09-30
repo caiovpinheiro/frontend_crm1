@@ -271,14 +271,19 @@ export function isMetaSystemEventItem(input: {
  *   - note   = anotação manual humana
  *   - system = evento de sistema da Meta (troca de número etc.)
  *   - consent = resposta ao pedido de permissão de ligação
+ *   - draft  = rascunho de agente IA (`ai_draft`) aguardando aprovação
  *   - message = o restante
  */
 export function classifyTimelineItem(
   input: TimelineClassifyInput,
 ): ClassifiedTimelineItem {
   const mt = (input.messageType ?? "").toLowerCase();
+  // Rascunho de agente IA (modo DRAFT): card com aprovar/editar/descartar
+  // no lugar da bolha — o canônico não pode ficar cego para ele.
+  if (DRAFT_TYPES.has(mt)) {
+    return { kind: "draft" };
+  }
   if (
-    DRAFT_TYPES.has(mt) ||
     mt === "ticket-separator" ||
     mt === "sip_call" ||
     mt === "whatsapp_call" ||
