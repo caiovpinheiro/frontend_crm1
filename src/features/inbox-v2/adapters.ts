@@ -19,7 +19,10 @@ import { ownerLabel } from "@/lib/utils";
 import { sanitizeContactName } from "@/lib/display-name";
 
 import { agentNameFromWhatsappCallSender } from "@/lib/whatsapp-call-chat";
-import { prettifyChatMessageBody } from "@/lib/whatsapp-outbound-template-label";
+import {
+  parseTemplateMeta,
+  prettifyChatMessageBody,
+} from "@/lib/whatsapp-outbound-template-label";
 
 import type {
   ContactDetail,
@@ -440,6 +443,28 @@ function parseInteractiveButtons(content: string): { text: string; buttons?: str
   return { text, buttons: buttons.length ? buttons : undefined };
 }
 
+/**
+ * Nome/categoria do template WABA a partir do conteúdo BRUTO gravado no
+ * histórico — antes do `prettifyChatMessageBody`, que remove o cabeçalho
+ * `📋 *nome*` / `_categoria_`. Fallback: formato "Nome:/Modelo: x" +
+ * "Categoria: y" (mensagens sem corpo do template).
+ */
+export function extractTemplateMeta(
+  content: string | null | undefined,
+): { name: string | null; category: string | null } | null {
+  const t = (content ?? "").trim();
+  if (!t) return null;
+  const header = t.match(/^📋\s*\*([^*\n]+)\*[ \t]*(?:\n[ \t]*_([^_\n]+)_)?/);
+  if (header) {
+    return {
+      name: header[1].trim() || null,
+      category: header[2]?.trim() || null,
+    };
+  }
+  const meta = parseTemplateMeta(t);
+  return meta ? { name: meta.name || null, category: meta.category } : null;
+}
+
 /** InboxMessageDto → Message (bolha do chat). */
 export function toMessageBubble(
   dto: InboxMessageDto,
@@ -574,8 +599,9 @@ export function toMessageBubble(
     formFields: formParsed?.fields,
     formTitle: formParsed?.title,
     messageType: dto.messageType ?? undefined,
-    // Timeline: event (log automático) vs note (anotação humana).
-    // Legado: notas do sistema/Agente IA viram event. ai_draft fica fora.
+    // Timeline: event (log automático) vs note (anotação humana) vs
+    // system/consent (Meta) vs draft (IA). Legado: notas do sistema/
+    // Agente IA viram event.
     ...(() => {
       const classified = classifyTimelineItem({
         messageType: dto.messageType,
@@ -596,8 +622,30 @@ export function toMessageBubble(
       if (classified.kind === "note" && !isAutomationRun) {
         return { kind: "note" as const, isNote: true as const };
       }
+      // Evento de sistema da Meta (troca de número) / resposta de
+      // permissão de ligação: linhas próprias no ChatArea, sem bolha.
+      if (classified.kind === "system") {
+        return { kind: "system" as const, isNote: undefined };
+      }
+      if (classified.kind === "consent") {
+        return {
+          kind: "consent" as const,
+          consentVerdict: classified.consentVerdict,
+          isNote: undefined,
+        };
+      }
+      // Rascunho de agente IA: card de aprovar/descartar (AIDraftCard).
+      if (classified.kind === "draft") {
+        return { kind: "draft" as const, isNote: undefined };
+      }
       return { kind: "message" as const, isNote: undefined };
     })(),
+    // Badge de categoria do template (Marketing / Utility / Autenticação):
+    // lido do conteúdo bruto, já que o corpo exibido perde o cabeçalho.
+    templateMeta:
+      String(dto.messageType ?? "").toLowerCase() === "template"
+        ? extractTemplateMeta(dto.content)
+        : undefined,
     mediaUrl: dto.mediaUrl ?? dto.media?.url ?? undefined,
     // Ticks de entrega (estilo WhatsApp) — apenas para mensagens out.
     status: isInbound ? undefined : toBubbleStatus(dto),
@@ -1079,9 +1127,25 @@ export function lastInboundAtFromThread(
 }
 
 /**
+ * Canal WhatsApp via Baileys (número pessoal/multi-device): não passa pela
+ * Cloud API da Meta, então NÃO tem janela de 24h nem template HSM. O
+ * backend expõe o provider em `MessagesResponse.channelProvider` (enum
+ * `ChannelProvider.BAILEYS_MD`) e por canal em `OutboundChannelOption.provider`.
+ */
+export function isBaileysChannelProvider(
+  provider: string | null | undefined,
+): boolean {
+  return /baileys/i.test(provider ?? "");
+}
+
+/**
  * Composer WhatsApp: a bolha inbound visível reabre a janela. Sem isso o
  * `useChannelSession` (staleTime + sem invalidate no SSE) mantinha o
  * banner "Sessão de 24h encerrada" depois da resposta do cliente.
+ *
+ * `channelProvider` (canal atual da conversa) e `selectedChannelProvider`
+ * (canal escolhido no composer) são opcionais: quando o canal efetivo é
+ * Baileys, a janela de 24h não se aplica (mesma regra do ChatWindow).
  */
 export function isWhatsappComposerSessionExpired(args: {
   applyWhatsappSession: boolean;
@@ -1092,8 +1156,19 @@ export function isWhatsappComposerSessionExpired(args: {
   messagesSessionActive?: boolean;
   messagesLastInboundAt?: string | null;
   threadLastInboundAt?: string | null;
+  /** `MessagesResponse.channelProvider` — provider do canal da conversa. */
+  channelProvider?: string | null;
+  /** `OutboundChannelOption.provider` do canal selecionado no composer. */
+  selectedChannelProvider?: string | null;
 }): boolean {
   if (!args.applyWhatsappSession) return false;
+  // Override ativo: vale o provider do canal de DESTINO; desconhecido →
+  // segue a regra normal (conservador). Sem override, o selecionado é o
+  // próprio canal da conversa.
+  const effectiveProvider = args.channelOverrideActive
+    ? args.selectedChannelProvider
+    : args.selectedChannelProvider ?? args.channelProvider;
+  if (isBaileysChannelProvider(effectiveProvider)) return false;
   if (!args.messagesLoaded) return false;
   if (!isSessionExpired(args.threadLastInboundAt)) return false;
   if (args.channelOverrideActive) {

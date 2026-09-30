@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { composerDraftKey } from "../composer-draft";
 import { useComposerDraftPersistence } from "../hooks/use-composer-draft";
+import { useTypingNotifier } from "../hooks/use-typing-notifier";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -101,6 +102,7 @@ import { ComposerMenu } from "./composer-menu";
 import { QuickReplyPopover } from "./quick-reply-popover";
 import type { QuickReplyCatalogItem } from "./quick-reply-catalog";
 import { ConversationResolveButton } from "./conversation-resolve-button";
+import { ScheduledMessagesBanner } from "./scheduled-messages-banner";
 import {
   TemplateComposePanel,
   whatsappTemplateToPending,
@@ -250,6 +252,9 @@ export function Composer({
   const [noteMode, setNoteMode] = useState(false);
   const [audioRecState, setAudioRecState] = useState<AudioRecordState>("idle");
   const isAudioActive = audioRecState !== "idle";
+  // "digitando…" pro cliente: 1 POST /typing a cada 3 s enquanto há texto
+  // (nunca em nota interna — o cliente não vê nota).
+  const notifyTyping = useTypingNotifier(conversationId, !noteMode);
 
   // Painel de emoji — abre acima do botão smiley. Insere no cursor do textarea.
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -1246,9 +1251,20 @@ export function Composer({
     }
   }
 
+  // Canal Baileys não tem janela de 24h → o diálogo de agendamento não
+  // oferece template fallback. Canal desconhecido: mantém a opção (Meta).
+  const scheduleSendChannel = availableChannels?.find(
+    (c) => c.id === (selectedChannelId ?? conversationChannelId),
+  );
+  const scheduleTemplateFallback = scheduleSendChannel
+    ? scheduleSendChannel.provider !== "BAILEYS_MD"
+    : true;
+
   return (
     <div ref={rootRef} className="relative mx-3 mb-1 max-md:mx-2 max-md:mb-1 sm:mx-4">
       {confirmDialogNode}
+      {/* Agendamentos pendentes da conversa — acima do input, em todo host */}
+      <ScheduledMessagesBanner conversationId={conversationId} />
       {/* Painel de validação do template do WhatsApp — flutua acima do composer */}
       {pendingTemplate && conversationId ? (
         <TemplateComposePanel
@@ -1616,6 +1632,7 @@ export function Composer({
             <ComposerMenu
               conversationId={conversationId}
               channelId={selectedChannelId ?? conversationChannelId ?? null}
+              scheduleTemplateFallback={scheduleTemplateFallback}
               className="h-9 w-9 shrink-0"
               noteMode={noteMode}
               onToggleNote={onSendNote ? () => setNoteMode((v) => !v) : undefined}
@@ -1701,6 +1718,7 @@ export function Composer({
               onChange={(e) => {
                 const next = e.target.value;
                 onChange(next);
+                notifyTyping(next);
                 if (!next.trim()) {
                   e.target.style.height = "24px";
                   return;

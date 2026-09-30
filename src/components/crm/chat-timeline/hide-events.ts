@@ -5,8 +5,10 @@ import { useCallback, useEffect, useState } from "react"
 const STORAGE_KEY = "crm.chat.hideEvents"
 const CHANGE_EVENT = "crm:chat-hide-events"
 
-/** Eventos de timeline que o olho oculta (`sip_call` / `whatsapp_call`).
- *  Gravação com áudio (`whatsapp_call_recording` / `sip_call` + mediaUrl) fica visível. */
+/** Eventos de timeline que o olho oculta (`sip_call` / `whatsapp_call`,
+ *  resposta de permissão de ligação). Gravação com áudio
+ *  (`whatsapp_call_recording` / `sip_call` + mediaUrl) fica visível, assim
+ *  como o evento de sistema da Meta (troca de número — o operador precisa ver). */
 export function isHideableChatEvent(message: {
   kind?: string | null
   messageType?: string | null
@@ -16,7 +18,7 @@ export function isHideableChatEvent(message: {
   if ((mt === "whatsapp_call_recording" || mt === "sip_call") && message.mediaUrl) return false
   if (mt === "sip_call" || mt === "whatsapp_call") return true
   if (mt === "whatsapp_call_recording") return true
-  if (message.kind === "event") return true
+  if (message.kind === "event" || message.kind === "consent") return true
   return mt === "event" || mt.startsWith("event:")
 }
 

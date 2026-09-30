@@ -18,11 +18,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 
 const FILES = [
-  "src/components/inbox/chat-window.tsx",
   "src/components/pipeline/kanban-filters/v2/core.tsx",
   "src/components/inbox/contact-deal-sidebar.tsx",
   "src/components/pipeline/bulk-operation-progress-dialog.tsx",
-  "src/components/pipeline/deal-workspace/sidebar.tsx",
   "src/components/inbox/whatsapp-call-chip.tsx",
   "src/components/inbox/conversation-list.tsx",
   "src/app/(app)/settings/pipeline/client-page.tsx",

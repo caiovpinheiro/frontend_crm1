@@ -21,7 +21,14 @@ import { StatusTicks } from "@/components/crm/status-ticks"
 import { UserAvatar } from "@/components/crm/user-avatar"
 import { avatarInitials } from "@/lib/avatar"
 import { resolveChatMediaUrl } from "@/lib/chat-media-url"
-import { EventRow, NoteRow, type ConversationEventAction } from "@/components/crm/chat-timeline"
+import { apiUrl } from "@/lib/api"
+import {
+  EventRow,
+  NoteRow,
+  type ConsentVerdict,
+  type ConversationEventAction,
+  type TimelineItemKind,
+} from "@/components/crm/chat-timeline"
 import { formatPhoneDisplay } from "@/lib/phone"
 import type { ConnectionRef } from "@/features/inbox-v2/api/types"
 import { PhoneIncoming, PhoneOff, PhoneOutgoing, ShoppingBag } from "lucide-react"
@@ -111,6 +118,10 @@ import {
   IconStarFilled,
   IconSpeakerphone,
   IconPhone,
+  IconTool,
+  IconShieldCheck,
+  IconClockExclamation,
+  IconRefresh,
 } from "@tabler/icons-react"
 
 type MediaKind = "image" | "audio" | "video" | "document" | null
@@ -315,14 +326,23 @@ export interface Message {
   /** Tipo de mídia: "audio", "image", "document", "video", "text" etc. */
   messageType?: string
   /**
-   * Discriminante da timeline do chat: mensagem, nota humana ou evento
-   * automático (sistema/IA). Quando ausente, `isNote` continua valendo.
+   * Discriminante da timeline do chat: mensagem, nota humana, evento
+   * automático (sistema/IA), evento de sistema da Meta, resposta de
+   * permissão de ligação ou rascunho de IA. Quando ausente, `isNote`
+   * continua valendo. (`TimelineItemKind` em chat-timeline/types.)
    */
-  kind?: "message" | "note" | "event"
+  kind?: TimelineItemKind
   /**
    * Ação do evento (ícone). Só relevante quando `kind === "event"`.
    */
   eventAction?: ConversationEventAction
+  /** Veredito da permissão de ligação — só quando `kind === "consent"`. */
+  consentVerdict?: ConsentVerdict
+  /**
+   * Nome/categoria do template WABA (extraídos do conteúdo bruto pelo
+   * adapter). Alimenta o badge "Marketing / Utility / Autenticação".
+   */
+  templateMeta?: { name: string | null; category: string | null } | null
   /**
    * Nota interna — não enviada ao cliente. Quando true, a bolha é
    * renderizada com estilo diferenciado (fundo amarelo, borda lateral,
@@ -437,7 +457,7 @@ export interface MessageBubbleProps {
   /** Excluir uma nota interna. */
   onDeleteNote?: (noteId: string) => void
 
-  // ── Ações de mensagem recebida (menu estilo WhatsApp) ────────────
+  // ── Ações de mensagem (menu estilo WhatsApp, recebidas e enviadas) ──
   // Todos opcionais: se não passados, o item some do menu. "Copiar" é
   // interno (usa navigator.clipboard) e sempre aparece p/ mensagens
   // com conteúdo textual — não depende de callback.
@@ -453,12 +473,87 @@ export interface MessageBubbleProps {
   onFavoriteMessage?: (message: Message) => void
   /** Ao clicar na citação: rola até a mensagem original no thread. */
   onJumpToQuotedMessage?: (messageId: string) => void
+  /** "Reenviar" numa mensagem enviada com `status: "failed"`. */
+  onResendMessage?: (message: Message) => void
+}
+
+/** Sem `delivered`/`read` por mais que isto: aviso "entrega não confirmada". */
+export const STALE_DELIVERY_MS = 5 * 60_000
+
+/**
+ * Mensagem ficou em `sent`/`pending` sem virar `delivered` por > 5 min.
+ * Pode ser número pausado, quality rating rebaixado ou mensagem engolida
+ * pela Cloud API — não é falha definitiva (o sweeper marca `failed`
+ * depois), só um aviso proativo pro operador.
+ */
+export function isDeliveryStale(
+  status: Message["status"],
+  createdAt: string | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (status !== "sent" && status !== "pending") return false
+  if (!createdAt) return false
+  const ts = Date.parse(createdAt)
+  if (!Number.isFinite(ts)) return false
+  return now - ts > STALE_DELIVERY_MS
+}
+
+/**
+ * Reavalia sozinho quando o limite de 5 min é cruzado com a bolha na tela:
+ * agenda um re-render para esse instante (setState só no timer, nunca no
+ * corpo do effect).
+ */
+function useDeliveryStale(status: Message["status"], createdAt: string | undefined): boolean {
+  const [, bump] = useState(0)
+  useEffect(() => {
+    if ((status !== "sent" && status !== "pending") || !createdAt) return
+    const ts = Date.parse(createdAt)
+    if (!Number.isFinite(ts)) return
+    const remaining = ts + STALE_DELIVERY_MS - Date.now() + 250
+    if (remaining <= 0) return
+    const timer = setTimeout(() => bump((n) => n + 1), remaining)
+    return () => clearTimeout(timer)
+  }, [status, createdAt])
+  return isDeliveryStale(status, createdAt)
+}
+
+/**
+ * Badge do template WABA: categoria (custo) + nome no tooltip. Sem
+ * categoria conhecida cai no rótulo genérico "Template".
+ */
+export function templateBadgeInfo(
+  meta: Message["templateMeta"] | undefined,
+): {
+  label: string
+  category: "marketing" | "utility" | "authentication" | null
+  title: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+} {
+  const cat = (meta?.category ?? "").trim().toLowerCase()
+  const isMkt = cat === "marketing"
+  const isUtility = cat === "utility" || cat === "utilidade"
+  const isAuth = cat === "authentication" || cat.includes("autentica")
+  const label = isMkt ? "Marketing" : isUtility ? "Utility" : isAuth ? "Autenticação" : "Template"
+  const hint = isMkt
+    ? "Custo mais alto — mensagem promocional"
+    : isUtility
+      ? "Custo moderado — mensagem transacional"
+      : isAuth
+        ? "Custo baixo — autenticação"
+        : "Modelo de mensagem aprovado pela Meta"
+  const name = meta?.name?.trim()
+  return {
+    label,
+    category: isMkt ? "marketing" : isUtility ? "utility" : isAuth ? "authentication" : null,
+    title: name ? `${label} · ${name} — ${hint}` : `${label} — ${hint}`,
+    icon: isMkt ? IconSpeakerphone : isUtility ? IconTool : isAuth ? IconShieldCheck : IconFile,
+  }
 }
 
 /** Emojis exibidos na barra rápida de reações — padrão WhatsApp. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const
-/** Toque longo na bolha recebida abre o menu (padrão WhatsApp mobile). */
-const RECEIVED_MENU_LONG_PRESS_MS = 450
+/** Toque longo na bolha abre o menu de ações (padrão WhatsApp mobile). */
+const MENU_LONG_PRESS_MS = 450
 
 /**
  * Paleta da bolha de AUTOMAÇÃO: cinza escuro com texto claro. Hardcoded —
@@ -615,6 +710,34 @@ function FormBubble({ message, className }: { message: Message; className?: stri
   )
 }
 
+/**
+ * MP3 convertido pelo backend (`GET /api/media/audio-mp3?url=&name=`) —
+ * formato universal: download que abre em qualquer player e fonte de
+ * fallback quando o navegador não decodifica OGG/Opus (Safari/iOS).
+ */
+export function audioMp3Url(url: string, name: string): string {
+  const params = new URLSearchParams({ url, name })
+  return apiUrl(`/api/media/audio-mp3?${params.toString()}`)
+}
+
+/**
+ * Fonte seguinte após `error` no <audio>: original → MP3 convertido; já
+ * no MP3 (ou sem URL) → null, para não entrar em loop.
+ */
+export function nextAudioSourceAfterError(
+  current: string | null,
+  original: string | null,
+): string | null {
+  if (!original) return null
+  const mp3 = audioMp3Url(original, "audio")
+  return current === mp3 ? null : mp3
+}
+
+function audioExtensionFromUrl(url: string): string | null {
+  const m = url.split("?")[0].match(/\.(ogg|oga|opus|webm|mp3|wav|m4a|aac|amr)$/i)
+  return m ? m[1].toLowerCase() : null
+}
+
 /** Formata segundos em mm:ss */
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) return "0:00"
@@ -653,6 +776,19 @@ function AudioPlayer({
   const [downloading, setDownloading] = useState(false)
   const [armed, setArmed] = useState(() => isImmediateMediaSrc(url))
   const pendingPlayRef = useRef(false)
+  // Fonte efetiva do <audio>: começa na URL original; no primeiro erro de
+  // decodificação (Safari/iOS × OGG/Opus) troca pelo MP3 do backend. O
+  // fallback fica atado à URL que o gerou — URL nova volta ao original
+  // sem effect.
+  const [fallback, setFallback] = useState<{ forUrl: string | null; src: string } | null>(null)
+  const src = fallback && fallback.forUrl === url ? fallback.src : url
+  const handleAudioError = useCallback(() => {
+    const next = nextAudioSourceAfterError(src, url)
+    if (!next) return
+    pendingPlayRef.current = playing
+    setPlaying(false)
+    setFallback({ forUrl: url, src: next })
+  }, [src, url, playing])
 
   const SPEEDS = [0.5, 1, 1.5, 2] as const
   const cycleSpeed = useCallback(() => {
@@ -694,7 +830,7 @@ function AudioPlayer({
     pendingPlayRef.current = false
     el.load()
     el.play().catch(() => {})
-  }, [armed, url])
+  }, [armed, src])
 
   useEffect(() => {
     const el = audioRef.current
@@ -753,7 +889,7 @@ function AudioPlayer({
       el.removeEventListener("loadedmetadata", onLoaded)
       el.removeEventListener("durationchange", onDurationChange)
     }
-  }, [url, armed])
+  }, [src, armed])
 
   const handleTranscribe = useCallback(async () => {
     if (!url || transcript.status === "loading") return
@@ -799,13 +935,30 @@ function AudioPlayer({
     if (!url || downloading) return
     setDownloading(true)
     try {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const blob = await res.blob()
+      const baseName = isCall ? "ligacao-whatsapp" : "audio-whatsapp"
+      // MP3 universal (o backend converte OGG/Opus/WebM). Se a rota falhar,
+      // baixa o arquivo original no formato em que está.
+      let blob: Blob | null = null
+      let ext = "mp3"
+      try {
+        const res = await fetch(audioMp3Url(url, baseName))
+        const ctype = res.headers.get("content-type") ?? ""
+        if (res.ok && !ctype.includes("application/json") && !ctype.includes("text/html")) {
+          blob = await res.blob()
+        }
+      } catch {
+        /* cai no original */
+      }
+      if (!blob) {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        blob = await res.blob()
+        ext = audioExtensionFromUrl(url) ?? "ogg"
+      }
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = blobUrl
-      a.download = "ligacao-whatsapp"
+      a.download = `${baseName}.${ext}`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -815,7 +968,7 @@ function AudioPlayer({
     } finally {
       setDownloading(false)
     }
-  }, [url, downloading])
+  }, [url, downloading, isCall])
 
   return (
     <div
@@ -836,9 +989,10 @@ function AudioPlayer({
       ) : null}
       <audio
         ref={audioRef}
-        src={armed && url ? url : undefined}
+        src={armed && src ? src : undefined}
         preload="none"
         aria-hidden="true"
+        onError={handleAudioError}
       />
 
       <div className="flex items-center gap-2">
@@ -1160,14 +1314,16 @@ function CaptionText({
 }
 
 /**
- * Menu de contexto estilo WhatsApp para mensagens RECEBIDAS.
+ * Menu de contexto estilo WhatsApp — qualquer bolha não-nota (recebidas
+ * E enviadas, como no ChatWindow legado).
  *
  * Layout: barra horizontal de reações rápidas (6 emojis) + lista vertical
  * de ações (Responder / Reagir / Encaminhar / Fixar / Favoritar / Copiar).
  * A carinha só aparece no mouse over da bolha (`group-hover`). Fica ao
- * lado, numa faixa de hover que cobre o vão até o botão — senão o
- * `group-hover` cai no caminho do mouse e a carinha some. Menu aberto
- * ou toque longo / clique direito também mostram o gatilho.
+ * lado (direita nas recebidas, esquerda nas enviadas), numa faixa de
+ * hover que cobre o vão até o botão — senão o `group-hover` cai no
+ * caminho do mouse e a carinha some. Menu aberto ou toque longo / clique
+ * direito também mostram o gatilho.
  *
  * Renderização: `createPortal` no <body> com `position: fixed`, para
  * escapar de qualquer ancestral com `overflow: hidden` (o chat-area e a
@@ -1180,8 +1336,9 @@ function CaptionText({
  * manter o layout consistente entre todas as bolhas — só que fica como
  * stub "em breve". Copiar é sempre funcional (`navigator.clipboard`).
  */
-function ReceivedMessageMenu({
+function MessageActionsMenu({
   message,
+  isOutgoing,
   open,
   onOpenChange,
   onReply,
@@ -1191,6 +1348,8 @@ function ReceivedMessageMenu({
   onFavorite,
 }: {
   message: Message
+  /** Enviada: gatilho à esquerda da bolha (o avatar ocupa a direita). */
+  isOutgoing: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   onReply?: (message: Message) => void
@@ -1315,10 +1474,17 @@ function ReceivedMessageMenu({
 
   return (
     <>
-      {/* Ponte de hover: o botão fica fora da bolha (`left-full`). Sem
-          esta faixa o `ml-1` não recebe eventos, o `group-hover` cai e
-          o `pointer-events-none` esconde a carinha no caminho do mouse. */}
-      <div className="absolute left-full top-0 z-10 flex h-full min-h-8 w-10 items-start pt-1">
+      {/* Ponte de hover: o botão fica fora da bolha (`left-full` nas
+          recebidas, `right-full` nas enviadas). Sem esta faixa a margem
+          não recebe eventos, o `group-hover` cai e o `pointer-events-none`
+          esconde a carinha no caminho do mouse. */}
+      <div
+        className={cn(
+          "absolute top-0 z-10 flex h-full min-h-8 w-10 items-start pt-1",
+          isOutgoing ? "right-full justify-end" : "left-full",
+        )}
+        data-message-actions-side={isOutgoing ? "left" : "right"}
+      >
         <button
           ref={triggerRef}
           type="button"
@@ -1330,7 +1496,8 @@ function ReceivedMessageMenu({
           title="Reagir"
           aria-expanded={open}
           className={cn(
-            "ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
+            "flex h-7 w-7 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
+            isOutgoing ? "mr-1" : "ml-1",
             open
               ? "opacity-100"
               : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100",
@@ -1414,11 +1581,18 @@ function ReceivedMessageMenu({
                     }
                   }}
                 />
-                {/* "Encaminhar" removido do menu — o fluxo ainda nao tem
-                    modal de selecao de conversa alvo (feature pendente
-                    da lista original). Voltar aqui quando `onForward`
-                    tiver UI real; a prop e o handler seguem intactos
-                    no componente pra minimizar o diff quando reativar. */}
+                {/* "Encaminhar" só aparece com handler (o ChatArea provê
+                    o ForwardDialog quando conhece a conversa). */}
+                {onForward ? (
+                  <MenuItem
+                    icon={<IconShare2 size={15} />}
+                    label="Encaminhar"
+                    onClick={() => {
+                      onForward(message)
+                      setOpen(false)
+                    }}
+                  />
+                ) : null}
                 <MenuItem
                   icon={
                     message.isPinnedMessage ? (
@@ -1525,8 +1699,13 @@ export const MessageBubble = memo(function MessageBubble({
   onPinMessage,
   onFavoriteMessage,
   onJumpToQuotedMessage,
+  onResendMessage,
 }: MessageBubbleProps) {
   const isOutgoing = message.type === "outgoing"
+  const deliveryStale = useDeliveryStale(
+    isOutgoing ? message.status : undefined,
+    message.createdAt,
+  )
   const isBot = message.isBot ?? false
   const isCampaign = message.isCampaign === true
   const isNote = message.isNote === true
@@ -1542,16 +1721,16 @@ export const MessageBubble = memo(function MessageBubble({
     (mediaKind === "image" || mediaKind === "video") &&
     isPlaceholderContent(message.content ?? "")
 
-  // Menu WhatsApp-like só entra nas RECEBIDAS. Nas outgoing/notas/forms
-  // o layout já é usado por outras ações (avatar, badges, ações de nota).
-  const hasReceivedMenu =
-    !isOutgoing &&
+  // Menu WhatsApp-like em qualquer bolha não-nota — recebidas e enviadas
+  // (citar/reagir/fixar/favoritar/encaminhar na própria mensagem, como o
+  // ChatWindow). Notas têm as ações da NoteRow; forms e ligações não.
+  const hasActionsMenu =
     !isNote &&
     !hasForm &&
     message.messageType !== "sip_call" &&
     message.messageType !== "whatsapp_call" &&
     message.messageType !== "whatsapp_call_recording"
-  const [receivedMenuOpen, setReceivedMenuOpen] = useState(false)
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clearLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -1561,12 +1740,12 @@ export const MessageBubble = memo(function MessageBubble({
   }, [])
   useEffect(() => () => clearLongPress(), [clearLongPress])
   const startLongPress = useCallback(() => {
-    if (!hasReceivedMenu) return
+    if (!hasActionsMenu) return
     clearLongPress()
     longPressTimer.current = setTimeout(() => {
-      setReceivedMenuOpen(true)
-    }, RECEIVED_MENU_LONG_PRESS_MS)
-  }, [hasReceivedMenu, clearLongPress])
+      setActionsMenuOpen(true)
+    }, MENU_LONG_PRESS_MS)
+  }, [hasActionsMenu, clearLongPress])
 
   if (hasForm) {
     return <FormBubble message={message} className={className} />
@@ -1662,16 +1841,16 @@ export const MessageBubble = memo(function MessageBubble({
   const isCallRec =
     String(message.messageType ?? "").toLowerCase() === "whatsapp_call_recording" &&
     !!message.mediaUrl
-  const incomingMenuHandlers = hasReceivedMenu
+  const actionsMenuHandlers = hasActionsMenu
     ? {
         onContextMenu: (e: { preventDefault: () => void }) => {
           e.preventDefault()
-          setReceivedMenuOpen(true)
+          setActionsMenuOpen(true)
         },
         onTouchStart: startLongPress,
         onTouchEnd: (e: TouchEvent<HTMLDivElement>) => {
           // Toque longo já abriu: não dispara o click sintético do browser.
-          if (receivedMenuOpen) e.preventDefault()
+          if (actionsMenuOpen) e.preventDefault()
           clearLongPress()
         },
         onTouchMove: clearLongPress,
@@ -1693,7 +1872,7 @@ export const MessageBubble = memo(function MessageBubble({
           "group relative flex max-w-full overflow-visible",
           isOutgoing ? "flex-row-reverse items-end gap-2.5" : "items-start",
         )}
-        {...incomingMenuHandlers}
+        {...actionsMenuHandlers}
       >
         {/* Avatar: robô para bot, iniciais para agente — com tooltip do nome.
             Automação manual (colab): robô + chip de iniciais do agente que
@@ -1877,22 +2056,27 @@ export const MessageBubble = memo(function MessageBubble({
               template) ou aparecer sozinho (agente enviando template
               manualmente). Usa cor accent que contrasta com ambos os
               fundos (bolha azul regular e bolha automação tintada). */}
-          {message.messageType === "template" && (
-            <div className={cn("mb-1.5 flex items-center gap-1.5", isBot && "-mt-0.5")}>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-[9.5px] font-bold uppercase tracking-widest",
-                  isOutgoing && !isBot
-                    ? "bg-white/22 text-white ring-1 ring-inset ring-white/25"
-                    : "bg-[color-mix(in_srgb,#0ea5e9_14%,white)] text-[#0369a1] ring-1 ring-inset ring-[color-mix(in_srgb,#0ea5e9_35%,transparent)]",
-                )}
-                title="Mensagem enviada usando um template aprovado da Meta"
-              >
-                <IconFile size={10} />
-                Template
-              </span>
-            </div>
-          )}
+          {message.messageType === "template" && (() => {
+            const tpl = templateBadgeInfo(message.templateMeta)
+            const TplIcon = tpl.icon
+            return (
+              <div className={cn("mb-1.5 flex items-center gap-1.5", isBot && "-mt-0.5")}>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-[9.5px] font-bold uppercase tracking-widest",
+                    isOutgoing && !isBot
+                      ? "bg-white/22 text-white ring-1 ring-inset ring-white/25"
+                      : "bg-[color-mix(in_srgb,#0ea5e9_14%,white)] text-[#0369a1] ring-1 ring-inset ring-[color-mix(in_srgb,#0ea5e9_35%,transparent)]",
+                  )}
+                  title={tpl.title}
+                  data-template-category={tpl.category ?? undefined}
+                >
+                  <TplIcon size={10} />
+                  {tpl.label}
+                </span>
+              </div>
+            )
+          })()}
           {/* Citação: cliente respondeu uma mensagem específica.
               Barra vertical + trecho curto, estilo WhatsApp. */}
           {message.replyTo?.snippet && (
@@ -1953,6 +2137,22 @@ export const MessageBubble = memo(function MessageBubble({
                   <MetaSendErrorBalloon sendError={message.sendError} />
                 </TooltipContent>
               </Tooltip>
+            ) : isOutgoing && deliveryStale ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="pointer-events-auto inline-flex cursor-help text-amber-300"
+                    aria-label="Entrega não confirmada"
+                    data-delivery-stale
+                  >
+                    <IconClockExclamation size={13} stroke={2.4} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="end" className="max-w-[240px] text-left leading-tight">
+                  Entrega não confirmada após 5 min — o número pode estar
+                  pausado, sinalizado ou com qualidade rebaixada na Meta.
+                </TooltipContent>
+              </Tooltip>
             ) : isOutgoing && message.status ? (
               <StatusTicks status={message.status} onLightBg={false} />
             ) : null}
@@ -1965,16 +2165,17 @@ export const MessageBubble = memo(function MessageBubble({
               reactions={message.reactions}
               anchor={isOutgoing ? "left" : "right"}
               onClick={
-                hasReceivedMenu ? () => setReceivedMenuOpen(true) : undefined
+                hasActionsMenu ? () => setActionsMenuOpen(true) : undefined
               }
             />
           )}
         </div>
-        {hasReceivedMenu && (
-          <ReceivedMessageMenu
+        {hasActionsMenu && (
+          <MessageActionsMenu
             message={message}
-            open={receivedMenuOpen}
-            onOpenChange={setReceivedMenuOpen}
+            isOutgoing={isOutgoing}
+            open={actionsMenuOpen}
+            onOpenChange={setActionsMenuOpen}
             onReply={onReplyMessage}
             onForward={onForwardMessage}
             onReact={onReactMessage}
@@ -1983,6 +2184,23 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
       </div>
+
+      {/* Falha de envio: "Reenviar" cria uma NOVA mensagem com o mesmo
+          conteúdo (texto ou reuse da mídia) — paridade com o ChatWindow. */}
+      {isOutgoing && message.status === "failed" && onResendMessage ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onResendMessage(message)
+          }}
+          aria-label="Reenviar mensagem"
+          className="mt-0.5 inline-flex items-center gap-1 self-end rounded-full px-2 py-0.5 font-display text-[11px] font-semibold text-[var(--color-danger)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)]"
+        >
+          <IconRefresh size={12} stroke={2.4} aria-hidden />
+          Reenviar
+        </button>
+      ) : null}
 
       {/* Nome do remetente apenas no tooltip do avatar (acima) */}
     </div>
