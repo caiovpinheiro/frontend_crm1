@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback, useMemo, type FormEvent, Fragment } from "react"
 import { useSession } from "next-auth/react"
 import { useTeamUsers } from "@/features/inbox-v2/hooks/use-permissions"
+import { isBaileysChannelProvider } from "@/features/inbox-v2/adapters"
 import { cn } from "@/lib/utils"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { registerKeepsChatTourBridge } from "@/features/product-tour/keeps-tour-bridge"
@@ -85,6 +86,12 @@ interface ChatAreaProps {
   stages?: { label: string; status: "done" | "active" | "pending" }[]
   daySeparator?: string
   showSessionAlert?: boolean
+  /**
+   * Provider do canal da conversa (`MessagesResponse.channelProvider`).
+   * Canal Baileys não tem janela de 24h: o `SessionAlert` e o bloqueio do
+   * composer legado são ignorados mesmo com `showSessionAlert`.
+   */
+  channelProvider?: string | null
   className?: string
 
   /**
@@ -230,6 +237,7 @@ export function ChatArea({
   messages: messagesProp,
   daySeparator,
   showSessionAlert = false,
+  channelProvider,
   className,
   connection,
   connections,
@@ -695,7 +703,10 @@ export function ChatArea({
 
   const { hideEvents } = useHideChatEvents()
 
-  const effectiveDisabled = inputDisabled ?? showSessionAlert
+  // Baileys não tem janela de 24h — nem alerta, nem CTA de template.
+  const sessionAlertVisible =
+    showSessionAlert && !isBaileysChannelProvider(channelProvider)
+  const effectiveDisabled = inputDisabled ?? sessionAlertVisible
   const value = inputValue ?? ""
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -1126,7 +1137,7 @@ export function ChatArea({
         data-chat-composer-footer
         className="shrink-0 border-t border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)]/95 pb-[max(0.25rem,env(safe-area-inset-bottom,0px))] pt-0.5 backdrop-blur-md"
       >
-      {showSessionAlert && <SessionAlert onUseTemplate={onUseTemplate} />}
+      {sessionAlertVisible && <SessionAlert onUseTemplate={onUseTemplate} />}
 
       {composerSlot ?? (
         <form

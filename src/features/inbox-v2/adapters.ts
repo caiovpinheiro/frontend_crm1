@@ -1079,9 +1079,25 @@ export function lastInboundAtFromThread(
 }
 
 /**
+ * Canal WhatsApp via Baileys (número pessoal/multi-device): não passa pela
+ * Cloud API da Meta, então NÃO tem janela de 24h nem template HSM. O
+ * backend expõe o provider em `MessagesResponse.channelProvider` (enum
+ * `ChannelProvider.BAILEYS_MD`) e por canal em `OutboundChannelOption.provider`.
+ */
+export function isBaileysChannelProvider(
+  provider: string | null | undefined,
+): boolean {
+  return /baileys/i.test(provider ?? "");
+}
+
+/**
  * Composer WhatsApp: a bolha inbound visível reabre a janela. Sem isso o
  * `useChannelSession` (staleTime + sem invalidate no SSE) mantinha o
  * banner "Sessão de 24h encerrada" depois da resposta do cliente.
+ *
+ * `channelProvider` (canal atual da conversa) e `selectedChannelProvider`
+ * (canal escolhido no composer) são opcionais: quando o canal efetivo é
+ * Baileys, a janela de 24h não se aplica (mesma regra do ChatWindow).
  */
 export function isWhatsappComposerSessionExpired(args: {
   applyWhatsappSession: boolean;
@@ -1092,8 +1108,19 @@ export function isWhatsappComposerSessionExpired(args: {
   messagesSessionActive?: boolean;
   messagesLastInboundAt?: string | null;
   threadLastInboundAt?: string | null;
+  /** `MessagesResponse.channelProvider` — provider do canal da conversa. */
+  channelProvider?: string | null;
+  /** `OutboundChannelOption.provider` do canal selecionado no composer. */
+  selectedChannelProvider?: string | null;
 }): boolean {
   if (!args.applyWhatsappSession) return false;
+  // Override ativo: vale o provider do canal de DESTINO; desconhecido →
+  // segue a regra normal (conservador). Sem override, o selecionado é o
+  // próprio canal da conversa.
+  const effectiveProvider = args.channelOverrideActive
+    ? args.selectedChannelProvider
+    : args.selectedChannelProvider ?? args.channelProvider;
+  if (isBaileysChannelProvider(effectiveProvider)) return false;
   if (!args.messagesLoaded) return false;
   if (!isSessionExpired(args.threadLastInboundAt)) return false;
   if (args.channelOverrideActive) {
