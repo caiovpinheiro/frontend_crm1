@@ -90,8 +90,6 @@ import {
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
-import { clearBoardUnreadForContact } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
-import { markConversationRead } from "@/features/inbox-v2/api/conversations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
@@ -940,17 +938,9 @@ export default function KanbanV2ClientPage({
     }
   }
 
-  // Painel do negócio abre na conversa: marca como lida (como o inbox) e
-  // tira o contador dos cards do contato no board em cache.
-  // Só com o CUID resolvido — senão o POST /read saía 2× por deep-link.
-  useEffect(() => {
-    if (!dealConversationId || !stableDealId) return;
-    markConversationRead(dealConversationId)
-      .then(() => {
-        if (dealContactId) clearBoardUnreadForContact(queryClient, dealContactId);
-      })
-      .catch(() => {});
-  }, [dealConversationId, dealContactId, stableDealId, queryClient]);
+  // Marcar como lida ao abrir (POST /read + zerar o contador dos cards do
+  // contato no board) é do ConversationChatHost — uma vez por conversa,
+  // sem repetir quando o deal troca de número para CUID.
 
   const boardQuery = hasServerBoard ? boardFiltered : boardNormal;
   const pipelinesEmpty = Array.isArray(pipelines) && pipelines.length === 0;
