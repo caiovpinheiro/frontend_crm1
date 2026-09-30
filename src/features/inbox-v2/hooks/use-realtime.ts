@@ -87,6 +87,12 @@ type NewMessagePayload = {
   senderName?: string;
   /** Slim list row from the bus (`InboxSseCard`). */
   card?: ConversationListRow;
+  /**
+   * Por que veio sem `card`: `"hidden"` = este usuário não lista a
+   * conversa (o servidor também tira texto/mídia do evento); `"budget"` =
+   * o bus não montou o snapshot a tempo.
+   */
+  cardOmitted?: "hidden" | "budget";
   catalogOrder?: InboxMessageDto["catalogOrder"];
 };
 
