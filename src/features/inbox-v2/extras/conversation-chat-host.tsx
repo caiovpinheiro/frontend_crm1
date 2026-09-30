@@ -40,26 +40,31 @@ import { ChatArea } from "@/components/crm/chat-area";
 import { FavoritesPanel } from "@/components/crm/favorites-panel";
 import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
-import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { ActivitiesPanel } from "@/components/pipeline/deal-workspace/panels/activities";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   isWhatsappComposerSessionExpired,
   lastInboundAtFromThread,
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
 import {
+  channelUsesWhatsapp24hWindow,
   findLastPublicMessageChannelId,
+  useAddNoteToLog,
   useChannelSession,
   useConversationFeatures,
+  useDeleteNote,
   useFavoriteMessage,
   useInboxRealtime,
   useMarkConversationRead,
   useMessages,
   usePinMessage,
+  usePinNote,
   useReactMessage,
   useSelectedOutboundChannel,
   useSendMessage,
   useUnpinMessage,
+  useUpdateNote,
   useWhatsappChannels,
 } from "@/features/inbox-v2/hooks";
 import { KeepPeekPanel } from "@/features/keeps/keep-peek-panel";
@@ -151,13 +156,15 @@ export interface ConversationChatHostProps {
   markAsRead?: boolean;
   className?: string;
 
-  // ── Fase 2 (C2 adiciona ao ChatArea; ainda NÃO repassados) ─────────
+  // ── Notas internas (overrides; o host já liga os hooks por padrão) ──
   /** Fixar/desafixar nota interna (`null` = desafixar). */
   onPinNote?: (noteId: string | null) => void;
   onEditNote?: (noteId: string, content: string) => void | Promise<unknown>;
   onDeleteNote?: (noteId: string) => void;
-  /** "Adicionar ao log do negócio" (conteúdo da nota). */
+  /** "Adicionar ao log do negócio" (conteúdo da nota). Default só com `dealId`. */
   onAddToLog?: (content: string) => void;
+  /** Nota fixada (banner do ChatArea + aba Notas). `undefined` = o host
+   *  resolve `MessagesResponse.pinnedNoteId` na própria thread. */
   pinnedNote?: ConversationChatHostPinnedNote | null;
 }
 
@@ -186,11 +193,10 @@ export function ConversationChatHost({
   realtime = true,
   markAsRead = true,
   className,
-  // Fase 2 — declarados na interface; o ChatArea ainda não os recebe.
-  onPinNote: _onPinNote,
-  onEditNote: _onEditNote,
-  onDeleteNote: _onDeleteNote,
-  onAddToLog: _onAddToLog,
+  onPinNote,
+  onEditNote,
+  onDeleteNote,
+  onAddToLog,
   pinnedNote,
 }: ConversationChatHostProps) {
   const { data: session } = useSession();
@@ -229,14 +235,23 @@ export function ConversationChatHost({
 
   // Abrir a conversa marca como lida (mesmo hook do /inbox: zera o
   // contador da lista de forma otimista) e tira o badge dos cards do
-  // contato no board (Kanban/Flow).
+  // contato no board (Kanban/Flow). Dispara UMA vez por conversa: o
+  // contactId pode chegar depois (seed do board → detail) sem repetir o
+  // POST /read.
   const { mutate: markReadMutate } = useMarkConversationRead();
+  const contactIdRef = useRef(contactId);
+  useEffect(() => {
+    contactIdRef.current = contactId;
+  }, [contactId]);
   useEffect(() => {
     if (!markAsRead || !conversationId) return;
     markReadMutate(conversationId, {
-      onSuccess: () => clearBoardUnreadForContact(queryClient, contactId),
+      onSuccess: () => {
+        const cid = contactIdRef.current;
+        if (cid) clearBoardUnreadForContact(queryClient, cid);
+      },
     });
-  }, [markAsRead, conversationId, contactId, markReadMutate, queryClient]);
+  }, [markAsRead, conversationId, markReadMutate, queryClient]);
 
   const {
     data: messagesData,
@@ -253,6 +268,11 @@ export function ConversationChatHost({
   const { mutate: pinMutate } = usePinMessage(conversationId);
   const { mutate: unpinMutate } = useUnpinMessage(conversationId);
   const { mutate: favoriteMutate } = useFavoriteMessage(conversationId);
+  const { mutate: pinNoteMutate } = usePinNote(conversationId);
+  const { mutateAsync: updateNoteMutateAsync } = useUpdateNote(conversationId);
+  const { mutateAsync: deleteNoteMutateAsync } = useDeleteNote(conversationId);
+  const { mutate: addToLogMutate } = useAddNoteToLog(dealId ?? null);
+  const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
   const { features: convFeatures } = useConversationFeatures();
   const { requestDuration: requestPinDuration, dialog: pinDurationDialog } =
     usePinDurationDialog();
@@ -277,8 +297,11 @@ export function ConversationChatHost({
     lastMessageChannelId,
   });
   const selectedOutbound = whatsappChannels?.find((c) => c.id === selectedChannelId);
-  const applyWhatsappSession = usesWhatsapp24hWindow(
-    selectedOutbound?.type ?? messagesData?.channel?.type,
+  // Janela de 24h só na Cloud API: Baileys é WhatsApp mas não tem sessão
+  // nem template — o `provider` (canal escolhido ou o da conversa) decide.
+  const channelProvider = messagesData?.channelProvider ?? null;
+  const applyWhatsappSession = channelUsesWhatsapp24hWindow(
+    selectedOutbound ?? { type: messagesData?.channel?.type, provider: channelProvider },
   );
   const channelOverrideActive =
     !!selectedChannelId &&
@@ -289,6 +312,7 @@ export function ConversationChatHost({
       conversationId,
       selectedChannelId,
       applyWhatsappSession && !!conversationId && !!selectedChannelId,
+      { provider: selectedOutbound?.provider },
     );
 
   // Mesma regra do /inbox: inbound visível no thread reabre a janela.
@@ -307,6 +331,8 @@ export function ConversationChatHost({
     messagesSessionActive: sessionInfo?.active,
     messagesLastInboundAt: sessionInfo?.lastInboundAt ?? lastInboundAt ?? null,
     threadLastInboundAt,
+    channelProvider,
+    selectedChannelProvider: selectedOutbound?.provider,
   });
   const canReply = messagesData?.canReply ?? true;
   const isResolved = conversationStatus === "RESOLVED";
@@ -333,6 +359,26 @@ export function ConversationChatHost({
         .map((m) => ({ id: m.id, content: m.content, senderName: m.senderName ?? null })),
     [pinnedMessageIds, messageBubbles],
   );
+
+  // Nota fixada (`pinnedNoteId` da thread) — banner do ChatArea e aba Notas.
+  const pinnedNoteId = messagesData?.pinnedNoteId ?? null;
+  const derivedPinnedNote = useMemo<ConversationChatHostPinnedNote | null>(() => {
+    if (!pinnedNoteId) return null;
+    const raw = (messagesData?.messages ?? []).find((m) => m.id === pinnedNoteId);
+    if (!raw) return null;
+    return {
+      id: raw.id,
+      content: raw.content,
+      senderName: raw.senderName ?? null,
+      time: raw.createdAt
+        ? new Date(raw.createdAt).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : null,
+    };
+  }, [pinnedNoteId, messagesData?.messages]);
+  const effectivePinnedNote = pinnedNote !== undefined ? pinnedNote : derivedPinnedNote;
 
   // ── Handlers estáveis (MessageBubble é `memo`) ───────────────────
   const openTemplate = useCallback(() => setTemplateOpen(true), []);
@@ -465,6 +511,68 @@ export function ConversationChatHost({
     [favoriteMutate],
   );
 
+  // ── Notas internas (fixar / editar / excluir / log do negócio) ────
+  const handlePinNote = useCallback(
+    (noteId: string | null) => {
+      pinNoteMutate(
+        { noteId },
+        {
+          onError: (err) =>
+            toast.error(err.message || (noteId ? "Falha ao fixar nota" : "Falha ao desafixar nota")),
+        },
+      );
+    },
+    [pinNoteMutate],
+  );
+
+  const handleEditNote = useCallback(
+    async (noteId: string, content: string) => {
+      try {
+        await updateNoteMutateAsync({ noteId, content });
+        toast.success("Nota atualizada");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Falha ao editar nota");
+        throw e;
+      }
+    },
+    [updateNoteMutateAsync],
+  );
+
+  const handleDeleteNote = useCallback(
+    (noteId: string) => {
+      void confirmDialog({
+        title: "Excluir nota interna?",
+        description: "A nota será removida da conversa. Esta ação não pode ser desfeita.",
+        confirmLabel: "Excluir",
+        pendingLabel: "Excluindo…",
+        destructive: true,
+        action: async () => {
+          try {
+            await deleteNoteMutateAsync({ noteId });
+            toast.success("Nota excluída");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Falha ao excluir nota");
+            throw e;
+          }
+        },
+      });
+    },
+    [confirmDialog, deleteNoteMutateAsync],
+  );
+
+  const handleAddToLog = useCallback(
+    (content: string) => {
+      addToLogMutate(
+        { content },
+        {
+          onSuccess: () => toast.success("Nota adicionada ao log do negócio"),
+          onError: (err) => toast.error(err.message || "Falha ao adicionar ao log"),
+        },
+      );
+    },
+    [addToLogMutate],
+  );
+
   const chatContact = useMemo(
     () => ({
       name: contactName,
@@ -537,12 +645,22 @@ export function ConversationChatHost({
         onFavoriteMessage={handleFavoriteMessage}
         pinnedMessages={pinnedMessagesPreview}
         onUnpinMessage={handleUnpinMessage}
+        channelProvider={channelProvider}
+        onPinNote={onPinNote ?? handlePinNote}
+        onEditNote={onEditNote ?? handleEditNote}
+        onDeleteNote={onDeleteNote ?? handleDeleteNote}
+        onAddToLog={onAddToLog ?? (dealId ? handleAddToLog : undefined)}
+        pinnedNote={effectivePinnedNote}
         headerActionsSlot={headerActions}
         searchControlRef={searchRef}
         className={className ?? CHAT_AREA_CLASS}
         notesSlot={
           showTabs && dealId ? (
-            <DealNotesTab dealId={dealId} pipelineId={pipelineId} pinnedNote={pinnedNote} />
+            <DealNotesTab
+              dealId={dealId}
+              pipelineId={pipelineId}
+              pinnedNote={effectivePinnedNote}
+            />
           ) : undefined
         }
         activitiesSlot={
@@ -635,6 +753,7 @@ export function ConversationChatHost({
       ) : null}
 
       {pinDurationDialog}
+      {confirmDialogNode}
     </>
   );
 }

@@ -39,6 +39,11 @@ const h = vi.hoisted(() => {
     clearBoardUnreadForContact: vi.fn(),
     toastError: vi.fn(),
     toastSuccess: vi.fn(),
+    pinNoteMutate: vi.fn(),
+    updateNoteMutateAsync: vi.fn(),
+    deleteNoteMutateAsync: vi.fn(),
+    addToLogMutate: vi.fn(),
+    confirmDialog: vi.fn(),
   };
 });
 
@@ -53,38 +58,58 @@ vi.mock("sonner", () => ({
   toast: { error: h.toastError, success: h.toastSuccess },
 }));
 
-vi.mock("@/features/inbox-v2/hooks", () => ({
-  useMessages: h.useMessages,
-  useSendMessage: () => ({
-    mutate: h.sendMutate,
-    mutateAsync: h.sendMutateAsync,
-    isPending: false,
-  }),
-  useReactMessage: () => ({ mutate: h.reactMutate }),
-  usePinMessage: () => ({ mutate: h.pinMutate }),
-  useUnpinMessage: () => ({ mutate: h.unpinMutate }),
-  useFavoriteMessage: () => ({ mutate: h.favoriteMutate }),
-  useConversationFeatures: () => ({
-    features: { agentSignatureEnabled: true, agentSignatureEditable: false },
-  }),
-  useInboxRealtime: h.useInboxRealtime,
-  useMarkConversationRead: () => ({ mutate: h.markReadMutate }),
-  useWhatsappChannels: h.useWhatsappChannels,
-  useSelectedOutboundChannel: h.useSelectedOutboundChannel,
-  useChannelSession: h.useChannelSession,
-  findLastPublicMessageChannelId: () => "ch-1",
-}));
+vi.mock("@/features/inbox-v2/hooks", async () => {
+  // Regra real de 24h × Baileys (só o `type` do canal é mockado abaixo).
+  const channels = await vi.importActual<
+    typeof import("@/features/inbox-v2/hooks/use-channels")
+  >("@/features/inbox-v2/hooks/use-channels");
+  return {
+    useMessages: h.useMessages,
+    useSendMessage: () => ({
+      mutate: h.sendMutate,
+      mutateAsync: h.sendMutateAsync,
+      isPending: false,
+    }),
+    useReactMessage: () => ({ mutate: h.reactMutate }),
+    usePinMessage: () => ({ mutate: h.pinMutate }),
+    useUnpinMessage: () => ({ mutate: h.unpinMutate }),
+    useFavoriteMessage: () => ({ mutate: h.favoriteMutate }),
+    usePinNote: () => ({ mutate: h.pinNoteMutate }),
+    useUpdateNote: () => ({ mutateAsync: h.updateNoteMutateAsync }),
+    useDeleteNote: () => ({ mutateAsync: h.deleteNoteMutateAsync }),
+    useAddNoteToLog: () => ({ mutate: h.addToLogMutate }),
+    useConversationFeatures: () => ({
+      features: { agentSignatureEnabled: true, agentSignatureEditable: false },
+    }),
+    useInboxRealtime: h.useInboxRealtime,
+    useMarkConversationRead: () => ({ mutate: h.markReadMutate }),
+    useWhatsappChannels: h.useWhatsappChannels,
+    useSelectedOutboundChannel: h.useSelectedOutboundChannel,
+    useChannelSession: h.useChannelSession,
+    findLastPublicMessageChannelId: () => "ch-1",
+    channelUsesWhatsapp24hWindow: channels.channelUsesWhatsapp24hWindow,
+  };
+});
 
-vi.mock("@/features/inbox-v2/adapters", () => ({
-  toMessageBubble: (m: any, contactName: string) => ({
-    id: m.id,
-    content: m.content,
-    time: "10:00",
-    type: m.direction === "in" ? "incoming" : "outgoing",
-    senderName: m.direction === "in" ? contactName : "Agente",
-  }),
-  lastInboundAtFromThread: () => null,
-  isWhatsappComposerSessionExpired: h.isSessionExpired,
+vi.mock("@/features/inbox-v2/adapters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/inbox-v2/adapters")>();
+  return {
+    ...actual,
+    toMessageBubble: (m: any, contactName: string) => ({
+      id: m.id,
+      content: m.content,
+      time: "10:00",
+      type: m.direction === "in" ? "incoming" : "outgoing",
+      senderName: m.direction === "in" ? contactName : "Agente",
+      isNote: m.messageType === "note",
+    }),
+    lastInboundAtFromThread: () => null,
+    isWhatsappComposerSessionExpired: h.isSessionExpired,
+  };
+});
+
+vi.mock("@/components/ui/confirm-dialog", () => ({
+  useConfirm: () => ({ confirm: h.confirmDialog, dialog: null }),
 }));
 
 vi.mock("@/components/crm/chat-area", () => ({
@@ -153,7 +178,7 @@ vi.mock("@/components/crm/pin-duration-dialog", () => ({
 }));
 
 vi.mock("@/components/inbox/channel-type-icon", () => ({
-  usesWhatsapp24hWindow: () => true,
+  usesWhatsapp24hWindow: (type?: string | null) => type === "WHATSAPP",
 }));
 
 vi.mock("@/components/pipeline/deal-workspace/panels/activities", () => ({
@@ -186,6 +211,10 @@ vi.mock("@/features/softphone/components/deal-call-button", () => ({
 }));
 
 import { ConversationChatHost } from "../conversation-chat-host";
+
+const actualAdapters = await vi.importActual<typeof import("@/features/inbox-v2/adapters")>(
+  "@/features/inbox-v2/adapters",
+);
 
 type HostProps = ComponentProps<typeof ConversationChatHost>;
 
@@ -239,7 +268,7 @@ beforeEach(() => {
     ],
     pinnedNoteId: null,
     pinnedMessageIds: ["m1"],
-    channelProvider: "meta",
+    channelProvider: "META_CLOUD",
     channel: { id: "ch-1", name: "WABA principal", type: "WHATSAPP" },
     channels: {},
     canReply: true,
@@ -257,8 +286,8 @@ beforeEach(() => {
   h.sendMutateAsync.mockResolvedValue({ message: { id: "m3" } });
   h.useWhatsappChannels.mockReturnValue({
     data: [
-      { id: "ch-1", name: "WABA principal", type: "WHATSAPP" },
-      { id: "ch-2", name: "WABA acadêmico", type: "WHATSAPP" },
+      { id: "ch-1", name: "WABA principal", type: "WHATSAPP", provider: "META_CLOUD", status: "CONNECTED", phoneNumber: null },
+      { id: "ch-2", name: "WABA acadêmico", type: "WHATSAPP", provider: "META_CLOUD", status: "CONNECTED", phoneNumber: null },
     ],
   });
   h.useSelectedOutboundChannel.mockReturnValue({
@@ -266,8 +295,11 @@ beforeEach(() => {
     setSelectedChannelId: vi.fn(),
   });
   h.useChannelSession.mockReturnValue({ data: { active: true }, isFetched: true });
-  h.isSessionExpired.mockReturnValue(false);
+  // Regra real por padrão; testes específicos forçam o resultado.
+  h.isSessionExpired.mockImplementation(actualAdapters.isWhatsappComposerSessionExpired);
   h.requestPinDuration.mockResolvedValue(24);
+  h.updateNoteMutateAsync.mockResolvedValue({ id: "n1", content: "novo" });
+  h.deleteNoteMutateAsync.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -347,6 +379,7 @@ describe("ConversationChatHost — montagem", () => {
     expect(screen.queryByTestId("call-fab")).toBeNull();
     expect(lastChatArea().notesSlot).toBeUndefined();
     expect(lastChatArea().activitiesSlot).toBeUndefined();
+    expect(lastChatArea().onAddToLog).toBeUndefined();
     expect(lastComposer().deals).toBeUndefined();
 
     cleanup();
@@ -398,6 +431,15 @@ describe("ConversationChatHost — abrir a conversa", () => {
     rerenderWith({ conversationId: "conv-2" });
     expect(h.markReadMutate).toHaveBeenCalledTimes(2);
     expect(h.markReadMutate.mock.calls[1][0]).toBe("conv-2");
+
+    // contactId chegando depois (seed do board → detail) NÃO repete o POST.
+    rerenderWith({
+      conversationId: "conv-2",
+      contact: { ...baseProps.contact, id: "contact-real" },
+    });
+    expect(h.markReadMutate).toHaveBeenCalledTimes(2);
+    h.markReadMutate.mock.calls[1][1].onSuccess();
+    expect(h.clearBoardUnreadForContact).toHaveBeenLastCalledWith(qc, "contact-real");
   });
 
   it("markAsRead=false não marca", () => {
@@ -627,5 +669,156 @@ describe("ConversationChatHost — kebab e favoritas", () => {
     renderHost({ onResolved });
     expect(lastComposer().onResolved).toBe(onResolved);
     expect(lastKebab().onResolved).toBe(onResolved);
+  });
+});
+
+describe("ConversationChatHost — notas internas", () => {
+  it("liga fixar/editar/excluir/log do ChatArea aos hooks de nota", async () => {
+    renderHost();
+    const chat = lastChatArea();
+
+    chat.onPinNote("n1");
+    expect(h.pinNoteMutate).toHaveBeenLastCalledWith({ noteId: "n1" }, expect.any(Object));
+    chat.onPinNote(null);
+    expect(h.pinNoteMutate).toHaveBeenLastCalledWith({ noteId: null }, expect.any(Object));
+
+    await act(async () => {
+      await chat.onEditNote("n1", "novo");
+    });
+    expect(h.updateNoteMutateAsync).toHaveBeenCalledWith({ noteId: "n1", content: "novo" });
+    expect(h.toastSuccess).toHaveBeenCalledWith("Nota atualizada");
+
+    // Excluir passa pelo diálogo de confirmação; a mutation só roda na ação.
+    chat.onDeleteNote("n1");
+    expect(h.deleteNoteMutateAsync).not.toHaveBeenCalled();
+    const confirmOpts = h.confirmDialog.mock.calls[0][0];
+    expect(confirmOpts.destructive).toBe(true);
+    await confirmOpts.action();
+    expect(h.deleteNoteMutateAsync).toHaveBeenCalledWith({ noteId: "n1" });
+    expect(h.toastSuccess).toHaveBeenCalledWith("Nota excluída");
+
+    chat.onAddToLog("texto da nota");
+    expect(h.addToLogMutate).toHaveBeenCalledWith(
+      { content: "texto da nota" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it("editar nota com falha avisa e repassa o erro", async () => {
+    h.updateNoteMutateAsync.mockRejectedValue(new Error("sem permissão"));
+    renderHost();
+    let thrown: unknown = null;
+    await act(async () => {
+      await lastChatArea()
+        .onEditNote("n1", "x")
+        .catch((e: unknown) => {
+          thrown = e;
+        });
+    });
+    expect((thrown as Error).message).toBe("sem permissão");
+    expect(h.toastError).toHaveBeenCalledWith("sem permissão");
+  });
+
+  it("overrides da página substituem os handlers padrão", () => {
+    const onPinNote = vi.fn();
+    const onEditNote = vi.fn();
+    const onDeleteNote = vi.fn();
+    const onAddToLog = vi.fn();
+    renderHost({ onPinNote, onEditNote, onDeleteNote, onAddToLog, dealId: null });
+    const chat = lastChatArea();
+    expect(chat.onPinNote).toBe(onPinNote);
+    expect(chat.onEditNote).toBe(onEditNote);
+    expect(chat.onDeleteNote).toBe(onDeleteNote);
+    // Sem dealId o default seria undefined; o override vale mesmo assim.
+    expect(chat.onAddToLog).toBe(onAddToLog);
+  });
+
+  it("nota fixada é resolvida da thread (pinnedNoteId) para o ChatArea e a aba Notas", () => {
+    h.messagesData = {
+      ...h.messagesData,
+      pinnedNoteId: "n1",
+      messages: [
+        ...h.messagesData.messages,
+        {
+          id: "n1",
+          content: "Ligar amanhã",
+          direction: "out",
+          messageType: "note",
+          senderName: "Agente",
+          createdAt: "2026-09-29T13:05:00.000Z",
+        },
+      ],
+    };
+    renderHost();
+    const pinned = lastChatArea().pinnedNote;
+    expect(pinned).toMatchObject({ id: "n1", content: "Ligar amanhã", senderName: "Agente" });
+    expect(typeof pinned.time).toBe("string");
+    expect(h.notesTabProps[h.notesTabProps.length - 1].pinnedNote).toBe(pinned);
+
+    // Prop explícita sobrescreve (inclusive `null`).
+    cleanup();
+    renderHost({ pinnedNote: null });
+    expect(lastChatArea().pinnedNote).toBeNull();
+  });
+});
+
+describe("ConversationChatHost — 24h × provider do canal", () => {
+  it("Cloud API com sessão encerrada bloqueia o composer e mostra o alerta", () => {
+    h.messagesData = { ...h.messagesData, session: { active: false } };
+    renderHost();
+    expect(lastChatArea().showSessionAlert).toBe(true);
+    expect(lastChatArea().channelProvider).toBe("META_CLOUD");
+    expect(lastComposer().disabled).toBe(true);
+    expect(lastComposer().sessionExpired).toBe(true);
+    // Sessão do canal selecionado é consultada com o provider dele.
+    expect(h.useChannelSession).toHaveBeenLastCalledWith("conv-1", "ch-1", true, {
+      provider: "META_CLOUD",
+    });
+  });
+
+  it("Baileys não tem janela de 24h: sem alerta, sem GET de sessão, composer livre", () => {
+    h.messagesData = {
+      ...h.messagesData,
+      channelProvider: "BAILEYS_MD",
+      session: { active: false },
+    };
+    h.useWhatsappChannels.mockReturnValue({
+      data: [
+        { id: "ch-1", name: "Número da loja", type: "WHATSAPP", provider: "BAILEYS_MD", status: "CONNECTED", phoneNumber: null },
+      ],
+    });
+    renderHost();
+    expect(lastChatArea().showSessionAlert).toBe(false);
+    expect(lastChatArea().channelProvider).toBe("BAILEYS_MD");
+    expect(lastComposer().disabled).toBe(false);
+    expect(lastComposer().sessionExpired).toBe(false);
+    expect(h.useChannelSession).toHaveBeenLastCalledWith("conv-1", "ch-1", false, {
+      provider: "BAILEYS_MD",
+    });
+    // A regra recebeu os providers para decidir.
+    expect(h.isSessionExpired).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        applyWhatsappSession: false,
+        channelProvider: "BAILEYS_MD",
+        selectedChannelProvider: "BAILEYS_MD",
+      }),
+    );
+  });
+
+  it("override para um canal Baileys numa conversa Cloud API também libera", () => {
+    h.messagesData = { ...h.messagesData, session: { active: false } };
+    h.useWhatsappChannels.mockReturnValue({
+      data: [
+        { id: "ch-1", name: "WABA", type: "WHATSAPP", provider: "META_CLOUD", status: "CONNECTED", phoneNumber: null },
+        { id: "ch-b", name: "Baileys", type: "WHATSAPP", provider: "BAILEYS_MD", status: "CONNECTED", phoneNumber: null },
+      ],
+    });
+    h.useSelectedOutboundChannel.mockReturnValue({
+      selectedChannelId: "ch-b",
+      setSelectedChannelId: vi.fn(),
+    });
+    renderHost();
+    expect(lastChatArea().showSessionAlert).toBe(false);
+    expect(lastComposer().disabled).toBe(false);
   });
 });
