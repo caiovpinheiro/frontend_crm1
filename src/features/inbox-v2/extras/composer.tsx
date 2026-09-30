@@ -155,6 +155,7 @@ export function Composer({
   onResolved,
   onFollowedUp,
   conversationNumber,
+  viewersSlot,
   transferSlot,
   onRequestTemplate,
   sessionExpired,
@@ -231,6 +232,8 @@ export function Composer({
   onFollowedUp?: (conversationId: string) => void;
   /** Nº do ticket — exibido ao lado de Encerrar/Reabrir. */
   conversationNumber?: number | null;
+  /** Quem mais está com o negócio aberto — mesma linha das tabs. */
+  viewersSlot?: ReactNode;
   /** Slot à esquerda das tabs (ex.: TransferPopover). */
   transferSlot?: ReactNode;
   /** Abre o fluxo de template (sessão 24h encerrada). */
@@ -1533,6 +1536,8 @@ export function Composer({
               )}
             </div>
           ) : null}
+
+          {viewersSlot}
 
           {/* Nº da conversa + Encerrar/Reabrir */}
           {(conversationNumber != null || conversationId) && (
