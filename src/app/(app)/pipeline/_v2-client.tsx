@@ -87,6 +87,8 @@ import {
 } from "@/features/pipeline-v2/hooks";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
+import { clearBoardUnreadForContact } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { markConversationRead } from "@/features/inbox-v2/api/conversations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
@@ -919,6 +921,17 @@ export default function KanbanV2ClientPage({
     departmentId: dealConversationDepartmentId,
     requireTabulationOnClose: dealConversationRequiresTabulation,
   };
+
+  // Painel do negócio abre na conversa: marca como lida (como o inbox) e
+  // tira o contador dos cards do contato no board em cache.
+  useEffect(() => {
+    if (!dealConversationId) return;
+    markConversationRead(dealConversationId)
+      .then(() => {
+        if (dealContactId) clearBoardUnreadForContact(queryClient, dealContactId);
+      })
+      .catch(() => {});
+  }, [dealConversationId, dealContactId, queryClient]);
 
   const boardQuery = hasServerBoard ? boardFiltered : boardNormal;
   const pipelinesEmpty = Array.isArray(pipelines) && pipelines.length === 0;
