@@ -8,6 +8,9 @@ import { isEventMessageType } from "@/components/crm/chat-timeline";
 import type { BoardStageDto } from "@/features/pipeline-v2/api";
 import { foldActivityOntoDeal } from "@/features/pipeline-v2/board-live-activity";
 
+/** Só o que o handler trata — `conversation_updated` etc. não chegam aqui. */
+const PIPELINE_SSE_EVENTS: readonly string[] = ["new_message", "message_status"];
+
 /** Não entra no preview/ordem do card (igual ao SQL do board). */
 const NON_CHAT_MESSAGE_TYPES = new Set([
   "note",
@@ -300,7 +303,7 @@ export function usePipelineRealtime(enabled = true) {
     [qc, scheduleBoardRefresh],
   );
 
-  useSSE("/api/sse/messages", handler, enabled);
+  useSSE("/api/sse/messages", handler, enabled, PIPELINE_SSE_EVENTS);
 }
 
 /** Invalidação imediata do board — usar após ações locais (ex.: envio). */

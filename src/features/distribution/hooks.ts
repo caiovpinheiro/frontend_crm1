@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -48,12 +48,60 @@ export const DISTRIBUTION_DEPT_STATS_KEY = [
   "distribution-department-stats",
 ] as const;
 
-/** Poll de segurança da Fila (SSE cobre o instante; isto cobre gap/reconnect). */
-const QUEUE_POLL_MS = 20_000;
+/** Poll da Fila SEM assinatura SSE ativa (tela sem realtime montado). */
+export const QUEUE_POLL_MS = 20_000;
 /** Carga por consultor (`getQueueCounts`) — um pouco mais lenta que a fila. */
-const COUNTS_POLL_MS = 30_000;
-/** Trailing curto demais + inbox quente = GET de equipe/fila em rajada. */
-const QUEUE_SSE_DEBOUNCE_MS = 2_000;
+export const COUNTS_POLL_MS = 30_000;
+/**
+ * Com o realtime da distribuição assinado, o SSE cobre o instante e o poll
+ * vira só rede de segurança (gap silencioso da stream).
+ */
+export const QUEUE_SAFETY_POLL_MS = 120_000;
+/**
+ * Debounce (trailing) da invalidação disparada por `new_message` /
+ * `conversation_updated`. Cada mensagem da org bate aqui; 2 s com inbox
+ * quente ainda era GET de equipe+fila a cada 2 s. Os contadores são
+ * agregados — 6 s de atraso não muda a leitura do widget.
+ */
+export const QUEUE_SSE_DEBOUNCE_MS = 6_000;
+
+/**
+ * Intervalo efetivo do poll de uma query do widget: desligado quando a
+ * query está inativa ou o poll foi desligado; poll de segurança (120 s)
+ * enquanto `useDistributionQueueRealtime` está assinado; senão `baseMs`.
+ */
+export function distributionPollInterval(opts: {
+  enabled: boolean;
+  poll: boolean;
+  sseActive: boolean;
+  baseMs: number;
+}): number | false {
+  if (!opts.enabled || !opts.poll) return false;
+  return opts.sseActive ? QUEUE_SAFETY_POLL_MS : opts.baseMs;
+}
+
+// ── Assinatura SSE ativa (contador de montagens de useDistributionQueueRealtime) ──
+// Store externo mínimo: as queries de fila/equipe leem daqui para reduzir o
+// poll enquanto o realtime está no ar, sem que a página precise encadear props.
+let sseSubscribers = 0;
+const sseListeners = new Set<() => void>();
+function markSseActive(delta: 1 | -1) {
+  sseSubscribers = Math.max(0, sseSubscribers + delta);
+  for (const fn of sseListeners) fn();
+}
+function subscribeSseActive(fn: () => void) {
+  sseListeners.add(fn);
+  return () => {
+    sseListeners.delete(fn);
+  };
+}
+const getSseActive = () => sseSubscribers > 0;
+const getSseActiveServer = () => false;
+
+/** `true` enquanto houver `useDistributionQueueRealtime` montado e ativo. */
+export function useDistributionSseActive(): boolean {
+  return useSyncExternalStore(subscribeSseActive, getSseActive, getSseActiveServer);
+}
 
 export function useDistributionLogs(enabled = true) {
   return useInfiniteQuery<DistributionLogsPage>({
@@ -103,18 +151,28 @@ export function useDistributionResponsibles(
   opts?: { poll?: boolean },
 ) {
   const poll = opts?.poll !== false;
+  const sseActive = useDistributionSseActive();
   return useQuery<ResponsiblesResponse>({
     queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
     queryFn: fetchResponsibles,
     enabled,
     staleTime: 30_000,
-    refetchInterval: enabled && poll ? COUNTS_POLL_MS : false,
+    refetchInterval: distributionPollInterval({
+      enabled,
+      poll,
+      sseActive,
+      baseMs: COUNTS_POLL_MS,
+    }),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 }
 
-/** Invalida Fila geral + por consultor quando o inbox muda (msg / atribuição). */
+/**
+ * Invalida Fila geral + por consultor quando o inbox muda (msg / atribuição).
+ * Enquanto montado, as queries do widget caem para o poll de segurança
+ * (`useDistributionSseActive`); a reconexão da stream invalida na hora.
+ */
 export function useDistributionQueueRealtime(
   enabled = true,
   opts?: { pending?: boolean },
@@ -126,28 +184,39 @@ export function useDistributionQueueRealtime(
   useEffect(() => {
     if (!enabled) return;
 
+    const invalidate = () => {
+      void qc.invalidateQueries({
+        queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
+        refetchType: "active",
+      });
+      void qc.invalidateQueries({
+        queryKey: DISTRIBUTION_PENDING_KEY,
+        refetchType: pending ? "active" : "none",
+      });
+    };
+
     const bump = () => {
       if (timerRef.current) return;
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
-        void qc.invalidateQueries({
-          queryKey: DISTRIBUTION_RESPONSIBLES_KEY,
-          refetchType: "active",
-        });
-        void qc.invalidateQueries({
-          queryKey: DISTRIBUTION_PENDING_KEY,
-          refetchType: pending ? "active" : "none",
-        });
+        invalidate();
       }, QUEUE_SSE_DEBOUNCE_MS);
     };
 
-    const unsubscribe = subscribeSSEEvents("/api/sse/messages", {
-      new_message: bump,
-      conversation_updated: bump,
-    });
+    markSseActive(1);
+    const unsubscribe = subscribeSSEEvents(
+      "/api/sse/messages",
+      {
+        new_message: bump,
+        conversation_updated: bump,
+      },
+      // Gap na stream: o que chegou nesse meio tempo foi perdido — recarrega.
+      invalidate,
+    );
 
     return () => {
       unsubscribe();
+      markSseActive(-1);
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -334,6 +403,7 @@ export function usePendingDistributions(
   opts?: { poll?: boolean },
 ) {
   const poll = opts?.poll === true;
+  const sseActive = useDistributionSseActive();
   return useQuery<PendingResponse>({
     queryKey: cursor
       ? ([...DISTRIBUTION_PENDING_KEY, cursor] as const)
@@ -341,7 +411,12 @@ export function usePendingDistributions(
     queryFn: () => fetchPending({ cursor, limit: PENDING_PAGE_SIZE }),
     enabled,
     staleTime: 30_000,
-    refetchInterval: enabled && !cursor && poll ? QUEUE_POLL_MS : false,
+    refetchInterval: distributionPollInterval({
+      enabled,
+      poll: poll && !cursor,
+      sseActive,
+      baseMs: QUEUE_POLL_MS,
+    }),
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });

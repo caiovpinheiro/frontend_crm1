@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SSE_IDLE_CLOSE_MS, sseReconnectDelayMs, subscribeSSE } from "./use-sse";
+import {
+  DEFAULT_SSE_EVENTS,
+  resolveSSEEvents,
+  SSE_IDLE_CLOSE_MS,
+  sseReconnectDelayMs,
+  subscribeSSE,
+} from "./use-sse";
 
 const mid = () => 0.5; // jitter neutro
 const low = () => 0; // -30%
@@ -22,6 +28,22 @@ describe("sseReconnectDelayMs", () => {
     expect(sseReconnectDelayMs(0, low)).toBe(3_500);
     expect(sseReconnectDelayMs(0, high)).toBe(6_500);
     expect(sseReconnectDelayMs(10, high)).toBe(78_000);
+  });
+});
+
+describe("resolveSSEEvents (lista do useSSE)", () => {
+  it("sem lista, entrega os 7 eventos padrão (compat)", () => {
+    expect(resolveSSEEvents()).toBe(DEFAULT_SSE_EVENTS);
+    expect(resolveSSEEvents(null)).toBe(DEFAULT_SSE_EVENTS);
+    expect(resolveSSEEvents([])).toBe(DEFAULT_SSE_EVENTS);
+    expect(DEFAULT_SSE_EVENTS).toHaveLength(7);
+  });
+
+  it("com lista, usa só ela (sem vazios nem duplicados)", () => {
+    expect(resolveSSEEvents(["whatsapp_call"])).toEqual(["whatsapp_call"]);
+    expect(
+      resolveSSEEvents(["new_message", "", "message_status", "new_message"]),
+    ).toEqual(["new_message", "message_status"]);
   });
 });
 
@@ -181,5 +203,20 @@ describe("SharedSSEConnection", () => {
     const before = connections().length;
     await vi.advanceTimersByTimeAsync(5_000);
     expect(connections()).toHaveLength(before + 1);
+  });
+
+  it("assinante com lista curta não recebe os demais eventos da org", () => {
+    const callHandler = vi.fn();
+    const allHandler = vi.fn();
+    subscribeSSE(url, ["whatsapp_call"], callHandler);
+    subscribeSSE(url, DEFAULT_SSE_EVENTS, allHandler);
+    connections()[0].open();
+
+    connections()[0].emit("new_message", { id: "m1" });
+    connections()[0].emit("whatsapp_call", { callId: "c1" });
+
+    expect(callHandler).toHaveBeenCalledTimes(1);
+    expect(callHandler).toHaveBeenCalledWith("whatsapp_call", { callId: "c1" });
+    expect(allHandler).toHaveBeenCalledTimes(2);
   });
 });
