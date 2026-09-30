@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -8,6 +8,7 @@ import {
   DragDropContext,
   Draggable,
   Droppable,
+  type DroppableProvided,
   type DropResult,
 } from "@hello-pangea/dnd";
 
@@ -1908,24 +1909,7 @@ function CardMoveDropdown({
   );
 }
 
-function DroppableColumn({
-  column,
-  onDealClick,
-  dealById,
-  pipelineId,
-  statusFilter,
-  onAddDeal,
-  stages,
-  selectedIds,
-  selectionMode,
-  fullySelected,
-  selectingAll,
-  onToggleSelect,
-  onToggleSelectAllInColumn,
-  onRequestMove,
-  canChangeStage,
-  loadMore,
-}: {
+type DroppableColumnProps = {
   column: KanbanColumnView;
   onDealClick: (id: string) => void;
   dealById: Map<string, BoardDealDto>;
@@ -1947,184 +1931,335 @@ function DroppableColumn({
   }) => void;
   canChangeStage: boolean;
   loadMore?: { remaining: number; loading: boolean; onClick: () => void };
+};
+
+type BoardDeal = KanbanColumnView["deals"][number];
+
+function DroppableColumn(props: DroppableColumnProps) {
+  const { column, canChangeStage } = props;
+  return (
+    <Droppable droppableId={column.stageId} isDropDisabled={!canChangeStage}>
+      {(provided, snapshot) => (
+        <DroppableColumnBody
+          {...props}
+          provided={provided}
+          isDraggingOver={snapshot.isDraggingOver}
+        />
+      )}
+    </Droppable>
+  );
+}
+
+/**
+ * Corpo da coluna como componente (e não inline no render-prop do
+ * `Droppable`) para poder usar hooks: `selection`, `dealsContainerProps`,
+ * `loadMore` e `renderDeal` saem memoizados e o `memo(KanbanColumn)`
+ * consegue pular o render quando só outro estado da página mudou.
+ * Callbacks que o pai passa inline (`onDealClick`, `onAddDeal`,
+ * `onToggleSelectAllInColumn`, `loadMore.onClick`) viram refs — a
+ * identidade fica estável e a função chamada é sempre a mais recente.
+ */
+function DroppableColumnBody({
+  column,
+  onDealClick,
+  dealById,
+  pipelineId,
+  statusFilter,
+  onAddDeal,
+  stages,
+  selectedIds,
+  selectionMode,
+  fullySelected,
+  selectingAll,
+  onToggleSelect,
+  onToggleSelectAllInColumn,
+  onRequestMove,
+  canChangeStage,
+  loadMore,
+  provided,
+  isDraggingOver,
+}: DroppableColumnProps & {
+  provided: DroppableProvided;
+  isDraggingOver: boolean;
 }) {
-  const dealIdsInColumn = column.deals.map((d) => d.id);
-  const selectedInColumnCount = dealIdsInColumn.reduce(
-    (acc, id) => acc + (selectedIds.has(id) ? 1 : 0),
-    0,
+  const selectedInColumnCount = useMemo(
+    () => column.deals.reduce((acc, d) => acc + (selectedIds.has(d.id) ? 1 : 0), 0),
+    [column.deals, selectedIds],
   );
   const totalInColumn = column.count;
   const allSelected = fullySelected && totalInColumn > 0;
   const someSelected = allSelected || selectedInColumnCount > 0;
   const selectedCount = allSelected ? totalInColumn : selectedInColumnCount;
 
+  const onDealClickRef = useRef(onDealClick);
+  const onAddDealRef = useRef(onAddDeal);
+  const onToggleAllRef = useRef(onToggleSelectAllInColumn);
+  const loadMoreClickRef = useRef(loadMore?.onClick);
+  useLayoutEffect(() => {
+    onDealClickRef.current = onDealClick;
+    onAddDealRef.current = onAddDeal;
+    onToggleAllRef.current = onToggleSelectAllInColumn;
+    loadMoreClickRef.current = loadMore?.onClick;
+  });
+  const handleDealClick = useCallback((id: string) => onDealClickRef.current(id), []);
+  const handleAddDeal = useCallback(() => onAddDealRef.current?.(), []);
+  const handleToggleAll = useCallback(() => onToggleAllRef.current(), []);
+  const handleLoadMore = useCallback(() => loadMoreClickRef.current?.(), []);
+
+  const selection = useMemo(
+    () => ({
+      allSelected,
+      someSelected,
+      selectedCount,
+      totalInColumn,
+      onToggleAll: handleToggleAll,
+      loading: selectingAll,
+      enabled: selectionMode && canChangeStage,
+    }),
+    [
+      allSelected,
+      someSelected,
+      selectedCount,
+      totalInColumn,
+      handleToggleAll,
+      selectingAll,
+      selectionMode,
+      canChangeStage,
+    ],
+  );
+
+  const loadMoreRemaining = loadMore?.remaining;
+  const loadMoreLoading = loadMore?.loading;
+  const stableLoadMore = useMemo(
+    () =>
+      loadMoreRemaining != null && loadMoreLoading != null
+        ? { remaining: loadMoreRemaining, loading: loadMoreLoading, onClick: handleLoadMore }
+        : undefined,
+    [loadMoreRemaining, loadMoreLoading, handleLoadMore],
+  );
+
+  // `provided.droppableProps`/`innerRef`/`placeholder` já vêm memoizados
+  // da lib; só o `style` de "arrastando por cima" muda durante o drag.
+  const dealsContainerProps = useMemo(
+    () => ({
+      ...provided.droppableProps,
+      "aria-label": `Coluna ${column.title}`,
+      style: isDraggingOver
+        ? {
+            background: "rgba(91,111,245,0.05)",
+            borderRadius: "var(--radius-lg)",
+          }
+        : undefined,
+    }),
+    [provided.droppableProps, column.title, isDraggingOver],
+  );
+
+  const stageId = column.stageId;
+  const renderDeal = useCallback(
+    (deal: BoardDeal, index: number) => (
+      <Draggable
+        key={deal.id}
+        draggableId={deal.id}
+        index={index}
+        isDragDisabled={!canChangeStage}
+      >
+        {(dragProvided, dragSnapshot) => {
+          const node = (
+            <div
+              ref={dragProvided.innerRef}
+              {...dragProvided.draggableProps}
+              {...dragProvided.dragHandleProps}
+              style={{
+                ...dragProvided.draggableProps.style,
+                opacity: dragSnapshot.isDragging ? 0.9 : 1,
+                cursor: canChangeStage ? undefined : "default",
+              }}
+            >
+              <BoardDealCard
+                deal={deal}
+                raw={dealById.get(deal.id)}
+                stageId={stageId}
+                pipelineId={pipelineId}
+                statusFilter={statusFilter}
+                stages={stages}
+                isSelected={selectedIds.has(deal.id)}
+                selectionMode={selectionMode}
+                onDealClick={handleDealClick}
+                onToggleSelect={onToggleSelect}
+                onRequestMove={onRequestMove}
+              />
+            </div>
+          );
+          // Enquanto arrasta, renderizamos o card num portal pro
+          // <body>. Os ancestrais do Kanban usam backdrop-blur/
+          // transform (glass), que criam um containing block novo e
+          // quebram o `position: fixed` que a lib aplica ao item
+          // arrastado — sem o portal, o card "some"/salta pra fora da
+          // tela. Portar pro body (sem ancestral transformado) faz o
+          // ghost seguir o cursor normalmente.
+          return dragSnapshot.isDragging && typeof document !== "undefined"
+            ? createPortal(node, document.body)
+            : node;
+        }}
+      </Draggable>
+    ),
+    [
+      canChangeStage,
+      dealById,
+      stageId,
+      pipelineId,
+      statusFilter,
+      stages,
+      selectedIds,
+      selectionMode,
+      handleDealClick,
+      onToggleSelect,
+      onRequestMove,
+    ],
+  );
+
   return (
-    <Droppable droppableId={column.stageId} isDropDisabled={!canChangeStage}>
-      {(provided, snapshot) => (
-        <KanbanColumn
-          title={column.title}
-          color={column.color}
-          stageColor={column.stageColor}
-          count={column.count}
-          total={column.total}
-          deals={column.deals}
-          onDealClick={onDealClick}
-          onAddDeal={onAddDeal}
-          selection={{
-            allSelected,
-            someSelected,
-            selectedCount,
-            totalInColumn,
-            onToggleAll: onToggleSelectAllInColumn,
-            loading: selectingAll,
-            enabled: selectionMode && canChangeStage,
-          }}
-          dealsContainerRef={provided.innerRef}
-          loadMore={loadMore}
-          dealsContainerProps={{
-            ...provided.droppableProps,
-            "aria-label": `Coluna ${column.title}`,
-            style: snapshot.isDraggingOver
-              ? {
-                  background: "rgba(91,111,245,0.05)",
-                  borderRadius: "var(--radius-lg)",
-                }
-              : undefined,
-          }}
-          placeholderSlot={provided.placeholder}
-          renderDeal={(deal, index) => {
-            const raw = dealById.get(deal.id);
-            return (
-              <Draggable
-                key={deal.id}
-                draggableId={deal.id}
-                index={index}
-                isDragDisabled={!canChangeStage}
-              >
-                {(dragProvided, dragSnapshot) => {
-                  const node = (
-                  <div
-                    ref={dragProvided.innerRef}
-                    {...dragProvided.draggableProps}
-                    {...dragProvided.dragHandleProps}
-                    style={{
-                      ...dragProvided.draggableProps.style,
-                      opacity: dragSnapshot.isDragging ? 0.9 : 1,
-                      cursor: canChangeStage ? undefined : "default",
-                    }}
-                  >
-                    <DealCard
-                      deal={deal}
-                      onClick={() => onDealClick(deal.id)}
-                      isSelected={selectedIds.has(deal.id)}
-                      selectionMode={selectionMode}
-                      onToggleSelect={() => onToggleSelect(deal.id)}
-                      tagsSlot={(() => {
-                        const allTags = raw?.tags ?? ([] as NonNullable<BoardDealDto["tags"]>);
-                        if (allTags.length === 0) return undefined;
-                        // Excedente não vira mais chip "+N": a lista completa
-                        // (e a remoção) vive na seção "Selecionadas" do
-                        // popover "Gerenciar tags".
-                        const MAX_VISIBLE = 2;
-                        const visibleTags = allTags.slice(0, MAX_VISIBLE);
-                        return (
-                          <>
-                            {visibleTags.map((t) => (
-                              // Linha única: chips truncam (max-w + min-w-0)
-                              // e o trigger fica shrink-0 na mesma linha.
-                              <TooltipGlass key={t.id} label={t.name} side="top">
-                                <TagChip
-                                  name={t.name}
-                                  color={t.color}
-                                  className="max-w-[9.5rem] min-w-0 shrink"
-                                />
-                              </TooltipGlass>
-                            ))}
-                          </>
-                        );
-                      })()}
-                      tagsAddSlot={
-                        <TagsPopover
-                          dealId={deal.id}
-                          currentTags={raw?.tags ?? []}
-                          pipelineId={pipelineId}
-                          statusFilter={statusFilter}
-                          trigger={
-                            <DealCardTagsTrigger
-                              hasTags={(raw?.tags?.length ?? 0) > 0}
-                            />
-                          }
-                        />
-                      }
-                      ownerSlot={
-                        <AssigneePopover
-                          dealId={deal.id}
-                          currentOwnerId={raw?.owner?.id ?? null}
-                          currentOwnerName={
-                            ownerLabel(raw?.owner?.name, raw?.owner?.type) || null
-                          }
-                          pipelineId={pipelineId}
-                          statusFilter={statusFilter}
-                          trigger={
-                            raw?.owner?.name ? (
-                              // Owner: UserAvatar (padrão do agente — gradiente
-                              // do brand + foto do perfil; iniciais como fallback).
-                              <span
-                                className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] py-px pl-px pr-2 transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[var(--glass-bg-base)]"
-                                title={ownerLabel(raw.owner.name, raw.owner.type)}
-                              >
-                                <UserAvatar
-                                  name={raw.owner.name}
-                                  imageUrl={raw.owner.avatarUrl ?? null}
-                                  size={22}
-                                />
-                                <span className="min-w-0 truncate font-display text-[10.5px] font-semibold text-[var(--text-secondary)]">
-                                  {ownerLabel(raw.owner.name, raw.owner.type)}
-                                </span>
-                              </span>
-                            ) : (
-                              <Chip
-                                variant="ghost"
-                                className="cursor-pointer whitespace-nowrap transition-colors hover:text-[var(--brand-primary)]"
-                              >
-                                +Responsável
-                              </Chip>
-                            )
-                          }
-                        />
-                      }
-                      moveMenuSlot={
-                        <CardMoveMenu
-                          dealId={deal.id}
-                          currentStageId={column.stageId}
-                          pipelineId={pipelineId}
-                          statusFilter={statusFilter}
-                          stages={stages}
-                          onRequestMove={onRequestMove}
-                        />
-                      }
-                    />
-                  </div>
-                  );
-                  // Enquanto arrasta, renderizamos o card num portal pro
-                  // <body>. Os ancestrais do Kanban usam backdrop-blur/
-                  // transform (glass), que criam um containing block novo e
-                  // quebram o `position: fixed` que a lib aplica ao item
-                  // arrastado — sem o portal, o card "some"/salta pra fora da
-                  // tela. Portar pro body (sem ancestral transformado) faz o
-                  // ghost seguir o cursor normalmente.
-                  return dragSnapshot.isDragging && typeof document !== "undefined"
-                    ? createPortal(node, document.body)
-                    : node;
-                }}
-              </Draggable>
-            );
-          }}
-        />
-      )}
-    </Droppable>
+    <KanbanColumn
+      title={column.title}
+      color={column.color}
+      stageColor={column.stageColor}
+      count={column.count}
+      total={column.total}
+      deals={column.deals}
+      onDealClick={handleDealClick}
+      onAddDeal={handleAddDeal}
+      selection={selection}
+      dealsContainerRef={provided.innerRef}
+      loadMore={stableLoadMore}
+      dealsContainerProps={dealsContainerProps}
+      placeholderSlot={provided.placeholder}
+      renderDeal={renderDeal}
+    />
   );
 }
+
+const EMPTY_TAGS: NonNullable<BoardDealDto["tags"]> = [];
+
+/**
+ * Card do board com slots (tags, responsável, mover de fase) e callbacks
+ * por `dealId`. `memo`: só renderiza quando o próprio deal, sua seleção
+ * ou o contexto do funil mudam — o `deal` vem cacheado por DTO de
+ * `toDealCard`, então patches SSE em outros cards não passam por aqui.
+ */
+const BoardDealCard = memo(function BoardDealCard({
+  deal,
+  raw,
+  stageId,
+  pipelineId,
+  statusFilter,
+  stages,
+  isSelected,
+  selectionMode,
+  onDealClick,
+  onToggleSelect,
+  onRequestMove,
+}: {
+  deal: BoardDeal;
+  raw: BoardDealDto | undefined;
+  stageId: string;
+  pipelineId: string | null;
+  statusFilter: StatusFilter;
+  stages: BoardStageDto[];
+  isSelected: boolean;
+  selectionMode: boolean;
+  onDealClick: (id: string) => void;
+  onToggleSelect: (id: string) => void;
+  onRequestMove?: DroppableColumnProps["onRequestMove"];
+}) {
+  const dealId = deal.id;
+  const handleClick = useCallback(() => onDealClick(dealId), [onDealClick, dealId]);
+  const handleToggleSelect = useCallback(() => onToggleSelect(dealId), [onToggleSelect, dealId]);
+  const allTags = raw?.tags ?? EMPTY_TAGS;
+  // Excedente não vira mais chip "+N": a lista completa (e a remoção)
+  // vive na seção "Selecionadas" do popover "Gerenciar tags".
+  const MAX_VISIBLE = 2;
+  const visibleTags = allTags.slice(0, MAX_VISIBLE);
+  const tagsSlot =
+    allTags.length === 0 ? undefined : (
+      <>
+        {visibleTags.map((t) => (
+          // Linha única: chips truncam (max-w + min-w-0)
+          // e o trigger fica shrink-0 na mesma linha.
+          <TooltipGlass key={t.id} label={t.name} side="top">
+            <TagChip
+              name={t.name}
+              color={t.color}
+              className="max-w-[9.5rem] min-w-0 shrink"
+            />
+          </TooltipGlass>
+        ))}
+      </>
+    );
+  return (
+    <DealCard
+      deal={deal}
+      onClick={handleClick}
+      isSelected={isSelected}
+      selectionMode={selectionMode}
+      onToggleSelect={handleToggleSelect}
+      tagsSlot={tagsSlot}
+      tagsAddSlot={
+        <TagsPopover
+          dealId={dealId}
+          currentTags={allTags}
+          pipelineId={pipelineId}
+          statusFilter={statusFilter}
+          trigger={<DealCardTagsTrigger hasTags={allTags.length > 0} />}
+        />
+      }
+      ownerSlot={
+        <AssigneePopover
+          dealId={dealId}
+          currentOwnerId={raw?.owner?.id ?? null}
+          currentOwnerName={ownerLabel(raw?.owner?.name, raw?.owner?.type) || null}
+          pipelineId={pipelineId}
+          statusFilter={statusFilter}
+          trigger={
+            raw?.owner?.name ? (
+              // Owner: UserAvatar (padrão do agente — gradiente
+              // do brand + foto do perfil; iniciais como fallback).
+              <span
+                className="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-[var(--glass-border-subtle)] bg-[var(--glass-bg-overlay)] py-px pl-px pr-2 transition-colors hover:border-[var(--brand-primary)]/40 hover:bg-[var(--glass-bg-base)]"
+                title={ownerLabel(raw.owner.name, raw.owner.type)}
+              >
+                <UserAvatar
+                  name={raw.owner.name}
+                  imageUrl={raw.owner.avatarUrl ?? null}
+                  size={22}
+                />
+                <span className="min-w-0 truncate font-display text-[10.5px] font-semibold text-[var(--text-secondary)]">
+                  {ownerLabel(raw.owner.name, raw.owner.type)}
+                </span>
+              </span>
+            ) : (
+              <Chip
+                variant="ghost"
+                className="cursor-pointer whitespace-nowrap transition-colors hover:text-[var(--brand-primary)]"
+              >
+                +Responsável
+              </Chip>
+            )
+          }
+        />
+      }
+      moveMenuSlot={
+        <CardMoveMenu
+          dealId={dealId}
+          currentStageId={stageId}
+          pipelineId={pipelineId}
+          statusFilter={statusFilter}
+          stages={stages}
+          onRequestMove={onRequestMove}
+        />
+      }
+    />
+  );
+});
 
 function EmptyBoard({ canFetch }: { canFetch: boolean }) {
   return (

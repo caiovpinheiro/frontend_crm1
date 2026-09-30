@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useLayoutEffect, type ReactNode, type TouchEvent } from "react"
+import { memo, useState, useRef, useEffect, useCallback, useLayoutEffect, type ReactNode, type TouchEvent } from "react"
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -1504,7 +1504,13 @@ function MenuItem({
   )
 }
 
-export function MessageBubble({
+/**
+ * `memo`: o chat re-renderiza a cada tecla do composer / patch SSE. Com
+ * `message` estável (adapter) e handlers estáveis (`useCallback` no
+ * `ChatArea`/página), cada bolha só renderiza quando a própria mensagem
+ * muda. Só o `memo` na exportação — sem refatorar o corpo.
+ */
+export const MessageBubble = memo(function MessageBubble({
   message,
   senderPhotoByName,
   className,
@@ -1981,7 +1987,7 @@ export function MessageBubble({
       {/* Nome do remetente apenas no tooltip do avatar (acima) */}
     </div>
   )
-}
+})
 
 /**
  * Cabeçalho de citação (reply) — aparece dentro da bolha, acima do

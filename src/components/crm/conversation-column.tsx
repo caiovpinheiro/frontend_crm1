@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react"
+import { memo, useCallback, useEffect, useRef, useState, type ChangeEvent } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
+import { createRowWindowRegistry } from "@/lib/row-window"
+import { WindowedRow } from "@/components/crm/windowed-row"
 import {
   compareMessageActivity,
   messageActivityTimestamp,
@@ -390,6 +392,48 @@ function groupQueueTabs(tabs: ReadonlyArray<TabItem>) {
   return groups
 }
 
+/**
+ * Fronteira de memo por conversa: callbacks `useCallback` no id, `active`
+ * como booleano (sem clonar o objeto). Enquanto a página passar
+ * `renderCardSlots` inline, os slots ainda mudam a cada render — a
+ * estabilização deles fica para a página (`useCallback` + slots por id).
+ */
+const ConversationRow = memo(function ConversationRow({
+  conversation,
+  active,
+  selectionMode,
+  selected,
+  onSelect,
+  onToggle,
+  assigneeSlot,
+  menuSlot,
+}: {
+  conversation: Conversation
+  active: boolean
+  selectionMode: boolean
+  selected: boolean
+  onSelect?: (id: string) => void
+  onToggle?: (id: string) => void
+  assigneeSlot?: React.ReactNode
+  menuSlot?: React.ReactNode
+}) {
+  const id = conversation.id
+  const handleClick = useCallback(() => onSelect?.(id), [onSelect, id])
+  const handleToggle = useCallback(() => onToggle?.(id), [onToggle, id])
+  return (
+    <ConversationCard
+      conversation={conversation}
+      active={active}
+      onClick={handleClick}
+      assigneeSlot={assigneeSlot}
+      menuSlot={menuSlot}
+      selectionMode={selectionMode}
+      selected={selected}
+      onToggleSelect={handleToggle}
+    />
+  )
+})
+
 export function ConversationColumn({
   conversations,
   activeConversationId,
@@ -432,6 +476,16 @@ export function ConversationColumn({
   const listScrollRef = useRef<HTMLDivElement>(null)
   const onLoadMoreRef = useRef(onLoadMore)
   onLoadMoreRef.current = onLoadMore
+  // Janela de render (FE-14): um IO por lista, root = scroller. As linhas
+  // fora do viewport ± 600px viram placeholders com a altura medida. A
+  // lista vem só do cliente (react-query), então criar o registro já no
+  // 1º render do cliente não diverge do HTML do servidor.
+  const [rowWindow] = useState(() => createRowWindowRegistry())
+  useEffect(() => {
+    if (!rowWindow) return
+    rowWindow.attach(listScrollRef.current)
+    return () => rowWindow.detach()
+  }, [rowWindow])
   useEffect(() => {
     if (!scrollToTopKey) return
     listScrollRef.current?.scrollTo({ top: 0 })
@@ -935,24 +989,26 @@ export function ConversationColumn({
           <>
             {queueSections.map((section) => {
               const renderCards = (items: Conversation[]) =>
-                items.map((conversation) => {
-                  const slots = renderCardSlots?.(conversation)
-                  return (
-                    <ConversationCard
-                      key={conversation.id}
-                      conversation={{
-                        ...conversation,
-                        active: conversation.id === activeConversationId,
-                      }}
-                      onClick={() => onSelectConversation?.(conversation.id)}
-                      assigneeSlot={slots?.assigneeSlot}
-                      menuSlot={slots?.menuSlot}
-                      selectionMode={selectionMode}
-                      selected={selectedIds?.has(conversation.id) ?? false}
-                      onToggleSelect={() => onToggleSelectOne?.(conversation.id)}
-                    />
-                  )
-                })
+                items.map((conversation, index) => (
+                  <WindowedRow key={conversation.id} index={index} registry={rowWindow}>
+                    {() => {
+                      // Slots só para linhas na janela (custo ∝ visíveis).
+                      const slots = renderCardSlots?.(conversation)
+                      return (
+                        <ConversationRow
+                          conversation={conversation}
+                          active={conversation.id === activeConversationId}
+                          onSelect={onSelectConversation}
+                          onToggle={onToggleSelectOne}
+                          assigneeSlot={slots?.assigneeSlot}
+                          menuSlot={slots?.menuSlot}
+                          selectionMode={selectionMode}
+                          selected={selectedIds?.has(conversation.id) ?? false}
+                        />
+                      )
+                    }}
+                  </WindowedRow>
+                ))
 
               if (!section.id || !section.label) {
                 return (
