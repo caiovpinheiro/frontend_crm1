@@ -35,14 +35,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { CLIENT_REVISION, useAppRevision } from "@/hooks/use-app-revision";
 import { useIsMobile } from "@/hooks/use-media-query";
-import { clearWebCachesAndReload, fetchAppRevision } from "@/lib/hard-reload";
+import { clearWebCachesAndReload } from "@/lib/hard-reload";
 
-const POLL_INTERVAL_MS = 30_000;
 const DISMISSED_REVISION_KEY = "crm_mobile_update_dismissed_revision";
-
-/** Fingerprint do build atual, embutido em build time. Vazio em builds sem CI/local sem prebuild. */
-const CLIENT_REVISION = (process.env.NEXT_PUBLIC_BUILD_ID ?? "").trim();
 
 function isNativePlatform(): boolean {
   if (typeof window === "undefined") return false;
@@ -66,11 +63,12 @@ export function MobileAppUpdateDialog() {
 
   const active = isMobile || isNative;
 
-  const checkForUpdate = React.useCallback(async () => {
-    if (!CLIENT_REVISION || CLIENT_REVISION === "dev") return;
+  // Mesma query `["app-revision"]` do banner desktop, 3 min (antes: poll
+  // próprio de 30 s + refetch em todo foco — FE-18).
+  const { data: remote } = useAppRevision(active);
 
-    const remote = await fetchAppRevision();
-    if (!remote) return;
+  React.useEffect(() => {
+    if (!active || !remote) return;
     if (remote === CLIENT_REVISION) return;
 
     const dismissed =
@@ -79,50 +77,7 @@ export function MobileAppUpdateDialog() {
 
     setPendingRevision(remote);
     setOpen(true);
-  }, []);
-
-  React.useEffect(() => {
-    if (!active) return;
-
-    let interval: number | null = null;
-
-    function startTimer() {
-      if (interval != null) return;
-      interval = window.setInterval(() => void checkForUpdate(), POLL_INTERVAL_MS);
-    }
-
-    function clearTimer() {
-      if (interval == null) return;
-      window.clearInterval(interval);
-      interval = null;
-    }
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void checkForUpdate();
-        startTimer();
-      } else {
-        clearTimer();
-      }
-    };
-    const onFocus = () => {
-      if (!document.hidden) void checkForUpdate();
-    };
-
-    if (!document.hidden) {
-      void checkForUpdate();
-      startTimer();
-    }
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("focus", onFocus);
-
-    return () => {
-      clearTimer();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [active, checkForUpdate]);
+  }, [active, remote]);
 
   if (!active) return null;
 
