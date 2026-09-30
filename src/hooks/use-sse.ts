@@ -30,8 +30,12 @@ export type SSEReconnectHandler = () => void;
  * (inbox/pipeline reidratam).
  */
 
-/** Eventos entregues por padrão aos assinantes do `useSSE` (compat). */
-const DEFAULT_EVENTS: readonly string[] = [
+/**
+ * Eventos entregues por padrão aos assinantes do `useSSE` que não passam
+ * uma lista própria (compat). Quem só precisa de 1–2 eventos deve passar a
+ * lista: cada evento a mais é um parse + dispatch por mensagem da org.
+ */
+export const DEFAULT_SSE_EVENTS: readonly string[] = [
   "new_message",
   "message_status",
   "conversation_updated",
@@ -258,14 +262,38 @@ export function subscribeSSEEvents(
   );
 }
 
-export function useSSE(url: string, handler: SSEHandler, enabled = true) {
+/**
+ * Lista efetiva de eventos de um assinante do `useSSE`: a própria lista
+ * (sem vazios/duplicados) ou, sem lista, os eventos padrão.
+ */
+export function resolveSSEEvents(
+  events?: Iterable<string> | null,
+): readonly string[] {
+  if (!events) return DEFAULT_SSE_EVENTS;
+  const list = Array.from(new Set(Array.from(events).filter((e) => e.trim())));
+  return list.length > 0 ? list : DEFAULT_SSE_EVENTS;
+}
+
+/**
+ * Assina a conexão compartilhada dentro de um componente. `events` limita
+ * o que chega ao `handler` (ex.: `["whatsapp_call"]`); sem a lista, entrega
+ * os `DEFAULT_SSE_EVENTS`. A identidade do array não importa — o efeito só
+ * reassina quando o conteúdo muda.
+ */
+export function useSSE(
+  url: string,
+  handler: SSEHandler,
+  enabled = true,
+  events?: readonly string[],
+) {
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
+  const eventsKey = resolveSSEEvents(events).join(",");
 
   useEffect(() => {
     if (!enabled) return;
-    return subscribeSSE(url, DEFAULT_EVENTS, (event, data) => {
+    return subscribeSSE(url, eventsKey.split(","), (event, data) => {
       handlerRef.current(event, data);
     });
-  }, [url, enabled]);
+  }, [url, enabled, eventsKey]);
 }

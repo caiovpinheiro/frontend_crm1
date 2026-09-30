@@ -14,6 +14,9 @@ import { sanitizeMetaWhatsappSdpForBrowser, stripSsrcLinesFromSdp } from "@/lib/
 import { holdSSEWhileHidden, useSSE } from "@/hooks/use-sse";
 import { ensureMicrophonePermission } from "@/lib/native/permissions";
 
+/** Sinalização de chamada é o único evento que este hook trata. */
+const CALL_SSE_EVENTS: readonly string[] = ["whatsapp_call"];
+
 function waitIceGatheringComplete(pc: RTCPeerConnection, timeoutMs = 12_000): Promise<void> {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => {
@@ -429,6 +432,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
       [activeCallId, releasePc, applyAnswer, beginRecording],
     ),
     !!conversationId,
+    CALL_SSE_EVENTS,
   );
 
   const terminate = React.useCallback(

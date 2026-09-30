@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -435,16 +435,27 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     return () => clearInterval(timer);
   }, []);
 
+  // Os 4 callbacks são estáveis; sem o memo cada toast (setToasts) criava um
+  // `value` novo e re-renderizava todo consumidor (useInboxRealtime,
+  // useTeamChatRealtime, InboxMessageAlerts) sem nada ter mudado para eles.
+  const value = useMemo<MessageToastContextValue>(
+    () => ({
+      registerActiveConversation,
+      registerActiveTeamChatRoom,
+      notifyInboxMessage,
+      notifyTeamChatMessage,
+    }),
+    [
+      registerActiveConversation,
+      registerActiveTeamChatRoom,
+      notifyInboxMessage,
+      notifyTeamChatMessage,
+    ],
+  );
+
   return (
     <>
-      <MessageToastContext.Provider
-        value={{
-          registerActiveConversation,
-          registerActiveTeamChatRoom,
-          notifyInboxMessage,
-          notifyTeamChatMessage,
-        }}
-      >
+      <MessageToastContext.Provider value={value}>
         {children}
       </MessageToastContext.Provider>
       {mounted &&

@@ -68,7 +68,10 @@ import {
 } from "@/features/inbox-v2/adapters";
 
 /** Draft e props estáveis: tecla/SSE do chat não re-renderizam o composer
- *  (gravação de áudio no deal não espera o painel/kanban pintar). */
+ *  (gravação de áudio no deal não espera o painel/kanban pintar).
+ *  O `draft` começa vazio de propósito: o `Composer` restaura o rascunho
+ *  salvo em localStorage (`useComposerDraftPersistence`) e o mantém em
+ *  sincronia com as outras abas; `setDraft("")` após o envio limpa a chave. */
 const IsolatedDealComposer = memo(function IsolatedDealComposer({
   conversationId,
   onSend,
