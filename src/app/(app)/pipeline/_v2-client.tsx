@@ -88,6 +88,7 @@ import {
 } from "@/features/pipeline-v2/hooks";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
+import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
 import { clearBoardUnreadForContact } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import { markConversationRead } from "@/features/inbox-v2/api/conversations";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -694,15 +695,20 @@ export default function KanbanV2ClientPage({
   }, []);
 
   // Presença "quem está vendo" (estilo Kommo) — chaveada pelo CUID real do
-  // deal (não pelo ?deal=<número>), pra ambas as janelas baterem na mesma sala.
-  const dealViewers = useEntityViewers("deal", dealDetail?.id ?? null);
+  // deal, pra ambas as janelas baterem na mesma sala. Só liga depois que
+  // `?deal=<número>` virou CUID: com `dealDetail?.id` a troca de queryKey
+  // (número → CUID) fazia join/leave/join na mesma abertura.
+  const stableDealId = stableDealIdForEffects(activeDealId);
+  const dealViewers = useEntityViewers("deal", stableDealId);
   const dealViewersSlot = useMemo(
     () => <DealViewersStack viewers={dealViewers} variant="banner" />,
     [dealViewers],
   );
 
   // Quando dealDetail carrega via lookup por número sequencial (?deal=102),
-  // troca activeDealId para o CUID real (mutations usam CUID).
+  // troca activeDealId para o CUID real (mutations usam CUID). Semeia o
+  // cache do CUID com o mesmo detail — evita o 2º GET /deals/:cuid e o
+  // detail "sumir" por um render (que duplicava presença e POST /read).
   useEffect(() => {
     if (
       dealDetail?.id &&
@@ -710,6 +716,7 @@ export default function KanbanV2ClientPage({
       /^\d+$/.test(activeDealId) &&
       dealDetail.id !== activeDealId
     ) {
+      queryClient.setQueryData(dealDetailKey(dealDetail.id), dealDetail);
       setActiveDealId(dealDetail.id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -929,14 +936,15 @@ export default function KanbanV2ClientPage({
 
   // Painel do negócio abre na conversa: marca como lida (como o inbox) e
   // tira o contador dos cards do contato no board em cache.
+  // Só com o CUID resolvido — senão o POST /read saía 2× por deep-link.
   useEffect(() => {
-    if (!dealConversationId) return;
+    if (!dealConversationId || !stableDealId) return;
     markConversationRead(dealConversationId)
       .then(() => {
         if (dealContactId) clearBoardUnreadForContact(queryClient, dealContactId);
       })
       .catch(() => {});
-  }, [dealConversationId, dealContactId, queryClient]);
+  }, [dealConversationId, dealContactId, stableDealId, queryClient]);
 
   const boardQuery = hasServerBoard ? boardFiltered : boardNormal;
   const pipelinesEmpty = Array.isArray(pipelines) && pipelines.length === 0;

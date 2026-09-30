@@ -32,3 +32,30 @@ export function pathForPipelineView(view: PipelineViewPreference): string {
   if (view === "flow") return "/pipeline/flow";
   return "/pipeline";
 }
+
+export type PipelineEntryDecision =
+  | { kind: "kanban" }
+  | { kind: "redirect"; view: Exclude<PipelineViewPreference, "kanban">; href: string };
+
+/**
+ * Decide o que `/pipeline` deve fazer ANTES de montar o kanban.
+ *
+ * - `?deal=` sempre abre no kanban (deep-link do negócio).
+ * - Preferência salva "list"/"flow" → redirect, preservando a query.
+ * - Caso contrário → kanban.
+ *
+ * Pura para o teste: recebe a query string e a preferência já lidas.
+ */
+export function resolvePipelineEntry(input: {
+  /** `window.location.search` (com ou sem `?`). */
+  search: string;
+  preferred: PipelineViewPreference;
+}): PipelineEntryDecision {
+  const raw = input.search.startsWith("?") ? input.search.slice(1) : input.search;
+  const qs = new URLSearchParams(raw);
+  if (qs.get("deal")) return { kind: "kanban" };
+  if (input.preferred === "kanban") return { kind: "kanban" };
+  const path = pathForPipelineView(input.preferred);
+  const q = qs.toString();
+  return { kind: "redirect", view: input.preferred, href: q ? `${path}?${q}` : path };
+}

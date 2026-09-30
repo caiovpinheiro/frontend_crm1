@@ -31,6 +31,7 @@ import {
 } from "@/features/dashboard-v2/dashboard-persist";
 
 import type { DashboardFiltersState, PeriodKey } from "./api";
+import { dashboardFiltersSettled } from "./dashboard-filters-gate";
 
 export const DASHBOARD_FILTERS_KEY_PREFIX = "dashboard-filters";
 
@@ -276,6 +277,8 @@ export function useDashboardFilters(
   const restoredRef = useRef(false);
   const allowRemoteRef = useRef(false);
   const saverRef = useRef(createRemoteSliceSaver("filters"));
+  // Restore (URL, backend ou localStorage) concluído — parte do gate `settled`.
+  const [restored, setRestored] = useState(false);
 
   useEffect(() => () => saverRef.current.flush(), []);
 
@@ -383,6 +386,7 @@ export function useDashboardFilters(
     if (urlHasDashboardFilters(sp)) {
       restoredRef.current = true;
       allowRemoteRef.current = true;
+      setRestored(true);
       writeJson(storageKey, urlFilters);
       saverRef.current.schedule({ storageKey, value: urlFilters });
       return;
@@ -410,11 +414,24 @@ export function useDashboardFilters(
         });
         if (!cancelled) setFilters(local);
       }
+      // Restore concluído (também quando nada foi escolhido): libera o gate
+      // `settled`. `restoredRef` já é true e o efeito não roda de novo, por
+      // isso não depende de `cancelled` — senão o gate travaria se as deps
+      // mudassem durante o PATCH da migração.
+      setRestored(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [ready, keyPart, userId, searchParams, urlFilters, setFilters]);
+
+  // Painéis só disparam com os filtros assentados (funil resolvido para
+  // CUID, restore feito) — senão 6–7 GETs saem, abortam e refazem.
+  const settled = dashboardFiltersSettled({
+    restored,
+    pipelines,
+    pipelineIds: filters.pipelineIds,
+  });
 
   const patch = useCallback(
     (partial: Partial<DashboardFiltersState>) => {
@@ -433,7 +450,7 @@ export function useDashboardFilters(
     setFilters(DEFAULT_DASHBOARD_FILTERS);
   }, [setFilters]);
 
-  return { filters, setFilters, patch, clear };
+  return { filters, setFilters, patch, clear, settled };
 }
 
 /**

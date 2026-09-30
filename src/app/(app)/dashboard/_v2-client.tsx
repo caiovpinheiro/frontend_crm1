@@ -357,10 +357,13 @@ function ManagerHome({
 
   const optionsQuery = useDashboardFilterOptions(canFetch);
   const options = optionsQuery.data;
-  const { filters, patch } = useDashboardFilters(options?.pipelines);
-  // Sem funis resolvidos o `pipeline=8` da URL ainda não virou CUID —
-  // disparar o painel aqui aborta 6 GETs e refaz tudo no tick seguinte.
-  const tabReady = canFetch && optionsQuery.isFetched;
+  const { filters, patch, settled: filtersSettled } = useDashboardFilters(options?.pipelines);
+  // Painéis só com os filtros assentados (funil da URL/localStorage já
+  // resolvido para CUID e restore feito). `isFetched` não bastava: no mesmo
+  // render em que a lista chegava, `pipelineIds` ainda era [] e o efeito de
+  // funil padrão reescrevia os filtros → 7 GETs abortados e refeitos.
+  // Se a lista de opções falhar, libera mesmo assim (backend usa o padrão).
+  const tabReady = canFetch && (filtersSettled || optionsQuery.isError);
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
   const agoraQuery = usePainelAgora(clock, tabReady && isService);
   const serviceQuery = usePainelService(filters, clock, tabReady && isService);
