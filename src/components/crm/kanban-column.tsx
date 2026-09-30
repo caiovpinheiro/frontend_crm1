@@ -10,7 +10,7 @@ import {
   IconSquareMinus,
 } from "@tabler/icons-react"
 import type { HTMLAttributes, ReactNode } from "react"
-import { useCallback, useEffect, useRef } from "react"
+import { memo, useCallback, useEffect, useRef } from "react"
 import { DealCard, type Deal } from "./deal-card"
 
 export type ColumnColor = "novo" | "quali" | "proposta" | "nego" | "fecha"
@@ -94,7 +94,29 @@ const colorBgMap: Record<ColumnColor, string> = {
   fecha:    "color-mix(in srgb, var(--col-fecha) 10%, transparent)",
 }
 
-export function KanbanColumn({
+/**
+ * Caminho sem `renderDeal`: callback por card estável (`useCallback` no
+ * id) para o `memo(DealCard)` não ser derrotado por uma arrow nova a
+ * cada render da coluna.
+ */
+const DefaultDealItem = memo(function DefaultDealItem({
+  deal,
+  onDealClick,
+}: {
+  deal: Deal
+  onDealClick?: (dealId: string) => void
+}) {
+  const handleClick = useCallback(() => onDealClick?.(deal.id), [onDealClick, deal.id])
+  return <DealCard deal={deal} onClick={handleClick} />
+})
+
+/**
+ * `memo`: com `deals`/`selection`/`renderDeal`/`dealsContainerProps`
+ * estáveis (o `DroppableColumn` do pipeline memoiza cada um), a coluna
+ * inteira — header + N `<Draggable>` — deixa de renderizar quando só
+ * outro estado da página mudou.
+ */
+export const KanbanColumn = memo(function KanbanColumn({
   title,
   color,
   stageColor,
@@ -290,7 +312,7 @@ export function KanbanColumn({
           renderDeal ? (
             renderDeal(deal, index)
           ) : (
-            <DealCard key={deal.id} deal={deal} onClick={() => onDealClick?.(deal.id)} />
+            <DefaultDealItem key={deal.id} deal={deal} onDealClick={onDealClick} />
           ),
         )}
         {placeholderSlot}
@@ -319,4 +341,4 @@ export function KanbanColumn({
       </div>
     </section>
   )
-}
+})

@@ -10,6 +10,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  // O tsconfig usa `jsx: preserve` (Next); sem isto o transform (oxc, Vite 8)
+  // não parseia `.tsx` importado por um teste (ex.: checar `React.memo`).
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "node",
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
