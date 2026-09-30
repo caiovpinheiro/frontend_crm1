@@ -579,11 +579,18 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
           ? { ...payload, channelId }
           : payload;
       const q = channelId ? `?channelId=${encodeURIComponent(channelId)}` : "";
-      const res = await fetch(apiUrl(`/api/meta/whatsapp/message-templates${q}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let res: Response;
+      try {
+        res = await fetch(apiUrl(`/api/meta/whatsapp/message-templates${q}`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        throw new Error(
+          "A ligação caiu antes da resposta do servidor. A Meta não confirmou a criação. Tente novamente.",
+        );
+      }
       // `parseApiResponse` preserva a mensagem de validação da Meta (exemplo
       // faltando, formato de parâmetro trocado) em vez de trocá-la por um
       // texto fixo quando o proxy devolve HTML.
