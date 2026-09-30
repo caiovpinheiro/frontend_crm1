@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { Check, LayoutDashboard, Move, Plus } from "lucide-react";
 
@@ -53,11 +53,18 @@ import {
   useDashboardFilters,
 } from "@/features/dashboard-v2/use-dashboard-filters";
 import {
+  createRemoteSliceSaver,
+  loadRemoteDashboard,
   readDashboardUiState,
   readSavedActorUserIds,
   readSavedDepartmentIds,
+  resolveDashboardSlice,
+  saveDashboardSlice,
+  scopedKey,
   useDashboardStorageScope,
   writeDashboardUiState,
+  DASHBOARD_UI_KEY_PREFIX,
+  type DashboardUiState,
 } from "@/features/dashboard-v2/dashboard-persist";
 import {
   DEAL_CORE_WIDGET_IDS,
@@ -329,6 +336,11 @@ function ManagerHome({
   const [tabDepartmentIds, setTabDepartmentIds] = useState<string[]>([]);
   const uiScope = useDashboardStorageScope();
   const [uiHydrated, setUiHydrated] = useState(false);
+  const uiSaverRef = useRef(createRemoteSliceSaver("ui"));
+  const skipUiRemoteEcho = useRef(true);
+  const uiHydratedKeyRef = useRef<string | null>(null);
+
+  useEffect(() => () => uiSaverRef.current.flush(), []);
   const isDeals = activeTab === "deals";
   const isService = activeTab === "service";
 
@@ -385,29 +397,67 @@ function ManagerHome({
 
   useEffect(() => {
     if (!uiScope.ready || !uiScope.keyPart || !uiScope.userId) return;
-    const saved = readDashboardUiState(uiScope.keyPart, uiScope.userId);
-    if (saved) {
-      if (saved.tab === "tabulations") {
-        setActiveTab("service");
-      } else if (saved.tab === "deals" || saved.tab === "service") {
-        setActiveTab(saved.tab);
+    let cancelled = false;
+    const keyPart = uiScope.keyPart;
+    const userId = uiScope.userId;
+    skipUiRemoteEcho.current = true;
+    void (async () => {
+      const local = readDashboardUiState(keyPart, userId);
+      const remote = await loadRemoteDashboard();
+      if (cancelled) return;
+      const picked = resolveDashboardSlice(remote, "ui", local);
+      const saved =
+        picked.value && typeof picked.value === "object"
+          ? (picked.value as DashboardUiState)
+          : null;
+      if (saved) {
+        if (saved.tab === "tabulations") {
+          setActiveTab("service");
+        } else if (saved.tab === "deals" || saved.tab === "service") {
+          setActiveTab(saved.tab);
+        }
+        if (saved.clock === "business" || saved.clock === "elapsed") setClock(saved.clock);
+        setTabActorUserIds(readSavedActorUserIds(saved));
+        setTabDepartmentIds(readSavedDepartmentIds(saved));
       }
-      if (saved.clock === "business" || saved.clock === "elapsed") setClock(saved.clock);
-      setTabActorUserIds(readSavedActorUserIds(saved));
-      setTabDepartmentIds(readSavedDepartmentIds(saved));
-    }
-    setUiHydrated(true);
+      if (picked.source === "remote" && saved) {
+        writeDashboardUiState(keyPart, saved);
+      } else if (picked.migrate && local) {
+        await saveDashboardSlice({
+          storageKey: scopedKey(DASHBOARD_UI_KEY_PREFIX, keyPart),
+          metaKey: "ui",
+          value: local,
+        });
+      }
+      if (!cancelled) {
+        uiHydratedKeyRef.current = keyPart;
+        setUiHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [uiScope.ready, uiScope.keyPart, uiScope.userId]);
 
   useEffect(() => {
     if (!uiHydrated || !uiScope.keyPart) return;
-    writeDashboardUiState(uiScope.keyPart, {
+    if (uiHydratedKeyRef.current !== uiScope.keyPart) return;
+    const value: DashboardUiState = {
       tab: activeTab,
       clock,
       tabActorUserIds,
       tabDepartmentIds,
       tabActorUserId: tabActorUserIds[0] ?? "",
       tabDepartmentId: tabDepartmentIds[0] ?? "",
+    };
+    writeDashboardUiState(uiScope.keyPart, value);
+    if (skipUiRemoteEcho.current) {
+      skipUiRemoteEcho.current = false;
+      return;
+    }
+    uiSaverRef.current.schedule({
+      storageKey: scopedKey(DASHBOARD_UI_KEY_PREFIX, uiScope.keyPart),
+      value,
     });
   }, [uiHydrated, uiScope.keyPart, activeTab, clock, tabActorUserIds, tabDepartmentIds]);
 
