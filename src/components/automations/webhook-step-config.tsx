@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Bloco de configuração do step "Webhook" — usado dentro do
- * `StepConfigPanel`.
+ * Bloco de configuração do step "Webhook" — usado pela edição inline do
+ * canvas (`inline-editor.tsx`).
  *
  * Em 03/jun/26 a tela foi reescrita: o usuário NÃO escreve mais JSON
  * manualmente no Body. No lugar, ele monta um construtor visual de

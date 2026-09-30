@@ -197,8 +197,8 @@ E ainda existe `src/lib/dashboard-tokens.ts` separado (escopo: widgets).
 | Domínio | Arquivos | Notas |
 |---|---|---|
 | `pipeline/` | 30 arquivos | Maior área. Kanban, list view, sales-hub, deal-workspace (chat embutido), deal-detail (drawer), kanban-filters/* (8) |
-| `inbox/` | ~25 (chat-window, conversation-list, contact-info-panel, transfer-control, swipe-row, presence-dashboard, audio-recorder, ai-draft-card, …) | — |
-| `automations/` | 21 (workflow-canvas, 10+ nodes: trigger/wait/condition/delay/goto/finish/action/business-hours/interactive/variable/question, step-config-panel, copilot-panel, animated-edge, template-gallery, …) | React Flow |
+| `inbox/` | ~25 (chat-window, conversation-list, transfer-control, swipe-row, presence-dashboard, audio-recorder, ai-draft-card, …) | — |
+| `automations/` | 21 (workflow-canvas, 10+ nodes: trigger/wait/condition/delay/goto/finish/action/business-hours/interactive/variable/question, node-inline-config, copilot-panel, animated-edge, template-gallery, …) | React Flow |
 | `dashboard/widgets/` | 14 widgets | grid layout |
 | `channels/`, `contacts/`, `companies/`, `analytics/`, `ai-agents/`, `sales-hub/`, `onboarding/`, `profile/`, `pwa/`, `layout/` | — | — |
 | `features/campaign-builder/` | wizard isolado | único uso de pasta `features/` |
