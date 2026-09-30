@@ -36,6 +36,11 @@ import {
 } from "@/features/inbox-v2/hooks";
 import { findLastPublicMessageChannelId } from "@/features/inbox-v2/hooks/use-channels";
 import {
+  patchMessageStatus,
+  shouldRefetchMessagesOnStatus,
+  type MessageStatusEvent,
+} from "@/features/inbox-v2/message-status-patch";
+import {
   isImmediateMediaSrc,
   LazyChatDocument,
   LazyChatImage,
@@ -677,7 +682,8 @@ export function ChatWindow({
     enabled: !!conversationId,
     staleTime: 20_000,
     gcTime: 5 * 60_000,
-    refetchInterval: conversationId && visible ? 45_000 : false,
+    // SSE (new_message + patch do tique) mantém a conversa; poll é safety-net.
+    refetchInterval: conversationId && visible ? 90_000 : false,
     refetchIntervalInBackground: false,
   });
   const messages = messagesData?.messages ?? [];
@@ -983,8 +989,19 @@ export function ChatWindow({
         )
           return;
         const p = data as { conversationId?: string };
-        if (p.conversationId === conversationId)
-          queryClient.invalidateQueries({ queryKey: messagesKey });
+        if (p.conversationId !== conversationId) return;
+        if (event === "message_status") {
+          // Tique (delivered/read) só patcha a bolha em cache, como o
+          // inbox-v2 (`use-realtime.ts`). Refetch só em `failed`.
+          const evt = data as MessageStatusEvent;
+          queryClient.setQueryData<MessagesResponse>(messagesKey, (old) =>
+            patchMessageStatus(old, evt),
+          );
+          if (shouldRefetchMessagesOnStatus(evt.status))
+            queryClient.invalidateQueries({ queryKey: messagesKey });
+          return;
+        }
+        queryClient.invalidateQueries({ queryKey: messagesKey });
         // Lista: useInboxRealtime já patcha o card. Invalidar
         // inbox-conversations em todo new_message da org relistava a fila.
       },
@@ -1265,8 +1282,11 @@ export function ChatWindow({
       if (!conversationId) throw new Error("Sem conversa");
       return postForward(targetId, conversationId, messageRef);
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
+    onSuccess: (data, vars) => {
+      // Só origem e destino — `["messages"]` inteiro refazia todos os chats abertos.
+      queryClient.invalidateQueries({ queryKey: messagesKey });
+      if (vars.targetId !== conversationId)
+        queryClient.invalidateQueries({ queryKey: inboxMessagesKey(vars.targetId) });
       queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
       setForwardingMessage(null);
       setForwardSearch("");
