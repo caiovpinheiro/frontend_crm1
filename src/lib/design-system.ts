@@ -157,7 +157,7 @@ export const ds = {
     solid:
       "inline-flex max-w-[88px] items-center truncate rounded-lg px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-white",
     /** Chip principal de tag — variante maior, pra contextos com
-     *  tipografia destacada (header do chat, contact-info-panel). */
+     *  tipografia destacada (header do chat, painel lateral do contato). */
     solidLg:
       "inline-flex items-center truncate rounded-lg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white",
     /** Chip "+N" (mais tags ocultas). */

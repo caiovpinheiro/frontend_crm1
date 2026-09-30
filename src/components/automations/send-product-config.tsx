@@ -2,7 +2,7 @@
 
 /**
  * Seletor de produto (+ preço/canal de curso) para o passo send_product.
- * Usado na edição inline do canvas e no StepConfigPanel legado.
+ * Usado na edição inline do canvas (via inline-editor).
  */
 
 import { useState } from "react";
