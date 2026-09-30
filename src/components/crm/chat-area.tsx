@@ -154,6 +154,24 @@ interface ChatAreaProps {
   onPinMessage?: (message: Message) => void
   onFavoriteMessage?: (message: Message) => void
 
+  // ── Ações de nota interna (NoteRow) ─────────────────────────────
+  // Só chegam às bolhas com `isNote`; o host liga em
+  // `usePinNote/useUpdateNote/useDeleteNote/useAddNoteToLog`.
+  /** Fixar (`noteId`) ou desafixar (`null`) a nota interna da conversa. */
+  onPinNote?: (noteId: string | null) => void
+  /** Editar o texto de uma nota. Promise mantém o modo de edição até concluir. */
+  onEditNote?: (noteId: string, content: string) => void | Promise<unknown>
+  /** Excluir uma nota interna (confirmação fica a cargo do host). */
+  onDeleteNote?: (noteId: string) => void
+  /** Copiar o texto da nota para o log/timeline do negócio (precisa de deal). */
+  onAddToLog?: (content: string) => void
+  /**
+   * Nota interna fixada (`MessagesResponse.pinnedNoteId` resolvida pelo
+   * host). Banner "Nota fixada" acima da lista: clicar rola até a nota;
+   * o X chama `onPinNote(null)`. A nota continua no lugar original.
+   */
+  pinnedNote?: { id: string; content: string; senderName?: string | null } | null
+
   /**
    * Mensagens fixadas no topo da conversa (banner estilo WhatsApp). Podem
    * ser várias (máx. 3). O banner exibe uma por vez; clicar cicla para a
@@ -244,6 +262,11 @@ export function ChatArea({
   onReactMessage,
   onPinMessage,
   onFavoriteMessage,
+  onPinNote,
+  onEditNote,
+  onDeleteNote,
+  onAddToLog,
+  pinnedNote,
   pinnedMessages,
   onUnpinMessage,
   conversationResolved,
@@ -853,6 +876,38 @@ export function ChatArea({
           </div>
         )
       })()}
+      {/* NOTA FIXADA — banner permanente enquanto a nota estiver fixada
+          (portado do deal-chat-binding). Clicar rola até a nota. */}
+      {pinnedNote && (
+        <div className="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-lg border border-[var(--brand-primary)]/25 bg-[var(--brand-primary)]/[0.08] px-3 py-2">
+          <IconLock size={14} className="shrink-0 text-[var(--brand-primary)]" />
+          <button
+            type="button"
+            onClick={() => scrollToMessage(pinnedNote.id)}
+            className="min-w-0 flex-1 cursor-pointer text-left"
+            aria-label="Ir para a nota fixada"
+          >
+            <p className="flex items-center gap-1.5 font-display text-[10px] font-bold uppercase tracking-wider text-[var(--brand-primary)]">
+              <IconPinFilled size={10} aria-hidden />
+              Nota fixada
+            </p>
+            <p className="truncate text-[12.5px] text-[var(--text-secondary)]">
+              {pinnedNote.senderName ? `${pinnedNote.senderName}: ` : ""}
+              {pinnedNote.content}
+            </p>
+          </button>
+          {onPinNote && (
+            <button
+              type="button"
+              onClick={() => onPinNote(null)}
+              aria-label="Desafixar nota"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
+            >
+              <IconX size={14} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col">
       {/* MESSAGES — única área rolável; min-h-0 permite encolher e manter
           o footer (composer) sempre visível na base. */}
@@ -961,8 +1016,9 @@ export function ChatArea({
               }
             }
             const isEvent = message.kind === "event"
+            const isNoteBubble = message.isNote === true
             const lane: "in" | "out" | "other" =
-              isEvent || message.isNote ? "other" : message.type === "outgoing" ? "out" : "in"
+              isEvent || isNoteBubble ? "other" : message.type === "outgoing" ? "out" : "in"
             const clusterBreak = !isNewDay && lastLane !== null && lastLane !== lane
             lastLane = lane
             return (
@@ -1002,6 +1058,11 @@ export function ChatArea({
                       agentInitials={agentInitials}
                       agentName={agentName}
                       senderPhotoByName={senderPhotoByName}
+                      isPinned={isNoteBubble && message.id === pinnedNote?.id}
+                      onPinNote={isNoteBubble ? onPinNote : undefined}
+                      onEditNote={isNoteBubble ? onEditNote : undefined}
+                      onDeleteNote={isNoteBubble ? onDeleteNote : undefined}
+                      onAddToLog={isNoteBubble ? onAddToLog : undefined}
                       onReplyMessage={onReplyMessage}
                       onForwardMessage={onForwardMessage}
                       onReactMessage={onReactMessage}
