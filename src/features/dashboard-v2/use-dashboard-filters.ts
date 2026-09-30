@@ -20,7 +20,11 @@ import {
   pipelineUrlParam,
 } from "@/features/pipeline-v2/hooks/use-pipeline-url-sync";
 import {
+  createRemoteSliceSaver,
+  loadRemoteDashboard,
   readJsonWithFallback,
+  resolveDashboardSlice,
+  saveDashboardSlice,
   scopedKey,
   useDashboardStorageScope,
   writeJson,
@@ -271,8 +275,12 @@ export function useDashboardFilters(
   const searchParams = useSearchParams();
   const { ready, userId, keyPart } = useDashboardStorageScope();
   const restoredRef = useRef(false);
-  // Restore do localStorage concluído — parte do gate `settled`.
+  const allowRemoteRef = useRef(false);
+  const saverRef = useRef(createRemoteSliceSaver("filters"));
+  // Restore (URL, backend ou localStorage) concluído — parte do gate `settled`.
   const [restored, setRestored] = useState(false);
+
+  useEffect(() => () => saverRef.current.flush(), []);
 
   const urlFilters = useMemo(
     () =>
@@ -336,7 +344,13 @@ export function useDashboardFilters(
         sources: next.sources ?? [],
       };
       setOptimistic(normalized);
-      if (keyPart) writeJson(scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart), normalized);
+      if (keyPart) {
+        const storageKey = scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart);
+        writeJson(storageKey, normalized);
+        if (allowRemoteRef.current) {
+          saverRef.current.schedule({ storageKey, value: normalized });
+        }
+      }
       const qs = toSearchParams(normalized, pipelines, searchParams);
       const url = qs ? `${pathname}?${qs}` : pathname;
       if (typeof window !== "undefined") {
@@ -366,20 +380,49 @@ export function useDashboardFilters(
 
   useEffect(() => {
     if (!ready || !keyPart || !userId || restoredRef.current) return;
-    restoredRef.current = true;
-    setRestored(true);
+    let cancelled = false;
+    const storageKey = scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart);
     const sp = new URLSearchParams(searchParams.toString());
     if (urlHasDashboardFilters(sp)) {
-      writeJson(scopedKey(DASHBOARD_FILTERS_KEY_PREFIX, keyPart), urlFilters);
+      restoredRef.current = true;
+      allowRemoteRef.current = true;
+      setRestored(true);
+      writeJson(storageKey, urlFilters);
+      saverRef.current.schedule({ storageKey, value: urlFilters });
       return;
     }
-    const saved = readJsonWithFallback<unknown>(
-      DASHBOARD_FILTERS_KEY_PREFIX,
-      keyPart,
-      userId,
-    );
-    if (!isFiltersState(saved)) return;
-    setFilters(saved);
+    void (async () => {
+      const localRaw = readJsonWithFallback<unknown>(
+        DASHBOARD_FILTERS_KEY_PREFIX,
+        keyPart,
+        userId,
+      );
+      const local = isFiltersState(localRaw) ? localRaw : null;
+      const remote = await loadRemoteDashboard();
+      if (cancelled) return;
+      restoredRef.current = true;
+      allowRemoteRef.current = true;
+      const picked = resolveDashboardSlice(remote, "filters", local);
+      if (picked.source === "remote" && isFiltersState(picked.value)) {
+        writeJson(storageKey, picked.value);
+        setFilters(picked.value);
+      } else if (picked.migrate && local) {
+        await saveDashboardSlice({
+          storageKey,
+          metaKey: "filters",
+          value: local,
+        });
+        if (!cancelled) setFilters(local);
+      }
+      // Restore concluído (também quando nada foi escolhido): libera o gate
+      // `settled`. `restoredRef` já é true e o efeito não roda de novo, por
+      // isso não depende de `cancelled` — senão o gate travaria se as deps
+      // mudassem durante o PATCH da migração.
+      setRestored(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [ready, keyPart, userId, searchParams, urlFilters, setFilters]);
 
   // Painéis só disparam com os filtros assentados (funil resolvido para

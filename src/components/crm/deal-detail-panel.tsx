@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react"
 import {
   DragDropContext,
   Droppable,
@@ -1676,12 +1676,18 @@ export function DealDetailPanel({
                 className="shrink-0 border-t border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)]/95 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] pt-1 backdrop-blur-md"
               >
                 {sessionAlertSlot}
-                {composerSlot ? composerSlot : <FallbackComposer />}
-                {/* Nº da conversa sobe pro Composer quando há composerSlot.
-                    Aqui resta só a presença "quem está vendo" à direita. */}
-                <div className="flex items-center justify-end gap-2 px-4 pt-0.5">
-                  {viewersSlot}
-                </div>
+                {composerSlot ? (
+                  isValidElement(composerSlot) ? (
+                    cloneElement(
+                      composerSlot as ReactElement<{ viewersSlot?: React.ReactNode }>,
+                      { viewersSlot },
+                    )
+                  ) : (
+                    composerSlot
+                  )
+                ) : (
+                  <FallbackComposer />
+                )}
               </div>
             </main>
           ) : (

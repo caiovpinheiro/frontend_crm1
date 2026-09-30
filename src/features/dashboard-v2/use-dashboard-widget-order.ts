@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  createRemoteSliceSaver,
+  loadRemoteDashboard,
   readJsonWithFallback,
+  resolveDashboardSlice,
+  saveDashboardSlice,
   scopedKey,
   useDashboardStorageScope,
   writeJson,
@@ -39,6 +43,7 @@ export const SERVICE_BOARD_WIDGET_IDS = [
 
 export const OPERATOR_WIDGET_IDS = [
   "kpis",
+  "inboundStages",
   "conversations",
   "tasks",
   "stalled",
@@ -62,6 +67,11 @@ const TAB_STORAGE: Record<string, string> = {
   tabulations: "dashboard-widget-order-tabulacoes",
   operator: "dashboard-widget-order-fila",
 };
+
+function remoteOrderKey(tab: string): "service" | "operator" | null {
+  if (tab === "service" || tab === "operator") return tab;
+  return null;
+}
 
 type OrderStore = {
   order: string[];
@@ -270,31 +280,66 @@ export function useDashboardWidgetOrder(
   const [order, setOrder] = useState<string[]>(() => [...defaults]);
   const [hidden, setHidden] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const remoteKey = remoteOrderKey(tab);
+  const saverRef = useRef(createRemoteSliceSaver(remoteKey ?? tab));
+
+  useEffect(() => () => saverRef.current.flush(), []);
 
   useEffect(() => {
     if (!enabled || !ready || !keyPart || !userId) return;
-    const saved = readJsonWithFallback<unknown>(prefix, keyPart, userId);
-    let parsed =
-      tab === "service"
-        ? parseServiceBoard(
-            saved,
-            readLegacyTabulationOrder(keyPart, userId),
-            readNegociosTabulationOrder(keyPart, userId),
-          )
-        : parseStore(saved, defaultsKey.split(","), allowHide);
-    if (pinnedIds?.length) {
-      const pinned = new Set(pinnedIds);
-      const rest = parsed.order.filter((id) => !pinned.has(id));
-      parsed = {
-        order: uniqueIds([...mergeOrder(parsed.order, pinnedIds, true), ...rest]),
-        hidden: (parsed.hidden ?? []).filter((id) => !pinned.has(id)),
-      };
+    let cancelled = false;
+    const storageKeyNow = scopedKey(prefix, keyPart);
+
+    const apply = (raw: unknown) => {
+      let parsed =
+        tab === "service"
+          ? parseServiceBoard(
+              raw,
+              readLegacyTabulationOrder(keyPart, userId),
+              readNegociosTabulationOrder(keyPart, userId),
+            )
+          : parseStore(raw, defaultsKey.split(","), allowHide);
+      if (pinnedIds?.length) {
+        const pinned = new Set(pinnedIds);
+        const rest = parsed.order.filter((id) => !pinned.has(id));
+        parsed = {
+          order: uniqueIds([...mergeOrder(parsed.order, pinnedIds, true), ...rest]),
+          hidden: (parsed.hidden ?? []).filter((id) => !pinned.has(id)),
+        };
+      }
+      setOrder(parsed.order);
+      setHidden(parsed.hidden ?? []);
+      const stored = persistValue(parsed, allowHide);
+      writeJson(storageKeyNow, stored);
+      return stored;
+    };
+
+    if (!remoteKey) {
+      apply(readJsonWithFallback<unknown>(prefix, keyPart, userId));
+      setHydrated(true);
+      return;
     }
-    setOrder(parsed.order);
-    setHidden(parsed.hidden ?? []);
-    writeJson(scopedKey(prefix, keyPart), persistValue(parsed, allowHide));
-    setHydrated(true);
-  }, [allowHide, defaultsKey, enabled, keyPart, pinnedKey, prefix, ready, tab, userId]);
+
+    void (async () => {
+      const localRaw = readJsonWithFallback<unknown>(prefix, keyPart, userId);
+      const remote = await loadRemoteDashboard();
+      if (cancelled) return;
+      const picked = resolveDashboardSlice(remote, remoteKey, localRaw);
+      const stored = apply(picked.value);
+      if (picked.migrate && stored != null) {
+        await saveDashboardSlice({
+          storageKey: storageKeyNow,
+          metaKey: remoteKey,
+          value: stored,
+        });
+      }
+      if (!cancelled) setHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [allowHide, defaultsKey, enabled, keyPart, pinnedKey, prefix, ready, remoteKey, tab, userId]);
 
   const write = useCallback(
     (nextOrder: string[], nextHidden: string[]) => {
@@ -312,9 +357,13 @@ export function useDashboardWidgetOrder(
       }
       setOrder(orderIds);
       setHidden(hiddenIds);
-      writeJson(storageKey, persistValue({ order: orderIds, hidden: hiddenIds }, allowHide));
+      const stored = persistValue({ order: orderIds, hidden: hiddenIds }, allowHide);
+      writeJson(storageKey, stored);
+      if (remoteKey) {
+        saverRef.current.schedule({ storageKey, value: stored });
+      }
     },
-    [allowHide, defaults, enabled, hydrated, pinnedIds, storageKey],
+    [allowHide, defaults, enabled, hydrated, pinnedIds, remoteKey, storageKey],
   );
 
   const reorder = useCallback(

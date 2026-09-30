@@ -21,6 +21,19 @@ import { normalizeSearchQuery } from "@/lib/search-query";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { mergeBoardKeepingLiveActivity } from "../board-live-activity";
 
+/** `structuralSharing` do React Query tipa os dois lados como `unknown`. */
+function shareLiveBoard(
+  oldData: unknown,
+  newData: unknown,
+  retainOutliers: boolean,
+): BoardStageDto[] {
+  return mergeBoardKeepingLiveActivity(
+    Array.isArray(oldData) ? (oldData as BoardStageDto[]) : undefined,
+    (newData as BoardStageDto[]) ?? [],
+    { retainOutliers },
+  );
+}
+
 /** Página de cards por coluna no Kanban (scroll soma +10). */
 export const BOARD_PAGE_SIZE = 10;
 
@@ -110,11 +123,7 @@ export function useBoard(params: {
     // SSE grava lastMessage na hora. Um refetch com cache de 45s não pode
     // voltar o card para a mensagem anterior (a fila do Flow pularia).
     structuralSharing: (oldData, newData) =>
-      mergeBoardKeepingLiveActivity(
-        oldData as BoardStageDto[] | undefined,
-        newData as BoardStageDto[],
-        { retainOutliers: sort?.field === "lastInteraction" },
-      ),
+      shareLiveBoard(oldData, newData, sort?.field === "lastInteraction"),
   });
 }
 
@@ -170,10 +179,10 @@ export function useBoardSearch(params: {
     // buscado — sem piscar em branco entre teclas (já debounced no caller).
     placeholderData: (prev) => prev,
     structuralSharing: (oldData, newData) =>
-      mergeBoardKeepingLiveActivity(
-        oldData as BoardStageDto[] | undefined,
-        newData as BoardStageDto[],
-        { retainOutliers: params.sort?.field === "lastInteraction" },
+      shareLiveBoard(
+        oldData,
+        newData,
+        params.sort?.field === "lastInteraction",
       ),
   });
 }
@@ -229,10 +238,10 @@ export function useBoardFiltered(params: {
     // kanban) ainda fazem fallback pro GET em cache no 1º POST.
     placeholderData: (previousData) => previousData,
     structuralSharing: (oldData, newData) =>
-      mergeBoardKeepingLiveActivity(
-        oldData as BoardStageDto[] | undefined,
-        newData as BoardStageDto[],
-        { retainOutliers: params.sort?.field === "lastInteraction" },
+      shareLiveBoard(
+        oldData,
+        newData,
+        params.sort?.field === "lastInteraction",
       ),
   });
 }

@@ -10,9 +10,11 @@ import {
   type DashboardChartType,
 } from "@/features/dashboard-v2/chart-types";
 import {
-  fetchRemoteDashboardMeta,
-  putRemoteDashboardLayout,
+  createRemoteSliceSaver,
+  loadRemoteDashboard,
   readJsonWithFallback,
+  resolveDashboardSlice,
+  saveDashboardSlice,
   scopedKey,
   useDashboardStorageScope,
   writeJson,
@@ -483,35 +485,51 @@ export function useNegociosGrid() {
     };
   });
   const [hydrated, setHydrated] = useState(false);
-  const remoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Assinatura do último payload enviado (ou hidratado) — PUT só quando muda.
+  const saverRef = useRef(createRemoteSliceSaver("negocios"));
+  // Assinatura do último payload agendado (ou hidratado) — só vai ao servidor
+  // quando muda. O saver debounça, mas não deduplica.
   const lastRemoteSig = useRef<string | null>(null);
   const storeRef = useRef(store);
   storeRef.current = store;
+
+  useEffect(() => () => saverRef.current.flush(), []);
 
   useEffect(() => {
     if (!ready || !keyPart || !userId) return;
     let cancelled = false;
     snapshotNegociosTabulationsIfNeeded(keyPart, userId);
+    const storageKeyNow = scopedKey(NEGOCIOS_GRID_KEY_PREFIX, keyPart);
     const local = readLocalStore(NEGOCIOS_GRID_KEY_PREFIX, keyPart, userId);
-    if (local) {
-      setStore(local);
-      writeJson(scopedKey(NEGOCIOS_GRID_KEY_PREFIX, keyPart), local);
-      lastRemoteSig.current = remoteLayoutSignature(toRemotePayload(local));
-      setHydrated(true);
-      return undefined;
-    }
-    void fetchRemoteDashboardMeta<{ v?: number; negocios?: unknown }>().then((meta) => {
+    void loadRemoteDashboard().then(async (remote) => {
       if (cancelled) return;
-      const remote = parseStore(meta?.negocios);
-      if (remote) {
-        setStore(remote);
-        writeJson(scopedKey(NEGOCIOS_GRID_KEY_PREFIX, keyPart), remote);
-        lastRemoteSig.current = remoteLayoutSignature(toRemotePayload(remote));
+      const picked = resolveDashboardSlice(remote, "negocios", local);
+      if (picked.source === "remote") {
+        const parsed = parseStore(picked.value);
+        setStore(parsed ?? emptyStore());
+        if (parsed) {
+          writeJson(storageKeyNow, parsed);
+          lastRemoteSig.current = remoteLayoutSignature(toRemotePayload(parsed));
+        }
+      } else if (picked.migrate && local) {
+        setStore(local);
+        const payload = toRemotePayload(local);
+        lastRemoteSig.current = remoteLayoutSignature(payload);
+        await saveDashboardSlice({
+          storageKey: storageKeyNow,
+          metaKey: "negocios",
+          value: local,
+          extra: {
+            visibleWidgets: payload.visibleWidgets,
+            layout: payload.layout,
+          },
+        });
+      } else if (local) {
+        setStore(local);
+        lastRemoteSig.current = remoteLayoutSignature(toRemotePayload(local));
       } else {
         setStore(emptyStore());
       }
-      setHydrated(true);
+      if (!cancelled) setHydrated(true);
     });
     return () => {
       cancelled = true;
@@ -538,20 +556,18 @@ export function useNegociosGrid() {
       ) {
         return;
       }
-      if (remoteTimer.current) clearTimeout(remoteTimer.current);
-      remoteTimer.current = setTimeout(() => {
-        lastRemoteSig.current = nextSignature;
-        void putRemoteDashboardLayout(payload);
-      }, 800);
+      lastRemoteSig.current = nextSignature;
+      saverRef.current.schedule({
+        storageKey,
+        value: next,
+        extra: {
+          visibleWidgets: payload.visibleWidgets,
+          layout: payload.layout,
+        },
+      });
     },
     [hydrated, storageKey],
   );
-
-  useEffect(() => {
-    return () => {
-      if (remoteTimer.current) clearTimeout(remoteTimer.current);
-    };
-  }, []);
 
   const hiddenWidgetIds = store.hiddenWidgetIds ?? EMPTY_HIDDEN;
 

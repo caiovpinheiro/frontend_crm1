@@ -288,10 +288,22 @@ export interface DashboardMeItem {
   meta: string | null;
 }
 
+export interface DashboardMeInboundDeal {
+  id: string;
+  number: number;
+  title: string;
+  stageId: string;
+  stageName: string;
+  pipelineName: string;
+  count: number;
+  waitingSince: string;
+}
+
 export interface DashboardMeData {
   conversations: { total: number; items: DashboardMeItem[] };
   activities: { overdue: number; today: number; items: DashboardMeItem[] };
   stalled: { total: number; items: DashboardMeItem[] };
+  inboundDeals?: DashboardMeInboundDeal[];
 }
 
 export async function fetchDashboardMe(): Promise<DashboardMeData> {

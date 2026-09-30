@@ -699,6 +699,10 @@ export default function KanbanV2ClientPage({
   // (número → CUID) fazia join/leave/join na mesma abertura.
   const stableDealId = stableDealIdForEffects(activeDealId);
   const dealViewers = useEntityViewers("deal", stableDealId);
+  const dealViewersSlot = useMemo(
+    () => <DealViewersStack viewers={dealViewers} variant="banner" />,
+    [dealViewers],
+  );
 
   // Quando dealDetail carrega via lookup por número sequencial (?deal=102),
   // troca activeDealId para o CUID real (mutations usam CUID). Semeia o
@@ -1223,7 +1227,7 @@ export default function KanbanV2ClientPage({
         isOpen={!!activeDealId}
         onClose={() => setActiveDeal(null)}
         deal={dealDetailVm ?? undefined}
-        viewersSlot={<DealViewersStack viewers={dealViewers} variant="banner" />}
+        viewersSlot={dealViewersSlot}
         stageRibbonSlot={
           stagePickerDealId && activeDealStageId ? (
             <div className="flex items-center gap-1">

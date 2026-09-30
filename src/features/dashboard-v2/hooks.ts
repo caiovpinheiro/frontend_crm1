@@ -378,7 +378,7 @@ export function useDashboardMe(enabled = true) {
     queryKey: ["dashboard-v2", "me"],
     queryFn: fetchDashboardMe,
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 15_000,
+    staleTime: 0,
     refetchInterval: visible ? 60_000 : false,
     refetchIntervalInBackground: false,
   });
