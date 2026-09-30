@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/crm/empty-state";
 import { StatCard } from "@/components/crm/stat-card";
 import { ChartCard } from "@/components/crm/chart-card";
 import { formatNumber, textMatchesQuery } from "@/features/dashboard-v2/format";
-import type { DashboardMeData, DashboardMeItem, DashboardMeStageCount } from "@/features/dashboard-v2/api";
+import type { DashboardMeData, DashboardMeInboundDeal, DashboardMeItem } from "@/features/dashboard-v2/api";
 import type { OperatorWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
 
 export function OperatorDashboardWidget({
@@ -115,7 +115,7 @@ export function OperatorDashboardWidget({
         />
       );
     case "inboundStages":
-      return <InboundByStageCard rows={data.inboundByStage ?? []} search={q} />;
+      return <InboundByStageCard rows={data.inboundDeals ?? []} search={q} />;
   }
 }
 
@@ -123,14 +123,15 @@ function InboundByStageCard({
   rows,
   search,
 }: {
-  rows: DashboardMeStageCount[];
+  rows: DashboardMeInboundDeal[];
   search: string;
 }) {
   const visible = rows.filter(
     (row) =>
-      textMatchesQuery(row.stageName, search) || textMatchesQuery(row.pipelineName, search),
+      textMatchesQuery(row.title, search) ||
+      textMatchesQuery(row.stageName, search) ||
+      textMatchesQuery(row.pipelineName, search),
   );
-  const max = visible.reduce((top, row) => Math.max(top, row.count), 0);
 
   return (
     <ChartCard
@@ -142,43 +143,32 @@ function InboundByStageCard({
         <EmptyState
           icon={<IconMessage size={24} />}
           title="Nenhuma mensagem sem resposta"
-          description="Quando um cliente falar e o negócio for seu, a etapa aparece aqui."
+          description="Quando um cliente falar e o negócio for seu, ele aparece aqui."
           className="py-10"
         />
       ) : (
         <ul className="divide-y divide-[var(--glass-border-subtle)]">
-          {visible.map((row) => {
-            const href =
-              row.pipelineNumber > 0 ? `/pipeline?pipeline=${row.pipelineNumber}` : "/pipeline";
-            const width = max > 0 ? Math.max(8, Math.round((row.count / max) * 100)) : 0;
-            return (
-              <li key={row.stageId}>
-                <Link
-                  href={href}
-                  className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--glass-bg-subtle)]"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
-                      {row.stageName}
-                    </p>
-                    <p className="truncate font-body text-[11px] text-[var(--text-muted)]">
-                      {row.pipelineName}
-                    </p>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--glass-bg-subtle)]">
-                      <div
-                        className="h-full rounded-full bg-[var(--brand-primary)]"
-                        style={{ width: `${width}%` }}
-                      />
-                    </div>
-                  </div>
-                  <span className="shrink-0 font-display text-[16px] font-bold tabular-nums text-[var(--text-primary)]">
-                    {formatNumber(row.count)}
-                  </span>
-                  <IconChevronRight size={14} className="shrink-0 text-[var(--text-muted)]" />
-                </Link>
-              </li>
-            );
-          })}
+          {visible.map((row) => (
+            <li key={row.id}>
+              <Link
+                href={`/pipeline?deal=${row.number}`}
+                className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--glass-bg-subtle)]"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
+                    #{row.number} · {row.title}
+                  </p>
+                  <p className="truncate font-body text-[11px] text-[var(--text-muted)]">
+                    {row.pipelineName} · {row.stageName}
+                  </p>
+                </div>
+                <span className="shrink-0 font-display text-[16px] font-bold tabular-nums text-[var(--text-primary)]">
+                  {formatNumber(row.count)}
+                </span>
+                <IconChevronRight size={14} className="shrink-0 text-[var(--text-muted)]" />
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
     </ChartCard>
