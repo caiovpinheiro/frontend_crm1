@@ -133,7 +133,7 @@ type Catalogs = {
   users: Array<{ id: string; name: string; type: string }>;
   aiAgents: Array<{ id: string; name: string }>;
   messageTemplates: Array<{ id: string; name: string }>;
-  knowledgeDocs: Array<{ id: string; name: string }>;
+  knowledgeDocs: Array<{ id: string; name?: string; title?: string }>;
   channels: Array<{ id: string; name: string }>;
   pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
   tags?: Array<{ id: string; name: string }>;
@@ -4974,7 +4974,10 @@ function ThemeEditor({
             <Field label="Materiais extras" hint="Somam aos materiais gerais.">
               <MultiSelectPopover
                 label="Materiais"
-                options={catalogs.knowledgeDocs.map((d) => ({ value: d.id, label: d.name }))}
+                options={catalogs.knowledgeDocs.map((d) => ({
+                  value: d.id,
+                  label: d.name?.trim() || d.title?.trim() || "Material sem nome",
+                }))}
                 selected={((t.allowedKnowledgeDocIds as string[]) ?? []).map(String)}
                 onChange={(v) => onPatch({ allowedKnowledgeDocIds: v })}
               />
@@ -6360,7 +6363,6 @@ function StepTestPublish({
       const r = await testAgent(agentId, text, history, testContactId || undefined, testStage, lastThemeId, testModel || undefined);
       setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, result: r } : t)));
       if (r.stage) setTestStage(r.stage);
-      setOpenWhyId(turnId);
     } catch (err) {
       setTurns((prev) =>
         prev.map((t) => (t.id === turnId ? { ...t, error: err instanceof Error ? err.message : "Erro no teste" } : t)),
