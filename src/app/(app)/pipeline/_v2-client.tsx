@@ -51,7 +51,8 @@ import { pickTrackedAttribution } from "@/components/crm/tracked-info-section";
 import { DealProductsSection, DealQuotasSection } from "@/components/pipeline/deal-detail/sidebar";
 import { CallHistoryList } from "@/features/softphone/components/call-history-list";
 import { ActivitiesPanel } from "@/components/pipeline/deal-workspace/panels/activities";
-import { DealCallButton } from "@/features/softphone/components/deal-call-button";
+import { ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton";
+import { ConversationChatHost } from "@/features/inbox-v2/extras/conversation-chat-host";
 import { ContactEditDialog } from "@/components/crm/contact-edit-dialog";
 import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
 import { Chip } from "@/components/crm/chip";
@@ -122,6 +123,7 @@ import {
   TagsPopover,
   WinButton,
   DealChatBindingHost,
+  DealChatEmptyState,
 } from "@/features/pipeline-v2/extras";
 import { PipelineChannelsModal } from "@/features/pipeline-v2/extras/pipeline-channels-modal";
 import { computePopoverPosition } from "@/features/pipeline-v2/extras/use-portal-popover";
@@ -896,6 +898,9 @@ export default function KanbanV2ClientPage({
             status?: string | null;
             closedAt?: string | null;
             number?: number | null;
+            channel?: string | null;
+            lastInboundAt?: string | null;
+            assignedTo?: { id: string } | null;
             departmentId?: string | null;
             department?: {
               id: string;
@@ -933,6 +938,13 @@ export default function KanbanV2ClientPage({
     departmentId: dealConversationDepartmentId,
     requireTabulationOnClose: dealConversationRequiresTabulation,
   };
+
+  // Reabrir/encerrar pelo chat: o ticket ativo muda no GET do negócio.
+  function refreshActiveDealDetail() {
+    if (activeDealId) {
+      queryClient.invalidateQueries({ queryKey: dealDetailKey(activeDealId) });
+    }
+  }
 
   // Painel do negócio abre na conversa: marca como lida (como o inbox) e
   // tira o contador dos cards do contato no board em cache.
@@ -1215,12 +1227,9 @@ export default function KanbanV2ClientPage({
 
       <DealChatBindingHost {...dealChatBindingParams}>
         {({
-          messagesNode,
-          composerNode,
-          sessionAlertNode,
-          templateModal,
+          effectiveConversationId,
+          ensuring,
           pinnedNote,
-          pinnedMessageSlot,
           connection: dealConnection,
         }) => (
           <>
@@ -1228,7 +1237,43 @@ export default function KanbanV2ClientPage({
         isOpen={!!activeDealId}
         onClose={() => setActiveDeal(null)}
         deal={dealDetailVm ?? undefined}
-        viewersSlot={dealViewersSlot}
+        chatSlot={
+          ensuring ? (
+            <ConversationThreadSkeleton />
+          ) : effectiveConversationId && dealContactId ? (
+            <ConversationChatHost
+              key={effectiveConversationId}
+              conversationId={effectiveConversationId}
+              conversation={
+                dealConversation?.id === effectiveConversationId
+                  ? {
+                      status: dealConversation.status ?? null,
+                      number: dealConversation.number ?? null,
+                      closedAt: dealConversation.closedAt ?? null,
+                      lastInboundAt: dealConversation.lastInboundAt ?? null,
+                      assignedToId: dealConversation.assignedTo?.id ?? null,
+                    }
+                  : { status: "OPEN" }
+              }
+              contact={{
+                id: dealContactId,
+                name: dealContactName,
+                phone: dealDetailVm?.phone ?? null,
+                channel: dealConversation?.channel ?? null,
+              }}
+              dealId={dealDetail?.id ?? activeDealId}
+              pipelineId={pipelineId}
+              departmentId={dealConversationDepartmentId}
+              requireTabulationOnClose={dealConversationRequiresTabulation}
+              viewersSlot={dealViewersSlot}
+              showTabs={false}
+              onConversationReopened={refreshActiveDealDetail}
+              onResolved={refreshActiveDealDetail}
+            />
+          ) : (
+            <DealChatEmptyState />
+          )
+        }
         stageRibbonSlot={
           stagePickerDealId && activeDealStageId ? (
             <div className="flex items-center gap-1">
@@ -1340,15 +1385,6 @@ export default function KanbanV2ClientPage({
           ) : undefined
         }
         deleteSlot={undefined}
-        callButtonSlot={
-          activeDealId && dealDetailVm ? (
-            <DealCallButton
-              dealId={activeDealId}
-              phone={dealDetailVm.phone ?? null}
-              contactId={dealDetailVm.contactId ?? undefined}
-            />
-          ) : null
-        }
         moreActionsSlot={
           activeDealId ? (
             <DealActionsMenu
@@ -1438,26 +1474,7 @@ export default function KanbanV2ClientPage({
               highlight: f.highlight ?? null,
             }));
         })()}
-        messagesSlot={messagesNode}
-        composerSlot={composerNode}
-        sessionAlertSlot={sessionAlertNode ?? null}
-        pinnedMessageSlot={pinnedMessageSlot}
         connection={dealConnection}
-        conversationId={dealConversationId}
-        isResolved={
-          (dealDetail?.contact as { conversations?: { status?: string }[] } | null | undefined)
-            ?.conversations?.[0]?.status === "RESOLVED"
-        }
-        conversationNumber={
-          (dealDetail?.contact as { conversations?: { number?: number | null }[] } | null | undefined)
-            ?.conversations?.[0]?.number ?? null
-        }
-        conversationClosedAt={
-          (dealDetail?.contact as { conversations?: { closedAt?: string | null }[] } | null | undefined)
-            ?.conversations?.[0]?.closedAt ?? null
-        }
-        conversationDepartmentId={dealConversationDepartmentId}
-        conversationRequiresTabulation={dealConversationRequiresTabulation}
         tabContentOverride={{
           keeps: <KeepPeekPanel />,
           ...(activeDealId
@@ -1579,7 +1596,6 @@ export default function KanbanV2ClientPage({
           ) : null
         }
       />
-            {templateModal}
           </>
         )}
       </DealChatBindingHost>

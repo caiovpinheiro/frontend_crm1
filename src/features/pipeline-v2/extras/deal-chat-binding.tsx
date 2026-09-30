@@ -109,6 +109,10 @@ const IsolatedDealComposer = memo(function IsolatedDealComposer({
 });
 
 interface DealChatBindingResult {
+  /** Conversa efetiva: a do deal ou a recém-garantida pelo auto-ensure. */
+  effectiveConversationId: string | null;
+  /** Ainda garantindo a conversa do contato (skeleton no lugar do chat). */
+  ensuring: boolean;
   messagesNode: React.ReactNode;
   composerNode: React.ReactNode;
   sessionAlertNode: React.ReactNode | undefined;
@@ -822,27 +826,7 @@ export function useDealChatBinding(params: {
   if (messagesBootstrapping) {
     messagesNode = <ConversationThreadSkeleton />;
   } else if (!effectiveConversationId) {
-    messagesNode = (
-      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]">
-          <IconMessageCirclePlus size={28} />
-        </div>
-        <h3 className="mt-4 font-display text-[15px] font-bold text-[var(--text-primary)]">
-          Sem conversa vinculada
-        </h3>
-        <p className="mt-1.5 max-w-[340px] font-display text-[13px] leading-relaxed text-[var(--text-muted)]">
-          Este negócio ainda não tem contato com WhatsApp. Vincule um contato
-          com telefone para conversar por aqui.
-        </p>
-        <Link
-          href="/inbox"
-          className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[var(--brand-primary)] px-5 py-2.5 font-display text-[13px] font-bold text-white shadow-[var(--glass-shadow-sm)] transition-opacity hover:opacity-90"
-        >
-          <IconMessageCirclePlus size={16} />
-          Abrir Caixa de Entrada
-        </Link>
-      </div>
-    );
+    messagesNode = <DealChatEmptyState />;
   } else if (messagesFailed && !messagesResp) {
     messagesNode = (
       <AppLoading
@@ -1203,6 +1187,8 @@ export function useDealChatBinding(params: {
     ) : null;
 
   return {
+    effectiveConversationId,
+    ensuring,
     messagesNode,
     composerNode,
     sessionAlertNode,
@@ -1211,6 +1197,31 @@ export function useDealChatBinding(params: {
     pinnedMessageSlot,
     connection: messagesResp?.channel ?? null,
   };
+}
+
+/** Deal sem contato/telefone: nada para conversar — aponta para a Inbox. */
+export function DealChatEmptyState() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]">
+        <IconMessageCirclePlus size={28} />
+      </div>
+      <h3 className="mt-4 font-display text-[15px] font-bold text-[var(--text-primary)]">
+        Sem conversa vinculada
+      </h3>
+      <p className="mt-1.5 max-w-[340px] font-display text-[13px] leading-relaxed text-[var(--text-muted)]">
+        Este negócio ainda não tem contato com WhatsApp. Vincule um contato
+        com telefone para conversar por aqui.
+      </p>
+      <Link
+        href="/inbox"
+        className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[var(--brand-primary)] px-5 py-2.5 font-display text-[13px] font-bold text-white shadow-[var(--glass-shadow-sm)] transition-opacity hover:opacity-90"
+      >
+        <IconMessageCirclePlus size={16} />
+        Abrir Caixa de Entrada
+      </Link>
+    </div>
+  );
 }
 
 /** Isola o hook do kanban: estado de chat não re-renderiza o board. */
