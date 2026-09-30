@@ -231,6 +231,18 @@ async function upsertTemplateConfig(payload: Record<string, unknown>): Promise<T
   return data as TemplateConfig;
 }
 
+function extractHeaderText(components: unknown[] | undefined): string {
+  if (!components?.length) return "";
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const o = c as Record<string, unknown>;
+    if (String(o.type ?? "").toUpperCase() !== "HEADER") continue;
+    if (String(o.format ?? "TEXT").toUpperCase() !== "TEXT") continue;
+    if (typeof o.text === "string") return o.text;
+  }
+  return "";
+}
+
 function extractBodyText(components: unknown[] | undefined): string {
   if (!components?.length) return "";
   for (const c of components) {
@@ -780,6 +792,16 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
 
     // A Meta rejeita template que tem variável e não tem `example`. Bloquear
     // aqui poupa uma ida à Graph que voltaria erro de qualquer forma.
+    const headerSlotCount = createVarSlots.filter((slot) => slot.component === "header").length;
+    if (headerSlotCount > 1) {
+      toast.error("A Meta aceita apenas uma variável no cabeçalho de texto.");
+      return;
+    }
+    if (headerFormat === "TEXT" && headerText.trim().length > 60) {
+      toast.error("O cabeçalho de texto da Meta tem no máximo 60 caracteres.");
+      return;
+    }
+
     const missing = createVarSlots.filter(
       (slot) => !(varExamples[createVarSlotId(slot)] ?? "").trim(),
     );
@@ -824,19 +846,21 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
     // Mapeamento variável → campo do CRM: fica no CRM (não vai para a Meta) e
     // serve de padrão quando o template for usado numa automação.
     const metaTemplateId = typeof created.id === "string" ? created.id.trim() : "";
-    const operatorVariables: OperatorVariableMeta[] = createVarSlots
-      .filter((slot) => slot.component === "body")
-      .map((slot) => {
-        const id = createVarSlotId(slot);
-        const example = (varExamples[id] ?? "").trim();
-        const crmField = (varCrmFields[id] ?? "").trim();
-        return {
-          key: slot.key,
-          label: slot.key,
-          ...(example ? { example } : {}),
-          ...(crmField ? { crmField } : {}),
-        };
-      });
+    const operatorVariables: OperatorVariableMeta[] = [
+      ...createVarSlots.filter((slot) => slot.component === "body"),
+      ...createVarSlots.filter((slot) => slot.component === "header"),
+    ].map((slot) => {
+      const id = createVarSlotId(slot);
+      const example = (varExamples[id] ?? "").trim();
+      const crmField = (varCrmFields[id] ?? "").trim();
+      return {
+        key: slot.key,
+        component: slot.component,
+        label: slot.key,
+        ...(example ? { example } : {}),
+        ...(crmField ? { crmField } : {}),
+      };
+    });
     if (!metaTemplateId || operatorVariables.length === 0) return;
     configMutation.mutate({
       metaTemplateId,
@@ -1114,10 +1138,11 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                     { parameterFormat: row.parameter_format },
                   );
                   const bodyTxt = extractBodyText(row.components);
+                  const headerTxt = extractHeaderText(row.components);
                   const prevVars = Array.isArray(cfg?.operatorVariables)
                     ? (cfg!.operatorVariables as OperatorVariableMeta[])
                     : undefined;
-                  const operatorVariables = mergeOperatorVariables(bodyTxt, prevVars);
+                  const operatorVariables = mergeOperatorVariables(bodyTxt, prevVars, headerTxt);
                   configMutation.mutate({
                     metaTemplateId: row.id,
                     metaTemplateName: row.name,
@@ -1581,30 +1606,23 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                               placeholder="ex.: Auxiliar de Logística"
                             />
                           </div>
-                          {slot.component === "body" ? (
-                            <div className="space-y-1">
-                              <label
-                                htmlFor={`tpl-crm-${slotId}`}
-                                className="block text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]"
-                              >
-                                Campo do CRM (fica no CRM)
-                              </label>
-                              <VariableShortcutInput
-                                id={`tpl-crm-${slotId}`}
-                                value={varCrmFields[slotId] ?? ""}
-                                onChange={(next) =>
-                                  setVarCrmFields((prev) => ({ ...prev, [slotId]: next }))
-                                }
-                                options={crmVariableOptions}
-                                placeholder="{ para escolher o campo"
-                              />
-                            </div>
-                          ) : (
-                            <p className="self-end pb-2.5 text-[11px] text-[var(--text-muted)]">
-                              Variável de cabeçalho é preenchida no envio; o mapeamento padrão só
-                              existe para o corpo.
-                            </p>
-                          )}
+                          <div className="space-y-1">
+                            <label
+                              htmlFor={`tpl-crm-${slotId}`}
+                              className="block text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]"
+                            >
+                              Campo do CRM (fica no CRM)
+                            </label>
+                            <VariableShortcutInput
+                              id={`tpl-crm-${slotId}`}
+                              value={varCrmFields[slotId] ?? ""}
+                              onChange={(next) =>
+                                setVarCrmFields((prev) => ({ ...prev, [slotId]: next }))
+                              }
+                              options={crmVariableOptions}
+                              placeholder="{ para escolher o campo"
+                            />
+                          </div>
                         </div>
                       </div>
                     );
