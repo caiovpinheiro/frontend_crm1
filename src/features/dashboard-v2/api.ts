@@ -292,9 +292,11 @@ export interface DashboardMeInboundDeal {
   id: string;
   number: number;
   title: string;
+  stageId: string;
   stageName: string;
   pipelineName: string;
   count: number;
+  waitingSince: string;
 }
 
 export interface DashboardMeData {
