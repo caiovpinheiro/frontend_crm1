@@ -423,23 +423,10 @@ export async function sendTemplate(
   );
 }
 
-/** POST /api/media/transcribe */
-export async function transcribeMessage(messageId: string): Promise<{
-  transcript: string;
-}> {
-  const res = await fetch(apiUrl("/api/media/transcribe"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messageId }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(
-      typeof data?.message === "string" ? data.message : "Erro ao transcrever audio",
-    );
-  }
-  return data as { transcript: string };
-}
+// Transcrição de áudio: o `AudioPlayer` (message-bubble.tsx) usa a rota
+// Next `POST /api/transcribe { url }` — única rota de transcrição do
+// canônico. O antigo `transcribeMessage()` (POST /api/media/transcribe do
+// backend, sem uso no front) foi removido.
 
 /**
  * POST /api/ai-agents/drafts/:messageId/approve — envia o rascunho do

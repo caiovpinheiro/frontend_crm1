@@ -21,6 +21,7 @@ import { StatusTicks } from "@/components/crm/status-ticks"
 import { UserAvatar } from "@/components/crm/user-avatar"
 import { avatarInitials } from "@/lib/avatar"
 import { resolveChatMediaUrl } from "@/lib/chat-media-url"
+import { apiUrl } from "@/lib/api"
 import {
   EventRow,
   NoteRow,
@@ -706,6 +707,34 @@ function FormBubble({ message, className }: { message: Message; className?: stri
   )
 }
 
+/**
+ * MP3 convertido pelo backend (`GET /api/media/audio-mp3?url=&name=`) —
+ * formato universal: download que abre em qualquer player e fonte de
+ * fallback quando o navegador não decodifica OGG/Opus (Safari/iOS).
+ */
+export function audioMp3Url(url: string, name: string): string {
+  const params = new URLSearchParams({ url, name })
+  return apiUrl(`/api/media/audio-mp3?${params.toString()}`)
+}
+
+/**
+ * Fonte seguinte após `error` no <audio>: original → MP3 convertido; já
+ * no MP3 (ou sem URL) → null, para não entrar em loop.
+ */
+export function nextAudioSourceAfterError(
+  current: string | null,
+  original: string | null,
+): string | null {
+  if (!original) return null
+  const mp3 = audioMp3Url(original, "audio")
+  return current === mp3 ? null : mp3
+}
+
+function audioExtensionFromUrl(url: string): string | null {
+  const m = url.split("?")[0].match(/\.(ogg|oga|opus|webm|mp3|wav|m4a|aac|amr)$/i)
+  return m ? m[1].toLowerCase() : null
+}
+
 /** Formata segundos em mm:ss */
 function fmtTime(s: number): string {
   if (!isFinite(s) || s < 0) return "0:00"
@@ -744,6 +773,19 @@ function AudioPlayer({
   const [downloading, setDownloading] = useState(false)
   const [armed, setArmed] = useState(() => isImmediateMediaSrc(url))
   const pendingPlayRef = useRef(false)
+  // Fonte efetiva do <audio>: começa na URL original; no primeiro erro de
+  // decodificação (Safari/iOS × OGG/Opus) troca pelo MP3 do backend.
+  const [src, setSrc] = useState<string | null>(url)
+  useEffect(() => {
+    setSrc(url)
+  }, [url])
+  const handleAudioError = useCallback(() => {
+    const next = nextAudioSourceAfterError(src, url)
+    if (!next) return
+    pendingPlayRef.current = playing
+    setPlaying(false)
+    setSrc(next)
+  }, [src, url, playing])
 
   const SPEEDS = [0.5, 1, 1.5, 2] as const
   const cycleSpeed = useCallback(() => {
@@ -785,7 +827,7 @@ function AudioPlayer({
     pendingPlayRef.current = false
     el.load()
     el.play().catch(() => {})
-  }, [armed, url])
+  }, [armed, src])
 
   useEffect(() => {
     const el = audioRef.current
@@ -844,7 +886,7 @@ function AudioPlayer({
       el.removeEventListener("loadedmetadata", onLoaded)
       el.removeEventListener("durationchange", onDurationChange)
     }
-  }, [url, armed])
+  }, [src, armed])
 
   const handleTranscribe = useCallback(async () => {
     if (!url || transcript.status === "loading") return
@@ -890,13 +932,30 @@ function AudioPlayer({
     if (!url || downloading) return
     setDownloading(true)
     try {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const blob = await res.blob()
+      const baseName = isCall ? "ligacao-whatsapp" : "audio-whatsapp"
+      // MP3 universal (o backend converte OGG/Opus/WebM). Se a rota falhar,
+      // baixa o arquivo original no formato em que está.
+      let blob: Blob | null = null
+      let ext = "mp3"
+      try {
+        const res = await fetch(audioMp3Url(url, baseName))
+        const ctype = res.headers.get("content-type") ?? ""
+        if (res.ok && !ctype.includes("application/json") && !ctype.includes("text/html")) {
+          blob = await res.blob()
+        }
+      } catch {
+        /* cai no original */
+      }
+      if (!blob) {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        blob = await res.blob()
+        ext = audioExtensionFromUrl(url) ?? "ogg"
+      }
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = blobUrl
-      a.download = "ligacao-whatsapp"
+      a.download = `${baseName}.${ext}`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -906,7 +965,7 @@ function AudioPlayer({
     } finally {
       setDownloading(false)
     }
-  }, [url, downloading])
+  }, [url, downloading, isCall])
 
   return (
     <div
@@ -927,9 +986,10 @@ function AudioPlayer({
       ) : null}
       <audio
         ref={audioRef}
-        src={armed && url ? url : undefined}
+        src={armed && src ? src : undefined}
         preload="none"
         aria-hidden="true"
+        onError={handleAudioError}
       />
 
       <div className="flex items-center gap-2">
