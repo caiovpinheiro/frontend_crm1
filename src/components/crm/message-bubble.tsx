@@ -456,7 +456,7 @@ export interface MessageBubbleProps {
   /** Excluir uma nota interna. */
   onDeleteNote?: (noteId: string) => void
 
-  // ── Ações de mensagem recebida (menu estilo WhatsApp) ────────────
+  // ── Ações de mensagem (menu estilo WhatsApp, recebidas e enviadas) ──
   // Todos opcionais: se não passados, o item some do menu. "Copiar" é
   // interno (usa navigator.clipboard) e sempre aparece p/ mensagens
   // com conteúdo textual — não depende de callback.
@@ -548,8 +548,8 @@ export function templateBadgeInfo(
 
 /** Emojis exibidos na barra rápida de reações — padrão WhatsApp. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const
-/** Toque longo na bolha recebida abre o menu (padrão WhatsApp mobile). */
-const RECEIVED_MENU_LONG_PRESS_MS = 450
+/** Toque longo na bolha abre o menu de ações (padrão WhatsApp mobile). */
+const MENU_LONG_PRESS_MS = 450
 
 /**
  * Paleta da bolha de AUTOMAÇÃO: cinza escuro com texto claro. Hardcoded —
@@ -1251,14 +1251,16 @@ function CaptionText({
 }
 
 /**
- * Menu de contexto estilo WhatsApp para mensagens RECEBIDAS.
+ * Menu de contexto estilo WhatsApp — qualquer bolha não-nota (recebidas
+ * E enviadas, como no ChatWindow legado).
  *
  * Layout: barra horizontal de reações rápidas (6 emojis) + lista vertical
  * de ações (Responder / Reagir / Encaminhar / Fixar / Favoritar / Copiar).
  * A carinha só aparece no mouse over da bolha (`group-hover`). Fica ao
- * lado, numa faixa de hover que cobre o vão até o botão — senão o
- * `group-hover` cai no caminho do mouse e a carinha some. Menu aberto
- * ou toque longo / clique direito também mostram o gatilho.
+ * lado (direita nas recebidas, esquerda nas enviadas), numa faixa de
+ * hover que cobre o vão até o botão — senão o `group-hover` cai no
+ * caminho do mouse e a carinha some. Menu aberto ou toque longo / clique
+ * direito também mostram o gatilho.
  *
  * Renderização: `createPortal` no <body> com `position: fixed`, para
  * escapar de qualquer ancestral com `overflow: hidden` (o chat-area e a
@@ -1271,8 +1273,9 @@ function CaptionText({
  * manter o layout consistente entre todas as bolhas — só que fica como
  * stub "em breve". Copiar é sempre funcional (`navigator.clipboard`).
  */
-function ReceivedMessageMenu({
+function MessageActionsMenu({
   message,
+  isOutgoing,
   open,
   onOpenChange,
   onReply,
@@ -1282,6 +1285,8 @@ function ReceivedMessageMenu({
   onFavorite,
 }: {
   message: Message
+  /** Enviada: gatilho à esquerda da bolha (o avatar ocupa a direita). */
+  isOutgoing: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   onReply?: (message: Message) => void
@@ -1406,10 +1411,17 @@ function ReceivedMessageMenu({
 
   return (
     <>
-      {/* Ponte de hover: o botão fica fora da bolha (`left-full`). Sem
-          esta faixa o `ml-1` não recebe eventos, o `group-hover` cai e
-          o `pointer-events-none` esconde a carinha no caminho do mouse. */}
-      <div className="absolute left-full top-0 z-10 flex h-full min-h-8 w-10 items-start pt-1">
+      {/* Ponte de hover: o botão fica fora da bolha (`left-full` nas
+          recebidas, `right-full` nas enviadas). Sem esta faixa a margem
+          não recebe eventos, o `group-hover` cai e o `pointer-events-none`
+          esconde a carinha no caminho do mouse. */}
+      <div
+        className={cn(
+          "absolute top-0 z-10 flex h-full min-h-8 w-10 items-start pt-1",
+          isOutgoing ? "right-full justify-end" : "left-full",
+        )}
+        data-message-actions-side={isOutgoing ? "left" : "right"}
+      >
         <button
           ref={triggerRef}
           type="button"
@@ -1421,7 +1433,8 @@ function ReceivedMessageMenu({
           title="Reagir"
           aria-expanded={open}
           className={cn(
-            "ml-1 flex h-7 w-7 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
+            "flex h-7 w-7 items-center justify-center rounded-full border border-black/5 shadow-[0_2px_6px_rgba(15,20,40,0.22)] transition-opacity",
+            isOutgoing ? "mr-1" : "ml-1",
             open
               ? "opacity-100"
               : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100",
@@ -1638,16 +1651,16 @@ export const MessageBubble = memo(function MessageBubble({
     (mediaKind === "image" || mediaKind === "video") &&
     isPlaceholderContent(message.content ?? "")
 
-  // Menu WhatsApp-like só entra nas RECEBIDAS. Nas outgoing/notas/forms
-  // o layout já é usado por outras ações (avatar, badges, ações de nota).
-  const hasReceivedMenu =
-    !isOutgoing &&
+  // Menu WhatsApp-like em qualquer bolha não-nota — recebidas e enviadas
+  // (citar/reagir/fixar/favoritar/encaminhar na própria mensagem, como o
+  // ChatWindow). Notas têm as ações da NoteRow; forms e ligações não.
+  const hasActionsMenu =
     !isNote &&
     !hasForm &&
     message.messageType !== "sip_call" &&
     message.messageType !== "whatsapp_call" &&
     message.messageType !== "whatsapp_call_recording"
-  const [receivedMenuOpen, setReceivedMenuOpen] = useState(false)
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clearLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -1657,12 +1670,12 @@ export const MessageBubble = memo(function MessageBubble({
   }, [])
   useEffect(() => () => clearLongPress(), [clearLongPress])
   const startLongPress = useCallback(() => {
-    if (!hasReceivedMenu) return
+    if (!hasActionsMenu) return
     clearLongPress()
     longPressTimer.current = setTimeout(() => {
-      setReceivedMenuOpen(true)
-    }, RECEIVED_MENU_LONG_PRESS_MS)
-  }, [hasReceivedMenu, clearLongPress])
+      setActionsMenuOpen(true)
+    }, MENU_LONG_PRESS_MS)
+  }, [hasActionsMenu, clearLongPress])
 
   if (hasForm) {
     return <FormBubble message={message} className={className} />
@@ -1758,16 +1771,16 @@ export const MessageBubble = memo(function MessageBubble({
   const isCallRec =
     String(message.messageType ?? "").toLowerCase() === "whatsapp_call_recording" &&
     !!message.mediaUrl
-  const incomingMenuHandlers = hasReceivedMenu
+  const actionsMenuHandlers = hasActionsMenu
     ? {
         onContextMenu: (e: { preventDefault: () => void }) => {
           e.preventDefault()
-          setReceivedMenuOpen(true)
+          setActionsMenuOpen(true)
         },
         onTouchStart: startLongPress,
         onTouchEnd: (e: TouchEvent<HTMLDivElement>) => {
           // Toque longo já abriu: não dispara o click sintético do browser.
-          if (receivedMenuOpen) e.preventDefault()
+          if (actionsMenuOpen) e.preventDefault()
           clearLongPress()
         },
         onTouchMove: clearLongPress,
@@ -1789,7 +1802,7 @@ export const MessageBubble = memo(function MessageBubble({
           "group relative flex max-w-full overflow-visible",
           isOutgoing ? "flex-row-reverse items-end gap-2.5" : "items-start",
         )}
-        {...incomingMenuHandlers}
+        {...actionsMenuHandlers}
       >
         {/* Avatar: robô para bot, iniciais para agente — com tooltip do nome.
             Automação manual (colab): robô + chip de iniciais do agente que
@@ -2082,16 +2095,17 @@ export const MessageBubble = memo(function MessageBubble({
               reactions={message.reactions}
               anchor={isOutgoing ? "left" : "right"}
               onClick={
-                hasReceivedMenu ? () => setReceivedMenuOpen(true) : undefined
+                hasActionsMenu ? () => setActionsMenuOpen(true) : undefined
               }
             />
           )}
         </div>
-        {hasReceivedMenu && (
-          <ReceivedMessageMenu
+        {hasActionsMenu && (
+          <MessageActionsMenu
             message={message}
-            open={receivedMenuOpen}
-            onOpenChange={setReceivedMenuOpen}
+            isOutgoing={isOutgoing}
+            open={actionsMenuOpen}
+            onOpenChange={setActionsMenuOpen}
             onReply={onReplyMessage}
             onForward={onForwardMessage}
             onReact={onReactMessage}
