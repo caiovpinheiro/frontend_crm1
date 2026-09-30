@@ -193,6 +193,8 @@ type TestResult = {
   interactive?: { kind: "buttons" | "list"; body: string; labels: string[]; displayContent: string } | null;
   /** Opção da mensagem anterior que o cliente escolheu (clique ou número). */
   chosenOption?: string | null;
+  /** Texto da mensagem pronta que sairia em seguida, no WhatsApp. */
+  materialText?: string;
 };
 
 /** Rótulo amigável para a ferramenta chamada (sem jargão de código). */
@@ -6352,7 +6354,9 @@ function StepTestPublish({
     for (const t of turns) {
       history.push({ role: "user", content: t.userMessage });
       // Com botões, o histórico leva a marca "[Botões: …]", como na conversa real.
-      const agentText = t.result?.interactive?.displayContent ?? t.result?.reply;
+      const agentText = [t.result?.interactive?.displayContent ?? t.result?.reply, t.result?.materialText]
+        .filter((part) => part && part.trim())
+        .join("\n\n");
       if (agentText) history.push({ role: "assistant", content: agentText });
     }
     setTurns((prev) => [...prev, { id: turnId, userMessage: text }]);
@@ -6494,6 +6498,11 @@ function StepTestPublish({
                     </span>
                     <span className="ml-2 inline-block translate-y-0.5 whitespace-nowrap text-[10px] text-[#667781]">{clock(t)}</span>
                   </div>
+                  {t.result.materialText?.trim() ? (
+                    <div className="mt-1 rounded-lg rounded-tl-none bg-white px-2.5 pb-1 pt-1.5 text-[13.5px] leading-snug text-[#111B21] shadow-sm">
+                      <span className="whitespace-pre-line">{t.result.materialText}</span>
+                    </div>
+                  ) : null}
                   {t.result.interactive && (
                     <WhatsAppButtons
                       labels={t.result.interactive.labels}
