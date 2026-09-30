@@ -1518,11 +1518,18 @@ function MessageActionsMenu({
                     }
                   }}
                 />
-                {/* "Encaminhar" removido do menu — o fluxo ainda nao tem
-                    modal de selecao de conversa alvo (feature pendente
-                    da lista original). Voltar aqui quando `onForward`
-                    tiver UI real; a prop e o handler seguem intactos
-                    no componente pra minimizar o diff quando reativar. */}
+                {/* "Encaminhar" só aparece com handler (o ChatArea provê
+                    o ForwardDialog quando conhece a conversa). */}
+                {onForward ? (
+                  <MenuItem
+                    icon={<IconShare2 size={15} />}
+                    label="Encaminhar"
+                    onClick={() => {
+                      onForward(message)
+                      setOpen(false)
+                    }}
+                  />
+                ) : null}
                 <MenuItem
                   icon={
                     message.isPinnedMessage ? (

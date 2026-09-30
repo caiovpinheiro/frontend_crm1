@@ -10,6 +10,7 @@ import {
   deleteNote,
   discardAiDraft,
   favoriteMessage,
+  forwardMessage,
   getFavoriteMessages,
   getMessages,
   pinMessage,
@@ -374,6 +375,34 @@ export function useResendMessage(conversationId: string | null) {
           timestamp: data.message?.createdAt,
         });
       }
+    },
+  });
+}
+
+/**
+ * Mutation: encaminhar uma mensagem desta conversa para outra
+ * (POST /api/conversations/:target/forward). Invalida só origem + destino
+ * e a lista do inbox (o destino sobe na fila) — sem `["messages"]` inteiro.
+ */
+export function useForwardMessage(sourceConversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<
+    { metaError?: string },
+    Error,
+    { targetConversationId: string; messageRef: string }
+  >({
+    mutationFn: ({ targetConversationId, messageRef }) =>
+      forwardMessage({
+        targetConversationId,
+        sourceConversationId: sourceConversationId as string,
+        messageRef,
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: messagesKey(vars.targetConversationId) });
+      if (sourceConversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(sourceConversationId) });
+      }
+      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
     },
   });
 }

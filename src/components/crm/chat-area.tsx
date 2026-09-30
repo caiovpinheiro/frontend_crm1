@@ -27,6 +27,7 @@ import {
 import { SessionAlert } from "./session-alert"
 import { ConsentEventRow, SystemEventRow } from "@/features/inbox-v2/extras/chat-event-rows"
 import { AIDraftCard } from "@/features/inbox-v2/extras/ai-draft-card"
+import { ForwardDialog } from "@/features/inbox-v2/extras/forward-dialog"
 import { ConversationSearchBar, isFindShortcut, useConversationSearch } from "./conversation-search"
 import {
   formatConnectionLabel,
@@ -160,6 +161,11 @@ interface ChatAreaProps {
   // Passa através para MessageBubble. Se nenhum handler for provido,
   // o menu ainda aparece com "Copiar" (que é interno).
   onReplyMessage?: (message: Message) => void
+  /**
+   * "Encaminhar" no menu da bolha. Sem handler, o ChatArea abre o
+   * `ForwardDialog` interno (busca + vários destinos) quando conhece o
+   * `conversationId`; passe o seu para trocar o fluxo.
+   */
   onForwardMessage?: (message: Message) => void
   onReactMessage?: (message: Message, emoji: string | null) => void
   onPinMessage?: (message: Message) => void
@@ -755,6 +761,18 @@ export function ChatArea({
   const handleResendMessage =
     onResendMessage ?? (conversationId ? internalResend : undefined)
 
+  // Encaminhar: diálogo interno (busca + seleção múltipla) quando o host
+  // não passa `onForwardMessage`.
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null)
+  const openForward = useCallback((m: Message) => setForwardingMessage(m), [])
+  const useInternalForward = !onForwardMessage && Boolean(conversationId)
+  const handleForwardMessage =
+    onForwardMessage ?? (useInternalForward ? openForward : undefined)
+  // Trocar de conversa fecha o diálogo (a origem mudou).
+  useEffect(() => {
+    setForwardingMessage(null)
+  }, [conversationId])
+
   // Baileys não tem janela de 24h — nem alerta, nem CTA de template.
   const sessionAlertVisible =
     showSessionAlert && !isBaileysChannelProvider(channelProvider)
@@ -1154,7 +1172,7 @@ export function ChatArea({
                       onDeleteNote={isNoteBubble ? onDeleteNote : undefined}
                       onAddToLog={isNoteBubble ? onAddToLog : undefined}
                       onReplyMessage={onReplyMessage}
-                      onForwardMessage={onForwardMessage}
+                      onForwardMessage={handleForwardMessage}
                       onReactMessage={onReactMessage}
                       onPinMessage={onPinMessage}
                       onFavoriteMessage={onFavoriteMessage}
@@ -1291,6 +1309,17 @@ export function ChatArea({
       </div>
         </>
       )}
+
+      {useInternalForward && conversationId ? (
+        <ForwardDialog
+          open={forwardingMessage !== null}
+          onOpenChange={(open) => {
+            if (!open) setForwardingMessage(null)
+          }}
+          message={forwardingMessage}
+          sourceConversationId={conversationId}
+        />
+      ) : null}
     </main>
   )
 }
