@@ -1143,6 +1143,12 @@ export function DealProductsSection({
                     </div>
                     <div className="mt-0.5 flex items-center gap-1 text-[11.5px] text-[var(--color-ink-soft)]">
                       <span>{item.quantity} un.</span>
+                      {item.courseDuration ? (
+                        <>
+                          <span className="opacity-40">·</span>
+                          <span>{item.courseDuration}</span>
+                        </>
+                      ) : null}
                       {item.productType === "SERVICE" && (
                         <>
                           <span className="opacity-40">·</span>
@@ -1157,7 +1163,10 @@ export function DealProductsSection({
                       )}
                       <AvailabilityBadge productId={item.productId} />
                     </div>
-                    <ProductCustomFieldsInline values={customFieldsByProduct[item.productId]} />
+                    <ProductCustomFieldsInline
+                      values={customFieldsByProduct[item.productId]}
+                      omitDuration={!!item.courseDuration}
+                    />
                   </div>
 
                   {/* Preço + ações inline (sem popup — evita clip em overflow) */}
@@ -1785,8 +1794,18 @@ function presenceLabel(status: "ONLINE" | "OFFLINE" | "AWAY") {
   return "Offline";
 }
 
-function ProductCustomFieldsInline({ values }: { values?: ProductCustomFieldValue[] }) {
-  const filled = (values ?? []).filter((v) => v.value?.trim());
+function ProductCustomFieldsInline({
+  values,
+  omitDuration = false,
+}: {
+  values?: ProductCustomFieldValue[];
+  omitDuration?: boolean;
+}) {
+  const filled = (values ?? []).filter((v) => {
+    if (!v.value?.trim()) return false;
+    if (omitDuration && /dura/i.test(v.label)) return false;
+    return true;
+  });
   if (filled.length === 0) return null;
 
   return (
