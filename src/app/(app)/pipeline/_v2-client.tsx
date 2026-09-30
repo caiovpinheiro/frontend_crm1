@@ -929,14 +929,8 @@ export default function KanbanV2ClientPage({
     "Contato";
   const dealChatBindingParams = {
     conversationId: dealConversationId,
-    contactName: dealContactName,
     contactId: dealContactId,
     dealId: activeDealId,
-    isResolved: dealConversation?.status === "RESOLVED",
-    closedAt: dealConversation?.closedAt ?? null,
-    conversationNumber: dealConversation?.number ?? null,
-    departmentId: dealConversationDepartmentId,
-    requireTabulationOnClose: dealConversationRequiresTabulation,
   };
 
   // Reabrir/encerrar pelo chat: o ticket ativo muda no GET do negócio.
