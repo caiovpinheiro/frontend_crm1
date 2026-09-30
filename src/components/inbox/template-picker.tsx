@@ -13,6 +13,7 @@ export type InboxTemplatePick = {
   id: string;
   name: string;
   content: string;
+  headerText?: string;
   category: string | null;
   language: string;
   status: string;
@@ -34,6 +35,7 @@ type WabaConfig = {
   language: string;
   category: string | null;
   bodyPreview: string;
+  headerPreview?: string;
   hasButtons?: boolean;
   hasVariables?: boolean;
   buttonTypes?: string[];
@@ -53,6 +55,7 @@ async function fetchAgentTemplates(channelId?: string | null): Promise<InboxTemp
     id: c.metaTemplateId,
     name: c.metaTemplateName,
     content: c.bodyPreview,
+    headerText: c.headerPreview ?? "",
     category: c.category,
     language: c.language,
     status: "APPROVED",

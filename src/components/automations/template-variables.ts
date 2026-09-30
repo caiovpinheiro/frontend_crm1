@@ -17,6 +17,7 @@ import {
   buildTemplateComponents,
   extractMetaPlaceholderKeys,
   extractUnsupportedPlaceholderTokens,
+  isMetaPlaceholderKey,
   templateVariablesFromSendComponents,
   type TemplateVariableInput,
 } from "@/lib/meta-whatsapp/build-template-components";
@@ -44,6 +45,32 @@ function slotId(component: string, key: string): string {
  * para ela: oferecer campo para ele faria o passo gravar parâmetro num
  * template que, do lado da Meta, não tem nenhum — e o envio voltaria 132000.
  */
+/**
+ * Slots do envio no chat. O texto do cabeçalho manda quando a Meta devolveu
+ * o template. Se o catálogo ainda não trouxe esse texto, o mapeamento gravado
+ * na criação (`component: "header"`) entra mesmo assim — senão o `{{1}}` do
+ * cabeçalho some e o envio volta 132000.
+ */
+export function chatTemplateSlots(
+  bodyText: string | null | undefined,
+  headerText: string | null | undefined,
+  operatorVariables: OperatorVariableMeta[] | null | undefined,
+): TemplateVariableSlot[] {
+  const slots = templateVariableSlots(bodyText, headerText);
+  const have = new Set(slots.map((s) => `${s.component}::${s.key}`));
+  const headerFromConfig: TemplateVariableSlot[] = [];
+  for (const v of operatorVariables ?? []) {
+    if (v.component !== "header") continue;
+    const key = String(v.key ?? "").trim();
+    if (!key || !isMetaPlaceholderKey(key)) continue;
+    const id = `header::${key}`;
+    if (have.has(id)) continue;
+    have.add(id);
+    headerFromConfig.push({ component: "header", key });
+  }
+  return [...headerFromConfig, ...slots];
+}
+
 export function templateVariableSlots(
   bodyText: string | null | undefined,
   headerText?: string | null,

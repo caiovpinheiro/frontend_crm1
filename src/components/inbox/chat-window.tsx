@@ -22,7 +22,9 @@ import {
   useSlashMenu,
   type SlashItem,
 } from "@/components/inbox/slash-command-menu";
+import { buildTemplateComponents } from "@/lib/meta-whatsapp/build-template-components";
 import type { OperatorVariableMeta } from "@/lib/meta-whatsapp/operator-template-variables";
+import { chatTemplateSlots } from "@/components/automations/template-variables";
 import type { ConnectionRef } from "@/features/inbox-v2/api/types";
 import { getContact } from "@/features/inbox-v2/api/misc";
 import { formatPhoneDisplay } from "@/lib/phone";
@@ -547,6 +549,7 @@ export function ChatWindow({
     name: string;
     label?: string;
     content: string;
+    headerText?: string;
     language?: string;
     /** ID Graph Meta — usado para montar componente de botão FLOW no envio. */
     metaTemplateId?: string;
@@ -567,21 +570,15 @@ export function ChatWindow({
   /** JSON opcional: `flow_action_data` inicial (telas/dados do formulário Flow). */
   const [flowActionJson, setFlowActionJson] = React.useState("");
   const [flowJsonError, setFlowJsonError] = React.useState<string | null>(null);
-  const templatePlaceholders = React.useMemo(() => {
-    if (!pendingTemplate?.content) return [] as string[];
-    const fromMeta = pendingTemplate.operatorVariables?.map((v) => v.key).filter(Boolean);
-    if (fromMeta?.length) return fromMeta;
-    const set = new Set<string>();
-    const re = /\{\{([^}]+)\}\}/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(pendingTemplate.content))) set.add(m[1].trim());
-    const keys = Array.from(set);
-    const numKeys = keys.filter((k) => /^\d+$/.test(k));
-    if (numKeys.length === keys.length) {
-      return keys.sort((a, b) => Number(a) - Number(b));
-    }
-    return keys;
+  const templateSlots = React.useMemo(() => {
+    if (!pendingTemplate) return [];
+    return chatTemplateSlots(
+      pendingTemplate.content,
+      pendingTemplate.headerText,
+      pendingTemplate.operatorVariables,
+    );
   }, [pendingTemplate]);
+  const templateSlotId = (component: string, key: string) => `${component}::${key}`;
   // Sempre que troca o template, reseta as vars (preserva valores ja
   // digitados pra mesma chave caso seja so um re-render).
   /* eslint-disable react-hooks/set-state-in-effect -- merge de chaves ao trocar template */
@@ -592,26 +589,38 @@ export function ChatWindow({
     }
     setTemplateVars((prev) => {
       const next: Record<string, string> = {};
-      for (const k of templatePlaceholders) next[k] = prev[k] ?? "";
+      for (const slot of templateSlots) {
+        const id = templateSlotId(slot.component, slot.key);
+        next[id] = prev[id] ?? "";
+      }
       return next;
     });
-  }, [pendingTemplate, templatePlaceholders]);
+  }, [pendingTemplate, templateSlots]);
   /* eslint-enable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     setFlowTokenDraft("");
     setFlowActionJson("");
     setFlowJsonError(null);
   }, [pendingTemplate?.name]);
+  const fillTemplatePart = React.useCallback(
+    (text: string, component: "header" | "body") =>
+      text.replace(/\{\{([^}]+)\}\}/g, (_, raw: string) => {
+        const k = raw.trim();
+        const v = templateVars[templateSlotId(component, k)]?.trim();
+        return v ? v : `{{${k}}}`;
+      }),
+    [templateVars],
+  );
+  const renderedTemplateHeader = React.useMemo(
+    () => fillTemplatePart(pendingTemplate?.headerText ?? "", "header"),
+    [fillTemplatePart, pendingTemplate?.headerText],
+  );
   const renderedTemplatePreview = React.useMemo(() => {
     if (!pendingTemplate?.content) return "";
-    return pendingTemplate.content.replace(/\{\{([^}]+)\}\}/g, (_, raw: string) => {
-      const k = raw.trim();
-      const v = templateVars[k]?.trim();
-      return v ? v : `{{${k}}}`;
-    });
-  }, [pendingTemplate, templateVars]);
-  const allTemplateVarsFilled = templatePlaceholders.every(
-    (k) => templateVars[k]?.trim().length,
+    return fillTemplatePart(pendingTemplate.content, "body");
+  }, [fillTemplatePart, pendingTemplate]);
+  const allTemplateVarsFilled = templateSlots.every(
+    (slot) => templateVars[templateSlotId(slot.component, slot.key)]?.trim().length,
   );
 
   // Assinatura do agente (toggle + texto personalizado) — persistido em localStorage.
@@ -1867,6 +1876,7 @@ export function ChatWindow({
         name: item.name,
         label: item.label || undefined,
         content: item.bodyPreview,
+        headerText: item.headerPreview,
         metaTemplateId: item.id,
         operatorVariables: item.operatorVariables ?? null,
       });
@@ -3379,6 +3389,7 @@ export function ChatWindow({
                   name: t.name,
                   label: t.label,
                   content: t.content,
+                  headerText: t.headerText,
                   metaTemplateId: t.id,
                   operatorVariables: t.operatorVariables,
                 });
@@ -3728,33 +3739,47 @@ export function ChatWindow({
                       sumia). 180px ~= 9-10 linhas; o resto rola.
                       O texto exibido eh o conteudo COM as variaveis
                       ja substituidas pelos valores digitados abaixo. */}
-                  <p className="mt-1.5 max-h-[180px] overflow-y-auto whitespace-pre-wrap text-[13px] text-surface-foreground leading-relaxed">
-                    {renderedTemplatePreview || pendingTemplate.content}
-                  </p>
-                  {templatePlaceholders.length > 0 && (
+                  <div className="mt-1.5 max-h-[180px] overflow-y-auto whitespace-pre-wrap text-[13px] text-surface-foreground leading-relaxed">
+                    {renderedTemplateHeader.trim() ? (
+                      <p className="font-semibold">{renderedTemplateHeader}</p>
+                    ) : null}
+                    <p>{renderedTemplatePreview || pendingTemplate.content}</p>
+                  </div>
+                  {templateSlots.length > 0 && (
                     <div className="mt-3 space-y-2 rounded-[var(--radius-lg)] border border-success/20 bg-white p-3">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Preencha as variaveis do template
                       </p>
-                      {templatePlaceholders.map((k) => {
-                        const meta = pendingTemplate.operatorVariables?.find((v) => v.key === k);
-                        const label = meta?.label?.trim() || `Variável {{${k}}}`;
+                      {templateSlots.map((slot) => {
+                        const id = templateSlotId(slot.component, slot.key);
+                        const meta = pendingTemplate.operatorVariables?.find(
+                          (v) =>
+                            (v.component === "header" ? "header" : "body") === slot.component &&
+                            String(v.key ?? "").trim() === slot.key,
+                        );
+                        const custom = meta?.label?.trim();
+                        const label =
+                          custom && custom !== slot.key
+                            ? custom
+                            : slot.component === "header"
+                              ? "Cabeçalho"
+                              : "Corpo";
                         return (
-                        <label key={k} className="flex flex-col gap-1">
+                        <label key={id} className="flex flex-col gap-1">
                           <span className="text-[11px] font-medium text-muted-foreground">
                             {label}{" "}
-                            <code className="font-mono text-[11px] text-foreground">{`{{${k}}}`}</code>
+                            <code className="font-mono text-[11px] text-foreground">{`{{${slot.key}}}`}</code>
                           </span>
                           <input
                             type="text"
-                            value={templateVars[k] ?? ""}
+                            value={templateVars[id] ?? ""}
                             onChange={(e) =>
                               setTemplateVars((prev) => ({
                                 ...prev,
-                                [k]: e.target.value,
+                                [id]: e.target.value,
                               }))
                             }
-                            placeholder={meta?.example ? `Ex.: ${meta.example}` : `Valor para {{${k}}}`}
+                            placeholder={meta?.example ? `Ex.: ${meta.example}` : `Valor para {{${slot.key}}}`}
                             className="h-8 rounded-lg border border-border/60 bg-background px-2.5 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-success/40"
                           />
                         </label>
@@ -3889,24 +3914,22 @@ export function ChatWindow({
                         // (0) does not match the expected number of params
                         // (N)"). Para templates sem variaveis, omite o
                         // campo `components` (envio simples).
-                        const components = templatePlaceholders.length
-                          ? [
-                              {
-                                type: "body",
-                                parameters: templatePlaceholders.map((k) => ({
-                                  type: "text",
-                                  text: templateVars[k] ?? "",
-                                })),
-                              },
-                            ]
+                        const components = templateSlots.length
+                          ? buildTemplateComponents(
+                              templateSlots.map((slot) => ({
+                                component: slot.component,
+                                key: slot.key,
+                                value: templateVars[templateSlotId(slot.component, slot.key)] ?? "",
+                              })),
+                            )
                           : undefined;
                         const flowToken = flowTokenDraft.trim() || null;
+                        const headerLine = renderedTemplateHeader.trim();
+                        const bodyLine = renderedTemplatePreview || pendingTemplate.content;
                         templateSendMutation.mutate(
                           {
                             templateName: pendingTemplate.name,
-                            bodyPreview:
-                              renderedTemplatePreview ||
-                              pendingTemplate.content,
+                            bodyPreview: headerLine ? `${headerLine}\n${bodyLine}` : bodyLine,
                             languageCode: pendingTemplate.language ?? "pt_BR",
                             components,
                             flowToken,
