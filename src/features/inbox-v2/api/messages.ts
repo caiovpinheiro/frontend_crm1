@@ -196,6 +196,8 @@ export async function sendAttachmentReuse(
     caption?: string;
     channelId?: string | null;
     waitUntilSent?: boolean;
+    /** Só encaminhar produto: a bolha entra no chat depois do worker. */
+    deferChatUntilSent?: boolean;
   },
 ): Promise<{
   message: InboxMessageDto;
@@ -214,6 +216,7 @@ export async function sendAttachmentReuse(
         ...(options.caption ? { caption: options.caption } : {}),
         ...(options.channelId ? { channelId: options.channelId } : {}),
         ...(options.waitUntilSent ? { waitUntilSent: true } : {}),
+        ...(options.deferChatUntilSent ? { deferChatUntilSent: true } : {}),
       }),
     },
     options.waitUntilSent ? 50_000 : 20_000,
