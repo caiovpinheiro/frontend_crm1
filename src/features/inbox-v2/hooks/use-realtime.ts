@@ -1345,8 +1345,14 @@ export function useInboxRealtime(options: {
         }
       },
 
-      presence_update: () => {
-        qc.invalidateQueries({ queryKey: ["my-agent-status"] });
+      // Só o próprio usuário: `useSystemPresenceSync` já patcha o cache
+      // pelo evento; o refetch aqui é a confirmação do meu status. Antes
+      // era 1 GET por mudança de status de qualquer agente da org (FE-4).
+      presence_update: (raw: unknown) => {
+        const data = raw as { userId?: string } | undefined;
+        const me = userIdRef.current;
+        if (!me || data?.userId !== me) return;
+        qc.invalidateQueries({ queryKey: ["my-agent-status", me] });
       },
 
       // Ciclo de vida de automações (robô iniciou/avançou/terminou) —

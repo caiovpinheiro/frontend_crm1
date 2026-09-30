@@ -50,6 +50,7 @@ import {
   toNavItems,
   type SidebarItemPreference,
 } from "@/lib/sidebar-catalog";
+import { inboxPrefetchIntentProps } from "@/lib/inbox-prefetch-intent";
 import { useSidebarPreferences } from "@/features/sidebar/hooks";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import {
@@ -578,6 +579,8 @@ export function NavRailV2({ className }: { className?: string }) {
               alert.count > 0
                 ? `${item.title} (${alert.count} não lida${alert.count === 1 ? "" : "s"})`
                 : item.title;
+            // Hover/foco/toque no Inbox aquece a lista (FE-23).
+            const intentProps = inboxPrefetchIntentProps(item.href);
             if (expanded) {
               return (
                 <Link
@@ -585,6 +588,7 @@ export function NavRailV2({ className }: { className?: string }) {
                   href={item.href}
                   prefetch={false}
                   aria-label={alertTitle}
+                  {...intentProps}
                   className={cn(expandedItemBase, isActive ? expandedItemActive : expandedItemIdle)}
                 >
                   <Icon size={20} className="shrink-0" />
@@ -594,7 +598,7 @@ export function NavRailV2({ className }: { className?: string }) {
               );
             }
             return (
-              <div key={item.key} className="relative">
+              <div key={item.key} className="relative" {...intentProps}>
                 <DockButton
                   href={item.href}
                   title={alertTitle}

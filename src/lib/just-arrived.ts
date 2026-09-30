@@ -11,10 +11,8 @@ import { useSyncExternalStore } from "react";
 const GLOW_MS = 4_000;
 const until = new Map<string, number>();
 const listeners = new Set<() => void>();
-let version = 0;
 
 function emit() {
-  version += 1;
   for (const fn of listeners) fn();
 }
 
@@ -35,25 +33,34 @@ export function markJustArrived(keys: Iterable<string | null | undefined>): void
   }, GLOW_MS + 50);
 }
 
-function isJustArrived(keys: readonly (string | null | undefined)[]): boolean {
+/** `true` se alguma das chaves está no brilho de chegada agora. */
+export function isJustArrived(keys: readonly (string | null | undefined)[]): boolean {
   const now = Date.now();
   return keys.some((k) => k != null && (until.get(k) ?? 0) > now);
 }
 
-function subscribe(fn: () => void) {
+export function subscribeJustArrived(fn: () => void): () => void {
   listeners.add(fn);
   return () => {
     listeners.delete(fn);
   };
 }
 
-/** `true` enquanto alguma das chaves estiver no brilho de chegada. */
+const getServerSnapshot = () => false;
+
+/**
+ * `true` enquanto alguma das chaves estiver no brilho de chegada.
+ *
+ * O snapshot é o booleano das chaves deste card, não um contador global:
+ * `markJustArrived` emite para todos os assinantes, mas o React só
+ * re-renderiza quem teve o valor alterado. Com o contador, cada mensagem
+ * da org re-renderizava todos os `ConversationCard`/`DealCard` montados.
+ */
 export function useJustArrived(...keys: (string | null | undefined)[]): boolean {
-  useSyncExternalStore(
-    subscribe,
-    () => version,
-    () => 0,
-  );
   // O setTimeout de markJustArrived emite de novo no fim do brilho.
-  return typeof window !== "undefined" && isJustArrived(keys);
+  return useSyncExternalStore(
+    subscribeJustArrived,
+    () => isJustArrived(keys),
+    getServerSnapshot,
+  );
 }

@@ -47,6 +47,7 @@ import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { apiUrl } from "@/lib/api";
 import { markJustArrived } from "@/lib/just-arrived";
 import { isNativePlatform } from "@/lib/native/capacitor";
+import { ALERT_CONFIG_STALE_MS } from "@/lib/shell-polling";
 import { cn } from "@/lib/utils";
 
 type NewMessageEnvelope = {
@@ -105,8 +106,10 @@ export function InboxMessageAlerts() {
     queryKey: ["agents-me-alert-config", meId],
     queryFn: fetchMyAlertConfig,
     enabled: ready,
-    staleTime: 60_000,
-    refetchOnWindowFocus: true,
+    // Muda só quando o admin salva; refetch por foco era 1 GET por troca
+    // de aba (FE-12 / MA-5).
+    staleTime: ALERT_CONFIG_STALE_MS,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 

@@ -4,11 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   getAgentCapacity,
-  getAgentStatus,
   getPermissions,
   getSelfAssignCapability,
   type AgentCapacity,
-  type AgentOnlineStatus,
   type SelfAssignResponse,
   type TeamUser,
 } from "../api";
@@ -25,16 +23,9 @@ export function usePermissionsPanel(enabled = true) {
   });
 }
 
-/** Status online/offline do agente. */
-export function useMyAgentStatus(userId: string | null | undefined) {
-  return useQuery<{ status: AgentOnlineStatus }>({
-    queryKey: ["my-agent-status", userId ?? "__none__"],
-    queryFn: () => getAgentStatus(userId as string),
-    enabled: !!userId,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
-  });
-}
+// Status online/offline do agente: `useSharedAgentStatus`
+// (`@/components/crm/agent-status-context`) — uma única definição da
+// query `["my-agent-status", userId]`, sem poll (FE-11).
 
 /** N/M conversas atribuídas + tone (healthy/busy/overloaded). */
 export function useAgentCapacity(enabled = true) {
