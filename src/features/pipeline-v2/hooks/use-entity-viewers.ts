@@ -10,12 +10,22 @@ import { subscribeSSEEvents } from "@/hooks/use-sse";
  * deal) estiver aberta, envia heartbeats ao backend e escuta o evento SSE
  * `entity_viewers` para saber quem MAIS está na mesma página.
  *
- * - Join imediato + heartbeat a cada 25s (TTL do backend é 30s, com reaper
- *   varrendo a cada 10s — 25s deixa margem sem expirar viewer ativo).
+ * - Join imediato + heartbeat a cada `ENTITY_VIEWERS_HEARTBEAT_MS` (TTL do
+ *   backend é 30s, com reaper varrendo a cada 10s — 25s deixa margem sem
+ *   expirar viewer ativo). Subir para 60s exige antes o backend com TTL
+ *   >= 75s (`src/lib/entity-presence.ts`, `TTL_MS`); com 30s o viewer
+ *   sumiria metade do tempo.
+ * - Aba oculta pausa o heartbeat (`visibilitychange`) e retoma ao voltar.
  * - Saída explícita no unmount / fechamento da aba (sendBeacon) → o backend
  *   remove na hora; sem isso, o viewer cairia por TTL em até 30s.
  * - Retorna a lista JÁ SEM você mesmo (só os outros usuários).
  */
+/**
+ * Intervalo do heartbeat. Amarrado ao `TTL_MS` do backend (30s): só mude
+ * junto com ele.
+ */
+export const ENTITY_VIEWERS_HEARTBEAT_MS = 25_000;
+
 export type EntityViewer = {
   userId: string;
   name: string;
@@ -68,12 +78,12 @@ export function useEntityViewers(
     void beat(); // join
     let interval: ReturnType<typeof setInterval> | null = null;
     if (!document.hidden) {
-      interval = setInterval(beat, 25_000);
+      interval = setInterval(beat, ENTITY_VIEWERS_HEARTBEAT_MS);
     }
 
     function startBeatTimer() {
       if (interval != null) return;
-      interval = setInterval(beat, 25_000);
+      interval = setInterval(beat, ENTITY_VIEWERS_HEARTBEAT_MS);
     }
 
     function clearBeatTimer() {

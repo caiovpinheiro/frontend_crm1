@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -28,6 +29,8 @@ import {
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
+import { composerDraftKey } from "../composer-draft";
+import { useComposerDraftPersistence } from "../hooks/use-composer-draft";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -371,6 +374,28 @@ export function Composer({
   // Quando ligada e fora do modo nota, prefixa `*Nome*: ` na mensagem.
   const { data: session } = useSession();
   const agentName = (session?.user?.name ?? "").trim();
+
+  // Rascunho persistido por conversa (localStorage, sincronizado entre
+  // abas). Serve inbox, painel do negócio e sales-hub — todos passam
+  // `value`/`onChange`; a persistência é transparente para o pai.
+  const draftStorageKey = composerDraftKey({
+    orgId: session?.user?.organizationId,
+    userId: session?.user?.id,
+    conversationId,
+  });
+  const isTextareaFocused = useCallback(
+    () =>
+      typeof document !== "undefined" &&
+      document.activeElement != null &&
+      document.activeElement === textareaRef.current,
+    [],
+  );
+  useComposerDraftPersistence({
+    storageKey: draftStorageKey,
+    value,
+    onChange,
+    isEditing: isTextareaFocused,
+  });
 
   // Contexto de interpolação: contact + deal + atendente atual
   const templateContext = useMemo<InternalTemplateContext>(() => {
