@@ -102,6 +102,8 @@ export function useDealChatBinding(params: {
     setEnsuredId(null);
   }, [contactId]);
 
+  // `isPending` nas deps: trocar de card com o POST do contato anterior em
+  // voo adiava o ensure do novo; quando o anterior assenta, tenta de novo.
   useEffect(() => {
     if (!canAutoEnsure) return;
     if (conversationId || !contactId) return;
@@ -110,7 +112,7 @@ export function useDealChatBinding(params: {
     ensureTargetRef.current = contactId;
     ensureMutation.mutate(contactId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, contactId, ensuredId, canAutoEnsure]);
+  }, [conversationId, contactId, ensuredId, canAutoEnsure, ensureMutation.isPending]);
 
   // Id efetivo: o do deal (quando já vinculado) ou o recém-garantido.
   const effectiveConversationId = conversationId ?? ensuredId;
