@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import { composerDraftKey } from "../composer-draft";
 import { useComposerDraftPersistence } from "../hooks/use-composer-draft";
+import { useTypingNotifier } from "../hooks/use-typing-notifier";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -251,6 +252,9 @@ export function Composer({
   const [noteMode, setNoteMode] = useState(false);
   const [audioRecState, setAudioRecState] = useState<AudioRecordState>("idle");
   const isAudioActive = audioRecState !== "idle";
+  // "digitando…" pro cliente: 1 POST /typing a cada 3 s enquanto há texto
+  // (nunca em nota interna — o cliente não vê nota).
+  const notifyTyping = useTypingNotifier(conversationId, !noteMode);
 
   // Painel de emoji — abre acima do botão smiley. Insere no cursor do textarea.
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -1714,6 +1718,7 @@ export function Composer({
               onChange={(e) => {
                 const next = e.target.value;
                 onChange(next);
+                notifyTyping(next);
                 if (!next.trim()) {
                   e.target.style.height = "24px";
                   return;
