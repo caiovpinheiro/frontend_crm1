@@ -30,6 +30,7 @@ import {
 import { MobileModuleIcon } from "@/components/layout/mobile-module-icon";
 import { useMobileLayout } from "@/hooks/use-mobile-layout";
 import { useUserRole } from "@/hooks/use-user-role";
+import { inboxPrefetchIntentProps } from "@/lib/inbox-prefetch-intent";
 import { isModuleAllowedForRole, MOBILE_MODULES } from "@/lib/mobile-layout";
 import { isPreviewMode, PREVIEW_USER } from "@/lib/preview-mode";
 import { cn } from "@/lib/utils";
@@ -282,6 +283,7 @@ function MobileBottomNavClassic() {
                   aria-label={alertLabel}
                   aria-current={isActive ? "page" : undefined}
                   className={itemClass(isActive)}
+                  {...inboxPrefetchIntentProps(item.href)}
                 >
                   <span className="relative">
                     <MobileModuleIcon

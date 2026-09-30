@@ -9,6 +9,11 @@ import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { useMessageToast } from "@/features/inbox-v2/context/message-toast-context";
 import { ApiError } from "@/lib/api";
 import {
+  pollWhileVisible,
+  TEAM_CHAT_MESSAGES_POLL_MS,
+  TEAM_CHAT_MESSAGES_STALE_MS,
+} from "@/lib/shell-polling";
+import {
   addTeamChatMembers,
   addTeamChatNote,
   createTeamChatRoom,
@@ -190,9 +195,11 @@ export function useTeamChatMessages(roomId: string | null) {
       return { messages: mergeMessageLists(prev?.messages, data.messages) };
     },
     enabled: !!roomId,
-    refetchOnMount: "always",
-    refetchInterval: visible ? 8_000 : false,
-    refetchIntervalInBackground: false,
+    // O SSE (`useTeamChatRealtime`) já faz o upsert de cada mensagem; o poll
+    // é só rede de segurança. Antes: 8 s + `refetchOnMount: "always"` =
+    // 7,5 GET/min por sala aberta (FE-5).
+    staleTime: TEAM_CHAT_MESSAGES_STALE_MS,
+    ...pollWhileVisible(visible, TEAM_CHAT_MESSAGES_POLL_MS),
     retry: retryUnlessTimeout,
   });
 }

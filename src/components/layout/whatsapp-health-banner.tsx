@@ -87,7 +87,8 @@ export function WhatsAppHealthBanner() {
     enabled: sessionStatus === "authenticated",
     refetchInterval: visible ? 2 * 60 * 1_000 : false,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    // O poll de 2 min já cobre; refetch por foco era rajada entre abas (MA-5).
+    refetchOnWindowFocus: false,
     staleTime: 30_000,
   });
 

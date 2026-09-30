@@ -14,7 +14,7 @@ import {
 
 import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { subscribeSSE } from "@/hooks/use-sse";
 
 export type AgentOnlineStatus = "ONLINE" | "OFFLINE" | "AWAY";
 
@@ -112,8 +112,10 @@ export function useAgentStatus(): AgentStatusController {
   const { data: session } = useSession();
   const myUserId = (session?.user as { id?: string } | undefined)?.id;
   const queryClient = useQueryClient();
-  const visible = useDocumentVisible();
 
+  // Sem poll: o status chega por SSE (`presence_update` → patch em
+  // `useSystemPresenceSync`). Refetch só quando a stream reabre depois de
+  // um gap — o que passou com a conexão caída não tem replay (FE-4).
   const { data, isSuccess } = useQuery<{ status: AgentOnlineStatus }>({
     queryKey: ["my-agent-status", myUserId],
     queryFn: async () => {
@@ -122,9 +124,21 @@ export function useAgentStatus(): AgentStatusController {
       return r.json();
     },
     enabled: !!myUserId,
-    refetchInterval: visible ? 60_000 : false,
-    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
+
+  useEffect(() => {
+    if (!myUserId) return;
+    // Assinatura sem eventos: só o `onReconnect` da conexão compartilhada.
+    return subscribeSSE(
+      "/api/sse/messages",
+      [],
+      () => undefined,
+      () => {
+        void queryClient.invalidateQueries({ queryKey: ["my-agent-status", myUserId] });
+      },
+    );
+  }, [myUserId, queryClient]);
 
   const mutation = useMutation({
     mutationFn: async (next: AgentOnlineStatus) => {
