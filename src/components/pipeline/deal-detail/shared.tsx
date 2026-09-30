@@ -123,6 +123,8 @@ export type DealProductItem = {
   unitPrice: number;
   discount: number;
   total: number;
+  /** Pós: "18 meses". Graduação: "8º semestre". Vazio quando o curso não tem duração. */
+  courseDuration?: string | null;
 };
 
 export type CatalogProduct = {
