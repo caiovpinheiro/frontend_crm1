@@ -199,8 +199,8 @@ export function ConversationsConfigTab() {
           />
           <ToggleRow
             icon={<IconDotsVertical size={20} />}
-            label="Encerrar conversa no menu ⋮"
-            description="Exibe a opção Encerrar conversa no menu de ações do chat. Desligado, o encerramento fica só no botão ✓ ao lado do número da conversa."
+            label="Encerrar e reabrir no menu ⋮"
+            description="Exibe Encerrar/Reabrir conversa no menu de ações do chat. Desligado, ficam só no botão ao lado do número da conversa."
             checked={settings.showResolveInMenu}
             onChange={(v) => save("showResolveInMenu", v)}
             disabled={busy}

@@ -160,9 +160,10 @@ export function ConversationActionsMenu({
     });
   const executeDist = useExecuteDistribution();
   const { hideEvents, toggleHideEvents } = useHideChatEvents();
-  // "Encerrar" no ⋮ é opt-in (Configurações › Conversas); "Reabrir" fica.
+  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas): o botão
+  // ✓/↻ ao lado do Nº da conversa já cobre os dois — evita duplicidade.
   const { features: convFeatures } = useConversationFeatures();
-  const showResolveItem = isResolved || convFeatures.showResolveInMenu;
+  const showResolveItem = convFeatures.showResolveInMenu;
 
   const departmentsQuery = useQuery({
     queryKey: ["inbox-distribute-departments"],
