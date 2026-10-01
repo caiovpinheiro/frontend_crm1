@@ -18,7 +18,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   insertComposerSequence,
-  insertComposerText,
   type ComposerInsertStep,
 } from "@/lib/composer-insert";
 import { dt } from "@/lib/design-tokens";
@@ -807,12 +806,12 @@ export function DealProductsSection({
         });
       }
       if (steps.length === 0) return;
-      if (steps.length === 1 && !steps[0].productId) {
-        insertComposerText(steps[0].text, steps[0].media);
-        toast.success("Mensagem do produto pronta no chat — confira e envie.");
-      } else {
-        insertComposerSequence(steps);
-      }
+      insertComposerSequence(steps);
+      toast.success(
+        steps.length === 1
+          ? "Mensagem do produto pronta no chat — confira e envie."
+          : "Mensagens dos produtos prontas no chat — confira e envie.",
+      );
     } catch {
       toast.error("Falha ao preparar a mensagem dos produtos.");
     } finally {

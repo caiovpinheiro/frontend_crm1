@@ -40,7 +40,6 @@ import { getContact } from "@/features/inbox-v2/api/misc";
 import {
   sendAttachment,
   sendAttachmentReuse,
-  sendConversationProducts,
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
@@ -51,7 +50,6 @@ import {
   COMPOSER_INSERT_EVENT,
   takePendingComposerInsert,
   type ComposerInsertPayload,
-  type ComposerInsertStep,
 } from "@/lib/composer-insert";
 
 const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
@@ -455,122 +453,6 @@ export function Composer({
     return already ? text : `*${sig}*: ${text}`;
   }
 
-  const productSendLock = useRef(false);
-  async function sendProductOfferSteps(steps: ComposerInsertStep[]) {
-    const cid = conversationId;
-    if (!cid) {
-      toast.error("Abra a conversa para enviar os produtos.");
-      return;
-    }
-    if (productSendLock.current) return;
-    productSendLock.current = true;
-    setSequenceSending(true);
-    try {
-      const productIds = steps
-        .map((s) => s.productId?.trim())
-        .filter((id): id is string => Boolean(id));
-      if (productIds.length > 0) {
-        try {
-          let result = await sendConversationProducts(cid, {
-            productIds,
-            format: "auto",
-            header: "Produtos",
-            channelId: selectedChannelId,
-          });
-          if (result.used === "ask") {
-            result = await sendConversationProducts(cid, {
-              productIds,
-              format:
-                productIds.length <= 1
-                  ? "catalog_product"
-                  : "catalog_product_list",
-              header: "Produtos",
-              channelId: selectedChannelId,
-            });
-          }
-          if (result.used === "catalog") {
-            applyOutboundPreviewToInboxCaches(qc, cid, {
-              content:
-                productIds.length <= 1
-                  ? "Produto enviado no catálogo WhatsApp"
-                  : "Carrossel de produtos enviado no WhatsApp",
-            });
-            toast.success(
-              productIds.length <= 1
-                ? "Produto enviado no catálogo WhatsApp."
-                : "Carrossel de produtos enviado no WhatsApp.",
-            );
-            return;
-          }
-        } catch (err) {
-          toast.error(
-            err instanceof Error ? err.message : "Falha ao enviar no catálogo Meta.",
-          );
-          return;
-        }
-      }
-      for (const step of steps) {
-        const captionText = applySignature(step.text.trim());
-        const media = (step.media ?? []).find(
-          (m) => typeof m.url === "string" && m.url.trim(),
-        );
-        try {
-          if (media) {
-            const reuseUrl = media.url.trim();
-            if (
-              captionText.length > 0 &&
-              captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX
-            ) {
-              await sendAttachmentReuse(cid, {
-                reuseUrl,
-                fileName: media.name ?? undefined,
-                mimeType: media.mimeType ?? undefined,
-                caption: captionText,
-                channelId: selectedChannelId,
-                waitUntilSent: true,
-                deferChatUntilSent: true,
-              });
-            } else {
-              if (captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
-                toast.message(
-                  "Texto longo demais para legenda do WhatsApp; enviando imagem e texto separados.",
-                );
-              }
-              await sendAttachmentReuse(cid, {
-                reuseUrl,
-                fileName: media.name ?? undefined,
-                mimeType: media.mimeType ?? undefined,
-                channelId: selectedChannelId,
-                waitUntilSent: true,
-                deferChatUntilSent: true,
-              });
-              if (captionText) {
-                await Promise.resolve(onSend(captionText));
-              }
-            }
-          } else if (captionText) {
-            await Promise.resolve(onSend(captionText));
-          }
-        } catch (err) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : "Falha ao enviar um dos produtos.",
-          );
-        }
-      }
-      applyOutboundPreviewToInboxCaches(qc, cid, {
-        content: steps[steps.length - 1]?.text?.trim() || "produto",
-      });
-    } finally {
-      productSendLock.current = false;
-      setSequenceSending(false);
-    }
-  }
-
-  const sendProductOfferStepsRef = useRef(sendProductOfferSteps);
-  sendProductOfferStepsRef.current = sendProductOfferSteps;
-
   // ── Template do WhatsApp pendente de validação/envio ─────────────
   // Aberto pelo slash menu (meta-template) ou pelo menu "+". O envio é
   // feito pelo botão do próprio painel após o agente validar as variáveis.
@@ -674,44 +556,35 @@ export function Composer({
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
   useEffect(() => {
+    function mediaFrom(
+      list: ComposerInsertPayload["media"] | undefined,
+    ) {
+      return (list ?? [])
+        .filter((m) => typeof m?.url === "string" && m.url.trim())
+        .map((m) => ({
+          url: m.url.trim(),
+          name: m.name ?? null,
+          mimeType: m.mimeType ?? null,
+          sendBeforeText: Boolean(m.sendBeforeText),
+        }));
+    }
     function applyInsert(payload: ComposerInsertPayload) {
       const steps = Array.isArray(payload?.steps) ? payload.steps : [];
-      const productIds = Array.isArray(payload?.productIds)
-        ? payload.productIds.filter((id) => typeof id === "string" && id.trim())
-        : steps
-            .map((s) => s.productId)
-            .filter((id): id is string => Boolean(id));
-      if (steps.length > 1 || productIds.length > 0) {
-        clearPendingComposerInsert();
-        const resolvedSteps =
-          steps.length > 0
-            ? steps
-            : [
-                {
-                  text: typeof payload?.text === "string" ? payload.text : "",
-                  media: payload?.media,
-                  productId: productIds[0],
-                },
-              ];
-        if (productIds.length > 0 && !resolvedSteps.some((s) => s.productId)) {
-          resolvedSteps.forEach((s, i) => {
-            if (!s.productId && productIds[i]) s.productId = productIds[i];
-          });
-        }
-        void sendProductOfferStepsRef.current(resolvedSteps);
-        return;
-      }
-      const text = typeof payload?.text === "string" ? payload.text : "";
-      const media = Array.isArray(payload?.media)
-        ? payload.media
-            .filter((m) => typeof m?.url === "string" && m.url.trim())
-            .map((m) => ({
-              url: m.url.trim(),
-              name: m.name ?? null,
-              mimeType: m.mimeType ?? null,
-              sendBeforeText: Boolean(m.sendBeforeText),
-            }))
-        : [];
+      // Um ou mais produtos: o texto cai no campo, editável, e a imagem
+      // fica encostada. O envio só acontece quando o operador confirma.
+      const text =
+        steps.length > 0
+          ? steps
+              .map((s) => (typeof s.text === "string" ? s.text.trim() : ""))
+              .filter(Boolean)
+              .join("\n\n")
+          : typeof payload?.text === "string"
+            ? payload.text
+            : "";
+      const media =
+        steps.length > 0
+          ? steps.flatMap((s) => mediaFrom(s.media))
+          : mediaFrom(payload?.media);
       if (!text.trim() && media.length === 0) return;
       if (text.trim()) {
         const current = (draftRef.current || "").trimEnd();
@@ -721,7 +594,11 @@ export function Composer({
         }
       }
       if (media.length > 0) {
-        setPendingMediaList((prev) => [...prev, ...media]);
+        setPendingMediaList((prev) => {
+          const urls = new Set(prev.map((m) => m.url));
+          const extra = media.filter((m) => !urls.has(m.url));
+          return extra.length > 0 ? [...prev, ...extra] : prev;
+        });
       }
       clearPendingComposerInsert();
     }
