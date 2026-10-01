@@ -11,9 +11,17 @@
  * nada. Se o signOut falhar, não insiste — os erros 401 seguem aparecendo
  * normalmente ("Sua sessão expirou…").
  *
+ * Exceção: quando é o próprio usuário que revoga (troca de senha, "sair dos
+ * outros dispositivos"), esta sessão se renova com a prova que o backend
+ * devolve (`session-renewal.ts`). Enquanto essa renovação está em andamento
+ * — nesta aba ou em outra do navegador — um 401 revogado é esperado e NÃO
+ * desloga: o signOut apagaria o cookie que está sendo renovado.
+ *
  * Sem import estático de `next-auth/react`: este módulo é importado por
  * `lib/api.ts`, que também roda no servidor.
  */
+
+import { isSessionRenewalInProgress } from "@/lib/session-renewal";
 
 export const SESSION_REVOKED_CODE = "SESSION_REVOKED";
 
@@ -49,6 +57,9 @@ export function handleSessionRevoked(
   if (typeof window === "undefined") return false;
   if (handled) return false;
   if (AUTH_PATH_RE.test(window.location.pathname)) return false;
+  // Renovação em andamento: não marca `handled` — se ela falhar, o próximo
+  // 401 revogado desloga normalmente.
+  if (isSessionRenewalInProgress()) return false;
 
   const now = Date.now();
   try {
