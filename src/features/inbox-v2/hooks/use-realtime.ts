@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { subscribeSSEEvents } from "@/hooks/use-sse";
+import { realtimeHandlers, type RealtimePayload } from "@/lib/realtime-contract";
 import { useMessageToast } from "@/features/inbox-v2/context/message-toast-context";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import {
@@ -75,24 +76,17 @@ import {
  * Aviso sonoro e toast: `InboxMessageAlerts` (layout global), não aqui.
  */
 
-type NewMessagePayload = {
-  conversationId?: string;
-  contactId?: string;
-  direction?: string;
-  assignedToId?: string | null;
-  content?: string;
-  timestamp?: string;
-  messageType?: string;
-  /** Nome do agente remetente em mensagens outbound — evita avatar "?". */
-  senderName?: string;
-  /** Slim list row from the bus (`InboxSseCard`). */
+/**
+ * `new_message` como chega do barramento — contrato em
+ * `@/lib/realtime-contract` (campos e significado documentados lá). Aqui
+ * só entram os tipos do inbox para `card` (linha da lista, `InboxSseCard`
+ * no backend) e `catalogOrder`.
+ */
+type NewMessagePayload = Omit<
+  RealtimePayload<"new_message">,
+  "card" | "catalogOrder"
+> & {
   card?: ConversationListRow;
-  /**
-   * Por que veio sem `card`: `"hidden"` = este usuário não lista a
-   * conversa (o servidor também tira texto/mídia do evento); `"budget"` =
-   * o bus não montou o snapshot a tempo.
-   */
-  cardOmitted?: "hidden" | "budget";
   catalogOrder?: InboxMessageDto["catalogOrder"];
 };
 
@@ -488,15 +482,8 @@ function scheduleMissingCardHydrate(
   }, MISSING_HYDRATE_DEBOUNCE_MS);
 }
 
-type ConversationUpdatedPayload = {
-  conversationId?: string;
-  assignedToId?: string | null;
-  status?: string;
-  closedAt?: string | null;
-  followUpAt?: string | null;
-  whatsappCallConsentStatus?: string;
-  assignedTo?: { type?: string | null } | null;
-};
+/** `conversation_updated` — contrato em `@/lib/realtime-contract`. */
+type ConversationUpdatedPayload = RealtimePayload<"conversation_updated">;
 
 /** Payload SSE quase nunca é um card completo — só `{ conversationId }`. */
 function conversationRowFromUpdatedEvent(
@@ -1079,10 +1066,12 @@ export function useInboxRealtime(options: {
       }, 1000);
     }
 
+    // `realtimeHandlers`: nome de evento fora do contrato não compila e
+    // cada handler recebe o payload tipado (todo campo opcional).
     const unsubscribe = subscribeSSEEvents(
       "/api/sse/messages",
-      {
-      new_message: (raw: unknown) => {
+      realtimeHandlers({
+      new_message: (raw) => {
         const data = raw as NewMessagePayload;
         // Atualização do chat aberto: isola da lista para que um erro
         // no merge do thread não quebre o preview do card.
@@ -1195,16 +1184,8 @@ export function useInboxRealtime(options: {
         }
       },
 
-      message_status: (raw: unknown) => {
+      message_status: (data) => {
         try {
-          const data = raw as {
-            conversationId?: string;
-            /** Id da bolha (= externalId/wamid no Meta). */
-            messageId?: string;
-            /** UUID interno — fallback p/ payloads antigos. */
-            internalId?: string;
-            status?: string;
-          };
           if (data.conversationId) {
             // Atualização otimista do tick (sent→delivered→read) sem
             // esperar o refetch — evita atraso perceptível nos ticks azuis.
@@ -1271,8 +1252,8 @@ export function useInboxRealtime(options: {
         }
       },
 
-      conversation_updated: (raw: unknown) => {
-        const payload = (raw ?? {}) as ConversationUpdatedPayload;
+      conversation_updated: (raw) => {
+        const payload: ConversationUpdatedPayload = raw ?? {};
         const id = payload.conversationId;
         if (shouldSuppressInboxListRefresh(id ?? activeRef.current)) {
           scheduleDailyStatsRefresh();
@@ -1311,11 +1292,8 @@ export function useInboxRealtime(options: {
       // pelo backend. Invalida ["conversation-timeline", id] p/ o
       // ConversationTimelineTab exibir o evento na hora, mesmo quando a
       // acao veio de outro agente/automacao (sem mutation local).
-      conversation_timeline_updated: (raw: unknown) => {
+      conversation_timeline_updated: (data) => {
         try {
-          const data = raw as {
-            conversationId?: string;
-          };
           if (data.conversationId) {
             qc.invalidateQueries({
               queryKey: ["conversation-timeline", data.conversationId],
@@ -1326,11 +1304,8 @@ export function useInboxRealtime(options: {
         }
       },
 
-      contact_updated: (raw: unknown) => {
+      contact_updated: (data) => {
         try {
-          const data = raw as {
-            contactId?: string;
-          };
           if (data.contactId) {
             qc.invalidateQueries({ queryKey: ["contact-sidebar", data.contactId] });
           }
@@ -1339,11 +1314,8 @@ export function useInboxRealtime(options: {
         }
       },
 
-      whatsapp_call: (raw: unknown) => {
+      whatsapp_call: (data) => {
         try {
-          const data = raw as {
-            conversationId?: string;
-          };
           if (data.conversationId && data.conversationId === activeRef.current) {
             qc.invalidateQueries({ queryKey: messagesKey(activeRef.current) });
           }
@@ -1355,8 +1327,7 @@ export function useInboxRealtime(options: {
       // Só o próprio usuário: `useSystemPresenceSync` já patcha o cache
       // pelo evento; o refetch aqui é a confirmação do meu status. Antes
       // era 1 GET por mudança de status de qualquer agente da org (FE-4).
-      presence_update: (raw: unknown) => {
-        const data = raw as { userId?: string } | undefined;
+      presence_update: (data) => {
         const me = userIdRef.current;
         if (!me || data?.userId !== me) return;
         qc.invalidateQueries({ queryKey: ["my-agent-status", me] });
@@ -1366,8 +1337,7 @@ export function useInboxRealtime(options: {
       // (`useScheduledMessages`) refaz o GET só se a conversa está aberta
       // em alguma aba desta página (query ativa); o poll de 60s vira
       // fallback para quando o SSE está desconectado.
-      scheduled_message_updated: (raw: unknown) => {
-        const data = raw as { conversationId?: string } | undefined;
+      scheduled_message_updated: (data) => {
         const id = data?.conversationId;
         if (!id) return;
         qc.invalidateQueries({
@@ -1381,16 +1351,10 @@ export function useInboxRealtime(options: {
       // contactId (contexto não referencia conversa), então invalidamos a
       // query da conversa ativa; se o contato não for o mesmo, o refetch
       // é barato e o resultado idêntico.
-      automation_state: (raw: unknown) => {
+      automation_state: (data) => {
         // Invalida o botão "Robôs ativos" (por contato) do evento e,
         // por compat, o chip antigo (por conversa ativa).
         try {
-          const data = raw as {
-            contactId?: string;
-            active?: boolean;
-            status?: string;
-            createdAt?: string | null;
-          };
           if (data.contactId) {
             const active =
               data.active ??
@@ -1417,7 +1381,7 @@ export function useInboxRealtime(options: {
           });
         }
       },
-      },
+      }),
       refetchInboxAfterSseGap,
     );
 
