@@ -1,8 +1,10 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
+import { handleSessionRevoked } from "@/lib/session-revoked";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
+import { isSingleLeaderEnabled } from "./sse-single-leader";
 import {
   tabCoordinatorFor,
   type TabCoordinator,
@@ -75,6 +77,37 @@ export function sseReconnectDelayMs(attempt: number, random = Math.random): numb
   return Math.round(base * jitter);
 }
 
+/**
+ * Teto de conexões do backend (`src/lib/sse-connection-limit.ts`):
+ *  - por usuário: a conexão MAIS ANTIGA recebe este evento
+ *    (`{ reason, retryAfterMs }`) e é fechada pelo servidor. Reconectar na
+ *    hora derrubaria a conexão seguinte, em rodízio — então a líder fecha,
+ *    fica "evicted" e só volta depois de ≥ 60s (com jitter) ou quando o
+ *    usuário volta à aba depois desse prazo. A liderança NÃO muda: as
+ *    seguidoras ficam sem SSE até a líder voltar (os polls de fallback
+ *    cobrem).
+ *  - por organização: handshake recusado com 429 + `Retry-After`.
+ * Sessão revogada/expirada: handshake recusado com 401 — não reconecta em
+ * loop; só confere de novo quando o usuário volta à aba (≥ 60s depois).
+ */
+export const SSE_EVICTED_EVENT = "sse_connection_evicted";
+export const SSE_EVICTED_MIN_RETRY_MS = 60_000;
+/** `Retry-After` ilegível (CORS sem expose) num 429: assume o default do backend. */
+export const SSE_ORG_LIMIT_DEFAULT_RETRY_MS = 35_000;
+export const SSE_UNAUTHORIZED_RECHECK_MS = 60_000;
+const HOLD_JITTER = 0.3;
+
+export type SseHoldReason = "evicted" | "unauthorized";
+
+/** Resultado da sondagem HTTP depois de um handshake recusado. */
+export type SseProbeResult = {
+  status: number;
+  /** `Retry-After` em ms, quando legível. */
+  retryAfterMs?: number;
+  /** `code` do corpo JSON (ex.: `SESSION_REVOKED`). */
+  code?: string;
+};
+
 export interface EventSourceLike {
   onopen: (() => void) | null;
   onerror: (() => void) | null;
@@ -88,6 +121,17 @@ export interface SseEnv {
   createEventSource: (url: string) => EventSourceLike;
   /** `null` = aba isolada (sem coordenação; comportamento de uma conexão por aba). */
   tabs: TabCoordinator | null;
+  /**
+   * O `EventSource` não expõe status nem cabeçalhos. Quando o handshake
+   * falha SEM abrir, uma sondagem `fetch` lê o status (401/429) e o
+   * `Retry-After`. `null` = erro de rede/desconhecido (backoff normal).
+   */
+  probe?: (url: string) => Promise<SseProbeResult | null>;
+  /** Usuário voltou à aba (foco / ficou visível) — devolve o unsubscribe. */
+  onUserActive?: (fn: () => void) => () => void;
+  /** 401 com `code: "SESSION_REVOKED"` no handshake. */
+  onSessionRevoked?: () => void;
+  random?: () => number;
 }
 
 type StatusListener = (open: boolean) => void;
@@ -109,6 +153,10 @@ class SharedSSEConnection {
   private failures = 0;
   /** Estado da conexão como esta aba o conhece (própria ou da líder). */
   private open = false;
+  /** Líder: não reconectar antes de `until` (despejo / 401). */
+  private hold: { reason: SseHoldReason; until: number } | null = null;
+  /** Sondagem HTTP em andamento (handshake recusado). */
+  private probing = false;
 
   constructor(
     readonly url: string,
@@ -117,6 +165,11 @@ class SharedSSEConnection {
 
   get connected(): boolean {
     return this.open;
+  }
+
+  /** Por que a líder não está reconectando (`null` = fluxo normal). */
+  get holdReason(): SseHoldReason | null {
+    return this.hold?.reason ?? null;
   }
 
   private get tabs(): TabCoordinator | null {
@@ -290,8 +343,18 @@ class SharedSSEConnection {
   }
 
   private connect(): void {
-    if (this.es) return;
+    if (this.es || this.probing) return;
     if (!this.isLeader() || this.neededEvents().size === 0) return;
+    if (this.hold) {
+      // 401: só o usuário voltando à aba libera (`onUserActive`).
+      if (this.hold.reason === "unauthorized") return;
+      const remaining = this.hold.until - Date.now();
+      if (remaining > 0) {
+        if (!this.retryTimer) this.scheduleRetry(remaining);
+        return;
+      }
+      this.hold = null;
+    }
     let es: EventSourceLike;
     try {
       es = this.env.createEventSource(this.url);
@@ -300,27 +363,119 @@ class SharedSSEConnection {
       return;
     }
     this.es = es;
+    /** Este handshake chegou a abrir? Falha sem abrir = recusado (401/429/5xx). */
+    let opened = false;
     this.attachMissing(this.neededEvents());
+    es.addEventListener(SSE_EVICTED_EVENT, (e) => this.onEvicted(es, e));
     es.onopen = () => {
+      opened = true;
       this.failures = 0;
       this.setOpen(true, true);
       this.afterOpen();
     };
     es.onerror = () => {
-      if (this.everOpened) this.sawGap = true;
       es.close();
-      if (this.es === es) this.es = null;
+      if (this.es !== es) return; // já tratado (despejo / teardown)
+      if (this.everOpened) this.sawGap = true;
+      this.es = null;
       this.attached.clear();
       this.setOpen(false, true);
       if (this.retryTimer || this.neededEvents().size === 0) return;
       if (!this.isLeader()) return;
-      const delay = sseReconnectDelayMs(this.failures);
+      if (!opened && this.env.probe) {
+        void this.probeThenRetry();
+        return;
+      }
+      this.scheduleRetry(sseReconnectDelayMs(this.failures));
       this.failures += 1;
-      this.retryTimer = setTimeout(() => {
-        this.retryTimer = null;
-        this.connect();
-      }, delay);
     };
+  }
+
+  private scheduleRetry(delayMs: number): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.connect();
+    }, delayMs);
+  }
+
+  private holdDelay(baseMs: number): number {
+    const random = this.env.random ?? Math.random;
+    return Math.round(baseMs * (1 + random() * HOLD_JITTER));
+  }
+
+  /**
+   * Handshake recusado: descobre o motivo (o `EventSource` não diz).
+   * 401 → para (sessão revogada dispara o signOut); 429 → respeita o
+   * `Retry-After`; o resto segue o backoff normal.
+   */
+  private async probeThenRetry(): Promise<void> {
+    this.probing = true;
+    let result: SseProbeResult | null = null;
+    try {
+      result = (await this.env.probe?.(this.url)) ?? null;
+    } catch {
+      result = null;
+    }
+    this.probing = false;
+    if (this.es || this.retryTimer) return;
+    if (!this.isLeader() || this.neededEvents().size === 0) return;
+
+    if (result?.status === 401) {
+      this.hold = {
+        reason: "unauthorized",
+        until: Date.now() + SSE_UNAUTHORIZED_RECHECK_MS,
+      };
+      if (result.code === "SESSION_REVOKED") this.env.onSessionRevoked?.();
+      return;
+    }
+    if (result?.status === 429) {
+      const base = Math.max(1_000, result.retryAfterMs ?? SSE_ORG_LIMIT_DEFAULT_RETRY_MS);
+      this.failures += 1;
+      this.scheduleRetry(this.holdDelay(base)); // nunca antes do Retry-After
+      return;
+    }
+    // Rede/5xx — ou 2xx (o servidor voltou entre a falha e a sondagem):
+    // backoff normal; reconectar "já" num 2xx viraria laço se só o
+    // EventSource estiver falhando.
+    this.scheduleRetry(sseReconnectDelayMs(this.failures));
+    this.failures += 1;
+  }
+
+  /** Teto por usuário: esta conexão era a mais antiga e foi fechada. */
+  private onEvicted(es: EventSourceLike, e: Event): void {
+    if (this.es !== es) return;
+    let retryAfterMs = 0;
+    try {
+      const data = JSON.parse((e as MessageEvent).data as string) as {
+        retryAfterMs?: unknown;
+      };
+      if (typeof data.retryAfterMs === "number") retryAfterMs = data.retryAfterMs;
+    } catch {
+      /* sem payload: vale o mínimo */
+    }
+    es.close();
+    this.es = null;
+    this.attached.clear();
+    if (this.everOpened) this.sawGap = true;
+    const delay = this.holdDelay(Math.max(SSE_EVICTED_MIN_RETRY_MS, retryAfterMs));
+    this.hold = { reason: "evicted", until: Date.now() + delay };
+    this.setOpen(false, true);
+    this.scheduleRetry(delay);
+  }
+
+  /**
+   * Usuário voltou à aba: se o prazo do "evicted"/"unauthorized" já passou
+   * (timer estrangulado em segundo plano, ou 401 sem timer), tenta de novo.
+   */
+  onUserActive(): void {
+    if (!this.hold || Date.now() < this.hold.until) return;
+    this.hold = null;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.refresh();
   }
 
   private teardown(): void {
@@ -388,6 +543,13 @@ export class SseTabBridge {
   private readonly offs: Array<() => void> = [];
 
   constructor(readonly env: SseEnv) {
+    if (env.onUserActive) {
+      this.offs.push(
+        env.onUserActive(() => {
+          for (const conn of this.connections.values()) conn.onUserActive();
+        }),
+      );
+    }
     const tabs = env.tabs;
     if (!tabs) return;
     this.offs.push(
@@ -441,13 +603,83 @@ export class SseTabBridge {
   }
 }
 
+/**
+ * Sondagem do handshake: um GET comum à mesma URL só para ler status,
+ * `Retry-After` e o `code` do 401 — abortado em seguida (num 200 o stream
+ * aberto é descartado na hora). Erro de rede/CORS → `null`.
+ */
+export async function probeSseHandshake(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<SseProbeResult | null> {
+  const ctrl = new AbortController();
+  try {
+    const res = await fetchImpl(url, {
+      credentials: "include",
+      cache: "no-store",
+      headers: { Accept: "text/event-stream" },
+      signal: ctrl.signal,
+    });
+    const result: SseProbeResult = { status: res.status };
+    const retryAfter = Number(res.headers.get("Retry-After"));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) {
+      result.retryAfterMs = Math.round(retryAfter * 1_000);
+    }
+    if (res.status === 401) {
+      try {
+        const body = (await res.json()) as { code?: unknown };
+        if (typeof body.code === "string") result.code = body.code;
+      } catch {
+        /* corpo não-JSON */
+      }
+    }
+    return result;
+  } catch {
+    return null;
+  } finally {
+    ctrl.abort();
+  }
+}
+
+function onBrowserUserActive(fn: () => void): () => void {
+  if (typeof document === "undefined" || typeof window === "undefined") return () => {};
+  const onVisibility = () => {
+    if (document.visibilityState === "visible") fn();
+  };
+  document.addEventListener("visibilitychange", onVisibility);
+  window.addEventListener("focus", fn);
+  return () => {
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("focus", fn);
+  };
+}
+
+/**
+ * Coordenador da conexão padrão. Com a chave desligada
+ * (`sse-single-leader.ts`) devolve `null`: aba isolada, uma conexão por
+ * aba — o comportamento anterior à líder entre abas.
+ */
+export function defaultSseTabs(
+  enabled: boolean = isSingleLeaderEnabled(),
+  create: () => TabCoordinator = () => tabCoordinatorFor("crm"),
+): TabCoordinator | null {
+  return enabled ? create() : null;
+}
+
 let defaultBridge: SseTabBridge | null = null;
 
 function bridge(): SseTabBridge {
   if (!defaultBridge) {
     defaultBridge = new SseTabBridge({
-      createEventSource: (url) => new EventSource(url, { withCredentials: true }),
-      tabs: tabCoordinatorFor("crm"),
+      // O DOM tipa `onopen`/`onerror` com `Event`; aqui os handlers o ignoram.
+      createEventSource: (url) =>
+        new EventSource(url, { withCredentials: true }) as unknown as EventSourceLike,
+      tabs: defaultSseTabs(),
+      probe: (url) => probeSseHandshake(url),
+      onUserActive: onBrowserUserActive,
+      onSessionRevoked: () => {
+        handleSessionRevoked();
+      },
     });
   }
   return defaultBridge;

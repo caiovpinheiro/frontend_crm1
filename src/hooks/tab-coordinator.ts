@@ -561,7 +561,9 @@ export function browserTabEnv(): TabEnv {
       ? (navigator.locks as unknown as TabLocksLike)
       : null;
   return {
-    createChannel: (name) => (hasChannel ? new BroadcastChannel(name) : null),
+    // O DOM tipa `onmessage` com `MessageEvent`; aqui só lemos `data`.
+    createChannel: (name) =>
+      hasChannel ? (new BroadcastChannel(name) as unknown as TabChannelLike) : null,
     locks,
     lifecycle: ({ hide, show }) => {
       if (typeof window === "undefined") return () => {};

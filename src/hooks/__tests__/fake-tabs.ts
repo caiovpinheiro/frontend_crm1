@@ -172,6 +172,7 @@ export class FakeTab {
   hidden = false;
   private lifecycle: { hide: () => void; show: () => void } | null = null;
   private readonly visibilityHandlers = new Set<() => void>();
+  private readonly userActiveHandlers = new Set<() => void>();
   closed = false;
 
   constructor(
@@ -203,7 +204,7 @@ export class FakeTab {
     return new TabCoordinator(name, this.env());
   }
 
-  sseEnv(tabs: TabCoordinator | null): SseEnv {
+  sseEnv(tabs: TabCoordinator | null, extras: Partial<SseEnv> = {}): SseEnv {
     return {
       createEventSource: (url) => {
         const es = new FakeEventSource(url);
@@ -211,7 +212,18 @@ export class FakeTab {
         return es;
       },
       tabs,
+      random: () => 0.5,
+      onUserActive: (fn) => {
+        this.userActiveHandlers.add(fn);
+        return () => this.userActiveHandlers.delete(fn);
+      },
+      ...extras,
     };
+  }
+
+  /** Usuário voltou a esta aba (foco / visível). */
+  userActive() {
+    for (const fn of this.userActiveHandlers) fn();
   }
 
   presenceEnv(
