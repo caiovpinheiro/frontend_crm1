@@ -23,6 +23,7 @@ import {
   IconChevronDown as ChevronDown,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { useScrollLoadMore } from "@/hooks/use-scroll-load-more";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import type { BoardStage } from "@/components/pipeline/kanban-board";
 import { SUBTLE_SPRING } from "@/lib/design-system";
@@ -588,64 +589,31 @@ export function DealQueue({
     el?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [activeDealId, activeIdx, effectiveLimit]);
   const hasMoreToRender = visibleDeals.length > effectiveLimit;
-  const queueSentinelRef = useRef<HTMLDivElement>(null);
-  // Dois níveis: 1º janela local (+60); depois rede (+50/etapa).
-  // Sentinel permanece montado durante o fetch (antes sumia e o IO
-  // era destruído). Scroll listener cobre o caso em que o root do
-  // observer não é o scroller real ou o alvo h-px não intersecta.
+  // Dois níveis: 1º janela local (+60); depois rede (uma página por etapa).
+  // Um pedido por gesto de rolagem (`useScrollLoadMore`): a sentinela que
+  // continua visível depois de uma página NÃO encadeia a seguinte — isso
+  // virava rajada de requisições com o botão piscando "Carregando…".
   const showQueueSentinel = hasMoreToRender || hasMoreServer;
-  const hasMoreToRenderRef = useRef(hasMoreToRender);
-  hasMoreToRenderRef.current = hasMoreToRender;
-  const hasMoreServerRef = useRef(hasMoreServer);
-  hasMoreServerRef.current = hasMoreServer;
-  const loadingMoreRef = useRef(loadingMore);
-  loadingMoreRef.current = loadingMore;
-  const onLoadMoreRef = useRef(onLoadMore);
-  onLoadMoreRef.current = onLoadMore;
-  const visibleCountRef = useRef(visibleDeals.length);
-  visibleCountRef.current = visibleDeals.length;
-  useEffect(() => {
-    const root = scrollerRef.current;
-    if (!root || !showQueueSentinel) return;
-
-    const maybeLoad = () => {
-      if (hasMoreToRenderRef.current) {
-        setRenderLimit((n) => n + QUEUE_PAGE);
-        return;
-      }
-      if (!hasMoreServerRef.current || loadingMoreRef.current) return;
-      if (lastNetworkLoadAtCountRef.current === visibleCountRef.current) return;
-      lastNetworkLoadAtCountRef.current = visibleCountRef.current;
-      onLoadMoreRef.current?.();
-    };
-
-    const onScroll = () => {
-      const gap = root.scrollHeight - root.scrollTop - root.clientHeight;
-      if (gap < 360) maybeLoad();
-    };
-    root.addEventListener("scroll", onScroll, { passive: true });
-
-    const el = queueSentinelRef.current;
-    const io = el
-      ? new IntersectionObserver(
-          (entries) => {
-            if (entries[0]?.isIntersecting) maybeLoad();
-          },
-          { root, rootMargin: "400px 0px", threshold: 0 },
-        )
-      : null;
-    if (el && io) io.observe(el);
-
-    const raf = requestAnimationFrame(() => {
-      if (root.scrollHeight <= root.clientHeight + 8) maybeLoad();
-    });
-
-    return () => {
-      cancelAnimationFrame(raf);
-      root.removeEventListener("scroll", onScroll);
-      io?.disconnect();
-    };
-  }, [showQueueSentinel, windowedDeals.length, visibleDeals.length]);
+  const visibleCount = visibleDeals.length;
+  const loadMoreStep = () => {
+    if (hasMoreToRender) {
+      setRenderLimit((n) => n + QUEUE_PAGE);
+      return;
+    }
+    if (!hasMoreServer || loadingMore) return;
+    // Página que não acrescentou card visível (filtro local): só o botão insiste.
+    if (lastNetworkLoadAtCountRef.current === visibleCount) return;
+    lastNetworkLoadAtCountRef.current = visibleCount;
+    onLoadMore?.();
+  };
+  const queueSentinelRef = useScrollLoadMore({
+    scrollerRef,
+    enabled: showQueueSentinel,
+    loading: loadingMore,
+    onLoadMore: loadMoreStep,
+    marginPx: 400,
+    resetKey: `${stageListKey}:${sortMode ?? ""}`,
+  });
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-transparent">
