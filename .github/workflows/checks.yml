@@ -1,7 +1,8 @@
 name: Checks
 
-# Lint + typecheck + testes em todo pull request para main/DEV_BRANCH e em
-# todo push nessas duas branches.
+# Lint + typecheck + testes em todo pull request para main/DEV_BRANCH. Em push
+# nessas branches ele roda chamado pelo build-and-deploy.yml (workflow_call),
+# como portão: a imagem só é publicada se os checks passarem.
 #
 # Deliberadamente SEM build e SEM deploy: o `build-and-deploy.yml` já roda o
 # `next build` em push para main/DEV_BRANCH e é ele quem publica a imagem e
@@ -12,8 +13,7 @@ name: Checks
 on:
   pull_request:
     branches: [main, DEV_BRANCH]
-  push:
-    branches: [main, DEV_BRANCH]
+  workflow_call:
 
 # Um push novo no mesmo PR/branch cancela a execução anterior ainda em
 # andamento (só o último commit importa).
