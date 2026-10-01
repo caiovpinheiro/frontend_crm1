@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { apiUrl } from "@/lib/api";
 /**
  * call-recording
@@ -249,14 +250,15 @@ export async function uploadCallRecording(params: {
       if (res.ok) return;
       const retryable = res.status === 409 || res.status >= 500;
       if (!retryable || attempt === maxAttempts) {
-        console.warn(
-          `[call-recording] upload falhou status=${res.status} attempt=${attempt} callId=${params.callId}`,
+        logger.warn(
+          "call-recording",
+          `upload falhou status=${res.status} attempt=${attempt} callId=${params.callId}`,
         );
         return;
       }
       await new Promise((r) => setTimeout(r, 700 * attempt));
     }
   } catch (err) {
-    console.warn("[call-recording] upload falhou:", err);
+    logger.warn("call-recording", "upload falhou", err);
   }
 }

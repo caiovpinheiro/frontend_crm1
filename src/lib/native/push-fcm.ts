@@ -2,6 +2,7 @@
  * Registro FCM no APK via Capacitor.Plugins (sem pacote no bundle Next).
  * Em browser/desktop este módulo é no-op.
  */
+import { logger } from "@/lib/logger";
 import { apiUrl } from "@/lib/api";
 import {
   getCapacitorPlugins,
@@ -81,6 +82,6 @@ export async function registerNativePush(): Promise<void> {
     await plugin.register();
   } catch (err) {
     started = false;
-    console.warn("[fcm] falha ao registrar push nativo:", err);
+    logger.warn("fcm", "falha ao registrar push nativo", err);
   }
 }
