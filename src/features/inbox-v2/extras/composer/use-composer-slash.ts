@@ -5,7 +5,7 @@ import { useSlashMenu } from "@/components/inbox/slash-command-menu";
 import { mediaNeedsSequence, sendInternalTemplateSequence } from "@/features/inbox-v2/api";
 import { applyOutboundPreviewToInboxCaches, messagesKey } from "@/features/inbox-v2/hooks";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
-import type { PendingTemplate } from "../template-compose-panel";
+import { slashTemplateToPending, type PendingTemplate } from "../template-compose-panel";
 import type { ComposerProps, PendingMedia } from "./types";
 
 /** Menu "/" do composer: modelos internos, templates Meta e automações. */
@@ -104,14 +104,7 @@ export function useComposerSlash({
       }
       setPendingMediaList((prev) => [...prev, ...list]);
     },
-    onPickMetaTemplate: (item) =>
-      setPendingTemplate({
-        name: item.name,
-        label: item.label || undefined,
-        content: item.bodyPreview,
-        metaTemplateId: item.id,
-        operatorVariables: item.operatorVariables ?? null,
-      }),
+    onPickMetaTemplate: (item) => setPendingTemplate(slashTemplateToPending(item)),
   });
 
   // Fechar o slash menu via ESC (mesmo sem foco no textarea) e ao clicar

@@ -35,6 +35,8 @@ vi.mock("@/features/inbox-v2/extras/channel-selector", () => ({
 import {
   TemplateComposePanel,
   parseFlowActionData,
+  slashTemplateToPending,
+  type PendingTemplate,
 } from "@/features/inbox-v2/extras/template-compose-panel";
 
 const TEMPLATE = {
@@ -45,7 +47,7 @@ const TEMPLATE = {
   metaTemplateId: "g-1",
 };
 
-function renderPanel() {
+function renderPanel(template: PendingTemplate = TEMPLATE) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -54,7 +56,7 @@ function renderPanel() {
     <QueryClientProvider client={qc}>
       <TemplateComposePanel
         conversationId="conv-1"
-        template={TEMPLATE}
+        template={template}
         onCancel={vi.fn()}
         onSent={onSent}
       />
@@ -191,5 +193,59 @@ describe("TemplateComposePanel — Flow", () => {
     );
     expect(screen.getByLabelText("JSON inicial do Flow")).toBeTruthy();
     expect(api.sendTemplate).not.toHaveBeenCalled();
+  });
+});
+
+describe("template escolhido pelo menu \"/\"", () => {
+  const SLASH_ITEM = {
+    kind: "meta-template" as const,
+    id: "g-9",
+    name: "oferta_curso",
+    label: "Oferta do curso",
+    bodyPreview: "Olá {{1}}, sua vaga está reservada.",
+    headerPreview: "Matrículas {{1}}",
+    operatorVariables: null,
+  };
+
+  it("leva o cabeçalho do template para o painel", () => {
+    expect(slashTemplateToPending(SLASH_ITEM)).toEqual({
+      name: "oferta_curso",
+      label: "Oferta do curso",
+      content: "Olá {{1}}, sua vaga está reservada.",
+      headerText: "Matrículas {{1}}",
+      metaTemplateId: "g-9",
+      operatorVariables: null,
+    });
+    expect(
+      slashTemplateToPending({ ...SLASH_ITEM, label: "", headerPreview: undefined }),
+    ).toMatchObject({ label: undefined, headerText: "" });
+  });
+
+  it("pede a variável do cabeçalho separada da do corpo e envia as duas", async () => {
+    api.sendTemplate.mockResolvedValue({ message: { id: "m1" } });
+    renderPanel(slashTemplateToPending(SLASH_ITEM));
+
+    // Mesmo `{{1}}` no cabeçalho e no corpo: dois campos, não um só.
+    const fields = screen.getAllByPlaceholderText("Valor para {{1}}");
+    expect(fields).toHaveLength(2);
+    expect(screen.getByText("Cabeçalho")).toBeTruthy();
+    expect(screen.getByText("Corpo")).toBeTruthy();
+
+    fireEvent.change(fields[0], { target: { value: "2027" } });
+    expect((sendButton() as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(fields[1], { target: { value: "Ana" } });
+    fireEvent.click(sendButton());
+
+    await waitFor(() => expect(api.sendTemplate).toHaveBeenCalledTimes(1));
+    const [, vars] = api.sendTemplate.mock.calls[0];
+    expect(vars.templateName).toBe("oferta_curso");
+    expect(vars.templateGraphId).toBe("g-9");
+    expect(vars.components).toEqual([
+      { type: "header", parameters: [{ type: "text", text: "2027" }] },
+      { type: "body", parameters: [{ type: "text", text: "Ana" }] },
+    ]);
+    expect(vars.bodyPreview).toBe(
+      "Matrículas 2027\nOlá Ana, sua vaga está reservada.",
+    );
   });
 });
