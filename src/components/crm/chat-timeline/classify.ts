@@ -136,7 +136,7 @@ export function isConversationActorAsAuthorText(
   return false;
 }
 
-/** Esconde "· Joyce" quando o texto já é "Joyce entrou/saiu da conversa". */
+/** Esconde "· Ana" quando o texto já é "Ana entrou/saiu da conversa". */
 export function eventActorIsSubject(
   text: string,
   actor?: string | null,

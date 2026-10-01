@@ -45,7 +45,7 @@ const CHANNEL = {
   provider: "meta",
 } as const;
 
-const CREATOR = { id: "user-demo", name: "Marcelo Silva" };
+const CREATOR = { id: "user-demo", name: "Gestor Demo" };
 
 const MOCK_ITEMS: CampaignListItem[] = [
   {
@@ -234,16 +234,16 @@ const MOCK_DETAILS: Record<string, CampaignDetail> = Object.fromEntries(
 );
 
 const RECIPIENT_NAMES = [
-  { name: "Ana Paula Costa", phone: "+5511987654321" },
-  { name: "Bruno Mendes", phone: "+5511976543210" },
-  { name: "Carla Oliveira", phone: "+5511965432109" },
-  { name: "Diego Ferreira", phone: "+5511954321098" },
-  { name: "Elena Santos", phone: "+5511943210987" },
-  { name: "Felipe Rocha", phone: "+5511932109876" },
-  { name: "Gabriela Lima", phone: "+5511921098765" },
-  { name: "Henrique Alves", phone: "+5511910987654" },
-  { name: "Isabela Nunes", phone: "+5511909876543" },
-  { name: "João Pedro Silva", phone: "+5511998765432" },
+  { name: "Ana Paula Costa", phone: "+5511999990026" },
+  { name: "Bruno Mendes", phone: "+5511999990027" },
+  { name: "Carla Oliveira", phone: "+5511999990028" },
+  { name: "Diego Ferreira", phone: "+5511999990029" },
+  { name: "Elena Santos", phone: "+5511999990030" },
+  { name: "Felipe Rocha", phone: "+5511999990031" },
+  { name: "Gabriela Lima", phone: "+5511999990032" },
+  { name: "Henrique Alves", phone: "+5511999990033" },
+  { name: "Isabela Nunes", phone: "+5511999990034" },
+  { name: "João Pedro Silva", phone: "+5511999990035" },
 ];
 
 function buildStats(item: CampaignListItem): CampaignStats {
@@ -513,7 +513,7 @@ export const MOCK_AUDIENCE_OPTIONS = {
     },
   ],
   users: [
-    { id: "user-demo", name: "Marcelo Silva" },
+    { id: "user-demo", name: "Gestor Demo" },
     { id: "user-2", name: "Ana Costa" },
   ],
 };

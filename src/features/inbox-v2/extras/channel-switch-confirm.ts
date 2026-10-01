@@ -17,7 +17,7 @@ export function isDisconnectedChannelError(err: unknown): boolean {
   return true;
 }
 
-/** Só os dígitos — o canal guarda o número formatado ("+55 11 91518-4535"). */
+/** Só os dígitos — o canal guarda o número formatado ("+55 11 99999-0001"). */
 function phoneKey(phone: string | null | undefined): string | null {
   const digits = (phone ?? "").replace(/\D/g, "");
   return digits.length > 0 ? digits : null;

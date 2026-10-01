@@ -82,7 +82,7 @@ const MOCK_CHANNELS = [
     type: "WHATSAPP",
     provider: "META",
     status: "CONNECTED",
-    phoneNumber: "+55 11 90000-0001",
+    phoneNumber: "+55 11 99999-0017",
   },
   {
     id: "ch-2",
@@ -90,7 +90,7 @@ const MOCK_CHANNELS = [
     type: "WHATSAPP",
     provider: "META",
     status: "CONNECTED",
-    phoneNumber: "+55 11 90000-0002",
+    phoneNumber: "+55 11 99999-0018",
   },
 ];
 
@@ -119,7 +119,7 @@ const MOCK_FILTER_OPTIONS: FilterOptionsResponse = {
 
 const MOCK_EMAIL_ACCOUNT: EmailAccount = {
   id: "acc-1",
-  email: "contato@empresa.com",
+  email: "contato@example.com",
   imapHost: "imap.exemplo.com",
   imapPort: 993,
   imapEncryption: "SSL_TLS",
@@ -152,7 +152,7 @@ const MOCK_CAMPAIGN: CampaignListItem = {
   createdAt: new Date().toISOString(),
   channel: { id: "ch-wa-main", name: "WhatsApp Principal", provider: "meta" },
   segment: { id: "seg-1", name: "Clientes ativos" },
-  createdBy: { id: "user-demo", name: "Marcelo Silva" },
+  createdBy: { id: "user-demo", name: "Gestor Demo" },
 };
 
 const MOCK_ROOM: TeamChatRoom = {
@@ -192,7 +192,7 @@ const MOCK_LOG: LogEntry = {
   conversationNumber: 42,
   contactLabel: "Maria Silva",
   dealLabel: "Plano anual",
-  contactPhone: "+5511999990000",
+  contactPhone: "+5511999990056",
   stepType: "send_whatsapp_message",
   eventLabel: "Envio",
   channelLabel: "WhatsApp Vendas",
@@ -240,7 +240,7 @@ const LIVE: Record<string, React.ComponentType<HostProps>> = {
     return (
       <ContactEditDialog
         contactId="showcase-contact"
-        initial={{ name: "Maria Silva", email: "maria@empresa.com", phone: "(11) 99999-0000" }}
+        initial={{ name: "Maria Silva", email: "maria@example.com", phone: "(11) 99999-0056" }}
         open
         onOpenChange={closeWhen(onClose)}
       />
@@ -327,7 +327,7 @@ const LIVE: Record<string, React.ComponentType<HostProps>> = {
   "user-edit": function UserEdit({ onClose }) {
     return (
       <EditUserDialog
-        user={{ id: "u-showcase", name: "Ana Souza", email: "ana@empresa.com" }}
+        user={{ id: "u-showcase", name: "Ana Souza", email: "ana@example.com" }}
         roleOptions={[
           { value: "AGENT", label: "Agente" },
           { value: "ADMIN", label: "Administrador" },

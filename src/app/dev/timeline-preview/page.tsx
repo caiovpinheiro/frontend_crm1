@@ -20,50 +20,50 @@ const MOCK_EVENTS: {
 }[] = [
   {
     action: "distribuicao",
-    text: "Conversa distribuída para Atendimento – SAC → Joyce",
+    text: "Conversa distribuída para Atendimento – SAC → Agente A",
     actor: "Sistema",
     time: "09:12",
   },
   {
     action: "atribuicao",
-    text: "Atribuída a Marcelo",
-    actor: "Joyce",
+    text: "Atribuída a Agente B",
+    actor: "Agente A",
     time: "09:15",
   },
   {
     action: "transferencia",
-    text: "Transferida de Joyce para Marcelo (Comercial)",
-    actor: "Joyce",
+    text: "Transferida de Agente A para Agente B (Comercial)",
+    actor: "Agente A",
     time: "09:18",
   },
   {
     action: "status",
     text: "Status alterado para Em atendimento",
-    actor: "Marcelo",
+    actor: "Agente B",
     time: "09:19",
   },
   {
     action: "tag",
     text: "Tag adicionada: Lead quente",
-    actor: "Marcelo",
+    actor: "Agente B",
     time: "09:20",
   },
   {
     action: "entrada",
-    text: "Joyce entrou na conversa",
-    actor: "Joyce",
+    text: "Agente A entrou na conversa",
+    actor: "Agente A",
     time: "09:21",
   },
   {
     action: "saida",
-    text: "Joyce saiu da conversa",
-    actor: "Joyce",
+    text: "Agente A saiu da conversa",
+    actor: "Agente A",
     time: "09:22",
   },
   {
     action: "saida",
     text: "Eduarda Moreira removida da conversa",
-    actor: "Marcelo",
+    actor: "Agente B",
     time: "18:45",
   },
   {
@@ -79,8 +79,8 @@ const INBOUND: Message = {
   content: "Boa tarde! Gostaria de saber sobre a matrícula.",
   time: "09:10",
   type: "incoming",
-  senderName: "Mateus",
-  senderInitials: "MB",
+  senderName: "Contato",
+  senderInitials: "CO",
   kind: "message",
 };
 
@@ -89,8 +89,8 @@ const OUTBOUND: Message = {
   content: "Olá! Claro, posso te ajudar com isso.",
   time: "09:24",
   type: "outgoing",
-  senderName: "Marcelo",
-  senderInitials: "MA",
+  senderName: "Agente B",
+  senderInitials: "AB",
   kind: "message",
   status: "read",
 };
@@ -137,7 +137,7 @@ export default function TimelinePreviewPage() {
         >
           <ul className="flex list-none flex-col gap-1.5">
             <li>
-              <MessageBubble message={INBOUND} agentInitials="MA" agentName="Marcelo" />
+              <MessageBubble message={INBOUND} agentInitials="AB" agentName="Agente B" />
             </li>
 
             {MOCK_EVENTS.map((event) => (
@@ -154,7 +154,7 @@ export default function TimelinePreviewPage() {
             <li>
               <NoteRow
                 content="Cliente pediu retorno amanhã de manhã. Confirmar vaga no noturno."
-                senderName="Marcelo"
+                senderName="Agente B"
                 time="09:25"
                 isPinned={notePinned}
                 noteId="preview-note"
@@ -163,7 +163,7 @@ export default function TimelinePreviewPage() {
             </li>
 
             <li>
-              <MessageBubble message={OUTBOUND} agentInitials="MA" agentName="Marcelo" />
+              <MessageBubble message={OUTBOUND} agentInitials="AB" agentName="Agente B" />
             </li>
           </ul>
         </section>

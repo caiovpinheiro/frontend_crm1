@@ -175,9 +175,9 @@ export function isV0PreviewHost(): boolean {
 
 /** User mockado retornado quando preview mode está ativo. */
 export const PREVIEW_USER = {
-  id: "u-marcelo",
-  name: "Marcelo Santos",
-  email: "marcelo@eduit.com.br",
+  id: "u-demo-gestor",
+  name: "Gestor Demo",
+  email: "gestor.demo@example.com",
   role: "OWNER" as const,
   organizationId: "preview-org",
   isSuperAdmin: false,

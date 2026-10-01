@@ -237,7 +237,7 @@ const DEFS: MockDef[] = [
     type: "CONTACT_FIELD_CHANGED",
     entityType: "CONTACT",
     entityLabel: "Carla Mendes",
-    meta: { field: "Telefone", from: "(11) 9000-0000", to: "(11) 98888-7777" },
+    meta: { field: "Telefone", from: "(11) 99999-0024", to: "(11) 99999-0025" },
     actorType: "HUMAN",
     actorLabel: "Ana Souza",
   },

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       sub: "preview-user",
       id: "preview-user",
       name: "Preview User",
-      email: "preview@eduit.com.br",
+      email: "preview@example.com",
       role: "ADMIN",
       organizationId: "preview-org",
       isSuperAdmin: false,

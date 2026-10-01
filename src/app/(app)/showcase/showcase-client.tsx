@@ -171,7 +171,7 @@ const MOCK_DEAL: Deal = {
   message: { text: "Pode me enviar a proposta?", time: "09:55" },
   timeAgo: "2h",
   tags: [{ label: "VIP", type: "vip" }],
-  owner: { initials: "JC", name: "Juliana Costa", avatarColor: "purple" },
+  owner: { initials: "JC", name: "Agente Demo A", avatarColor: "purple" },
 }
 
 const MOCK_MESSAGES: Message[] = [

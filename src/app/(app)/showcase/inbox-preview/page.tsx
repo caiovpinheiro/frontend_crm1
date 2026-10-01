@@ -14,8 +14,8 @@ import { ContactAside, type ContactDetails } from "@/components/crm/contact-asid
 const MOCK_CONVERSATIONS: Conversation[] = [
   {
     id: "c1",
-    name: "MATEUS EMANUEL MEIRELES BATISTA",
-    initials: "MB",
+    name: "CONTATO DEMO DA SILVA",
+    initials: "CD",
     avatarColor: "dusk",
     time: "2min",
     preview: "Boa tarde! Gostaria de saber sobre a matrícula.",
@@ -42,7 +42,7 @@ const MOCK_CONVERSATIONS: Conversation[] = [
     status: "offline",
     number: 6779,
     sessionExpiresIn: "18h",
-    assignee: "Marcelo",
+    assignee: "Gestor",
     lastMessageDirection: "out",
   },
   {
@@ -86,16 +86,16 @@ const FUNNEL = [
 ]
 
 const MOCK_CONTACT: ContactDetails = {
-  name: "MATEUS EMANUEL MEIRELES BATISTA",
+  name: "CONTATO DEMO DA SILVA",
   contactId: "contact-demo-1",
   contactNumber: 18032,
-  phone: "+55 11 98765-4321",
-  email: "mateus.batista@email.com",
+  phone: "+55 11 99999-0026",
+  email: "contato.demo@example.com",
   connection: {
     id: "ch1",
     name: "CSV Atendimento",
     type: "whatsapp",
-    phoneNumber: "+55 11 3000-0000",
+    phoneNumber: "+55 11 99999-0055",
   },
   panelFields: [
     {
@@ -135,7 +135,7 @@ const MOCK_CONTACT: ContactDetails = {
     {
       id: "deal-77581",
       number: 77581,
-      title: "MATEUS EMANUEL MEIRELES BATISTA",
+      title: "CONTATO DEMO DA SILVA",
       value: 1290,
       stageId: "s2",
       stageName: "ACOLHIMENTO",
@@ -152,7 +152,7 @@ const MOCK_CONTACT: ContactDetails = {
     {
       id: "deal-93387",
       number: 93387,
-      title: "MATEUS EMANUEL MEIRELES BATISTA",
+      title: "CONTATO DEMO DA SILVA",
       value: 890,
       stageId: "s9",
       stageName: "PERDIDO",

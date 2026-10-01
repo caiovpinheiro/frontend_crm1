@@ -27,10 +27,10 @@ import {
 } from "./org-account-picker";
 
 const DEV_PREVIEW_ORGS: TenantOrgChoice[] = [
-  { slug: "anhanguera-comercial", name: "ANHANGUERA COMERCIAL", status: "ARCHIVED" },
-  { slug: "cruzeiro-ead", name: "CRUZEIRO ACADÊMICO", status: "ARCHIVED" },
-  { slug: "cruzeiro-comercial", name: "CRUZEIRO COMERCIAL", status: "ACTIVE" },
-  { slug: "uead", name: "UEaD", status: "ARCHIVED" },
+  { slug: "demo-comercial", name: "DEMO COMERCIAL", status: "ARCHIVED" },
+  { slug: "demo-academico", name: "DEMO ACADÊMICO", status: "ARCHIVED" },
+  { slug: "demo-vendas", name: "DEMO VENDAS", status: "ACTIVE" },
+  { slug: "demo-ead", name: "DEMO EAD", status: "ARCHIVED" },
 ];
 
 function LoginShellFallback() {
@@ -104,7 +104,7 @@ function LoginForm() {
     searchParams.get("identify") === "1";
 
   const [email, setEmail] = useState(
-    emailFromQuery || (previewOrgs ? "caio.vinicius@eduit.com.br" : ""),
+    emailFromQuery || (previewOrgs ? "usuario.demo@example.com" : ""),
   );
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +118,7 @@ function LoginForm() {
     previewOrgs ? DEV_PREVIEW_ORGS : null,
   );
   const [welcomeName, setWelcomeName] = useState<string | null>(
-    previewOrgs ? "Caio" : null,
+    previewOrgs ? "Usuário" : null,
   );
   const [selectedOrgSlug, setSelectedOrgSlug] = useState<string | null>(
     orgFromQuery || null,
