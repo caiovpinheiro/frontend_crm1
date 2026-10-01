@@ -6355,7 +6355,7 @@ function StepTestPublish({
       history.push({ role: "user", content: t.userMessage });
       // Com botões, o histórico leva a marca "[Botões: …]", como na conversa real.
       const agentText = [t.result?.interactive?.displayContent ?? t.result?.reply, t.result?.materialText]
-        .filter((part) => part && part.trim())
+        .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
         .join("\n\n");
       if (agentText) history.push({ role: "assistant", content: agentText });
     }
