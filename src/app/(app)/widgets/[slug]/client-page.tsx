@@ -1,5 +1,6 @@
 "use client";
 
+import { logger, urlForLog } from "@/lib/logger";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -221,10 +222,9 @@ function SafePartnerIframe({ slug, title, iframeUrl, token, onRetry }: SafePartn
     timerRef.current = setTimeout(() => {
       setPhase((prev) => {
         if (prev !== "loading") return prev;
-        // eslint-disable-next-line no-console
-        console.warn("[widget.iframe] load_timeout", {
+        logger.warn("widget.iframe", "load_timeout", {
           slug,
-          iframeUrl,
+          iframeUrl: urlForLog(iframeUrl),
           waitedMs: Date.now() - startedAtRef.current,
         });
         return "timeout";
@@ -239,15 +239,13 @@ function SafePartnerIframe({ slug, title, iframeUrl, token, onRetry }: SafePartn
     if (timerRef.current) clearTimeout(timerRef.current);
     const loadedInMs = Date.now() - startedAtRef.current;
     setPhase("ready");
-    // eslint-disable-next-line no-console
-    console.info("[widget.iframe] load_ok", { slug, loadedInMs });
+    logger.debug("widget.iframe", "load_ok", { slug, loadedInMs });
   }, [slug]);
 
   const handleError = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     setPhase("error");
-    // eslint-disable-next-line no-console
-    console.error("[widget.iframe] load_error", { slug, iframeUrl });
+    logger.error("widget.iframe", "load_error", { slug, iframeUrl: urlForLog(iframeUrl) });
   }, [slug, iframeUrl]);
 
   const openExternal = useCallback(() => {

@@ -17,6 +17,7 @@
  * Som com dono único entre abas (`useInboxSoundOwner`).
  */
 
+import { logger } from "@/lib/logger";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, type QueryFunctionContext } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -191,7 +192,7 @@ export function InboxMessageAlerts() {
     const unsubscribe = subscribeSSEEvents("/api/sse/messages", {
       new_message: (raw) => {
         void onNewMessage(raw as NewMessageEnvelope).catch((e) => {
-          console.error("[inbox-alerts] new_message", e);
+          logger.error("inbox-alerts", "new_message", e);
         });
       },
     });

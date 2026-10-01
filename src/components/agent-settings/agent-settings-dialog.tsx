@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { apiUrl } from "@/lib/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, Loader2, X } from "lucide-react";
@@ -88,7 +89,7 @@ class SectionErrorBoundary extends React.Component<
     return { error };
   }
   componentDidCatch(error: Error) {
-    console.error("[agent-settings] seção quebrou", error);
+    logger.error("agent-settings", "seção quebrou", error);
   }
   render() {
     if (this.state.error) {
@@ -331,7 +332,7 @@ export function AgentSettingsDialog({
       setForm(hydrateFromApi(data));
       hydratedForIdRef.current = id;
     } catch (err) {
-      console.error("[agent-settings] hydrateFromApi", err);
+      logger.error("agent-settings", "hydrateFromApi", err);
       setError("Não foi possível ler a configuração do agente.");
       setForm(EMPTY_AGENT_SETTINGS);
     }

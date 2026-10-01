@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 
 import { backendBase } from "@/lib/api-server";
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
   } catch (e) {
     const timedOut =
       e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
-    console.error("[wa-whatsapp-call-proxy]", e);
+    logger.error("wa-whatsapp-call-proxy", timedOut ? "timeout" : "falha", e);
     return NextResponse.json(
       {
         message: timedOut
