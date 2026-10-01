@@ -85,9 +85,8 @@ export default function PipelineFiltersShowcase() {
     optionsError,
     onApply: setFilters,
     onClear: () => setFilters({}),
-    onRequestSave: (current: AdvancedDealFilters) => {
-      // No preview, apenas loga — o save real usa o saved-filters-menu.
-      console.log("[v0] Salvar filtro:", current);
+    onRequestSave: () => {
+      // No preview não faz nada — o save real usa o saved-filters-menu.
     },
   };
 

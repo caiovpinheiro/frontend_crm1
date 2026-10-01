@@ -294,6 +294,7 @@ self.addEventListener("pushsubscriptionchange", (event: any) => {
           body: JSON.stringify(newSub.toJSON()),
         });
       } catch (err) {
+        // eslint-disable-next-line no-console -- service worker: bundle próprio, não importa módulos de @/lib (ver nota acima sobre apiUrl)
         console.error("[sw] pushsubscriptionchange failed:", err);
       }
     })(),

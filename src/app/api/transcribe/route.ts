@@ -7,9 +7,28 @@
  * Body : { url: string }
  * Resp : { transcript: string }
  */
+import { logger } from "@/lib/logger";
 import { NextResponse, type NextRequest } from "next/server";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
+
+/**
+ * Só o tipo/código do erro do Groq vai para o log — o corpo da resposta
+ * não é logado (payload de API).
+ */
+function groqErrorCode(body: string): { type?: string; code?: string; bytes: number } {
+  try {
+    const parsed = JSON.parse(body) as { error?: { type?: unknown; code?: unknown } };
+    const { type, code } = parsed.error ?? {};
+    return {
+      type: typeof type === "string" ? type : undefined,
+      code: typeof code === "string" ? code : undefined,
+      bytes: body.length,
+    };
+  } catch {
+    return { bytes: body.length };
+  }
+}
 const GROQ_MODEL = "whisper-large-v3-turbo";
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 
@@ -125,7 +144,7 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(60_000),
     });
   } catch (err) {
-    console.error("[transcribe] Groq fetch error:", err);
+    logger.error("transcribe", "Groq fetch error", err);
     return NextResponse.json(
       { error: "Timeout ou falha de rede ao conectar com o Groq." },
       { status: 504 },
@@ -134,7 +153,7 @@ export async function POST(request: NextRequest) {
 
   if (!groqRes.ok) {
     const errBody = await groqRes.text().catch(() => "");
-    console.error(`[transcribe] Groq ${groqRes.status}:`, errBody.slice(0, 300));
+    logger.error("transcribe", `Groq ${groqRes.status}`, groqErrorCode(errBody));
     return NextResponse.json(
       { error: `Groq retornou erro ${groqRes.status}.` },
       { status: 502 },
