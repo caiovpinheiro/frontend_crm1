@@ -98,6 +98,29 @@ function backendBase(): string {
 
 const appRevision = readAppRevision();
 
+/**
+ * Chave de build dos mocks de preview e das telas de showcase/dev.
+ *
+ * `"true"` fora de produção (`next dev`) ou em build de produção com a DUPLA
+ * chave do preview (mesma regra de `isPreviewEnabledByEnv` em
+ * `src/lib/preview-mode.ts` — mantenha as duas em sincronia). No build de
+ * produção normal vale `"false"`: o código compara
+ * `process.env.NEXT_PUBLIC_PREVIEW_MOCKS_BUNDLED === "true"` de forma literal,
+ * o bundler resolve em build time e o `import()` dos mocks some do bundle
+ * público (`scripts/check-bundle-sem-mocks.mjs` confere depois do build).
+ *
+ * Fica aqui (e não em `.env`) para ser sempre DEFINIDA — variável
+ * `NEXT_PUBLIC_*` ausente não é inlinada e o ramo não seria eliminado.
+ */
+function previewMocksBundled(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  const isTrue = (v: string | undefined) => (v ?? "").trim().toLowerCase() === "true";
+  return (
+    isTrue(process.env.NEXT_PUBLIC_PREVIEW_MODE) &&
+    isTrue(process.env.NEXT_PUBLIC_PREVIEW_MODE_ALLOW_PRODUCTION_BUILD)
+  );
+}
+
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: __dirname,
@@ -110,6 +133,8 @@ const nextConfig: NextConfig = {
     // NEXT_PUBLIC_APP_VERSION (semver, usado pelo banner desktop).
     NEXT_PUBLIC_BUILD_ID: appRevision.revision,
     NEXT_PUBLIC_BUILD_TIME: appRevision.builtAt ?? "",
+    // Mocks de preview + showcase fora do bundle de produção (ver acima).
+    NEXT_PUBLIC_PREVIEW_MOCKS_BUNDLED: previewMocksBundled() ? "true" : "false",
   },
   typescript: {
     ignoreBuildErrors: false,
