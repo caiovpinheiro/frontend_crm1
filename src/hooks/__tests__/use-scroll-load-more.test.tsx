@@ -1,15 +1,17 @@
 /** @vitest-environment jsdom */
 /**
  * `useScrollLoadMore` — um pedido de "carregar mais" por gesto de rolagem.
+ *
+ * "Gesto" = o usuário rola (roda, toque, teclado, barra) uma tela desde o
+ * último pedido, ou a sentinela sai da área de disparo e volta. O evento
+ * `scroll` sozinho (o navegador também rola: scroll anchoring, clamp) e
+ * pausas entre cliques de roda não liberam pedido.
  */
 import { act, cleanup, render } from "@testing-library/react";
 import { useRef } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  SCROLL_GESTURE_IDLE_MS,
-  useScrollLoadMore,
-} from "@/hooks/use-scroll-load-more";
+import { useScrollLoadMore } from "@/hooks/use-scroll-load-more";
 import {
   bindScroller,
   installFakeIntersectionObserver,
@@ -18,12 +20,14 @@ import {
 } from "@/test-support/scroll-harness";
 
 const MARGIN = 100;
+const VIEWPORT = 500;
 
 function List(props: {
   rows: number;
   enabled?: boolean;
   loading?: boolean;
   resetKey?: string;
+  itemCount?: number;
   onLoadMore: () => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -34,6 +38,7 @@ function List(props: {
     onLoadMore: props.onLoadMore,
     marginPx: MARGIN,
     resetKey: props.resetKey,
+    itemCount: props.itemCount,
   });
   return (
     <div ref={scrollerRef} data-scroller>
@@ -45,11 +50,13 @@ function List(props: {
   );
 }
 
-function setup(initial: { rows: number; enabled?: boolean; loading?: boolean }) {
+type Props = Omit<Parameters<typeof List>[0], "onLoadMore">;
+
+function setup(initial: Props) {
   const onLoadMore = vi.fn();
   let container: HTMLElement | null = null;
   const layout: ListLayout = {
-    viewport: 500,
+    viewport: VIEWPORT,
     rowHeight: 100,
     scrollTop: 0,
     rows: () => container?.querySelectorAll("[data-row]").length ?? 0,
@@ -57,44 +64,56 @@ function setup(initial: { rows: number; enabled?: boolean; loading?: boolean }) 
   const io = installFakeIntersectionObserver((_target, _root, margin) =>
     sentinelInView(layout, margin),
   );
-  let props = { ...initial, onLoadMore, resetKey: undefined as string | undefined };
-  const view = render(<List {...props} />);
+  let props: Props = { ...initial };
+  const view = render(<List {...props} onLoadMore={onLoadMore} />);
   container = view.container;
   const scroller = view.container.querySelector<HTMLElement>("[data-scroller]")!;
   bindScroller(scroller, layout);
+  const dispatch = (ev: Event) =>
+    act(() => {
+      scroller.dispatchEvent(ev);
+    });
   return {
     onLoadMore,
     layout,
     scroller,
     /** Um frame: o observer avisa quem mudou de estado. */
     frame: () => act(() => io.flush()),
-    update: (next: Partial<typeof props>) => {
+    update: (next: Partial<Props>) => {
       props = { ...props, ...next };
-      view.rerender(<List {...props} />);
+      view.rerender(<List {...props} onLoadMore={onLoadMore} />);
     },
-    /** Evento de rolagem `ms` depois do anterior. */
-    gesture: (type: "scroll" | "wheel" | "touchmove", ms: number) => {
-      vi.setSystemTime(Date.now() + ms);
-      act(() => {
-        scroller.dispatchEvent(new Event(type));
-      });
+    /** Resposta do pedido: `loading` liga e desliga; a lista ganha `added` linhas. */
+    respond: (added = 0) => {
+      props = { ...props, loading: true };
+      view.rerender(<List {...props} onLoadMore={onLoadMore} />);
+      const rows = props.rows + added;
+      props = {
+        ...props,
+        loading: false,
+        rows,
+        itemCount: props.itemCount == null ? undefined : props.itemCount + added,
+      };
+      view.rerender(<List {...props} onLoadMore={onLoadMore} />);
     },
-    scrollTo: (top: number) => {
+    /** Clique de roda (100px para baixo); a lista rola se puder. */
+    wheel: (deltaY = 100) => {
+      const max = Math.max(0, layout.rows() * layout.rowHeight - layout.viewport);
+      layout.scrollTop = Math.min(max, layout.scrollTop + deltaY);
+      dispatch(Object.assign(new Event("wheel"), { deltaY, deltaMode: 0 }));
+      dispatch(new Event("scroll"));
+    },
+    /** `scroll` sem ação do usuário (scroll anchoring, clamp). */
+    browserScroll: (top: number) => {
       layout.scrollTop = top;
+      dispatch(new Event("scroll"));
     },
+    key: (key: string) => dispatch(new KeyboardEvent("keydown", { key, bubbles: true })),
   };
 }
 
-const NEW_GESTURE = SCROLL_GESTURE_IDLE_MS + 50;
-const SAME_GESTURE = 16;
-
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date("2026-10-01T12:00:00.000Z"));
-});
 afterEach(() => {
   cleanup();
-  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -105,9 +124,7 @@ describe("useScrollLoadMore", () => {
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
 
     // Busca vai e volta sem a lista crescer; a sentinela segue visível.
-    t.update({ loading: true });
-    t.frame();
-    t.update({ loading: false });
+    t.respond(0);
     t.frame();
     t.frame();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
@@ -117,108 +134,136 @@ describe("useScrollLoadMore", () => {
     const t = setup({ rows: 20 }); // 2.000px
     t.frame();
     expect(t.onLoadMore).not.toHaveBeenCalled();
-
-    t.scrollTo(600);
-    t.gesture("scroll", NEW_GESTURE);
+    for (let i = 0; i < 9; i += 1) t.wheel(); // 900px
     t.frame();
     expect(t.onLoadMore).not.toHaveBeenCalled();
-
-    t.scrollTo(1500); // fim: 2.000 − 500
-    t.gesture("scroll", SAME_GESTURE);
+    for (let i = 0; i < 6; i += 1) t.wheel(); // fim: 1.500px
     t.frame();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
   });
 
-  it("o mesmo gesto parado no fim não pede de novo; um gesto novo pede mais uma vez", () => {
+  it("cliques de roda no fim (a lista não cresceu): um pedido por tela rolada, não por clique", () => {
     const t = setup({ rows: 20 });
     t.frame();
-    t.scrollTo(1500);
-    t.gesture("scroll", NEW_GESTURE);
+    // 14 cliques: a sentinela entra na margem (100px) e sai o pedido.
+    for (let i = 0; i < 14; i += 1) t.wheel();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(1);
+    t.respond(0);
     t.frame();
+
+    // Quatro cliques (400px < uma tela de 500px): nada.
+    for (let i = 0; i < 4; i += 1) t.wheel();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(1);
+    // O quinto completa uma tela: mais um pedido.
+    t.wheel();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
+    t.respond(0);
+    for (let i = 0; i < 4; i += 1) t.wheel();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
+  });
+
+  it("`scroll` do navegador (scroll anchoring) no fim não libera pedido", () => {
+    const t = setup({ rows: 20 });
+    t.frame();
+    for (let i = 0; i < 14; i += 1) t.wheel();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
 
-    // Inércia da roda no fim da lista, que não cresceu.
-    for (let i = 0; i < 10; i += 1) t.gesture("wheel", SAME_GESTURE);
-    t.frame();
+    // Linhas entram acima da tela: a âncora empurra o scrollTop, a
+    // sentinela continua visível. Várias vezes, espaçadas.
+    t.respond(50);
+    for (let top = 2000; top <= 6500; top += 500) {
+      t.browserScroll(top);
+      t.frame();
+    }
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
-
-    t.gesture("wheel", NEW_GESTURE);
-    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
-    for (let i = 0; i < 10; i += 1) t.gesture("wheel", SAME_GESTURE);
-    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
   });
 
   it("gesto longo: depois que a lista cresce, chegar ao novo fim pede a página seguinte", () => {
     const t = setup({ rows: 20 });
     t.frame();
-    t.scrollTo(1500);
-    t.gesture("scroll", NEW_GESTURE);
+    for (let i = 0; i < 14; i += 1) t.wheel();
     t.frame();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
 
-    t.update({ loading: true });
-    t.update({ loading: false, rows: 40 }); // +20 linhas: a sentinela sai da área
+    t.respond(20); // +20 linhas: a sentinela sai da área
     t.frame();
-    for (let top = 1600; top < 3400; top += 100) {
-      t.scrollTo(top);
-      t.gesture("scroll", SAME_GESTURE);
+    // De 1.400 até 3.300: ainda longe do novo fim (4.000 − 500 − 100).
+    for (let i = 0; i < 19; i += 1) {
+      t.wheel();
       t.frame();
     }
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
-
-    t.scrollTo(3500); // novo fim: 4.000 − 500
-    t.gesture("scroll", SAME_GESTURE);
+    t.wheel(); // 3.400: chegou ao novo fim
     t.frame();
     expect(t.onLoadMore).toHaveBeenCalledTimes(2);
   });
 
-  it("com pedido em voo nada dispara, e o gesto que começou durante a busca não vale outro", () => {
+  it("rolagem feita durante a busca não vale outro pedido quando a resposta chega", () => {
     const t = setup({ rows: 20 });
     t.frame();
-    t.scrollTo(1500);
-    t.gesture("scroll", NEW_GESTURE);
+    for (let i = 0; i < 14; i += 1) t.wheel();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
 
     t.update({ loading: true });
-    t.gesture("wheel", NEW_GESTURE); // gesto novo, com a busca em voo
+    for (let i = 0; i < 10; i += 1) t.wheel(); // 1.000px com a busca em voo
     t.frame();
-    expect(t.onLoadMore).toHaveBeenCalledTimes(1);
-
-    // A resposta chega sem a lista crescer e o mesmo gesto continua.
     t.update({ loading: false });
     t.frame();
-    for (let i = 0; i < 5; i += 1) t.gesture("wheel", SAME_GESTURE);
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
-
-    t.gesture("wheel", NEW_GESTURE);
+    // Depois da resposta, uma tela de rolagem libera de novo.
+    for (let i = 0; i < 5; i += 1) t.wheel();
     expect(t.onLoadMore).toHaveBeenCalledTimes(2);
   });
 
-  it("scroll e observer no mesmo frame contam como um pedido", () => {
+  it("página que rende poucas linhas ganha UMA página automática, e só", () => {
+    const t = setup({ rows: 20, itemCount: 20 });
+    t.frame();
+    for (let i = 0; i < 14; i += 1) t.wheel();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(1);
+
+    // Página com 2 linhas novas (< 10): pede a próxima sozinho.
+    t.respond(2);
+    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
+    // Essa não rende nada: agora espera o usuário.
+    t.respond(0);
+    t.frame();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
+
+    // Uma tela de rolagem: mais um pedido. Página que rende bem não pede
+    // a seguinte sozinha.
+    for (let i = 0; i < 5; i += 1) t.wheel();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(3);
+    t.respond(30);
+    t.frame();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(3);
+  });
+
+  it("teclado (End / PageDown) também conta como rolagem do usuário", () => {
     const t = setup({ rows: 20 });
     t.frame();
-    t.scrollTo(1500);
-    t.gesture("scroll", NEW_GESTURE); // dispara pelo evento de scroll
-    t.frame(); // o observer avisa a entrada da sentinela logo depois
+    t.layout.scrollTop = 1500;
+    t.key("End");
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
+    t.respond(0);
+    t.key("PageDown");
+    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
   });
 
   it("desligado não pede; lista nova (`resetKey`) vale um preenchimento de novo", () => {
     const t = setup({ rows: 3, enabled: false });
     t.frame();
-    t.gesture("wheel", NEW_GESTURE);
+    t.wheel(1000);
     expect(t.onLoadMore).not.toHaveBeenCalled();
 
     t.update({ enabled: true });
     t.frame();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
+    t.respond(0);
     t.frame();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
 
     t.update({ resetKey: "outra-aba" });
-    t.scroller.dispatchEvent(new Event("scroll")); // mesmo gesto: sem permissão nova
-    t.gesture("wheel", SAME_GESTURE);
-    // A permissão voltou pela troca de lista, não pelo gesto.
+    t.browserScroll(0);
     expect(t.onLoadMore).toHaveBeenCalledTimes(2);
   });
 });
