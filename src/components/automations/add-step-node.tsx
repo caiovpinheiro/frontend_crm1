@@ -211,7 +211,7 @@ export const STEP_GROUPS: StepGroup[] = [
   },
   {
     title: "IA",
-    items: ["transfer_to_ai_agent"],
+    items: ["transfer_to_ai_agent", "ask_ai_agent"],
   },
 ];
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { AnimatePresence, motion } from "framer-motion"
+import { memo } from "react"
 import { cn } from "@/lib/utils"
 import { useJustArrived } from "@/lib/just-arrived"
 import { InboundPreview } from "@/components/crm/inbound-preview"
@@ -131,10 +131,15 @@ function dealOpenHref(deal: Deal): string {
   return "/pipeline"
 }
 
-const COMPACT_SECTION_TRANSITION = {
-  duration: 0.2,
-  ease: [0.32, 0.72, 0, 1] as const,
-}
+/**
+ * Recolher/expandir (`compact`) — antes era `AnimatePresence` + `motion.div`
+ * (height 0 ↔ auto, 200 ms, ease [0.32,0.72,0,1]) por card. A transição
+ * CSS `grid-template-rows` 0fr ↔ 1fr dá o mesmo movimento sem montar o
+ * framer-motion em cada card do board (mesmo padrão do `QueueSection`).
+ * O conteúdo fica montado; `inert` tira foco/clique enquanto recolhido.
+ */
+const COMPACT_SECTION_CLASS =
+  "grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none"
 
 const PREVIEW_MSG_MAX = 160
 
@@ -184,7 +189,14 @@ function AwaitingMessagesTooltip({ texts }: { texts: string[] }) {
   )
 }
 
-export function DealCard({ deal, onClick, tagsSlot, tagsAddSlot, ownerSlot, moveMenuSlot, isSelected, onToggleSelect, selectionMode, tagsWrap = false, compact = false }: DealCardProps) {
+/**
+ * `memo`: o board re-renderiza a página inteira a cada estado local
+ * (busca, seleção, painel do deal) e a cada patch SSE. Com props
+ * primitivas/estáveis (o `deal` vem de `toDealCard`, cacheado por DTO;
+ * slots e callbacks estabilizados pelo `BoardDealCard` do pipeline), o
+ * card só volta a renderizar quando o próprio negócio muda.
+ */
+export const DealCard = memo(function DealCard({ deal, onClick, tagsSlot, tagsAddSlot, ownerSlot, moveMenuSlot, isSelected, onToggleSelect, selectionMode, tagsWrap = false, compact = false }: DealCardProps) {
   // O checkbox SÓ aparece quando o "modo seleção" global está ativo
   // (acionado pelo kebab "Selecionar..."). Removemos o antigo
   // comportamento de "aparecer no hover" para que entrada e saída
@@ -273,16 +285,15 @@ export function DealCard({ deal, onClick, tagsSlot, tagsAddSlot, ownerSlot, move
         </div>
       </div>
 
-      <AnimatePresence initial={false}>
-        {!compact ? (
-          <motion.div
-            key="deal-card-details"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={COMPACT_SECTION_TRANSITION}
-            className="overflow-hidden"
-          >
+      <div
+        className={cn(
+          COMPACT_SECTION_CLASS,
+          compact ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
+        )}
+        inert={compact || undefined}
+        aria-hidden={compact || undefined}
+      >
+          <div className="min-h-0 overflow-hidden">
             {/* Message preview — tooltip no texto com a msg completa. */}
             {deal.message && (
               <div className="mt-1 flex items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--glass-bg-overlay)] px-2.5 py-1 text-[11.5px] leading-[1.35] text-[var(--text-secondary)]">
@@ -466,12 +477,11 @@ export function DealCard({ deal, onClick, tagsSlot, tagsAddSlot, ownerSlot, move
                 </div>
               )}
             </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+          </div>
+      </div>
       </div>
 
       {showInboundSignal ? <AwaitingReplyFooter unreadCount={unread} /> : null}
     </a>
   )
-}
+})

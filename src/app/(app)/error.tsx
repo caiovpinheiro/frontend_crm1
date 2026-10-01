@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { useEffect } from "react";
 
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
@@ -13,7 +14,7 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[app-error]", error.message, error.digest ?? "");
+    logger.error("app-error", error.message, { digest: error.digest ?? "" });
     if (reloadOnceForStaleChunk(error)) return;
     if (isStaleChunkError(error)) return;
     try {

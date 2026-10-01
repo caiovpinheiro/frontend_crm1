@@ -136,8 +136,8 @@ export function sortQueueItems(
 export const queueItems: QueueItem[] = [
   {
     id: "q-1",
-    contact: "GEIZA FARIAS COELHO",
-    phone: "+5511976197542",
+    contact: "CONTATO DEMO UM",
+    phone: "+5511999990050",
     department: "Atendimento – SAC",
     waitingMin: 47,
     enteredAt: "2026-08-28T15:12:00.000Z",
@@ -146,8 +146,8 @@ export const queueItems: QueueItem[] = [
   },
   {
     id: "q-2",
-    contact: "ALINE JESUS ALVES CRUZ",
-    phone: "+5511952993430",
+    contact: "CONTATO DEMO DOIS",
+    phone: "+5511999990051",
     department: "Atendimento – SAC",
     waitingMin: 32,
     enteredAt: "2026-08-28T15:27:00.000Z",
@@ -156,8 +156,8 @@ export const queueItems: QueueItem[] = [
   },
   {
     id: "q-3",
-    contact: "Thayná Palluza Santina da Silva Bezerra",
-    phone: "+5511959548557",
+    contact: "Contato Demo Três",
+    phone: "+5511999990052",
     department: "Retenção",
     waitingMin: 18,
     enteredAt: "2026-08-28T15:41:00.000Z",
@@ -166,8 +166,8 @@ export const queueItems: QueueItem[] = [
   },
   {
     id: "q-4",
-    contact: "Vivian Paris",
-    phone: "+5511995170138",
+    contact: "Contato Demo Quatro",
+    phone: "+5511999990053",
     department: "Sem departamento",
     waitingMin: 8,
     enteredAt: "2026-08-28T15:51:00.000Z",
@@ -176,8 +176,8 @@ export const queueItems: QueueItem[] = [
   },
   {
     id: "q-5",
-    contact: "Alessandro Lima",
-    phone: "+5521992020818",
+    contact: "Contato Demo Cinco",
+    phone: "+5511999990054",
     department: "Acolhimento",
     waitingMin: 3,
     enteredAt: "2026-08-28T15:56:00.000Z",

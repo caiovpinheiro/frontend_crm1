@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { IconChevronDown as ChevronDown } from "@tabler/icons-react";
+import { createPortal } from "react-dom";
+import { IconCheck, IconChevronDown as ChevronDown } from "@tabler/icons-react";
 
+import { useModalPortalContainer } from "@/components/ui/modal-portal-context";
 import { cn } from "@/lib/utils";
 
 export interface SelectNativeProps
@@ -50,6 +52,7 @@ type SelectContextValue = {
   setOpen: (open: boolean) => void;
   labels: Record<string, React.ReactNode>;
   registerLabel: (value: string, label: React.ReactNode) => void;
+  triggerRef: React.RefObject<HTMLDivElement | null>;
 };
 
 const SelectContext = React.createContext<SelectContextValue | null>(null);
@@ -74,6 +77,7 @@ function Select({
   const [labels, setLabels] = React.useState<Record<string, React.ReactNode>>(
     {}
   );
+  const triggerRef = React.useRef<HTMLDivElement>(null);
   const registerLabel = React.useCallback(
     (itemValue: string, label: React.ReactNode) => {
       setLabels((prev) =>
@@ -85,9 +89,9 @@ function Select({
 
   return (
     <SelectContext.Provider
-      value={{ value, onValueChange, open, setOpen, labels, registerLabel }}
+      value={{ value, onValueChange, open, setOpen, labels, registerLabel, triggerRef }}
     >
-      <div className="relative">{children}</div>
+      <div ref={triggerRef} className="relative">{children}</div>
     </SelectContext.Provider>
   );
 }
@@ -137,42 +141,138 @@ function SelectValue({
   );
 }
 
+function getNodeText(node: React.ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(getNodeText).join("");
+  if (React.isValidElement(node)) {
+    const child = (node.props as { children?: React.ReactNode }).children;
+    return getNodeText(child);
+  }
+  return "";
+}
+
+function collectItemLabels(
+  nodes: React.ReactNode,
+  labels: Record<string, React.ReactNode>,
+  register: (value: string, label: React.ReactNode) => void,
+): void {
+  React.Children.forEach(nodes, (child) => {
+    if (!React.isValidElement(child)) return;
+    if (child.type === SelectItem) {
+      const { value: itemValue, children: itemChildren } = child.props as {
+        value?: string;
+        children?: React.ReactNode;
+      };
+      if (itemValue == null) return;
+      const text = getNodeText(itemChildren);
+      // Só atualiza o estado se o rótulo mudou (evita re-renderizações em loop).
+      if (!text || getNodeText(labels[itemValue]) !== text) {
+        register(itemValue, itemChildren);
+      }
+    } else if (child.type === React.Fragment) {
+      collectItemLabels(
+        (child.props as { children?: React.ReactNode }).children,
+        labels,
+        register,
+      );
+    }
+  });
+}
+
+/** Altura máxima da lista (antes `max-h-60`). */
+const LIST_MAX_HEIGHT = 240;
+
 function SelectContent({
   className,
   children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  const { open, setOpen } = useSelectContext("SelectContent");
+  const { open, setOpen, triggerRef, labels, registerLabel } =
+    useSelectContext("SelectContent");
   const ref = React.useRef<HTMLDivElement>(null);
+  const [position, setPosition] = React.useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    up: boolean;
+  } | null>(null);
+  // Dentro de um modal/painel (<dialog> no top layer) a lista porta para
+  // dentro dele; no body ela ficava atrás do backdrop e sem clique.
+  const portalContainer = useModalPortalContainer();
 
   React.useEffect(() => {
+    collectItemLabels(children, labels, registerLabel);
+  }, [children, labels, registerLabel]);
+
+  React.useLayoutEffect(() => {
     if (!open) return;
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      // Posição fixa = coordenadas da janela. Perto do fim da tela a lista
+      // abria para baixo e ficava cortada: sem espaço embaixo, abre para cima,
+      // e a altura acompanha o espaço que sobra.
+      const margin = 8;
+      const below = window.innerHeight - rect.bottom - margin;
+      const above = rect.top - margin;
+      const wanted = Math.min(ref.current?.scrollHeight ?? LIST_MAX_HEIGHT, LIST_MAX_HEIGHT);
+      const up = below < wanted && above > below;
+      setPosition({
+        ...(up ? { bottom: window.innerHeight - rect.top } : { top: rect.bottom }),
+        left: rect.left,
+        width: rect.width,
+        maxHeight: Math.max(120, Math.min(LIST_MAX_HEIGHT, up ? above : below)),
+        up,
+      });
+    };
+    updatePosition();
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.parentElement?.contains(e.target as Node)) {
+      const clickedTrigger = triggerRef.current?.contains(e.target as Node);
+      const clickedContent = ref.current?.contains(e.target as Node);
+      if (!clickedTrigger && !clickedContent) {
         setOpen(false);
       }
     };
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open, setOpen]);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", onDoc);
+    };
+  }, [open, setOpen, triggerRef]);
 
-  // Os itens precisam ficar montados mesmo fechado: o rótulo do valor
-  // escolhido é lido deles. Se só montam ao abrir, trocar de aba remonta
-  // o select e o gatilho volta a mostrar o placeholder com o valor salvo.
-  return (
+  if (!open || !position) {
+    return null;
+  }
+  return createPortal(
     <div
       ref={ref}
-      hidden={!open}
       data-slot="select-content"
+      style={{
+        position: "fixed",
+        top: position.top,
+        bottom: position.bottom,
+        left: position.left,
+        width: position.width,
+        maxHeight: position.maxHeight,
+        zIndex: 50,
+      }}
       className={cn(
-        "absolute z-50 mt-1 max-h-60 w-full min-w-36 overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
-        !open && "hidden",
+        position.up ? "mb-1" : "mt-1",
+        "overflow-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
         className
       )}
       {...props}
     >
       {children}
-    </div>
+    </div>,
+    portalContainer ?? document.body,
   );
 }
 
@@ -182,21 +282,19 @@ function SelectItem({
   children,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) {
-  const { value: selected, onValueChange, setOpen, registerLabel } =
+  const { value: selected, onValueChange, setOpen } =
     useSelectContext("SelectItem");
-
-  React.useEffect(() => {
-    registerLabel(value, children);
-  }, [value, children, registerLabel]);
 
   return (
     <button
       type="button"
       data-slot="select-item"
       data-selected={selected === value || undefined}
+      // Selecionado no tom da marca, com ✓. Antes usava --accent (areia),
+      // cor de aviso/lead que destoava do resto do sistema.
       className={cn(
-        "relative flex w-full cursor-default items-center rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-        selected === value && "bg-accent text-accent-foreground",
+        "relative flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none hover:bg-muted",
+        selected === value && "bg-primary/10 font-medium text-primary hover:bg-primary/15",
         className
       )}
       onClick={() => {
@@ -205,7 +303,8 @@ function SelectItem({
       }}
       {...props}
     >
-      {children}
+      <span className="min-w-0 flex-1">{children}</span>
+      {selected === value && <IconCheck aria-hidden className="size-4 shrink-0" />}
     </button>
   );
 }

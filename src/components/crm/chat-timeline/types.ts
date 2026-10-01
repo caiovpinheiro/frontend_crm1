@@ -10,7 +10,28 @@ export type ConversationEventAction =
   | "ia"
   | "template";
 
-export type TimelineItemKind = "message" | "note" | "event";
+/**
+ * - message: bolha comum
+ * - note: anotação humana
+ * - event: log automático (sistema / IA / distribuição…)
+ * - system: evento de sistema da Meta (ex.: cliente trocou de número)
+ * - consent: resposta ao pedido de permissão de ligação (Meta Calling)
+ * - draft: rascunho de agente IA em modo DRAFT (aprovar/descartar)
+ */
+export type TimelineItemKind =
+  | "message"
+  | "note"
+  | "event"
+  | "system"
+  | "consent"
+  | "draft";
+
+/** Veredito da resposta de consentimento de ligação (Meta Calling API). */
+export type ConsentVerdict =
+  | "granted_temp"
+  | "granted_perm"
+  | "denied"
+  | "unknown";
 
 export type TimelineClassifyInput = {
   messageType?: string | null;
@@ -25,4 +46,6 @@ export type TimelineClassifyInput = {
 export type ClassifiedTimelineItem = {
   kind: TimelineItemKind;
   action?: ConversationEventAction;
+  /** Só quando `kind === "consent"`. */
+  consentVerdict?: ConsentVerdict;
 };

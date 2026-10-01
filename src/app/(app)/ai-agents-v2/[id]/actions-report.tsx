@@ -42,7 +42,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MultiSelectPopover } from "@/app/(app)/ai-agents-v2/_components/multi-select-popover";
+import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 

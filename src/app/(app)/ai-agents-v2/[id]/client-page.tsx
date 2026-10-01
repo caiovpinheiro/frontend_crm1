@@ -80,7 +80,7 @@ import { apiFetch, parseApiResponse } from "@/lib/api";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ChipInput } from "@/components/ai-agents/chip-input";
-import { MultiSelectPopover } from "@/app/(app)/ai-agents-v2/_components/multi-select-popover";
+import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import { OpenAiKeyField } from "@/components/agent-settings/openai-key-field";
 import { looksLikeOpenAiApiKey } from "@/lib/agent-key";
 import { cn, formatDate } from "@/lib/utils";

@@ -53,7 +53,6 @@ import {
   conversationHasCallingHint,
   WhatsappCallChip,
 } from "@/components/inbox/whatsapp-call-chip";
-import { ConversationActionsMenu } from "@/features/inbox-v2/extras";
 import { TagsPopover } from "@/features/pipeline-v2/extras";
 import { TagChip } from "@/components/crm/tag-chip";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -633,6 +632,14 @@ export function SalesHubView({
     [activeContactId, activeDealId, queryClient],
   );
 
+  // Encerrar (Composer ou kebab do host) — o card/lista do contato muda de
+  // status; recarrega a lista de conversas do contato.
+  function handleConversationResolved() {
+    queryClient.invalidateQueries({
+      queryKey: ["saleshub-contact-conversations", activeContactId],
+    });
+  }
+
   const resolveDealNumber = useCallback(
     (dealId: string) => {
       const d = stages
@@ -1017,7 +1024,17 @@ export function SalesHubView({
               }
               dealId={activeDeal?.id ?? activeDealId ?? ""}
               pipelineId={pipelineId}
+              assignedToId={activeConversation.assignedToId ?? null}
+              departmentId={
+                activeConversation.departmentId ??
+                activeConversation.department?.id ??
+                null
+              }
+              requireTabulationOnClose={
+                activeConversation.department?.requireTabulationOnClose ?? false
+              }
               onConversationReopened={handleConversationReopened}
+              onResolved={handleConversationResolved}
               searchControlRef={chatSearchRef}
               headerActionsSlot={
                 <>
@@ -1085,37 +1102,6 @@ export function SalesHubView({
                       <Briefcase className="size-4" strokeWidth={1.7} />
                     </button>
                   </TooltipHost>
-                  <ConversationActionsMenu
-                    conversationId={activeConversation.id}
-                    conversationNumber={activeConversation.number}
-                    contactId={activeContactId}
-                    contactName={
-                      activeDeal?.contact?.name ??
-                      detailDeal?.name ??
-                      null
-                    }
-                    isResolved={activeConversation.status === "RESOLVED"}
-                    onSearchInConversation={() => chatSearchRef.current?.open()}
-                    assigneeId={activeConversation.assignedToId ?? null}
-                    departmentId={
-                      activeConversation.departmentId ??
-                      activeConversation.department?.id ??
-                      null
-                    }
-                    requireTabulationOnClose={
-                      activeConversation.department?.requireTabulationOnClose ??
-                      false
-                    }
-                    onResolved={() => {
-                      queryClient.invalidateQueries({
-                        queryKey: [
-                          "saleshub-contact-conversations",
-                          activeContactId,
-                        ],
-                      });
-                    }}
-                    onReopenNewConversation={handleConversationReopened}
-                  />
                 </>
               }
             />

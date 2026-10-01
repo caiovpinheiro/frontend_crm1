@@ -19,6 +19,7 @@
  * Precedência: os rewrites são `afterFiles`, então o Next checa o
  * filesystem primeiro e este handler ganha do rewrite para este path.
  */
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 
 import { apiServerFetch } from "@/lib/api-server";
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
   try {
     form = await req.formData();
   } catch (err) {
-    console.error("[automation-media proxy] formData falhou:", err);
+    logger.error("automation-media proxy", "formData falhou", err);
     return NextResponse.json(
       { message: "Erro ao ler o arquivo enviado. Verifique o tamanho (máx. 16 MB) e tente novamente." },
       { status: 400 },
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (e) {
-    console.error("[automation-media proxy] falha ao repassar upload:", e);
+    logger.error("automation-media proxy", "falha ao repassar upload", e);
     return NextResponse.json(
       { message: "Erro ao enviar arquivo ao servidor." },
       { status: 502 },

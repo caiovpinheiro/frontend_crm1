@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { apiUrl } from "@/lib/api";
 import { IconCircleCheck as CheckCircle2, IconLoader2 as Loader2, IconRefresh as RefreshCw, IconDeviceMobile as Smartphone, IconMenu2 as Menu, IconLink as Link2 } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -202,7 +203,7 @@ export function WhatsappQrModal({
         });
       }, 1000);
     } catch (e) {
-      console.error(e);
+      logger.error("whatsapp-qr", "gerar novo QR falhou", e);
       setManualExpired(true);
     } finally {
       setRegenerating(false);

@@ -2,19 +2,27 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { createAudioRunningAnnouncer } from "./audio-running-announcer";
+
 /**
  * Aviso sonoro do inbox: toca um "ping" curto a cada mensagem RECEBIDA
  * (direction="in"). O operador pode silenciar; a preferência fica no
  * localStorage e sincroniza entre abas.
  *
  * O som é sintetizado via Web Audio API (sem asset externo). Navegadores
- * exigem um gesto do usuário para iniciar áudio — resumimos o AudioContext
- * no clique do botão de mudo (gesto) e na primeira interação, então o
- * primeiro ping pode não soar até o operador interagir com a página.
+ * exigem um gesto do usuário para iniciar áudio — o AudioContext é
+ * destravado no clique do botão de mudo e em qualquer pointerdown/keydown
+ * (listener em `NavMessageAlertsProvider`). Fora de gesto o `resume()`
+ * falha em silêncio, então o ping não tenta: com o contexto travado ele
+ * dispara `INBOX_AUDIO_LOCKED_EVENT` e não toca.
  */
 
 const STORAGE_KEY = "inbox:sound-muted";
 const CHANGE_EVENT = "inbox:sound-muted-changed";
+/** Um ping foi descartado porque o AudioContext não está `running`. */
+export const INBOX_AUDIO_LOCKED_EVENT = "inbox:audio-locked";
+/** O AudioContext passou a `running` depois de um gesto. */
+export const INBOX_AUDIO_UNLOCKED_EVENT = "inbox:audio-unlocked";
 
 export function isInboxSoundMuted(): boolean {
   if (typeof window === "undefined") return false;
@@ -31,6 +39,10 @@ export function setInboxSoundMuted(muted: boolean): void {
 
 let audioCtx: AudioContext | null = null;
 
+const announceRunning = createAudioRunningAnnouncer(() => {
+  window.dispatchEvent(new CustomEvent(INBOX_AUDIO_UNLOCKED_EVENT));
+});
+
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const Ctor =
@@ -38,20 +50,36 @@ function getCtx(): AudioContext | null {
     (window as unknown as { webkitAudioContext?: typeof AudioContext })
       .webkitAudioContext;
   if (!Ctor) return null;
-  audioCtx ??= new Ctor();
+  if (!audioCtx) {
+    const ctx = new Ctor();
+    audioCtx = ctx;
+    ctx.addEventListener("statechange", () => announceRunning(ctx.state));
+  }
   return audioCtx;
+}
+
+/**
+ * `true` só com o contexto `running`. `suspended` (sem gesto) e o
+ * `interrupted` do Safari contam como travado.
+ */
+export function isInboxAudioRunning(): boolean {
+  return audioCtx?.state === "running";
 }
 
 /** Destrava o AudioContext num gesto do usuário (clique/tecla). */
 export async function resumeAudio(): Promise<void> {
   const ctx = getCtx();
-  if (ctx && ctx.state === "suspended") {
+  if (!ctx || ctx.state === "closed") return;
+  if (ctx.state !== "running") {
     try {
       await ctx.resume();
     } catch {
       /* ignore */
     }
   }
+  // Criado dentro de um gesto o contexto já nasce `running` e o `resume()`
+  // nem roda: o aviso sai daqui (uma vez), senão a aba nunca disputa o som.
+  announceRunning(ctx.state);
 }
 
 /** Evita bip duplicado quando vários `useInboxRealtime` estão montados. */
@@ -66,7 +94,10 @@ export function playInboxPing(): void {
   lastPingAt = nowMs;
   const ctx = getCtx();
   if (!ctx) return;
-  if (ctx.state === "suspended") void ctx.resume();
+  if (ctx.state !== "running") {
+    window.dispatchEvent(new CustomEvent(INBOX_AUDIO_LOCKED_EVENT));
+    return;
+  }
   try {
     const now = ctx.currentTime;
     // Dois tons curtos ascendentes (nota de notificação agradável).

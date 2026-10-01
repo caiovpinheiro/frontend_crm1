@@ -32,9 +32,10 @@ import { useStuckTimeout } from "@/hooks/use-stuck-timeout";
 import type { BoardSortParam } from "@/features/pipeline-v2/api";
 import {
   useBoard,
+  useBoardLoadMore,
   useBoardFiltered,
-  boardKey,
   BOARD_PAGE_SIZE,
+  BOARD_LOAD_MORE_PAGE_SIZE,
   useDealDeepLink,
   useDealDetail,
   usePipelineRealtime,
@@ -233,13 +234,19 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   const filtersPendingDebounce =
     advancedKey !== JSON.stringify(debouncedAdvanced);
 
-  // "Carregar mais" da fila: stageId → extras cumulativos além da página
-  // inicial (10). A fila do Flow é FLAT (mistura etapas), então cada
-  // disparo expande TODAS as colunas com hasMore de uma vez — mesmo
-  // padrão do kanban (`_v2-client`): com ≥1 offset o board passa a vir
-  // do POST /board (única rota que aceita offset) na mesma queryKey.
-  const [boardExtraByStage, setBoardExtraByStage] = useState<Record<string, number>>({});
-  const [loadingMoreQueue, setLoadingMoreQueue] = useState(false);
+  // "Carregar mais" da fila. A fila do Flow é FLAT (mistura etapas), então
+  // cada disparo expande TODAS as colunas com hasMore de uma vez — mesmo
+  // mecanismo do kanban (`useBoardLoadMore`): com cursor, uma requisição
+  // traz os próximos cards de todas as etapas e anexa ao cache; sem cursor
+  // (backend antigo), `legacyOffsets` faz o board vir do POST /board.
+  const queueLoadMore = useBoardLoadMore({
+    pipelineId,
+    status,
+    sort: boardSort,
+    pageSize: BOARD_LOAD_MORE_PAGE_SIZE,
+    firstPageSize: BOARD_PAGE_SIZE,
+  });
+  const loadingMoreQueue = queueLoadMore.loadingStageIds.size > 0;
 
   const boardFiltered = useBoardFiltered({
     pipelineId,
@@ -256,33 +263,18 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     // desliga o board normal no mount e a fila abre vazia ("Todos 0").
     enabled: canFetch && (!hasServerBoard || !boardFiltered.data),
     perStage: BOARD_PAGE_SIZE,
-    offsetByStage: boardExtraByStage,
+    offsetByStage: queueLoadMore.legacyOffsets,
   });
 
   usePipelineRealtime(canFetch);
 
   const queryClient = useQueryClient();
 
-  // Expansões "Carregar mais": cada disparo soma +10 nas etapas com
-  // hasMore e refaz o board (POST com offsetByStage — o queryFn já
-  // enxerga o estado novo no render que segue o setState).
-  const extrasKey = JSON.stringify(boardExtraByStage);
-  useEffect(() => {
-    if (Object.keys(boardExtraByStage).length === 0) return;
-    queryClient
-      .refetchQueries({
-        queryKey: boardKey(pipelineId ?? "pl-1", status, boardSort),
-        exact: true,
-      })
-      .finally(() => setLoadingMoreQueue(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extrasKey]);
-
   // Troca de funil/status/ordenação/filtro → expansões voltam a 10.
+  const resetQueueLoadMore = queueLoadMore.reset;
   useEffect(() => {
-    setBoardExtraByStage({});
-    setLoadingMoreQueue(false);
-  }, [pipelineId, status, boardSort, hasServerBoard]);
+    resetQueueLoadMore();
+  }, [pipelineId, status, boardSort, hasServerBoard, resetQueueLoadMore]);
 
   const refreshActiveBoard = hasServerBoard
     ? boardFiltered.refetch
@@ -292,6 +284,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     void refreshActiveBoard().finally(() => setQueueRefreshPending(false));
   }, [refreshActiveBoard]);
 
+  const loadMoreQueueColumns = queueLoadMore.loadMore;
   const handleQueueLoadMore = useCallback((stageId?: string | null) => {
     // Etapas ocultas (Ganho/Perdido) não paginam a fila.
     const stages = visibleBoardStages(boardNormal.data ?? [], filters);
@@ -299,15 +292,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
       stageId ? stages.filter((s) => s.id === stageId) : stages
     ).filter(stageHasMoreServer);
     if (targets.length === 0) return;
-    setLoadingMoreQueue(true);
-    setBoardExtraByStage((prev) => {
-      const next = { ...prev };
-      for (const s of targets) {
-        next[s.id] = (next[s.id] ?? 0) + BOARD_PAGE_SIZE;
-      }
-      return next;
-    });
-  }, [boardNormal.data, filters]);
+    void loadMoreQueueColumns(targets.map((s) => s.id));
+  }, [boardNormal.data, filters, loadMoreQueueColumns]);
 
   // Com filtros server-side o boardFiltered segue perStage 200 — sem
   // load-more de rede (espelha o kanban, que esconde o botão).

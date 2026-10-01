@@ -6,6 +6,15 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { DEFAULT_CHAT_THEME, isChatThemeKey } from "@/lib/chat-theme";
+import { fromShellBootstrap } from "@/lib/shell-bootstrap";
+
+type ProfileChatTheme = { chatTheme?: string | null };
+
+async function fetchProfile(): Promise<ProfileChatTheme> {
+  const res = await fetch(apiUrl("/api/profile"));
+  if (!res.ok) throw new Error("profile");
+  return res.json() as Promise<ProfileChatTheme>;
+}
 
 /**
  * Aplica `data-chat-theme` no `<html>` conforme preferência do usuário
@@ -16,11 +25,10 @@ export function useChatTheme() {
 
   const { data: profile } = useQuery({
     queryKey: ["profile"],
-    queryFn: async () => {
-      const res = await fetch(apiUrl("/api/profile"));
-      if (!res.ok) throw new Error("profile");
-      return res.json() as { chatTheme?: string | null };
-    },
+    // Bloco `profile` do bootstrap do shell quando ele está em voo; senão
+    // o GET de sempre (ver lib/shell-bootstrap.ts).
+    queryFn: (ctx) =>
+      fromShellBootstrap<ProfileChatTheme>(ctx.client, (p) => p.profile, fetchProfile),
     enabled: status !== "unauthenticated",
     staleTime: 60_000,
   });

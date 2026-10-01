@@ -17,6 +17,7 @@ import {
   formatRelative,
 } from "@/features/inbox-v2/adapters";
 import { normalizeDeliveryStatus } from "@/components/crm/status-ticks";
+import { memoByRef } from "@/lib/ref-cache";
 import { ownerLabel } from "@/lib/utils";
 import { personNameFromDealTitle, sanitizeContactName } from "@/lib/display-name";
 
@@ -131,7 +132,21 @@ function isInternalOrSystemPreview(content: string | null | undefined): boolean 
 }
 
 /** BoardDealDto → Deal (DealCard). */
+/**
+ * Cache por identidade do DTO (`memoByRef`). O React Query (structural
+ * sharing) e os patches SSE do board (`use-pipeline-realtime`) preservam
+ * a referência dos deals que não mudaram; devolver o MESMO `Deal` para o
+ * mesmo DTO é o que permite ao `memo(DealCard)` pular o render dos cards
+ * intocados. O balde de minuto acompanha a granularidade de
+ * `formatRelative` — os rótulos relativos ("5min") não congelam.
+ */
+const dealCardByRef = memoByRef(buildDealCard);
+
 export function toDealCard(deal: BoardDealDto): Deal {
+  return dealCardByRef(deal);
+}
+
+function buildDealCard(deal: BoardDealDto): Deal {
   // Contato = pessoa; título do deal ("Negócio …") fica no subtitle.
   const contactName =
     sanitizeContactName(deal.contact?.name) ||

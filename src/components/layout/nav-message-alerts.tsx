@@ -10,12 +10,23 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryFunctionContext,
+} from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
 
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
+import type { EmailAccount } from "@/features/email-v2/api/types";
+import { createAudioRunningAnnouncer } from "@/features/inbox-v2/hooks/audio-running-announcer";
+import { resumeAudio as resumeInboxAudio } from "@/features/inbox-v2/hooks/use-inbox-sound";
+import {
+  useInboxSoundOwner,
+  type SoundOwnerAudioSource,
+} from "@/features/inbox-v2/hooks/use-inbox-sound-owner";
 import {
   incrementRoomUnreadInCache,
   upsertTeamChatMessage,
@@ -24,14 +35,30 @@ import {
 import type { TeamChatMessage } from "@/features/team-chat/types";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
-import { isEventMessageType } from "@/components/crm/chat-timeline/classify";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { useUserRole } from "@/hooks/use-user-role";
-import { markJustArrived } from "@/lib/just-arrived";
+import { fromShellBootstrap } from "@/lib/shell-bootstrap";
+import { EMAIL_ACCOUNTS_POLL_MS, pollWhileVisible } from "@/lib/shell-polling";
 import { cn } from "@/lib/utils";
+
+/** O badge do trilho só lê `unreadCount`; o bootstrap manda só este resumo. */
+type NavEmailAccount = Pick<EmailAccount, "id" | "email" | "unreadCount">;
+
+/** Bloco `emailUnread` do bootstrap do shell em voo; senão o GET de sempre. */
+function fetchNavEmailAccounts(
+  ctx: Pick<QueryFunctionContext, "client">,
+): Promise<NavEmailAccount[]> {
+  return fromShellBootstrap<NavEmailAccount[]>(
+    ctx.client,
+    (p) => p.emailUnread?.accounts,
+    listEmailAccounts,
+  );
+}
 
 const SOUND_KEY = "bwipo:nav-alert-sound-muted";
 const SOUND_EVENT = "bwipo:nav-alert-sound-muted-changed";
+/** Disparado em `window` quando o AudioContext do trilho destrava. */
+const NAV_AUDIO_UNLOCKED_EVENT = "bwipo:nav-audio-unlocked";
 const PULSE_MS = 4_000;
 const SOUND_DEBOUNCE_MS = 700;
 
@@ -105,26 +132,47 @@ function writeSoundMuted(muted: boolean): void {
 let audioCtx: AudioContext | null = null;
 let lastPingAt = 0;
 
+const announceNavAudioRunning = createAudioRunningAnnouncer(() => {
+  window.dispatchEvent(new CustomEvent(NAV_AUDIO_UNLOCKED_EVENT));
+});
+
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const Ctor =
     window.AudioContext ??
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) return null;
-  audioCtx ??= new Ctor();
+  if (!audioCtx) {
+    const ctx = new Ctor();
+    audioCtx = ctx;
+    ctx.addEventListener("statechange", () => announceNavAudioRunning(ctx.state));
+  }
   return audioCtx;
+}
+
+function isNavAlertAudioRunning(): boolean {
+  return audioCtx?.state === "running";
 }
 
 async function resumeNavAlertAudio(): Promise<void> {
   const ctx = getCtx();
-  if (ctx && ctx.state === "suspended") {
+  if (!ctx || ctx.state === "closed") return;
+  if (ctx.state !== "running") {
     try {
       await ctx.resume();
     } catch {
       /* ignore */
     }
   }
+  // Contexto que nasce `running` (criado num gesto) também precisa avisar.
+  announceNavAudioRunning(ctx.state);
 }
+
+/** Fonte de áudio do trilho para a eleição de dona do som (MA-6). */
+const NAV_ALERT_AUDIO: SoundOwnerAudioSource = {
+  isRunning: isNavAlertAudioRunning,
+  unlockedEvent: NAV_AUDIO_UNLOCKED_EVENT,
+};
 
 function playNavAlertPing(): void {
   if (readSoundMuted()) return;
@@ -132,8 +180,8 @@ function playNavAlertPing(): void {
   if (nowMs - lastPingAt < SOUND_DEBOUNCE_MS) return;
   lastPingAt = nowMs;
   const ctx = getCtx();
-  if (!ctx) return;
-  if (ctx.state === "suspended") void ctx.resume();
+  // Fora de gesto o resume() falha em silêncio; travado não toca.
+  if (!ctx || ctx.state !== "running") return;
   try {
     const now = ctx.currentTime;
     const notes = [
@@ -184,9 +232,17 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
   const pathname = usePathname() ?? "";
   const visible = useDocumentVisible();
   const qc = useQueryClient();
-  const meId = (session?.user as { id?: string } | undefined)?.id ?? "";
+  const sessionUser = session?.user as { id?: string; organizationId?: string | null } | undefined;
+  const meId = sessionUser?.id ?? "";
+  const orgId = sessionUser?.organizationId ?? "";
 
   const ready = status === "authenticated";
+  // Só uma aba toca o som do trilho (Bwipo Chat / e-mail); o pulso visual
+  // continua em todas.
+  const sound = useInboxSoundOwner(
+    ready && orgId && meId ? `nav-sound:${orgId}:${meId}` : null,
+    NAV_ALERT_AUDIO,
+  );
   const canEmail = ready && canSeeNav("nav:email", myPerms?.permissions, isSuperAdmin);
 
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
@@ -220,13 +276,14 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     return total;
   }, [liveUnreads, roomsQuery.data?.rooms]);
 
-  const emailQuery = useQuery({
+  const emailQuery = useQuery<NavEmailAccount[]>({
     queryKey: ["nav-email-accounts"],
-    queryFn: listEmailAccounts,
+    queryFn: fetchNavEmailAccounts,
     enabled: canEmail,
-    staleTime: 30_000,
-    refetchInterval: visible ? 60_000 : false,
-    refetchOnWindowFocus: true,
+    // Contador de não lidas do e-mail: sem SSE de conta, o poll é a fonte —
+    // 5 min basta para o badge; sem refetch por foco (MA-5).
+    staleTime: 60_000,
+    ...pollWhileVisible(visible, EMAIL_ACCOUNTS_POLL_MS),
     retry: 1,
   });
   const emailUnread = useMemo(
@@ -234,14 +291,15 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     [emailQuery.data],
   );
 
+  const isSoundOwner = sound.isOwner;
   const flash = useCallback((source: NavAlertSource) => {
     const setPulse = source === "team-chat" ? setChatPulse : setEmailPulse;
     const timerRef = source === "team-chat" ? chatPulseTimer : emailPulseTimer;
     setPulse(true);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setPulse(false), PULSE_MS);
-    playNavAlertPing();
-  }, []);
+    if (isSoundOwner()) playNavAlertPing();
+  }, [isSoundOwner]);
 
   useEffect(() => {
     setMutedState(readSoundMuted());
@@ -254,32 +312,25 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     };
   }, []);
 
+  // Destrava os dois AudioContext (trilho e inbox) em todo gesto, não só
+  // no primeiro: o Safari volta a `interrupted` e o resume pode falhar.
+  // Com o contexto já `running` as duas chamadas retornam na hora.
   useEffect(() => {
-    const unlock = () => void resumeNavAlertAudio();
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    const unlock = () => {
+      void resumeNavAlertAudio();
+      void resumeInboxAudio();
+    };
+    window.addEventListener("pointerdown", unlock, { capture: true, passive: true });
+    window.addEventListener("keydown", unlock, { capture: true });
     return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("pointerdown", unlock, { capture: true });
+      window.removeEventListener("keydown", unlock, { capture: true });
     };
   }, []);
 
   useEffect(() => {
     if (!ready) return;
     return subscribeSSEEvents("/api/sse/messages", {
-      new_message: (raw) => {
-        const data = raw as {
-          conversationId?: string;
-          contactId?: string;
-          messageType?: string;
-          cardOmitted?: string;
-          card?: { id?: string };
-        };
-        if (!data.conversationId) return;
-        if (isEventMessageType(data.messageType)) return;
-        if (data.cardOmitted === "hidden") return;
-        markJustArrived([data.conversationId, data.card?.id, data.contactId]);
-      },
       team_chat_room_updated: () => {
         void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
       },
@@ -324,7 +375,9 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
             [data.roomId!]: (prev[data.roomId!] || 0) + 1,
           }));
         }
-        void qc.invalidateQueries({ queryKey: ["team-chat-rooms"] });
+        // Sem invalidar `team-chat-rooms` aqui: o cache já foi patchado
+        // acima e, com a tela do chat aberta, `useTeamChatRealtime` refaz
+        // a lista — invalidar nos dois era 2 GET /rooms por mensagem (FE-15).
 
         if (!data.message || isSystem) return;
         if (isOwn) return;

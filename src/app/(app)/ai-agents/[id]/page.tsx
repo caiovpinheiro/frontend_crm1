@@ -1,6 +1,7 @@
-import { redirect } from "next/navigation";
+import EditAIAgentClientPage from "./client-page";
 
-// Editor antigo de agente removido: a lista de /ai-agents-v2 abre cada um.
+export const dynamic = "force-dynamic";
+
 export default function EditAIAgentPage() {
-  redirect("/ai-agents-v2");
+  return <EditAIAgentClientPage />;
 }

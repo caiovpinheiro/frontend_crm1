@@ -8,9 +8,7 @@ import { toast } from "sonner";
 import {
   IconDotsVertical,
   IconSearch,
-  IconCircleCheck,
   IconLink,
-  IconRotateClockwise,
   IconStarFilled,
   IconUsersGroup,
   IconChevronRight,
@@ -25,7 +23,6 @@ import {
 import { ButtonGlass } from "@/components/crm/button-glass";
 import {
   useAssignConversation,
-  useConversationFeatures,
 } from "@/features/inbox-v2/hooks";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useExecuteDistribution } from "@/features/distribution/hooks";
@@ -43,7 +40,6 @@ import {
 import { useSendToChat } from "@/features/team-chat/send-to-chat-dialog";
 import { messagesKey } from "@/features/inbox-v2/hooks/use-messages";
 import type { MessagesResponse } from "@/features/inbox-v2/api/types";
-import { useResolveConversationFlow } from "./use-resolve-conversation-flow";
 
 function attendanceNamesFromThread(
   data: MessagesResponse | undefined,
@@ -76,21 +72,7 @@ interface ConversationActionsMenuProps {
   onSearchInConversation?: () => void;
   /** Abre o painel "Mensagens favoritas" (estrelas do agente logado). */
   onOpenFavorites?: () => void;
-  /**
-   * Callback disparado quando "Reabrir" cria um novo ticket (modelo de ticket).
-   * O caller (ex.: inbox) usa isso para selecionar/navegar para a nova conversa.
-   * Recebe o id da nova conversa gerada; o id previo continua acessivel via
-   * `conversationId` (que era o anterior).
-   */
-  onReopenNewConversation?: (newConversationId: string) => void;
-  onResolved?: (conversationId: string) => void;
-  onFollowedUp?: (conversationId: string) => void;
-  contactName?: string | null;
   dealId?: string | null;
-  /** Departamento vinculado a conversa — usado para o modal de tabulacao. */
-  departmentId?: string | null;
-  /** Se true, o botao "Encerrar" abre um modal exigindo folha da arvore. */
-  requireTabulationOnClose?: boolean;
   /**
    * Após "Distribuir p/ departamento", atualiza sticky/cache local com o
    * novo depto (e se exige tabulação) — senão Encerrar usa flag antigo.
@@ -100,7 +82,6 @@ interface ConversationActionsMenuProps {
     name: string;
     requireTabulationOnClose: boolean;
   }) => void;
-  assigneeId?: string | null;
   assigneeName?: string | null;
   assigneeType?: string | null;
   /**
@@ -121,15 +102,8 @@ export function ConversationActionsMenu({
   disabled,
   onSearchInConversation,
   onOpenFavorites,
-  onReopenNewConversation,
-  onResolved,
-  onFollowedUp,
-  contactName,
   dealId,
-  departmentId,
-  requireTabulationOnClose,
   onDepartmentChanged,
-  assigneeId: _assigneeId,
   assigneeName,
   assigneeType,
   aiHandoffContext,
@@ -144,26 +118,8 @@ export function ConversationActionsMenu({
     (session?.user as { id?: string } | undefined)?.id ?? null;
   const assign = useAssignConversation();
   const isAiAssignee = (assigneeType ?? "").toUpperCase() === "AI";
-  const { handleToggleResolve: resolveFlow, toggleResolve, dialogs } =
-    useResolveConversationFlow({
-      conversationId,
-      isResolved,
-      departmentId,
-      assignedToId: _assigneeId,
-      requireTabulationOnClose,
-      contactId,
-      contactName,
-      dealId,
-      onReopenNewConversation,
-      onResolved,
-      onFollowedUp,
-    });
   const executeDist = useExecuteDistribution();
   const { hideEvents, toggleHideEvents } = useHideChatEvents();
-  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas): o botão
-  // ✓/↻ ao lado do Nº da conversa já cobre os dois — evita duplicidade.
-  const { features: convFeatures } = useConversationFeatures();
-  const showResolveItem = convFeatures.showResolveInMenu;
 
   const departmentsQuery = useQuery({
     queryKey: ["inbox-distribute-departments"],
@@ -259,11 +215,6 @@ export function ConversationActionsMenu({
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
-
-  function handleToggleResolve() {
-    setOpen(false);
-    resolveFlow();
-  }
 
   function handleSearch() {
     setOpen(false);
@@ -585,26 +536,8 @@ export function ConversationActionsMenu({
             </div>
           )}
 
-          {showResolveItem && (
-            <RequirePermission permission="conversation:resolve">
-              <button
-                type="button"
-                disabled={toggleResolve.isPending}
-                onClick={handleToggleResolve}
-                className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-50"
-              >
-                {isResolved ? (
-                  <IconRotateClockwise size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
-                ) : (
-                  <IconCircleCheck size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
-                )}
-                <span>{isResolved ? "Reabrir conversa" : "Encerrar conversa"}</span>
-              </button>
-            </RequirePermission>
-          )}
         </div>
       )}
-      {dialogs}
     </div>
   );
 }

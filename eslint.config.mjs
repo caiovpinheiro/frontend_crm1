@@ -139,6 +139,20 @@ const eslintConfig = [
       ],
     },
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Logs: console.* é proibido em src/. Use `logger` de @/lib/logger
+  //   (debug/info só em desenvolvimento ou com localStorage["bwipo:debug"]="1";
+  //   warn/error sempre). Exceções ficam com eslint-disable justificado no
+  //   próprio arquivo: src/lib/logger.ts (o emissor) e src/app/sw.ts (service
+  //   worker). Fora de src/ (scripts/, public/) a regra não se aplica.
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    files: ["src/**/*.{ts,tsx,js,jsx,mjs,cjs}"],
+    rules: {
+      "no-console": "error",
+    },
+  },
 ];
 
 export default eslintConfig;

@@ -28,12 +28,7 @@ import {
 } from "@tabler/icons-react";
 import { Plus } from "lucide-react";
 import { cn, ownerLabel } from "@/lib/utils";
-import {
-  compareMessageActivity,
-  messageActivityTimestamp,
-} from "@/lib/message-activity-sort";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
-import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -94,7 +89,6 @@ import {
   lastInboundAtFromThread,
   toChatContact,
   toContactAside,
-  toConversationCard,
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
 import {
@@ -105,6 +99,9 @@ import {
   useConversations,
   useContactSidebar,
   useInboxRealtime,
+  isInboxConversationDeniedError,
+  purgePhantomInboxConversation,
+  resolveWhatsappSessionScope,
   useFavoriteMessage,
   useMarkConversationRead,
   useMessages,
@@ -147,7 +144,8 @@ import {
 } from "@/features/inbox-v2/extras/channel-switch-confirm";
 import type { ConversationListRow } from "@/features/inbox-v2/api";
 import { postConversationAction } from "@/features/inbox-v2/api";
-import { inboxQueueSectionFor, inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { sortInboxListRows, toInboxListCards } from "@/features/inbox-v2/inbox-list-order";
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -512,6 +510,7 @@ export default function InboxV2ClientPage({
 
   const {
     data: listData,
+    listTiers,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -573,20 +572,8 @@ export default function InboxV2ClientPage({
     if (createdFrom || createdTo) {
       list = list.filter((r) => inIsoDayRange(r.createdAt, createdFrom, createdTo));
     }
-    const by = sortBy ?? "lastInboundAt";
-    const order = (sortOrder ?? "desc") === "asc" ? "asc" : "desc";
-    const lastActivityTs = (r: (typeof rawRows)[number]) =>
-      messageActivityTimestamp(r.lastMessageAt, r.lastInboundAt);
-    return [...list].sort((a, b) => {
-      if (by === "unreadCount") {
-        const d = (b.unreadCount ?? 0) - (a.unreadCount ?? 0);
-        return d !== 0
-          ? d
-          : compareMessageActivity(lastActivityTs(a), lastActivityTs(b), "desc");
-      }
-      return compareMessageActivity(lastActivityTs(a), lastActivityTs(b), order);
-    });
-  }, [rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
+    return sortInboxListRows(list, { by: sortBy, order: sortOrder, tiers: listTiers });
+  }, [listTiers, rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
 
   const { data: tabCounts } = useTabCounts(
     canFetchInbox && tabHydrated && filtersHydrated,
@@ -729,6 +716,7 @@ export default function InboxV2ClientPage({
     isFetchingOlder,
     isPending: messagesPending,
     isError: messagesFailed,
+    error: messagesErrorObj,
   } = useMessages(conversationApiId);
   const messages = messagesData?.messages ?? [];
   const sessionInfo = messagesData?.session;
@@ -1055,6 +1043,17 @@ export default function InboxV2ClientPage({
     });
   }, [activeId, conversationApiId, sessionInfo, sessionInfo?.lastInboundAt, sessionInfo?.active, qc]);
 
+  // Card na lista que o servidor recusa: o ticket está com outro agente.
+  // Tira da lista em vez de deixar o chat vazio com "não foi possível
+  // carregar as mensagens" — e evita o clique repetido no mesmo fantasma.
+  useEffect(() => {
+    if (!conversationApiId) return;
+    if (!isInboxConversationDeniedError(messagesErrorObj)) return;
+    purgePhantomInboxConversation(qc, conversationApiId);
+    toast.error("Conversa não encontrada ou sem permissão.");
+    setActiveId(null);
+  }, [conversationApiId, messagesErrorObj, qc, setActiveId]);
+
   const [inboxRefreshing, setInboxRefreshing] = useState(false);
   const prevTabKeyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1159,9 +1158,15 @@ export default function InboxV2ClientPage({
     },
   );
   const selectedOutbound = whatsappChannels?.find((c) => c.id === selectedChannelId);
-  const applyWhatsappSession = usesWhatsapp24hWindow(
-    selectedOutbound?.type ?? messagesData?.channel?.type,
-  );
+  // Janela de 24h só em WhatsApp Cloud API: canal Baileys (provider
+  // `BAILEYS_MD` em `channels[].provider` / `channelProvider` do GET
+  // messages) não tem sessão nem template HSM.
+  const sessionScope = resolveWhatsappSessionScope({
+    selectedOutbound,
+    conversationChannelType: messagesData?.channel?.type,
+    conversationChannelProvider: messagesData?.channelProvider,
+  });
+  const applyWhatsappSession = sessionScope.applyWhatsappSession;
 
   // Override de canal ativo: revalida a janela de 24h no canal de DESTINO
   // (o `session` do GET messages reflete só o canal da conversa).
@@ -1177,6 +1182,7 @@ export default function InboxV2ClientPage({
       conversationApiId,
       selectedChannelId,
       applyWhatsappSession && channelOverrideActive,
+      { provider: sessionScope.selectedChannelProvider },
     );
 
   function handleSelect(id: string) {
@@ -1258,15 +1264,7 @@ export default function InboxV2ClientPage({
   // ── Adapters → tipos do v0 ─────────────────────────────────────
   const conversationCards = useMemo(
     () =>
-      displayRows
-        .filter(Boolean)
-        .map((r) => ({
-          ...toConversationCard(r, { active: r.id === activeId }),
-          queueTab:
-            r.queueTab && tab.includes(r.queueTab)
-              ? r.queueTab
-              : inboxQueueSectionFor(r, tab),
-        })),
+      toInboxListCards(displayRows, { tab, activeId }),
     [displayRows, activeId, tab],
   );
   const contactName = activeRow?.contact?.name ?? "";
@@ -1311,6 +1309,8 @@ export default function InboxV2ClientPage({
     messagesLastInboundAt:
       sessionInfo?.lastInboundAt ?? activeRow?.lastInboundAt ?? null,
     threadLastInboundAt,
+    channelProvider: sessionScope.channelProvider,
+    selectedChannelProvider: sessionScope.selectedChannelProvider,
   });
   // Bloco C (25/jun/26): backend pode setar `canReply:false` quando o
   // usuário não tem `channel.send`. Default true preserva compat com
@@ -1914,6 +1914,7 @@ export default function InboxV2ClientPage({
         messages={messageBubbles}
         stages={stagePillsView}
         showSessionAlert={sessionExpiredEffective}
+        channelProvider={sessionScope.effectiveProvider}
         connection={messagesData?.channel ?? null}
         connections={messagesData?.channels}
         conversationNumber={activeRow?.number ?? null}
@@ -1950,7 +1951,6 @@ export default function InboxV2ClientPage({
               conversationNumber={activeRow?.number}
               contactId={activeContactId}
               isResolved={activeRow.status === "RESOLVED"}
-              assigneeId={activeRow.assignedTo?.id ?? null}
               assigneeName={activeRow.assignedTo?.name ?? null}
               assigneeType={activeRow.assignedTo?.type ?? null}
               aiHandoffContext={{
@@ -1964,27 +1964,7 @@ export default function InboxV2ClientPage({
               }}
               onSearchInConversation={() => searchControlRef.current?.open()}
               onOpenFavorites={() => setFavoritesOpen(true)}
-              onReopenNewConversation={handleReopenNewConversation}
-              onResolved={(id) => {
-                setStickyRow((prev) =>
-                  prev?.id === id
-                    ? {
-                        ...prev,
-                        status: "RESOLVED",
-                        closedAt: new Date().toISOString(),
-                      }
-                    : prev,
-                );
-              }}
-              onFollowedUp={handleFollowedUp}
-              contactName={
-                contactAsideView?.name ?? activeRow.contact?.name ?? null
-              }
               dealId={firstDealId}
-              departmentId={activeRow.departmentId ?? activeRow.department?.id ?? null}
-              requireTabulationOnClose={
-                activeRow.department?.requireTabulationOnClose ?? false
-              }
               onDepartmentChanged={(dept) => {
                 setStickyRow((prev) =>
                   prev

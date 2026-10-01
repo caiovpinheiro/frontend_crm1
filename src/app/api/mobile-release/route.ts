@@ -5,7 +5,10 @@
  * usa esta rota quando o fetch direto ao host de releases falha (CORS
  * ou host antigo). Pública: o check de versão precisa ocorrer no login.
  */
-import { resolveMobileReleaseManifestUrl } from "@/lib/native/mobile-release-config";
+import {
+  publicMobileReleaseManifest,
+  resolveMobileReleaseManifestUrl,
+} from "@/lib/native/mobile-release-config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -20,7 +23,9 @@ export async function GET() {
         { status: 502, headers: { "Cache-Control": "no-store" } },
       );
     }
-    const data: unknown = await res.json();
+    // `apkUrl` sai com a base pública configurada (se houver), não com o
+    // host interno do serviço de releases — ver `mobile-release-config`.
+    const data: unknown = publicMobileReleaseManifest(await res.json());
     return Response.json(data, {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     });

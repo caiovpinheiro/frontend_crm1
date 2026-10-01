@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   getBoard,
+  getBoardColumns,
   getBoardFiltered,
   type BoardSortParam,
   type BoardStageDto,
@@ -20,6 +21,12 @@ import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import { normalizeSearchQuery } from "@/lib/search-query";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { mergeBoardKeepingLiveActivity } from "../board-live-activity";
+import {
+  boardPagingKey,
+  clearBoardPaging,
+  getBoardColumnsLoaded,
+  reloadBoardExpansions,
+} from "../board-column-paging";
 
 /** `structuralSharing` do React Query tipa os dois lados como `unknown`. */
 function shareLiveBoard(
@@ -34,8 +41,16 @@ function shareLiveBoard(
   );
 }
 
-/** Página de cards por coluna no Kanban (scroll soma +10). */
+/** 1ª página de cards por coluna: o board inteiro vem com 10 por etapa. */
 export const BOARD_PAGE_SIZE = 10;
+
+/**
+ * Cards pedidos a cada "carregar mais" de uma coluna (Kanban e fila do Flow).
+ * Maior que a 1ª página de propósito: com 10 por vez, rolar uma coluna
+ * disparava uma requisição a cada ~1.000px (rajada de POST /board/columns e
+ * o "Carregando..." piscando). 30 cards cobrem uns 3.000px por requisição.
+ */
+export const BOARD_LOAD_MORE_PAGE_SIZE = 30;
 
 /** Lista de pipelines (dropdown do header) — key canônica compartilhada. */
 export function usePipelines(enabled = true) {
@@ -70,11 +85,15 @@ export function useBoard(params: {
   /** Cards por coluna (default: 100 do backend). Kanban v2 passa 10. */
   perStage?: number;
   /**
-   * Expansões cumulativas por coluna ("Carregar mais"): stageId → extras
-   * além de `perStage`. Quando há pelo menos 1 expansão, o board passa a
-   * vir do POST /board (única rota que aceita offset) — mesma queryKey,
-   * então invalidações de mutações/SSE continuam valendo e a expansão
-   * sobrevive aos refetches de 60s.
+   * Modo ANTIGO do "Carregar mais" (backend sem `nextCursor` na etapa):
+   * stageId → extras além de `perStage`. Com pelo menos 1 expansão o board
+   * passa a vir do POST /board (única rota que aceita offset) — mesma
+   * queryKey, então invalidações de mutações/SSE continuam valendo e a
+   * expansão sobrevive aos refetches.
+   *
+   * Com cursor (`useBoardLoadMore`) os cards são anexados ao cache e este
+   * campo fica vazio; no refetch o `queryFn` recarrega as colunas
+   * expandidas pelo cursor da 1ª página nova.
    */
   offsetByStage?: Record<string, number>;
 }) {
@@ -91,20 +110,33 @@ export function useBoard(params: {
   perStageRef.current = perStage;
   const preview = isPreviewMode();
   const visible = useDocumentVisible();
+  const qc = useQueryClient();
+  const queryKey = boardKey(params.pipelineId ?? "pl-1", status, sort);
+  const pagingKey = boardPagingKey(queryKey);
   return useQuery<BoardStageDto[]>({
-    queryKey: boardKey(params.pipelineId ?? "pl-1", status, sort),
-    queryFn: () => {
+    queryKey,
+    queryFn: async () => {
+      const pid = params.pipelineId ?? "pl-1";
       const offsets = offsetByStageRef.current;
       const limit = perStageRef.current;
       const useOffsets = !!offsets && Object.keys(offsets).length > 0;
-      return useOffsets
-        ? getBoardFiltered(params.pipelineId ?? "pl-1", {
+      const base = await (useOffsets
+        ? getBoardFiltered(pid, {
             status,
             sort,
             perStage: limit,
             offsetByStage: offsets,
           })
-        : getBoard(params.pipelineId ?? "pl-1", status, sort, limit);
+        : getBoard(pid, status, sort, limit));
+      // Colunas expandidas por cursor: a 1ª página acabou de voltar sem
+      // elas. Lido DEPOIS do board para pegar um "carregar mais" que tenha
+      // terminado durante o fetch.
+      return reloadBoardExpansions({
+        base,
+        loaded: getBoardColumnsLoaded(qc, pagingKey),
+        fetchColumns: (columns) => getBoardColumns(pid, { status, sort, columns }),
+        onFailure: () => clearBoardPaging(qc, pagingKey),
+      });
     },
     enabled: preview ? true : ((params.enabled ?? true) && !!params.pipelineId),
     // Alinhado ao cache Redis do board (45s) + padrão inbox-v2.

@@ -1,14 +1,20 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { subscribeSSEEvents } from "@/hooks/use-sse";
+import { realtimeHandlers, type RealtimePayload } from "@/lib/realtime-contract";
 import { useMessageToast } from "@/features/inbox-v2/context/message-toast-context";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
-import { isSseMessageStubId, messagesKey } from "./use-messages";
+import {
+  emitConversationReopened,
+  isSseMessageStubId,
+  messagesKey,
+} from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
-import { playInboxPing } from "./use-inbox-sound";
+import { scheduledMessagesKey } from "./use-scheduled-messages";
 import {
   conversationUpdatedLikelyOnTabs,
   inboxQueueTabFor,
@@ -64,35 +70,24 @@ import {
  *    falhou, troca de aba/filtro, refresh explícito, reconnect com gap.
  *  - message_status: update otimista do tick; refetch só em `failed`
  *    (delivered/read não disparam GET messages de novo).
- *  - Reconexão automática com backoff fixo de 5s em onerror.
- *    Reconnect após gap: um refetch de lista + counts.
+ *  - Reconexão automática em onerror com espera crescente (5s, 10s, 20s…
+ *    até 60s, ±30%; ver `use-sse.ts`). Reconnect após gap: um refetch de lista + counts + mensagens do
+ *    ticket aberto (o gap não tem replay).
  *
- * Aviso sonoro: só em inbound destinado a este operador (assignedToId),
- * para não tocar em quem tem a inbox vazia / não é responsável.
+ * Aviso sonoro e toast: `InboxMessageAlerts` (layout global), não aqui.
  */
 
-type InfiniteInboxPage = {
-  items?: Array<{ id: string; assignedToId?: string | null }>;
-};
-
-type NewMessagePayload = {
-  conversationId?: string;
-  contactId?: string;
-  direction?: string;
-  assignedToId?: string | null;
-  content?: string;
-  timestamp?: string;
-  messageType?: string;
-  /** Nome do agente remetente em mensagens outbound — evita avatar "?". */
-  senderName?: string;
-  /** Slim list row from the bus (`InboxSseCard`). */
+/**
+ * `new_message` como chega do barramento — contrato em
+ * `@/lib/realtime-contract` (campos e significado documentados lá). Aqui
+ * só entram os tipos do inbox para `card` (linha da lista, `InboxSseCard`
+ * no backend) e `catalogOrder`.
+ */
+type NewMessagePayload = Omit<
+  RealtimePayload<"new_message">,
+  "card" | "catalogOrder"
+> & {
   card?: ConversationListRow;
-  /**
-   * Por que veio sem `card`: `"hidden"` = este usuário não lista a
-   * conversa (o servidor também tira texto/mídia do evento); `"budget"` =
-   * o bus não montou o snapshot a tempo.
-   */
-  cardOmitted?: "hidden" | "budget";
   catalogOrder?: InboxMessageDto["catalogOrder"];
 };
 
@@ -488,15 +483,8 @@ function scheduleMissingCardHydrate(
   }, MISSING_HYDRATE_DEBOUNCE_MS);
 }
 
-type ConversationUpdatedPayload = {
-  conversationId?: string;
-  assignedToId?: string | null;
-  status?: string;
-  closedAt?: string | null;
-  followUpAt?: string | null;
-  whatsappCallConsentStatus?: string;
-  assignedTo?: { type?: string | null } | null;
-};
+/** `conversation_updated` — contrato em `@/lib/realtime-contract`. */
+type ConversationUpdatedPayload = RealtimePayload<"conversation_updated">;
 
 /** Payload SSE quase nunca é um card completo — só `{ conversationId }`. */
 function conversationRowFromUpdatedEvent(
@@ -537,6 +525,15 @@ function eventTouchesOpenConversation(
   activeId: string | null,
   eventCard?: ConversationListRow | null,
   eventContactId?: string | null,
+  /**
+   * Aceita só o contato como prova de que o evento é do thread aberto. O
+   * servidor não manda `card` de conversa que este usuário não pode listar,
+   * então sem isso a mensagem que cai num ticket irmão do mesmo contato não
+   * tem como ser reconhecida e o chat aberto para de atualizar. Vale apenas
+   * para refazer o thread já aberto (que passou pelo controle de acesso) —
+   * não use em caminhos que buscam a conversa do evento.
+   */
+  allowContactOnlyMatch = false,
 ): boolean {
   if (!activeId) return false;
   if (eventConversationId === activeId) return true;
@@ -556,6 +553,15 @@ function eventTouchesOpenConversation(
     open.contact.id === contactId &&
     eventCard?.channel &&
     sameInboxCardGroup(open, eventCard)
+  ) {
+    return true;
+  }
+  if (
+    allowContactOnlyMatch &&
+    !eventCard &&
+    open.contact?.id &&
+    contactId &&
+    open.contact.id === contactId
   ) {
     return true;
   }
@@ -584,13 +590,6 @@ function appendSseMessageToOpenChat(
   activeId: string,
   data: NewMessagePayload,
 ): void {
-  // eslint-disable-next-line no-console
-  console.log("[sse] appendSseMessageToOpenChat called", {
-    activeId,
-    conversationId: data.conversationId,
-    direction: data.direction,
-    messageType: data.messageType,
-  });
   if (isEventMessageType(data.messageType)) return;
   const direction =
     data.direction === "in" || data.direction === "out" ? data.direction : null;
@@ -636,6 +635,38 @@ function appendSseMessageToOpenChat(
   });
 }
 
+/**
+ * Cliente volta a falar depois do encerramento: `findOrCreateConversation`
+ * (webhook) só reusa conversa ativa, então o inbound abre um ticket NOVO.
+ * O chat continuava no ticket encerrado — que nunca mais recebe mensagem —
+ * enquanto o card, que é um por contato+canal, já exibia a prévia nova.
+ * Troca o chat para o ticket novo pelo mesmo caminho do reopen por envio
+ * do agente. Retorna true quando assumiu o evento.
+ */
+function followInboundToNewTicket(
+  qc: QueryClient,
+  openId: string,
+  data: NewMessagePayload,
+): boolean {
+  const newId = data.conversationId;
+  if (!newId || newId === openId) return false;
+  if (isEventMessageType(data.messageType)) return false;
+  const open = findCachedConversationRow(qc, openId);
+  if (!open || !isClosedInboxRow(open)) return false;
+  const incoming = data.card ?? findCachedConversationRow(qc, newId);
+  if (incoming) {
+    if (isClosedInboxRow(incoming)) return false;
+    if (!sameInboxCardGroup(open, incoming)) return false;
+  } else {
+    const contactId = data.contactId ?? null;
+    if (!open.contact?.id || !contactId || open.contact.id !== contactId) {
+      return false;
+    }
+  }
+  emitConversationReopened(newId);
+  return true;
+}
+
 function shouldGetConversationOnUpdated(
   qc: QueryClient,
   conversationId: string,
@@ -658,6 +689,7 @@ function hasPatchableUpdatedFields(payload: ConversationUpdatedPayload): boolean
 function applyConversationUpdatedPatch(
   qc: QueryClient,
   payload: ConversationUpdatedPayload,
+  currentUserId: string | null,
 ): boolean {
   const id = payload.conversationId;
   if (!id || !hasPatchableUpdatedFields(payload)) return false;
@@ -665,14 +697,23 @@ function applyConversationUpdatedPatch(
   if (!existing) return false;
   const next: ConversationListRow = { ...existing };
   if (payload.assignedToId !== undefined) {
-    next.assignedToId = payload.assignedToId;
-    if (payload.assignedToId == null) {
+    const nextAssignedToId = payload.assignedToId ?? null;
+    next.assignedToId = nextAssignedToId;
+    if (nextAssignedToId == null) {
       next.assignedTo = null;
-    } else if (payload.assignedTo && existing.assignedTo) {
-      next.assignedTo = {
-        ...existing.assignedTo,
-        type: payload.assignedTo.type ?? existing.assignedTo.type,
-      };
+    } else if (nextAssignedToId === existing.assignedToId) {
+      next.assignedTo =
+        payload.assignedTo && existing.assignedTo
+          ? {
+              ...existing.assignedTo,
+              type: payload.assignedTo.type ?? existing.assignedTo.type,
+            }
+          : existing.assignedTo;
+    } else {
+      // Transferiu para OUTRO usuário e o payload não traz nome/avatar do
+      // novo dono. Manter o objeto anterior pintava o card com o nome de
+      // quem não atende mais — o card "no meu nome" que dá 404 no clique.
+      next.assignedTo = null;
     }
   }
   if (
@@ -688,13 +729,40 @@ function applyConversationUpdatedPatch(
   if (typeof payload.whatsappCallConsentStatus === "string") {
     next.whatsappCallConsentStatus = payload.whatsappCallConsentStatus;
   }
+  // A aba do card é por status, não por dono: sem relistar, o ticket que
+  // saiu para outro agente continuaria na lista de quem não pode abri-lo.
+  // Quem tem visibilidade ampla recebe o card de volta no refetch.
+  const movedToAnotherUser =
+    next.assignedToId != null &&
+    next.assignedToId !== existing.assignedToId &&
+    next.assignedToId !== currentUserId;
   applyConversationRowToInboxCaches(qc, next);
+  if (movedToAnotherUser) {
+    invalidateInboxQueriesTouching(qc, [id]);
+  }
   return true;
 }
 
 function isConversationNotFoundError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : "";
   return /não encontrada|sem permissão|not found/i.test(msg);
+}
+
+/** Erro de abertura de conversa que prova que o card não é deste usuário. */
+export function isInboxConversationDeniedError(err: unknown): boolean {
+  return isConversationNotFoundError(err);
+}
+
+/**
+ * Card que o servidor recusa (404/sem permissão): tira da lista e bloqueia
+ * re-hidratação por ~60s. Sem isto o card fantasma volta no próximo SSE.
+ */
+export function purgePhantomInboxConversation(
+  qc: QueryClient,
+  conversationId: string,
+): void {
+  rememberConversation404(conversationId);
+  removeConversationFromInboxCaches(qc, conversationId);
 }
 
 function invalidateInboxQueriesTouching(
@@ -836,7 +904,9 @@ function applyConversationRowToInboxCaches(
     }
 
     if (!found && belongs && canSafelyPrependToQuery(mergedRow, queryKey)) {
-      if (isClosedInboxRow(mergedRow) && !tabs.every((t) => t === "finalizados")) {
+      // Não prepende ticket encerrado em "todos" — pode estar sem permissão.
+      // O card só entra via refetch após validação do servidor (GET ?ids=).
+      if (isClosedInboxRow(mergedRow) && tabs.some((t) => t === "todos")) {
         continue;
       }
       let siblingRemoved = 0;
@@ -873,47 +943,9 @@ function applyConversationRowToInboxCaches(
   }
 }
 
-function shouldPlayInboundPing(
-  qc: QueryClient,
-  currentUserId: string | null | undefined,
-  data: {
-    conversationId?: string;
-    direction?: string;
-    assignedToId?: string | null;
-  },
-): boolean {
-  if (data.direction !== "in") return false;
-  if (!currentUserId) return false;
-
-  // Payload novo: responsável explícito no SSE.
-  if (typeof data.assignedToId === "string" && data.assignedToId.length > 0) {
-    return data.assignedToId === currentUserId;
-  }
-  // Sem responsável → fila livre; não é "mensagem deste operador".
-  if (data.assignedToId === null) return false;
-
-  // Payload legado (sem assignedToId): só toca se a conversa já está na
-  // lista de inbox deste cliente (visibilidade já filtrada no GET).
-  if (!data.conversationId) return false;
-  const entries = qc.getQueriesData<{ pages?: InfiniteInboxPage[] }>({
-    queryKey: ["inbox-conversations"],
-  });
-  for (const [, cached] of entries) {
-    const pages = cached?.pages;
-    if (!pages) continue;
-    for (const page of pages) {
-      const hit = page?.items?.find((c) => c.id === data.conversationId);
-      if (!hit) continue;
-      if (hit.assignedToId == null) return false;
-      return hit.assignedToId === currentUserId;
-    }
-  }
-  return false;
-}
-
 export function useInboxRealtime(options: {
   activeConversationId: string | null;
-  /** Usuário logado — necessário para filtrar o bip por responsável. */
+  /** Usuário logado — decide o patch do card e a aba (bip: `InboxMessageAlerts`). */
   currentUserId?: string | null;
   enabled?: boolean;
 }) {
@@ -926,10 +958,8 @@ export function useInboxRealtime(options: {
   const { registerActiveConversation } = useMessageToast();
 
   useEffect(() => {
-    registerActiveConversation(activeConversationId);
-    return () => {
-      registerActiveConversation(null);
-    };
+    if (!activeConversationId) return;
+    return registerActiveConversation(activeConversationId);
   }, [registerActiveConversation, activeConversationId]);
 
   const dailyStatsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -950,6 +980,19 @@ export function useInboxRealtime(options: {
         queryKey: ["conversations", "tab-counts"],
         refetchType: "active",
       });
+      // O gap são ~5s cegos (use-sse.ts) e o stream não tem replay. Sem
+      // isto a lista e o preview se curam aqui, mas a thread aberta só no
+      // poll de 90s — é a mensagem que aparece no card e não na conversa.
+      const openId = activeRef.current;
+      if (openId) {
+        qc.refetchQueries({ queryKey: messagesKey(openId) });
+        // O banner de agendados só faz poll com o SSE fora; o que mudou
+        // durante o gap (`scheduled_message_updated` perdido) entra aqui.
+        qc.invalidateQueries({
+          queryKey: scheduledMessagesKey(openId),
+          refetchType: "active",
+        });
+      }
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a
@@ -1024,19 +1067,13 @@ export function useInboxRealtime(options: {
       }, 1000);
     }
 
+    // `realtimeHandlers`: nome de evento fora do contrato não compila e
+    // cada handler recebe o payload tipado (todo campo opcional).
     const unsubscribe = subscribeSSEEvents(
       "/api/sse/messages",
-      {
-      new_message: (raw: unknown) => {
+      realtimeHandlers({
+      new_message: (raw) => {
         const data = raw as NewMessagePayload;
-        try {
-          if (shouldPlayInboundPing(qc, userIdRef.current, data)) {
-            playInboxPing();
-          }
-        } catch (e) {
-          console.error("[sse] inbound ping failed", e);
-        }
-
         // Atualização do chat aberto: isola da lista para que um erro
         // no merge do thread não quebre o preview do card.
         try {
@@ -1050,7 +1087,11 @@ export function useInboxRealtime(options: {
               });
             }
             const openId = activeRef.current;
+            const followedNewTicket = Boolean(
+              openId && followInboundToNewTicket(qc, openId, data),
+            );
             const touchesOpen =
+              !followedNewTicket &&
               openId &&
               eventTouchesOpenConversation(
                 qc,
@@ -1058,12 +1099,16 @@ export function useInboxRealtime(options: {
                 openId,
                 data.card,
                 data.contactId,
+                true,
               );
             if (touchesOpen) {
-              try {
-                appendSseMessageToOpenChat(qc, openId, data);
-              } catch (e) {
-                console.error("[sse] appendSseMessageToOpenChat failed", e);
+              // `hidden` chega sem texto/mídia: a bolha sai só do refetch.
+              if (data.cardOmitted !== "hidden") {
+                try {
+                  appendSseMessageToOpenChat(qc, openId, data);
+                } catch (e) {
+                  logger.error("sse", "appendSseMessageToOpenChat failed", e);
+                }
               }
               // Hidrata id/mídia; refetch imediato como fallback caso o
               // setQueryData/merge tenham falhado ou a query esteja fresh.
@@ -1084,7 +1129,7 @@ export function useInboxRealtime(options: {
             }
           }
         } catch (e) {
-          console.error("[sse] new_message chat update failed", e);
+          logger.error("sse", "new_message chat update failed", e);
         }
 
         // Card na lista: patch in-place, zero GET. Fora da página:
@@ -1112,6 +1157,7 @@ export function useInboxRealtime(options: {
               }
             } else if (
               snapshot &&
+              !isClosedInboxRow(snapshot) &&
               newMessageLikelyOnTabs(
                 activeInboxListTabs(qc),
                 {
@@ -1122,7 +1168,12 @@ export function useInboxRealtime(options: {
               )
             ) {
               applyConversationRowToInboxCaches(qc, snapshot);
-            } else if (newMessageLikelyOnTabs(activeInboxListTabs(qc), data, userIdRef.current)) {
+            } else if (
+              // `hidden`: o servidor já disse que este usuário não lista a
+              // conversa — o GET ?ids= voltaria vazio.
+              data.cardOmitted !== "hidden" &&
+              newMessageLikelyOnTabs(activeInboxListTabs(qc), data, userIdRef.current)
+            ) {
               scheduleMissingCardHydrate(qc, data.conversationId);
             }
           }
@@ -1130,20 +1181,12 @@ export function useInboxRealtime(options: {
             scheduleDailyStatsRefresh();
           }
         } catch (e) {
-          console.error("[sse] new_message card patch failed", e);
+          logger.error("sse", "new_message card patch failed", e);
         }
       },
 
-      message_status: (raw: unknown) => {
+      message_status: (data) => {
         try {
-          const data = raw as {
-            conversationId?: string;
-            /** Id da bolha (= externalId/wamid no Meta). */
-            messageId?: string;
-            /** UUID interno — fallback p/ payloads antigos. */
-            internalId?: string;
-            status?: string;
-          };
           if (data.conversationId) {
             // Atualização otimista do tick (sent→delivered→read) sem
             // esperar o refetch — evita atraso perceptível nos ticks azuis.
@@ -1210,8 +1253,8 @@ export function useInboxRealtime(options: {
         }
       },
 
-      conversation_updated: (raw: unknown) => {
-        const payload = (raw ?? {}) as ConversationUpdatedPayload;
+      conversation_updated: (raw) => {
+        const payload: ConversationUpdatedPayload = raw ?? {};
         const id = payload.conversationId;
         if (shouldSuppressInboxListRefresh(id ?? activeRef.current)) {
           scheduleDailyStatsRefresh();
@@ -1232,11 +1275,12 @@ export function useInboxRealtime(options: {
         const completeRow = conversationRowFromUpdatedEvent(raw);
         if (completeRow) {
           applyConversationRowToInboxCaches(qc, completeRow);
-        } else if (applyConversationUpdatedPatch(qc, payload)) {
+        } else if (applyConversationUpdatedPatch(qc, payload, userIdRef.current)) {
           // Card + badges ±1 sem GET :id / counts=1.
         } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
           scheduleConversationCardSync(id);
         } else if (
+          (raw as { cardOmitted?: string } | null)?.cardOmitted !== "hidden" &&
           !findCachedConversationRow(qc, id) &&
           conversationUpdatedLikelyOnTabs(activeInboxListTabs(qc), payload)
         ) {
@@ -1249,11 +1293,8 @@ export function useInboxRealtime(options: {
       // pelo backend. Invalida ["conversation-timeline", id] p/ o
       // ConversationTimelineTab exibir o evento na hora, mesmo quando a
       // acao veio de outro agente/automacao (sem mutation local).
-      conversation_timeline_updated: (raw: unknown) => {
+      conversation_timeline_updated: (data) => {
         try {
-          const data = raw as {
-            conversationId?: string;
-          };
           if (data.conversationId) {
             qc.invalidateQueries({
               queryKey: ["conversation-timeline", data.conversationId],
@@ -1264,11 +1305,8 @@ export function useInboxRealtime(options: {
         }
       },
 
-      contact_updated: (raw: unknown) => {
+      contact_updated: (data) => {
         try {
-          const data = raw as {
-            contactId?: string;
-          };
           if (data.contactId) {
             qc.invalidateQueries({ queryKey: ["contact-sidebar", data.contactId] });
           }
@@ -1277,11 +1315,8 @@ export function useInboxRealtime(options: {
         }
       },
 
-      whatsapp_call: (raw: unknown) => {
+      whatsapp_call: (data) => {
         try {
-          const data = raw as {
-            conversationId?: string;
-          };
           if (data.conversationId && data.conversationId === activeRef.current) {
             qc.invalidateQueries({ queryKey: messagesKey(activeRef.current) });
           }
@@ -1290,8 +1325,26 @@ export function useInboxRealtime(options: {
         }
       },
 
-      presence_update: () => {
-        qc.invalidateQueries({ queryKey: ["my-agent-status"] });
+      // Só o próprio usuário: `useSystemPresenceSync` já patcha o cache
+      // pelo evento; o refetch aqui é a confirmação do meu status. Antes
+      // era 1 GET por mudança de status de qualquer agente da org (FE-4).
+      presence_update: (data) => {
+        const me = userIdRef.current;
+        if (!me || data?.userId !== me) return;
+        qc.invalidateQueries({ queryKey: ["my-agent-status", me] });
+      },
+
+      // Agendamento criado/cancelado/enviado/falhou na conversa — o banner
+      // (`useScheduledMessages`) refaz o GET só se a conversa está aberta
+      // em alguma aba desta página (query ativa); o poll de 60s vira
+      // fallback para quando o SSE está desconectado.
+      scheduled_message_updated: (data) => {
+        const id = data?.conversationId;
+        if (!id) return;
+        qc.invalidateQueries({
+          queryKey: scheduledMessagesKey(id),
+          refetchType: "active",
+        });
       },
 
       // Ciclo de vida de automações (robô iniciou/avançou/terminou) —
@@ -1299,16 +1352,10 @@ export function useInboxRealtime(options: {
       // contactId (contexto não referencia conversa), então invalidamos a
       // query da conversa ativa; se o contato não for o mesmo, o refetch
       // é barato e o resultado idêntico.
-      automation_state: (raw: unknown) => {
+      automation_state: (data) => {
         // Invalida o botão "Robôs ativos" (por contato) do evento e,
         // por compat, o chip antigo (por conversa ativa).
         try {
-          const data = raw as {
-            contactId?: string;
-            active?: boolean;
-            status?: string;
-            createdAt?: string | null;
-          };
           if (data.contactId) {
             const active =
               data.active ??
@@ -1335,7 +1382,7 @@ export function useInboxRealtime(options: {
           });
         }
       },
-      },
+      }),
       refetchInboxAfterSseGap,
     );
 

@@ -27,11 +27,13 @@ import { SystemPresenceHeartbeat } from "@/components/layout/system-presence-hea
 import { InboxConversationsPrefetch } from "@/components/layout/inbox-conversations-prefetch";
 import { NativeFcmBootstrap } from "@/components/layout/native-fcm-bootstrap";
 import { NavMessageAlertsProvider } from "@/components/layout/nav-message-alerts";
+import { ShellBootstrap } from "@/components/layout/shell-bootstrap";
 import { TaskAlertCenter } from "@/components/layout/task-alert-center";
 import { SettingsDrawerProvider } from "@/features/settings/settings-drawer-context";
 import { AgentStatusProvider } from "@/components/crm/agent-status-context";
 import { SendToChatProvider } from "@/features/team-chat/send-to-chat-dialog";
 import { MessageToastProvider } from "@/features/inbox-v2/context/message-toast-context";
+import { InboxMessageAlerts } from "@/components/layout/inbox-message-alerts";
 
 // O TooltipProvider (Radix) é provido uma única vez na raiz (app/providers.tsx),
 // cobrindo tanto os TooltipGlass quanto os TooltipContent/TooltipHost. Não é
@@ -43,6 +45,9 @@ export default function AppLayout({
 }) {
   return (
     <SettingsDrawerProvider>
+      {/* 1 GET /api/me/bootstrap semeia os caches do shell antes dos
+          queryFns dos providers abaixo (ver lib/shell-bootstrap.ts). */}
+      <ShellBootstrap />
       <AgentStatusProvider>
       <NavMessageAlertsProvider>
       <MessageToastProvider>
@@ -50,6 +55,8 @@ export default function AppLayout({
       <ChatThemeApplier />
       <SystemPresenceHeartbeat />
       <InboxConversationsPrefetch />
+      {/* Bip + toast de mensagem recebida em qualquer tela do CRM. */}
+      <InboxMessageAlerts />
       <div className="v2-root v2-min-screen">
         {/* Trilho de navegação ÚNICO e PERSISTENTE. Vive no layout para
             NÃO remontar ao navegar. Posição fixa sobre a 1ª coluna do grid

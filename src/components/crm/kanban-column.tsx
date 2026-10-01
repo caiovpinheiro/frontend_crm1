@@ -10,7 +10,8 @@ import {
   IconSquareMinus,
 } from "@tabler/icons-react"
 import type { HTMLAttributes, ReactNode } from "react"
-import { useCallback, useEffect, useRef } from "react"
+import { memo, useCallback, useRef } from "react"
+import { useScrollLoadMore } from "@/hooks/use-scroll-load-more"
 import { DealCard, type Deal } from "./deal-card"
 
 export type ColumnColor = "novo" | "quali" | "proposta" | "nego" | "fecha"
@@ -94,7 +95,29 @@ const colorBgMap: Record<ColumnColor, string> = {
   fecha:    "color-mix(in srgb, var(--col-fecha) 10%, transparent)",
 }
 
-export function KanbanColumn({
+/**
+ * Caminho sem `renderDeal`: callback por card estável (`useCallback` no
+ * id) para o `memo(DealCard)` não ser derrotado por uma arrow nova a
+ * cada render da coluna.
+ */
+const DefaultDealItem = memo(function DefaultDealItem({
+  deal,
+  onDealClick,
+}: {
+  deal: Deal
+  onDealClick?: (dealId: string) => void
+}) {
+  const handleClick = useCallback(() => onDealClick?.(deal.id), [onDealClick, deal.id])
+  return <DealCard deal={deal} onClick={handleClick} />
+})
+
+/**
+ * `memo`: com `deals`/`selection`/`renderDeal`/`dealsContainerProps`
+ * estáveis (o `DroppableColumn` do pipeline memoiza cada um), a coluna
+ * inteira — header + N `<Draggable>` — deixa de renderizar quando só
+ * outro estado da página mudou.
+ */
+export const KanbanColumn = memo(function KanbanColumn({
   title,
   color,
   stageColor,
@@ -118,15 +141,15 @@ export function KanbanColumn({
 
   // Auto-load: sentinel no fim da lista dispara o "Carregar mais" ao
   // entrar no viewport da coluna (200px de margem). O botão manual
-  // permanece como fallback. Refs evitam recriar o observer a cada
-  // render (onClick é inline no pai). Recria quando a lista cresce
-  // para encadear a próxima página se o fundo ainda estiver visível.
+  // permanece como fallback. Um pedido por gesto de rolagem
+  // (`useScrollLoadMore`): a sentinela que continua visível depois de
+  // uma página NÃO encadeia a seguinte — isso virava rajada de
+  // requisições com o "Carregando..." piscando.
   const loadMoreOnClickRef = useRef(loadMore?.onClick)
   loadMoreOnClickRef.current = loadMore?.onClick
   const loadMoreLoadingRef = useRef(loadMore?.loading ?? false)
   loadMoreLoadingRef.current = loadMore?.loading ?? false
   const hasLoadMore = !!loadMore && loadMore.remaining > 0
-  const sentinelRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const dealsContainerRefStable = useRef(dealsContainerRef)
   dealsContainerRefStable.current = dealsContainerRef
@@ -141,19 +164,13 @@ export function KanbanColumn({
     loadMoreOnClickRef.current?.()
   }, [])
 
-  useEffect(() => {
-    const el = sentinelRef.current
-    const root = scrollRef.current
-    if (!el || !root || !hasLoadMore) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) requestLoadMore()
-      },
-      { root, rootMargin: "200px 0px" },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [hasLoadMore, deals.length, requestLoadMore])
+  const sentinelRef = useScrollLoadMore({
+    scrollerRef: scrollRef,
+    enabled: hasLoadMore,
+    loading: loadMore?.loading ?? false,
+    onLoadMore: requestLoadMore,
+    marginPx: 200,
+  })
 
   // Cor efetiva do estágio: hex do backend > preset. Badge usa
   // color-mix inline para gerar background 15% da cor do estágio
@@ -290,7 +307,7 @@ export function KanbanColumn({
           renderDeal ? (
             renderDeal(deal, index)
           ) : (
-            <DealCard key={deal.id} deal={deal} onClick={() => onDealClick?.(deal.id)} />
+            <DefaultDealItem key={deal.id} deal={deal} onDealClick={onDealClick} />
           ),
         )}
         {placeholderSlot}
@@ -319,4 +336,4 @@ export function KanbanColumn({
       </div>
     </section>
   )
-}
+})

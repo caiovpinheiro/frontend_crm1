@@ -2,7 +2,10 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-import { isPreviewMode } from "@/lib/preview-mode";
+import { devOnlyRouteDecision } from "@/lib/dev-only-routes";
+import { unknownTenantHtml } from "@/lib/html-escape";
+import { isProductionRuntime, shouldBypassAuthForPreview } from "@/lib/preview-mode";
+import { shouldVerifyTenantExistence } from "@/lib/tenant-existence";
 import {
   isSingleHostCrm,
   resolveTenantFromRequest,
@@ -110,29 +113,8 @@ function apexOrigin(req: NextRequest): string {
 }
 
 function unknownTenantResponse(req: NextRequest, slug: string): NextResponse {
-  const html = `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Organização não encontrada</title>
-  <style>
-    body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#0b1220;color:#e8eefc}
-    main{max-width:28rem;padding:2rem;text-align:center}
-    a{color:#7dd3fc}
-    code{background:#1e293b;padding:.1rem .35rem;border-radius:.25rem}
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Organização não encontrada</h1>
-    <p>O endereço <code>${slug}</code> não é um workspace válido.</p>
-    <p><a href="${apexOrigin(req)}/">Voltar para o início</a></p>
-  </main>
-</body>
-</html>`;
   return withSecurityHeaders(
-    new NextResponse(html, {
+    new NextResponse(unknownTenantHtml(slug, apexOrigin(req)), {
       status: 404,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     }),
@@ -178,8 +160,8 @@ const PUBLIC_PATHS = new Set([
   "/reset-password",
   "/verify-email",
   "/politica-de-privacidade",
-  "/test-bulk-bar",
-  "/dev/campaigns-cards-preview",
+  // Rotas de dev (`/test-bulk-bar`, `/dev/*`) NÃO entram aqui: ver
+  // `@/lib/dev-only-routes` — públicas fora de produção, 404 em produção (SEC-25).
   // Cockpit: HTML estático; dados via Bearer token ou sessão CRM.
   "/cockpit-agente.html",
 ]);
@@ -294,21 +276,24 @@ export async function middleware(req: NextRequest) {
   try {
     const { pathname } = req.nextUrl;
 
+    // Rotas de dev (`/test-bulk-bar`, `/dev/*`): 404 em produção, antes de
+    // qualquer outra decisão (SEC-25). Fora de produção, as listadas em
+    // DEV_ONLY_PUBLIC_PATHS seguem públicas mais abaixo.
+    const devRoute = devOnlyRouteDecision(pathname, isProductionRuntime());
+    if (devRoute === "block") {
+      return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+    }
+
     // PREVIEW MODE: libera todas as rotas sem checar cookie. Usado pelo
     // sandbox do v0.dev onde cookies cross-origin são bloqueados pelo browser.
     // NUNCA deve estar ativo em produção (qualquer um navega tudo sem login).
     //
-    // `isPreviewMode()` no edge não vê `window`, então cobrimos o host do v0
-    // lendo o header `host` em RUNTIME (a env var NEXT_PUBLIC_* costuma não
-    // estar disponível no build do sandbox). Só casa domínios de preview do v0
-    // — nunca localhost nem o domínio de produção (Easypanel).
-    const requestHost = (req.headers.get("host") ?? "").toLowerCase();
-    const isV0Host =
-      requestHost.endsWith(".vusercontent.net") ||
-      requestHost.endsWith(".v0.dev") ||
-      requestHost.endsWith(".v0.app") ||
-      requestHost.endsWith(".v0.build");
-    if (isPreviewMode() || isV0Host) {
+    // No edge não há `window`, então cobrimos o host do v0 lendo o header
+    // `host` em RUNTIME (a env var NEXT_PUBLIC_* costuma não estar disponível
+    // no build do sandbox). Esse fallback por host só vale FORA de produção
+    // (SEC-21: atrás do proxy o `Host` pode ser arbitrário); em produção o
+    // preview exige a dupla chave de env (ver `@/lib/preview-mode`).
+    if (shouldBypassAuthForPreview(req.headers.get("host"))) {
       return withSecurityHeaders(NextResponse.next());
     }
 
@@ -331,12 +316,10 @@ export async function middleware(req: NextRequest) {
     const reqAuth = await readAuthFromRequestCookie(req);
 
     let cacheTenantVerified = false;
-    if (
-      tenantSlug &&
-      pathname !== "/api/organization/by-slug" &&
-      !pathname.startsWith("/_next") &&
-      !pathname.startsWith("/api/health")
-    ) {
+    // `/api/*` NÃO passa pela checagem de existência: senão um subdomínio
+    // inexistente devolvia 404 HTML e um existente 401 JSON — oráculo de
+    // enumeração de slugs (pentest). Ver `shouldVerifyTenantExistence`.
+    if (tenantSlug && shouldVerifyTenantExistence(pathname)) {
       const existence = await verifyTenantSlugExists(
         req,
         tenantSlug,
@@ -399,7 +382,11 @@ export async function middleware(req: NextRequest) {
       return nextWithTenant();
     }
 
-    if (PUBLIC_PATHS.has(pathname) || PUBLIC_API_PATHS.has(pathname)) {
+    if (
+      PUBLIC_PATHS.has(pathname) ||
+      PUBLIC_API_PATHS.has(pathname) ||
+      devRoute === "public"
+    ) {
       return nextWithTenant();
     }
 

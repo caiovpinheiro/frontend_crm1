@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { apiUrl } from "@/lib/api";
+import { usesWhatsapp24hWindow } from "@/components/inbox/channel-type-icon";
 
+import { isBaileysChannelProvider } from "../adapters";
 import { getChannelSession, type SessionInfo } from "../api";
 
 /**
@@ -75,14 +77,72 @@ export function useWhatsappChannels(enabled = true) {
 }
 
 /**
+ * Janela de 24h / template HSM: só WhatsApp Cloud API. Baileys (número
+ * conectado por QR) é WhatsApp mas não tem janela — o `type` sozinho não
+ * distingue, por isso a checagem do `provider`.
+ */
+export function channelUsesWhatsapp24hWindow(
+  channel:
+    | { type?: string | null; provider?: string | null }
+    | null
+    | undefined,
+): boolean {
+  if (!channel) return false;
+  return (
+    usesWhatsapp24hWindow(channel.type) &&
+    !isBaileysChannelProvider(channel.provider)
+  );
+}
+
+/**
+ * Escopo da janela de 24h para o composer de uma conversa: o canal
+ * escolhido no composer (`OutboundChannelOption`, com provider) ou, sem
+ * escolha válida, o canal atual da conversa (`channel.type` +
+ * `channelProvider` do GET messages). Devolve o que o host passa a
+ * `useChannelSession`, `isWhatsappComposerSessionExpired` e ao ChatArea.
+ */
+export function resolveWhatsappSessionScope(args: {
+  selectedOutbound?: { type?: string | null; provider?: string | null } | null;
+  conversationChannelType?: string | null;
+  conversationChannelProvider?: string | null;
+}): {
+  /** Aplica a regra de 24h (WhatsApp Cloud API; nunca Baileys/Instagram). */
+  applyWhatsappSession: boolean;
+  /** Provider do canal atual da conversa (`MessagesResponse.channelProvider`). */
+  channelProvider: string | null;
+  /** Provider do canal escolhido no composer (`OutboundChannelOption.provider`). */
+  selectedChannelProvider: string | null;
+  /** Provider por onde a próxima mensagem sai — `channelProvider` do ChatArea. */
+  effectiveProvider: string | null;
+} {
+  const channelProvider = args.conversationChannelProvider ?? null;
+  const selectedChannelProvider = args.selectedOutbound?.provider ?? null;
+  const scope = args.selectedOutbound ?? {
+    type: args.conversationChannelType,
+    provider: channelProvider,
+  };
+  return {
+    applyWhatsappSession: channelUsesWhatsapp24hWindow(scope),
+    channelProvider,
+    selectedChannelProvider,
+    effectiveProvider: selectedChannelProvider ?? channelProvider,
+  };
+}
+
+/**
  * Janela de 24h do contato no canal do composer. A Meta separa CSV e
  * Acadêmico; o ticket só guarda o channelId do último inbound.
+ *
+ * `opts.provider` (provider do canal consultado): em Baileys não há
+ * sessão de 24h — o GET é pulado e `isFetched` fica false.
  */
 export function useChannelSession(
   conversationId: string | null,
   channelId: string | null,
   enabled: boolean,
+  opts?: { provider?: string | null },
 ) {
+  const baileys = isBaileysChannelProvider(opts?.provider);
   return useQuery<SessionInfo>({
     queryKey: [
       "channel-session",
@@ -91,7 +151,7 @@ export function useChannelSession(
     ],
     queryFn: () =>
       getChannelSession(conversationId as string, channelId as string),
-    enabled: enabled && !!conversationId && !!channelId,
+    enabled: enabled && !!conversationId && !!channelId && !baileys,
     // SSE invalida no inbound. Cache curto evita refetch em todo foco.
     staleTime: 20_000,
     refetchOnWindowFocus: false,

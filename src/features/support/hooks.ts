@@ -19,7 +19,13 @@ import {
   sendSupportMessage,
 } from "./api";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
-import type { SupportScope } from "./types";
+import {
+  applySupportTicketPatch,
+  createLeadingTrailingThrottle,
+  readSupportTicketPatch,
+  SUPPORT_INVALIDATE_THROTTLE_MS,
+} from "./ticket-patch";
+import type { SupportScope, SupportTicket } from "./types";
 
 const TICKETS_KEY = "support-tickets";
 const MESSAGES_KEY = "support-messages";
@@ -99,9 +105,16 @@ export function useResolveSupportTicket() {
 }
 
 /**
- * Realtime do suporte via SSE (mesma stream do inbox). Invalida as
- * queries de tickets/mensagens ao receber eventos. Throttle leve pra
- * evitar rajadas.
+ * Realtime do suporte via SSE (mesma stream do inbox).
+ *
+ * Evento com `ticketId` patcheia o ticket in-place em todas as listas
+ * `[support-tickets, scope]` em cache (status, responsável, última
+ * mensagem) — a tela reage na hora, sem GET. A invalidação da lista
+ * continua (um ticket pode entrar/sair de um escopo, e os contadores de
+ * não lidas são por visualizador), mas com throttle de 2 s com borda
+ * final: rajada vira 2 GETs no máximo, e a última mudança nunca se perde
+ * (o throttle antigo de 250 ms descartava o que chegava dentro da janela).
+ * Mensagem nova invalida só `[support-messages, ticketId]`.
  */
 export function useSupportRealtime(activeTicketId: string | null, enabled = true) {
   const qc = useQueryClient();
@@ -110,31 +123,51 @@ export function useSupportRealtime(activeTicketId: string | null, enabled = true
 
   useEffect(() => {
     if (!enabled) return;
-    let lastInvalidate = 0;
 
-    const invalidateTickets = () => {
-      const now = Date.now();
-      if (now - lastInvalidate < 250) return;
-      lastInvalidate = now;
-      qc.invalidateQueries({ queryKey: [TICKETS_KEY] });
+    const invalidateTickets = createLeadingTrailingThrottle(() => {
+      void qc.invalidateQueries({ queryKey: [TICKETS_KEY] });
+    }, SUPPORT_INVALIDATE_THROTTLE_MS);
+
+    const patchTicket = (raw: unknown) => {
+      const patch = readSupportTicketPatch(raw);
+      if (!patch) return null;
+      qc.setQueriesData<SupportTicket[]>({ queryKey: [TICKETS_KEY] }, (prev) =>
+        applySupportTicketPatch(prev, patch),
+      );
+      return patch;
     };
 
-    const onMessage = (raw: unknown) => {
+    const onTicketUpdated = (raw: unknown) => {
       try {
-        const data = raw as { ticketId?: string };
-        invalidateTickets();
-        if (data.ticketId) {
-          qc.invalidateQueries({ queryKey: [MESSAGES_KEY, data.ticketId] });
-        }
+        patchTicket(raw);
       } catch {
         /* ignore */
       }
+      invalidateTickets.call();
     };
 
-    return subscribeSSEEvents("/api/sse/messages", {
-      support_ticket_new: () => invalidateTickets(),
-      support_ticket_updated: () => invalidateTickets(),
+    const onMessage = (raw: unknown) => {
+      let ticketId: string | undefined;
+      try {
+        ticketId = patchTicket(raw)?.ticketId;
+      } catch {
+        /* ignore */
+      }
+      if (ticketId) {
+        void qc.invalidateQueries({ queryKey: [MESSAGES_KEY, ticketId] });
+      }
+      invalidateTickets.call();
+    };
+
+    const unsubscribe = subscribeSSEEvents("/api/sse/messages", {
+      // Ticket novo não existe no cache: só o refetch traz.
+      support_ticket_new: () => invalidateTickets.call(),
+      support_ticket_updated: onTicketUpdated,
       support_message: onMessage,
     });
+    return () => {
+      unsubscribe();
+      invalidateTickets.cancel();
+    };
   }, [qc, enabled]);
 }

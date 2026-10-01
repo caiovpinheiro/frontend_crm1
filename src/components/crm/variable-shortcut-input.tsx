@@ -6,7 +6,7 @@
  * `{{dealCustomFields.<campo>}}`, etc.
  *
  * Mesmo gatilho e MESMO formato de token do bloco "Variáveis do template" do
- * construtor de automação (`components/automations/step-config-panel.tsx`).
+ * construtor de automação (`components/automations/inline-editor.tsx`).
  * Quem resolve o token no envio é o interpolador do backend
  * (`interpolateTemplateComponents` no executor de automações), então os dois
  * lados têm de oferecer exatamente o mesmo vocabulário — um segundo formato de

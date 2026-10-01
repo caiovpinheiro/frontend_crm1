@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   IconBriefcase,
@@ -13,7 +14,7 @@ import { EmptyState } from "@/components/crm/empty-state";
 import { StatCard } from "@/components/crm/stat-card";
 import { ChartCard } from "@/components/crm/chart-card";
 import { formatNumber, textMatchesQuery } from "@/features/dashboard-v2/format";
-import type { DashboardMeData, DashboardMeItem } from "@/features/dashboard-v2/api";
+import type { DashboardMeData, DashboardMeInboundDeal, DashboardMeItem } from "@/features/dashboard-v2/api";
 import type { OperatorWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
 
 export function OperatorDashboardWidget({
@@ -114,7 +115,109 @@ export function OperatorDashboardWidget({
           items={stalled}
         />
       );
+    case "inboundStages":
+      return <InboundByStageCard rows={data.inboundDeals ?? []} search={q} />;
   }
+}
+
+function waitingLabel(iso: string | undefined): string {
+  if (!iso) return "";
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return "";
+  const mins = Math.max(0, Math.floor((Date.now() - at) / 60_000));
+  if (mins < 1) return "sem resposta agora";
+  if (mins < 60) return `sem resposta há ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `sem resposta há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "sem resposta há 1 dia";
+  return `sem resposta há ${days} dias`;
+}
+
+function InboundByStageCard({
+  rows,
+  search,
+}: {
+  rows: DashboardMeInboundDeal[];
+  search: string;
+}) {
+  const [stageId, setStageId] = useState("all");
+  const stages = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      if (!map.has(row.stageId)) map.set(row.stageId, `${row.pipelineName} · ${row.stageName}`);
+    }
+    return [...map.entries()].map(([id, label]) => ({ id, label }));
+  }, [rows]);
+  const stageOk = stageId === "all" || stages.some((stage) => stage.id === stageId);
+  const selected = stageOk ? stageId : "all";
+  const visible = rows.filter((row) => {
+    if (selected !== "all" && row.stageId !== selected) return false;
+    return (
+      textMatchesQuery(row.title, search) ||
+      textMatchesQuery(row.stageName, search) ||
+      textMatchesQuery(row.pipelineName, search)
+    );
+  });
+
+  return (
+    <ChartCard
+      title="Mensagens recebidas"
+      subtitle="Sem resposta sua, só nos seus negócios"
+      action={
+        stages.length > 1 ? (
+          <select
+            aria-label="Filtrar etapa"
+            value={selected}
+            onChange={(event) => setStageId(event.target.value)}
+            className="h-8 max-w-[14rem] rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-base)] px-2.5 font-body text-[11px] text-[var(--text-primary)]"
+          >
+            <option value="all">Todas as etapas</option>
+            {stages.map((stage) => (
+              <option key={stage.id} value={stage.id}>
+                {stage.label}
+              </option>
+            ))}
+          </select>
+        ) : null
+      }
+      bodyClassName="p-0"
+    >
+      {visible.length === 0 ? (
+        <EmptyState
+          icon={<IconMessage size={24} />}
+          title="Nenhuma mensagem sem resposta"
+          description="Quando um cliente falar e você ainda não responder, o negócio aparece aqui."
+          className="py-10"
+        />
+      ) : (
+        <ul className="divide-y divide-[var(--glass-border-subtle)]">
+          {visible.map((row) => (
+            <li key={row.id}>
+              <Link
+                href={`/pipeline?deal=${row.number}`}
+                className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--glass-bg-subtle)]"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-[13px] font-semibold text-[var(--text-primary)]">
+                    #{row.number} · {row.title}
+                  </p>
+                  <p className="truncate font-body text-[11px] text-[var(--text-muted)]">
+                    {row.pipelineName} · {row.stageName}
+                    {row.waitingSince ? ` · ${waitingLabel(row.waitingSince)}` : ""}
+                  </p>
+                </div>
+                <span className="shrink-0 font-display text-[16px] font-bold tabular-nums text-[var(--text-primary)]">
+                  {formatNumber(row.count)}
+                </span>
+                <IconChevronRight size={14} className="shrink-0 text-[var(--text-muted)]" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </ChartCard>
+  );
 }
 
 function KpiLink({ href, children }: { href: string; children: React.ReactNode }) {

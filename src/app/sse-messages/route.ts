@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { backendBase } from "@/lib/api-server";
 
 export const dynamic = "force-dynamic";
@@ -47,8 +48,9 @@ function warnBenignDisconnectOnce(err: unknown) {
   if (loggedBenignDisconnect) return;
   loggedBenignDisconnect = true;
   const e = err as { code?: string; message?: string };
-  console.warn(
-    "[sse-proxy] disconnect (abort / socket close) — further ones suppressed:",
+  logger.warn(
+    "sse-proxy",
+    "disconnect (abort / socket close) — further ones suppressed",
     e.code ?? e.message ?? err,
   );
 }

@@ -122,22 +122,19 @@ export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
 
   const query = useQuery<PainelDealsResult>({
     queryKey,
+    // Uma chamada com todas as seções: o backend aceita CSV em `section`
+    // (`parseDealSections`) e roda os blocos em paralelo, devolvendo
+    // `ok:false` por bloco em caso de erro. Antes eram 6 GETs simultâneos
+    // que, pelo proxy do Next, se serializavam e refaziam auth/escopo/
+    // período seis vezes.
     queryFn: async ({ signal }) => {
-      const acc = emptyDealsResult();
-      await Promise.all(
-        DEAL_LIVE_SECTIONS.map(async (section) => {
-          try {
-            const part = await fetchPainelDeals(filters, section, undefined, signal);
-            Object.assign(acc, pickDefined(part));
-          } catch (e) {
-            if (signal.aborted) throw e;
-            const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
-            Object.assign(acc, { [section]: { ok: false, error } });
-          }
-          queryClient.setQueryData<PainelDealsResult>(queryKey, { ...acc });
-        }),
+      const part = await fetchPainelDeals(
+        filters,
+        DEAL_LIVE_SECTIONS.join(","),
+        undefined,
+        signal,
       );
-      return acc;
+      return { ...emptyDealsResult(), ...pickDefined(part) };
     },
     enabled: live,
     staleTime: 30_000,
@@ -381,7 +378,7 @@ export function useDashboardMe(enabled = true) {
     queryKey: ["dashboard-v2", "me"],
     queryFn: fetchDashboardMe,
     enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 15_000,
+    staleTime: 0,
     refetchInterval: visible ? 60_000 : false,
     refetchIntervalInBackground: false,
   });

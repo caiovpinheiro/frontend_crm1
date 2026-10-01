@@ -71,6 +71,7 @@ export function ComposerMenu({
   onOutboundBlocked,
   onStageFiles,
   enableCallPermission,
+  scheduleTemplateFallback = true,
 }: {
   conversationId: string | null;
   /** Canal de envio atual — filtra templates WhatsApp da WABA correta. */
@@ -118,6 +119,8 @@ export function ComposerMenu({
   onStageFiles?: (files: File[]) => void;
   /** WhatsApp Cloud API — item "Pedir permissão de ligação". */
   enableCallPermission?: boolean;
+  /** Agendar: oferece template fallback (24h). `false` em canal Baileys. */
+  scheduleTemplateFallback?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -418,6 +421,9 @@ export function ComposerMenu({
         open={scheduleOpen}
         onClose={() => setScheduleOpen(false)}
         conversationId={conversationId}
+        channelId={channelId}
+        contactName={contactName}
+        allowTemplateFallback={scheduleTemplateFallback}
       />
       <TaskDialog
         open={taskOpen}

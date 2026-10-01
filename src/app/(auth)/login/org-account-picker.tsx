@@ -11,13 +11,10 @@ import { motion } from "framer-motion";
 import { BlurText } from "@/components/ui/blur-text";
 import { AUTH_CARD_CLASS } from "@/components/ui/auth-surface";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
+import type { TenantOrgChoice } from "@/lib/login-contract";
 import { cn } from "@/lib/utils";
 
-export type TenantOrgChoice = {
-  slug: string;
-  name: string;
-  status: string;
-};
+export type { TenantOrgChoice };
 
 type OrgAccountPickerProps = {
   email: string;
@@ -28,7 +25,7 @@ type OrgAccountPickerProps = {
   onExit: () => void;
 };
 
-function isOrgActive(status: string): boolean {
+function isOrgActive(status: string | null): boolean {
   return status === "ACTIVE";
 }
 
@@ -119,16 +116,20 @@ export function OrgAccountPicker({
                         onClick={() => onSelect(org)}
                         className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3 py-3 text-left transition-all hover:border-primary/40 hover:ring-2 hover:ring-primary/15"
                       >
-                        <span
-                          className={cn(
-                            "inline-flex min-w-[72px] justify-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
-                            active
-                              ? "bg-[var(--color-success-bg)] text-[var(--color-success-text)]"
-                              : "bg-destructive/10 text-destructive",
-                          )}
-                        >
-                          {active ? "Ativo" : "Expirado"}
-                        </span>
+                        {/* Contrato novo do tenant-lookup não informa o
+                            status: sem selo (nem "Ativo" nem "Expirado"). */}
+                        {org.status !== null ? (
+                          <span
+                            className={cn(
+                              "inline-flex min-w-[72px] justify-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                              active
+                                ? "bg-[var(--color-success-bg)] text-[var(--color-success-text)]"
+                                : "bg-destructive/10 text-destructive",
+                            )}
+                          >
+                            {active ? "Ativo" : "Expirado"}
+                          </span>
+                        ) : null}
                         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
                           {org.name}
                         </span>

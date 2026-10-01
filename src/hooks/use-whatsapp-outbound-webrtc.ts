@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { apiUrl } from "@/lib/api";
 import { postWhatsappCall } from "@/lib/wa-whatsapp-call";
 import * as React from "react";
@@ -13,6 +14,9 @@ import { getBrowserIceServers } from "@/lib/webrtc-ice";
 import { sanitizeMetaWhatsappSdpForBrowser, stripSsrcLinesFromSdp } from "@/lib/whatsapp-webrtc-sdp";
 import { holdSSEWhileHidden, useSSE } from "@/hooks/use-sse";
 import { ensureMicrophonePermission } from "@/lib/native/permissions";
+
+/** Sinalização de chamada é o único evento que este hook trata. */
+const CALL_SSE_EVENTS: readonly string[] = ["whatsapp_call"];
 
 function waitIceGatheringComplete(pc: RTCPeerConnection, timeoutMs = 12_000): Promise<void> {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
@@ -80,15 +84,17 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
 
     const handle = startCallRecording(local, remote);
     if (!handle) {
-      console.warn(
-        "[outbound-webrtc] gravação NÃO iniciou — MediaRecorder indisponível ou streams sem áudio.",
+      logger.warn(
+        "outbound-webrtc",
+        "gravação NÃO iniciou — MediaRecorder indisponível ou streams sem áudio.",
       );
       return;
     }
     recorderRef.current = handle;
     recordingStartedForCallRef.current = callId;
-    console.info(
-      `[outbound-webrtc] gravação iniciada callId=${callId} mime=${handle.mime}`,
+    logger.debug(
+      "outbound-webrtc",
+      `gravação iniciada callId=${callId} mime=${handle.mime}`,
     );
   }, []);
 
@@ -111,13 +117,15 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
       .stop()
       .then((blob) => {
         if (!blob || blob.size === 0) {
-          console.warn(
-            `[outbound-webrtc] gravação finalizou vazia callId=${callId} — nada para upload.`,
+          logger.warn(
+            "outbound-webrtc",
+            `gravação finalizou vazia callId=${callId} — nada para upload.`,
           );
           return;
         }
-        console.info(
-          `[outbound-webrtc] upload de gravação callId=${callId} bytes=${blob.size}`,
+        logger.debug(
+          "outbound-webrtc",
+          `upload de gravação callId=${callId} bytes=${blob.size}`,
         );
         void uploadCallRecording({
           conversationId: convId,
@@ -130,7 +138,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
         });
       })
       .catch((err) => {
-        console.warn("[outbound-webrtc] finalizar gravação falhou:", err);
+        logger.warn("outbound-webrtc", "finalizar gravação falhou", err);
       });
   }, []);
 
@@ -429,6 +437,7 @@ export function useWhatsappOutboundWebRtc(conversationId: string | null | undefi
       [activeCallId, releasePc, applyAnswer, beginRecording],
     ),
     !!conversationId,
+    CALL_SSE_EVENTS,
   );
 
   const terminate = React.useCallback(

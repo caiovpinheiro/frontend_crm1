@@ -9,7 +9,7 @@ export const MOCK_DISTRIBUTION_RESPONSIBLES: ResponsiblesResponse = {
     {
       userId: "u-mock-1",
       name: "Ana Souza",
-      email: "ana@eduit.com.br",
+      email: "ana@example.com",
       role: "MANAGER",
       participates: true,
       queueLimit: 8,
@@ -26,7 +26,7 @@ export const MOCK_DISTRIBUTION_RESPONSIBLES: ResponsiblesResponse = {
     {
       userId: "u-mock-2",
       name: "Bruno Lima",
-      email: "bruno@eduit.com.br",
+      email: "bruno@example.com",
       role: "AGENT",
       participates: true,
       queueLimit: 6,
@@ -43,7 +43,7 @@ export const MOCK_DISTRIBUTION_RESPONSIBLES: ResponsiblesResponse = {
     {
       userId: "u-mock-3",
       name: "Carla Mendes",
-      email: "carla@eduit.com.br",
+      email: "carla@example.com",
       role: "AGENT",
       participates: true,
       queueLimit: 5,
@@ -60,7 +60,7 @@ export const MOCK_DISTRIBUTION_RESPONSIBLES: ResponsiblesResponse = {
     {
       userId: "u-mock-4",
       name: "Diego Rocha",
-      email: "diego@eduit.com.br",
+      email: "diego@example.com",
       role: "AGENT",
       participates: true,
       queueLimit: 4,
@@ -77,7 +77,7 @@ export const MOCK_DISTRIBUTION_RESPONSIBLES: ResponsiblesResponse = {
     {
       userId: "u-mock-5",
       name: "Eduarda Nunes",
-      email: "eduarda@eduit.com.br",
+      email: "eduarda@example.com",
       role: "AGENT",
       participates: false,
       queueLimit: 0,
@@ -99,18 +99,18 @@ const MOCK_PENDING_SEED: {
   channel: string;
   waitMinutes: number;
 }[] = [
-  { phone: "+555494316336", channel: "WHATSAPP", waitMinutes: 18 * 60 },
-  { phone: "+5511974895736", channel: "INSTAGRAM", waitMinutes: 14 * 60 },
-  { phone: "+5511952266566", channel: "WEBCHAT", waitMinutes: 13 * 60 },
-  { phone: "+5511976387964", channel: "WHATSAPP", waitMinutes: 12 * 60 },
-  { phone: "+5511951259983", channel: "INSTAGRAM", waitMinutes: 11 * 60 },
-  { phone: "+5511991172389", channel: "WEBCHAT", waitMinutes: 11 * 60 },
-  { phone: "+5511960306481", channel: "WHATSAPP", waitMinutes: 11 * 60 },
-  { phone: "+5512997048019", channel: "INSTAGRAM", waitMinutes: 11 * 60 },
-  { phone: "+5511979512788", channel: "FACEBOOK", waitMinutes: 11 * 60 },
-  { phone: "+5511952165719", channel: "WHATSAPP", waitMinutes: 10 * 60 },
-  { phone: "+5514991451558", channel: "EMAIL", waitMinutes: 9 * 60 },
-  { phone: "+5511954662195", channel: "WHATSAPP", waitMinutes: 8 * 60 },
+  { phone: "+5511999990038", channel: "WHATSAPP", waitMinutes: 18 * 60 },
+  { phone: "+5511999990039", channel: "INSTAGRAM", waitMinutes: 14 * 60 },
+  { phone: "+5511999990040", channel: "WEBCHAT", waitMinutes: 13 * 60 },
+  { phone: "+5511999990041", channel: "WHATSAPP", waitMinutes: 12 * 60 },
+  { phone: "+5511999990042", channel: "INSTAGRAM", waitMinutes: 11 * 60 },
+  { phone: "+5511999990043", channel: "WEBCHAT", waitMinutes: 11 * 60 },
+  { phone: "+5511999990044", channel: "WHATSAPP", waitMinutes: 11 * 60 },
+  { phone: "+5511999990045", channel: "INSTAGRAM", waitMinutes: 11 * 60 },
+  { phone: "+5511999990046", channel: "FACEBOOK", waitMinutes: 11 * 60 },
+  { phone: "+5511999990047", channel: "WHATSAPP", waitMinutes: 10 * 60 },
+  { phone: "+5511999990048", channel: "EMAIL", waitMinutes: 9 * 60 },
+  { phone: "+5511999990049", channel: "WHATSAPP", waitMinutes: 8 * 60 },
 ];
 
 const MOCK_PENDING_DEPTS = [

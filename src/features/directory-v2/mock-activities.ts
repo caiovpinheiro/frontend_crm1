@@ -8,8 +8,8 @@ function at(dayOffset: number, hour: number, minute = 0): string {
   return d.toISOString();
 }
 
-const USER = { id: "u-mock-1", name: "Ana Souza", email: "ana@eduit.com.br", avatarUrl: null };
-const CREATOR = { id: "u-mock-2", name: "Bruno Lima", email: "bruno@eduit.com.br", avatarUrl: null };
+const USER = { id: "u-mock-1", name: "Ana Souza", email: "ana@example.com", avatarUrl: null };
+const CREATOR = { id: "u-mock-2", name: "Bruno Lima", email: "bruno@example.com", avatarUrl: null };
 
 const MOCK_ITEMS: ActivityListItemDto[] = [
   {
@@ -23,7 +23,7 @@ const MOCK_ITEMS: ActivityListItemDto[] = [
     createdAt: at(-2, 9, 0),
     user: USER,
     createdBy: CREATOR,
-    contact: { id: "mock-ct-1", name: "Carlos Mendes", email: "carlos@acme.com" },
+    contact: { id: "mock-ct-1", name: "Carlos Mendes", email: "carlos@example.com" },
     deal: { id: "mock-deal-1", title: "Plano Pro — Acme", stageId: "st-1" },
   },
   {
@@ -37,7 +37,7 @@ const MOCK_ITEMS: ActivityListItemDto[] = [
     createdAt: at(-1, 11, 0),
     user: USER,
     createdBy: CREATOR,
-    contact: { id: "mock-ct-2", name: "Marina Costa", email: "marina@beta.io" },
+    contact: { id: "mock-ct-2", name: "Marina Costa", email: "marina@example.com" },
     deal: null,
   },
   {
@@ -65,7 +65,7 @@ const MOCK_ITEMS: ActivityListItemDto[] = [
     createdAt: at(-3, 15, 0),
     user: USER,
     createdBy: CREATOR,
-    contact: { id: "mock-ct-3", name: "Felipe Rocha", email: "felipe@gamma.sa" },
+    contact: { id: "mock-ct-3", name: "Felipe Rocha", email: "felipe@example.com" },
     deal: null,
   },
   {
@@ -107,7 +107,7 @@ const MOCK_ITEMS: ActivityListItemDto[] = [
     createdAt: at(0, 7, 30),
     user: USER,
     createdBy: CREATOR,
-    contact: { id: "mock-ct-4", name: "Juliana Prado", email: "ju@lumina.com" },
+    contact: { id: "mock-ct-4", name: "Juliana Prado", email: "ju@example.com" },
     deal: null,
   },
   {
@@ -135,7 +135,7 @@ const MOCK_ITEMS: ActivityListItemDto[] = [
     createdAt: at(-6, 9, 0),
     user: USER,
     createdBy: CREATOR,
-    contact: { id: "mock-ct-5", name: "Roberto Lima", email: "roberto@norte.com" },
+    contact: { id: "mock-ct-5", name: "Roberto Lima", email: "roberto@example.com" },
     deal: null,
   },
   {
@@ -149,7 +149,7 @@ const MOCK_ITEMS: ActivityListItemDto[] = [
     createdAt: at(-1, 12, 0),
     user: USER,
     createdBy: CREATOR,
-    contact: { id: "mock-ct-1", name: "Carlos Mendes", email: "carlos@acme.com" },
+    contact: { id: "mock-ct-1", name: "Carlos Mendes", email: "carlos@example.com" },
     deal: { id: "mock-deal-1", title: "Plano Pro — Acme", stageId: "st-1" },
   },
 ];

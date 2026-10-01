@@ -1,4 +1,4 @@
-import { IconBroadcast as Broadcast, IconCalendarTime as CalendarTime, IconDatabase as Database, IconForms as Forms, IconHeadphones as Headphones, IconLifebuoy as LifeBuoy, IconListTree as ListTree, IconLock as Lock, IconMail as Mail, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPackage as Package, IconAdjustments as Settings2, IconDeviceMobile as Smartphone, IconSparkles as Sparkles, IconTag as Tag, IconTemplate as Template, IconUsers as Users } from "@tabler/icons-react";
+import { IconBell as Bell, IconBroadcast as Broadcast, IconCalendarTime as CalendarTime, IconDatabase as Database, IconForms as Forms, IconHeadphones as Headphones, IconLifebuoy as LifeBuoy, IconListTree as ListTree, IconLock as Lock, IconMail as Mail, IconMessageCircle as MessageCircle, IconMessage as MessageSquare, IconPackage as Package, IconAdjustments as Settings2, IconDeviceMobile as Smartphone, IconSparkles as Sparkles, IconTag as Tag, IconTemplate as Template, IconUsers as Users } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 import { UserRole } from "@/lib/prisma-enum-types";
 
@@ -96,6 +96,15 @@ export const SETTINGS_NAV: SettingsNavGroup[] = [
         href: "/settings/conversations",
         allowedRoles: SO_ADMIN,
         requiredPermission: "settings:permissions",
+      },
+      {
+        id: "inbox-alerts",
+        label: "Alertas do inbox",
+        description: "Som, toast, Windows e aba por equipe",
+        icon: Bell,
+        href: "/settings/notifications#alertas-do-inbox",
+        allowedRoles: SO_ADMIN,
+        eyebrow: "Novo",
       },
       {
         id: "tabulations",
@@ -243,6 +252,13 @@ export const SETTINGS_PERSONAL: SettingsNavItem[] = [
     description: "Nome, avatar, senha",
     icon: Users,
     href: "/settings/profile",
+  },
+  {
+    id: "notifications",
+    label: "Notificações",
+    description: "Push neste dispositivo",
+    icon: Bell,
+    href: "/settings/notifications",
   },
   {
     id: "help",

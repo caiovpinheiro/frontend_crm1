@@ -1,18 +1,23 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import {
   addNoteToLog,
+  approveAiDraft,
   deleteNote,
+  discardAiDraft,
   favoriteMessage,
+  forwardMessage,
   getFavoriteMessages,
   getMessages,
   pinMessage,
   unpinMessage,
   pinNote,
+  resendMessage,
   sendAttachment,
   sendMessage,
   sendReaction,
@@ -106,7 +111,7 @@ function mergeTail(
       historyLoaded: prev.historyLoaded === true,
     };
   } catch (e) {
-    console.error("[mergeTail] failed", e);
+    logger.error("mergeTail", "failed", e);
     return next;
   }
 }
@@ -127,7 +132,7 @@ function mergeOlder(
       hasMore: incoming.length === 0 ? false : inferHasMore(page, MESSAGE_PAGE),
     };
   } catch (e) {
-    console.error("[mergeOlder] failed", e);
+    logger.error("mergeOlder", "failed", e);
     return page;
   }
 }
@@ -158,7 +163,7 @@ function mergeHistory(
       historyLoaded: hist.hasOlderTickets !== true,
     };
   } catch (e) {
-    console.error("[mergeHistory] failed", e);
+    logger.error("mergeHistory", "failed", e);
     return hist;
   }
 }
@@ -338,6 +343,96 @@ export function useSendMessage(
             timestamp: data.message?.createdAt,
           });
         }
+      }
+    },
+  });
+}
+
+/**
+ * Mutation: reenviar mensagem que falhou (`status: failed`) como nova
+ * mensagem — texto via POST /messages, mídia via reuse do anexo. Mesmos
+ * efeitos colaterais do envio normal (reabertura, preview do card).
+ */
+export function useResendMessage(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<
+    Awaited<ReturnType<typeof resendMessage>>,
+    Error,
+    { content?: string | null; mediaUrl?: string | null; replyToId?: string | null }
+  >({
+    mutationFn: (vars) => resendMessage(conversationId as string, vars),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+      if (data.reopenedConversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(data.reopenedConversationId) });
+        emitConversationReopened(data.reopenedConversationId);
+        qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
+        qc.invalidateQueries({ queryKey: ["deal"] });
+        qc.invalidateQueries({ queryKey: ["contact"] });
+      } else {
+        applyOutboundPreviewToInboxCaches(qc, conversationId, {
+          content: data.message?.content,
+          messageType: data.message?.messageType,
+          timestamp: data.message?.createdAt,
+        });
+      }
+    },
+  });
+}
+
+/**
+ * Mutation: encaminhar uma mensagem desta conversa para outra
+ * (POST /api/conversations/:target/forward). Invalida só origem + destino
+ * e a lista do inbox (o destino sobe na fila) — sem `["messages"]` inteiro.
+ */
+export function useForwardMessage(sourceConversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<
+    { metaError?: string },
+    Error,
+    { targetConversationId: string; messageRef: string }
+  >({
+    mutationFn: ({ targetConversationId, messageRef }) =>
+      forwardMessage({
+        targetConversationId,
+        sourceConversationId: sourceConversationId as string,
+        messageRef,
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: messagesKey(vars.targetConversationId) });
+      if (sourceConversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(sourceConversationId) });
+      }
+      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+    },
+  });
+}
+
+/**
+ * Mutation: aprovar rascunho de agente IA (modo DRAFT) — envia ao cliente
+ * o texto original ou o editado pelo operador. Refetch da conversa: o
+ * rascunho some e a mensagem enviada entra no lugar.
+ */
+export function useApproveAiDraft(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { messageId: string; content?: string }>({
+    mutationFn: ({ messageId, content }) => approveAiDraft(messageId, content),
+    onSuccess: () => {
+      if (conversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+      }
+    },
+  });
+}
+
+/** Mutation: descartar rascunho de agente IA. */
+export function useDiscardAiDraft(conversationId: string | null) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, { messageId: string }>({
+    mutationFn: ({ messageId }) => discardAiDraft(messageId),
+    onSuccess: () => {
+      if (conversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
       }
     },
   });

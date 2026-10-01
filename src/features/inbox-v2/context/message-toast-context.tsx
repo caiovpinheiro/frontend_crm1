@@ -1,14 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { isTabAlertActive, setTabAlert } from "@/lib/tab-badge";
 import { cn } from "@/lib/utils";
-import { ensureNotificationPermission } from "@/lib/native/permissions";
 import type { TeamChatMessage } from "@/features/team-chat/types";
 
 export type InboxMessageToastPayload = {
@@ -48,14 +48,29 @@ type Toast = {
   createdAt: number;
 };
 
+export type InboxNotifyOptions = { toast?: boolean; native?: boolean; tab?: boolean };
+
 type MessageToastContextValue = {
-  registerActiveConversation: (id: string | null) => void;
-  registerActiveTeamChatRoom: (id: string | null) => void;
-  notifyInboxMessage: (payload: InboxMessageToastPayload) => void;
+  /** Marca a conversa como aberta (sem toast). Devolve o unregister. */
+  registerActiveConversation: (id: string) => () => void;
+  registerActiveTeamChatRoom: (id: string) => () => void;
+  /**
+   * Canais do alerta (config do admin, `InboxAlertConfig`):
+   * - `toast` (padrão `true`): toast in-page, fora da conversa aberta;
+   * - `native`: notificação do sistema com a aba oculta — mesmo na
+   *   conversa aberta, com a mesma tag do Web Push para o SO substituir;
+   * - `tab`: ícone de balão no favicon da aba quando a janela está fora de
+   *   foco — com qualquer tela aberta, não só a da conversa. Volta ao normal
+   *   quando o operador foca qualquer aba do CRM.
+   */
+  notifyInboxMessage: (payload: InboxMessageToastPayload, options?: InboxNotifyOptions) => void;
   notifyTeamChatMessage: (payload: TeamChatToastPayload) => void;
 };
 
 const MessageToastContext = createContext<MessageToastContextValue | null>(null);
+
+/** Marca, entre abas, que o operador voltou ao CRM (apaga o balão das outras). */
+const TAB_ALERT_SEEN_KEY = "inbox:tab-alert-seen";
 
 export function useMessageToast() {
   const ctx = useContext(MessageToastContext);
@@ -63,29 +78,97 @@ export function useMessageToast() {
   return ctx;
 }
 
+const SW_READY_TIMEOUT_MS = 3_000;
+
+async function readyServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (!("serviceWorker" in navigator)) return null;
+  // `ready` nunca resolve sem SW registrado (dev, navegador sem suporte).
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), SW_READY_TIMEOUT_MS)),
+  ]).catch(() => null);
+}
+
+/**
+ * Notificação do sistema com a aba oculta. Nunca pede permissão aqui: o
+ * prompt fora de gesto é ignorado ou bloqueado (o pedido é o botão
+ * "Ativar notificações"). Sai pelo service worker para dividir a fila e a
+ * `tag` com o Web Push (o SO substitui em vez de empilhar) e para o
+ * clique cair no `notificationclick` com `data.url`. `new Notification`
+ * só como fallback sem SW (e lança no Chrome Android).
+ */
 async function showNativeNotificationIfNeeded(
   title: string,
   options: NotificationOptions & { data?: Record<string, unknown> },
 ) {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (document.visibilityState === "visible") return;
-
-  if (Notification.permission === "default") {
-    const res = await ensureNotificationPermission();
-    if (!res.ok) return;
-  }
   if (Notification.permission !== "granted") return;
 
+  const full: NotificationOptions & { renotify?: boolean } = {
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    requireInteraction: false,
+    ...options,
+  };
   try {
-    new Notification(title, {
-      icon: "/icon.svg",
-      badge: "/icon.svg",
-      requireInteraction: false,
-      ...options,
-    });
+    const reg = await readyServiceWorker();
+    if (reg) {
+      await reg.showNotification(title, full);
+      return;
+    }
+    new Notification(title, full);
   } catch {
     // Fallback silencioso: o toast ainda está visível dentro do app.
   }
+}
+
+/** Mesmo sufixo de canal do título do Web Push (`notifyInboundMessage`). */
+function pushChannelLabel(card: InboxMessageToastPayload["card"]): string {
+  const raw = card?.channel;
+  const type = String(typeof raw === "string" ? raw : raw?.type ?? "").toLowerCase();
+  if (type === "instagram") return " · Instagram";
+  if (type === "meta" || type === "facebook" || type === "messenger") return " · Meta";
+  if (type === "email") return " · Email";
+  return "";
+}
+
+function showInboxNativeNotification(
+  conversationId: string,
+  payload: InboxMessageToastPayload,
+) {
+  const card = payload.card;
+  const name = card?.contact?.name?.trim() || "Nova mensagem";
+  const number = card?.number;
+  void showNativeNotificationIfNeeded(`${name}${pushChannelLabel(card)}`, {
+    body: formatInboxPreview(payload),
+    // Mesma tag do Web Push (web-push.ts): uma notificação por conversa.
+    tag: `conv:${conversationId}`,
+    renotify: false,
+    icon: card?.contact?.picture || "/icon.svg",
+    data: {
+      url: number != null ? `/inbox?c=${number}` : `/inbox?c=${conversationId}`,
+      conversationId,
+      contactId: payload.contactId,
+    },
+  } as NotificationOptions);
+}
+
+/**
+ * Contagem por id: vários `useInboxRealtime` podem estar montados (inbox,
+ * sales-hub, chat do deal) e o cleanup de um não pode liberar o id que
+ * outro ainda tem aberto.
+ */
+function retainId(map: Map<string, number>, id: string): () => void {
+  map.set(id, (map.get(id) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const next = (map.get(id) ?? 0) - 1;
+    if (next > 0) map.set(id, next);
+    else map.delete(id);
+  };
 }
 
 function contactInitials(name?: string | null): string {
@@ -253,39 +336,80 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: (id: string) => 
 export function MessageToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [mounted, setMounted] = useState(false);
-  const activeConversationsRef = useRef(new Set<string>());
-  const activeTeamChatRoomsRef = useRef(new Set<string>());
+  const activeConversationsRef = useRef(new Map<string, number>());
+  const activeTeamChatRoomsRef = useRef(new Map<string, number>());
   const recentRef = useRef(new Map<string, number>());
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const registerActiveConversation = useCallback((id: string | null) => {
-    if (id) activeConversationsRef.current.add(id);
+  // Ícone da aba (canal `tab`) volta ao normal quando o operador volta ao
+  // CRM. O aviso acende em todas as abas abertas; focar uma delas apaga o
+  // das outras (evento `storage`), senão ficava um balão velho nas demais.
+  useEffect(() => {
+    const clear = () => {
+      if (isTabAlertActive()) setTabAlert(false);
+    };
+    const onFocus = () => {
+      clear();
+      try {
+        window.localStorage.setItem(TAB_ALERT_SEEN_KEY, String(Date.now()));
+      } catch {
+        /* armazenamento indisponível: só esta aba é limpa */
+      }
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === TAB_ALERT_SEEN_KEY) clear();
+    };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
-  const registerActiveTeamChatRoom = useCallback((id: string | null) => {
-    if (id) activeTeamChatRoomsRef.current.add(id);
-  }, []);
+  const registerActiveConversation = useCallback(
+    (id: string) => retainId(activeConversationsRef.current, id),
+    [],
+  );
 
-  const notifyInboxMessage = useCallback((payload: InboxMessageToastPayload) => {
-    if (payload.direction !== "in") return;
-    const conversationId = payload.conversationId;
-    if (!conversationId) return;
-    if (activeConversationsRef.current.has(conversationId)) return;
+  const registerActiveTeamChatRoom = useCallback(
+    (id: string) => retainId(activeTeamChatRoomsRef.current, id),
+    [],
+  );
 
-    const now = Date.now();
-    const last = recentRef.current.get(conversationId);
-    if (last && now - last < 4000) return;
-    recentRef.current.set(conversationId, now);
+  const notifyInboxMessage = useCallback(
+    (payload: InboxMessageToastPayload, options?: InboxNotifyOptions) => {
+      if (payload.direction !== "in") return;
+      const conversationId = payload.conversationId;
+      if (!conversationId) return;
+      // Antes do corte da conversa aberta e do dedupe: com a aba oculta o
+      // operador não vê a conversa, e a tag por conversa já substitui.
+      if (options?.native) showInboxNativeNotification(conversationId, payload);
+      // Visual da aba: vale para quem está em outra aba ou janela, com
+      // qualquer tela do CRM aberta. Não depende do som nem do toast.
+      if (options?.tab && !document.hasFocus()) {
+        setTabAlert(true);
+      }
+      const isOpenHere = activeConversationsRef.current.has(conversationId);
+      if (isOpenHere) return;
+      if (options?.toast === false) return;
 
-    const id = `inbox:${conversationId}:${now}`;
-    setToasts((prev) => {
-      const filtered = prev.filter((t) => !(t.kind === "inbox" && t.inboxPayload?.conversationId === conversationId));
-      return [...filtered, { id, kind: "inbox", inboxPayload: payload, createdAt: now }];
-    });
-  }, []);
+      const now = Date.now();
+      const last = recentRef.current.get(conversationId);
+      if (last && now - last < 4000) return;
+      recentRef.current.set(conversationId, now);
+
+      const id = `inbox:${conversationId}:${now}`;
+      setToasts((prev) => {
+        const filtered = prev.filter((t) => !(t.kind === "inbox" && t.inboxPayload?.conversationId === conversationId));
+        return [...filtered, { id, kind: "inbox", inboxPayload: payload, createdAt: now }];
+      });
+    },
+    [],
+  );
 
   const notifyTeamChatMessage = useCallback((payload: TeamChatToastPayload) => {
     const roomId = payload.roomId;
@@ -334,16 +458,27 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     return () => clearInterval(timer);
   }, []);
 
+  // Os 4 callbacks são estáveis; sem o memo cada toast (setToasts) criava um
+  // `value` novo e re-renderizava todo consumidor (useInboxRealtime,
+  // useTeamChatRealtime, InboxMessageAlerts) sem nada ter mudado para eles.
+  const value = useMemo<MessageToastContextValue>(
+    () => ({
+      registerActiveConversation,
+      registerActiveTeamChatRoom,
+      notifyInboxMessage,
+      notifyTeamChatMessage,
+    }),
+    [
+      registerActiveConversation,
+      registerActiveTeamChatRoom,
+      notifyInboxMessage,
+      notifyTeamChatMessage,
+    ],
+  );
+
   return (
     <>
-      <MessageToastContext.Provider
-        value={{
-          registerActiveConversation,
-          registerActiveTeamChatRoom,
-          notifyInboxMessage,
-          notifyTeamChatMessage,
-        }}
-      >
+      <MessageToastContext.Provider value={value}>
         {children}
       </MessageToastContext.Provider>
       {mounted &&
@@ -368,15 +503,15 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
 export function useRegisterActiveConversation(conversationId: string | null) {
   const { registerActiveConversation } = useMessageToast();
   useEffect(() => {
-    registerActiveConversation(conversationId);
-    return () => registerActiveConversation(null);
+    if (!conversationId) return;
+    return registerActiveConversation(conversationId);
   }, [registerActiveConversation, conversationId]);
 }
 
 export function useRegisterActiveTeamChatRoom(roomId: string | null) {
   const { registerActiveTeamChatRoom } = useMessageToast();
   useEffect(() => {
-    registerActiveTeamChatRoom(roomId);
-    return () => registerActiveTeamChatRoom(null);
+    if (!roomId) return;
+    return registerActiveTeamChatRoom(roomId);
   }, [registerActiveTeamChatRoom, roomId]);
 }

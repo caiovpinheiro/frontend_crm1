@@ -241,6 +241,43 @@ export async function sendAttachmentReuse(
   };
 }
 
+/**
+ * Reenvia uma mensagem que FALHOU como uma nova mensagem — mesmo caminho
+ * do ChatWindow legado (POST /messages com o mesmo texto; o backend
+ * escolhe o canal atual da conversa). Mídia: reaproveita o arquivo já no
+ * storage da org via POST /attachments `{ reuseUrl }`, sem reenviar bytes.
+ */
+export async function resendMessage(
+  conversationId: string,
+  source: {
+    content?: string | null;
+    mediaUrl?: string | null;
+    replyToId?: string | null;
+  },
+): Promise<{
+  message: InboxMessageDto;
+  reopenedConversationId?: string;
+  metaError?: string;
+}> {
+  const content = (source.content ?? "").trim();
+  const mediaUrl = (source.mediaUrl ?? "").trim();
+  if (mediaUrl) {
+    // "[image]" / "📎 doc.pdf" são placeholders do backend, não legenda.
+    const isPlaceholder = /^\[[^\]]+\]\s*(👁)?$/.test(content) || /^📎/.test(content);
+    return sendAttachmentReuse(conversationId, {
+      reuseUrl: mediaUrl,
+      ...(content && !isPlaceholder ? { caption: content } : {}),
+    });
+  }
+  if (!content) {
+    throw new Error("Mensagem sem conteúdo para reenviar");
+  }
+  return sendMessage(conversationId, {
+    content,
+    ...(source.replyToId ? { replyToId: source.replyToId } : {}),
+  });
+}
+
 export type ConversationProductSendResult = {
   used?: "catalog" | "legacy" | "ask";
   fallback?: boolean;
@@ -386,38 +423,53 @@ export async function sendTemplate(
   );
 }
 
-/** POST /api/media/transcribe */
-export async function transcribeMessage(messageId: string): Promise<{
-  transcript: string;
-}> {
-  const res = await fetch(apiUrl("/api/media/transcribe"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messageId }),
-  });
-  const data = await res.json().catch(() => ({}));
+// Transcrição de áudio: o `AudioPlayer` (message-bubble.tsx) usa a rota
+// Next `POST /api/transcribe { url }` — única rota de transcrição do
+// canônico. O antigo `transcribeMessage()` (POST /api/media/transcribe do
+// backend, sem uso no front) foi removido.
+
+/**
+ * POST /api/ai-agents/drafts/:messageId/approve — envia o rascunho do
+ * agente IA ao cliente. `content` (opcional) manda o texto editado pelo
+ * operador; sem ele o backend usa o rascunho original.
+ */
+export async function approveAiDraft(
+  messageId: string,
+  content?: string,
+): Promise<void> {
+  const trimmed = content?.trim();
+  const res = await fetch(
+    apiUrl(`/api/ai-agents/drafts/${encodeURIComponent(messageId)}/approve`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(trimmed ? { content: trimmed } : {}),
+    },
+  );
   if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
     throw new Error(
-      typeof data?.message === "string" ? data.message : "Erro ao transcrever audio",
+      typeof (data as { message?: unknown })?.message === "string"
+        ? (data as { message: string }).message
+        : "Falha ao aprovar rascunho",
     );
   }
-  return data as { transcript: string };
 }
 
-/** POST /api/ai-agents/drafts/:messageId/approve */
-export async function approveAiDraft(messageId: string): Promise<void> {
-  const res = await fetch(apiUrl(`/api/ai-agents/drafts/${messageId}/approve`), {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error("Falha ao aprovar rascunho");
-}
-
-/** POST /api/ai-agents/drafts/:messageId/discard */
+/** POST /api/ai-agents/drafts/:messageId/discard — remove o rascunho. */
 export async function discardAiDraft(messageId: string): Promise<void> {
-  const res = await fetch(apiUrl(`/api/ai-agents/drafts/${messageId}/discard`), {
-    method: "POST",
-  });
-  if (!res.ok) throw new Error("Falha ao descartar rascunho");
+  const res = await fetch(
+    apiUrl(`/api/ai-agents/drafts/${encodeURIComponent(messageId)}/discard`),
+    { method: "POST" },
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof (data as { message?: unknown })?.message === "string"
+        ? (data as { message: string }).message
+        : "Falha ao descartar rascunho",
+    );
+  }
 }
 
 /**

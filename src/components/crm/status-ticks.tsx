@@ -12,12 +12,8 @@ import {
   IconClock,
 } from "@tabler/icons-react"
 
-export type DeliveryTickStatus =
-  | "pending"
-  | "sent"
-  | "delivered"
-  | "read"
-  | "failed"
+import type { DeliveryTickStatus } from "@/lib/delivery-status"
+export type { DeliveryTickStatus } from "@/lib/delivery-status"
 
 /** Ticks de status estilo WhatsApp.
  *  `onLightBg` = true em fundos claros (card da lista, bolha de automação). */
@@ -103,22 +99,4 @@ export function StatusTicks({
   )
 }
 
-/** Normaliza sendStatus / MessageStatus (qualquer casing) para o enum dos ticks. */
-export function normalizeDeliveryStatus(
-  raw: string | null | undefined,
-): DeliveryTickStatus | undefined {
-  switch ((raw ?? "").toLowerCase()) {
-    case "pending":
-      return "pending"
-    case "sent":
-      return "sent"
-    case "delivered":
-      return "delivered"
-    case "read":
-      return "read"
-    case "failed":
-      return "failed"
-    default:
-      return undefined
-  }
-}
+export { normalizeDeliveryStatus } from "@/lib/delivery-status";

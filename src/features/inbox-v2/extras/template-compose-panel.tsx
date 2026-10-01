@@ -17,6 +17,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   IconAlertTriangle,
+  IconChevronDown,
+  IconChevronRight,
   IconLock,
   IconSend,
   IconX,
@@ -76,6 +78,29 @@ export function whatsappTemplateToPending(tpl: WhatsappTemplate): PendingTemplat
   };
 }
 
+/**
+ * Normaliza um template Meta escolhido no menu "/" em `PendingTemplate`.
+ * O cabeçalho vai junto: sem ele o painel não pede a variável do HEADER e a
+ * Meta recusa o envio por parâmetro faltando.
+ */
+export function slashTemplateToPending(item: {
+  id: string;
+  name: string;
+  label?: string | null;
+  bodyPreview: string;
+  headerPreview?: string | null;
+  operatorVariables?: OperatorVariableMeta[] | null;
+}): PendingTemplate {
+  return {
+    name: item.name,
+    label: item.label || undefined,
+    content: item.bodyPreview,
+    headerText: item.headerPreview ?? "",
+    metaTemplateId: item.id,
+    operatorVariables: item.operatorVariables ?? null,
+  };
+}
+
 /** Metadados visuais da categoria WABA — mesma paleta do picker. */
 function categoryMeta(category?: string | null): { label: string; color: string } | null {
   const c = (category ?? "").toUpperCase();
@@ -99,6 +124,35 @@ function fillComponentText(
     const value = values[slotId(component, key)]?.trim();
     return value ? value : `{{${key}}}`;
   });
+}
+
+const fieldClass =
+  "h-8 rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]";
+
+export type FlowActionDataParse =
+  | { ok: true; data: Record<string, unknown> | null }
+  | { ok: false; error: string };
+
+/**
+ * JSON inicial do Flow (`flowActionData`): vazio = sem dados; senão precisa
+ * ser um objeto. Mesmas mensagens do painel legado do ChatWindow.
+ */
+export function parseFlowActionData(raw: string): FlowActionDataParse {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, data: null };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return { ok: false, error: "JSON inválido. Corrija ou deixe em branco." };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {
+      ok: false,
+      error: "O JSON deve ser um objeto {...}, não lista ou primitivo.",
+    };
+  }
+  return { ok: true, data: parsed as Record<string, unknown> };
 }
 
 export function TemplateComposePanel({
@@ -138,6 +192,12 @@ export function TemplateComposePanel({
   const retryAfterPickRef = useRef(false);
   const pendingSendRef = useRef(false);
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
+  // Flow (templates com botão Flow): token opcional (vazio = UUID gerado no
+  // backend) e JSON de dados iniciais. Campos recolhidos por padrão.
+  const [flowOpen, setFlowOpen] = useState(false);
+  const [flowToken, setFlowToken] = useState("");
+  const [flowJson, setFlowJson] = useState("");
+  const [flowJsonError, setFlowJsonError] = useState<string | null>(null);
   const waChannels = availableChannels?.filter((c) => c.type === "WHATSAPP");
 
   // Canal gravado na conversa ausente ou fora da lista CONNECTED.
@@ -177,6 +237,10 @@ export function TemplateComposePanel({
     setConfirmedChannelId(null);
     retryAfterPickRef.current = false;
     pendingSendRef.current = false;
+    setFlowOpen(false);
+    setFlowToken("");
+    setFlowJson("");
+    setFlowJsonError(null);
   }, [conversationId, template.name]);
 
   useEffect(() => {
@@ -223,6 +287,10 @@ export function TemplateComposePanel({
             })),
           )
         : undefined;
+      // `handleSendClick` já validou o JSON; aqui só monta o payload
+      // (o caminho "reenviar após escolher canal" também passa por aqui).
+      const flow = parseFlowActionData(flowJson);
+      if (!flow.ok) throw new Error(flow.error);
       const headerLine = renderedHeader.trim();
       const bodyLine = renderedPreview || template.content;
       return sendTemplate(conversationId, {
@@ -230,6 +298,8 @@ export function TemplateComposePanel({
         bodyPreview: headerLine ? `${headerLine}\n${bodyLine}` : bodyLine,
         languageCode: template.language ?? "pt_BR",
         components,
+        flowToken: flowToken.trim() || null,
+        flowActionData: flow.data,
         templateGraphId: template.metaTemplateId ?? null,
         // Sempre manda o canal CONNECTED escolhido. Omitir faz o backend
         // cair no `conv.channelRef` da conversa — que nesta tela costuma
@@ -279,6 +349,13 @@ export function TemplateComposePanel({
   }
 
   async function handleSendClick() {
+    const flow = parseFlowActionData(flowJson);
+    if (!flow.ok) {
+      setFlowJsonError(flow.error);
+      setFlowOpen(true);
+      return;
+    }
+    setFlowJsonError(null);
     if (!effectiveChannelId && (waChannels?.length ?? 0) > 0) {
       pendingSendRef.current = true;
       setPickOpen(true);
@@ -388,13 +465,77 @@ export function TemplateComposePanel({
                       value={vars[id] ?? ""}
                       onChange={(e) => setVars((prev) => ({ ...prev, [id]: e.target.value }))}
                       placeholder={meta?.example ? `Ex.: ${meta.example}` : `Valor para {{${slot.key}}}`}
-                      className="h-8 rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2.5 text-[12.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)]"
+                      className={fieldClass}
                     />
                   </label>
                 );
               })}
             </div>
           ) : null}
+
+          {/* Flow (opcional) — recolhido; abre sozinho se o JSON estiver inválido */}
+          <div className="mt-2.5">
+            <button
+              type="button"
+              onClick={() => setFlowOpen((v) => !v)}
+              aria-expanded={flowOpen}
+              className="inline-flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+            >
+              {flowOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+              Flow (opcional)
+            </button>
+            {flowOpen ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-[10.5px] leading-snug text-[var(--text-muted)]">
+                  Para templates com botão Flow: deixe em branco para o CRM gerar um{" "}
+                  <code className="font-mono text-[10px]">flow_token</code> (UUID) por
+                  envio, ou informe o JSON de dados iniciais conforme a{" "}
+                  <a
+                    className="text-[var(--brand-primary)] underline-offset-2 hover:underline"
+                    href="https://developers.facebook.com/docs/whatsapp/flows"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    documentação Meta (Flows)
+                  </a>
+                  .
+                </p>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                    Token do Flow (opcional)
+                  </span>
+                  <input
+                    type="text"
+                    value={flowToken}
+                    onChange={(e) => setFlowToken(e.target.value)}
+                    placeholder="Vazio = UUID gerado automaticamente no envio"
+                    className={`${fieldClass} font-mono text-[12px]`}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] font-medium text-[var(--text-muted)]">
+                    JSON inicial do Flow
+                  </span>
+                  <textarea
+                    value={flowJson}
+                    onChange={(e) => {
+                      setFlowJson(e.target.value);
+                      setFlowJsonError(null);
+                    }}
+                    placeholder='Ex.: {"screen":"NOME_DA_TELA","data":{"campo":"valor"}}'
+                    rows={3}
+                    aria-invalid={flowJsonError ? true : undefined}
+                    className="resize-y rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2.5 py-1.5 font-mono text-[11px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--brand-primary)] aria-invalid:border-[var(--color-destructive)]"
+                  />
+                </label>
+                {flowJsonError ? (
+                  <p role="alert" className="text-[11px] text-[var(--color-destructive)]">
+                    {flowJsonError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
         <button
           type="button"

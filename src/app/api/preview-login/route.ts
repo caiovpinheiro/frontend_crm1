@@ -1,35 +1,29 @@
 /**
  * GET /api/preview-login?redirect=/inbox
  *
- * Emite um JWT de sessão fake para o usuário de preview.
- * Disponível APENAS em hosts *.vusercontent.net / *.v0.dev / *.v0.app
- * OU quando NEXT_PUBLIC_PREVIEW_MODE=true.
+ * Emite um JWT de sessão fake para o usuário de preview, ASSINADO COM O
+ * `AUTH_SECRET` REAL. Por isso (SEC-13):
+ *
+ *  - Em produção (`NODE_ENV === "production"`) a rota responde 404 como se
+ *    não existisse — a menos que a dupla chave de preview esteja ligada
+ *    (`NEXT_PUBLIC_PREVIEW_MODE` + `NEXT_PUBLIC_PREVIEW_MODE_ALLOW_PRODUCTION_BUILD`,
+ *    ver `@/lib/preview-mode`). O `Host` NÃO conta em produção.
+ *  - Fora de produção: hosts *.vusercontent.net / *.v0.dev / *.v0.app /
+ *    *.v0.build / localhost / 127.0.0.1, ou `NEXT_PUBLIC_PREVIEW_MODE=true`.
  *
  * NUNCA ative em produção — libera acesso sem credenciais reais.
  */
 import { encode } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 
-const ALLOWED_HOSTS = [
-  ".vusercontent.net",
-  ".v0.dev",
-  ".v0.app",
-  ".v0.build",
-  "localhost",
-  "127.0.0.1",
-];
-
-function isPreviewHost(req: NextRequest): boolean {
-  const host = (req.headers.get("host") ?? "").toLowerCase();
-  return ALLOWED_HOSTS.some((h) => host === h.replace(/^\./, "") || host.endsWith(h));
-}
-
-function isPreviewEnv(): boolean {
-  return (process.env.NEXT_PUBLIC_PREVIEW_MODE ?? "").trim().toLowerCase() === "true";
-}
+import { previewLoginDecision } from "@/lib/preview-mode";
 
 export async function GET(req: NextRequest) {
-  if (!isPreviewEnv() && !isPreviewHost(req)) {
+  const decision = previewLoginDecision(req.headers.get("host"));
+  if (decision === "not-found") {
+    return new NextResponse(null, { status: 404 });
+  }
+  if (decision === "forbidden") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -54,7 +48,7 @@ export async function GET(req: NextRequest) {
       sub: "preview-user",
       id: "preview-user",
       name: "Preview User",
-      email: "preview@eduit.com.br",
+      email: "preview@example.com",
       role: "ADMIN",
       organizationId: "preview-org",
       isSuperAdmin: false,
