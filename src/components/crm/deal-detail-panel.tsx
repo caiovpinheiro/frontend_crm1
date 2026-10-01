@@ -9,6 +9,7 @@ import {
 } from "@hello-pangea/dnd"
 import { cn } from "@/lib/utils"
 import { Row } from "@/components/crm/aside-row"
+import { CopyValueButton } from "@/components/crm/copy-value-button"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import { ChannelTypeIcon } from "@/components/inbox/channel-type-icon"
 import {
@@ -1184,12 +1185,15 @@ export function DealDetailPanel({
                                           )}
                                           {connection && (
                                             <Row label="Canal" icon={<IconAffiliate size={12} />} compact={viewMode === "compact"}>
-                                              <TooltipGlass label={`Conversando por ${formatConnectionLabel(connection)}`} side="left">
-                                                <span className="inline-flex min-w-0 items-center gap-1.5 font-display text-[13px] font-bold text-[var(--text-primary)]">
-                                                  <ChannelTypeIcon type={connection.type} size={14} />
-                                                  <span className="min-w-0 truncate">{channelTypeLabel(connection.type)} · {formatConnectionShort(connection)}</span>
-                                                </span>
-                                              </TooltipGlass>
+                                              <span className="group inline-flex min-w-0 items-center justify-end gap-1">
+                                                <TooltipGlass label={`Conversando por ${formatConnectionLabel(connection)}`} side="left">
+                                                  <span className="inline-flex min-w-0 items-center gap-1.5 font-display text-[13px] font-bold text-[var(--text-primary)]">
+                                                    <ChannelTypeIcon type={connection.type} size={14} />
+                                                    <span className="min-w-0 truncate">{channelTypeLabel(connection.type)} · {formatConnectionShort(connection)}</span>
+                                                  </span>
+                                                </TooltipGlass>
+                                                <CopyValueButton text={`${channelTypeLabel(connection.type)} · ${formatConnectionShort(connection)}`} />
+                                              </span>
                                             </Row>
                                           )}
                                         </div>

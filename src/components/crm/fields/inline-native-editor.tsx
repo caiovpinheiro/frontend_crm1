@@ -13,6 +13,7 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { IconPencil, IconCheck, IconX, IconLoader2 } from "@tabler/icons-react";
+import { CopyValueButton } from "@/components/crm/copy-value-button";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { useCan } from "@/hooks/use-my-permissions";
@@ -202,26 +203,32 @@ export function InlineNativeEditor({
 
     if (!canEditEntity) {
       return (
-        <span className={cn("flex min-w-0 items-center text-right", textCls)} title={isEmpty ? undefined : String(display)}>
+        <span className={cn("group flex min-w-0 items-center justify-end gap-1 text-right", textCls)} title={isEmpty ? undefined : String(display)}>
           <span className="min-w-0 truncate">{display}</span>
+          {!isEmpty && <CopyValueButton text={String(display)} />}
         </span>
       );
     }
 
     return (
-      <button
-        type="button"
-        onClick={startEdit}
+      <div
         className={cn(
-          "group flex min-w-0 items-center gap-1.5 text-right transition-colors",
+          "group flex min-w-0 items-center justify-end gap-1 text-right",
           isEmpty
             ? (emptyClassName ?? "font-display text-[11px] italic text-[var(--text-muted)] opacity-60")
             : (textClassName ?? "font-display text-[13px] font-bold text-[var(--text-primary)]"),
         )}
-        aria-label={`Editar ${fieldKey}`}
-        title={isEmpty ? undefined : String(display)}
       >
-        <span className="min-w-0 truncate">{display}</span>
+        <button
+          type="button"
+          onClick={startEdit}
+          className="min-w-0 truncate text-right"
+          aria-label={`Editar ${fieldKey}`}
+          title={isEmpty ? undefined : String(display)}
+        >
+          {display}
+        </button>
+        {!isEmpty && <CopyValueButton text={String(display)} />}
         <IconPencil
           size={12}
           className={cn(
@@ -229,7 +236,7 @@ export function InlineNativeEditor({
             editMode ? "opacity-40" : "opacity-0",
           )}
         />
-      </button>
+      </div>
     );
   }
 
