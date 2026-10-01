@@ -1519,6 +1519,7 @@ function MediaUploadField({
   url,
   fileName,
   onPatch,
+  urlVariable,
 }: {
   label: string
   hint?: string
@@ -1526,6 +1527,8 @@ function MediaUploadField({
   url: string
   fileName: string
   onPatch: (p: { url: string; fileName: string }) => void
+  /** Cabeçalho de template: a URL pode ser um token `{{dealCustomFields.x}}`. */
+  urlVariable?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -1605,14 +1608,26 @@ function MediaUploadField({
         />
       )}
 
-      <span className="cfg-hint" style={{ marginTop: 6 }}>ou cole uma URL HTTPS:</span>
-      <InputGlass
-        className="nodrag"
-        value={hasFile ? "" : url}
-        placeholder="https://…"
-        disabled={hasFile}
-        onChange={(e) => onPatch({ url: e.target.value, fileName: "" })}
-      />
+      <span className="cfg-hint" style={{ marginTop: 6 }}>
+        {urlVariable
+          ? "ou cole uma URL HTTPS, ou digite { para a URL de um campo do CRM:"
+          : "ou cole uma URL HTTPS:"}
+      </span>
+      {urlVariable && !hasFile ? (
+        <VariableInput
+          value={url}
+          placeholder="https://… ou { para um campo"
+          onChange={(v) => onPatch({ url: v, fileName: "" })}
+        />
+      ) : (
+        <InputGlass
+          className="nodrag"
+          value={hasFile ? "" : url}
+          placeholder="https://…"
+          disabled={hasFile}
+          onChange={(e) => onPatch({ url: e.target.value, fileName: "" })}
+        />
+      )}
     </div>
   )
 }
@@ -1636,9 +1651,10 @@ function MediaField({ label, config, onChange }: { label: string; config: Cfg; o
 
 /**
  * Campo de mídia do HEADER do template (IMAGE/VIDEO/DOCUMENT). A Meta exige
- * o parâmetro do header preenchido nesses casos (erro `132012`), com uma URL
- * HTTPS pública — grava em `config.headerMediaUrl` + `config.headerMediaType`
- * (usados pelo executor da automação, não pelo `mediaUrl` do template em si).
+ * o parâmetro do header preenchido nesses casos (erro `132012`).
+ * Grava em `config.headerMediaUrl` + `config.headerMediaType`: URL fixa,
+ * upload, ou token do CRM (`{{dealCustomFields.x}}`) resolvido no envio.
+ * O arquivo de exemplo da criação do template não entra aqui.
  */
 function HeaderMediaField({
   headerFormat,
@@ -1653,10 +1669,11 @@ function HeaderMediaField({
   return (
     <MediaUploadField
       label="Mídia do cabeçalho (obrigatório)"
-      hint="Obrigatório para este template. Faça upload aqui ou cole uma URL HTTPS pública."
+      hint="Obrigatório para este template. Arquivo fixo, URL HTTPS ou um campo do CRM com a URL de cada contato."
       mediaType={mediaType}
       url={str(config.headerMediaUrl)}
       fileName={str(config.headerUploadedFileName)}
+      urlVariable
       onPatch={({ url, fileName }) =>
         onChange({ ...config, headerMediaUrl: url, headerMediaType: mediaType, headerUploadedFileName: fileName })
       }
