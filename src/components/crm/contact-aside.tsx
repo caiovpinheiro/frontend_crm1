@@ -9,6 +9,7 @@ import {
 } from "@hello-pangea/dnd"
 import { cn } from "@/lib/utils"
 import { Row } from "@/components/crm/aside-row"
+import { CopyValueButton } from "@/components/crm/copy-value-button"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import { RequirePermission } from "@/components/auth/require-permission"
 import { ChannelTypeIcon } from "@/components/inbox/channel-type-icon"
@@ -1153,15 +1154,18 @@ export function ContactAside({
                                 )}
                                 {contact.connection && (
                                   <Row label="Canal" icon={<IconAffiliate size={12} />} compact={viewMode === "compact"}>
-                                    <TooltipGlass
-                                      label={`Conversando por ${formatConnectionLabel(contact.connection)}`}
-                                      side="left"
-                                    >
-                                      <span className="inline-flex items-center gap-1.5 font-display text-[13px] font-bold text-[var(--text-primary)]">
-                                        <ChannelTypeIcon type={contact.connection.type} size={14} />
-                                        {channelTypeLabel(contact.connection.type)} · {formatConnectionShort(contact.connection)}
-                                      </span>
-                                    </TooltipGlass>
+                                    <span className="group inline-flex min-w-0 items-center justify-end gap-1">
+                                      <TooltipGlass
+                                        label={`Conversando por ${formatConnectionLabel(contact.connection)}`}
+                                        side="left"
+                                      >
+                                        <span className="inline-flex items-center gap-1.5 font-display text-[13px] font-bold text-[var(--text-primary)]">
+                                          <ChannelTypeIcon type={contact.connection.type} size={14} />
+                                          {channelTypeLabel(contact.connection.type)} · {formatConnectionShort(contact.connection)}
+                                        </span>
+                                      </TooltipGlass>
+                                      <CopyValueButton text={`${channelTypeLabel(contact.connection.type)} · ${formatConnectionShort(contact.connection)}`} />
+                                    </span>
                                   </Row>
                                 )}
                                 {isFilled(contact.cpf) && <Row label="CPF" value={contact.cpf} icon={<IconId size={12} />} compact={viewMode === "compact"} />}

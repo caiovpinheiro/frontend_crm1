@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { CopyValueButton } from "@/components/crm/copy-value-button"
 
 // ─────────────────────────────────────────────────────────────────
 // Row — linha de campo nativo dos asides (Inbox e Deal).
@@ -44,12 +45,15 @@ export function Row({
       </span>
       <div className="flex min-w-0 max-w-full flex-1 justify-end">
         {children ?? (
-          <span
-            className="min-w-0 max-w-full truncate text-right font-display font-semibold text-[var(--text-primary)]"
-            style={valueStyle}
-            title={value}
-          >
-            {value}
+          <span className="group flex min-w-0 max-w-full items-center justify-end gap-1">
+            <span
+              className="min-w-0 max-w-full truncate text-right font-display font-semibold text-[var(--text-primary)]"
+              style={valueStyle}
+              title={value}
+            >
+              {value}
+            </span>
+            {value?.trim() ? <CopyValueButton text={value} /> : null}
           </span>
         )}
       </div>

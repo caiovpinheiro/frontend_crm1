@@ -14,13 +14,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   IconCheck,
-  IconCopy,
   IconX,
   IconLoader2,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { useCan } from "@/hooks/use-my-permissions";
+import { CopyValueButton } from "@/components/crm/copy-value-button";
 import { DelayedHoverLegend } from "@/components/crm/delayed-hover-legend";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -150,16 +150,6 @@ export function InlineFieldEditor({
       ? placeholder
       : formatDisplayValue(value!, fieldType);
 
-    const handleCopy = async () => {
-      if (isEmpty) return;
-      try {
-        await navigator.clipboard.writeText(value!);
-        toast.success("Copiado");
-      } catch {
-        toast.error("Falha ao copiar");
-      }
-    };
-
     const row = (
       <div
         className={cn(
@@ -188,21 +178,7 @@ export function InlineFieldEditor({
             {displayValue}
           </span>
         )}
-        {!isEmpty && (
-          <TooltipGlass label="Copiar" side="top" delay={300}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleCopy();
-              }}
-              className="flex size-5 shrink-0 items-center justify-center rounded-[6px] text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--glass-bg-strong)] hover:text-[var(--text-primary)] group-hover:opacity-100"
-              aria-label="Copiar"
-            >
-              <IconCopy size={12} stroke={2.2} />
-            </button>
-          </TooltipGlass>
-        )}
+        {!isEmpty && <CopyValueButton text={value!} />}
       </div>
     );
 
