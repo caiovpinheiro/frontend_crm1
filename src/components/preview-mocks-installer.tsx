@@ -12,6 +12,7 @@
  * não re-aplica.
  */
 
+import { logger } from "@/lib/logger";
 import { useEffect } from "react";
 
 import { isPreviewMode } from "@/lib/preview-mode";
@@ -60,8 +61,9 @@ export function PreviewMocksInstaller() {
     };
 
     window.__previewFetchInstalled = true;
-    console.info(
-      "[preview] fetch mocks instalados — /api/* não vai bater no backend",
+    logger.debug(
+      "preview",
+      "fetch mocks instalados — /api/* não vai bater no backend",
     );
   }, []);
 

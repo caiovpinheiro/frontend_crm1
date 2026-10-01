@@ -4,6 +4,7 @@
  * Mantemos as URLs relativas pra reaproveitar o rewrite do Next.
  */
 
+import { logger } from "@/lib/logger";
 import { apiUrl } from "@/lib/api";
 
 import type { AdvancedDealFilters, FilterOptionsResponse, SavedFilter } from "./types";
@@ -155,8 +156,9 @@ export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
 
   const primaryFailed = !res.ok;
   if (primaryFailed && typeof window !== "undefined") {
-    console.warn(
-      `[kanban-filter-options] HTTP ${res.status} — tentando fallback`,
+    logger.warn(
+      "kanban-filter-options",
+      `HTTP ${res.status} — tentando fallback`,
       data?.message ?? "(sem mensagem)",
     );
   }
@@ -213,16 +215,18 @@ export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
     if (dealFb && dealFb.length > 0) {
       dealCustomFields = dealFb;
       if (typeof window !== "undefined") {
-        console.info(
-          `[kanban-filter-options] fallback: ${dealFb.length} campos de negócio via /api/custom-fields`,
+        logger.debug(
+          "kanban-filter-options",
+          `fallback: ${dealFb.length} campos de negócio via /api/custom-fields`,
         );
       }
     }
     if (contactFb && contactFb.length > 0) {
       contactCustomFields = contactFb;
       if (typeof window !== "undefined") {
-        console.info(
-          `[kanban-filter-options] fallback: ${contactFb.length} campos de contato via /api/custom-fields`,
+        logger.debug(
+          "kanban-filter-options",
+          `fallback: ${contactFb.length} campos de contato via /api/custom-fields`,
         );
       }
     }
