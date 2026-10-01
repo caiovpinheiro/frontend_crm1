@@ -4,8 +4,8 @@ import {
   clearPendingComposerInsert,
   COMPOSER_INSERT_EVENT,
   takePendingComposerInsert,
+  type ComposerInsertMedia,
   type ComposerInsertPayload,
-  type ComposerInsertStep,
 } from "@/lib/composer-insert";
 import type { PendingMedia } from "./types";
 
@@ -15,56 +15,44 @@ import type { PendingMedia } from "./types";
  * No mobile o Chat pode estar desmontado (aba Negócio) — nesse caso o
  * payload fica em `takePendingComposerInsert` e é aplicado ao montar.
  */
+function mediaFrom(list: ComposerInsertMedia[] | undefined): PendingMedia[] {
+  return (list ?? [])
+    .filter((m) => typeof m?.url === "string" && m.url.trim())
+    .map((m) => ({
+      url: m.url.trim(),
+      name: m.name ?? null,
+      mimeType: m.mimeType ?? null,
+      sendBeforeText: Boolean(m.sendBeforeText),
+    }));
+}
+
 export function useComposerInsertBridge({
   insertTemplateTextRef,
-  sendProductOfferStepsRef,
   draftRef,
   setPendingMediaList,
 }: {
   insertTemplateTextRef: RefObject<(text: string) => void>;
-  sendProductOfferStepsRef: RefObject<(steps: ComposerInsertStep[]) => Promise<void>>;
   draftRef: RefObject<string>;
   setPendingMediaList: Dispatch<SetStateAction<PendingMedia[]>>;
 }) {
   useEffect(() => {
     function applyInsert(payload: ComposerInsertPayload) {
       const steps = Array.isArray(payload?.steps) ? payload.steps : [];
-      const productIds = Array.isArray(payload?.productIds)
-        ? payload.productIds.filter((id) => typeof id === "string" && id.trim())
-        : steps
-            .map((s) => s.productId)
-            .filter((id): id is string => Boolean(id));
-      if (steps.length > 1 || productIds.length > 0) {
-        clearPendingComposerInsert();
-        const resolvedSteps =
-          steps.length > 0
-            ? steps
-            : [
-                {
-                  text: typeof payload?.text === "string" ? payload.text : "",
-                  media: payload?.media,
-                  productId: productIds[0],
-                },
-              ];
-        if (productIds.length > 0 && !resolvedSteps.some((s) => s.productId)) {
-          resolvedSteps.forEach((s, i) => {
-            if (!s.productId && productIds[i]) s.productId = productIds[i];
-          });
-        }
-        void sendProductOfferStepsRef.current(resolvedSteps);
-        return;
-      }
-      const text = typeof payload?.text === "string" ? payload.text : "";
-      const media = Array.isArray(payload?.media)
-        ? payload.media
-            .filter((m) => typeof m?.url === "string" && m.url.trim())
-            .map((m) => ({
-              url: m.url.trim(),
-              name: m.name ?? null,
-              mimeType: m.mimeType ?? null,
-              sendBeforeText: Boolean(m.sendBeforeText),
-            }))
-        : [];
+      // Um ou mais produtos: o texto cai no campo, editável, e a imagem
+      // fica encostada. O envio só acontece quando o operador confirma.
+      const text =
+        steps.length > 0
+          ? steps
+              .map((s) => (typeof s.text === "string" ? s.text.trim() : ""))
+              .filter(Boolean)
+              .join("\n\n")
+          : typeof payload?.text === "string"
+            ? payload.text
+            : "";
+      const media =
+        steps.length > 0
+          ? steps.flatMap((s) => mediaFrom(s.media))
+          : mediaFrom(payload?.media);
       if (!text.trim() && media.length === 0) return;
       if (text.trim()) {
         const current = (draftRef.current || "").trimEnd();
@@ -74,7 +62,11 @@ export function useComposerInsertBridge({
         }
       }
       if (media.length > 0) {
-        setPendingMediaList((prev) => [...prev, ...media]);
+        setPendingMediaList((prev) => {
+          const urls = new Set(prev.map((m) => m.url));
+          const extra = media.filter((m) => !urls.has(m.url));
+          return extra.length > 0 ? [...prev, ...extra] : prev;
+        });
       }
       clearPendingComposerInsert();
     }

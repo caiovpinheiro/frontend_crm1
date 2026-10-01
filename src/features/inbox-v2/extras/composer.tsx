@@ -65,7 +65,6 @@ import { useComposerSignature } from "./composer/use-composer-signature";
 import { useComposerSlash } from "./composer/use-composer-slash";
 import { useFileDropListeners } from "./composer/use-file-drop-listeners";
 import { usePendingFiles } from "./composer/use-pending-files";
-import { useProductOfferSender } from "./composer/use-product-offer-sender";
 import type { ComposerProps } from "./composer/types";
 
 /**
@@ -279,18 +278,6 @@ export function Composer({
   const signature = useComposerSignature({ agentName, signatureAllowed });
   const { applySignature } = signature;
 
-  const sendProductOfferSteps = useProductOfferSender({
-    conversationId,
-    selectedChannelId,
-    qc,
-    applySignature,
-    onSend,
-    setSequenceSending,
-  });
-
-  const sendProductOfferStepsRef = useRef(sendProductOfferSteps);
-  sendProductOfferStepsRef.current = sendProductOfferSteps;
-
   // ── Template do WhatsApp pendente de validação/envio ─────────────
   // Aberto pelo slash menu (meta-template) ou pelo menu "+". O envio é
   // feito pelo botão do próprio painel após o agente validar as variáveis.
@@ -395,7 +382,6 @@ export function Composer({
   insertTemplateTextRef.current = insertTemplateText;
   useComposerInsertBridge({
     insertTemplateTextRef,
-    sendProductOfferStepsRef,
     draftRef,
     setPendingMediaList,
   });
