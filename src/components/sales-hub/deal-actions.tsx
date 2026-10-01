@@ -44,6 +44,7 @@ import { SUBTLE_SPRING } from "@/lib/design-system";
 import {
   MOVE_TO_STAGE_MENU_MAX_HEIGHT,
   MoveToStageMenu,
+  usePipelineMoveStages,
 } from "@/features/pipeline-v2/extras/move-to-stage-menu";
 import {
   useMoveDeal,
@@ -238,6 +239,19 @@ export function DealMoveStageButton({
     stages,
     onMoved,
   });
+  // Perdido exige motivo (quando o funil pede): mesmo fluxo do dropdown
+  // de etapa do hero. `moveStages` inclui etapas fora do filtro do board.
+  const moveStages = usePipelineMoveStages(pipelineId, stages);
+  const lostMove = useMoveDeal(pipelineId, statusFilter);
+  const [pendingLost, setPendingLost] = React.useState<MovePayload | null>(null);
+  const lossMeta = usePipelineLossReasons(pipelineId, { enabled: !!pendingLost });
+  React.useEffect(() => {
+    if (!pendingLost || lossMeta.isPending) return;
+    if (!lossMeta.data?.lossReasonRequired) {
+      moveMutation.mutate(pendingLost);
+      setPendingLost(null);
+    }
+  }, [pendingLost, lossMeta.isPending, lossMeta.data, moveMutation]);
   // Horizontal pelo helper comum; vertical ancorado pela borda (top ou
   // bottom) para o menu não ficar descolado do botão quando é mais baixo
   // que a altura máxima estimada. A rolagem fica só na lista interna.
@@ -322,19 +336,43 @@ export function DealMoveStageButton({
                   </div>
                 }
                 onSelect={(stageId, toPipelineId) => {
-                  moveMutation.mutate({
+                  const vars: MovePayload = {
                     dealId: deal.id,
                     fromStageId: deal.stageId,
                     toStageId: stageId,
                     toPipelineId,
-                  });
+                  };
                   close();
+                  const sameFunnel = !toPipelineId || toPipelineId === pipelineId;
+                  if (sameFunnel && moveStages.find((s) => s.id === stageId)?.isLost) {
+                    setPendingLost(vars);
+                    return;
+                  }
+                  moveMutation.mutate(vars);
                 }}
               />
             </div>,
             document.body,
           )
         : null}
+      <LossReasonDialog
+        open={!!pendingLost && !!lossMeta.data?.lossReasonRequired}
+        onOpenChange={(o) => {
+          if (!o) setPendingLost(null);
+        }}
+        pipelineId={pipelineId}
+        title="Mover para Perdido"
+        description="Informe o motivo da perda para concluir a movimentação."
+        onConfirm={(reason) => {
+          if (!pendingLost) return;
+          const { dealId } = pendingLost;
+          lostMove.mutate(
+            { ...pendingLost, lostReason: reason },
+            { onSuccess: () => onMoved?.(dealId) },
+          );
+          setPendingLost(null);
+        }}
+      />
     </div>
   );
 }
@@ -364,6 +402,7 @@ export function HubStageDropdown({
   const canMove = useCan("deal:change_stage");
   const move = useMoveDeal(pipelineId, statusFilter);
   const lossMeta = usePipelineLossReasons(pipelineId, { enabled: !!pendingLost });
+  const moveStages = usePipelineMoveStages(pipelineId, stages);
   const current = stages.find((s) => s.id === currentStageId);
   const disabled = move.isPending || !canMove;
 
@@ -383,7 +422,7 @@ export function HubStageDropdown({
       toStageId: stageId,
       toPipelineId: toPipelineId ?? null,
     };
-    const target = stages.find((s) => s.id === stageId);
+    const target = moveStages.find((s) => s.id === stageId);
     if (target?.isLost) {
       setPendingLost(vars);
       return;
