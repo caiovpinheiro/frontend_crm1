@@ -13,15 +13,21 @@ export type SSEReconnectHandler = () => void;
  * parseado — o `new EventSource` existe só aqui.
  *
  * Ciclo de vida por ref-count: a conexão abre no primeiro assinante e
- * fecha quando o último sai. O close é adiado 1 tick para absorver o
- * duplo mount/unmount de efeitos do StrictMode sem derrubar a conexão.
+ * fecha 30s depois que o último sai. Trocar de tela (inbox → board)
+ * desmonta um assinante e monta outro: a tela seguinte reaproveita a
+ * mesma conexão, sem reconectar nem recarregar dados (e o duplo
+ * mount/unmount do StrictMode também não derruba a conexão).
  *
- * Aba oculta: fecha o EventSource e não reconecta. Ao voltar, abre de
- * novo e dispara `onReconnect` (inbox/pipeline reidratam). Chamada
- * WhatsApp ativa segura a conexão via `holdSSEWhileHidden`.
+ * Aba oculta NÃO derruba a conexão: aviso sonoro, contador e Notification
+ * de nova mensagem existem para funcionar em segundo plano, e o stream não
+ * tem replay — o que chega com a conexão fechada é perdido para sempre.
  *
- * Reconexão: `onerror` fecha e reconecta em 5s (mesmo backoff fixo que
- * cada consumidor tinha quando abria a própria conexão).
+ * Reconexão: `onerror` fecha e reconecta com backoff exponencial e jitter
+ * (5s, 10s, 20s… até 60s, ±30%), zerado a cada open. Fixo em 5s, um deploy
+ * derrubava todas as abas e elas voltavam juntas (cada conexão monta o
+ * gate de visibilidade no backend), e sessão expirada batia 401 a cada 5s
+ * para sempre. Reabrir depois de um gap dispara `onReconnect`
+ * (inbox/pipeline reidratam).
  */
 
 /** Eventos entregues por padrão aos assinantes do `useSSE` (compat). */
@@ -35,7 +41,19 @@ const DEFAULT_EVENTS: readonly string[] = [
   "system_presence_update",
 ];
 
-const RECONNECT_DELAY_MS = 5_000;
+/** Último assinante saiu: tempo até fechar (a próxima tela reaproveita). */
+export const SSE_IDLE_CLOSE_MS = 30_000;
+
+const RECONNECT_BASE_MS = 5_000;
+const RECONNECT_MAX_MS = 60_000;
+const RECONNECT_JITTER = 0.3;
+
+/** Espera da tentativa `attempt` (0 = primeira): exponencial + jitter. */
+export function sseReconnectDelayMs(attempt: number, random = Math.random): number {
+  const base = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** Math.max(0, attempt));
+  const jitter = 1 + (random() * 2 - 1) * RECONNECT_JITTER;
+  return Math.round(base * jitter);
+}
 
 class SharedSSEConnection {
   private es: EventSource | null = null;
@@ -47,44 +65,14 @@ class SharedSSEConnection {
   /** Só dispara `onReconnect` depois de um open bem-sucedido + gap. */
   private everOpened = false;
   private sawGap = false;
-  private hiddenHold = 0;
-  private visibilityBound = false;
+  /** Falhas seguidas desde o último open (backoff). */
+  private failures = 0;
 
-  constructor(private readonly url: string) {
-    this.bindVisibility();
-  }
+  constructor(private readonly url: string) {}
 
-  holdWhileHidden(): () => void {
-    this.hiddenHold += 1;
-    this.syncVisibility();
-    return () => {
-      this.hiddenHold = Math.max(0, this.hiddenHold - 1);
-      this.syncVisibility();
-    };
-  }
-
-  private bindVisibility(): void {
-    if (this.visibilityBound || typeof document === "undefined") return;
-    this.visibilityBound = true;
-    document.addEventListener("visibilitychange", () => this.syncVisibility());
-  }
-
+  /** Conexão viva enquanto houver assinante — visibilidade não entra aqui. */
   private shouldRun(): boolean {
-    if (this.subscribers.size === 0) return false;
-    if (typeof document === "undefined") return true;
-    if (document.visibilityState === "visible") return true;
-    return this.hiddenHold > 0;
-  }
-
-  private syncVisibility(): void {
-    if (this.shouldRun()) {
-      if (this.es || this.retryTimer) return;
-      this.connect();
-      return;
-    }
-    if (!this.es && !this.retryTimer) return;
-    if (this.everOpened) this.sawGap = true;
-    this.teardown();
+    return this.subscribers.size > 0;
   }
 
   subscribe(
@@ -117,10 +105,11 @@ class SharedSSEConnection {
       this.pruneListeners();
       return;
     }
+    if (this.closeTimer) clearTimeout(this.closeTimer);
     this.closeTimer = setTimeout(() => {
       this.closeTimer = null;
       if (this.subscribers.size === 0) this.teardown();
-    }, 0);
+    }, SSE_IDLE_CLOSE_MS);
   }
 
   private connect(): void {
@@ -130,6 +119,7 @@ class SharedSSEConnection {
     this.es = es;
     this.attachMissing();
     es.onopen = () => {
+      this.failures = 0;
       const shouldNotify = this.everOpened && this.sawGap;
       this.everOpened = true;
       this.sawGap = false;
@@ -149,10 +139,12 @@ class SharedSSEConnection {
       this.attached.clear();
       if (this.retryTimer || this.subscribers.size === 0) return;
       if (!this.shouldRun()) return;
+      const delay = sseReconnectDelayMs(this.failures);
+      this.failures += 1;
       this.retryTimer = setTimeout(() => {
         this.retryTimer = null;
         this.connect();
-      }, RECONNECT_DELAY_MS);
+      }, delay);
     };
   }
 
@@ -225,9 +217,13 @@ function connectionFor(url: string): SharedSSEConnection {
   return conn;
 }
 
-/** Mantém o SSE aberto com a aba oculta (sinalização de chamada WhatsApp). */
-export function holdSSEWhileHidden(url = "/api/sse/messages"): () => void {
-  return connectionFor(apiUrl(url)).holdWhileHidden();
+/**
+ * No-op: a conexão não é mais derrubada com a aba oculta, então não há o
+ * que segurar. Mantido para não mexer nos hooks de chamada WhatsApp, que
+ * chamavam isto para garantir a sinalização com a aba em segundo plano.
+ */
+export function holdSSEWhileHidden(_url = "/api/sse/messages"): () => void {
+  return () => {};
 }
 
 /**
