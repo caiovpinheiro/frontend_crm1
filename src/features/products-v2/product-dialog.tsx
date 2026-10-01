@@ -181,6 +181,11 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
   const [courseLevel, setCourseLevel] = React.useState<CourseLevel | "">("");
   const [courseGrau, setCourseGrau] = React.useState("");
   const [courseSemester, setCourseSemester] = React.useState("");
+  const [gradeUrl, setGradeUrl] = React.useState<string | null>(null);
+  const [gradeFileName, setGradeFileName] = React.useState<string | null>(null);
+  const [gradeMime, setGradeMime] = React.useState<string | null>(null);
+  const [gradeUploading, setGradeUploading] = React.useState(false);
+  const gradeInputRef = React.useRef<HTMLInputElement>(null);
   const [courseMode, setCourseMode] = React.useState<CourseMode>("EAD");
   const [postSalePipelineId, setPostSalePipelineId] = React.useState("");
   const [classes, setClasses] = React.useState<CourseClass[]>([]);
@@ -319,6 +324,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
       setCourseLevel("");
       setCourseGrau("");
       setCourseSemester("");
+      setGradeUrl(null);
+      setGradeFileName(null);
+      setGradeMime(null);
       setCourseMode("EAD");
       setPostSalePipelineId("");
       setClasses([]);
@@ -348,6 +356,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
     setCourseSemester(
       detail.courseConfig?.semester != null ? String(detail.courseConfig.semester) : "",
     );
+    setGradeUrl(detail.courseConfig?.gradeUrl ?? null);
+    setGradeFileName(detail.courseConfig?.gradeFileName ?? null);
+    setGradeMime(detail.courseConfig?.gradeMime ?? null);
     setCourseMode(detail.courseConfig?.mode ?? "EAD");
     setPostSalePipelineId(detail.courseConfig?.postSalePipelineId ?? "");
     setClasses(detail.courseConfig?.classes ?? []);
@@ -468,6 +479,9 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
             ? null
             : Number(courseSemester),
         mode: courseMode,
+        gradeUrl: gradeUrl || null,
+        gradeFileName: gradeUrl ? gradeFileName : null,
+        gradeMime: gradeUrl ? gradeMime : null,
         postSalePipelineId: postSalePipelineId || null,
         classes: classes.map((c) => ({
           name: c.name,
@@ -1301,6 +1315,104 @@ export function ProductDialog({ open, onOpenChange, productId, initialCatalogId,
                     triggerClassName="mt-1 h-9 w-full"
                   />
                 </div>
+              </div>
+
+              <div className="mt-3">
+                <Label>Grade curricular</Label>
+                <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                  Arquivo ou URL da grade. Na mensagem do produto, use a variável Grade curricular.
+                  Ao encaminhar, o arquivo vai junto.
+                </p>
+                <input
+                  ref={gradeInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    if (file.size > 16 * 1024 * 1024) {
+                      toast.error("Arquivo excede o limite de 16 MB.");
+                      return;
+                    }
+                    setGradeUploading(true);
+                    try {
+                      const form = new FormData();
+                      form.append("file", file);
+                      const res = await fetch(apiUrl("/api/uploads/automation-media"), {
+                        method: "POST",
+                        body: form,
+                      });
+                      const data = (await res.json()) as {
+                        message?: string;
+                        url?: string;
+                        fileName?: string;
+                        mimeType?: string;
+                      };
+                      if (!res.ok || !data.url) {
+                        toast.error(data.message ?? "Erro ao enviar a grade.");
+                        return;
+                      }
+                      setGradeUrl(data.url);
+                      setGradeFileName(data.fileName ?? file.name);
+                      setGradeMime(data.mimeType ?? file.type ?? null);
+                    } catch {
+                      toast.error("Erro de rede ao enviar a grade.");
+                    } finally {
+                      setGradeUploading(false);
+                    }
+                  }}
+                />
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={gradeUploading}
+                    onClick={() => gradeInputRef.current?.click()}
+                  >
+                    {gradeUploading ? "Enviando…" : "Enviar arquivo"}
+                  </Button>
+                  {gradeUrl ? (
+                    <button
+                      type="button"
+                      className="text-[12px] text-[var(--color-danger)]"
+                      onClick={() => {
+                        setGradeUrl(null);
+                        setGradeFileName(null);
+                        setGradeMime(null);
+                      }}
+                    >
+                      Remover
+                    </button>
+                  ) : null}
+                </div>
+                {gradeFileName ? (
+                  <p className="mt-1 truncate text-[12px] text-[var(--text-primary)]">{gradeFileName}</p>
+                ) : null}
+                <Input
+                  className="mt-2"
+                  value={gradeUrl?.startsWith("https://") ? gradeUrl : ""}
+                  placeholder={
+                    gradeUrl && !gradeUrl.startsWith("https://")
+                      ? "Arquivo enviado — cole uma URL https para substituir"
+                      : "ou cole uma URL https"
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    if (!v) {
+                      if (gradeUrl?.startsWith("https://")) {
+                        setGradeUrl(null);
+                        setGradeFileName(null);
+                        setGradeMime(null);
+                      }
+                      return;
+                    }
+                    setGradeUrl(v);
+                    setGradeFileName(null);
+                    setGradeMime(null);
+                  }}
+                />
               </div>
 
               <p className="mt-3 rounded-[var(--radius-md)] border border-dashed border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-3 py-2 text-[11px] leading-relaxed text-[var(--text-secondary)]">

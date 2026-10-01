@@ -20,7 +20,7 @@ export type CourseMode = "EAD" | "IN_PERSON" | "HYBRID";
 export const COURSE_MODE_LABEL: Record<CourseMode, string> = {
   EAD: "EAD",
   IN_PERSON: "Presencial",
-  HYBRID: "Híbrido",
+  HYBRID: "Semi-Presencial",
 };
 
 export type CourseLevel = "GRADUATION" | "POSTGRADUATE";
@@ -146,6 +146,9 @@ export type ProductDetail = {
     level: CourseLevel | null;
     grau: string | null;
     semester: number | null;
+    gradeUrl?: string | null;
+    gradeFileName?: string | null;
+    gradeMime?: string | null;
     postSalePipelineId: string | null;
     channel: string | null;
     discountPercent: number | string | null;
