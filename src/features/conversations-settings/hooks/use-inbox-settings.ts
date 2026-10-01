@@ -29,6 +29,11 @@ export interface InboxSettings {
    * (inbox + direção no funil). Default desligado.
    */
   countAgentReplyAsAnswered: boolean;
+  /**
+   * Item "Encerrar/Reabrir conversa" no menu ⋮ do chat. Default desligado —
+   * os dois ficam no botão ao lado do Nº da conversa.
+   */
+  showResolveInMenu: boolean;
 }
 
 const DEFAULTS: InboxSettings = {
@@ -43,6 +48,7 @@ const DEFAULTS: InboxSettings = {
   transcriptionLanguage: "pt-BR",
   showInboundSignal: true,
   countAgentReplyAsAnswered: false,
+  showResolveInMenu: false,
 };
 
 /**
@@ -79,6 +85,7 @@ export async function fetchInboxSettings(): Promise<InboxSettings> {
     showInboundSignal: data["conversation.showInboundSignal"] !== "false",
     countAgentReplyAsAnswered:
       data["conversation.countAgentReplyAsAnswered"] === "true",
+    showResolveInMenu: data["conversation.showResolveInMenu"] === "true",
   };
 }
 

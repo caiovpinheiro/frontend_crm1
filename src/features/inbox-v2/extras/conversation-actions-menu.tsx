@@ -25,6 +25,7 @@ import {
 import { ButtonGlass } from "@/components/crm/button-glass";
 import {
   useAssignConversation,
+  useConversationFeatures,
 } from "@/features/inbox-v2/hooks";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { useExecuteDistribution } from "@/features/distribution/hooks";
@@ -159,6 +160,10 @@ export function ConversationActionsMenu({
     });
   const executeDist = useExecuteDistribution();
   const { hideEvents, toggleHideEvents } = useHideChatEvents();
+  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas): o botão
+  // ✓/↻ ao lado do Nº da conversa já cobre os dois — evita duplicidade.
+  const { features: convFeatures } = useConversationFeatures();
+  const showResolveItem = convFeatures.showResolveInMenu;
 
   const departmentsQuery = useQuery({
     queryKey: ["inbox-distribute-departments"],
@@ -580,21 +585,23 @@ export function ConversationActionsMenu({
             </div>
           )}
 
-          <RequirePermission permission="conversation:resolve">
-            <button
-              type="button"
-              disabled={toggleResolve.isPending}
-              onClick={handleToggleResolve}
-              className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-50"
-            >
-              {isResolved ? (
-                <IconRotateClockwise size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
-              ) : (
-                <IconCircleCheck size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
-              )}
-              <span>{isResolved ? "Reabrir conversa" : "Encerrar conversa"}</span>
-            </button>
-          </RequirePermission>
+          {showResolveItem && (
+            <RequirePermission permission="conversation:resolve">
+              <button
+                type="button"
+                disabled={toggleResolve.isPending}
+                onClick={handleToggleResolve}
+                className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--glass-bg-overlay)] disabled:opacity-50"
+              >
+                {isResolved ? (
+                  <IconRotateClockwise size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
+                ) : (
+                  <IconCircleCheck size={16} className="shrink-0 text-[var(--text-muted)]" stroke={2} />
+                )}
+                <span>{isResolved ? "Reabrir conversa" : "Encerrar conversa"}</span>
+              </button>
+            </RequirePermission>
+          )}
         </div>
       )}
       {dialogs}

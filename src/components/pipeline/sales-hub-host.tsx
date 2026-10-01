@@ -62,6 +62,10 @@ import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
 import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
 import { setBoardPinnedDealIds } from "@/features/pipeline-v2/board-live-activity";
+import {
+  filtersForVisibleStages,
+  visibleBoardStages,
+} from "@/features/pipeline-v2/stage-visibility";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
@@ -199,7 +203,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   // evita fan-out de POSTs caros (~status=ALL) ao clicar vários chips.
   // Busca já tem debounce próprio acima; aqui só o restante.
   const advancedForQuery = useMemo(() => {
-    const { search: _s, ...rest } = filters;
+    // `showAllStages` é só UI (colunas Ganho/Perdido) — não vai ao servidor.
+    const { search: _s, showAllStages: _all, ...rest } = filters;
     return rest;
   }, [filters]);
   const advancedKey = JSON.stringify(advancedForQuery);
@@ -288,7 +293,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   }, [refreshActiveBoard]);
 
   const handleQueueLoadMore = useCallback((stageId?: string | null) => {
-    const stages = boardNormal.data ?? [];
+    // Etapas ocultas (Ganho/Perdido) não paginam a fila.
+    const stages = visibleBoardStages(boardNormal.data ?? [], filters);
     const targets = (
       stageId ? stages.filter((s) => s.id === stageId) : stages
     ).filter(stageHasMoreServer);
@@ -301,14 +307,15 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
       }
       return next;
     });
-  }, [boardNormal.data]);
+  }, [boardNormal.data, filters]);
 
   // Com filtros server-side o boardFiltered segue perStage 200 — sem
   // load-more de rede (espelha o kanban, que esconde o botão).
   // Não depende só de `hasMore === true`: badge usa totalCount e o
   // flag às vezes falta no cache — restante = total − loaded.
   const queueHasMore =
-    !hasServerBoard && (boardNormal.data ?? []).some(stageHasMoreServer);
+    !hasServerBoard &&
+    visibleBoardStages(boardNormal.data ?? [], filters).some(stageHasMoreServer);
 
   const boardHasSnapshot =
     Array.isArray(boardNormal.data) || Array.isArray(boardFiltered.data);
@@ -425,6 +432,13 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
         ? boardHoldRef.current.stages
         : board
   ) as BoardStage[];
+
+  // Ganho/Perdido ocultos por padrão; o filtro de Etapas os revela. Fila e
+  // stepper usam `queueStages`; painel do negócio e deep link, o board todo.
+  const queueStages = useMemo(
+    () => visibleBoardStages(stages, filters),
+    [stages, filters],
+  );
 
   const dealById = useMemo(() => {
     const map = new Map<string, (typeof stages)[number]["deals"][number]>();
@@ -691,6 +705,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
               onSortKeyChange={setSortKey}
               placeholder="Buscar no funil…"
               pipelineId={pipelineId}
+              boardStages
               onFilterPanelOpenChange={setFilterPanelOpen}
               onPickDeal={(deal) => {
                 const dest = deal.stage?.pipelineId;
@@ -763,6 +778,7 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
             key={pipelineId}
             pipelineId={pipelineId}
             stages={stages}
+            queueStages={queueStages}
             statusFilter={status}
             searchQuery={hasServerBoard ? "" : search}
             sortMode={sortMode}
@@ -827,9 +843,9 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
           }}
           exportScope={{
             pipelineId,
-            filters: queryFilters,
+            filters: filtersForVisibleStages(queryFilters, queueStages, stages),
             status,
-            filteredTotal: stages.reduce(
+            filteredTotal: queueStages.reduce(
               (n, s) => n + (s.totalCount ?? s.deals.length),
               0,
             ),

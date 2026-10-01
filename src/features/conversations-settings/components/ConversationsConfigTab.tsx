@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   IconArrowBackUp,
   IconArrowRight,
+  IconDotsVertical,
   IconHourglass,
   IconMail,
   IconMicrophone,
@@ -194,6 +195,14 @@ export function ConversationsConfigTab() {
             description="Liga o motor: aguardar resposta, sem resposta inicia encerramento e um agente lê o contexto. As saídas Encerrar e Devolver ficam no passo do canvas — o destino é do fluxo."
             checked={settings.closingProtocolEnabled}
             onChange={(v) => save("closingProtocolEnabled", v)}
+            disabled={busy}
+          />
+          <ToggleRow
+            icon={<IconDotsVertical size={20} />}
+            label="Encerrar e reabrir no menu ⋮"
+            description="Exibe Encerrar/Reabrir conversa no menu de ações do chat. Desligado, ficam só no botão ao lado do número da conversa."
+            checked={settings.showResolveInMenu}
+            onChange={(v) => save("showResolveInMenu", v)}
             disabled={busy}
           />
           <SelectRow

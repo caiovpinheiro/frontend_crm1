@@ -160,6 +160,11 @@ export type SectionProps = {
   optionsError?: string | null;
   setDraftField: SetDraftField;
   toggleArray: (prev: string[] | undefined, id: string) => string[] | undefined;
+  /**
+   * Kanban/Flow: Etapas listam só o funil aberto e ganham "Exibir todas as
+   * fases" (Ganho/Perdido ficam ocultos por padrão). Ausente na Lista.
+   */
+  stageBoard?: { pipelineId: string | null };
 };
 
 // ─── Primitivas DS v2 ───────────────────────────────────────────────────────────
@@ -574,11 +579,44 @@ export function ConversationSection({ draft, setDraftField }: SectionProps) {
   );
 }
 
-export function StagesSection({ draft, options, optionsLoading, setDraftField, toggleArray }: SectionProps) {
-  const stages = options?.pipelines.flatMap((p) => p.stages) ?? [];
+export function StagesSection({
+  draft,
+  options,
+  optionsLoading,
+  setDraftField,
+  toggleArray,
+  stageBoard,
+}: SectionProps) {
+  const boardPipeline = stageBoard?.pipelineId
+    ? options?.pipelines.find((p) => p.id === stageBoard.pipelineId)
+    : undefined;
+  const stages =
+    boardPipeline?.stages ?? options?.pipelines.flatMap((p) => p.stages) ?? [];
   const selected = draft.stageIds ?? [];
+  const showAll = !!draft.showAllStages;
   return (
-    <FieldCard label="Etapas" active={!!selected.length} onClear={() => setDraftField("stageIds", undefined)}>
+    <FieldCard
+      label="Etapas"
+      active={!!selected.length || showAll}
+      onClear={() => {
+        setDraftField("stageIds", undefined);
+        setDraftField("showAllStages", undefined);
+      }}
+    >
+      {stageBoard && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          {/* Exclusivo com a multi-seleção: todas as colunas ou só as escolhidas. */}
+          <ChipToggle
+            active={showAll}
+            onClick={() => {
+              if (!showAll) setDraftField("stageIds", undefined);
+              setDraftField("showAllStages", showAll ? undefined : true);
+            }}
+          >
+            Exibir todas as fases
+          </ChipToggle>
+        </div>
+      )}
       {optionsLoading ? (
         <p className="text-[12px] text-ink-subtle">Carregando…</p>
       ) : (
@@ -601,8 +639,16 @@ export function StagesSection({ draft, options, optionsLoading, setDraftField, t
               </span>
             ),
           }))}
-          onToggle={(id) => setDraftField("stageIds", toggleArray(draft.stageIds, id))}
+          onToggle={(id) => {
+            setDraftField("stageIds", toggleArray(draft.stageIds, id));
+            if (showAll) setDraftField("showAllStages", undefined);
+          }}
         />
+      )}
+      {stageBoard && !showAll && !selected.length && (
+        <p className="mt-1.5 text-[11px] leading-snug text-[var(--text-muted)]">
+          Ganho e Perdido ficam ocultos até serem selecionados.
+        </p>
       )}
     </FieldCard>
   );
