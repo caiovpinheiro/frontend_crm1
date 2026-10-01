@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
@@ -1106,7 +1107,7 @@ export function useInboxRealtime(options: {
                 try {
                   appendSseMessageToOpenChat(qc, openId, data);
                 } catch (e) {
-                  console.error("[sse] appendSseMessageToOpenChat failed", e);
+                  logger.error("sse", "appendSseMessageToOpenChat failed", e);
                 }
               }
               // Hidrata id/mídia; refetch imediato como fallback caso o
@@ -1128,7 +1129,7 @@ export function useInboxRealtime(options: {
             }
           }
         } catch (e) {
-          console.error("[sse] new_message chat update failed", e);
+          logger.error("sse", "new_message chat update failed", e);
         }
 
         // Card na lista: patch in-place, zero GET. Fora da página:
@@ -1180,7 +1181,7 @@ export function useInboxRealtime(options: {
             scheduleDailyStatsRefresh();
           }
         } catch (e) {
-          console.error("[sse] new_message card patch failed", e);
+          logger.error("sse", "new_message card patch failed", e);
         }
       },
 

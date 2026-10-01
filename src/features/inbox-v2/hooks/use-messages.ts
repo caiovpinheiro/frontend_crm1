@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -110,7 +111,7 @@ function mergeTail(
       historyLoaded: prev.historyLoaded === true,
     };
   } catch (e) {
-    console.error("[mergeTail] failed", e);
+    logger.error("mergeTail", "failed", e);
     return next;
   }
 }
@@ -131,7 +132,7 @@ function mergeOlder(
       hasMore: incoming.length === 0 ? false : inferHasMore(page, MESSAGE_PAGE),
     };
   } catch (e) {
-    console.error("[mergeOlder] failed", e);
+    logger.error("mergeOlder", "failed", e);
     return page;
   }
 }
@@ -162,7 +163,7 @@ function mergeHistory(
       historyLoaded: hist.hasOlderTickets !== true,
     };
   } catch (e) {
-    console.error("[mergeHistory] failed", e);
+    logger.error("mergeHistory", "failed", e);
     return hist;
   }
 }

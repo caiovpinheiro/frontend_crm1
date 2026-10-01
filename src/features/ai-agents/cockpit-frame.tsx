@@ -1,5 +1,6 @@
 "use client";
 
+import { logger, urlForLog } from "@/lib/logger";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IconAlertTriangle,
@@ -160,8 +161,8 @@ export function CockpitFrame({
     const id = window.setTimeout(() => {
       setLoadPhase((prev) => {
         if (prev !== "loading") return prev;
-        console.warn("[cockpit.iframe] load_timeout", {
-          cockpitUrl,
+        logger.warn("cockpit.iframe", "load_timeout", {
+          cockpitUrl: urlForLog(cockpitUrl),
           waitedMs: Date.now() - startedAt,
         });
         return "timeout";
