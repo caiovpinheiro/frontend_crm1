@@ -85,3 +85,21 @@ export interface ComposerProps {
   /** Exibe "Pedir permissão de ligação" no menu +. */
   enableCallPermission?: boolean;
 }
+
+/** Anexo de modelo interno / mensagem rápida encostado no composer. */
+export interface PendingMedia {
+  url: string;
+  name: string | null;
+  mimeType?: string | null;
+  messageBefore?: string | null;
+  /** Capa de produto: sai antes do texto (ou como caption se couber). */
+  sendBeforeText?: boolean;
+}
+
+/** Arquivo colado / arrastado / anexado, pendente de envio. */
+export interface PendingFile {
+  id: string;
+  file: File;
+  previewUrl: string | null;
+  name: string;
+}
