@@ -32,15 +32,11 @@ import {
 } from "@/components/inbox/slash-command-menu";
 import { getContact } from "@/features/inbox-v2/api/misc";
 import {
-  sendAttachment,
-  sendAttachmentReuse,
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
 import { applyOutboundPreviewToInboxCaches, messagesKey } from "@/features/inbox-v2/hooks";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
-import {
-} from "@/lib/composer-insert";
 
 import { ActiveBotsButton } from "./active-bots-button";
 import { AudioRecorderButton, type AudioRecordState } from "./audio-recorder-button";
@@ -58,22 +54,19 @@ import {
   whatsappTemplateToPending,
   type PendingTemplate,
 } from "./template-compose-panel";
-import {
-  WHATSAPP_IMAGE_CAPTION_MAX,
-  dragEventHasFiles,
-  fileIsImage,
-  imageExtFromMime,
-  isForeignFileDropZone,
-} from "./composer/attachment-helpers";
 import { ComposerTopRow } from "./composer/composer-top-row";
+import { fileIsImage, imageExtFromMime } from "./composer/attachment-helpers";
 import {
   FileDropOverlay,
   PendingFileChips,
   PendingMediaChips,
 } from "./composer/pending-attachments";
+import { useOutboundFlush } from "./composer/outbound-flush";
 import { ReplyPreviewBar } from "./composer/reply-preview-bar";
 import { useComposerInsertBridge } from "./composer/use-composer-insert-bridge";
 import { useComposerSignature } from "./composer/use-composer-signature";
+import { useFileDropListeners } from "./composer/use-file-drop-listeners";
+import { usePendingFiles } from "./composer/use-pending-files";
 import { useProductOfferSender } from "./composer/use-product-offer-sender";
 import type { ComposerProps } from "./composer/types";
 
@@ -223,28 +216,14 @@ export function Composer({
 
   const qc = useQueryClient();
 
-  // Arquivos colados (Ctrl+V), arrastados ou escolhidos em "Anexar arquivo"
-  // → ficam "encostados" como anexos pendentes e só são enviados quando o
-  // operador clica em enviar / pressiona Enter (mesma ideia do pendingMedia,
-  // mas guardando o File binário + URL de preview; `previewUrl` só p/ imagem).
-  const [pendingFiles, setPendingFiles] = useState<
-    { id: string; file: File; previewUrl: string | null; name: string }[]
-  >([]);
-  const pendingFilesRef = useRef(pendingFiles);
-  useEffect(() => {
-    pendingFilesRef.current = pendingFiles;
-  }, [pendingFiles]);
-  // Revoga as URLs de preview ainda pendentes ao desmontar (evita vazamento).
-  useEffect(
-    () => () => {
-      pendingFilesRef.current.forEach((f) => {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-      });
-    },
-    [],
-  );
-  // Overlay "solte o arquivo aqui" — arrastar arquivo do SO para a página.
-  const [dropActive, setDropActive] = useState(false);
+  const {
+    pendingFiles,
+    setPendingFiles,
+    pendingFilesRef,
+    removePendingFile,
+    dropActive,
+    setDropActive,
+  } = usePendingFiles();
 
   // ── Contexto para interpolação de templates internos ─────────────
   // Reusa a mesma queryKey do ContactAside — evita GET /contacts ×2
@@ -587,157 +566,19 @@ export function Composer({
     );
   }
 
-  // Envia os anexos encostados (mídia de modelo/mensagem rápida) logo após o
-  // texto do Enter — via o helper compartilhado (SEQUENCIAL, com toast em
-  // falha intermediária). Lê de `pendingMediaListRef` (não do state direto)
-  // pra evitar stale closure entre o render que agendou e o flush em si.
-  async function flushPendingMedia(beforeText: boolean) {
-    const all = pendingMediaListRef.current;
-    const list = all.filter((m) => Boolean(m.sendBeforeText) === beforeText);
-    if (list.length === 0 || !conversationId) return;
-    const remaining = all.filter((m) => Boolean(m.sendBeforeText) !== beforeText);
-    setPendingMediaList(remaining);
-    pendingMediaListRef.current = remaining;
-    await sendInternalTemplateSequence({
-      conversationId,
-      content: "",
-      attachments: list,
-      channelId: selectedChannelId,
-    });
-  }
-
-  // Remove um arquivo da fila de pendentes (revoga a URL de preview).
-  function removePendingFile(id: string) {
-    setPendingFiles((prev) => {
-      const target = prev.find((f) => f.id === id);
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((f) => f.id !== id);
-    });
-  }
-
-  // Envia os arquivos encostados, um a um, na ordem. `caption` (texto do
-  // composer) vai na legenda do PRIMEIRO arquivo — igual ao WhatsApp. Limpa
-  // o estado e revoga as URLs de preview ao final.
-  async function flushPendingFiles(caption?: string) {
-    const files = pendingFilesRef.current;
-    if (files.length === 0 || !conversationId) return;
-    setPendingFiles([]);
-    pendingFilesRef.current = [];
-    let failed = 0;
-    for (const [index, f] of files.entries()) {
-      try {
-        await sendAttachment(conversationId, f.file, {
-          fileName: f.name,
-          channelId: selectedChannelId,
-          ...(index === 0 && caption ? { caption } : {}),
-        });
-      } catch {
-        failed += 1;
-      }
-    }
-    files.forEach((f) => {
-      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-    });
-    qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-    if (failed > 0) {
-      toast.error(
-        failed === 1 ? "Falha ao enviar 1 anexo" : `Falha ao enviar ${failed} anexos`,
-      );
-    }
-  }
-
-  // Limite de caption de imagem na WhatsApp Cloud API.
-
-  async function flushOutbound(text: string | null) {
-    const all = pendingMediaListRef.current;
-    const before = all.filter((m) => Boolean(m.sendBeforeText));
-    const captionText = text?.trim() ?? "";
-    const canCaption =
-      Boolean(conversationId) &&
-      before.length > 0 &&
-      captionText.length > 0 &&
-      captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
-
-    if (canCaption && conversationId) {
-      const remaining = all.filter((m) => !m.sendBeforeText);
-      setPendingMediaList(remaining);
-      pendingMediaListRef.current = remaining;
-      onChange("");
-      draftRef.current = "";
-      setSequenceSending(true);
-      try {
-        const [first, ...rest] = before;
-        await sendAttachmentReuse(conversationId, {
-          reuseUrl: first.url,
-          fileName: first.name ?? undefined,
-          mimeType: first.mimeType ?? undefined,
-          caption: captionText,
-          channelId: selectedChannelId,
-          waitUntilSent: true,
-        });
-        for (const m of rest) {
-          await sendAttachmentReuse(conversationId, {
-            reuseUrl: m.url,
-            fileName: m.name ?? undefined,
-            mimeType: m.mimeType ?? undefined,
-            channelId: selectedChannelId,
-            waitUntilSent: true,
-          });
-        }
-        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-        applyOutboundPreviewToInboxCaches(qc, conversationId, {
-          content: captionText,
-        });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Falha ao enviar imagem com legenda.");
-      } finally {
-        setSequenceSending(false);
-      }
-    } else {
-      // Arquivo encostado (arrastado / anexado / colado) + texto curto: o
-      // texto vira legenda do primeiro arquivo, em vez de sair como
-      // mensagem separada antes dele.
-      const filesTakeCaption =
-        Boolean(conversationId) &&
-        before.length === 0 &&
-        pendingFilesRef.current.length > 0 &&
-        captionText.length > 0 &&
-        captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
-      if (filesTakeCaption && conversationId) {
-        onChange("");
-        draftRef.current = "";
-        setSequenceSending(true);
-        try {
-          await flushPendingFiles(captionText);
-          applyOutboundPreviewToInboxCaches(qc, conversationId, {
-            content: captionText,
-          });
-        } finally {
-          setSequenceSending(false);
-        }
-        await flushPendingMedia(false);
-        return;
-      }
-      if (
-        (before.length > 0 || pendingFilesRef.current.length > 0) &&
-        captionText.length > WHATSAPP_IMAGE_CAPTION_MAX
-      ) {
-        toast.message(
-          "Texto longo demais para legenda do WhatsApp; enviando arquivo e texto separados.",
-        );
-      }
-      await flushPendingMedia(true);
-      if (text) {
-        try {
-          await Promise.resolve(onSend(text));
-        } catch {
-          /* texto falhou; ainda tenta anexos se o caller não bloqueou */
-        }
-      }
-    }
-    await flushPendingMedia(false);
-    await flushPendingFiles();
-  }
+  const { flushOutbound } = useOutboundFlush({
+    conversationId,
+    selectedChannelId,
+    qc,
+    onChange,
+    onSend,
+    draftRef,
+    pendingMediaListRef,
+    setPendingMediaList,
+    pendingFilesRef,
+    setPendingFiles,
+    setSequenceSending,
+  });
 
   async function performSend() {
     const trimmed = value.trim();
@@ -858,46 +699,7 @@ export function Composer({
   // Zonas marcadas com data-file-drop-zone (importar CSV) continuam donas.
   const stageFilesRef = useRef(stageFiles);
   stageFilesRef.current = stageFiles;
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    let depth = 0;
-    const onDragEnter = (e: DragEvent) => {
-      if (!dragEventHasFiles(e) || isForeignFileDropZone(e)) return;
-      e.preventDefault();
-      depth += 1;
-      setDropActive(true);
-    };
-    const onDragOver = (e: DragEvent) => {
-      if (!dragEventHasFiles(e) || isForeignFileDropZone(e)) return;
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    };
-    const onDragLeave = (e: DragEvent) => {
-      if (!dragEventHasFiles(e)) return;
-      depth = Math.max(0, depth - 1);
-      if (depth === 0) setDropActive(false);
-    };
-    const onDrop = (e: DragEvent) => {
-      if (!dragEventHasFiles(e)) return;
-      depth = 0;
-      setDropActive(false);
-      if (isForeignFileDropZone(e)) return;
-      e.preventDefault();
-      const files = Array.from(e.dataTransfer?.files ?? []);
-      stageFilesRef.current(files, "arquivo-arrastado");
-    };
-    const opts: AddEventListenerOptions = { capture: true };
-    document.addEventListener("dragenter", onDragEnter, opts);
-    document.addEventListener("dragover", onDragOver, opts);
-    document.addEventListener("dragleave", onDragLeave, opts);
-    document.addEventListener("drop", onDrop, opts);
-    return () => {
-      document.removeEventListener("dragenter", onDragEnter, opts);
-      document.removeEventListener("dragover", onDragOver, opts);
-      document.removeEventListener("dragleave", onDragLeave, opts);
-      document.removeEventListener("drop", onDrop, opts);
-    };
-  }, []);
+  useFileDropListeners({ stageFilesRef, setDropActive });
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Deixa o slash menu consumir Up/Down/Enter/Esc/Tab primeiro
