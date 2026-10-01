@@ -173,7 +173,10 @@ export interface ConversationListResponse {
   perPage?: number;
   /** Há mais páginas no servidor. Independente do `total`. */
   hasMore?: boolean;
-  /** Keyset `${sortValMs}_${id}` — scroll infinito prefere isto a `page`. */
+  /**
+   * Cursor keyset opaco da próxima página (devolver em `?cursor=`). O
+   * scroll infinito prefere isto a `page`; ausente = backend antigo.
+   */
   nextCursor?: string | null;
 }
 

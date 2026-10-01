@@ -76,6 +76,8 @@ import { useContactSidebar } from "@/features/inbox-v2/hooks";
 import {
   useBoard,
   useBoardFiltered,
+  useBoardLoadMore,
+  useStableBoardStages,
   BOARD_PAGE_SIZE,
   useDealDetail,
   useEntityViewers,
@@ -286,11 +288,17 @@ export default function KanbanV2ClientPage({
 
   const hasServerBoard = hasServerSideFilters(mergedFilters);
 
-  // "Carregar mais" por coluna: stageId → extras cumulativos além da
-  // página inicial (10). Com ≥1 expansão o board passa a vir do POST
-  // /board (única rota que aceita offset) — ver `useBoard`.
-  const [boardExtraByStage, setBoardExtraByStage] = useState<Record<string, number>>({});
-  const [loadingMoreStageId, setLoadingMoreStageId] = useState<string | null>(null);
+  // "Carregar mais" por coluna. Com cursor (etapa com `nextCursor`) os
+  // próximos cards são anexados ao cache, sem refazer o board; sem cursor
+  // (backend antigo) soma extras em `legacyOffsets` e o board volta a vir
+  // do POST /board com offset — ver `useBoardLoadMore`. Usa o MESMO id do
+  // `useBoard` (`boardLookupId`): a query é localizada pela chave.
+  const boardLoadMore = useBoardLoadMore({
+    pipelineId: boardLookupId,
+    status,
+    sort: boardSort,
+    pageSize: BOARD_PAGE_SIZE,
+  });
 
   const boardNormal = useBoard({
     pipelineId: boardLookupId,
@@ -298,7 +306,7 @@ export default function KanbanV2ClientPage({
     sort: boardSort,
     enabled: canFetch && !hasServerBoard,
     perStage: BOARD_PAGE_SIZE,
-    offsetByStage: boardExtraByStage,
+    offsetByStage: boardLoadMore.legacyOffsets,
   });
   const boardFiltered = useBoardFiltered({
     pipelineId: boardLookupId,
@@ -666,33 +674,22 @@ export default function KanbanV2ClientPage({
   const { data: dealDetail } = useDealDetail(activeDealId);
   const queryClient = useQueryClient();
 
-  // Expansões "Carregar mais": cada scroll/clique soma +10 na coluna e
-  // refaz o board (POST com offsetByStage). Usar `boardNormal.refetch()`
-  // — NÃO `refetchQueries({ queryKey: boardKey(pipelineId) })`.
-  // `useBoard` chaveia com `boardLookupId` (number público, ex. "8");
-  // `pipelineId` é CUID. `exact: true` no CUID não achava a query →
-  // clique e auto-scroll pareciam mortos.
-  const extrasKey = JSON.stringify(boardExtraByStage);
-  const refetchBoard = boardNormal.refetch;
-  useEffect(() => {
-    if (Object.keys(boardExtraByStage).length === 0) return;
-    void refetchBoard().finally(() => setLoadingMoreStageId(null));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extrasKey]);
-
   // Troca de funil/status/ordenação/filtro → colunas expandidas voltam a 10.
+  const resetBoardLoadMore = boardLoadMore.reset;
   useEffect(() => {
-    setBoardExtraByStage({});
-    setLoadingMoreStageId(null);
-  }, [pipelineId, status, sortKey, hasServerBoard]);
+    resetBoardLoadMore();
+  }, [pipelineId, status, sortKey, hasServerBoard, resetBoardLoadMore]);
 
-  const handleLoadMoreColumn = useCallback((stageId: string) => {
-    setLoadingMoreStageId(stageId);
-    setBoardExtraByStage((prev) => ({
-      ...prev,
-      [stageId]: (prev[stageId] ?? 0) + BOARD_PAGE_SIZE,
-    }));
-  }, []);
+  const loadMoreColumns = boardLoadMore.loadMore;
+  const handleLoadMoreColumn = useCallback(
+    (stageId: string) => void loadMoreColumns([stageId]),
+    [loadMoreColumns],
+  );
+
+  // O card só usa `stages` para o menu "mover para": identidade estável
+  // enquanto só os cards mudam (anexar cards, patch SSE) — o `memo` do
+  // card não é derrubado pelo array novo do board.
+  const stagesForCards = useStableBoardStages(board);
 
   // Presença "quem está vendo" (estilo Kommo) — chaveada pelo CUID real do
   // deal, pra ambas as janelas baterem na mesma sala. Só liga depois que
@@ -1145,7 +1142,7 @@ export default function KanbanV2ClientPage({
                 dealById={dealById}
                 pipelineId={pipelineId}
                 statusFilter={status}
-                stages={board}
+                stages={stagesForCards}
                 selectedIds={selectedIds}
                 selectionMode={selectionMode}
                 fullySelected={fullySelectedStageIds.has(col.stageId)}
@@ -1161,7 +1158,7 @@ export default function KanbanV2ClientPage({
                   !hasServerBoard && rawStage?.hasMore && remaining > 0
                     ? {
                         remaining,
-                        loading: loadingMoreStageId === col.stageId,
+                        loading: boardLoadMore.loadingStageIds.has(col.stageId),
                         onClick: () => handleLoadMoreColumn(col.stageId),
                       }
                     : undefined

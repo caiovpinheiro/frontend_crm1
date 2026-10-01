@@ -10,7 +10,12 @@ import { apiUrl } from "@/lib/api";
 
 import type { AdvancedDealFilters } from "@/components/pipeline/kanban-filters/types";
 
-import type { BoardStageDto, PipelineListItemDto, StatusFilter } from "./types";
+import type {
+  BoardColumnPageDto,
+  BoardStageDto,
+  PipelineListItemDto,
+  StatusFilter,
+} from "./types";
 
 /** GET /api/pipelines */
 export async function listPipelines(): Promise<PipelineListItemDto[]> {
@@ -151,4 +156,74 @@ export async function getBoardFiltered(
   }
   if (Array.isArray(data)) return data as BoardStageDto[];
   return (Array.isArray(data.stages) ? data.stages : []) as BoardStageDto[];
+}
+
+/**
+ * Falha do "carregar mais" por cursor. `fallback: true` = o backend não
+ * sabe atender por cursor (rota inexistente, cursor recusado) e o chamador
+ * deve voltar ao `offsetByStage`; `routeMissing` = nem adianta tentar de novo.
+ */
+export class BoardColumnsError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = "BoardColumnsError";
+  }
+
+  get routeMissing(): boolean {
+    return this.status === 404 || this.status === 405;
+  }
+
+  get fallback(): boolean {
+    return this.status >= 400 && this.status < 500;
+  }
+}
+
+/**
+ * POST /api/pipelines/:id/board/columns — próximos cards de uma ou mais
+ * etapas a partir do `nextCursor` de cada uma. Não recarrega o board.
+ * `status`/`filters`/`sort` têm de ser os mesmos do board que deu o cursor.
+ */
+export async function getBoardColumns(
+  pipelineId: string,
+  opts: {
+    status?: StatusFilter;
+    filters?: AdvancedDealFilters;
+    sort?: BoardSortParam;
+    columns: { stageId: string; cursor: string; limit: number }[];
+    signal?: AbortSignal;
+  },
+): Promise<BoardColumnPageDto[]> {
+  const body: Record<string, unknown> = {
+    status: opts.status ?? "OPEN",
+    columns: opts.columns,
+  };
+  if (opts.filters) body.filters = opts.filters;
+  if (opts.sort) {
+    body.sort = opts.sort.field;
+    body.direction = opts.sort.direction;
+  }
+  const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/board/columns`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: opts.signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new BoardColumnsError(
+      typeof data?.message === "string" ? data.message : "Erro ao carregar mais cards",
+      res.status,
+      typeof data?.code === "string" ? data.code : null,
+    );
+  }
+  const columns = (data as { columns?: unknown }).columns;
+  if (!Array.isArray(columns)) {
+    // 200 sem `columns`: não é a rota nova (proxy/backend antigo).
+    throw new BoardColumnsError("Resposta inesperada ao carregar mais cards", 404, null);
+  }
+  return columns as BoardColumnPageDto[];
 }
