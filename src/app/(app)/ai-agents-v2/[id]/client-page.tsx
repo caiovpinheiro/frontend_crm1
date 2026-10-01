@@ -337,7 +337,7 @@ const CONDITIONS_WITH_VALUES = new Set(["keywords", "contact_tag", "deal_stage",
 const CONDITION_PLACEHOLDER: Record<string, string> = {
   keywords: "Ex.: atendente, falar com alguém",
   contact_tag: "Nome da etiqueta",
-  deal_stage: "Nome da etapa",
+  deal_stage: "Nome da etapa, ou Funil > Etapa",
   media_kind: "audio, image ou document",
   message_type: "Ex.: text, audio",
 };
@@ -2950,6 +2950,7 @@ function StepContext({
     stage: "Etapa",
     status: "Status",
     value: "Valor",
+    lostReason: "Motivo da perda",
   };
 
   function fieldLabel(key: string, catalogFields: Array<{ id: string; name: string }>) {
@@ -2964,6 +2965,7 @@ function StepContext({
     stage: "Ex.: Negociação",
     status: "Ex.: Aberto",
     value: "Ex.: R$ 1.200,00",
+    lostReason: "Ex.: Prazo de entrega",
   };
 
   function exampleValue(key: string, label: string): string {
@@ -3006,7 +3008,7 @@ function StepContext({
     const available = catalogFields.filter((f) => !usedKeys.has(f.id));
     const builtins = {
       contact: ["name", "phone", "email"],
-      deal: ["stage", "status", "value"],
+      deal: ["stage", "status", "value", "lostReason"],
     }[entity] ?? [];
     const builtinOptions = builtins
       .filter((key) => !usedKeys.has(key))
@@ -3148,7 +3150,7 @@ function StepContext({
         ]}
       />
 
-      <AdvancedOptions count={1}>
+      <AdvancedOptions count={2}>
       <SectionCard title="Se o cliente tiver mais de um negócio aberto">
         <Field label="Qual negócio ele usa">
           <Select
@@ -3162,6 +3164,20 @@ function StepContext({
             </SelectContent>
           </Select>
         </Field>
+      </SectionCard>
+      <SectionCard
+        title="Se o cliente só tiver negócio perdido"
+        description="Desligado, o agente trata esse cliente como sem negócio. Ligado, ele usa o negócio perdido mais recente e enxerga a etapa, o motivo da perda e os demais dados liberados acima. Um negócio em andamento sempre tem prioridade."
+      >
+        <div className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
+          <p className="text-sm font-medium">Usar o negócio perdido</p>
+          <Switch
+            checked={config.includeLostDeals === true}
+            onCheckedChange={(v) => onChange("includeLostDeals", v)}
+            id="include-lost-deals"
+            aria-label="Usar o negócio perdido"
+          />
+        </div>
       </SectionCard>
       </AdvancedOptions>
 
