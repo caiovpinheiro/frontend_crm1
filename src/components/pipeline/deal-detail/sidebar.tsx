@@ -728,7 +728,9 @@ export function DealProductsSection({
         : cc.semester != null && Number.isFinite(Number(cc.semester))
           ? cc.level === "POSTGRADUATE"
             ? `${cc.semester} meses`
-            : `${cc.semester}º semestre`
+            : Number(cc.semester) === 1
+              ? "1 semestre"
+              : `${cc.semester} semestres`
           : "—";
     const basePrice = Number(item.unitPrice) || 0;
     const promoPrice =
@@ -750,24 +752,28 @@ export function DealProductsSection({
     return item.productKind === "COURSE" && item.productType !== "SERVICE";
   }
 
-  async function loadConfiguredProductMessage(item: DealProductItem): Promise<string | null> {
+  async function loadConfiguredProductMessage(item: DealProductItem): Promise<{
+    text?: string | null;
+    gradeUrl?: string | null;
+    gradeFileName?: string | null;
+    gradeMime?: string | null;
+  } | null> {
     const params = new URLSearchParams();
     if (item.unitPrice != null) params.set("unitPrice", String(item.unitPrice));
     if (item.discount != null) params.set("discount", String(item.discount));
     if (item.quantity != null) params.set("quantity", String(item.quantity));
     const res = await fetch(apiUrl(`/api/products/${item.productId}/message?${params}`));
     if (!res.ok) return null;
-    const data = (await res.json()) as { text?: string | null };
-    return data.text?.trim() ? data.text : null;
+    const data = (await res.json()) as {
+      text?: string | null;
+      gradeUrl?: string | null;
+      gradeFileName?: string | null;
+      gradeMime?: string | null;
+    };
+    return data;
   }
 
   async function messageForProductItem(item: DealProductItem): Promise<string> {
-    try {
-      const configured = await loadConfiguredProductMessage(item);
-      if (configured) return configured;
-    } catch {
-      // sem modelo: segue o texto atual
-    }
     if (usesCourseOfferCopy(item)) {
       try {
         const message = await loadCourseOfferMessage(item);
@@ -786,22 +792,35 @@ export function DealProductsSection({
     try {
       const steps: ComposerInsertStep[] = [];
       for (const item of list) {
-        const text = (await messageForProductItem(item)).trim();
+        const configured = await loadConfiguredProductMessage(item).catch(() => null);
+        const text = (
+          configured?.text?.trim() || (await messageForProductItem(item))
+        ).trim();
         if (!text) continue;
         const imageUrl =
           typeof item.imageUrl === "string" ? item.imageUrl.trim() : "";
+        const gradeUrl =
+          typeof configured?.gradeUrl === "string" ? configured.gradeUrl.trim() : "";
+        const media: NonNullable<ComposerInsertStep["media"]> = [];
+        if (imageUrl) {
+          media.push({
+            url: imageUrl,
+            name: item.imageName ?? null,
+            mimeType: item.imageMime ?? null,
+            sendBeforeText: true,
+          });
+        }
+        if (gradeUrl) {
+          media.push({
+            url: gradeUrl,
+            name: configured?.gradeFileName ?? null,
+            mimeType: configured?.gradeMime ?? null,
+            sendBeforeText: false,
+          });
+        }
         steps.push({
           text,
-          media: imageUrl
-            ? [
-                {
-                  url: imageUrl,
-                  name: item.imageName ?? null,
-                  mimeType: item.imageMime ?? null,
-                  sendBeforeText: true,
-                },
-              ]
-            : [],
+          media,
           productId: item.productId,
         });
       }
