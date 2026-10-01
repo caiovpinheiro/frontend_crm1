@@ -137,7 +137,7 @@ export function InboxAlertsSettings() {
           Como cada pessoa é avisada de mensagem recebida. A configuração do usuário vale
           inteira; sem ela, vale a soma dos departamentos configurados dele; sem nenhuma,
           o padrão. &quot;Windows&quot; inclui o push com o navegador fechado. &quot;Aba&quot; é o
-          ícone da aba onde a conversa está aberta, que vira um balão com &quot;(1)&quot; no título fora de foco. O agente
+          ícone da aba do CRM, que vira um balão com &quot;(1)&quot; no título enquanto a pessoa está em outra aba ou janela. O agente
           ainda pode silenciar o som no próprio computador.
         </p>
 

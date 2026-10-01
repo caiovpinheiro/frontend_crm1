@@ -59,14 +59,18 @@ type MessageToastContextValue = {
    * - `toast` (padrão `true`): toast in-page, fora da conversa aberta;
    * - `native`: notificação do sistema com a aba oculta — mesmo na
    *   conversa aberta, com a mesma tag do Web Push para o SO substituir;
-   * - `tab`: ícone de balão no favicon DESTA aba se a conversa está
-   *   aberta nela e a janela está fora de foco. Volta ao normal ao focar.
+   * - `tab`: ícone de balão no favicon da aba quando a janela está fora de
+   *   foco — com qualquer tela aberta, não só a da conversa. Volta ao normal
+   *   quando o operador foca qualquer aba do CRM.
    */
   notifyInboxMessage: (payload: InboxMessageToastPayload, options?: InboxNotifyOptions) => void;
   notifyTeamChatMessage: (payload: TeamChatToastPayload) => void;
 };
 
 const MessageToastContext = createContext<MessageToastContextValue | null>(null);
+
+/** Marca, entre abas, que o operador voltou ao CRM (apaga o balão das outras). */
+const TAB_ALERT_SEEN_KEY = "inbox:tab-alert-seen";
 
 export function useMessageToast() {
   const ctx = useContext(MessageToastContext);
@@ -340,13 +344,30 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
     setMounted(true);
   }, []);
 
-  // Ícone da aba (canal `tab`) volta ao normal quando o operador volta a ela.
+  // Ícone da aba (canal `tab`) volta ao normal quando o operador volta ao
+  // CRM. O aviso acende em todas as abas abertas; focar uma delas apaga o
+  // das outras (evento `storage`), senão ficava um balão velho nas demais.
   useEffect(() => {
     const clear = () => {
       if (isTabAlertActive()) setTabAlert(false);
     };
-    window.addEventListener("focus", clear);
-    return () => window.removeEventListener("focus", clear);
+    const onFocus = () => {
+      clear();
+      try {
+        window.localStorage.setItem(TAB_ALERT_SEEN_KEY, String(Date.now()));
+      } catch {
+        /* armazenamento indisponível: só esta aba é limpa */
+      }
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === TAB_ALERT_SEEN_KEY) clear();
+    };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const registerActiveConversation = useCallback(
@@ -367,10 +388,12 @@ export function MessageToastProvider({ children }: { children: React.ReactNode }
       // Antes do corte da conversa aberta e do dedupe: com a aba oculta o
       // operador não vê a conversa, e a tag por conversa já substitui.
       if (options?.native) showInboxNativeNotification(conversationId, payload);
-      const isOpenHere = activeConversationsRef.current.has(conversationId);
-      if (options?.tab && isOpenHere && !document.hasFocus()) {
+      // Visual da aba: vale para quem está em outra aba ou janela, com
+      // qualquer tela do CRM aberta. Não depende do som nem do toast.
+      if (options?.tab && !document.hasFocus()) {
         setTabAlert(true);
       }
+      const isOpenHere = activeConversationsRef.current.has(conversationId);
       if (isOpenHere) return;
       if (options?.toast === false) return;
 
