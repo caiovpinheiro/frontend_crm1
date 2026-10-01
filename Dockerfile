@@ -16,6 +16,9 @@ ENV NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
 ENV AUTH_SECRET=${AUTH_SECRET}
 
 COPY package.json package-lock.json* ./
+# SheetJS versionado no repo (`xlsx` = file:vendor/xlsx-0.20.3.tgz): o
+# `npm ci` precisa do tarball antes do `COPY . .`.
+COPY vendor ./vendor
 # Cache do npm entre builds (BuildKit cache mount) -- reduz ~30s por build.
 RUN --mount=type=cache,target=/root/.npm \
     npm ci 2>/dev/null || npm install
