@@ -1,3 +1,4 @@
+import { handleSessionRevoked, isSessionRevoked } from "@/lib/session-revoked";
 import { getTenantBaseDomain } from "@/lib/tenant-url";
 
 /**
@@ -250,6 +251,9 @@ export async function parseApiResponse<T>(
   const payloadCode = typeof data.code === "string" ? data.code : undefined;
 
   if (res.status === 401) {
+    // Sessão revogada no servidor (troca de senha / sair de todos os
+    // dispositivos): signOut + login, uma vez (`session-revoked.ts`).
+    if (isSessionRevoked(res.status, payloadCode)) handleSessionRevoked();
     throw new ApiError(
       payloadMessage && payloadCode !== "AUTH_REQUIRED"
         ? payloadMessage

@@ -91,6 +91,10 @@ vi.mock("@/features/inbox-v2/hooks", async () => {
   };
 });
 
+vi.mock("@/features/inbox-v2/hooks/use-conversation-typing", () => ({
+  useConversationTyping: () => null,
+}));
+
 vi.mock("@/features/inbox-v2/adapters", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/inbox-v2/adapters")>();
   return {

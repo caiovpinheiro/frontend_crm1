@@ -12,6 +12,7 @@ import {
   messagesKey,
 } from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
+import { scheduledMessagesKey } from "./use-scheduled-messages";
 import {
   conversationUpdatedLikelyOnTabs,
   inboxQueueTabFor,
@@ -997,6 +998,12 @@ export function useInboxRealtime(options: {
       const openId = activeRef.current;
       if (openId) {
         qc.refetchQueries({ queryKey: messagesKey(openId) });
+        // O banner de agendados só faz poll com o SSE fora; o que mudou
+        // durante o gap (`scheduled_message_updated` perdido) entra aqui.
+        qc.invalidateQueries({
+          queryKey: scheduledMessagesKey(openId),
+          refetchType: "active",
+        });
       }
     }
 
@@ -1353,6 +1360,20 @@ export function useInboxRealtime(options: {
         const me = userIdRef.current;
         if (!me || data?.userId !== me) return;
         qc.invalidateQueries({ queryKey: ["my-agent-status", me] });
+      },
+
+      // Agendamento criado/cancelado/enviado/falhou na conversa — o banner
+      // (`useScheduledMessages`) refaz o GET só se a conversa está aberta
+      // em alguma aba desta página (query ativa); o poll de 60s vira
+      // fallback para quando o SSE está desconectado.
+      scheduled_message_updated: (raw: unknown) => {
+        const data = raw as { conversationId?: string } | undefined;
+        const id = data?.conversationId;
+        if (!id) return;
+        qc.invalidateQueries({
+          queryKey: scheduledMessagesKey(id),
+          refetchType: "active",
+        });
       },
 
       // Ciclo de vida de automações (robô iniciou/avançou/terminou) —

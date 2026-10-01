@@ -133,6 +133,11 @@ interface ChatAreaProps {
   /** Slot opcional que substitui os botoes do canto direito do header. */
   headerActionsSlot?: React.ReactNode
   /**
+   * "Fulano está digitando…" ao lado do avatar no header (evento SSE
+   * `typing`, ver `useConversationTyping`). `null`/vazio esconde.
+   */
+  typingHint?: string | null
+  /**
    * Controle externo da busca na conversa (ex.: item "Buscar na conversa"
    * do kebab). O botão de lupa no header sempre existe; este ref só
    * permite abrir de fora.
@@ -271,6 +276,7 @@ export function ChatArea({
   inputDisabled,
   composerSlot,
   headerActionsSlot,
+  typingHint,
   searchControlRef,
   conversationNumber,
   conversationId,
@@ -826,6 +832,18 @@ export function ChatArea({
               size={AVATAR_SIZE.lg}
             />
           </TooltipGlass>
+
+          {/* Outro agente digitando nesta conversa (SSE `typing`). Some
+              sozinho em até 5s; `aria-live` avisa leitores de tela. */}
+          {typingHint ? (
+            <span
+              aria-live="polite"
+              data-testid="chat-typing-hint"
+              className="max-w-[40%] shrink-0 truncate text-xs italic text-[var(--text-muted)]"
+            >
+              {typingHint}
+            </span>
+          ) : null}
 
           {/* Header enxuto: sem badge de tipo (CLIENTE/LEAD) nem chip
               "Encerrada" (status resolvido vira faixa verde abaixo). O nº da
