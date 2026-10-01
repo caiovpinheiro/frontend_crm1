@@ -1,5 +1,6 @@
 "use client";
 
+import { isSingleLeaderEnabled } from "./sse-single-leader";
 import {
   tabCoordinatorFor,
   type TabCoordinator,
@@ -267,7 +268,9 @@ function leaveBeacon(entityType: string, entityId: string): void {
 
 export function browserPresenceEnv(): PresenceEnv {
   return {
-    tabs: tabCoordinatorFor("crm"),
+    // Chave desligada: aba isolada (bate sozinha). O `useEntityViewers`
+    // nem chega aqui nesse modo — usa o caminho legado.
+    tabs: isSingleLeaderEnabled() ? tabCoordinatorFor("crm") : null,
     heartbeat: postHeartbeat,
     leave: leaveBeacon,
     isHidden: () => typeof document !== "undefined" && document.hidden,
