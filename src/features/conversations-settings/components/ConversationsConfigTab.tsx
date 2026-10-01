@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   IconArrowBackUp,
   IconArrowRight,
-  IconDotsVertical,
+  IconCircleCheck,
   IconHourglass,
   IconMail,
   IconMicrophone,
@@ -198,11 +198,11 @@ export function ConversationsConfigTab() {
             disabled={busy}
           />
           <ToggleRow
-            icon={<IconDotsVertical size={20} />}
-            label="Encerrar e reabrir no menu ⋮"
-            description="Exibe Encerrar/Reabrir conversa no menu de ações do chat. Desligado, ficam só no botão ao lado do número da conversa."
-            checked={settings.showResolveInMenu}
-            onChange={(v) => save("showResolveInMenu", v)}
+            icon={<IconCircleCheck size={20} />}
+            label="Encerrar e reabrir no Kanban e no Flow"
+            description="Exibe o botão de Encerrar/Reabrir conversa, ao lado do número da conversa, quando o chat é aberto pelo Kanban ou pelo Flow. Desligado, só dá para encerrar e reabrir pela inbox."
+            checked={settings.showResolveInFunnel}
+            onChange={(v) => save("showResolveInFunnel", v)}
             disabled={busy}
           />
           <SelectRow

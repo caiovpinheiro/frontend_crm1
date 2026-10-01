@@ -1089,32 +1089,8 @@ export function SalesHubView({
                     conversationId={activeConversation.id}
                     conversationNumber={activeConversation.number}
                     contactId={activeContactId}
-                    contactName={
-                      activeDeal?.contact?.name ??
-                      detailDeal?.name ??
-                      null
-                    }
                     isResolved={activeConversation.status === "RESOLVED"}
                     onSearchInConversation={() => chatSearchRef.current?.open()}
-                    assigneeId={activeConversation.assignedToId ?? null}
-                    departmentId={
-                      activeConversation.departmentId ??
-                      activeConversation.department?.id ??
-                      null
-                    }
-                    requireTabulationOnClose={
-                      activeConversation.department?.requireTabulationOnClose ??
-                      false
-                    }
-                    onResolved={() => {
-                      queryClient.invalidateQueries({
-                        queryKey: [
-                          "saleshub-contact-conversations",
-                          activeContactId,
-                        ],
-                      });
-                    }}
-                    onReopenNewConversation={handleConversationReopened}
                   />
                 </>
               }
