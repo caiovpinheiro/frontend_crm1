@@ -33,10 +33,8 @@ import {
 } from "../inbox-queue-tab";
 import {
   collapseInboxCardRows,
-  inboxCardGroupKey,
   sameInboxCardGroup,
 } from "../inbox-card-group";
-import { messageActivityTimestamp } from "@/lib/message-activity-sort";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
 /**
@@ -115,21 +113,7 @@ export type InboxPageParam =
 /** Página agregada das filas em paralelo carrega os cursores de cada fila. */
 export type InboxListPage = ConversationListResponse & {
   tabsCursor?: InboxTabsCursor;
-  /** Alguma resposta da página veio do backend com cursor (campo `nextCursor`). */
-  cursorMode?: boolean;
-  /** `Date.now()` de quando a página chegou (ordem estável, ver `useConversations`). */
-  receivedAt?: number;
 };
-
-/**
- * Backend com cursor: `total` e `page` da resposta não são do filtro (o DEV
- * devolve `perPage + 1` e `1` em toda página). Só o backend antigo, sem
- * `nextCursor`, manda um total confiável.
- */
-function pageIsCursorMode(page: InboxListPage | undefined): boolean {
-  if (!page) return false;
-  return page.cursorMode === true || ("nextCursor" in page && !page.tabsCursor);
-}
 
 function pageHasMore(res: ConversationListResponse): boolean {
   if (res.hasMore === true) return true;
@@ -225,7 +209,6 @@ async function listConversationsTaggedByTab(args: {
     hasMore,
     nextCursor: null,
     tabsCursor,
-    cursorMode: pages.some((p) => "nextCursor" in p.res),
   };
 }
 
@@ -319,44 +302,6 @@ export function fetchInboxConversationsPage(args: {
   });
 }
 
-const NO_TIERS: ReadonlyMap<string, number> = new Map();
-
-/**
- * Faixa de cada card na lista: o índice da página em que o grupo
- * contato+canal apareceu primeiro.
- *
- * O servidor pagina por `updatedAt`; a tela ordena pela última mensagem.
- * Sem as faixas, cards de uma página nova caíam ACIMA do fim da lista —
- * fora da vista de quem rolou até o fim, empurrando a lista por cima e
- * segurando a sentinela visível (scroll anchoring) → rajada de páginas.
- * Com as faixas, cada página entra depois das anteriores e o que já estava
- * na tela não se mexe.
- *
- * Card com mensagem DEPOIS de a página dele chegar (evento SSE) volta à
- * faixa 0: mensagem nova continua subindo o card para o topo.
- */
-export function inboxListTiers(
-  pages: readonly InboxListPage[],
-  items: readonly ConversationListRow[],
-): ReadonlyMap<string, number> {
-  const byGroup = new Map<string, number>();
-  pages.forEach((page, index) => {
-    for (const row of page?.items ?? []) {
-      if (!row?.id) continue;
-      const fresh =
-        page.receivedAt != null &&
-        messageActivityTimestamp(row.lastMessageAt, row.lastInboundAt) > page.receivedAt;
-      const tier = fresh ? 0 : index;
-      const key = inboxCardGroupKey(row);
-      const prev = byGroup.get(key);
-      byGroup.set(key, prev == null ? tier : Math.min(prev, tier));
-    }
-  });
-  const tiers = new Map<string, number>();
-  for (const row of items) tiers.set(row.id, byGroup.get(inboxCardGroupKey(row)) ?? 0);
-  return tiers;
-}
-
 /** Aquece a lista + badges da visão atual (shell autenticado → /inbox). */
 export function prefetchInboxWarmCache(
   queryClient: QueryClient,
@@ -402,15 +347,13 @@ export function useConversations(params: {
   const parallelTabs = tabsForParallelFetch(params.tab);
   const query = useInfiniteQuery<InboxListPage>({
     queryKey: [INBOX_CONVERSATIONS_QUERY_PREFIX, tabKey, params.filters, params.search],
-    queryFn: async ({ pageParam }) => ({
-      ...(await fetchInboxConversationsPage({
+    queryFn: ({ pageParam }) =>
+      fetchInboxConversationsPage({
         tab: params.tab,
         filters: params.filters,
         search: params.search,
         pageParam,
-      })),
-      receivedAt: Date.now(),
-    }),
+      }),
     initialPageParam: 1 as InboxPageParam,
     // "Carregar mais" busca SÓ a página seguinte (keyset) e anexa; as
     // páginas já carregadas ficam como estão (o SSE as mantém em dia).
@@ -452,13 +395,10 @@ export function useConversations(params: {
     const items = collapseInboxCardRows(flat);
     const last = pages[pages.length - 1];
     const anyMore = pages.some((p) => p?.hasMore === true);
-    const cursorMode = pages.some(pageIsCursorMode);
     return {
       items,
-      // Modo cursor: o servidor não manda o total do filtro (vem perPage+1).
-      // Quem precisa do total usa os contadores das filas (`?counts=1`).
-      total: cursorMode ? undefined : last.total,
-      page: cursorMode ? pages.length : last.page,
+      total: last.total,
+      page: last.page,
       perPage: last.perPage,
       // Com cursores por fila a última página já diz se alguma fila continua.
       hasMore:
@@ -467,18 +407,8 @@ export function useConversations(params: {
     };
   }, [query.data, parallelTabs]);
 
-  const listTiers = useMemo(
-    () => (query.data ? inboxListTiers(query.data.pages, data?.items ?? []) : NO_TIERS),
-    [query.data, data],
-  );
-
   return {
     data,
-    /**
-     * Página de origem de cada card (id → 0, 1, 2…): quem ordena a lista
-     * põe cada página DEPOIS das anteriores. Ver `inboxListTiers`.
-     */
-    listTiers,
     isLoading: query.isLoading,
     isPending: query.isPending,
     isFetched: query.isFetched,
