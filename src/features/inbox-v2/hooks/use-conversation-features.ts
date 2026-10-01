@@ -21,7 +21,7 @@ import {
 export interface ConversationFeatures {
   agentSignatureEnabled: boolean;
   agentSignatureEditable: boolean;
-  /** "Encerrar conversa" no menu ⋮ do chat — default false. */
+  /** "Encerrar/Reabrir conversa" no menu ⋮ do chat — default false. */
   showResolveInMenu: boolean;
 }
 
