@@ -475,11 +475,16 @@ export default function KanbanV2ClientPage({
     // tags, datas, etc.). Filtros só-cliente (ex.: faixa de valor) ainda
     // passam pelo bloco abaixo.
     if (hasServerBoard) {
+      const selectedStageIds = filters.stageIds ?? [];
+      const scoped =
+        selectedStageIds.length > 0
+          ? board.filter((stage) => selectedStageIds.includes(stage.id))
+          : board;
       const vMin = filters.valueFrom != null ? Number(filters.valueFrom) : null;
       const vMax = filters.valueTo != null ? Number(filters.valueTo) : null;
       const hasValue = vMin !== null || vMax !== null;
-      if (!hasValue) return board;
-      return board.map((stage) => {
+      if (!hasValue) return scoped;
+      return scoped.map((stage) => {
         const deals = stage.deals.filter((d) => {
           const val = Number(d.value) || 0;
           if (vMin !== null && val < vMin) return false;
