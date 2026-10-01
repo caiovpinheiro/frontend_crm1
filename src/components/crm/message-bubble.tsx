@@ -20,10 +20,30 @@ import {
 import { StatusTicks } from "@/components/crm/status-ticks"
 import { UserAvatar } from "@/components/crm/user-avatar"
 import { avatarInitials } from "@/lib/avatar"
-import { resolveChatMediaUrl } from "@/lib/chat-media-url"
 import { apiUrl } from "@/lib/api"
 import { EventRow, NoteRow } from "@/components/crm/chat-timeline"
 import type { Message, MessageBubbleProps } from "./message-bubble/types"
+import {
+  AUTOMATION_ACCENT,
+  AUTOMATION_BG,
+  AUTOMATION_TEXT,
+  CAMPAIGN_ACCENT,
+  MENU_LONG_PRESS_MS,
+  QUICK_REACTIONS,
+} from "./message-bubble/constants"
+import { useDeliveryStale } from "./message-bubble/delivery-stale"
+import {
+  detectMediaKind,
+  documentLabel,
+  formatWhatsapp,
+  isPlaceholderContent,
+  mediaFileLabel,
+  resolveMediaUrl,
+} from "./message-bubble/media-helpers"
+import { templateBadgeInfo } from "./message-bubble/template-badge"
+
+export { STALE_DELIVERY_MS, isDeliveryStale } from "./message-bubble/delivery-stale"
+export { templateBadgeInfo } from "./message-bubble/template-badge"
 
 export type { FormField, Message, MessageBubbleProps } from "./message-bubble/types"
 import { PhoneIncoming, PhoneOff, PhoneOutgoing, ShoppingBag } from "lucide-react"
@@ -112,98 +132,10 @@ import {
   IconStarFilled,
   IconSpeakerphone,
   IconPhone,
-  IconTool,
-  IconShieldCheck,
   IconClockExclamation,
   IconRefresh,
 } from "@tabler/icons-react"
 
-type MediaKind = "image" | "audio" | "video" | "document" | null
-
-/** Normaliza a URL de mídia para o host da API (mesmo critério do `fetch`). */
-function resolveMediaUrl(url: string | null | undefined): string | null {
-  return resolveChatMediaUrl(url)
-}
-
-/** Deriva o tipo de mídia a partir do messageType e, como fallback, da extensão da URL. */
-function detectMediaKind(messageType: string | undefined, mediaUrl: string | null | undefined): MediaKind {
-  const mt = String(messageType ?? "").toLowerCase()
-  if ((mt === "whatsapp_call_recording" || mt === "sip_call") && mediaUrl) return "audio"
-  if (mt === "image" || mt === "sticker") return "image"
-  if (mt === "audio" || mt === "ptt" || mt === "voice") return "audio"
-  if (mt === "video") return "video"
-  if (mt === "document") return "document"
-  const u = mediaUrl ?? ""
-  if (/\.(jpg|jpeg|png|gif|webp)($|\?)/i.test(u)) return "image"
-  if (/\.(webm|ogg|mp3|wav|m4a|aac|amr|opus)($|\?)/i.test(u)) return "audio"
-  if (/\.(mp4|mov|avi|3gp)($|\?)/i.test(u)) return "video"
-  if (mediaUrl) return "document"
-  return null
-}
-
-/**
- * Renderiza a formatação inline do WhatsApp em nós React:
- *   *negrito*  _itálico_  ~tachado~  `monoespaçado`
- * Usado para que a assinatura do agente (`*Nome*:`) e qualquer mensagem
- * formatada apareçam como o cliente vê no WhatsApp — sem asteriscos crus.
- */
-function formatWhatsapp(text: string): ReactNode {
-  if (!text) return text
-  const tokenRe = /(\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|`[^`\n]+`)/g
-  const parts: ReactNode[] = []
-  let last = 0
-  let key = 0
-  let m: RegExpExecArray | null
-  while ((m = tokenRe.exec(text)) !== null) {
-    if (m.index > last) parts.push(text.slice(last, m.index))
-    const tok = m[0]
-    const inner = tok.slice(1, -1)
-    switch (tok[0]) {
-      case "*":
-        parts.push(<strong key={key++} className="font-semibold">{inner}</strong>)
-        break
-      case "_":
-        parts.push(<em key={key++}>{inner}</em>)
-        break
-      case "~":
-        parts.push(<s key={key++}>{inner}</s>)
-        break
-      default:
-        parts.push(
-          <code key={key++} className="rounded bg-black/10 px-1 font-mono text-[0.92em]">
-            {inner}
-          </code>,
-        )
-    }
-    last = m.index + tok.length
-  }
-  if (last < text.length) parts.push(text.slice(last))
-  return parts.length ? parts : text
-}
-
-/** Texto-placeholder do backend (ex.: "[video]", "[image] 👁") não deve virar legenda. */
-function isPlaceholderContent(content: string): boolean {
-  const c = content.trim()
-  if (!c) return true
-  return /^\[[^\]]+\]\s*(👁)?$/.test(c)
-}
-
-/** Nome do arquivo para documentos: tira o prefixo "📎" e o sufixo view-once. */
-function documentLabel(content: string): string {
-  const c = content
-    .replace(/^📎\s*/, "")
-    .replace(/\s*👁\s*$/, "")
-    .trim()
-  return c || "Documento"
-}
-
-function mediaFileLabel(content: string, fallback: string): string {
-  if (content && !isPlaceholderContent(content)) {
-    const named = documentLabel(content)
-    if (named && named !== "Documento") return named
-  }
-  return fallback
-}
 
 /** Card compacto no lugar de preview preto/quebrado (vídeo/imagem). */
 function MediaFallback({
@@ -270,95 +202,8 @@ function MediaFallback({
 }
 
 
-/** Sem `delivered`/`read` por mais que isto: aviso "entrega não confirmada". */
-export const STALE_DELIVERY_MS = 5 * 60_000
 
-/**
- * Mensagem ficou em `sent`/`pending` sem virar `delivered` por > 5 min.
- * Pode ser número pausado, quality rating rebaixado ou mensagem engolida
- * pela Cloud API — não é falha definitiva (o sweeper marca `failed`
- * depois), só um aviso proativo pro operador.
- */
-export function isDeliveryStale(
-  status: Message["status"],
-  createdAt: string | undefined,
-  now: number = Date.now(),
-): boolean {
-  if (status !== "sent" && status !== "pending") return false
-  if (!createdAt) return false
-  const ts = Date.parse(createdAt)
-  if (!Number.isFinite(ts)) return false
-  return now - ts > STALE_DELIVERY_MS
-}
 
-/**
- * Reavalia sozinho quando o limite de 5 min é cruzado com a bolha na tela:
- * agenda um re-render para esse instante (setState só no timer, nunca no
- * corpo do effect).
- */
-function useDeliveryStale(status: Message["status"], createdAt: string | undefined): boolean {
-  const [, bump] = useState(0)
-  useEffect(() => {
-    if ((status !== "sent" && status !== "pending") || !createdAt) return
-    const ts = Date.parse(createdAt)
-    if (!Number.isFinite(ts)) return
-    const remaining = ts + STALE_DELIVERY_MS - Date.now() + 250
-    if (remaining <= 0) return
-    const timer = setTimeout(() => bump((n) => n + 1), remaining)
-    return () => clearTimeout(timer)
-  }, [status, createdAt])
-  return isDeliveryStale(status, createdAt)
-}
-
-/**
- * Badge do template WABA: categoria (custo) + nome no tooltip. Sem
- * categoria conhecida cai no rótulo genérico "Template".
- */
-export function templateBadgeInfo(
-  meta: Message["templateMeta"] | undefined,
-): {
-  label: string
-  category: "marketing" | "utility" | "authentication" | null
-  title: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
-} {
-  const cat = (meta?.category ?? "").trim().toLowerCase()
-  const isMkt = cat === "marketing"
-  const isUtility = cat === "utility" || cat === "utilidade"
-  const isAuth = cat === "authentication" || cat.includes("autentica")
-  const label = isMkt ? "Marketing" : isUtility ? "Utility" : isAuth ? "Autenticação" : "Template"
-  const hint = isMkt
-    ? "Custo mais alto — mensagem promocional"
-    : isUtility
-      ? "Custo moderado — mensagem transacional"
-      : isAuth
-        ? "Custo baixo — autenticação"
-        : "Modelo de mensagem aprovado pela Meta"
-  const name = meta?.name?.trim()
-  return {
-    label,
-    category: isMkt ? "marketing" : isUtility ? "utility" : isAuth ? "authentication" : null,
-    title: name ? `${label} · ${name} — ${hint}` : `${label} — ${hint}`,
-    icon: isMkt ? IconSpeakerphone : isUtility ? IconTool : isAuth ? IconShieldCheck : IconFile,
-  }
-}
-
-/** Emojis exibidos na barra rápida de reações — padrão WhatsApp. */
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"] as const
-/** Toque longo na bolha abre o menu de ações (padrão WhatsApp mobile). */
-const MENU_LONG_PRESS_MS = 450
-
-/**
- * Paleta da bolha de AUTOMAÇÃO: cinza escuro com texto claro. Hardcoded —
- * invariante ao data-chat-theme e ao modo dark/light, garantindo contraste
- * do texto, dos badges e dos ticks (inclusive o azul de "lida") em qualquer
- * tema. `ACCENT` (violeta) segue como cor do avatar do robô.
- */
-const AUTOMATION_BG = "#374151"
-const AUTOMATION_TEXT = "#f3f4f6"
-const AUTOMATION_ACCENT = "#6c5ce7"
-/** Accent do avatar de campanha (teal) — distinto do violeta de automação. */
-const CAMPAIGN_ACCENT = "#0d9488"
 
 /**
  * Botões de resposta rápida (interactive/template) — replicam o visual do
