@@ -38,6 +38,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { apiUrl } from "@/lib/api";
 import { SETTINGS_HUB_BACK } from "../_v2-shell";
 import { AddAutomationDrawer } from "./add-automation-drawer";
+import { DuplicateDealsSetting } from "./duplicate-deals-setting";
 import { LostStageReasonsPanel } from "./lost-stage-reasons";
 import {
   conditionsEqual,
@@ -2337,6 +2338,8 @@ export default function PipelineSettingsClientPage() {
               />
             }
           />
+
+          {pipelineId ? <DuplicateDealsSetting pipelineId={pipelineId} /> : null}
 
           {/* Board de estágios */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
