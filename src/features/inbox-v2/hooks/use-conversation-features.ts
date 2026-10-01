@@ -21,7 +21,15 @@ import {
 export interface ConversationFeatures {
   agentSignatureEnabled: boolean;
   agentSignatureEditable: boolean;
+  /** "Encerrar conversa" no menu ⋮ do chat — default false. */
+  showResolveInMenu: boolean;
 }
+
+const DEFAULT_FEATURES: ConversationFeatures = {
+  agentSignatureEnabled: true,
+  agentSignatureEditable: true,
+  showResolveInMenu: false,
+};
 
 // P1-2: mesma query key do `useInboxSettings` (mesmo endpoint) — este
 // hook virou um `select` sobre o cache compartilhado, sem request próprio.
@@ -31,6 +39,7 @@ function selectConversationFeatures(s: InboxSettings): ConversationFeatures {
   return {
     agentSignatureEnabled: s.agentSignatureEnabled,
     agentSignatureEditable: s.agentSignatureEditable,
+    showResolveInMenu: s.showResolveInMenu,
   };
 }
 
@@ -44,7 +53,7 @@ export function useConversationFeatures() {
   });
 
   return {
-    features: data ?? { agentSignatureEnabled: true, agentSignatureEditable: true },
+    features: data ?? DEFAULT_FEATURES,
     ...rest,
   };
 }

@@ -52,6 +52,7 @@ export const DEAL_FILTER_URL_KEYS = [
   "name",
   "status",
   "stages",
+  "allstages",
   "owner",
   "tags",
   "tagmode",
@@ -154,6 +155,7 @@ export function dealFiltersToUrlParams(
     name: f.search?.trim() ? f.search.trim() : null,
     status: encodeCsv(f.statuses),
     stages: encodeCsv(f.stageIds),
+    allstages: f.showAllStages ? "1" : null,
     owner: encodeIdsWithNone(f.ownerIds, f.withoutOwner === true),
     tags: encodeIdsWithNone(f.tagIds, f.withoutTags === true),
     tagmode: f.tagIds?.length && f.tagMode && f.tagMode !== "any" ? f.tagMode : null,
@@ -207,6 +209,7 @@ export function dealFiltersFromUrlParams(
 
   const stageIds = decodeCsv(params.get("stages"));
   if (stageIds.length) out.stageIds = stageIds;
+  if (decodeBool(params.get("allstages")) === true) out.showAllStages = true;
 
   const owner = decodeIdsWithNone(params.get("owner"));
   if (owner.ids.length) out.ownerIds = owner.ids;

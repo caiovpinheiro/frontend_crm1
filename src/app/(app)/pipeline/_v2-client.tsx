@@ -93,6 +93,10 @@ import {
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
+import {
+  filtersForVisibleStages,
+  visibleBoardStages,
+} from "@/features/pipeline-v2/stage-visibility";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
@@ -281,6 +285,8 @@ export default function KanbanV2ClientPage({
 
   const mergedFilters = useMemo(() => {
     const f: AdvancedDealFilters = { ...filters };
+    // Só UI (colunas Ganho/Perdido) — não vai ao servidor.
+    delete f.showAllStages;
     const q = normalizeSearchQuery(debouncedSearch);
     if (q) f.search = q;
     else delete f.search;
@@ -511,8 +517,10 @@ export default function KanbanV2ClientPage({
     const vMax = filters.valueTo != null ? Number(filters.valueTo) : null;
     const hasValue = vMin !== null || vMax !== null;
 
+    // `showAllStages` só mostra colunas — não filtra cards nem mexe no total.
     const noFilters =
-      !hasSearch && !hasOwner && !hasTag && !hasStage && !hasValue && !hasLostReason && isEmptyFilters(filters);
+      !hasSearch && !hasOwner && !hasTag && !hasStage && !hasValue && !hasLostReason &&
+      isEmptyFilters({ ...filters, showAllStages: undefined });
     // Quando há QUALQUER filtro client-side ativo o `totalCount` que veio
     // do backend (não filtrado) precisa ser sobrescrito pelo número real
     // de deals visíveis — caso contrário o badge da coluna fica preso no
@@ -594,9 +602,21 @@ export default function KanbanV2ClientPage({
     return filteredBoard.filter((s) => stageGrants.includes(s.id));
   }, [filteredBoard, myPerms?.stageGrants]);
 
+  // Ganho/Perdido ocultos por padrão; o filtro de Etapas os revela.
+  // Menus de mover/drawer seguem com o `board` completo.
+  const visibleStages = useMemo(
+    () => visibleBoardStages(stageGrantsFiltered, filters),
+    [stageGrantsFiltered, filters],
+  );
+  // Escopo server-side (lote "todos do filtro", exportar) = colunas visíveis.
+  const visibleScopeFilters = useMemo(
+    () => filtersForVisibleStages(mergedFilters, visibleStages, stageGrantsFiltered),
+    [mergedFilters, visibleStages, stageGrantsFiltered],
+  );
+
   const columns: KanbanColumnView[] = useMemo(
-    () => toKanbanColumns(stageGrantsFiltered),
-    [stageGrantsFiltered],
+    () => toKanbanColumns(visibleStages),
+    [visibleStages],
   );
 
   // ── Contagem total do board ──────────────────────────────────────
@@ -605,11 +625,11 @@ export default function KanbanV2ClientPage({
   // real por etapa (groupBy respeitando o filtro), não só os cards carregados.
   const filteredTotal = useMemo(
     () =>
-      stageGrantsFiltered.reduce(
+      visibleStages.reduce(
         (acc, s) => acc + (s.totalCount ?? s.deals.length),
         0,
       ),
-    [stageGrantsFiltered],
+    [visibleStages],
   );
 
   // Total do funil SEM filtro. Vem do board não filtrado, que o React Query
@@ -637,7 +657,7 @@ export default function KanbanV2ClientPage({
   // resolve os IDs a partir do mesmo filtro/visibilidade do board.
   const scopeContext = useMemo<BulkScopeContext | undefined>(() => {
     if (!pipelineId) return undefined;
-    const boardForScope = stageGrantsFiltered;
+    const boardForScope = visibleStages;
     const pipelineTotal = filteredTotal;
     // Habilita o escopo "etapa" só quando TODA a seleção está numa única etapa.
     let stage: { id: string; name: string; total: number } | null = null;
@@ -650,12 +670,12 @@ export default function KanbanV2ClientPage({
         stage = { id: s.id, name: s.name, total: s.totalCount ?? s.deals.length };
       }
     }
-    return { pipelineId, status, filters: mergedFilters, pipelineTotal, stage };
+    return { pipelineId, status, filters: visibleScopeFilters, pipelineTotal, stage };
   }, [
     pipelineId,
-    stageGrantsFiltered,
+    visibleStages,
     selectedIds,
-    mergedFilters,
+    visibleScopeFilters,
     status,
     filteredTotal,
   ]);
@@ -1054,6 +1074,7 @@ export default function KanbanV2ClientPage({
               sortKey={sortKey}
               onSortKeyChange={(k) => setSortKey(k)}
               pipelineId={pipelineId}
+              boardStages
               onFilterPanelOpenChange={setFilterPanelOpen}
               onPickDeal={(deal) => {
                 const dest = deal.stage?.pipelineId;
@@ -1191,7 +1212,7 @@ export default function KanbanV2ClientPage({
           bump={bump}
           exportScope={{
             pipelineId,
-            filters: mergedFilters,
+            filters: visibleScopeFilters,
             status,
             filteredTotal,
             pipelineTotal: pipelineTotalUnfiltered,

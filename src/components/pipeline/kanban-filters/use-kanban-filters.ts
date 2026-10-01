@@ -171,8 +171,11 @@ export function useKanbanFilters(): UseKanbanFiltersResult {
     applyUrlParams(patchParams, userEdit.current ? "push" : "replace");
     userEdit.current = false;
     try {
-      if (isEmptyFilters(filters)) localStorage.removeItem(LS_KEY);
-      else localStorage.setItem(LS_KEY, JSON.stringify(filters));
+      // "Exibir todas as fases" não é lembrado: cada abertura volta com
+      // Ganho/Perdido ocultos (a URL ainda carrega o estado atual).
+      const { showAllStages: _all, ...persisted } = filters;
+      if (isEmptyFilters(persisted)) localStorage.removeItem(LS_KEY);
+      else localStorage.setItem(LS_KEY, JSON.stringify(persisted));
     } catch {
       /* noop */
     }
