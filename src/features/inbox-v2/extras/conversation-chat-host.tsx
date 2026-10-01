@@ -607,17 +607,10 @@ export function ConversationChatHost({
             conversationId={conversationId}
             conversationNumber={conversationNumber}
             contactId={contactId}
-            contactName={contactName}
             isResolved={isResolved}
-            assigneeId={assignedToId}
             dealId={dealId ?? null}
-            departmentId={departmentId ?? null}
-            requireTabulationOnClose={requireTabulationOnClose ?? false}
-            hideResolveItem
             onSearchInConversation={openSearch}
             onOpenFavorites={openFavorites}
-            onReopenNewConversation={onConversationReopened}
-            onResolved={onResolved}
           />
         ) : null}
       </>
@@ -713,6 +706,7 @@ export function ConversationChatHost({
             }
             isResolved={isResolved}
             hideResolveInMenu
+            hideResolveButton={convFeatures.showResolveInFunnel === false}
             contactId={contactId}
             contactName={contactName}
             dealId={dealId ?? null}

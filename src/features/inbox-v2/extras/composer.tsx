@@ -95,6 +95,7 @@ export function Composer({
   placeholder,
   isResolved,
   hideResolveInMenu,
+  hideResolveButton,
   contactId,
   contactName,
   dealId,
@@ -704,6 +705,7 @@ export function Composer({
           conversationNumber={conversationNumber}
           conversationId={conversationId}
           isResolved={isResolved}
+          hideResolveButton={hideResolveButton}
           departmentId={departmentId}
           assignedToId={assignedToId}
           requireTabulationOnClose={requireTabulationOnClose}
