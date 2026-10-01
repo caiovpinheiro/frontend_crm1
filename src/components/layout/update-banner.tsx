@@ -26,14 +26,15 @@ import { IconSparkles, IconX, IconChevronUp, IconRefresh } from "@tabler/icons-r
 import { useSession } from "next-auth/react";
 import * as React from "react";
 
-import { clearWebCachesAndReload, fetchAppRevision } from "@/lib/hard-reload";
+import { clearWebCachesAndReload } from "@/lib/hard-reload";
 import { cn } from "@/lib/utils";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { CLIENT_REVISION, useAppRevision } from "@/hooks/use-app-revision";
+import { APP_REVISION_POLL_MS } from "@/lib/shell-polling";
 
 const STORAGE_KEY = "crm_last_seen_version";
 const APP_VERSION = (process.env.NEXT_PUBLIC_APP_VERSION ?? "").trim();
-const CLIENT_REVISION = (process.env.NEXT_PUBLIC_BUILD_ID ?? "").trim();
-const POLL_INTERVAL_MS = 3 * 60 * 1_000;
+const POLL_INTERVAL_MS = APP_REVISION_POLL_MS;
 
 type Section = Record<string, string[]>;
 type Release = {
@@ -150,16 +151,8 @@ export function UpdateAvailableBanner() {
     refetchIntervalInBackground: false,
   });
 
-  const { data: remoteRevision } = useQuery({
-    queryKey: ["app-revision"],
-    queryFn: fetchAppRevision,
-    enabled: pollingEnabled && CLIENT_REVISION !== "" && CLIENT_REVISION !== "dev",
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    refetchInterval: visible ? POLL_INTERVAL_MS : false,
-    refetchIntervalInBackground: false,
-  });
+  // Query compartilhada com o `MobileAppUpdateDialog` (FE-18).
+  const { data: remoteRevision } = useAppRevision(pollingEnabled);
 
   const [lastSeen, setLastSeen] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);

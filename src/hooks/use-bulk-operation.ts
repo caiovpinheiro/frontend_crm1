@@ -26,6 +26,9 @@ export type BulkOperationStatus =
 export type BulkOperationType =
   | "DEAL_BULK_MOVE_STAGE"
   | "DEAL_BULK_UPDATE_FIELDS"
+  | "DEAL_BULK_CHANGE_OWNER"
+  | "DEAL_BULK_MARK_WON"
+  | "DEAL_BULK_MARK_LOST"
   | (string & {});
 
 export type BulkOperationErrorEntry = {

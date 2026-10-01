@@ -11,6 +11,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { apiUrl } from "@/lib/api";
+import { fromShellBootstrap } from "@/lib/shell-bootstrap";
 
 export type MyPermissionsData = {
   permissions: string[];
@@ -29,13 +30,20 @@ export function useMyPermissions() {
 
   return useQuery({
     queryKey: ["my-permissions", id],
-    queryFn: async (): Promise<MyPermissionsData> => {
-      const res = await fetch(apiUrl(`/api/users/${id}/effective-permissions`));
-      if (!res.ok) {
-        throw new Error("Falha ao carregar permissões.");
-      }
-      return res.json();
-    },
+    // Bloco `effectivePermissions` do bootstrap do shell quando ele está
+    // em voo; senão o GET de sempre (ver lib/shell-bootstrap.ts).
+    queryFn: (ctx) =>
+      fromShellBootstrap<MyPermissionsData>(
+        ctx.client,
+        (p) => p.effectivePermissions as MyPermissionsData | null,
+        async () => {
+          const res = await fetch(apiUrl(`/api/users/${id}/effective-permissions`));
+          if (!res.ok) {
+            throw new Error("Falha ao carregar permissões.");
+          }
+          return res.json();
+        },
+      ),
     enabled: !!id,
     staleTime: 5 * 60_000,
     placeholderData: keepPreviousData,

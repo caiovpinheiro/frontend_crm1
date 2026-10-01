@@ -27,6 +27,9 @@ import { cn } from "@/lib/utils";
 const TYPE_LABELS: Partial<Record<BulkOperationType, string>> = {
   DEAL_BULK_MOVE_STAGE: "Mover negócios entre etapas",
   DEAL_BULK_UPDATE_FIELDS: "Atualizar campos personalizados",
+  DEAL_BULK_CHANGE_OWNER: "Trocar responsável",
+  DEAL_BULK_MARK_WON: "Marcar negócios como ganhos",
+  DEAL_BULK_MARK_LOST: "Marcar negócios como perdidos",
 };
 
 const STATUS_LABELS: Record<BulkOperationStatus, string> = {

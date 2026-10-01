@@ -20,7 +20,17 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { isSafeHref } from "@/lib/safe-href";
 import { EMPTY_KEEP_DOC, type KeepDoc } from "./types";
+
+const linkExtension = Link.configure({
+  openOnClick: false,
+  autolink: true,
+  defaultProtocol: "https",
+  protocols: ["http", "https", "mailto", "tel"],
+  isAllowedUri: (url, ctx) =>
+    !!url && ctx.defaultValidate(url) && isSafeHref(url),
+});
 
 const extensions = [
   StarterKit.configure({
@@ -29,7 +39,7 @@ const extensions = [
     code: false,
   }),
   Underline,
-  Link.configure({ openOnClick: false, autolink: true }),
+  linkExtension,
   Image.configure({ inline: false, allowBase64: false }),
   TaskList,
   TaskItem.configure({ nested: true }),
@@ -97,6 +107,7 @@ function KeepToolbar({ editor }: { editor: Editor }) {
             editor.chain().focus().unsetLink().run();
             return;
           }
+          if (!isSafeHref(href)) return;
           editor.chain().focus().setLink({ href }).run();
         }}
       >

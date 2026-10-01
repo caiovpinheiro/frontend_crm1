@@ -13,6 +13,8 @@ import { NewTabulationModal } from "@/app/(app)/settings/tabulations/client-page
 import { TagFormDialog } from "@/app/(app)/settings/tags/client-page";
 import { EditUserDialog } from "@/app/(app)/settings/team/edit-user-dialog";
 import { WidgetConfigDrawer } from "@/app/(app)/widgets/_components/widget-config-drawer";
+import { AgentPlayground } from "@/components/ai-agents/agent-playground";
+import { AgentWizard } from "@/components/ai-agents/agent-wizard";
 import { StepPickerModal } from "@/components/automations/step-picker-modal";
 import { CreateChannelDialog } from "@/components/channels/create-channel-dialog";
 import { ActivityDetailDialog } from "@/components/crm/activities/activity-detail-dialog";
@@ -32,6 +34,7 @@ import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
 import { AvatarCropDialog } from "@/components/profile/avatar-crop-dialog";
 import { FormDialog, formLabelClass } from "@/components/ui/form-dialog";
 import { InputGlass } from "@/components/crm/input-glass";
+import { CockpitCasesDialog } from "@/features/ai-agents/academic-cockpit/cases-dialog";
 import { NewAutomationModal } from "@/features/automations-v2/new-automation-modal";
 import { CampaignDetailDrawer } from "@/features/campaigns/campaign-detail-drawer";
 import type { CampaignListItem } from "@/features/campaigns/types";
@@ -79,7 +82,7 @@ const MOCK_CHANNELS = [
     type: "WHATSAPP",
     provider: "META",
     status: "CONNECTED",
-    phoneNumber: "+55 11 90000-0001",
+    phoneNumber: "+55 11 99999-0017",
   },
   {
     id: "ch-2",
@@ -87,7 +90,7 @@ const MOCK_CHANNELS = [
     type: "WHATSAPP",
     provider: "META",
     status: "CONNECTED",
-    phoneNumber: "+55 11 90000-0002",
+    phoneNumber: "+55 11 99999-0018",
   },
 ];
 
@@ -116,7 +119,7 @@ const MOCK_FILTER_OPTIONS: FilterOptionsResponse = {
 
 const MOCK_EMAIL_ACCOUNT: EmailAccount = {
   id: "acc-1",
-  email: "contato@empresa.com",
+  email: "contato@example.com",
   imapHost: "imap.exemplo.com",
   imapPort: 993,
   imapEncryption: "SSL_TLS",
@@ -149,7 +152,7 @@ const MOCK_CAMPAIGN: CampaignListItem = {
   createdAt: new Date().toISOString(),
   channel: { id: "ch-wa-main", name: "WhatsApp Principal", provider: "meta" },
   segment: { id: "seg-1", name: "Clientes ativos" },
-  createdBy: { id: "user-demo", name: "Marcelo Silva" },
+  createdBy: { id: "user-demo", name: "Gestor Demo" },
 };
 
 const MOCK_ROOM: TeamChatRoom = {
@@ -189,7 +192,7 @@ const MOCK_LOG: LogEntry = {
   conversationNumber: 42,
   contactLabel: "Maria Silva",
   dealLabel: "Plano anual",
-  contactPhone: "+5511999990000",
+  contactPhone: "+5511999990056",
   stepType: "send_whatsapp_message",
   eventLabel: "Envio",
   channelLabel: "WhatsApp Vendas",
@@ -237,7 +240,7 @@ const LIVE: Record<string, React.ComponentType<HostProps>> = {
     return (
       <ContactEditDialog
         contactId="showcase-contact"
-        initial={{ name: "Maria Silva", email: "maria@empresa.com", phone: "(11) 99999-0000" }}
+        initial={{ name: "Maria Silva", email: "maria@example.com", phone: "(11) 99999-0056" }}
         open
         onOpenChange={closeWhen(onClose)}
       />
@@ -324,7 +327,7 @@ const LIVE: Record<string, React.ComponentType<HostProps>> = {
   "user-edit": function UserEdit({ onClose }) {
     return (
       <EditUserDialog
-        user={{ id: "u-showcase", name: "Ana Souza", email: "ana@empresa.com" }}
+        user={{ id: "u-showcase", name: "Ana Souza", email: "ana@example.com" }}
         roleOptions={[
           { value: "AGENT", label: "Agente" },
           { value: "ADMIN", label: "Administrador" },
@@ -578,6 +581,24 @@ const LIVE: Record<string, React.ComponentType<HostProps>> = {
   },
   "flow-step": function FlowStep({ onClose }) {
     return <FlowStepPickerModal open onClose={onClose} onSelect={() => onClose()} />;
+  },
+  "agent-wizard": function Wizard({ onClose }) {
+    return <AgentWizard open onOpenChange={closeWhen(onClose)} onCreated={() => onClose()} />;
+  },
+  "agent-playground": function Playground({ onClose }) {
+    return (
+      <AgentPlayground
+        agentId="showcase-agent"
+        agentName="Agente demo"
+        open
+        onOpenChange={closeWhen(onClose)}
+      />
+    );
+  },
+  "cockpit-cases": function Cockpit({ onClose }) {
+    return (
+      <CockpitCasesDialog open={{ key: "spoke_today", title: "Falou hoje" }} onClose={onClose} />
+    );
   },
   "logs-modal": function Logs({ onClose }) {
     return (

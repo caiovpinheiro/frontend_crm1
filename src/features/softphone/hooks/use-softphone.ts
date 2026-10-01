@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { SipCredentials } from "../api/types";
@@ -472,7 +473,7 @@ export function useSoftphone() {
       // interação recente; o user clicou em "Ligar" há ms, então deve
       // ter "user gesture" válido.
       moduleAudio.play().catch((err) => {
-        console.warn("[softphone] audio.play() bloqueado:", err);
+        logger.warn("softphone", "audio.play() bloqueado", err);
       });
     };
   }

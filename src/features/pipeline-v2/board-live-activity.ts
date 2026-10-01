@@ -5,6 +5,12 @@ type BoardDeal = BoardStageDto["deals"][number];
 
 export type ActivityPreview = {
   contactId?: string;
+  /**
+   * Cards que o evento declarou afetados (`dealIds` do `new_message`).
+   * Casa o card pelo id além do contato — o evento pode vir sem
+   * `contactId`, e a lista do servidor pode estar até 60 s atrasada.
+   */
+  dealIds?: ReadonlySet<string> | null;
   direction?: string | null;
   /**
    * `null` = evento sem texto (redigido no servidor: o usuário não lista
@@ -27,7 +33,8 @@ export function foldActivityOntoDeal<T extends BoardDeal>(
   deal: T,
   data: ActivityPreview,
 ): { deal: T; matched: boolean; changed: boolean } {
-  if (!data.contactId || deal.contact?.id !== data.contactId) {
+  const byContact = !!data.contactId && deal.contact?.id === data.contactId;
+  if (!byContact && !data.dealIds?.has(deal.id)) {
     return { deal, matched: false, changed: false };
   }
   const direction =

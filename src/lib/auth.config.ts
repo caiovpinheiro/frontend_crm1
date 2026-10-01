@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 
 import type { AppUserRole } from "./auth-types";
+import { logger } from "./logger";
 
 /**
  * Config compartilhada (sem Prisma) para uso no middleware Edge / RSC.
@@ -23,7 +24,7 @@ export default {
   logger: {
     error(error: Error) {
       if (error?.name === "JWTSessionError") return;
-      console.error(error);
+      logger.error("auth", error?.name ?? "erro", error);
     },
   },
   /** Em HTTPS, cookies só por canal seguro (mitiga roubo de sessão em redes mistas). */

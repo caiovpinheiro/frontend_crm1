@@ -5,8 +5,6 @@ export type BoardDeal = {
   title: string;
   value: number | string;
   status: string;
-  /** Motivo da perda — preenchido quando status = LOST. */
-  lostReason?: string | null;
   position: number;
   expectedClose: string | null;
   createdAt: string;
@@ -15,13 +13,15 @@ export type BoardDeal = {
   priority?: "HIGH" | "MEDIUM" | "LOW";
   contact: {
     id: string;
-    /** Número sequencial do contato por org. */
-    number?: number | null;
     name: string;
     email: string | null;
     phone?: string | null;
     avatarUrl?: string | null;
+    /** Número sequencial do contato, quando a API manda. */
+    number?: number | null;
   } | null;
+  /** Motivo de perda (deal LOST), quando a API manda. */
+  lostReason?: string | null;
   /**
    * Responsável único do deal. Por regra de herança, o mesmo
    * usuário também é o responsável do contato (Contact.assignedTo)

@@ -6,8 +6,7 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
 import { syncNativeStatusBar } from "@/lib/native/capacitor";
 import { isPreviewMode } from "@/lib/preview-mode";
-import { fetchSidebarPreferences } from "@/features/sidebar/api";
-import { SIDEBAR_PREFS_KEY } from "@/features/sidebar/hooks";
+import { SIDEBAR_PREFS_KEY, sidebarPreferencesQueryFn } from "@/features/sidebar/hooks";
 
 export type ThemeV2 = "light" | "dark";
 
@@ -119,7 +118,8 @@ function ensureServerSync(qc: QueryClient): Promise<void> {
     try {
       const data = await qc.fetchQuery({
         queryKey: SIDEBAR_PREFS_KEY,
-        queryFn: fetchSidebarPreferences,
+        // Mesmo queryFn da sidebar: aproveita o bootstrap do shell em voo.
+        queryFn: sidebarPreferencesQueryFn,
         staleTime: 60_000,
         // Fail-fast como o fetch cru anterior (sem o retry padrão do RQ).
         retry: false,

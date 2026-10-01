@@ -21,14 +21,14 @@ import {
 export interface ConversationFeatures {
   agentSignatureEnabled: boolean;
   agentSignatureEditable: boolean;
-  /** "Encerrar/Reabrir conversa" no menu ⋮ do chat — default false. */
-  showResolveInMenu: boolean;
+  /** Botão Encerrar/Reabrir no chat aberto pelo Kanban/Flow — default true. */
+  showResolveInFunnel: boolean;
 }
 
 const DEFAULT_FEATURES: ConversationFeatures = {
   agentSignatureEnabled: true,
   agentSignatureEditable: true,
-  showResolveInMenu: false,
+  showResolveInFunnel: true,
 };
 
 // P1-2: mesma query key do `useInboxSettings` (mesmo endpoint) — este
@@ -39,7 +39,7 @@ function selectConversationFeatures(s: InboxSettings): ConversationFeatures {
   return {
     agentSignatureEnabled: s.agentSignatureEnabled,
     agentSignatureEditable: s.agentSignatureEditable,
-    showResolveInMenu: s.showResolveInMenu,
+    showResolveInFunnel: s.showResolveInFunnel,
   };
 }
 

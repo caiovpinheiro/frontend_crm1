@@ -71,14 +71,14 @@ import { cn } from "@/lib/utils";
 const CONTACT_TEMPLATE = `Nome,E-mail,Telefone,Ciclo de vida,Origem,Empresa,Responsável,E-mail do responsável
 João Silva,joao.silva@empresa.com,+5511999990001,LEAD,Site,Acme Tecnologia,,admin@empresa.com
 Maria Souza,maria.souza@email.com,+5511999990002,MQL,Indicação,Beta Solutions,,admin@empresa.com
-Pedro Costa,pedro.costa@gmail.com,+5511999990003,SQL,Google Ads,Gamma Group,,admin@empresa.com
-Ana Pereira,ana.pereira@outlook.com,+5511999990004,OPPORTUNITY,Facebook Ads,Delta Comercio,,admin@empresa.com
-Lucas Ribeiro,lucas.ribeiro@uol.com.br,+5521999990005,LEAD,Webinar,Epsilon Servicos,,admin@empresa.com
-Beatriz Almeida,beatriz.almeida@hotmail.com,+5521999990006,CUSTOMER,Site,Zeta Industria,,admin@empresa.com
-Rafael Santos,rafael.santos@yahoo.com,+5531999990007,LEAD,LinkedIn,Eta Consultoria,,admin@empresa.com
+Pedro Costa,pedro.costa@example.com,+5511999990003,SQL,Google Ads,Gamma Group,,admin@empresa.com
+Ana Pereira,ana.pereira@example.com,+5511999990004,OPPORTUNITY,Facebook Ads,Delta Comercio,,admin@empresa.com
+Lucas Ribeiro,lucas.ribeiro@example.com,+5521999990005,LEAD,Webinar,Epsilon Servicos,,admin@empresa.com
+Beatriz Almeida,beatriz.almeida@example.com,+5521999990006,CUSTOMER,Site,Zeta Industria,,admin@empresa.com
+Rafael Santos,rafael.santos@example.com,+5531999990007,LEAD,LinkedIn,Eta Consultoria,,admin@empresa.com
 Juliana Oliveira,juliana.oliveira@empresa.com,+5531999990008,SUBSCRIBER,Newsletter,Theta Educacao,,admin@empresa.com
-Marcos Rocha,marcos.rocha@gmail.com,+5541999990009,SQL,Indicação,Iota Marketing,,admin@empresa.com
-Carla Mendes,carla.mendes@outlook.com,+5541999990010,MQL,Google Ads,Kappa Logistica,,admin@empresa.com`;
+Marcos Rocha,marcos.rocha@example.com,+5541999990009,SQL,Indicação,Iota Marketing,,admin@empresa.com
+Carla Mendes,carla.mendes@example.com,+5541999990010,MQL,Google Ads,Kappa Logistica,,admin@empresa.com`;
 
 /**
  * Template Kommo PT-BR — espelha o CSV oficial de exportação do Kommo
@@ -93,7 +93,7 @@ Carla Mendes,carla.mendes@outlook.com,+5541999990010,MQL,Google Ads,Kappa Logist
  */
 const DEAL_TEMPLATE = `Título do lead;Venda do lead;Usuário responsável;Status do lead;Tags do lead;Nome completo do contato;Nome da empresa;Email comercial (contato);Email privado (contato);Telefone comercial (contato);Telefone residencial (contato);Outro telefone (contato)
 Implantação CRM - Acme;"12.500,00";admin@empresa.com;Qualificado;importacao;João Silva;Acme Tecnologia;joao.silva@acme.com.br;;+55 11 98888-0001;;
-Pacote Premium - Beta;"8.900,50";admin@empresa.com;Proposta;importacao;Maria Souza;Beta Solutions;maria.souza@beta.com.br;maria.s@gmail.com;+55 11 98888-0002;+55 11 3000-0002;
+Pacote Premium - Beta;"8.900,50";admin@empresa.com;Proposta;importacao;Maria Souza;Beta Solutions;maria.souza@beta.com.br;maria.s@example.com;+55 11 98888-0002;+55 11 3000-0002;
 Renovação - Gamma Group;"24.000,00";admin@empresa.com;Negociação;importacao,renovacao;Pedro Costa;Gamma Group;pedro@gamma.com.br;;;+55 11 3000-0003;
 Onboarding - Delta;"4.500,00";admin@empresa.com;Fechamento;importacao;Ana Lima;Delta Comércio;ana.lima@delta.com.br;;+55 21 98888-0004;;
 Treinamento - Epsilon;"3.200,00";admin@empresa.com;Novo;importacao;Bruno Alves;Epsilon Serviços;bruno@epsilon.io;;+55 21 98888-0005;;

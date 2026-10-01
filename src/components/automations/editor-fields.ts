@@ -1,7 +1,8 @@
 /**
  * Esquema declarativo dos campos de edição inline por tipo de ação.
- * Espelha o painel real (`step-config-panel.tsx`) mas em formato de dados,
- * para o renderizador inline montar a UI sem 29 blocos JSX à mão.
+ * Fonte única dos campos, em formato de dados (o antigo painel modal
+ * `step-config-panel.tsx` foi removido), para o renderizador inline montar
+ * a UI sem 29 blocos JSX à mão.
  */
 import type { Opt } from "./editor-data"
 
@@ -120,7 +121,7 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "select", key: "target", label: "Aplicar em", options: ASSIGN_TARGET_OPTS },
   ],
   // Sem esta entrada o canvas não monta o seletor — o bloco ficava só com
-  // "Selecionar departamento" (StepConfigPanel existe mas não é mais usado).
+  // "Selecionar departamento" (o antigo StepConfigPanel foi removido).
   transfer_department: [
     { kind: "source", source: "department", key: "departmentId", label: "Departamento de destino" },
   ],
@@ -193,8 +194,8 @@ export const STEP_FIELDS: Record<string, EditorField[]> = {
     { kind: "text", key: "caption", label: "Legenda", optional: true },
     ...META_FAILURE_FIELDS,
   ],
-  // Sem esta entrada o canvas não monta o seletor (StepConfigPanel não é
-  // mais o caminho principal — edição é inline via STEP_FIELDS).
+  // Sem esta entrada o canvas não monta o seletor (a edição é inline via
+  // STEP_FIELDS; o antigo StepConfigPanel foi removido).
   send_product: [
     { kind: "channelPicker" },
     { kind: "sendProductConfig" },

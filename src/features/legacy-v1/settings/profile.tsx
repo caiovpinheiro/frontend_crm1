@@ -10,7 +10,8 @@ import { apiUrl } from "@/lib/api";
  *
  *  - ESQUERDA "Dados do seu perfil": avatar editável (upload), nome,
  *    assinatura, telefone, toggle de mensagem de finalização + textarea.
- *  - DIREITA "Trocar senha": senha atual + nova + confirmação. (Os Tokens
+ *  - DIREITA "Trocar senha": senha atual + nova + confirmação, e "Outros
+ *    dispositivos" — em `components/profile/password-card.tsx`. (Os Tokens
  *    de Acesso foram movidos para Segurança › API — fonte única.)
  *
  * O upload de avatar faz POST em `/api/profile/avatar` e apenas atualiza
@@ -26,7 +27,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { IconAlertTriangle as AlertTriangle, IconCamera as Camera, IconCheck as Check, IconFingerprint as Fingerprint, IconInfoCircle as Info, IconKey as Key, IconLoader2 as Loader2, IconRefresh as RefreshCw, IconSparkles as Sparkles } from "@tabler/icons-react";
+import { IconAlertTriangle as AlertTriangle, IconCamera as Camera, IconCheck as Check, IconFingerprint as Fingerprint, IconInfoCircle as Info, IconLoader2 as Loader2, IconRefresh as RefreshCw, IconSparkles as Sparkles } from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import { ButtonGlass } from "@/components/crm/button-glass";
@@ -44,6 +45,7 @@ import {
 } from "@/lib/chat-theme";
 import { cn } from "@/lib/utils";
 import { AvatarCropDialog } from "@/components/profile/avatar-crop-dialog";
+import { PasswordCard } from "@/components/profile/password-card";
 import { UserAvatar } from "@/components/crm/user-avatar";
 
 /**
@@ -369,126 +371,6 @@ export default function ProfilePage() {
 }
 
 /* ────────────────────────────────────────────────────────────────
-   CARD — Trocar senha
-   ──────────────────────────────────────────────────────────── */
-
-function PasswordCard() {
-  const [currentPassword, setCurrentPassword] = React.useState("");
-  const [newPassword, setNewPassword] = React.useState("");
-  const [confirmPassword, setConfirmPassword] = React.useState("");
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const r = await fetch(apiUrl("/api/profile"), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        throw new Error(
-          typeof (j as { message?: string }).message === "string"
-            ? (j as { message: string }).message
-            : "Erro ao trocar a senha",
-        );
-      }
-      return j;
-    },
-    onSuccess: () => {
-      toast.success("Senha atualizada");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
-  const tooShort = newPassword.length > 0 && newPassword.length < 8;
-  const canSubmit =
-    currentPassword.length > 0 &&
-    newPassword.length >= 8 &&
-    newPassword === confirmPassword &&
-    !mutation.isPending;
-
-  return (
-    <GlassCard variant="overlay" className="min-w-0 p-5 sm:p-8">
-      <h2 className="font-display text-lg font-bold text-[var(--text-primary)]">
-        Trocar senha
-      </h2>
-      <p className="mt-1 max-w-md text-sm leading-snug text-[var(--text-muted)]">
-        Informe sua senha atual e escolha uma nova com pelo menos 8 caracteres.
-      </p>
-
-      <form
-        className="mt-6 space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (canSubmit) mutation.mutate();
-        }}
-      >
-        <Field id="current-password" label="Senha atual" required>
-          <InputGlass
-            id="current-password"
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </Field>
-
-        <Field
-          id="new-password"
-          label="Nova senha"
-          hint={tooShort ? "Use pelo menos 8 caracteres." : undefined}
-          required
-        >
-          <InputGlass
-            id="new-password"
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
-        </Field>
-
-        <Field
-          id="confirm-password"
-          label="Confirmar nova senha"
-          hint={mismatch ? "As senhas não coincidem." : undefined}
-          required
-        >
-          <InputGlass
-            id="confirm-password"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
-        </Field>
-
-        <ButtonGlass
-          type="submit"
-          variant="primary"
-          disabled={!canSubmit}
-          className="mt-2 h-11 w-full text-sm disabled:opacity-60"
-        >
-          {mutation.isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Key className="size-4" />
-          )}
-          Atualizar senha
-        </ButtonGlass>
-      </form>
-    </GlassCard>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────────
    CARD ESQUERDO — Dados do seu perfil
    ──────────────────────────────────────────────────────────── */
 
@@ -746,7 +628,7 @@ function ProfileCard({
               id="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="(11) 96123-4567"
+              placeholder="(11) 99999-0000"
               autoComplete="tel"
               className="h-full flex-1 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
             />

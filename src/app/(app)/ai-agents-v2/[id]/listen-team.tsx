@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MultiSelectPopover } from "@/app/(app)/ai-agents-v2/_components/multi-select-popover";
+import { MultiSelectPopover } from "@/features/dashboard-v2/components/multi-select-popover";
 import { apiFetch, parseApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 

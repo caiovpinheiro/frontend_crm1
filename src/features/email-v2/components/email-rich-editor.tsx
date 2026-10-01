@@ -23,6 +23,7 @@ import {
   IconClearFormatting,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { isSafeHref } from "@/lib/safe-href";
 
 interface Props {
   content?: string;
@@ -83,6 +84,10 @@ export const EmailRichEditor = React.forwardRef<EmailRichEditorHandle, Props>(fu
       Underline,
       Link.configure({
         openOnClick: false,
+        defaultProtocol: "https",
+        protocols: ["http", "https", "mailto", "tel"],
+        isAllowedUri: (url, ctx) =>
+          !!url && ctx.defaultValidate(url) && isSafeHref(url),
         HTMLAttributes: {
           rel: "noopener noreferrer",
           class: "text-[var(--brand-primary)] underline cursor-pointer",
@@ -123,6 +128,7 @@ export const EmailRichEditor = React.forwardRef<EmailRichEditorHandle, Props>(fu
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
       return;
     }
+    if (!isSafeHref(url)) return;
     editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
 

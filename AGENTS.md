@@ -79,3 +79,14 @@ pertence ao backend, não a um workaround no cliente.
 - Não altere `package.json`, `package-lock.json` ou `pnpm-lock.yaml` sem solicitação
   explícita.
 - Não rode install, build, testes, lint ou dev server salvo quando a tarefa exigir.
+
+## Segurança (XSS)
+
+- Mensagens do inbox (WhatsApp/Instagram) renderizam texto React (`formatWhatsapp`); não usar `dangerouslySetInnerHTML` nessas bolhas.
+- Logo da org: upload só por `POST /api/organization/logo` (sem SVG/data URL). Colar URL = https de imagem raster; o backend recusa o resto.
+- 404 de tenant: `unknownTenantHtml` + `escapeHtml` — nunca interpolar slug cru em HTML.
+- TipTap (Keeps / compose de e-mail): `isSafeHref` + protocols http/https/mailto/tel. TipTap 3.26 já recusa `javascript:` no `setLink`/`renderHTML`.
+- E-mail HTML: iframe `sandbox` sem `allow-scripts`. Não acrescentar `allow-scripts`.
+- Widget parceiro: `iframeUrl` só http(s) fora do origin do CRM/API e do `TENANT_BASE_DOMAIN`. Não embutir URL same-origin com `allow-scripts`+`allow-same-origin`.
+- OAuth Instagram: `postMessage` só se `event.source` for o popup aberto e `event.origin` for a página ou `NEXT_PUBLIC_API_BASE_URL`.
+- CSP enforcing / Report-Only: não habilitar até homologar (ver comentário em `next.config.ts`).

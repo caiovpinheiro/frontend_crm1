@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/lib/logger";
 import { apiUrl } from "@/lib/api";
 import { useCallback, useEffect, useState } from "react";
 import { ensureNotificationPermission } from "@/lib/native/permissions";
@@ -81,7 +82,7 @@ export function usePushSubscription(): PushSubscriptionState {
       if (!permissionResult.ok) {
         setError("permission_denied");
         if (isNativePlatform() && permissionResult.error) {
-          console.warn("[push] permissão negada no APK:", permissionResult.error);
+          logger.warn("push", "permissão negada no APK", permissionResult.error);
         }
         return false;
       }
@@ -118,7 +119,7 @@ export function usePushSubscription(): PushSubscriptionState {
       setIsSubscribed(true);
       return true;
     } catch (err) {
-      console.error("[push] subscribe error:", err);
+      logger.error("push", "subscribe error", err);
       setError("subscribe_exception");
       return false;
     } finally {
@@ -147,7 +148,7 @@ export function usePushSubscription(): PushSubscriptionState {
       setIsSubscribed(false);
       return true;
     } catch (err) {
-      console.error("[push] unsubscribe error:", err);
+      logger.error("push", "unsubscribe error", err);
       setError("unsubscribe_exception");
       return false;
     } finally {

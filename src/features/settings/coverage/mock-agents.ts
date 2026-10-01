@@ -45,7 +45,7 @@ function emailFor(name: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  return `${slug}@eduit.com.br`;
+  return `${slug}@example.com`;
 }
 
 let seq = 0;
@@ -73,30 +73,30 @@ function mk(
 }
 
 export const MOCK_COVERAGE_AGENTS: CoverageAgent[] = [
-  mk("Beatriz", schedule("09:00", "18:00", "13:00", "14:00"), [SAC], "ONLINE"),
-  mk("Camila Ferreira", schedule("08:00", "17:00", "13:30", "14:30"), [SAC], "ONLINE"),
-  mk("Camys", schedule("08:00", "18:00", "12:00", "13:00"), [], "OFFLINE", {
+  mk("Alice Demo", schedule("09:00", "18:00", "13:00", "14:00"), [SAC], "ONLINE"),
+  mk("Bruno Demo", schedule("08:00", "17:00", "13:30", "14:30"), [SAC], "ONLINE"),
+  mk("Carla Demo", schedule("08:00", "18:00", "12:00", "13:00"), [], "OFFLINE", {
     participates: false,
   }),
   mk(
-    "Danubia",
+    "Daniel Demo",
     schedule("09:00", "19:00", "14:00", "15:00"),
     [RETENCAO, ACOLHIMENTO],
     "ONLINE",
   ),
-  mk("Eduarda Carvalho", schedule("09:00", "19:00", "14:30", "15:30"), [SAC], "ONLINE"),
-  mk("Felipe Guimaraes", schedule("13:00", "19:00", "16:00", "17:00"), [SAC], "AWAY"),
-  mk("Joyce", schedule("10:00", "19:00", "14:00", "15:00"), [SAC], "ONLINE"),
+  mk("Elisa Demo", schedule("09:00", "19:00", "14:30", "15:30"), [SAC], "ONLINE"),
+  mk("Fábio Demo", schedule("13:00", "19:00", "16:00", "17:00"), [SAC], "AWAY"),
+  mk("Gabriela Demo", schedule("10:00", "19:00", "14:00", "15:00"), [SAC], "ONLINE"),
   mk(
-    "Larissa Dias dos Santos",
+    "Heitor Demo",
     schedule("10:00", "19:00", "15:00", "16:00"),
     [SAC],
     "ONLINE",
   ),
-  mk("Mariana", schedule("08:00", "17:00", "12:30", "13:30"), [SAC], "ONLINE"),
-  mk("Marilia Souza", schedule("09:00", "18:00", "13:00", "14:00"), [ACOLHIMENTO], "ONLINE"),
+  mk("Isabel Demo", schedule("08:00", "17:00", "12:30", "13:30"), [SAC], "ONLINE"),
+  mk("Jorge Demo", schedule("09:00", "18:00", "13:00", "14:00"), [ACOLHIMENTO], "ONLINE"),
   mk(
-    "Wesley Guerreiro",
+    "Lívia Demo",
     schedule("09:00", "18:00", "13:00", "14:00"),
     [RETENCAO, ACOLHIMENTO],
     "ONLINE",

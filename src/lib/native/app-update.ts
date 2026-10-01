@@ -14,7 +14,10 @@
  */
 
 import { getAppUpdatePlugin, isNativePlatform } from "@/lib/native/capacitor";
-import { resolveMobileReleaseManifestUrl } from "@/lib/native/mobile-release-config";
+import {
+  publicApkUrl,
+  resolveMobileReleaseManifestUrl,
+} from "@/lib/native/mobile-release-config";
 
 /** Guarda o versionCode já oferecido — não bloqueia descoberta de versão nova. */
 const PROMPT_KEY = "crm_native_update_prompted";
@@ -63,7 +66,8 @@ function parseMobileRelease(data: Partial<MobileReleaseInfo>): MobileReleaseInfo
   return {
     versionCode: data.versionCode,
     versionName: typeof data.versionName === "string" ? data.versionName : "",
-    apkUrl: typeof data.apkUrl === "string" ? data.apkUrl.trim() : "",
+    // Base pública configurável (no-op sem a env) — ver `mobile-release-config`.
+    apkUrl: typeof data.apkUrl === "string" ? publicApkUrl(data.apkUrl.trim()) : "",
     force: Boolean(data.force),
     notes: typeof data.notes === "string" ? data.notes : "",
   };

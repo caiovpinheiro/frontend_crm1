@@ -120,10 +120,20 @@ const SERVICE_LABELS: Record<string, string> = {
 
 const OPERATOR_LABELS: Record<string, string> = {
   kpis: "Indicadores",
+  inboundStages: "Mensagens recebidas",
   conversations: "Conversas",
   tasks: "Tarefas",
   stalled: "Negócios parados",
 };
+
+/** Quem já salvou a fila não ganha widget novo sozinho. Este entra para todo operador. */
+function withOperatorInbound(order: string[], hidden: string[]): string[] {
+  if (order.includes("inboundStages") || hidden.includes("inboundStages")) return order;
+  const next = [...order];
+  const at = next.indexOf("kpis");
+  next.splice(at >= 0 ? at + 1 : 0, 0, "inboundStages");
+  return next;
+}
 
 interface DashboardV2ClientPageProps {
   navRail?: React.ReactNode;
@@ -238,11 +248,12 @@ function OperatorHome({
   const [search, setSearch] = useState("");
   const [organizing, setOrganizing] = useState(false);
   const [addCardOpen, setAddCardOpen] = useState(false);
-  const { order, reorder, hide, restore } = useDashboardWidgetOrder(
+  const { order, hidden, reorder, hide, restore } = useDashboardWidgetOrder(
     "operator",
     OPERATOR_WIDGET_IDS,
     { allowHide: true },
   );
+  const visibleOrder = useMemo(() => withOperatorInbound(order, hidden), [order, hidden]);
   const painted = useLatchedReady(
     !canFetch || querySettled(query) || Boolean(query.error),
   );
@@ -286,7 +297,7 @@ function OperatorHome({
         {query.data ? (
           <>
             <SortableWidgetStack
-              ids={order}
+              ids={visibleOrder}
               labels={OPERATOR_LABELS}
               onReorder={reorder}
               organizing={organizing}
@@ -305,7 +316,7 @@ function OperatorHome({
               onOpenChange={setAddCardOpen}
               fields={[]}
               stages={[]}
-              presentIds={order}
+              presentIds={visibleOrder}
               presets={OPERATOR_WIDGET_IDS.map((id) => ({
                 id,
                 label: OPERATOR_LABELS[id] ?? id,
@@ -346,10 +357,13 @@ function ManagerHome({
 
   const optionsQuery = useDashboardFilterOptions(canFetch);
   const options = optionsQuery.data;
-  const { filters, patch } = useDashboardFilters(options?.pipelines);
-  // Sem funis resolvidos o `pipeline=8` da URL ainda não virou CUID —
-  // disparar o painel aqui aborta 6 GETs e refaz tudo no tick seguinte.
-  const tabReady = canFetch && optionsQuery.isFetched;
+  const { filters, patch, settled: filtersSettled } = useDashboardFilters(options?.pipelines);
+  // Painéis só com os filtros assentados (funil da URL/localStorage já
+  // resolvido para CUID e restore feito). `isFetched` não bastava: no mesmo
+  // render em que a lista chegava, `pipelineIds` ainda era [] e o efeito de
+  // funil padrão reescrevia os filtros → 7 GETs abortados e refeitos.
+  // Se a lista de opções falhar, libera mesmo assim (backend usa o padrão).
+  const tabReady = canFetch && (filtersSettled || optionsQuery.isError);
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
   const agoraQuery = usePainelAgora(clock, tabReady && isService);
   const serviceQuery = usePainelService(filters, clock, tabReady && isService);

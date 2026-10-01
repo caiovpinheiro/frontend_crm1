@@ -1,0 +1,80 @@
+name: Checks
+
+# Lint + typecheck + testes em todo pull request para main/DEV_BRANCH e em
+# todo push nessas duas branches.
+#
+# Deliberadamente SEM build e SEM deploy: o `build-and-deploy.yml` já roda o
+# `next build` em push para main/DEV_BRANCH e é ele quem publica a imagem e
+# dispara o redeploy. Este workflow não usa secret nem variável do
+# repositório — nenhum dos passos precisa de ambiente (lint, tsc e vitest
+# rodam sobre o código-fonte puro), então PR de fork também roda.
+
+on:
+  pull_request:
+    branches: [main, DEV_BRANCH]
+  push:
+    branches: [main, DEV_BRANCH]
+
+# Um push novo no mesmo PR/branch cancela a execução anterior ainda em
+# andamento (só o último commit importa).
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Mesma versão do `build-and-deploy.yml`.
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run lint` é `next lint && node scripts/ds-scan.mjs`. Aqui roda só
+      # o `next lint` como passo bloqueante: a baseline do ds-scan
+      # (scripts/ds-baseline.json) está defasada em relação à DEV_BRANCH e
+      # regravá-la é decisão de design (ver passo "DS scan" abaixo).
+      - name: Lint
+        run: npx next lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: |
+          set -o pipefail
+          npx vitest run 2>&1 | tee /tmp/vitest.log
+          {
+            echo "### vitest"
+            echo '```'
+            grep -E "Test Files|Tests  " /tmp/vitest.log | tail -4
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Catraca do design system — INFORMATIVA, nunca derruba o job. Hoje ela
+      # falha na DEV_BRANCH porque a tela `ai-agents-v2/[id]` entrou com a
+      # paleta nativa do Tailwind (tailwindNativePalette 581 → 986). Quando a
+      # baseline for decidida (refatorar a tela ou aceitar e documentar em
+      # docs/design-system/DECISOES-PENDENTES.md), troque o passo "Lint" por
+      # `npm run lint` e apague este passo.
+      - name: DS scan (informativo)
+        if: always()
+        run: |
+          node scripts/ds-scan.mjs > /tmp/ds-scan.log 2>&1 || true
+          {
+            echo "### ds-scan (informativo, não bloqueia)"
+            echo '```'
+            head -c 20000 /tmp/ds-scan.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

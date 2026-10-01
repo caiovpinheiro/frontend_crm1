@@ -51,6 +51,7 @@ export const AIAgentArchetype = {
   SUPORTE: "SUPORTE",
   TABULACAO: "TABULACAO",
   ENCERRAMENTO: "ENCERRAMENTO",
+  COORDENADOR: "COORDENADOR",
 } as const;
 export type AIAgentArchetype = (typeof AIAgentArchetype)[keyof typeof AIAgentArchetype];
 

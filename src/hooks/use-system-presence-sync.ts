@@ -7,6 +7,11 @@ import { apiUrl } from "@/lib/api";
 import { useSSE } from "@/hooks/use-sse";
 import { TEAM_USERS_QUERY_PREFIX } from "@/features/shared/queries/team-users";
 
+const PRESENCE_SSE_EVENTS: readonly string[] = [
+  "system_presence_update",
+  "presence_update",
+];
+
 interface SystemPresenceEvent {
   userId: string;
   systemOnline: boolean;
@@ -73,6 +78,7 @@ export function useSystemPresenceSync(enabled = true) {
       }
     },
     enabled,
+    PRESENCE_SSE_EVENTS,
   );
 
   useEffect(() => {

@@ -23,6 +23,7 @@ import {
   IconChevronDown as ChevronDown,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { useScrollLoadMore } from "@/hooks/use-scroll-load-more";
 import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import type { BoardStage } from "@/components/pipeline/kanban-board";
 import { SUBTLE_SPRING } from "@/lib/design-system";
@@ -532,9 +533,10 @@ export function DealQueue({
   const visibleDeals = isStageSwitching ? [] : deals;
 
   // Windowing: monta no DOM só o início da fila e cresce +60 quando o
-  // sentinel entra no viewport. Com funis grandes (500+ deals), evita
-  // montar centenas de cards (e suas mídias/avatars) de uma vez — a
-  // fila renderiza sob demanda conforme o scroll.
+  // sentinel entra no viewport. Vale para o que JÁ veio carregado de uma
+  // vez (board filtrado traz centenas de cards) — evita montar tudo junto.
+  // Página pedida à rede não passa pela janela: entra inteira na tela,
+  // como na coluna do kanban (ver `requestNetworkPage`).
   const QUEUE_PAGE = 60;
   const [renderLimit, setRenderLimit] = useState(QUEUE_PAGE);
   const lastNetworkLoadAtCountRef = useRef(-1);
@@ -581,71 +583,49 @@ export function DealQueue({
     !windowSlice.some((d) => d.id === activeFellBelowWindow.id)
       ? [...windowSlice, activeFellBelowWindow]
       : windowSlice;
-  // O card aberto saiu da janela do topo. Rola até ele no fim da lista visível.
+  // O card aberto saiu da janela do topo. Rola até ele no fim da lista
+  // visível UMA vez, quando ele cai — não a cada card que entra na fila ou
+  // janela que cresce: isso puxava a rolagem para o fim sem o usuário pedir
+  // (e, com a sentinela de volta à tela, encadeava a janela seguinte).
+  const fellBelowId = activeFellBelowWindow?.id ?? null;
   useEffect(() => {
-    if (!activeDealId || activeIdx < effectiveLimit) return;
-    const el = itemRefs.current.get(activeDealId);
+    if (!fellBelowId) return;
+    const el = itemRefs.current.get(fellBelowId);
     el?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [activeDealId, activeIdx, effectiveLimit]);
+  }, [fellBelowId]);
   const hasMoreToRender = visibleDeals.length > effectiveLimit;
-  const queueSentinelRef = useRef<HTMLDivElement>(null);
-  // Dois níveis: 1º janela local (+60); depois rede (+50/etapa).
-  // Sentinel permanece montado durante o fetch (antes sumia e o IO
-  // era destruído). Scroll listener cobre o caso em que o root do
-  // observer não é o scroller real ou o alvo h-px não intersecta.
+  // Dois níveis: 1º janela local (+60); depois rede (uma página por etapa).
+  // Só se pede rede com a janela esgotada; a partir daí o teto sai, senão a
+  // página que chega (30 cards) ficava escondida atrás da janela até outro
+  // gesto — rolar não trazia nada e o botão sumia e voltava.
+  const requestNetworkPage = () => {
+    setRenderLimit(Number.MAX_SAFE_INTEGER);
+    onLoadMore?.();
+  };
+  // Um pedido por gesto de rolagem (`useScrollLoadMore`): a sentinela que
+  // continua visível depois de uma página NÃO encadeia a seguinte — isso
+  // virava rajada de requisições com o botão piscando "Carregando…".
   const showQueueSentinel = hasMoreToRender || hasMoreServer;
-  const hasMoreToRenderRef = useRef(hasMoreToRender);
-  hasMoreToRenderRef.current = hasMoreToRender;
-  const hasMoreServerRef = useRef(hasMoreServer);
-  hasMoreServerRef.current = hasMoreServer;
-  const loadingMoreRef = useRef(loadingMore);
-  loadingMoreRef.current = loadingMore;
-  const onLoadMoreRef = useRef(onLoadMore);
-  onLoadMoreRef.current = onLoadMore;
-  const visibleCountRef = useRef(visibleDeals.length);
-  visibleCountRef.current = visibleDeals.length;
-  useEffect(() => {
-    const root = scrollerRef.current;
-    if (!root || !showQueueSentinel) return;
-
-    const maybeLoad = () => {
-      if (hasMoreToRenderRef.current) {
-        setRenderLimit((n) => n + QUEUE_PAGE);
-        return;
-      }
-      if (!hasMoreServerRef.current || loadingMoreRef.current) return;
-      if (lastNetworkLoadAtCountRef.current === visibleCountRef.current) return;
-      lastNetworkLoadAtCountRef.current = visibleCountRef.current;
-      onLoadMoreRef.current?.();
-    };
-
-    const onScroll = () => {
-      const gap = root.scrollHeight - root.scrollTop - root.clientHeight;
-      if (gap < 360) maybeLoad();
-    };
-    root.addEventListener("scroll", onScroll, { passive: true });
-
-    const el = queueSentinelRef.current;
-    const io = el
-      ? new IntersectionObserver(
-          (entries) => {
-            if (entries[0]?.isIntersecting) maybeLoad();
-          },
-          { root, rootMargin: "400px 0px", threshold: 0 },
-        )
-      : null;
-    if (el && io) io.observe(el);
-
-    const raf = requestAnimationFrame(() => {
-      if (root.scrollHeight <= root.clientHeight + 8) maybeLoad();
-    });
-
-    return () => {
-      cancelAnimationFrame(raf);
-      root.removeEventListener("scroll", onScroll);
-      io?.disconnect();
-    };
-  }, [showQueueSentinel, windowedDeals.length, visibleDeals.length]);
+  const visibleCount = visibleDeals.length;
+  const loadMoreStep = () => {
+    if (hasMoreToRender) {
+      setRenderLimit((n) => n + QUEUE_PAGE);
+      return;
+    }
+    if (!hasMoreServer || loadingMore) return;
+    // Página que não acrescentou card visível (filtro local): só o botão insiste.
+    if (lastNetworkLoadAtCountRef.current === visibleCount) return;
+    lastNetworkLoadAtCountRef.current = visibleCount;
+    requestNetworkPage();
+  };
+  const queueSentinelRef = useScrollLoadMore({
+    scrollerRef,
+    enabled: showQueueSentinel,
+    loading: loadingMore,
+    onLoadMore: loadMoreStep,
+    marginPx: 400,
+    resetKey: `${stageListKey}:${sortMode ?? ""}`,
+  });
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-transparent">
@@ -703,7 +683,7 @@ export function DealQueue({
                   disabled={loadingMore}
                   onClick={() => {
                     lastNetworkLoadAtCountRef.current = -1;
-                    onLoadMore?.();
+                    requestNetworkPage();
                   }}
                   className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-primary/30 bg-primary/5 py-2 text-[11px] font-medium text-primary transition-colors hover:border-primary/50 hover:bg-primary/10 disabled:opacity-60"
                 >

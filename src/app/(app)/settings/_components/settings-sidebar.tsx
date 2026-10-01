@@ -80,7 +80,9 @@ export function SettingsSidebar({
       .sort((a, b) =>
         a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }),
       );
-    const profile = SETTINGS_PERSONAL.filter((p) => p.id === "profile");
+    const profile = SETTINGS_PERSONAL.filter(
+      (p) => p.id === "profile" || p.id === "notifications",
+    );
     const support = SETTINGS_PERSONAL.filter((p) => p.id === "help");
     return [
       ...alphabetical,

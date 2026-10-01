@@ -1,0 +1,161 @@
+/**
+ * Catálogo de ferramentas (tools) do NÚCLEO — as que existem para qualquer
+ * tenant, de qualquer ramo.
+ *
+ * A execução real vive no backend — aqui só descrevemos o que existe e em
+ * que categoria aparece. O id é o que vai pro AIAgentConfig.enabledTools e
+ * também o nome com que o provider LLM chama a tool.
+ *
+ * Ferramenta de um produto (consulta acadêmica, agenda de clínica) NÃO entra
+ * nesta lista: vem do pack do tenant, por `GET /api/ai-agents/tools` — ver
+ * `useToolCatalog`. Fixa aqui, ela aparecia na tela de todo tenant, inclusive
+ * dos que o runtime nem constrói a ferramenta.
+ */
+
+export type ToolCategory = "crm" | "whatsapp" | "handoff";
+
+export type ToolDescriptor = {
+  id: string;
+  label: string;
+  description: string;
+  category: ToolCategory;
+  /// Arquétipos para os quais essa tool faz sentido como default
+  /// (apenas informativo — o admin pode habilitar qualquer combinação).
+  defaultForArchetypes: string[];
+  /// Pack que trouxe a ferramenta. Ausente/`null` = núcleo.
+  pack?: string | null;
+};
+
+export const TOOLS_CATALOG: ToolDescriptor[] = [
+  {
+    id: "create_deal",
+    label: "Criar deal",
+    description:
+      "Cria um novo deal no funil padrão, associado ao contato atual. Útil para SDR ao qualificar um lead novo.",
+    category: "crm",
+    defaultForArchetypes: ["SDR"],
+  },
+  {
+    id: "move_stage",
+    label: "Mover estágio",
+    description:
+      "Move o deal atual para outro estágio do funil. Útil para vendedor quando o lead avança (ex.: Proposta enviada → Negociação).",
+    category: "crm",
+    defaultForArchetypes: ["VENDEDOR"],
+  },
+  {
+    id: "add_tag",
+    label: "Adicionar tag",
+    description:
+      "Aplica uma ou mais tags ao contato/deal. Útil para segmentar leads por interesse ou canal.",
+    category: "crm",
+    defaultForArchetypes: ["SDR", "ATENDIMENTO", "VENDEDOR", "SUPORTE"],
+  },
+  {
+    id: "create_activity",
+    label: "Criar atividade",
+    description:
+      "Registra uma atividade/lembrete vinculada ao deal/contato (ex.: 'Ligar amanhã às 15h').",
+    category: "crm",
+    defaultForArchetypes: ["SDR", "ATENDIMENTO", "VENDEDOR", "SUPORTE"],
+  },
+  {
+    id: "search_products",
+    label: "Consultar catálogo de produtos",
+    description:
+      "Busca produtos/serviços/cursos por nome, SKU ou descrição. Retorna preço em BRL, características e campos personalizados. Fonte de verdade — sem isso o agente inventa valores.",
+    category: "crm",
+    defaultForArchetypes: ["SDR", "VENDEDOR"],
+  },
+  {
+    id: "send_whatsapp_template",
+    label: "Enviar template WhatsApp",
+    description:
+      "Envia um template aprovado pela Meta (ex.: envio de proposta formatada, confirmação de agendamento).",
+    category: "whatsapp",
+    defaultForArchetypes: ["VENDEDOR"],
+  },
+  {
+    id: "transfer_to_department",
+    label: "Rotear para departamento",
+    description:
+      "Classifica o caso e roteia a conversa para um departamento (ex.: Acolhimento, Retenção, Atendimento). Define o departamento responsável usado pela Distribuição Inteligente — sem tirar a conversa do agente.",
+    category: "handoff",
+    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE"],
+  },
+  {
+    id: "execute_distribution",
+    label: "Executar distribuição",
+    description:
+      "Aciona a Distribuição Inteligente para atribuir a conversa ao consultor certo (menor fila, dentro do departamento, respeitando horário/disponibilidade). O motor escolhe a pessoa — o agente não escolhe. Sem ninguém disponível, o lead entra na fila.",
+    category: "handoff",
+    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE"],
+  },
+  {
+    id: "transfer_to_human",
+    label: "Transferir para humano",
+    description:
+      "Tira a conversa do agente de IA e atribui a um operador humano via fila de Distribuição. Usado sempre que o tema sair do escopo do agente.",
+    category: "handoff",
+    defaultForArchetypes: ["SDR", "ATENDIMENTO", "VENDEDOR", "SUPORTE", "ENCERRAMENTO", "COORDENADOR"],
+  },
+  {
+    id: "transfer_to_ai_agent",
+    label: "Transferir para outro agente IA",
+    description:
+      "Entrega a conversa a outro agente de IA da organização, que assume a continuidade do atendimento. Usado pelo agente de primeiro contato para direcionar cada caso ao agente especializado. O aluno recebe um aviso antes da troca, e conversa, contato e negócios abertos passam para o agente de destino.",
+    category: "handoff",
+    defaultForArchetypes: [],
+  },
+  {
+    id: "transfer_conversation",
+    label: "Passar a conversa",
+    description:
+      "Passa a conversa para um departamento (a fila escolhe quem atende), uma pessoa da equipe ou outro agente de IA. Pessoa indisponível vai para a fila do departamento dela.",
+    category: "handoff",
+    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE", "COORDENADOR"],
+  },
+  {
+    id: "close_conversation",
+    label: "Encerrar conversa",
+    description:
+      "Encerra o ticket e dispara a automação de Encerramento. No arquétipo Encerramento também vale depois de atendimento humano.",
+    category: "handoff",
+    defaultForArchetypes: ["ATENDIMENTO", "SUPORTE", "ENCERRAMENTO"],
+  },
+  {
+    id: "list_tabulations",
+    label: "Listar tabulações",
+    description:
+      "Lista as folhas ativas da organização. O classificador escolhe UMA — de preferência do departamento da conversa.",
+    category: "crm",
+    defaultForArchetypes: ["TABULACAO"],
+  },
+  {
+    id: "tabulate_conversation",
+    label: "Tabular conversa",
+    description:
+      "Aplica UMA folha só se o contato trouxe uma demanda. Sem atendimento, não chame. Não encerra e não envia mensagem.",
+    category: "handoff",
+    defaultForArchetypes: ["TABULACAO"],
+  },
+];
+
+export const TOOL_MAP: Record<string, ToolDescriptor> = TOOLS_CATALOG.reduce(
+  (acc, t) => {
+    acc[t.id] = t;
+    return acc;
+  },
+  {} as Record<string, ToolDescriptor>,
+);
+
+export function toolsByCategory(): Record<ToolCategory, ToolDescriptor[]> {
+  return TOOLS_CATALOG.reduce(
+    (acc, t) => {
+      acc[t.category] = acc[t.category] ?? [];
+      acc[t.category].push(t);
+      return acc;
+    },
+    {} as Record<ToolCategory, ToolDescriptor[]>,
+  );
+}

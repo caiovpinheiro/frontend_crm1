@@ -1,7 +1,13 @@
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-// A tela de agentes é a de /ai-agents-v2. Redirect preserva bookmarks,
-// widgets e links antigos.
+import AIAgentsV2ClientPage from "./client-page";
+
+export const dynamic = "force-dynamic";
+
 export default function AIAgentsPage() {
-  redirect("/ai-agents-v2");
+  return (
+    <Suspense fallback={null}>
+      <AIAgentsV2ClientPage />
+    </Suspense>
+  );
 }

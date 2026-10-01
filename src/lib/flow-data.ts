@@ -394,7 +394,7 @@ export const rawNodes: RawNode[] = [
   ),
   stats: S(1262, 0, 237),
   config: {
-  channel: "Acadêmico · +55 11 98980-0401",
+  channel: "Acadêmico · +55 11 99999-0001",
   template: "bv_calouros",
   idioma: "pt_BR",
   mediaFileName: "Primeiro acesso - Tutorial App Duda (1) (1).mp4",

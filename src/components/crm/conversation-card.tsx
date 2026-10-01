@@ -1,5 +1,6 @@
 "use client"
 
+import { memo } from "react"
 import { cn } from "@/lib/utils"
 import { useJustArrived } from "@/lib/just-arrived"
 import { InboundPreview } from "@/components/crm/inbound-preview"
@@ -122,6 +123,12 @@ export interface Conversation {
   /** Fila da inbox para agrupar a lista (entrada, esperando, …). */
   queueTab?: string
   /**
+   * Chave da linha na lista (padrão: `id`). A Inbox usa o grupo
+   * contato+canal: quando um ticket mais novo do mesmo contato substitui
+   * o card, a linha não remonta.
+   */
+  rowKey?: string
+  /**
    * ISO da última atividade (`lastMessageAt ?? lastInboundAt`).
    * Usado só para ordenar a visão multi-fila "Por tempo" (mais antigas primeiro).
    */
@@ -130,6 +137,12 @@ export interface Conversation {
 
 interface ConversationCardProps {
   conversation: Conversation
+  /**
+   * Sobrepõe `conversation.active`. Permite à lista marcar a conversa
+   * aberta sem clonar o objeto (`{...conversation, active}`) — a
+   * identidade do `conversation` é o que deixa o `memo` pular o render.
+   */
+  active?: boolean
   onClick?: () => void
   /**
    * Slot opcional para o popover de troca de responsável. Quando
@@ -224,8 +237,16 @@ export function channelBadge(channel: string | null | undefined): {
 }
 
 
-export function ConversationCard({
+/**
+ * `memo`: a lista do Inbox re-renderiza a cada tecla do composer e a cada
+ * patch SSE. Com `conversation` estável (adapter) e callbacks/slots
+ * estáveis (`ConversationRow` na coluna), o card só renderiza quando a
+ * própria conversa muda. O brilho de chegada (`useJustArrived`) continua
+ * disparando por assinatura, independente do memo.
+ */
+export const ConversationCard = memo(function ConversationCard({
   conversation,
+  active,
   onClick,
   assigneeSlot,
   menuSlot,
@@ -233,6 +254,7 @@ export function ConversationCard({
   selected = false,
   onToggleSelect,
 }: ConversationCardProps) {
+  const isActive = active ?? conversation.active
   // Guarda contra messageType fora do mapa (evita <undefined /> → crash da lista).
   const rawType = conversation.lastMessageType
   const TypeIcon =
@@ -284,7 +306,7 @@ export function ConversationCard({
         "hover:border-primary/40 hover:shadow-[var(--glass-shadow)]",
         // Selecionado: ring inset (ring externo era clipado pelo
         // overflow-y-auto da lista — 1º card perdia a borda de cima).
-        conversation.active &&
+        isActive &&
           "border-[var(--brand-primary)]/55 bg-card ring-2 ring-inset ring-[var(--brand-primary)]/30 shadow-[var(--shadow-indigo-glow)] hover:border-[var(--brand-primary)]/55 hover:bg-card hover:shadow-[var(--shadow-indigo-glow)]",
         conversation.inactive && "opacity-70",
         // Marcada (modo seleção): mesmo anel do brand, sem exigir foco/hover.
@@ -461,4 +483,4 @@ export function ConversationCard({
       ) : null}
     </article>
   )
-}
+})

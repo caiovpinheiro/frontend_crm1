@@ -15,6 +15,9 @@ import { sanitizeMetaWhatsappSdpForBrowser, stripSsrcLinesFromSdp } from "@/lib/
 import { holdSSEWhileHidden, useSSE } from "@/hooks/use-sse";
 import { ensureMicrophonePermission } from "@/lib/native/permissions";
 
+/** Sinalização de chamada é o único evento que este hook trata. */
+const CALL_SSE_EVENTS: readonly string[] = ["whatsapp_call"];
+
 export type InboundCallPhase = "idle" | "ringing" | "connecting" | "live" | "error";
 
 export type IncomingWhatsappCall = {
@@ -388,6 +391,7 @@ export function useWhatsappInboundWebRtc(enabled: boolean) {
       [currentUserId, reset],
     ),
     enabled,
+    CALL_SSE_EVENTS,
   );
 
   // Meta dá ~30–60s. Sem terminate, o overlay não pode ficar para sempre.

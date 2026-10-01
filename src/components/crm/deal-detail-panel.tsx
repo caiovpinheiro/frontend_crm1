@@ -1,6 +1,6 @@
 "use client"
 
-import { cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   DragDropContext,
   Droppable,
@@ -18,10 +18,8 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconCircleX,
-  IconDotsVertical,
   IconGripVertical,
   IconLayoutList,
-  IconSearch,
   IconPencil,
   IconMessageCircle,
   IconChecklist,
@@ -29,24 +27,14 @@ import {
   IconClock,
   IconPhone,
   IconBulb,
-  IconPaperclip,
-  IconMoodSmile,
-  IconMicrophone,
-  IconSend,
   IconSettings,
   IconSparkles,
   IconX,
-  IconCircleCheck,
-  IconCircleDashed,
   IconAffiliate,
   IconBrandWhatsapp,
   IconMail,
   IconPackage,
   IconUser,
-  IconStarFilled,
-  IconLock,
-  IconEye,
-  IconEyeOff,
 } from "@tabler/icons-react"
 import { useAsideViewMode, type AsideViewMode } from "@/hooks/use-aside-view-mode"
 import {
@@ -55,15 +43,6 @@ import {
   formatConnectionShort,
   type ConnectionRef,
 } from "@/lib/connection-label"
-import { useResolveConversationFlow } from "@/features/inbox-v2/extras/use-resolve-conversation-flow"
-import { useConversationFeatures } from "@/features/inbox-v2/hooks/use-conversation-features"
-import { RequirePermission } from "@/components/auth/require-permission"
-import { FavoritesPanel } from "@/components/crm/favorites-panel"
-import {
-  ConversationSearchBar,
-  useConversationSearch,
-  type ConversationSearchState,
-} from "@/components/crm/conversation-search"
 import { useSectionOrder } from "@/hooks/use-section-order"
 import { useFieldLayout } from "@/hooks/use-field-layout"
 import { resolveCustomFieldGroups, type CustomFieldDef } from "@/lib/field-layout"
@@ -74,7 +53,6 @@ import { useIsMobile } from "@/hooks/use-media-query"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
 import { COMPOSER_FOCUS_CHAT_EVENT } from "@/lib/composer-insert"
 import { ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton"
-import { useHideChatEvents } from "@/components/crm/chat-timeline"
 import { registerKeepsChatTourBridge } from "@/features/product-tour/keeps-tour-bridge"
 
 // ─── Ordem das seções da sidebar ──────────────────────────────────
@@ -189,11 +167,7 @@ interface DealDetailPanelProps {
   crmOnly?: boolean
   // Slots opcionais — quando ausentes, mantém o visual default do v0.
   stageRibbonSlot?: React.ReactNode
-  /** Presença "quem está vendo" — pilha de avatares no header (estilo Kommo). */
-  viewersSlot?: React.ReactNode
   winButtonSlot?: React.ReactNode
-  /** Botão "Ligar" do softphone — posicionado no header, antes do moreActions. */
-  callButtonSlot?: React.ReactNode
   moreActionsSlot?: React.ReactNode
   /**
    * Controles extras no hero azul (ex.: pin/fechar do SalesHub Flow).
@@ -212,17 +186,12 @@ interface DealDetailPanelProps {
    *  "Dados de Contato" ao lado do label "Tags". */
   contactTagsSlot?: React.ReactNode
   /**
-   * Slots para conteudo dinamico do painel de chat. Quando passados,
-   * substituem o bloco hardcoded do v0 e permitem plugar mensagens
-   * reais via useMessages, composer real via Composer e alerta de
-   * sessao via SessionAlert.
+   * Conteúdo da aba "Conversa": o host canônico do chat
+   * (`ConversationChatHost` — header, mensagens, composer, busca, kebab),
+   * ou o skeleton/estado vazio enquanto a conversa do contato é garantida.
+   * Quando ausente, mantém o mock visual do v0.
    */
-  messagesSlot?: React.ReactNode
-  composerSlot?: React.ReactNode
-  sessionAlertSlot?: React.ReactNode
-  /** Banner de mensagem fixada (estilo WhatsApp) — renderizado entre o
-   *  header de tabs e a lista de mensagens, na tab "Conversa". */
-  pinnedMessageSlot?: React.ReactNode
+  chatSlot?: React.ReactNode
   /**
    * Override por tab. Quando definido para a tab atual, substitui o
    * painel <main> inteiro pelo node. Util para Atividades/Notas/
@@ -282,23 +251,6 @@ interface DealDetailPanelProps {
    * Se ausente, cai nos STAGES/FUNNEL_PALETTE hardcoded.
    */
   funnelSegments?: { id: string; name: string; color: string; position: number }[]
-  /** ID da conversa ativa vinculada ao deal — permite encerrar/reabrir pelo kebab da TabsBar. */
-  conversationId?: string | null
-  /** Estado de resolução da conversa — para mostrar "Encerrar" ou "Reabrir". */
-  isResolved?: boolean
-  /**
-   * ID amigavel sequencial da conversa (#N por organizacao). Quando
-   * presente, renderiza um chip mono minimalista no TabsBar da conversa,
-   * dentro do proprio container do chat — sem card lateral. Mesma
-   * filosofia do `conversationNumber` do `ChatArea` (inbox). Opcional
-   * pra manter compat com callers sem conversa ativa.
-   */
-  conversationNumber?: number | null
-  /** ISO do `closedAt` da conversa — usado no chip "Encerrada" do TabsBar. */
-  conversationClosedAt?: string | null
-  /** Departamento da conversa — modal de tabulação no Encerrar (TabsBar). */
-  conversationDepartmentId?: string | null
-  conversationRequiresTabulation?: boolean
   /**
    * Conexão (Channel) por onde o contato está conversando (qual WhatsApp).
    * Exibida como chip no header do contato — distingue quando a pessoa fala
@@ -347,8 +299,6 @@ export function DealDetailPanel({
   onClose,
   deal,
   crmOnly = false,
-  viewersSlot,
-  callButtonSlot,
   contactTagsSlot,
   moreActionsSlot,
   headerActionsSlot,
@@ -359,10 +309,7 @@ export function DealDetailPanel({
   tagsSlot,
   productsSlot,
   onCreateContactForField,
-  messagesSlot,
-  composerSlot,
-  sessionAlertSlot,
-  pinnedMessageSlot,
+  chatSlot,
   tabContentOverride,
   customFieldsSlot,
   fieldConfigSlot,
@@ -370,12 +317,6 @@ export function DealDetailPanel({
   dealFieldConfigSlot,
   stageDropdownSlot,
   funnelSegments,
-  conversationId,
-  isResolved,
-  conversationNumber,
-  conversationClosedAt,
-  conversationDepartmentId,
-  conversationRequiresTabulation,
   connection,
 }: DealDetailPanelProps) {
   // Retrocompatibilidade: split slots sobrepõem o legado fieldConfigSlot
@@ -394,15 +335,6 @@ export function DealDetailPanel({
   const [contactConfigOpen, setContactConfigOpen] = useState(false)
   const [dealConfigOpen, setDealConfigOpen] = useState(false)
   const { data: contactSources = [] } = useContactSources(isOpen)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  // Container das mensagens (messagesSlot) — a busca varre o DOM dele.
-  const messagesScrollRef = useRef<HTMLDivElement>(null)
-  const conversationSearch = useConversationSearch({
-    containerRef: messagesScrollRef,
-    query: searchQuery,
-    enabled: searchOpen,
-  })
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   // Optimistic updates para campos nativos do deal
   const [dealNative, setDealNative] = useState<Record<string, string>>({})
@@ -454,10 +386,9 @@ export function DealDetailPanel({
   // painel por vez, paridade com o Inbox) — empilhar aside + chat cortava as
   // mensagens. Desktop/tablet mantém o grid 2-colunas com resize.
   const isMobile = useIsMobile()
-  // Mobile: esconde bottom nav global enquanto o chat do deal estiver aberto.
-  useMobileChatChrome(
-    Boolean(!crmOnly && isOpen && (messagesSlot || composerSlot || sessionAlertSlot)),
-  )
+  // Mobile: esconde bottom nav global enquanto o chat do deal estiver aberto
+  // (o ChatArea dentro do chatSlot também chama o hook — é contado).
+  useMobileChatChrome(Boolean(!crmOnly && isOpen && chatSlot))
 
   // Switcher mobile Chat/Negócio — default Chat, resetado a cada novo deal
   // ou reabertura do painel.
@@ -772,7 +703,7 @@ export function DealDetailPanel({
   const funnelTotal = sortedFunnel?.length ?? 0
   const funnelCurrent = currentSegIdx >= 0 ? currentSegIdx + 1 : 0
 
-  // Mensagens default (mock alinhado ao DS) — usadas quando nao ha messagesSlot.
+  // Mensagens default (mock alinhado ao DS) — usadas quando nao ha chatSlot.
   const fallbackMessages: Message[] = [
     {
       id: "1",
@@ -1615,10 +1546,10 @@ export function DealDetailPanel({
                 {tabContentOverride[activeTab]}
               </div>
             </main>
-          ) : messagesSlot || composerSlot || sessionAlertSlot ? (
-            // Quando ha slots reais, montamos um <main> custom com o
-            // mesmo visual da ChatArea nova (header + messages + alert +
-            // composer) mas plugado nos slots externos.
+          ) : chatSlot ? (
+            // Chat real: o host canônico (ChatArea + Composer) cuida de
+            // header, faixa "resolvida", banners de fixadas, scroll/
+            // paginação, alerta de 24h e composer. Aqui só as abas do deal.
             <main
               aria-label="Conversa"
               className={cn(
@@ -1626,73 +1557,9 @@ export function DealDetailPanel({
                 isMobile && "flex-1",
               )}
             >
-              <TabsBar
-                activeTab={activeTab}
-                onChange={setActiveTab}
-                searchOpen={searchOpen}
-                searchQuery={searchQuery}
-                onSearchOpen={setSearchOpen}
-                onSearchChange={setSearchQuery}
-                searchState={conversationSearch}
-                conversationId={conversationId}
-                isResolved={isResolved}
-                conversationNumber={conversationNumber}
-                conversationClosedAt={conversationClosedAt}
-                conversationDepartmentId={conversationDepartmentId}
-                conversationRequiresTabulation={conversationRequiresTabulation}
-                dealId={deal.id}
-                contactId={deal.contactId}
-                contactName={deal.name}
-                callButtonSlot={callButtonSlot}
-              />
-
-              {/* Faixa verde sutil de conversa resolvida — substitui o chip
-                  "ENCERRADA" do TabsBar. Mesmo padrao do ChatArea (inbox). */}
-              {isResolved && (
-                <div
-                  role="status"
-                  className="flex shrink-0 items-center justify-center gap-1.5 border-b border-emerald-500/15 bg-emerald-500/10 px-4 py-1 text-[11px] font-medium text-emerald-700 v2-dark:text-emerald-400"
-                >
-                  <IconLock size={11} className="shrink-0" />
-                  Conversa resolvida
-                  {conversationClosedAt && (() => {
-                    const d = new Date(conversationClosedAt)
-                    if (Number.isNaN(d.getTime())) return null
-                    const dd = String(d.getDate()).padStart(2, "0")
-                    const mm = String(d.getMonth() + 1).padStart(2, "0")
-                    const hh = String(d.getHours()).padStart(2, "0")
-                    const mi = String(d.getMinutes()).padStart(2, "0")
-                    return <span className="text-emerald-700/70 v2-dark:text-emerald-400/70">· {dd}/{mm} às {hh}:{mi}</span>
-                  })()}
-                </div>
-              )}
-
-              {pinnedMessageSlot}
-
-              <div
-                ref={messagesScrollRef}
-                className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-7 py-6"
-              >
-                {messagesSlot}
-              </div>
-
-              <div
-                data-chat-composer-footer
-                className="shrink-0 border-t border-[var(--glass-border-subtle)] bg-[var(--glass-bg-panel)]/95 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] pt-1 backdrop-blur-md"
-              >
-                {sessionAlertSlot}
-                {composerSlot ? (
-                  isValidElement(composerSlot) ? (
-                    cloneElement(
-                      composerSlot as ReactElement<{ viewersSlot?: React.ReactNode }>,
-                      { viewersSlot },
-                    )
-                  ) : (
-                    composerSlot
-                  )
-                ) : (
-                  <FallbackComposer />
-                )}
+              <TabsBar activeTab={activeTab} onChange={setActiveTab} />
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                {chatSlot}
               </div>
             </main>
           ) : (
@@ -1724,258 +1591,59 @@ export function DealDetailPanel({
 
 /* ─── Subcomponentes locais ─── */
 
-const EMPTY_SEARCH_STATE: ConversationSearchState = {
-  total: 0,
-  position: 0,
-  goOlder: () => {},
-  goNewer: () => {},
-}
-
 /**
- * Barra de abas (Conversa / Atividades / Notas / Timeline) renderizada
- * no header do container de conteúdo. Antes ficava numa linha solta
- * entre a topbar e os containers; agora vive dentro do próprio container.
+ * Barra de abas (Conversa / Tarefas / Notas / Timeline / Chamadas / keeps)
+ * no header do container de conteúdo. Só abas do negócio: busca, favoritas,
+ * ocultar eventos e encerrar/reabrir vivem no header/kebab do ChatArea
+ * (host canônico) dentro da aba Conversa.
  */
 function TabsBar({
   activeTab,
   onChange,
-  searchOpen,
-  searchQuery,
-  onSearchOpen,
-  onSearchChange,
-  searchState,
-  conversationId,
-  isResolved,
-  conversationNumber,
-  conversationClosedAt,
-  callButtonSlot,
-  conversationDepartmentId,
-  conversationRequiresTabulation,
-  dealId,
-  contactId,
-  contactName,
 }: {
   activeTab: TabId
   onChange: (id: TabId) => void
-  searchOpen?: boolean
-  searchQuery?: string
-  onSearchOpen?: (open: boolean) => void
-  onSearchChange?: (q: string) => void
-  /** Contagem + navegação da busca (hook `useConversationSearch`). */
-  searchState?: ConversationSearchState
-  conversationId?: string | null
-  isResolved?: boolean
-  dealId?: string | null
-  contactId?: string | null
-  contactName?: string | null
-  /** #N sequencial da conversa — chip minimalista no header do container. */
-  conversationNumber?: number | null
-  /** ISO de encerramento — vira tooltip no chip "Encerrada". */
-  conversationClosedAt?: string | null
-  /** Botao "Ligar" (softphone) — renderizado no canto direito, ao lado do
-   *  kebab de acoes da conversa. Antes vivia no header do card do deal. */
-  callButtonSlot?: React.ReactNode
-  /** Departamento da conversa — abre modal de tabulacao no encerrar quando exige. */
-  conversationDepartmentId?: string | null
-  conversationRequiresTabulation?: boolean
 }) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [favoritesOpen, setFavoritesOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const { handleToggleResolve, toggleResolve, dialogs } =
-    useResolveConversationFlow({
-      conversationId: conversationId ?? null,
-      isResolved,
-      departmentId: conversationDepartmentId,
-      requireTabulationOnClose: conversationRequiresTabulation,
-      dealId,
-      contactId,
-      contactName,
-    })
-
-  /* Fecha kebab ao clicar fora */
-  useEffect(() => {
-    if (!menuOpen) return
-    function onOut(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener("mousedown", onOut)
-    return () => document.removeEventListener("mousedown", onOut)
-  }, [menuOpen])
-
-  const hasConversaActions = (activeTab === "conversa" && !!onSearchOpen) || !!conversationId
-  const { hideEvents, toggleHideEvents } = useHideChatEvents()
-  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas): o botão
-  // ✓/↻ ao lado do Nº da conversa já cobre os dois — evita duplicidade.
-  const { features: convFeatures } = useConversationFeatures()
-  const showResolveItem = convFeatures.showResolveInMenu
-
   return (
     <div className="shrink-0 border-b border-[var(--glass-border-subtle)]">
       <header className="flex items-center gap-2 px-4 py-3">
-        {/* Tabs pill group — oculta enquanto busca está aberta */}
-        {!(searchOpen && activeTab === "conversa") && (
-          // Borda/radius no scroller — H-scroll não corta a pílula em reta.
-          <div className="toolbar-hscroll min-w-0 max-w-full flex-1 overflow-x-auto overscroll-x-contain rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-tour="pipeline-chat-tabs">
-            <div className="inline-flex w-max flex-nowrap items-center gap-1">
-              {TABS.map((tab) => {
-                const Icon = tab.icon
-                const isActive = activeTab === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => onChange(tab.id)}
-                    {...(tab.id === "keeps" ? { "data-tour": "keeps-chat-tab" } : {})}
-                    className={cn(
-                      "inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 font-display text-[12px] font-bold transition-all",
-                      isActive
-                        ? "bg-[var(--brand-primary)] text-white shadow-[var(--glass-shadow-sm)]"
-                        : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                    )}
-                  >
-                    <Icon size={14} />
-                    {tab.label}
-                    {tab.count !== undefined && (
-                      <span
-                        className={cn(
-                          "rounded-full px-1.5 font-display text-[10px] font-bold",
-                          isActive ? "bg-[var(--glass-bg)] text-white" : "bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]",
-                        )}
-                      >
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Header enxuto (pedido 17/jul/26): sem chip #N e sem chip
-            "Encerrada" no TabsBar. O status resolvido virou faixa verde
-            sutil abaixo do TabsBar; o #N segue acessivel no separador de
-            ticket da timeline da conversa. */}
-
-        {/* Busca inline — ocupa o flex-1 quando aberta */}
-        {searchOpen && activeTab === "conversa" ? (
-          <ConversationSearchBar
-            query={searchQuery ?? ""}
-            onQueryChange={(q) => onSearchChange?.(q)}
-            search={searchState ?? EMPTY_SEARCH_STATE}
-            onClose={() => { onSearchOpen?.(false); onSearchChange?.("") }}
-          />
-        ) : null}
-
-        {/* Ações à direita — sem spacer flex-1 no meio (ele roubava largura
-            das abas e cortava "Timeline"/"Chamadas"). */}
-        <div className="ml-auto flex shrink-0 items-center gap-1.5">
-        {activeTab === "conversa" && (
-          <TooltipGlass
-            label={hideEvents ? "Mostrar eventos" : "Ocultar eventos"}
-            side="bottom"
-          >
-            <button
-              type="button"
-              aria-label={hideEvents ? "Mostrar eventos" : "Ocultar eventos"}
-              aria-pressed={hideEvents}
-              onClick={toggleHideEvents}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
-                hideEvents
-                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
-                  : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              {hideEvents ? <IconEyeOff size={15} /> : <IconEye size={15} />}
-            </button>
-          </TooltipGlass>
-        )}
-        {callButtonSlot}
-
-        {/* Kebab de ações do header — lupa + encerrar conversa */}
-        {hasConversaActions && (
-          <div ref={menuRef} className="relative">
-            <button
-              type="button"
-              aria-label="Ações"
-              onClick={() => setMenuOpen((v) => !v)}
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full transition-colors",
-                menuOpen
-                  ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
-                  : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              <IconDotsVertical size={15} />
-            </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 top-full z-(--z-above) mt-1.5 w-52 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] p-1 shadow-[var(--glass-shadow)] backdrop-blur-md">
-                {/* Buscar na conversa */}
-                {activeTab === "conversa" && onSearchOpen && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSearchOpen(!searchOpen)
-                      if (searchOpen) onSearchChange?.("")
-                      setMenuOpen(false)
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left font-display text-[12.5px] text-[var(--text-primary)] hover:bg-[var(--glass-bg-subtle)]"
-                  >
-                    <IconSearch size={14} className="shrink-0 text-[var(--text-muted)]" />
-                    {searchOpen ? "Fechar busca" : "Buscar na conversa"}
-                  </button>
-                )}
-
-                {/* Mensagens favoritas — marcador pessoal, estilo WhatsApp */}
-                {conversationId && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFavoritesOpen(true)
-                      setMenuOpen(false)
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left font-display text-[12.5px] text-[var(--text-primary)] hover:bg-[var(--glass-bg-subtle)]"
-                  >
-                    <IconStarFilled size={14} className="shrink-0 text-amber-500" />
-                    Mensagens favoritas
-                  </button>
-                )}
-
-                {/* Encerrar / Reabrir conversa */}
-                {conversationId && showResolveItem && (
-                  <RequirePermission permission="conversation:resolve">
-                    <button
-                      type="button"
-                      disabled={toggleResolve.isPending}
-                      onClick={() => {
-                        setMenuOpen(false)
-                        handleToggleResolve()
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left font-display text-[12.5px] text-[var(--text-primary)] hover:bg-[var(--glass-bg-subtle)] disabled:opacity-50"
+        {/* Borda/radius no scroller — H-scroll não corta a pílula em reta. */}
+        <div className="toolbar-hscroll min-w-0 max-w-full flex-1 overflow-x-auto overscroll-x-contain rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-tour="pipeline-chat-tabs">
+          <div className="inline-flex w-max flex-nowrap items-center gap-1">
+            {TABS.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => onChange(tab.id)}
+                  {...(tab.id === "keeps" ? { "data-tour": "keeps-chat-tab" } : {})}
+                  className={cn(
+                    "inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 font-display text-[12px] font-bold transition-all",
+                    isActive
+                      ? "bg-[var(--brand-primary)] text-white shadow-[var(--glass-shadow-sm)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
+                  )}
+                >
+                  <Icon size={14} />
+                  {tab.label}
+                  {tab.count !== undefined && (
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 font-display text-[10px] font-bold",
+                        isActive ? "bg-[var(--glass-bg)] text-white" : "bg-[var(--glass-bg-overlay)] text-[var(--text-muted)]",
+                      )}
                     >
-                      {isResolved
-                        ? <IconCircleDashed size={14} className="shrink-0 text-[var(--text-muted)]" />
-                        : <IconCircleCheck size={14} className="shrink-0 text-[var(--text-muted)]" />
-                      }
-                      {isResolved ? "Reabrir conversa" : "Encerrar conversa"}
-                    </button>
-                  </RequirePermission>
-                )}
-              </div>
-            )}
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
-        )}
         </div>
       </header>
-      <FavoritesPanel
-        open={favoritesOpen}
-        onOpenChange={setFavoritesOpen}
-        conversationId={conversationId ?? null}
-      />
-      {dialogs}
     </div>
   )
 }
@@ -2174,53 +1842,4 @@ function formatMoney(v: number | string | null | undefined): string | undefined 
   const n = typeof v === "string" ? Number(v) : v
   if (Number.isNaN(n)) return undefined
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
-
-/** Composer fallback (disabled) usado apenas quando sessao expirou e
- * nao foi fornecido `composerSlot`. */
-function FallbackComposer() {
-  return (
-    <div
-      className="mx-5.5 mb-5.5 flex items-center gap-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] py-2 pl-4.5 pr-2 opacity-60 shadow-[var(--glass-shadow-sm)]"
-    >
-      <TooltipGlass label="Anexar" side="top">
-        <button
-          type="button"
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-[var(--text-muted)]"
-        >
-          <IconPaperclip size={18} />
-        </button>
-      </TooltipGlass>
-      <input
-        type="text"
-        placeholder="Sessão expirada. Envie um template..."
-        disabled
-        className="flex-1 border-none bg-transparent text-sm italic text-[var(--text-primary)] outline-none placeholder:italic placeholder:text-[var(--text-muted)]"
-      />
-      <TooltipGlass label="Emoji" side="top">
-        <button
-          type="button"
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-[var(--text-muted)]"
-        >
-          <IconMoodSmile size={18} />
-        </button>
-      </TooltipGlass>
-      <TooltipGlass label="Áudio" side="top">
-        <button
-          type="button"
-          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-[var(--text-muted)]"
-        >
-          <IconMicrophone size={18} />
-        </button>
-      </TooltipGlass>
-      <TooltipGlass label="Enviar mensagem" side="top">
-        <button
-          type="button"
-          className="flex h-[38px] w-[38px] cursor-pointer items-center justify-center rounded-full bg-[var(--brand-primary)] text-white shadow-[0_4px_12px_rgba(91,111,245,0.35)]"
-        >
-          <IconSend size={16} />
-        </button>
-      </TooltipGlass>
-    </div>
-  )
 }
