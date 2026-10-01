@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  __setDefaultSseEnvForTests,
   DEFAULT_SSE_EVENTS,
   resolveSSEEvents,
   SSE_IDLE_CLOSE_MS,
@@ -108,6 +109,9 @@ function live(): FakeEventSource[] {
   return connections().filter((es) => !es.closed);
 }
 
+// Aba isolada (`tabs: null`): sem coordenação entre abas, a semântica é a
+// de uma conexão por aba — o que estes testes cobrem. Duas abas estão em
+// `use-sse.tabs.test.ts`.
 describe("SharedSSEConnection", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -115,11 +119,16 @@ describe("SharedSSEConnection", () => {
     doc = fakeDocument();
     vi.stubGlobal("EventSource", FakeEventSource);
     vi.stubGlobal("document", doc);
+    __setDefaultSseEnvForTests({
+      createEventSource: (u) => new FakeEventSource(u),
+      tabs: null,
+    });
     seq += 1;
     url = `/api/sse/test-${seq}`;
   });
 
   afterEach(() => {
+    __setDefaultSseEnvForTests(null);
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();

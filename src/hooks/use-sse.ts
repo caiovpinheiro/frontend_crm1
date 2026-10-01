@@ -1,7 +1,13 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+
+import {
+  tabCoordinatorFor,
+  type TabCoordinator,
+  type TabEnvelope,
+} from "./tab-coordinator";
 
 export type SSEHandler = (event: string, data: unknown) => void;
 export type SSEReconnectHandler = () => void;
@@ -12,11 +18,21 @@ export type SSEReconnectHandler = () => void;
  * registra os eventos que lhe interessam e recebe `(event, data)` já
  * parseado — o `new EventSource` existe só aqui.
  *
- * Ciclo de vida por ref-count: a conexão abre no primeiro assinante e
- * fecha 30s depois que o último sai. Trocar de tela (inbox → board)
- * desmonta um assinante e monta outro: a tela seguinte reaproveita a
- * mesma conexão, sem reconectar nem recarregar dados (e o duplo
- * mount/unmount do StrictMode também não derruba a conexão).
+ * Uma conexão por NAVEGADOR (MA-1): entre abas da mesma origem só a aba
+ * líder (`tab-coordinator.ts`: Web Locks, com fallback por batimentos no
+ * `BroadcastChannel`) abre o `EventSource`; cada evento é retransmitido
+ * pelo canal e as seguidoras entregam aos seus assinantes como se fosse
+ * local. As seguidoras informam à líder os eventos que precisam (`state`),
+ * e a líder anexa a união — um evento que ninguém pede não é nem
+ * parseado. Se a líder fecha, a próxima assume em < 2s e abre a conexão
+ * dela; os assinantes das seguidoras recebem `onReconnect` (houve gap).
+ * A API pública (`useSSE`, `subscribeSSE*`) não muda.
+ *
+ * Ciclo de vida por ref-count: a conexão abre no primeiro assinante (desta
+ * aba ou de uma seguidora) e fecha 30s depois que o último sai. Trocar de
+ * tela (inbox → board) desmonta um assinante e monta outro: a tela
+ * seguinte reaproveita a mesma conexão, sem reconectar nem recarregar
+ * dados (e o duplo mount/unmount do StrictMode também não derruba).
  *
  * Aba oculta NÃO derruba a conexão: aviso sonoro, contador e Notification
  * de nova mensagem existem para funcionar em segundo plano, e o stream não
@@ -59,24 +75,56 @@ export function sseReconnectDelayMs(attempt: number, random = Math.random): numb
   return Math.round(base * jitter);
 }
 
+export interface EventSourceLike {
+  onopen: (() => void) | null;
+  onerror: (() => void) | null;
+  addEventListener(name: string, fn: (e: Event) => void): void;
+  removeEventListener(name: string, fn: (e: Event) => void): void;
+  close(): void;
+}
+
+/** Dependências do barramento — injetáveis nos testes (uma por "aba"). */
+export interface SseEnv {
+  createEventSource: (url: string) => EventSourceLike;
+  /** `null` = aba isolada (sem coordenação; comportamento de uma conexão por aba). */
+  tabs: TabCoordinator | null;
+}
+
+type StatusListener = (open: boolean) => void;
+
 class SharedSSEConnection {
-  private es: EventSource | null = null;
+  private es: EventSourceLike | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly attached = new Set<string>();
   private readonly subscribers = new Map<SSEHandler, ReadonlySet<string>>();
   private readonly reconnectHandlers = new Set<SSEReconnectHandler>();
+  private readonly statusListeners = new Set<StatusListener>();
+  /** Eventos pedidos pelas seguidoras (cache; recalculado em `refresh`). */
+  private followerNeeds = new Set<string>();
   /** Só dispara `onReconnect` depois de um open bem-sucedido + gap. */
   private everOpened = false;
   private sawGap = false;
   /** Falhas seguidas desde o último open (backoff). */
   private failures = 0;
+  /** Estado da conexão como esta aba o conhece (própria ou da líder). */
+  private open = false;
 
-  constructor(private readonly url: string) {}
+  constructor(
+    readonly url: string,
+    private readonly env: SseEnv,
+  ) {}
 
-  /** Conexão viva enquanto houver assinante — visibilidade não entra aqui. */
-  private shouldRun(): boolean {
-    return this.subscribers.size > 0;
+  get connected(): boolean {
+    return this.open;
+  }
+
+  private get tabs(): TabCoordinator | null {
+    return this.env.tabs;
+  }
+
+  private isLeader(): boolean {
+    return !this.tabs || this.tabs.role === "leader";
   }
 
   subscribe(
@@ -86,16 +134,8 @@ class SharedSSEConnection {
   ): () => void {
     this.subscribers.set(handler, new Set(events));
     if (onReconnect) this.reconnectHandlers.add(onReconnect);
-    if (this.closeTimer) {
-      clearTimeout(this.closeTimer);
-      this.closeTimer = null;
-    }
-    if (this.es) {
-      this.attachMissing();
-    } else if (!this.retryTimer) {
-      // Reconexão já agendada: o connect() dela anexa a união dos eventos.
-      this.connect();
-    }
+    this.tabs?.scheduleStateSync();
+    this.refresh();
     return () => this.unsubscribe(handler, onReconnect);
   }
 
@@ -105,44 +145,175 @@ class SharedSSEConnection {
   ): void {
     this.subscribers.delete(handler);
     if (onReconnect) this.reconnectHandlers.delete(onReconnect);
-    if (this.subscribers.size > 0) {
-      this.pruneListeners();
+    this.tabs?.scheduleStateSync();
+    this.refresh();
+  }
+
+  onStatus(fn: StatusListener): () => void {
+    this.statusListeners.add(fn);
+    return () => this.statusListeners.delete(fn);
+  }
+
+  /** Eventos desta aba (para o `state` enviado à líder). */
+  localEvents(): string[] {
+    return [...this.allEventNames(this.subscribers)];
+  }
+
+  /**
+   * Reconcilia o `EventSource` com o papel da aba e com quem precisa de
+   * eventos (assinantes locais + seguidoras). Seguidora nunca abre conexão.
+   */
+  refresh(): void {
+    if (!this.isLeader()) {
+      this.teardown();
       return;
     }
-    if (this.closeTimer) clearTimeout(this.closeTimer);
+    this.followerNeeds = this.collectFollowerNeeds();
+    const needed = this.neededEvents();
+    if (needed.size === 0) {
+      this.scheduleIdleClose();
+      return;
+    }
+    this.cancelIdleClose();
+    if (this.es) {
+      this.attachMissing(needed);
+      this.pruneListeners(needed);
+    } else if (!this.retryTimer) {
+      // Reconexão já agendada: o connect() dela anexa a união dos eventos.
+      this.connect();
+    }
+  }
+
+  /** Esta aba virou líder (abre) ou seguidora (fecha a própria conexão). */
+  onRoleChange(): void {
+    if (this.isLeader()) {
+      // Entre a queda da líder anterior e esta conexão houve um gap sem
+      // replay: o open seguinte avisa os assinantes como reconexão.
+      if (this.everOpened) this.sawGap = true;
+    }
+    this.refresh();
+  }
+
+  /** Seguidora: a líder mudou — o que a nova abrir é uma reconexão. */
+  onLeaderChange(): void {
+    if (this.isLeader()) return;
+    if (this.everOpened) this.sawGap = true;
+    this.setOpen(false, false);
+  }
+
+  /** Seguidora: estado da conexão da líder. */
+  applyRemoteStatus(open: boolean): void {
+    if (this.isLeader()) return;
+    if (open === this.open) return;
+    this.setOpen(open, false);
+    if (open) {
+      this.afterOpen();
+    } else if (this.everOpened) {
+      this.sawGap = true;
+    }
+  }
+
+  /** Líder: reenvia o estado atual (uma seguidora nova acabou de se apresentar). */
+  postStatus(): void {
+    if (!this.tabs || !this.isLeader()) return;
+    this.tabs.post({ t: "status", url: this.url, open: this.open });
+  }
+
+  /** Entrega local (evento da própria conexão ou retransmitido pela líder). */
+  deliverLocal(event: string, data: unknown): void {
+    for (const [handler, events] of this.subscribers) {
+      if (!events.has(event)) continue;
+      try {
+        handler(event, data);
+      } catch {
+        /* isola um assinante dos demais */
+      }
+    }
+  }
+
+  private afterOpen(): void {
+    const shouldNotify = this.everOpened && this.sawGap;
+    this.everOpened = true;
+    this.sawGap = false;
+    if (!shouldNotify) return;
+    for (const fn of this.reconnectHandlers) {
+      try {
+        fn();
+      } catch {
+        /* isola um assinante dos demais */
+      }
+    }
+  }
+
+  private setOpen(open: boolean, broadcast: boolean): void {
+    if (this.open === open) return;
+    this.open = open;
+    for (const fn of this.statusListeners) {
+      try {
+        fn(open);
+      } catch {
+        /* isola */
+      }
+    }
+    if (broadcast && this.tabs && this.isLeader()) {
+      this.tabs.post({ t: "status", url: this.url, open });
+    }
+  }
+
+  private collectFollowerNeeds(): Set<string> {
+    const needs = new Set<string>();
+    if (!this.tabs || this.tabs.role !== "leader") return needs;
+    for (const entry of this.tabs.followerStates().values()) {
+      for (const name of entry.state.sse?.[this.url] ?? []) needs.add(name);
+    }
+    return needs;
+  }
+
+  private neededEvents(): Set<string> {
+    const needed = this.allEventNames(this.subscribers);
+    for (const name of this.followerNeeds) needed.add(name);
+    return needed;
+  }
+
+  private scheduleIdleClose(): void {
+    if (this.closeTimer || !this.es) return;
     this.closeTimer = setTimeout(() => {
       this.closeTimer = null;
-      if (this.subscribers.size === 0) this.teardown();
+      if (this.neededEvents().size === 0) this.teardown();
     }, SSE_IDLE_CLOSE_MS);
+  }
+
+  private cancelIdleClose(): void {
+    if (!this.closeTimer) return;
+    clearTimeout(this.closeTimer);
+    this.closeTimer = null;
   }
 
   private connect(): void {
     if (this.es) return;
-    if (!this.shouldRun()) return;
-    const es = new EventSource(this.url, { withCredentials: true });
+    if (!this.isLeader() || this.neededEvents().size === 0) return;
+    let es: EventSourceLike;
+    try {
+      es = this.env.createEventSource(this.url);
+    } catch {
+      // Sem `EventSource` (SSR, ambiente de teste sem browser): nada a abrir.
+      return;
+    }
     this.es = es;
-    this.attachMissing();
+    this.attachMissing(this.neededEvents());
     es.onopen = () => {
       this.failures = 0;
-      const shouldNotify = this.everOpened && this.sawGap;
-      this.everOpened = true;
-      this.sawGap = false;
-      if (!shouldNotify) return;
-      for (const fn of this.reconnectHandlers) {
-        try {
-          fn();
-        } catch {
-          /* isola um assinante dos demais */
-        }
-      }
+      this.setOpen(true, true);
+      this.afterOpen();
     };
     es.onerror = () => {
       if (this.everOpened) this.sawGap = true;
       es.close();
       if (this.es === es) this.es = null;
       this.attached.clear();
-      if (this.retryTimer || this.subscribers.size === 0) return;
-      if (!this.shouldRun()) return;
+      this.setOpen(false, true);
+      if (this.retryTimer || this.neededEvents().size === 0) return;
+      if (!this.isLeader()) return;
       const delay = sseReconnectDelayMs(this.failures);
       this.failures += 1;
       this.retryTimer = setTimeout(() => {
@@ -153,6 +324,7 @@ class SharedSSEConnection {
   }
 
   private teardown(): void {
+    this.cancelIdleClose();
     this.es?.close();
     this.es = null;
     this.attached.clear();
@@ -160,20 +332,20 @@ class SharedSSEConnection {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
     }
+    if (this.isLeader()) this.setOpen(false, false);
   }
 
-  private attachMissing(): void {
+  private attachMissing(needed: Set<string>): void {
     if (!this.es) return;
-    for (const name of this.allEventNames()) {
+    for (const name of needed) {
       if (this.attached.has(name)) continue;
       this.es.addEventListener(name, this.dispatch);
       this.attached.add(name);
     }
   }
 
-  private pruneListeners(): void {
+  private pruneListeners(needed: Set<string>): void {
     if (!this.es) return;
-    const needed = this.allEventNames();
     for (const name of this.attached) {
       if (needed.has(name)) continue;
       this.es.removeEventListener(name, this.dispatch);
@@ -181,9 +353,9 @@ class SharedSSEConnection {
     }
   }
 
-  private allEventNames(): Set<string> {
+  private allEventNames(subs: Map<SSEHandler, ReadonlySet<string>>): Set<string> {
     const names = new Set<string>();
-    for (const events of this.subscribers.values()) {
+    for (const events of subs.values()) {
       for (const name of events) names.add(name);
     }
     return names;
@@ -199,26 +371,92 @@ class SharedSSEConnection {
       // rodar mesmo assim; os demais falham no acesso e caem no try/catch.
       data = undefined;
     }
-    for (const [handler, events] of this.subscribers) {
-      if (!events.has(e.type)) continue;
-      try {
-        handler(e.type, data);
-      } catch {
-        /* isola um assinante dos demais */
-      }
+    this.deliverLocal(e.type, data);
+    if (this.tabs && this.followerNeeds.has(e.type)) {
+      this.tabs.post({ t: "event", url: this.url, name: e.type, data });
     }
   };
 }
 
-const connections = new Map<string, SharedSSEConnection>();
+/**
+ * Conexões desta aba (uma por URL) ligadas ao coordenador de abas: roteia
+ * as mensagens da líder (`event`/`status`) para a conexão certa e informa
+ * à líder o que esta aba assina.
+ */
+export class SseTabBridge {
+  private readonly connections = new Map<string, SharedSSEConnection>();
+  private readonly offs: Array<() => void> = [];
 
-function connectionFor(url: string): SharedSSEConnection {
-  let conn = connections.get(url);
-  if (!conn) {
-    conn = new SharedSSEConnection(url);
-    connections.set(url, conn);
+  constructor(readonly env: SseEnv) {
+    const tabs = env.tabs;
+    if (!tabs) return;
+    this.offs.push(
+      tabs.registerStateProvider(() => {
+        const sse: Record<string, string[]> = {};
+        for (const conn of this.connections.values()) {
+          const events = conn.localEvents();
+          if (events.length > 0) sse[conn.url] = events;
+        }
+        return { sse };
+      }),
+      tabs.onRoleChange(() => {
+        for (const conn of this.connections.values()) conn.onRoleChange();
+      }),
+      tabs.onLeaderChange(() => {
+        for (const conn of this.connections.values()) conn.onLeaderChange();
+      }),
+      tabs.onFollowerStatesChange(() => {
+        // Seguidora pode precisar de uma URL que esta aba ainda não tem.
+        for (const entry of tabs.followerStates().values()) {
+          for (const url of Object.keys(entry.state.sse ?? {})) this.connection(url);
+        }
+        for (const conn of this.connections.values()) conn.refresh();
+      }),
+      tabs.onMessage((msg: TabEnvelope) => {
+        if (msg.t === "event") {
+          this.connections.get(msg.url)?.deliverLocal(msg.name, msg.data);
+        } else if (msg.t === "status") {
+          this.connection(msg.url).applyRemoteStatus(msg.open);
+        } else if (msg.t === "state") {
+          // Seguidora nova: diz a ela como está a conexão.
+          for (const url of Object.keys(msg.state.sse ?? {})) {
+            this.connection(url).postStatus();
+          }
+        }
+      }),
+    );
   }
-  return conn;
+
+  connection(url: string): SharedSSEConnection {
+    let conn = this.connections.get(url);
+    if (!conn) {
+      conn = new SharedSSEConnection(url, this.env);
+      this.connections.set(url, conn);
+    }
+    return conn;
+  }
+
+  destroy(): void {
+    while (this.offs.length) this.offs.pop()?.();
+  }
+}
+
+let defaultBridge: SseTabBridge | null = null;
+
+function bridge(): SseTabBridge {
+  if (!defaultBridge) {
+    defaultBridge = new SseTabBridge({
+      createEventSource: (url) => new EventSource(url, { withCredentials: true }),
+      tabs: tabCoordinatorFor("crm"),
+    });
+  }
+  return defaultBridge;
+}
+
+/** Só para testes: troca o ambiente padrão (ou volta ao real com `null`). */
+export function __setDefaultSseEnvForTests(env: SseEnv | null): void {
+  defaultBridge?.destroy();
+  defaultBridge = env ? new SseTabBridge(env) : null;
 }
 
 /**
@@ -240,7 +478,7 @@ export function subscribeSSE(
   handler: SSEHandler,
   onReconnect?: SSEReconnectHandler,
 ): () => void {
-  return connectionFor(apiUrl(url)).subscribe(events, handler, onReconnect);
+  return bridge().connection(apiUrl(url)).subscribe(events, handler, onReconnect);
 }
 
 /**
@@ -259,6 +497,27 @@ export function subscribeSSEEvents(
       handlers[event]?.(data);
     },
     onReconnect,
+  );
+}
+
+/**
+ * Estado da conexão SSE da `url` como esta aba o conhece: a própria
+ * (líder) ou a da líder (seguidora). `false` até o primeiro open.
+ */
+export function subscribeSSEStatus(url: string, fn: StatusListener): () => void {
+  return bridge().connection(apiUrl(url)).onStatus(fn);
+}
+
+export function isSSEConnected(url = "/api/sse/messages"): boolean {
+  return bridge().connection(apiUrl(url)).connected;
+}
+
+/** `true` enquanto o stream SSE (desta aba ou da líder) está aberto. */
+export function useSSEConnected(url = "/api/sse/messages"): boolean {
+  return useSyncExternalStore(
+    (onChange) => subscribeSSEStatus(url, onChange),
+    () => isSSEConnected(url),
+    () => false,
   );
 }
 
