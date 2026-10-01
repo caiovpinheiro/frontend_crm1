@@ -123,12 +123,6 @@ export interface Conversation {
   /** Fila da inbox para agrupar a lista (entrada, esperando, …). */
   queueTab?: string
   /**
-   * Chave da linha na lista (padrão: `id`). A Inbox usa o grupo
-   * contato+canal: quando um ticket mais novo do mesmo contato substitui
-   * o card, a linha não remonta.
-   */
-  rowKey?: string
-  /**
    * ISO da última atividade (`lastMessageAt ?? lastInboundAt`).
    * Usado só para ordenar a visão multi-fila "Por tempo" (mais antigas primeiro).
    */

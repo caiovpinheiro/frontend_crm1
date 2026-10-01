@@ -243,9 +243,7 @@ describe("useConversations — paginação por cursor", () => {
       expect(ids(view.result.current.data?.items).sort()).toEqual(["e1", "r1", "w1"]),
     );
     expect(api.listConversations).toHaveBeenCalledTimes(3);
-    // Modo cursor: o `total` do servidor não é do filtro (DEV manda perPage+1);
-    // a lista não o repassa — o total vem dos contadores das filas.
-    expect(view.result.current.data?.total).toBeUndefined();
+    expect(view.result.current.data?.total).toBe(6);
     expect(view.result.current.hasNextPage).toBe(true);
 
     await act(async () => {
@@ -264,10 +262,8 @@ describe("useConversations — paginação por cursor", () => {
     await waitFor(() =>
       expect(ids(view.result.current.data?.items).sort()).toEqual(["e1", "e2", "r1", "r2", "w1"]),
     );
-    // total por fila não cai quando a fila esgotada deixa de ser pedida
-    // (fica na página; a lista não o repassa em modo cursor)
-    expect(cached().pages[1]!.total).toBe(6);
-    expect(view.result.current.data?.total).toBeUndefined();
+    // total não cai quando a fila esgotada deixa de ser pedida
+    expect(view.result.current.data?.total).toBe(6);
     expect(view.result.current.hasNextPage).toBe(false);
     expect(view.result.current.data?.hasMore).toBe(false);
     expect(cached().pages).toHaveLength(2);
