@@ -123,9 +123,9 @@ export type DealProductItem = {
   unitPrice: number;
   discount: number;
   total: number;
-  /** Pós: "18 meses". Graduação: "8º semestre". Vazio quando o curso não tem duração. */
+  /** Pós: "18 meses". Graduação: "8 semestres". Vazio quando o curso não tem duração. */
   courseDuration?: string | null;
-  /** EAD, Presencial ou Híbrido. */
+  /** EAD, Presencial ou Semi-Presencial. */
   courseMode?: string | null;
 };
 
@@ -152,8 +152,6 @@ export function catalogProductSubtitle(p: CatalogProduct): string {
       return `${cc.semester} meses`;
     }
     if (cc.level === "GRADUATION" && cc.mode) {
-      // No seletor comercial, HYBRID aparece como Semipresencial.
-      if (cc.mode === "HYBRID") return "Semipresencial";
       return COURSE_MODE_LABEL[cc.mode] ?? cc.mode;
     }
   }
