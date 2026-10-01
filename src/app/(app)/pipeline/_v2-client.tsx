@@ -124,6 +124,7 @@ import {
   InlineEditText,
   MOVE_TO_STAGE_MENU_MAX_HEIGHT,
   MoveToStageMenu,
+  usePipelineMoveStages,
   PipelineSwitcher,
   StagePicker,
   TagsPopover,
@@ -325,6 +326,9 @@ export default function KanbanV2ClientPage({
     enabled: canFetch && hasServerBoard,
   });
   const board = hasServerBoard ? boardFiltered.data ?? [] : boardNormal.data ?? [];
+  // Board + etapas fora do filtro (GET /api/pipelines): com filtro de etapa o
+  // board do servidor traz só as filtradas; mover/Perdido precisam de todas.
+  const moveStages = usePipelineMoveStages(pipelineId, board);
 
   usePipelineRealtime(canFetch);
 
@@ -355,7 +359,7 @@ export default function KanbanV2ClientPage({
         toast.error("Sem permissão para mover negócios entre etapas.");
         return;
       }
-      const target = board.find((s) => s.id === vars.toStageId);
+      const target = moveStages.find((s) => s.id === vars.toStageId);
       // Cross-pipeline: quando o estágio destino não pertence ao board
       // atual, não temos como saber isLost/lossReasonRequired sem uma
       // requisição extra. Deixamos o backend validar (LOST_REASON_REQUIRED
@@ -366,7 +370,7 @@ export default function KanbanV2ClientPage({
       }
       moveDeal.mutate(vars);
     },
-    [board, moveDeal, canChangeStage],
+    [moveStages, moveDeal, canChangeStage],
   );
 
   // ── Seleção em massa (resgatada da versão antiga) ────────────────
@@ -1648,7 +1652,7 @@ export default function KanbanV2ClientPage({
           selectedIds={selectedIds}
           onClear={clearSelection}
           pipelineId={pipelineId}
-          stages={board.map((s) => ({
+          stages={moveStages.map((s) => ({
             id: s.id,
             name: s.name,
             color: s.color ?? undefined,

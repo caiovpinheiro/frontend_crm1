@@ -70,6 +70,40 @@ const MENU_LIST_MAX_H = "max-h-[min(380px,55vh)]";
 /** Altura máxima aproximada do menu inteiro (cabeçalho + lista + "Outro funil…"). */
 export const MOVE_TO_STAGE_MENU_MAX_HEIGHT = 460;
 
+/**
+ * Etapas do funil para mover negócios: as recebidas do board + as que o
+ * board não trouxe, vindas de `GET /api/pipelines` (mesma permissão por
+ * etapa, já em cache). Com filtro de etapa o board do servidor devolve só
+ * as etapas filtradas — sem isto, menu "Mover" e detecção de Perdido
+ * (motivo da perda) ficavam restritos às etapas do filtro.
+ */
+export function usePipelineMoveStages<T extends MoveToStageMenuStage>(
+  pipelineId: string | null,
+  stages: readonly T[],
+): (T | MoveToStageMenuStage)[] {
+  const { data: pipelines } = usePipelines(!!pipelineId);
+  return React.useMemo(() => {
+    const pipe = pipelineId ? pipelines?.find((p) => p.id === pipelineId) : undefined;
+    const extra: MoveToStageMenuStage[] = [];
+    if (pipe?.stages?.length) {
+      const known = new Set(stages.map((s) => s.id));
+      for (const s of pipe.stages) {
+        if (known.has(s.id)) continue;
+        extra.push({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          position: s.position,
+          isWon: s.isWon,
+          isLost: s.isLost,
+        });
+      }
+    }
+    if (extra.length === 0) return [...stages];
+    return [...stages, ...extra].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  }, [pipelineId, pipelines, stages]);
+}
+
 export function MoveToStageMenu({
   stages,
   currentStageId,
@@ -95,12 +129,15 @@ export function MoveToStageMenu({
     [pipelines, currentPipelineId],
   );
 
+  // Todas as etapas do funil atual, mesmo as fora do filtro do board.
+  const rootStages = usePipelineMoveStages(currentPipelineId, stages);
+
   if (view.kind === "root") {
     return (
       <div className={cn("min-w-[220px]", className)}>
         {header}
         <StageList
-          stages={stages}
+          stages={rootStages}
           currentStageId={currentStageId}
           isPending={isPending}
           onSelect={(sid) => onSelect(sid, currentPipelineId)}
