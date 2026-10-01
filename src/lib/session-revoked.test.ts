@@ -10,6 +10,12 @@ vi.mock("@/lib/sign-out-to-login", () => ({ signOutToLogin }));
 
 import { ApiError, parseApiResponse } from "@/lib/api";
 import {
+  __resetSessionRenewalForTests,
+  beginSessionRenewal,
+  endSessionRenewal,
+  SESSION_RENEWAL_GRACE_MS,
+} from "@/lib/session-renewal";
+import {
   __resetSessionRevokedForTests,
   handleSessionRevoked,
   isSessionRevoked,
@@ -33,7 +39,9 @@ async function flush() {
 describe("sessão revogada", () => {
   beforeEach(() => {
     __resetSessionRevokedForTests();
+    __resetSessionRenewalForTests();
     window.sessionStorage.clear();
+    window.localStorage.clear();
     signOutToLogin.mockClear();
     window.history.replaceState(null, "", "/inbox");
   });
@@ -95,6 +103,47 @@ describe("sessão revogada", () => {
     }
     expect(signOut).not.toHaveBeenCalled();
     window.history.replaceState(null, "", "/loginho"); // não é página de auth
+    expect(handleSessionRevoked(signOut)).toBe(true);
+  });
+
+  it("renovação em andamento (troca de senha nesta aba): 401 revogado NÃO desloga", async () => {
+    beginSessionRenewal();
+    // Polling/presença da própria tela na janela entre o incremento e o cookie novo.
+    for (let i = 0; i < 3; i += 1) {
+      await expect(parseApiResponse(json(401, REVOKED), "falhou")).rejects.toMatchObject({
+        status: 401,
+        code: "SESSION_REVOKED",
+      });
+    }
+    await flush();
+    expect(signOutToLogin).not.toHaveBeenCalled();
+  });
+
+  it("renovação anunciada por OUTRA aba (localStorage): esta aba também não desloga", () => {
+    const signOut = vi.fn(async () => undefined);
+    window.localStorage.setItem("crm:session-renewal-until", String(Date.now() + 10_000));
+    expect(handleSessionRevoked(signOut)).toBe(false);
+    expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("renovação que falhou: o próximo 401 revogado desloga normalmente", () => {
+    const signOut = vi.fn(async () => undefined);
+    beginSessionRenewal();
+    expect(handleSessionRevoked(signOut)).toBe(false);
+    endSessionRenewal(false);
+    expect(handleSessionRevoked(signOut)).toBe(true);
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("renovação concluída: resposta atrasada com o cookie antigo não desloga; revogação posterior, sim", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse("2026-10-01T12:00:00Z"));
+    const signOut = vi.fn(async () => undefined);
+    beginSessionRenewal();
+    endSessionRenewal(true);
+    expect(handleSessionRevoked(signOut)).toBe(false);
+    // Passada a folga, um 401 revogado é uma revogação de verdade.
+    vi.setSystemTime(Date.now() + SESSION_RENEWAL_GRACE_MS + 1);
     expect(handleSessionRevoked(signOut)).toBe(true);
   });
 
