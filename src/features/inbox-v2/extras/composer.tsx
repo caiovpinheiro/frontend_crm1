@@ -15,19 +15,15 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   IconSend,
-  IconMoodSmile,
 } from "@tabler/icons-react";
 
-import { cn } from "@/lib/utils";
 import { composerDraftKey } from "../composer-draft";
 import { useComposerDraftPersistence } from "../hooks/use-composer-draft";
 import { useTypingNotifier } from "../hooks/use-typing-notifier";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { EmojiPicker } from "@/components/inbox/emoji-picker";
 import {
-  useSlashMenu,
   SlashCommandMenu,
 } from "@/components/inbox/slash-command-menu";
 import { getContact } from "@/features/inbox-v2/api/misc";
@@ -55,6 +51,7 @@ import {
   type PendingTemplate,
 } from "./template-compose-panel";
 import { ComposerTopRow } from "./composer/composer-top-row";
+import { EmojiButton, useEmojiPanel } from "./composer/emoji-button";
 import { fileIsImage, imageExtFromMime } from "./composer/attachment-helpers";
 import {
   FileDropOverlay,
@@ -65,6 +62,7 @@ import { useOutboundFlush } from "./composer/outbound-flush";
 import { ReplyPreviewBar } from "./composer/reply-preview-bar";
 import { useComposerInsertBridge } from "./composer/use-composer-insert-bridge";
 import { useComposerSignature } from "./composer/use-composer-signature";
+import { useComposerSlash } from "./composer/use-composer-slash";
 import { useFileDropListeners } from "./composer/use-file-drop-listeners";
 import { usePendingFiles } from "./composer/use-pending-files";
 import { useProductOfferSender } from "./composer/use-product-offer-sender";
@@ -135,25 +133,7 @@ export function Composer({
   const notifyTyping = useTypingNotifier(conversationId, !noteMode);
 
   // Painel de emoji — abre acima do botão smiley. Insere no cursor do textarea.
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const emojiWrapRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!emojiOpen) return;
-    function onDoc(e: MouseEvent) {
-      if (emojiWrapRef.current && !emojiWrapRef.current.contains(e.target as Node)) {
-        setEmojiOpen(false);
-      }
-    }
-    function onEsc(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") setEmojiOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, [emojiOpen]);
+  const { emojiOpen, setEmojiOpen, emojiWrapRef } = useEmojiPanel();
 
   function insertEmoji(emoji: string) {
     const el = textareaRef.current;
@@ -420,93 +400,24 @@ export function Composer({
     setPendingMediaList,
   });
 
-  // ── Slash command (/modelos) ────────────────────────────────────
-  // Modelo interno → o hook insere o texto interpolado no campo (editável).
-  // Template Meta → abre o painel de validação.
-  // Wrapper de `setDraft` para o slash menu: atualiza `draftRef`
-  // SINCRONAMENTE antes de propagar pro estado do pai. O slash chama
-  // `setDraft(next)` e, logo em seguida (ainda síncrono), `onInsertMedia` —
-  // por isso `draftRef.current` já reflete o texto novo quando
-  // `onInsertMedia` roda, mesmo a prop `value` só atualizando no próximo render.
-  function handleSlashDraftChange(next: string) {
-    draftRef.current = next;
-    onChange(next);
-  }
-
-  const slash = useSlashMenu({
-    draft: value,
-    setDraft: handleSlashDraftChange,
+  const slash = useComposerSlash({
+    value,
+    onChange,
+    draftRef,
     textareaRef,
+    rootRef,
     templateContext,
-    // Conversa/contato atuais — habilitam a seção "Automações" no menu "/".
     conversationId,
     contactId,
-    channelId: selectedChannelId ?? conversationChannelId ?? null,
-    // Desabilita o atalho em modo nota (não faz sentido inserir templates ali)
-    disabled: disabled || noteMode,
-    // Modelo/mensagem rápida com anexo — 1 anexo sem messageBefore encosta
-    // pra ir junto no Enter (editável); multi-anexo ou messageBefore>=1
-    // exige a SEQUÊNCIA imediata (texto já está em `draftRef` — ver acima).
-    onInsertMedia: (media) => {
-      const list = Array.isArray(media) ? media : [media];
-      if (mediaNeedsSequence(list) && conversationId) {
-        const targetConversationId = conversationId;
-        // `queueMicrotask` garante que rodamos após o restante do handler
-        // síncrono do slash (setDraft já rodou, `draftRef` já está fresco).
-        queueMicrotask(() => {
-          const text = draftRef.current;
-          onChange("");
-          draftRef.current = "";
-          setSequenceSending(true);
-          void (async () => {
-            try {
-              await sendInternalTemplateSequence({
-                conversationId: targetConversationId,
-                content: text,
-                attachments: list,
-              });
-              qc.invalidateQueries({ queryKey: messagesKey(targetConversationId) });
-              applyOutboundPreviewToInboxCaches(qc, targetConversationId, {
-                content: text,
-              });
-            } finally {
-              setSequenceSending(false);
-            }
-          })();
-        });
-        return;
-      }
-      setPendingMediaList((prev) => [...prev, ...list]);
-    },
-    onPickMetaTemplate: (item) =>
-      setPendingTemplate({
-        name: item.name,
-        label: item.label || undefined,
-        content: item.bodyPreview,
-        metaTemplateId: item.id,
-        operatorVariables: item.operatorVariables ?? null,
-      }),
+    selectedChannelId,
+    conversationChannelId,
+    disabled,
+    noteMode,
+    qc,
+    setSequenceSending,
+    setPendingMediaList,
+    setPendingTemplate,
   });
-
-  // Fechar o slash menu via ESC (mesmo sem foco no textarea) e ao clicar
-  // fora do composer — o hook só fecha por teclado com o textarea focado.
-  useEffect(() => {
-    if (!slash.state.open) return;
-    function onEsc(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") slash.close();
-    }
-    function onPointer(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        slash.close();
-      }
-    }
-    document.addEventListener("keydown", onEsc);
-    document.addEventListener("mousedown", onPointer);
-    return () => {
-      document.removeEventListener("keydown", onEsc);
-      document.removeEventListener("mousedown", onPointer);
-    };
-  }, [slash.state.open, slash.close]);
 
   // `disabled` vindo do caller representa restrição do canal de saída
   // (ex.: sessão WhatsApp de 24h expirada — só pode enviar template).
@@ -853,43 +764,14 @@ export function Composer({
               onStageFiles={(files) => stageFiles(files)}
               enableCallPermission={enableCallPermission}
             />
-            <div ref={emojiWrapRef} className="relative">
-              <TooltipGlass label="Emoji" side="top">
-                <span className="inline-flex">
-                  <ButtonGlass
-                    type="button"
-                    variant="icon"
-                    size="icon"
-                    className={cn(
-                      "h-9 w-9 shrink-0",
-                      emojiOpen && "text-[var(--brand-primary)]",
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEmojiOpen((v) => !v);
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    disabled={inputDisabled || busy}
-                  >
-                    <IconMoodSmile size={20} />
-                  </ButtonGlass>
-                </span>
-              </TooltipGlass>
-              {emojiOpen && (
-                <div
-                  className="absolute bottom-12 left-0 z-50 w-[380px]"
-                  onMouseDown={(e) => e.stopPropagation()}
-                >
-                  <EmojiPicker
-                    open={emojiOpen}
-                    onPick={(emoji) => {
-                      insertEmoji(emoji);
-                      setEmojiOpen(false);
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+            <EmojiButton
+              emojiWrapRef={emojiWrapRef}
+              emojiOpen={emojiOpen}
+              setEmojiOpen={setEmojiOpen}
+              inputDisabled={inputDisabled}
+              busy={busy}
+              insertEmoji={insertEmoji}
+            />
             <QuickReplyPopover
               disabled={busy}
               sending={busy}
