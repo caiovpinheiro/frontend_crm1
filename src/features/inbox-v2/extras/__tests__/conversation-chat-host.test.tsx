@@ -341,6 +341,10 @@ describe("ConversationChatHost — montagem", () => {
     expect(composer.conversationId).toBe("conv-1");
     expect(composer.disabled).toBe(false);
     expect(composer.isResolved).toBe(false);
+    // Funil: "+" nunca tem Finalizar/Reabrir; o botão ✓ segue a chave de
+    // Configurações › Conversas (ausente no mock = visível).
+    expect(composer.hideResolveInMenu).toBe(true);
+    expect(composer.hideResolveButton).toBe(false);
     expect(composer.contactId).toBe("contact-1");
     expect(composer.dealId).toBe("deal-1");
     expect(composer.deals).toEqual([{ id: "deal-1", title: "Negócio atual" }]);
@@ -364,9 +368,6 @@ describe("ConversationChatHost — montagem", () => {
     const kebab = lastKebab();
     expect(kebab.conversationId).toBe("conv-1");
     expect(kebab.isResolved).toBe(false);
-    expect(kebab.departmentId).toBe("dept-1");
-    expect(kebab.requireTabulationOnClose).toBe(true);
-    expect(kebab.assigneeId).toBe("user-2");
     expect(kebab.dealId).toBe("deal-1");
 
     // FAB default (há dealId) e abas do deal.
@@ -505,7 +506,6 @@ describe("ConversationChatHost — envio", () => {
     expect(lastChatArea().conversationResolved).toBe(true);
     expect(lastComposer().isResolved).toBe(true);
     expect(lastComposer().onReopenNewConversation).toBe(onConversationReopened);
-    expect(lastKebab().onReopenNewConversation).toBe(onConversationReopened);
 
     await act(async () => {
       await lastComposer().onSend("de novo");
@@ -672,7 +672,6 @@ describe("ConversationChatHost — kebab e favoritas", () => {
     const onResolved = vi.fn();
     renderHost({ onResolved });
     expect(lastComposer().onResolved).toBe(onResolved);
-    expect(lastKebab().onResolved).toBe(onResolved);
   });
 });
 

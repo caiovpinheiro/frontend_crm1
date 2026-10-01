@@ -21,6 +21,7 @@ type ComposerTopRowProps = Pick<
   | "conversationNumber"
   | "conversationId"
   | "isResolved"
+  | "hideResolveButton"
   | "departmentId"
   | "assignedToId"
   | "requireTabulationOnClose"
@@ -59,6 +60,7 @@ export function ComposerTopRow({
   conversationNumber,
   conversationId,
   isResolved,
+  hideResolveButton,
   departmentId,
   assignedToId,
   requireTabulationOnClose,
@@ -158,7 +160,7 @@ export function ComposerTopRow({
               </span>
             </TooltipGlass>
           )}
-          {conversationId && (
+          {conversationId && !hideResolveButton && (
             <ConversationResolveButton
               conversationId={conversationId}
               isResolved={isResolved}
