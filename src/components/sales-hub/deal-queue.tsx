@@ -533,9 +533,10 @@ export function DealQueue({
   const visibleDeals = isStageSwitching ? [] : deals;
 
   // Windowing: monta no DOM só o início da fila e cresce +60 quando o
-  // sentinel entra no viewport. Com funis grandes (500+ deals), evita
-  // montar centenas de cards (e suas mídias/avatars) de uma vez — a
-  // fila renderiza sob demanda conforme o scroll.
+  // sentinel entra no viewport. Vale para o que JÁ veio carregado de uma
+  // vez (board filtrado traz centenas de cards) — evita montar tudo junto.
+  // Página pedida à rede não passa pela janela: entra inteira na tela,
+  // como na coluna do kanban (ver `requestNetworkPage`).
   const QUEUE_PAGE = 60;
   const [renderLimit, setRenderLimit] = useState(QUEUE_PAGE);
   const lastNetworkLoadAtCountRef = useRef(-1);
@@ -582,14 +583,25 @@ export function DealQueue({
     !windowSlice.some((d) => d.id === activeFellBelowWindow.id)
       ? [...windowSlice, activeFellBelowWindow]
       : windowSlice;
-  // O card aberto saiu da janela do topo. Rola até ele no fim da lista visível.
+  // O card aberto saiu da janela do topo. Rola até ele no fim da lista
+  // visível UMA vez, quando ele cai — não a cada card que entra na fila ou
+  // janela que cresce: isso puxava a rolagem para o fim sem o usuário pedir
+  // (e, com a sentinela de volta à tela, encadeava a janela seguinte).
+  const fellBelowId = activeFellBelowWindow?.id ?? null;
   useEffect(() => {
-    if (!activeDealId || activeIdx < effectiveLimit) return;
-    const el = itemRefs.current.get(activeDealId);
+    if (!fellBelowId) return;
+    const el = itemRefs.current.get(fellBelowId);
     el?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [activeDealId, activeIdx, effectiveLimit]);
+  }, [fellBelowId]);
   const hasMoreToRender = visibleDeals.length > effectiveLimit;
   // Dois níveis: 1º janela local (+60); depois rede (uma página por etapa).
+  // Só se pede rede com a janela esgotada; a partir daí o teto sai, senão a
+  // página que chega (30 cards) ficava escondida atrás da janela até outro
+  // gesto — rolar não trazia nada e o botão sumia e voltava.
+  const requestNetworkPage = () => {
+    setRenderLimit(Number.MAX_SAFE_INTEGER);
+    onLoadMore?.();
+  };
   // Um pedido por gesto de rolagem (`useScrollLoadMore`): a sentinela que
   // continua visível depois de uma página NÃO encadeia a seguinte — isso
   // virava rajada de requisições com o botão piscando "Carregando…".
@@ -604,7 +616,7 @@ export function DealQueue({
     // Página que não acrescentou card visível (filtro local): só o botão insiste.
     if (lastNetworkLoadAtCountRef.current === visibleCount) return;
     lastNetworkLoadAtCountRef.current = visibleCount;
-    onLoadMore?.();
+    requestNetworkPage();
   };
   const queueSentinelRef = useScrollLoadMore({
     scrollerRef,
@@ -671,7 +683,7 @@ export function DealQueue({
                   disabled={loadingMore}
                   onClick={() => {
                     lastNetworkLoadAtCountRef.current = -1;
-                    onLoadMore?.();
+                    requestNetworkPage();
                   }}
                   className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-primary/30 bg-primary/5 py-2 text-[11px] font-medium text-primary transition-colors hover:border-primary/50 hover:bg-primary/10 disabled:opacity-60"
                 >
