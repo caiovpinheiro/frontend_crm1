@@ -752,7 +752,12 @@ export function DealProductsSection({
     return item.productKind === "COURSE" && item.productType !== "SERVICE";
   }
 
-  async function loadConfiguredProductMessage(item: DealProductItem): Promise<string | null> {
+  async function loadConfiguredProductMessage(item: DealProductItem): Promise<{
+    text?: string | null;
+    gradeUrl?: string | null;
+    gradeFileName?: string | null;
+    gradeMime?: string | null;
+  } | null> {
     const params = new URLSearchParams();
     if (item.unitPrice != null) params.set("unitPrice", String(item.unitPrice));
     if (item.discount != null) params.set("discount", String(item.discount));
