@@ -19,6 +19,13 @@ import { IconChevronDown as ChevronDown, IconLoader2 as Loader2 } from "@tabler/
 
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { GlassCard } from "@/components/crm/glass-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -27,6 +34,8 @@ import {
   type InboxAlertChannel,
   type InboxAlertConfig,
   type InboxAlertKind,
+  type InboxTabAudience,
+  parseInboxTabAudience,
   withInboxAlertDefaults,
 } from "@/features/inbox-v2/inbox-alert-audience";
 import { apiUrl } from "@/lib/api";
@@ -36,6 +45,8 @@ type Row = { id: string; name: string; config: InboxAlertConfig | null };
 type UserRow = Row & { email?: string | null; departmentIds: string[] };
 type SettingsData = {
   defaults: InboxAlertConfig;
+  /** Público do aviso na aba (org); `null` = coluna "Aba" por tipo. */
+  tabAudience: InboxTabAudience | null;
   departments: Row[];
   users: UserRow[];
 };
@@ -60,10 +71,13 @@ const CHANNEL_LABEL: Record<InboxAlertChannel, string> = {
 async function fetchSettings(): Promise<SettingsData> {
   const res = await fetch(apiUrl("/api/settings/inbox-alerts"));
   if (!res.ok) throw new Error(`inbox-alerts ${res.status}`);
-  const data = (await res.json()) as SettingsData;
+  const data = (await res.json()) as Omit<SettingsData, "tabAudience"> & {
+    tabAudience?: unknown;
+  };
   // Configs gravadas antes de um tipo existir (ex.: `ai`) vêm sem ele.
   return {
     defaults: withInboxAlertDefaults(data.defaults),
+    tabAudience: parseInboxTabAudience(data.tabAudience),
     departments: data.departments.map((d) => ({
       ...d,
       config: d.config ? withInboxAlertDefaults(d.config) : null,
@@ -85,6 +99,91 @@ async function saveConfig(body: { scope: Scope; id: string; config: InboxAlertCo
     const data = (await res.json().catch(() => ({}))) as { message?: string };
     throw new Error(data.message || "Não foi possível salvar.");
   }
+}
+
+async function saveTabAudience(tabAudience: InboxTabAudience | null) {
+  const res = await fetch(apiUrl("/api/settings/inbox-alerts"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scope: "org", tabAudience }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message || "Não foi possível salvar.");
+  }
+}
+
+/** Valor "por tipo" do seletor = sem público gravado (`null`). */
+const TAB_AUDIENCE_BY_KIND = "by-kind";
+const TAB_AUDIENCE_OPTIONS: { value: InboxTabAudience | typeof TAB_AUDIENCE_BY_KIND; label: string; hint: string }[] = [
+  {
+    value: "owner",
+    label: "Somente o responsável",
+    hint: "Acende só na aba de quem é o responsável pela conversa.",
+  },
+  {
+    value: "department",
+    label: "Departamento",
+    hint: "Também para quem é do departamento da conversa, com ou sem responsável.",
+  },
+  {
+    value: "all",
+    label: "Todos",
+    hint: "Para todos que veem a conversa.",
+  },
+  {
+    value: TAB_AUDIENCE_BY_KIND,
+    label: "Por tipo de conversa",
+    hint: "Segue a coluna \"Aba\" de cada departamento/usuário abaixo.",
+  },
+];
+
+function TabAudienceSetting({ value }: { value: InboxTabAudience | null }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: saveTabAudience,
+    onSuccess: () => {
+      toast.success("Aviso na aba salvo.");
+      void qc.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Não foi possível salvar."),
+  });
+  const current = mutation.isPending
+    ? (mutation.variables ?? TAB_AUDIENCE_BY_KIND)
+    : (value ?? TAB_AUDIENCE_BY_KIND);
+  const option = TAB_AUDIENCE_OPTIONS.find((o) => o.value === current);
+
+  return (
+    <div className="mt-5 flex flex-col gap-2 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-[var(--text-primary)]">Aviso na aba do navegador</div>
+        <p className="text-pretty text-xs text-[var(--text-muted)]">
+          Quem vê o balão na aba quando chega mensagem. {option?.hint}
+        </p>
+      </div>
+      <div className="w-full shrink-0 sm:w-56">
+        <Select
+          value={current}
+          onValueChange={(v) => {
+            const next = v === TAB_AUDIENCE_BY_KIND ? null : parseInboxTabAudience(v);
+            if (next === value) return;
+            mutation.mutate(next);
+          }}
+        >
+          <SelectTrigger aria-label="Aviso na aba do navegador" disabled={mutation.isPending}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TAB_AUDIENCE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
 }
 
 function orConfigs(configs: InboxAlertConfig[]): InboxAlertConfig {
@@ -150,31 +249,35 @@ export function InboxAlertsSettings() {
             Não foi possível carregar as configurações.
           </p>
         ) : (
-          <Tabs defaultValue="departments" className="mt-5">
-            <TabsList>
-              <TabsTrigger value="departments">Departamentos</TabsTrigger>
-              <TabsTrigger value="users">Usuários</TabsTrigger>
-            </TabsList>
-            <TabsContent value="departments" className="mt-3 flex flex-col gap-2">
-              {data.departments.length === 0 ? (
-                <p className="text-sm text-[var(--text-muted)]">Nenhum departamento.</p>
-              ) : (
-                data.departments.map((d) => (
-                  <ConfigRow
-                    key={d.id}
-                    scope="department"
-                    id={d.id}
-                    name={d.name}
-                    config={d.config}
-                    inherited={{ config: data.defaults, source: "Padrão" }}
-                  />
-                ))
-              )}
-            </TabsContent>
-            <TabsContent value="users" className="mt-3">
-              <UsersList data={data} />
-            </TabsContent>
-          </Tabs>
+          <>
+            <TabAudienceSetting value={data.tabAudience} />
+            <Tabs defaultValue="departments" className="mt-5">
+              <TabsList>
+                <TabsTrigger value="departments">Departamentos</TabsTrigger>
+                <TabsTrigger value="users">Usuários</TabsTrigger>
+              </TabsList>
+              <TabsContent value="departments" className="mt-3 flex flex-col gap-2">
+                {data.departments.length === 0 ? (
+                  <p className="text-sm text-[var(--text-muted)]">Nenhum departamento.</p>
+                ) : (
+                  data.departments.map((d) => (
+                    <ConfigRow
+                      key={d.id}
+                      scope="department"
+                      id={d.id}
+                      name={d.name}
+                      config={d.config}
+                      inherited={{ config: data.defaults, source: "Padrão" }}
+                      tabLocked={data.tabAudience !== null}
+                    />
+                  ))
+                )}
+              </TabsContent>
+              <TabsContent value="users" className="mt-3">
+                <UsersList data={data} />
+              </TabsContent>
+            </Tabs>
+          </>
         )}
       </GlassCard>
     </div>
@@ -208,6 +311,7 @@ function UsersList({ data }: { data: SettingsData }) {
           subtitle={u.email ?? undefined}
           config={u.config}
           inherited={inheritedForUser(u, data.departments, data.defaults)}
+          tabLocked={data.tabAudience !== null}
         />
       ))}
     </div>
@@ -221,6 +325,7 @@ function ConfigRow({
   subtitle,
   config,
   inherited,
+  tabLocked = false,
 }: {
   scope: Scope;
   id: string;
@@ -228,6 +333,8 @@ function ConfigRow({
   subtitle?: string;
   config: InboxAlertConfig | null;
   inherited: { config: InboxAlertConfig; source: string };
+  /** Coluna "Aba" definida pelo seletor da org — sem efeito aqui. */
+  tabLocked?: boolean;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -306,15 +413,23 @@ function ConfigRow({
                       </div>
                       <div className="text-xs text-[var(--text-muted)]">{KIND_LABEL[kind].hint}</div>
                     </td>
-                    {INBOX_ALERT_CHANNELS.map((ch) => (
-                      <td key={ch} className="px-2 py-2 text-center">
-                        <Switch
-                          checked={draft[kind][ch]}
-                          onCheckedChange={(v) => setChannel(kind, ch, v)}
-                          aria-label={`${KIND_LABEL[kind].title}: ${CHANNEL_LABEL[ch]}`}
-                        />
-                      </td>
-                    ))}
+                    {INBOX_ALERT_CHANNELS.map((ch) => {
+                      const locked = tabLocked && ch === "tab";
+                      return (
+                        <td
+                          key={ch}
+                          className="px-2 py-2 text-center"
+                          title={locked ? "Definido em \"Aviso na aba do navegador\"" : undefined}
+                        >
+                          <Switch
+                            checked={draft[kind][ch]}
+                            disabled={locked}
+                            onCheckedChange={(v) => setChannel(kind, ch, v)}
+                            aria-label={`${KIND_LABEL[kind].title}: ${CHANNEL_LABEL[ch]}`}
+                          />
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
