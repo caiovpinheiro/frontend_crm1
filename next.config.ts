@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,17 +14,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Usado pelo `MobileAppUpdateDialog` para detectar deploys novos comparando
  * contra `/api/app-revision` — ver esse componente para detalhes.
  */
-function readAppRevision(): { revision: string; builtAt: string | null } {
+function readAppRevision(): { revision: string } {
+  const fromEnv = process.env.BUILD_ID ? opaqueRevision(process.env.BUILD_ID) : "dev";
   try {
     const raw = readFileSync(path.join(__dirname, "public", "app-revision.json"), "utf8");
-    const parsed = JSON.parse(raw) as { revision?: string; builtAt?: string };
-    return {
-      revision: parsed.revision?.trim() || process.env.BUILD_ID || "dev",
-      builtAt: parsed.builtAt ?? null,
-    };
+    const parsed = JSON.parse(raw) as { revision?: string };
+    const fromFile = parsed.revision?.trim();
+    if (!fromFile) return { revision: fromEnv };
+    // Arquivo deixado por um gerador antigo (SHA cru): nunca embute o valor
+    // como veio — o identificador público é sempre o hash curto.
+    return { revision: OPAQUE_REVISION_RE.test(fromFile) ? fromFile : opaqueRevision(fromFile) };
   } catch {
-    return { revision: process.env.BUILD_ID || "dev", builtAt: null };
+    return { revision: fromEnv };
   }
+}
+
+const OPAQUE_REVISION_RE = /^[0-9a-f]{12}$/;
+
+/**
+ * Identificador opaco do build: hash curto da origem (SHA do commit / BUILD_ID).
+ * Mesmo cálculo de `scripts/generate-app-revision.mjs` — mantenha em sincronia.
+ * O SHA e a hora do build não vão para o bundle nem para `/api/app-revision`.
+ */
+function opaqueRevision(source: string): string {
+  return createHash("sha256").update(`app-revision:${source}`).digest("hex").slice(0, 12);
 }
 
 const withSerwist = withSerwistInit({
@@ -98,6 +112,29 @@ function backendBase(): string {
 
 const appRevision = readAppRevision();
 
+/**
+ * Chave de build dos mocks de preview e das telas de showcase/dev.
+ *
+ * `"true"` fora de produção (`next dev`) ou em build de produção com a DUPLA
+ * chave do preview (mesma regra de `isPreviewEnabledByEnv` em
+ * `src/lib/preview-mode.ts` — mantenha as duas em sincronia). No build de
+ * produção normal vale `"false"`: o código compara
+ * `process.env.NEXT_PUBLIC_PREVIEW_MOCKS_BUNDLED === "true"` de forma literal,
+ * o bundler resolve em build time e o `import()` dos mocks some do bundle
+ * público (`scripts/check-bundle-sem-mocks.mjs` confere depois do build).
+ *
+ * Fica aqui (e não em `.env`) para ser sempre DEFINIDA — variável
+ * `NEXT_PUBLIC_*` ausente não é inlinada e o ramo não seria eliminado.
+ */
+function previewMocksBundled(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
+  const isTrue = (v: string | undefined) => (v ?? "").trim().toLowerCase() === "true";
+  return (
+    isTrue(process.env.NEXT_PUBLIC_PREVIEW_MODE) &&
+    isTrue(process.env.NEXT_PUBLIC_PREVIEW_MODE_ALLOW_PRODUCTION_BUILD)
+  );
+}
+
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: __dirname,
@@ -105,11 +142,12 @@ const nextConfig: NextConfig = {
     // Versão exibida pelo banner "Novidades em vX.Y.Z". Setar APP_VERSION
     // no ambiente de build (Easypanel) para alinhar com o CHANGELOG.md.
     NEXT_PUBLIC_APP_VERSION: process.env.APP_VERSION ?? "1.4.0",
-    // Fingerprint único do build (sha/timestamp), usado pelo
-    // MobileAppUpdateDialog para detectar deploys — NÃO confundir com
+    // Fingerprint único e OPACO do build (hash curto do sha/timestamp), usado
+    // pelo MobileAppUpdateDialog para detectar deploys — NÃO confundir com
     // NEXT_PUBLIC_APP_VERSION (semver, usado pelo banner desktop).
     NEXT_PUBLIC_BUILD_ID: appRevision.revision,
-    NEXT_PUBLIC_BUILD_TIME: appRevision.builtAt ?? "",
+    // Mocks de preview + showcase fora do bundle de produção (ver acima).
+    NEXT_PUBLIC_PREVIEW_MOCKS_BUNDLED: previewMocksBundled() ? "true" : "false",
   },
   typescript: {
     ignoreBuildErrors: false,

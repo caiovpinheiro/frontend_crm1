@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  isOrgSelectable,
+  normalizeDisplayName,
+  normalizeTenantOrgs,
+  resolveLoginError,
+  tenantLookupFailureMessage,
+  verifyEmailHref,
+} from "@/lib/login-contract";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
 import {
@@ -27,10 +35,10 @@ import {
 } from "./org-account-picker";
 
 const DEV_PREVIEW_ORGS: TenantOrgChoice[] = [
-  { slug: "anhanguera-comercial", name: "ANHANGUERA COMERCIAL", status: "ARCHIVED" },
-  { slug: "cruzeiro-ead", name: "CRUZEIRO ACADÊMICO", status: "ARCHIVED" },
-  { slug: "cruzeiro-comercial", name: "CRUZEIRO COMERCIAL", status: "ACTIVE" },
-  { slug: "uead", name: "UEaD", status: "ARCHIVED" },
+  { slug: "demo-comercial", name: "DEMO COMERCIAL", status: "ARCHIVED" },
+  { slug: "demo-academico", name: "DEMO ACADÊMICO", status: "ARCHIVED" },
+  { slug: "demo-vendas", name: "DEMO VENDAS", status: "ACTIVE" },
+  { slug: "demo-ead", name: "DEMO EAD", status: "ARCHIVED" },
 ];
 
 function LoginShellFallback() {
@@ -104,10 +112,12 @@ function LoginForm() {
     searchParams.get("identify") === "1";
 
   const [email, setEmail] = useState(
-    emailFromQuery || (previewOrgs ? "caio.vinicius@eduit.com.br" : ""),
+    emailFromQuery || (previewOrgs ? "usuario.demo@example.com" : ""),
   );
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Link para /verify-email mostrado junto do erro genérico de credenciais.
+  const [errorVerifyHref, setErrorVerifyHref] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -118,7 +128,7 @@ function LoginForm() {
     previewOrgs ? DEV_PREVIEW_ORGS : null,
   );
   const [welcomeName, setWelcomeName] = useState<string | null>(
-    previewOrgs ? "Caio" : null,
+    previewOrgs ? "Usuário" : null,
   );
   const [selectedOrgSlug, setSelectedOrgSlug] = useState<string | null>(
     orgFromQuery || null,
@@ -161,8 +171,9 @@ function LoginForm() {
    *
    * Critério rígido de sucesso: `ok === true` E sem `error`.
    */
-  function showError(message: string) {
+  function showError(message: string, opts?: { verifyEmailLink?: boolean }) {
     setError(message);
+    setErrorVerifyHref(opts?.verifyEmailLink ? verifyEmailHref(email) : null);
     setLoginSuccess(false);
     setErrorBump((n) => n + 1);
     // Devolve foco pro campo de senha pra reentrada rápida; SR anuncia o
@@ -189,7 +200,7 @@ function LoginForm() {
   }
 
   function handleSelectOrg(org: TenantOrgChoice) {
-    if (org.status !== "ACTIVE") {
+    if (!isOrgSelectable(org)) {
       showError("Esta organização está expirada e não pode ser acessada.");
       return;
     }
@@ -207,22 +218,25 @@ function LoginForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: email.trim() }),
         });
+        // `orgs`/`displayName` como `unknown`: o contrato novo do backend não
+        // devolve mais `displayName` nem `name`/`status` das orgs — quem
+        // normaliza é `@/lib/login-contract`.
         const data = (await res.json().catch(() => null)) as
           | {
               ok?: boolean;
               slug?: string | null;
               apex?: boolean;
-              orgs?: TenantOrgChoice[];
-              displayName?: string | null;
+              orgs?: unknown;
+              displayName?: unknown;
             }
           | null;
         if (!res.ok || !data?.ok) {
-          showError("Não encontramos uma conta com este e-mail.");
+          showError(tenantLookupFailureMessage(res.status, res.headers.get("Retry-After")));
           return;
         }
-        const orgs = Array.isArray(data.orgs) ? data.orgs : [];
+        const orgs = normalizeTenantOrgs(data.orgs);
         if (orgs.length > 1) {
-          setWelcomeName(data.displayName ?? null);
+          setWelcomeName(normalizeDisplayName(data.displayName));
           setOrgChoices(orgs);
           return;
         }
@@ -245,14 +259,20 @@ function LoginForm() {
         const lookup = (await lookupRes.json().catch(() => null)) as
           | {
               ok?: boolean;
-              orgs?: TenantOrgChoice[];
-              displayName?: string | null;
+              orgs?: unknown;
+              displayName?: unknown;
               slug?: string | null;
             }
           | null;
-        const orgs = Array.isArray(lookup?.orgs) ? lookup.orgs : [];
+        if (lookupRes.status === 429) {
+          showError(
+            tenantLookupFailureMessage(lookupRes.status, lookupRes.headers.get("Retry-After")),
+          );
+          return;
+        }
+        const orgs = normalizeTenantOrgs(lookup?.orgs);
         if (lookupRes.ok && lookup?.ok && orgs.length > 1) {
-          setWelcomeName(lookup.displayName ?? null);
+          setWelcomeName(normalizeDisplayName(lookup.displayName));
           setOrgChoices(orgs);
           return;
         }
@@ -282,32 +302,18 @@ function LoginForm() {
       const hasError = !result.ok || Boolean(result.error);
 
       if (hasError) {
-        if (result.code === "database_unavailable") {
-          showError(
-            "Não foi possível conectar ao banco de dados. Inicie o PostgreSQL (ex.: docker compose up -d) e confira o DATABASE_URL no .env.",
-          );
-        } else if (result.code === "account_locked") {
-          showError(
-            "Conta temporariamente bloqueada por várias tentativas. Aguarde alguns minutos ou peça a um admin para revisar o bloqueio.",
-          );
-        } else if (result.code === "mfa_required") {
-          showError(
-            "Esta conta exige MFA. Use o fluxo de código de autenticação (em desenvolvimento no login web).",
-          );
-        } else if (result.code === "email_unverified") {
+        // Códigos antigos (o backend de produção ainda os envia) seguem
+        // tratados; `credentials`/desconhecido do contrato novo cai na
+        // mensagem única, que não revela se o e-mail existe e só OFERECE o
+        // link de confirmação (sem redirecionar).
+        const resolved = resolveLoginError(result.code);
+        showError(resolved.message, { verifyEmailLink: resolved.offerVerifyEmailLink });
+        if (resolved.goToVerifyEmail) {
           const q = new URLSearchParams();
           if (email.trim()) q.set("email", email.trim());
-          showError(
-            "Confirme seu e-mail para entrar. Enviamos um código de 6 dígitos.",
-          );
           window.setTimeout(() => {
             window.location.assign(`/verify-email?${q.toString()}`);
           }, 800);
-        } else {
-          // Default: credenciais inválidas (CredentialsSignin) ou qualquer
-          // outro erro genérico. Mensagem única evita user-enumeration
-          // (não revela se o e-mail existe).
-          showError("E-mail ou senha incorretos.");
         }
         return;
       }
@@ -561,7 +567,20 @@ function LoginForm() {
               className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span className="flex-1">{error}</span>
+              <span className="flex-1">
+                {error}
+                {errorVerifyHref ? (
+                  <>
+                    {" "}
+                    <Link
+                      href={errorVerifyHref}
+                      className="font-semibold underline underline-offset-4"
+                    >
+                      Confirmar e-mail
+                    </Link>
+                  </>
+                ) : null}
+              </span>
             </motion.div>
           ) : null}
 

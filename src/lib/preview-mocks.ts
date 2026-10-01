@@ -27,9 +27,9 @@ type MockHandler = (url: URL, init?: RequestInit) => unknown;
 ══════════════════════════════════════════════════════════════════ */
 
 const USER = {
-  id: "u-marcelo",
-  name: "Marcelo Santos",
-  email: "marcelo@eduit.com.br",
+  id: "u-demo-gestor",
+  name: "Gestor Demo",
+  email: "gestor.demo@example.com",
   image: null,
   role: "OWNER" as const,
   organizationId: "preview-org",
@@ -37,16 +37,16 @@ const USER = {
 };
 
 const AGENTS = [
-  { id: "u-marcelo",  name: "Marcelo Santos",  email: "marcelo@eduit.com.br",  avatarUrl: null, role: "OWNER",  status: "ONLINE" },
-  { id: "u-juliana",  name: "Juliana Costa",   email: "juliana@eduit.com.br",  avatarUrl: null, role: "AGENT",  status: "ONLINE" },
-  { id: "u-rafael",   name: "Rafael Almeida",  email: "rafael@eduit.com.br",   avatarUrl: null, role: "AGENT",  status: "AWAY"   },
-  { id: "u-camila",   name: "Camila Souza",    email: "camila@eduit.com.br",   avatarUrl: null, role: "AGENT",  status: "OFFLINE" },
+  { id: "u-demo-gestor",  name: "Gestor Demo",  email: "gestor.demo@example.com",  avatarUrl: null, role: "OWNER",  status: "ONLINE" },
+  { id: "u-demo-agente-a",  name: "Agente Demo A",   email: "agente.a@example.com",  avatarUrl: null, role: "AGENT",  status: "ONLINE" },
+  { id: "u-demo-agente-b",   name: "Agente Demo B",  email: "agente.b@example.com",   avatarUrl: null, role: "AGENT",  status: "AWAY"   },
+  { id: "u-demo-agente-c",   name: "Agente Demo C",    email: "agente.c@example.com",   avatarUrl: null, role: "AGENT",  status: "OFFLINE" },
 ];
 
 const ORG = {
   id: "preview-org",
   name: "Bwipo",
-  slug: "eduit",
+  slug: "demo",
   plan: "PRO",
   logoUrl: null,
 };
@@ -63,18 +63,18 @@ const TAGS = [
 
 /* ── Empresas ── */
 const COMPANIES = [
-  { id: "co-1", name: "Acme Tech",           domain: "acme.com",          industry: "Software",     size: "51-200",  phone: "+5511999990001", email: "contato@acme.com",          address: "Av. Paulista, 1000 — São Paulo, SP",         cnpj: "12.345.678/0001-90", website: "https://acme.com",          createdAt: "2026-04-12T10:00:00Z", _count: { contacts: 14 } },
-  { id: "co-2", name: "Globex Logistics",    domain: "globex.com.br",     industry: "Logística",    size: "201-500", phone: "+5511999990002", email: "comercial@globex.com.br",   address: "Rod. Anhanguera, km 23 — Campinas, SP",     cnpj: "98.765.432/0001-10", website: "https://globex.com.br",     createdAt: "2026-03-28T10:00:00Z", _count: { contacts: 8  } },
-  { id: "co-3", name: "Initech Consultoria", domain: "initech.com",       industry: "Consultoria",  size: "11-50",   phone: "+5511999990003", email: "hello@initech.com",         address: "R. Augusta, 500 — São Paulo, SP",           cnpj: "11.222.333/0001-44", website: "https://initech.com",       createdAt: "2026-05-05T10:00:00Z", _count: { contacts: 5  } },
-  { id: "co-4", name: "Umbrella Saúde",      domain: "umbrella.health",   industry: "Saúde",        size: "1000+",   phone: "+5521999990004", email: "parceiros@umbrella.health", address: "Av. Atlântica, 200 — Rio de Janeiro, RJ",   cnpj: "55.666.777/0001-88", website: "https://umbrella.health",   createdAt: "2026-02-14T10:00:00Z", _count: { contacts: 22 } },
-  { id: "co-5", name: "Pied Piper",          domain: "piedpiper.com",     industry: "Software",     size: "1-10",    phone: "+5511999990005", email: "hi@piedpiper.com",          address: "R. da Consolação, 1500 — São Paulo, SP",   cnpj: "22.333.444/0001-55", website: "https://piedpiper.com",     createdAt: "2026-05-20T10:00:00Z", _count: { contacts: 3  } },
-  { id: "co-6", name: "Stellar Educação",    domain: "stellar.edu.br",    industry: "Educação",     size: "51-200",  phone: "+5531999990006", email: "contato@stellar.edu.br",    address: "R. dos Inconfidentes, 800 — Belo Horizonte, MG", cnpj: "33.444.555/0001-66", website: "https://stellar.edu.br",   createdAt: "2026-01-10T10:00:00Z", _count: { contacts: 17 } },
+  { id: "co-1", name: "Acme Tech",           domain: "acme.com",          industry: "Software",     size: "51-200",  phone: "+5511999990001", email: "contato@example.com",          address: "Av. Paulista, 1000 — São Paulo, SP",         cnpj: "12.345.678/0001-90", website: "https://acme.com",          createdAt: "2026-04-12T10:00:00Z", _count: { contacts: 14 } },
+  { id: "co-2", name: "Globex Logistics",    domain: "globex.com.br",     industry: "Logística",    size: "201-500", phone: "+5511999990002", email: "comercial@example.com",   address: "Rod. Anhanguera, km 23 — Campinas, SP",     cnpj: "98.765.432/0001-10", website: "https://globex.com.br",     createdAt: "2026-03-28T10:00:00Z", _count: { contacts: 8  } },
+  { id: "co-3", name: "Initech Consultoria", domain: "initech.com",       industry: "Consultoria",  size: "11-50",   phone: "+5511999990003", email: "hello@example.com",         address: "R. Augusta, 500 — São Paulo, SP",           cnpj: "11.222.333/0001-44", website: "https://initech.com",       createdAt: "2026-05-05T10:00:00Z", _count: { contacts: 5  } },
+  { id: "co-4", name: "Umbrella Saúde",      domain: "umbrella.health",   industry: "Saúde",        size: "1000+",   phone: "+5511999990004", email: "parceiros@example.com", address: "Av. Atlântica, 200 — Rio de Janeiro, RJ",   cnpj: "55.666.777/0001-88", website: "https://umbrella.health",   createdAt: "2026-02-14T10:00:00Z", _count: { contacts: 22 } },
+  { id: "co-5", name: "Pied Piper",          domain: "piedpiper.com",     industry: "Software",     size: "1-10",    phone: "+5511999990005", email: "hi@example.com",          address: "R. da Consolação, 1500 — São Paulo, SP",   cnpj: "22.333.444/0001-55", website: "https://piedpiper.com",     createdAt: "2026-05-20T10:00:00Z", _count: { contacts: 3  } },
+  { id: "co-6", name: "Stellar Educação",    domain: "stellar.edu.br",    industry: "Educação",     size: "51-200",  phone: "+5511999990006", email: "contato@example.com",    address: "R. dos Inconfidentes, 800 — Belo Horizonte, MG", cnpj: "33.444.555/0001-66", website: "https://stellar.edu.br",   createdAt: "2026-01-10T10:00:00Z", _count: { contacts: 17 } },
 ];
 
 /* ── Contatos ── */
 const CONTACTS = [
   {
-    id: "ct-1", name: "Ana Beatriz Costa",  email: "ana@acme.com",          phone: "+5511988880001", avatarUrl: null,
+    id: "ct-1", name: "Ana Beatriz Costa",  email: "ana@example.com",          phone: "+5511999990007", avatarUrl: null,
     leadScore: 87, lifecycleStage: "QUALIFIED", cpf: "123.456.789-00", rg: "12.345.678-9", cep: "01310-100", addressNumber: "1000",
     birthDate: "1991-03-15", notes: "Tomadora de decisão. Quer demo técnica com o time de TI antes de fechar.",
     createdAt: "2026-05-25T14:00:00Z",
@@ -84,7 +84,7 @@ const CONTACTS = [
     activities: [{ id: "ac-1", type: "CALL", title: "Follow-up Acme", scheduledAt: "2026-06-02T15:00:00Z", completedAt: null }],
   },
   {
-    id: "ct-2", name: "Bruno Lima",         email: "bruno@globex.com.br",   phone: "+5511988880002", avatarUrl: null,
+    id: "ct-2", name: "Bruno Lima",         email: "bruno@example.com",   phone: "+5511999990008", avatarUrl: null,
     leadScore: 65, lifecycleStage: "LEAD", cpf: "234.567.890-11", rg: null, cep: "13010-050", addressNumber: "23",
     birthDate: "1986-07-22", notes: "Responsável por compras. Quer reduzir custo de frete.",
     createdAt: "2026-05-22T11:30:00Z",
@@ -94,7 +94,7 @@ const CONTACTS = [
     activities: [{ id: "ac-2", type: "MEETING", title: "Reunião kickoff Globex", scheduledAt: "2026-06-03T10:00:00Z", completedAt: null }],
   },
   {
-    id: "ct-3", name: "Camila Rodrigues",   email: "camila@initech.com",    phone: "+5511988880003", avatarUrl: null,
+    id: "ct-3", name: "Camila Rodrigues",   email: "camila.rodrigues@example.com",    phone: "+5511999990009", avatarUrl: null,
     leadScore: 42, lifecycleStage: "LEAD", cpf: null, rg: null, cep: "01305-000", addressNumber: "500",
     birthDate: "1994-11-30", notes: null,
     createdAt: "2026-05-18T09:15:00Z",
@@ -104,7 +104,7 @@ const CONTACTS = [
     activities: [{ id: "ac-3", type: "TASK", title: "Preparar proposta Initech", scheduledAt: "2026-06-01T18:00:00Z", completedAt: null }],
   },
   {
-    id: "ct-4", name: "Diego Almeida",      email: "diego@umbrella.health", phone: "+5521988880004", avatarUrl: null,
+    id: "ct-4", name: "Diego Almeida",      email: "diego@example.com", phone: "+5511999990010", avatarUrl: null,
     leadScore: 91, lifecycleStage: "CUSTOMER", cpf: "456.789.012-33", rg: "34.567.890-1", cep: "22010-000", addressNumber: "200",
     birthDate: "1980-02-10", notes: "Cliente desde 2024. Alto potencial de upsell para plano Enterprise.",
     createdAt: "2026-04-30T16:45:00Z",
@@ -114,7 +114,7 @@ const CONTACTS = [
     activities: [{ id: "ac-4", type: "EMAIL", title: "Enviar contrato Umbrella", scheduledAt: "2026-05-30T14:00:00Z", completedAt: "2026-05-30T14:30:00Z" }],
   },
   {
-    id: "ct-5", name: "Eduarda Silva",      email: "eduarda@piedpiper.com", phone: "+5511988880005", avatarUrl: null,
+    id: "ct-5", name: "Eduarda Silva",      email: "eduarda@example.com", phone: "+5511999990011", avatarUrl: null,
     leadScore: 73, lifecycleStage: "QUALIFIED", cpf: null, rg: null, cep: "01308-200", addressNumber: "1500",
     birthDate: "1998-05-05", notes: "Startup em estágio inicial. Interesse em plano de entrada.",
     createdAt: "2026-05-28T08:00:00Z",
@@ -124,7 +124,7 @@ const CONTACTS = [
     activities: [],
   },
   {
-    id: "ct-6", name: "Felipe Martins",     email: "felipe@acme.com",       phone: "+5511988880006", avatarUrl: null,
+    id: "ct-6", name: "Felipe Martins",     email: "felipe@example.com",       phone: "+5511999990012", avatarUrl: null,
     leadScore: 58, lifecycleStage: "LEAD", cpf: null, rg: null, cep: "01310-100", addressNumber: "1000",
     birthDate: "1992-09-18", notes: null,
     createdAt: "2026-05-15T13:20:00Z",
@@ -134,7 +134,7 @@ const CONTACTS = [
     activities: [],
   },
   {
-    id: "ct-7", name: "Gabriela Sousa",     email: "gabi@globex.com.br",    phone: "+5511988880007", avatarUrl: null,
+    id: "ct-7", name: "Gabriela Sousa",     email: "gabi@example.com",    phone: "+5511999990013", avatarUrl: null,
     leadScore: 80, lifecycleStage: "CUSTOMER", cpf: "678.901.234-55", rg: null, cep: "13015-000", addressNumber: "89",
     birthDate: "1989-12-03", notes: "Renovou o contrato no mês passado. Satisfação alta.",
     createdAt: "2026-04-10T10:00:00Z",
@@ -144,7 +144,7 @@ const CONTACTS = [
     activities: [],
   },
   {
-    id: "ct-8", name: "Henrique Pereira",   email: null,                    phone: "+5511988880008", avatarUrl: null,
+    id: "ct-8", name: "Henrique Pereira",   email: null,                    phone: "+5511999990014", avatarUrl: null,
     leadScore: null, lifecycleStage: null, cpf: null, rg: null, cep: null, addressNumber: null,
     birthDate: null, notes: null,
     createdAt: "2026-05-30T17:00:00Z",
@@ -154,7 +154,7 @@ const CONTACTS = [
     activities: [],
   },
   {
-    id: "ct-9", name: "Isabela Ferreira",   email: "isabela@stellar.edu.br", phone: "+5531988880009", avatarUrl: null,
+    id: "ct-9", name: "Isabela Ferreira",   email: "isabela@example.com", phone: "+5511999990015", avatarUrl: null,
     leadScore: 68, lifecycleStage: "QUALIFIED", cpf: "789.012.345-66", rg: null, cep: "30140-010", addressNumber: "800",
     birthDate: "1995-04-20", notes: "Responsável pela área pedagógica. Interesse em módulo de LMS.",
     createdAt: "2026-05-10T08:30:00Z",
@@ -164,7 +164,7 @@ const CONTACTS = [
     activities: [{ id: "ac-5", type: "MEETING", title: "Demo LMS Stellar", scheduledAt: "2026-06-04T14:00:00Z", completedAt: null }],
   },
   {
-    id: "ct-10", name: "João Victor Nunes",  email: "joao@acme.com",          phone: "+5511988880010", avatarUrl: null,
+    id: "ct-10", name: "João Victor Nunes",  email: "joao@example.com",          phone: "+5511999990016", avatarUrl: null,
     leadScore: 52, lifecycleStage: "LEAD", cpf: null, rg: null, cep: "01310-100", addressNumber: "1000",
     birthDate: "1997-08-12", notes: null,
     createdAt: "2026-05-31T10:00:00Z",
@@ -177,8 +177,8 @@ const CONTACTS = [
 
 /* ── Canais ── */
 const CHANNELS = [
-  { id: "ch-1", name: "WhatsApp Vendas",    provider: "WHATSAPP_META", kind: "whatsapp",  isActive: true,  phone: "+5511900000001" },
-  { id: "ch-2", name: "WhatsApp Suporte",   provider: "WHATSAPP_META", kind: "whatsapp",  isActive: true,  phone: "+5511900000002" },
+  { id: "ch-1", name: "WhatsApp Vendas",    provider: "WHATSAPP_META", kind: "whatsapp",  isActive: true,  phone: "+5511999990017" },
+  { id: "ch-2", name: "WhatsApp Suporte",   provider: "WHATSAPP_META", kind: "whatsapp",  isActive: true,  phone: "+5511999990018" },
   { id: "ch-3", name: "Instagram DMs",      provider: "INSTAGRAM",     kind: "instagram", isActive: true,  phone: null             },
   { id: "ch-4", name: "Chat do Site",       provider: "WEBCHAT",       kind: "webchat",   isActive: false, phone: null             },
 ];
@@ -200,26 +200,26 @@ const PIPELINES = [
 
 /* ── Deals ── */
 const DEALS = [
-  { id: "dl-1", title: "Implantação CRM Acme",      value: 48000,  stageId: "st-3", ownerId: "u-marcelo",  contactId: "ct-1",  companyId: "co-1", probability: 60,  expectedClose: "2026-06-15", tags: [TAGS[0]], updatedAt: "2026-05-30T10:00:00Z", lostReason: null },
-  { id: "dl-2", title: "Renovação anual Globex",    value: 120000, stageId: "st-4", ownerId: "u-juliana",  contactId: "ct-2",  companyId: "co-2", probability: 85,  expectedClose: "2026-06-08", tags: [TAGS[1]], updatedAt: "2026-05-31T09:00:00Z", lostReason: null },
-  { id: "dl-3", title: "Consultoria Initech Q3",    value: 32000,  stageId: "st-2", ownerId: "u-marcelo",  contactId: "ct-3",  companyId: "co-3", probability: 40,  expectedClose: "2026-07-20", tags: [TAGS[2]], updatedAt: "2026-05-28T14:00:00Z", lostReason: null },
-  { id: "dl-4", title: "Upsell Umbrella Premium",   value: 95000,  stageId: "st-4", ownerId: "u-rafael",   contactId: "ct-4",  companyId: "co-4", probability: 75,  expectedClose: "2026-06-30", tags: [TAGS[1]], updatedAt: "2026-05-29T16:00:00Z", lostReason: null },
-  { id: "dl-5", title: "Trial Pied Piper",          value: 12000,  stageId: "st-1", ownerId: "u-camila",   contactId: "ct-5",  companyId: "co-5", probability: 20,  expectedClose: "2026-08-10", tags: [TAGS[2]], updatedAt: "2026-05-25T11:00:00Z", lostReason: null },
-  { id: "dl-6", title: "Acme — módulo extra",       value: 18500,  stageId: "st-5", ownerId: "u-marcelo",  contactId: "ct-6",  companyId: "co-1", probability: 100, expectedClose: "2026-05-15", tags: [], updatedAt: "2026-05-15T17:00:00Z", lostReason: null },
-  { id: "dl-7", title: "Renovação Globex 2026",     value: 85000,  stageId: "st-5", ownerId: "u-juliana",  contactId: "ct-7",  companyId: "co-2", probability: 100, expectedClose: "2026-05-01", tags: [TAGS[1]], updatedAt: "2026-05-01T12:00:00Z", lostReason: null },
-  { id: "dl-8", title: "LMS Stellar Educação",      value: 67000,  stageId: "st-3", ownerId: "u-rafael",   contactId: "ct-9",  companyId: "co-6", probability: 55,  expectedClose: "2026-07-05", tags: [TAGS[5]], updatedAt: "2026-05-27T09:00:00Z", lostReason: null },
-  { id: "dl-9", title: "CRM Initech (perdido)",     value: 25000,  stageId: "st-6", ownerId: "u-marcelo",  contactId: "ct-3",  companyId: "co-3", probability: 0,   expectedClose: "2026-05-20", tags: [], updatedAt: "2026-05-20T11:00:00Z", lostReason: "Preço acima do orçamento" },
+  { id: "dl-1", title: "Implantação CRM Acme",      value: 48000,  stageId: "st-3", ownerId: "u-demo-gestor",  contactId: "ct-1",  companyId: "co-1", probability: 60,  expectedClose: "2026-06-15", tags: [TAGS[0]], updatedAt: "2026-05-30T10:00:00Z", lostReason: null },
+  { id: "dl-2", title: "Renovação anual Globex",    value: 120000, stageId: "st-4", ownerId: "u-demo-agente-a",  contactId: "ct-2",  companyId: "co-2", probability: 85,  expectedClose: "2026-06-08", tags: [TAGS[1]], updatedAt: "2026-05-31T09:00:00Z", lostReason: null },
+  { id: "dl-3", title: "Consultoria Initech Q3",    value: 32000,  stageId: "st-2", ownerId: "u-demo-gestor",  contactId: "ct-3",  companyId: "co-3", probability: 40,  expectedClose: "2026-07-20", tags: [TAGS[2]], updatedAt: "2026-05-28T14:00:00Z", lostReason: null },
+  { id: "dl-4", title: "Upsell Umbrella Premium",   value: 95000,  stageId: "st-4", ownerId: "u-demo-agente-b",   contactId: "ct-4",  companyId: "co-4", probability: 75,  expectedClose: "2026-06-30", tags: [TAGS[1]], updatedAt: "2026-05-29T16:00:00Z", lostReason: null },
+  { id: "dl-5", title: "Trial Pied Piper",          value: 12000,  stageId: "st-1", ownerId: "u-demo-agente-c",   contactId: "ct-5",  companyId: "co-5", probability: 20,  expectedClose: "2026-08-10", tags: [TAGS[2]], updatedAt: "2026-05-25T11:00:00Z", lostReason: null },
+  { id: "dl-6", title: "Acme — módulo extra",       value: 18500,  stageId: "st-5", ownerId: "u-demo-gestor",  contactId: "ct-6",  companyId: "co-1", probability: 100, expectedClose: "2026-05-15", tags: [], updatedAt: "2026-05-15T17:00:00Z", lostReason: null },
+  { id: "dl-7", title: "Renovação Globex 2026",     value: 85000,  stageId: "st-5", ownerId: "u-demo-agente-a",  contactId: "ct-7",  companyId: "co-2", probability: 100, expectedClose: "2026-05-01", tags: [TAGS[1]], updatedAt: "2026-05-01T12:00:00Z", lostReason: null },
+  { id: "dl-8", title: "LMS Stellar Educação",      value: 67000,  stageId: "st-3", ownerId: "u-demo-agente-b",   contactId: "ct-9",  companyId: "co-6", probability: 55,  expectedClose: "2026-07-05", tags: [TAGS[5]], updatedAt: "2026-05-27T09:00:00Z", lostReason: null },
+  { id: "dl-9", title: "CRM Initech (perdido)",     value: 25000,  stageId: "st-6", ownerId: "u-demo-gestor",  contactId: "ct-3",  companyId: "co-3", probability: 0,   expectedClose: "2026-05-20", tags: [], updatedAt: "2026-05-20T11:00:00Z", lostReason: "Preço acima do orçamento" },
 ];
 
 /* ── Atividades ── */
 const ACTIVITIES = [
-  { id: "ac-1", type: "CALL",    title: "Follow-up Acme",            description: "Ligar pra Ana Beatriz após envio da proposta", completed: false, scheduledAt: "2026-06-02T15:00:00Z", completedAt: null,                   createdAt: "2026-05-31T10:00:00Z", user: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br", avatarUrl: null }, contact: { id: "ct-1", name: "Ana Beatriz Costa",  email: "ana@acme.com"         }, deal: { id: "dl-1", title: "Implantação CRM Acme",     stageId: "st-3" } },
-  { id: "ac-2", type: "MEETING", title: "Reunião kickoff Globex",    description: "Apresentação do time + cronograma",            completed: false, scheduledAt: "2026-06-03T10:00:00Z", completedAt: null,                   createdAt: "2026-05-30T12:00:00Z", user: { id: "u-juliana", name: "Juliana Costa",   email: "juliana@eduit.com.br", avatarUrl: null }, contact: { id: "ct-2", name: "Bruno Lima",           email: "bruno@globex.com.br"  }, deal: { id: "dl-2", title: "Renovação anual Globex",   stageId: "st-4" } },
-  { id: "ac-3", type: "TASK",    title: "Preparar proposta Initech", description: null,                                           completed: false, scheduledAt: "2026-06-01T18:00:00Z", completedAt: null,                   createdAt: "2026-05-29T09:00:00Z", user: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br", avatarUrl: null }, contact: { id: "ct-3", name: "Camila Rodrigues",     email: "camila@initech.com"   }, deal: { id: "dl-3", title: "Consultoria Initech Q3",   stageId: "st-2" } },
-  { id: "ac-4", type: "EMAIL",   title: "Enviar contrato Umbrella",  description: "Anexar contrato + termo aditivo",              completed: true,  scheduledAt: "2026-05-30T14:00:00Z", completedAt: "2026-05-30T14:30:00Z", createdAt: "2026-05-29T10:00:00Z", user: { id: "u-rafael",  name: "Rafael Almeida",  email: "rafael@eduit.com.br",  avatarUrl: null }, contact: { id: "ct-4", name: "Diego Almeida",        email: "diego@umbrella.health" }, deal: { id: "dl-4", title: "Upsell Umbrella Premium",  stageId: "st-4" } },
-  { id: "ac-5", type: "MEETING", title: "Demo LMS Stellar",         description: "Demo do módulo LMS para equipe pedagógica",    completed: false, scheduledAt: "2026-06-04T14:00:00Z", completedAt: null,                   createdAt: "2026-05-28T08:00:00Z", user: { id: "u-camila",  name: "Camila Souza",    email: "camila@eduit.com.br",  avatarUrl: null }, contact: { id: "ct-9", name: "Isabela Ferreira",      email: "isabela@stellar.edu.br" }, deal: { id: "dl-8", title: "LMS Stellar Educação",     stageId: "st-3" } },
-  { id: "ac-6", type: "CALL",    title: "Qualificar Pied Piper",     description: "Confirmar budget e prazo de decisão",          completed: true,  scheduledAt: "2026-05-27T11:00:00Z", completedAt: "2026-05-27T11:22:00Z", createdAt: "2026-05-26T14:00:00Z", user: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br", avatarUrl: null }, contact: { id: "ct-5", name: "Eduarda Silva",         email: "eduarda@piedpiper.com" }, deal: { id: "dl-5", title: "Trial Pied Piper",           stageId: "st-1" } },
-  { id: "ac-7", type: "TASK",    title: "Onboarding João Victor",    description: null,                                           completed: false, scheduledAt: "2026-06-05T09:00:00Z", completedAt: null,                   createdAt: "2026-05-31T10:00:00Z", user: { id: "u-juliana", name: "Juliana Costa",   email: "juliana@eduit.com.br", avatarUrl: null }, contact: { id: "ct-10", name: "João Victor Nunes",   email: "joao@acme.com"        }, deal: null },
+  { id: "ac-1", type: "CALL",    title: "Follow-up Acme",            description: "Ligar pra Ana Beatriz após envio da proposta", completed: false, scheduledAt: "2026-06-02T15:00:00Z", completedAt: null,                   createdAt: "2026-05-31T10:00:00Z", user: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com", avatarUrl: null }, contact: { id: "ct-1", name: "Ana Beatriz Costa",  email: "ana@example.com"         }, deal: { id: "dl-1", title: "Implantação CRM Acme",     stageId: "st-3" } },
+  { id: "ac-2", type: "MEETING", title: "Reunião kickoff Globex",    description: "Apresentação do time + cronograma",            completed: false, scheduledAt: "2026-06-03T10:00:00Z", completedAt: null,                   createdAt: "2026-05-30T12:00:00Z", user: { id: "u-demo-agente-a", name: "Agente Demo A",   email: "agente.a@example.com", avatarUrl: null }, contact: { id: "ct-2", name: "Bruno Lima",           email: "bruno@example.com"  }, deal: { id: "dl-2", title: "Renovação anual Globex",   stageId: "st-4" } },
+  { id: "ac-3", type: "TASK",    title: "Preparar proposta Initech", description: null,                                           completed: false, scheduledAt: "2026-06-01T18:00:00Z", completedAt: null,                   createdAt: "2026-05-29T09:00:00Z", user: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com", avatarUrl: null }, contact: { id: "ct-3", name: "Camila Rodrigues",     email: "camila.rodrigues@example.com"   }, deal: { id: "dl-3", title: "Consultoria Initech Q3",   stageId: "st-2" } },
+  { id: "ac-4", type: "EMAIL",   title: "Enviar contrato Umbrella",  description: "Anexar contrato + termo aditivo",              completed: true,  scheduledAt: "2026-05-30T14:00:00Z", completedAt: "2026-05-30T14:30:00Z", createdAt: "2026-05-29T10:00:00Z", user: { id: "u-demo-agente-b",  name: "Agente Demo B",  email: "agente.b@example.com",  avatarUrl: null }, contact: { id: "ct-4", name: "Diego Almeida",        email: "diego@example.com" }, deal: { id: "dl-4", title: "Upsell Umbrella Premium",  stageId: "st-4" } },
+  { id: "ac-5", type: "MEETING", title: "Demo LMS Stellar",         description: "Demo do módulo LMS para equipe pedagógica",    completed: false, scheduledAt: "2026-06-04T14:00:00Z", completedAt: null,                   createdAt: "2026-05-28T08:00:00Z", user: { id: "u-demo-agente-c",  name: "Agente Demo C",    email: "agente.c@example.com",  avatarUrl: null }, contact: { id: "ct-9", name: "Isabela Ferreira",      email: "isabela@example.com" }, deal: { id: "dl-8", title: "LMS Stellar Educação",     stageId: "st-3" } },
+  { id: "ac-6", type: "CALL",    title: "Qualificar Pied Piper",     description: "Confirmar budget e prazo de decisão",          completed: true,  scheduledAt: "2026-05-27T11:00:00Z", completedAt: "2026-05-27T11:22:00Z", createdAt: "2026-05-26T14:00:00Z", user: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com", avatarUrl: null }, contact: { id: "ct-5", name: "Eduarda Silva",         email: "eduarda@example.com" }, deal: { id: "dl-5", title: "Trial Pied Piper",           stageId: "st-1" } },
+  { id: "ac-7", type: "TASK",    title: "Onboarding João Victor",    description: null,                                           completed: false, scheduledAt: "2026-06-05T09:00:00Z", completedAt: null,                   createdAt: "2026-05-31T10:00:00Z", user: { id: "u-demo-agente-a", name: "Agente Demo A",   email: "agente.a@example.com", avatarUrl: null }, contact: { id: "ct-10", name: "João Victor Nunes",   email: "joao@example.com"        }, deal: null },
 ];
 
 /* ── Conversas ── */
@@ -227,8 +227,8 @@ const CONVERSATIONS = [
   // OPEN — com mensagens não lidas — aba "entrada"
   {
     id: "cv-1", channel: "whatsapp", status: "OPEN",
-    contact: { id: "ct-1", name: "Ana Beatriz Costa",  phone: "+5511988880001", email: "ana@acme.com",          avatarUrl: null },
-    assignedToId: "u-marcelo", assignedTo: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br" },
+    contact: { id: "ct-1", name: "Ana Beatriz Costa",  phone: "+5511999990007", email: "ana@example.com",          avatarUrl: null },
+    assignedToId: "u-demo-gestor", assignedTo: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com" },
     lastInboundAt: "2026-05-31T15:45:00Z", lastMessageAt: "2026-05-31T15:45:00Z",
     lastMessage: { preview: "Top! Manda a proposta por favor 🙏", direction: "in", status: "DELIVERED" },
     lastMessagePreview: { content: "Top! Manda a proposta por favor 🙏", messageType: "text", mediaUrl: null, direction: "in" },
@@ -236,8 +236,8 @@ const CONVERSATIONS = [
   },
   {
     id: "cv-2", channel: "whatsapp", status: "OPEN",
-    contact: { id: "ct-2", name: "Bruno Lima",          phone: "+5511988880002", email: "bruno@globex.com.br",   avatarUrl: null },
-    assignedToId: "u-juliana", assignedTo: { id: "u-juliana", name: "Juliana Costa", email: "juliana@eduit.com.br" },
+    contact: { id: "ct-2", name: "Bruno Lima",          phone: "+5511999990008", email: "bruno@example.com",   avatarUrl: null },
+    assignedToId: "u-demo-agente-a", assignedTo: { id: "u-demo-agente-a", name: "Agente Demo A", email: "agente.a@example.com" },
     lastInboundAt: "2026-05-31T14:20:00Z", lastMessageAt: "2026-05-31T14:20:00Z",
     lastMessage: { preview: "Beleza, vou avaliar com o time e te retorno", direction: "out", status: "READ" },
     lastMessagePreview: { content: "Beleza, vou avaliar com o time e te retorno", messageType: "text", mediaUrl: null, direction: "out" },
@@ -246,7 +246,7 @@ const CONVERSATIONS = [
   // OPEN — sem atribuição — aba "entrada"
   {
     id: "cv-3", channel: "whatsapp", status: "OPEN",
-    contact: { id: "ct-3", name: "Camila Rodrigues",    phone: "+5511988880003", email: "camila@initech.com",    avatarUrl: null },
+    contact: { id: "ct-3", name: "Camila Rodrigues",    phone: "+5511999990009", email: "camila.rodrigues@example.com",    avatarUrl: null },
     assignedToId: null, assignedTo: null,
     lastInboundAt: "2026-05-31T09:10:00Z", lastMessageAt: "2026-05-31T09:10:00Z",
     lastMessage: { preview: "Bom dia, gostaria de saber mais sobre o produto", direction: "in", status: "DELIVERED" },
@@ -256,8 +256,8 @@ const CONVERSATIONS = [
   // PENDING — aba "esperando"
   {
     id: "cv-4", channel: "instagram", status: "PENDING",
-    contact: { id: "ct-9", name: "Isabela Ferreira",    phone: "+5531988880009", email: "isabela@stellar.edu.br", avatarUrl: null },
-    assignedToId: "u-camila", assignedTo: { id: "u-camila", name: "Camila Souza", email: "camila@eduit.com.br" },
+    contact: { id: "ct-9", name: "Isabela Ferreira",    phone: "+5511999990015", email: "isabela@example.com", avatarUrl: null },
+    assignedToId: "u-demo-agente-c", assignedTo: { id: "u-demo-agente-c", name: "Agente Demo C", email: "agente.c@example.com" },
     lastInboundAt: "2026-05-31T12:00:00Z", lastMessageAt: "2026-05-31T12:00:00Z",
     lastMessage: { preview: "Aguardando retorno do financeiro sobre o orçamento", direction: "in", status: "DELIVERED" },
     lastMessagePreview: { content: "Aguardando retorno do financeiro sobre o orçamento", messageType: "text", mediaUrl: null, direction: "in" },
@@ -266,8 +266,8 @@ const CONVERSATIONS = [
   // OPEN — com mensagens não lidas
   {
     id: "cv-5", channel: "whatsapp", status: "OPEN",
-    contact: { id: "ct-5", name: "Eduarda Silva",       phone: "+5511988880005", email: "eduarda@piedpiper.com", avatarUrl: null },
-    assignedToId: "u-marcelo", assignedTo: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br" },
+    contact: { id: "ct-5", name: "Eduarda Silva",       phone: "+5511999990011", email: "eduarda@example.com", avatarUrl: null },
+    assignedToId: "u-demo-gestor", assignedTo: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com" },
     lastInboundAt: "2026-05-30T11:00:00Z", lastMessageAt: "2026-05-30T11:00:00Z",
     lastMessage: { preview: "Estamos avaliando outras opções no momento", direction: "in", status: "DELIVERED" },
     lastMessagePreview: { content: "Estamos avaliando outras opções no momento", messageType: "text", mediaUrl: null, direction: "in" },
@@ -276,8 +276,8 @@ const CONVERSATIONS = [
   // OPEN — respondida
   {
     id: "cv-6", channel: "whatsapp", status: "OPEN",
-    contact: { id: "ct-6", name: "Felipe Martins",      phone: "+5511988880006", email: "felipe@acme.com",       avatarUrl: null },
-    assignedToId: "u-rafael", assignedTo: { id: "u-rafael", name: "Rafael Almeida", email: "rafael@eduit.com.br" },
+    contact: { id: "ct-6", name: "Felipe Martins",      phone: "+5511999990012", email: "felipe@example.com",       avatarUrl: null },
+    assignedToId: "u-demo-agente-b", assignedTo: { id: "u-demo-agente-b", name: "Agente Demo B", email: "agente.b@example.com" },
     lastInboundAt: "2026-05-29T15:00:00Z", lastMessageAt: "2026-05-29T16:45:00Z",
     lastMessage: { preview: "Vou conferir e te aviso até sexta", direction: "out", status: "READ" },
     lastMessagePreview: { content: "Vou conferir e te aviso até sexta", messageType: "text", mediaUrl: null, direction: "out" },
@@ -286,8 +286,8 @@ const CONVERSATIONS = [
   // RESOLVED — aba "finalizados"
   {
     id: "cv-7", channel: "whatsapp", status: "RESOLVED",
-    contact: { id: "ct-7", name: "Gabriela Sousa",      phone: "+5511988880007", email: "gabi@globex.com.br",    avatarUrl: null },
-    assignedToId: "u-juliana", assignedTo: { id: "u-juliana", name: "Juliana Costa", email: "juliana@eduit.com.br" },
+    contact: { id: "ct-7", name: "Gabriela Sousa",      phone: "+5511999990013", email: "gabi@example.com",    avatarUrl: null },
+    assignedToId: "u-demo-agente-a", assignedTo: { id: "u-demo-agente-a", name: "Agente Demo A", email: "agente.a@example.com" },
     lastInboundAt: "2026-05-28T10:15:00Z", lastMessageAt: "2026-05-28T10:15:00Z",
     lastMessage: { preview: "Renovamos sim, obrigada!", direction: "in", status: "DELIVERED" },
     lastMessagePreview: { content: "Renovamos sim, obrigada!", messageType: "text", mediaUrl: null, direction: "in" },
@@ -297,8 +297,8 @@ const CONVERSATIONS = [
   {
     id: "cv-7b", channel: "whatsapp", status: "OPEN",
     followUpAt: "2026-06-01T09:00:00Z",
-    contact: { id: "ct-7b", name: "Larissa Mendes",     phone: "+5511988880017", email: "larissa@acme.com",      avatarUrl: null },
-    assignedToId: "u-marcelo", assignedTo: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br" },
+    contact: { id: "ct-7b", name: "Larissa Mendes",     phone: "+5511999990019", email: "larissa@example.com",      avatarUrl: null },
+    assignedToId: "u-demo-gestor", assignedTo: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com" },
     lastInboundAt: "2026-05-29T11:00:00Z", lastMessageAt: "2026-05-29T11:20:00Z",
     lastMessage: { preview: "Te retorno na próxima semana", direction: "out", status: "READ" },
     lastMessagePreview: { content: "Te retorno na próxima semana", messageType: "text", mediaUrl: null, direction: "out" },
@@ -307,7 +307,7 @@ const CONVERSATIONS = [
   // OPEN — sem leitura — lead novo
   {
     id: "cv-8", channel: "whatsapp", status: "OPEN",
-    contact: { id: "ct-8", name: "Henrique Pereira",    phone: "+5511988880008", email: null,                    avatarUrl: null },
+    contact: { id: "ct-8", name: "Henrique Pereira",    phone: "+5511999990014", email: null,                    avatarUrl: null },
     assignedToId: null, assignedTo: null,
     lastInboundAt: "2026-05-31T17:00:00Z", lastMessageAt: "2026-05-31T17:00:00Z",
     lastMessage: { preview: "Olá! Quero saber mais sobre o CRM", direction: "in", status: "DELIVERED" },
@@ -317,8 +317,8 @@ const CONVERSATIONS = [
   // RESOLVED — aba "finalizados"
   {
     id: "cv-9", channel: "whatsapp", status: "RESOLVED",
-    contact: { id: "ct-4", name: "Diego Almeida",       phone: "+5521988880004", email: "diego@umbrella.health", avatarUrl: null },
-    assignedToId: "u-marcelo", assignedTo: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br" },
+    contact: { id: "ct-4", name: "Diego Almeida",       phone: "+5511999990010", email: "diego@example.com", avatarUrl: null },
+    assignedToId: "u-demo-gestor", assignedTo: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com" },
     lastInboundAt: "2026-05-30T18:30:00Z", lastMessageAt: "2026-05-30T18:30:00Z",
     lastMessage: { preview: "Perfeito, agendado pra amanhã 14h", direction: "out", status: "READ" },
     lastMessagePreview: { content: "Perfeito, agendado pra amanhã 14h", messageType: "text", mediaUrl: null, direction: "out" },
@@ -327,8 +327,8 @@ const CONVERSATIONS = [
   // OPEN — com erro de entrega — aba "erro"
   {
     id: "cv-10", channel: "whatsapp", status: "OPEN",
-    contact: { id: "ct-10", name: "João Victor Nunes",  phone: "+5511988880010", email: "joao@acme.com",          avatarUrl: null },
-    assignedToId: "u-marcelo", assignedTo: { id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br" },
+    contact: { id: "ct-10", name: "João Victor Nunes",  phone: "+5511999990016", email: "joao@example.com",          avatarUrl: null },
+    assignedToId: "u-demo-gestor", assignedTo: { id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com" },
     lastInboundAt: "2026-05-31T10:00:00Z", lastMessageAt: "2026-05-31T10:05:00Z",
     lastMessage: { preview: "Tentei ligar mas não atendeu", direction: "out", status: "FAILED" },
     lastMessagePreview: { content: "Tentei ligar mas não atendeu", messageType: "text", mediaUrl: null, direction: "out" },
@@ -337,8 +337,8 @@ const CONVERSATIONS = [
   // PENDING — instagram
   {
     id: "cv-11", channel: "instagram", status: "OPEN",
-    contact: { id: "ct-9", name: "Isabela Ferreira",    phone: null,             email: "isabela@stellar.edu.br", avatarUrl: null },
-    assignedToId: "u-camila", assignedTo: { id: "u-camila", name: "Camila Souza", email: "camila@eduit.com.br" },
+    contact: { id: "ct-9", name: "Isabela Ferreira",    phone: null,             email: "isabela@example.com", avatarUrl: null },
+    assignedToId: "u-demo-agente-c", assignedTo: { id: "u-demo-agente-c", name: "Agente Demo C", email: "agente.c@example.com" },
     lastInboundAt: "2026-05-30T16:00:00Z", lastMessageAt: "2026-05-30T16:10:00Z",
     lastMessage: { preview: "Vi o post e quero mais info!", direction: "in", status: "DELIVERED" },
     lastMessagePreview: { content: "Vi o post e quero mais info!", messageType: "text", mediaUrl: null, direction: "in" },
@@ -347,8 +347,8 @@ const CONVERSATIONS = [
   // SNOOZED
   {
     id: "cv-12", channel: "whatsapp", status: "SNOOZED",
-    contact: { id: "ct-2", name: "Bruno Lima",          phone: "+5511988880002", email: "bruno@globex.com.br",   avatarUrl: null },
-    assignedToId: "u-juliana", assignedTo: { id: "u-juliana", name: "Juliana Costa", email: "juliana@eduit.com.br" },
+    contact: { id: "ct-2", name: "Bruno Lima",          phone: "+5511999990008", email: "bruno@example.com",   avatarUrl: null },
+    assignedToId: "u-demo-agente-a", assignedTo: { id: "u-demo-agente-a", name: "Agente Demo A", email: "agente.a@example.com" },
     lastInboundAt: "2026-05-29T08:00:00Z", lastMessageAt: "2026-05-29T08:00:00Z",
     lastMessage: { preview: "Podemos falar segunda-feira?", direction: "in", status: "DELIVERED" },
     lastMessagePreview: { content: "Podemos falar segunda-feira?", messageType: "text", mediaUrl: null, direction: "in" },
@@ -483,7 +483,7 @@ function makeMessages(conversationId: string) {
       media: {
         url: "https://placehold.co/600x400/3b82f6/ffffff?text=Deck+Bwipo",
         mimeType: "image/png",
-        fileName: "deck-eduit.png",
+        fileName: "deck-demo.png",
         duration: null,
         transcript: null,
       },
@@ -495,7 +495,7 @@ function makeMessages(conversationId: string) {
       id: `${conv.id}-m8`,
       conversationId: conv.id,
       direction: "system" as const,
-      content: "Conversa atribuída a Marcelo Santos",
+      content: "Conversa atribuída a Gestor Demo",
       messageType: "text",
       private: false,
       status: "SENT",
@@ -589,17 +589,17 @@ const AUTOMATIONS = [
 
 /* ── Contacts list (shape de /api/contacts — dados reais anonimizados) ── */
 const CONTACTS_LIST = [
-  { id: "ct-1001", name: "Ana Beatriz Ferreira", email: "ana.ferreira@stellar.edu.br", phone: "+5531988120045", avatarUrl: null, leadScore: 87, lifecycleStage: "OPPORTUNITY", createdAt: "2026-05-22T13:40:00Z", company: { id: "co-6", name: "Stellar Educação", domain: "stellar.edu.br" }, tags: [TAGS[0], TAGS[1]] },
-  { id: "ct-1002", name: "Carlos Eduardo Lima",   email: "carlos.lima@acme.com",           phone: "+5511997640112", avatarUrl: null, leadScore: 64, lifecycleStage: "LEAD",        createdAt: "2026-05-19T09:10:00Z", company: { id: "co-1", name: "Acme Tech",        domain: "acme.com"       }, tags: [TAGS[2]] },
-  { id: "ct-1003", name: "Patrícia Gomes",        email: "patricia@globex.com.br",          phone: "+5511996330078", avatarUrl: null, leadScore: 42, lifecycleStage: "CUSTOMER",   createdAt: "2026-04-30T16:05:00Z", company: { id: "co-2", name: "Globex Logistics", domain: "globex.com.br"  }, tags: [TAGS[5]] },
-  { id: "ct-1004", name: "Rafael Monteiro",       email: null,                              phone: "+5521995210099", avatarUrl: null, leadScore: null, lifecycleStage: "LEAD",     createdAt: "2026-05-25T11:22:00Z", company: null,                                                                   tags: [] },
+  { id: "ct-1001", name: "Ana Beatriz Ferreira", email: "ana.ferreira@example.com", phone: "+5511999990020", avatarUrl: null, leadScore: 87, lifecycleStage: "OPPORTUNITY", createdAt: "2026-05-22T13:40:00Z", company: { id: "co-6", name: "Stellar Educação", domain: "stellar.edu.br" }, tags: [TAGS[0], TAGS[1]] },
+  { id: "ct-1002", name: "Carlos Eduardo Lima",   email: "carlos.lima@example.com",           phone: "+5511999990021", avatarUrl: null, leadScore: 64, lifecycleStage: "LEAD",        createdAt: "2026-05-19T09:10:00Z", company: { id: "co-1", name: "Acme Tech",        domain: "acme.com"       }, tags: [TAGS[2]] },
+  { id: "ct-1003", name: "Patrícia Gomes",        email: "patricia@example.com",          phone: "+5511999990022", avatarUrl: null, leadScore: 42, lifecycleStage: "CUSTOMER",   createdAt: "2026-04-30T16:05:00Z", company: { id: "co-2", name: "Globex Logistics", domain: "globex.com.br"  }, tags: [TAGS[5]] },
+  { id: "ct-1004", name: "Rafael Monteiro",       email: null,                              phone: "+5511999990023", avatarUrl: null, leadScore: null, lifecycleStage: "LEAD",     createdAt: "2026-05-25T11:22:00Z", company: null,                                                                   tags: [] },
 ];
 
 /* ── Companies list (shape de /api/companies — dados reais anonimizados) ── */
 const COMPANIES_LIST = [
   { id: "co-1", name: "Acme Tech",        domain: "acme.com",       industry: "Software",  size: "51-200",  phone: "+5511999990001", address: "Av. Paulista, 1000 — São Paulo, SP",                 createdAt: "2026-04-12T10:00:00Z", _count: { contacts: 14 } },
   { id: "co-2", name: "Globex Logistics", domain: "globex.com.br",  industry: "Logística", size: "201-500", phone: "+5511999990002", address: "Rod. Anhanguera, km 23 — Campinas, SP",              createdAt: "2026-03-28T10:00:00Z", _count: { contacts: 8  } },
-  { id: "co-6", name: "Stellar Educação", domain: "stellar.edu.br", industry: "Educação",  size: "51-200",  phone: "+5531999990006", address: "R. dos Inconfidentes, 800 — Belo Horizonte, MG",    createdAt: "2026-01-10T10:00:00Z", _count: { contacts: 17 } },
+  { id: "co-6", name: "Stellar Educação", domain: "stellar.edu.br", industry: "Educação",  size: "51-200",  phone: "+5511999990006", address: "R. dos Inconfidentes, 800 — Belo Horizonte, MG",    createdAt: "2026-01-10T10:00:00Z", _count: { contacts: 17 } },
 ];
 
 /* ── Board (shape de /api/pipelines/:id/board — dados reais anonimizados) ── */
@@ -607,14 +607,14 @@ const BOARD_STAGES = [
   {
     id: "st-1", name: "Novo lead", color: "#3b82f6", position: 0, winProbability: 10, rottingDays: 7, isIncoming: true, totalCount: 2,
     deals: [
-      { id: "dl-2001", number: 2001, title: "Plano Anual — Stellar",  value: 28500,  status: "OPEN", position: 0, expectedClose: "2026-06-30T00:00:00Z", createdAt: "2026-05-22T13:40:00Z", updatedAt: "2026-05-28T10:00:00Z", isRotting: false, priority: "HIGH",   contact: { id: "ct-1001", name: "Ana Beatriz Ferreira", email: "ana.ferreira@stellar.edu.br", phone: "+5531988120045", avatarUrl: null }, owner: { id: "u-juliana", name: "Juliana Costa",  avatarUrl: null }, lastMessage: { content: "Pode me enviar a proposta?",                 createdAt: "2026-05-28T09:55:00Z", direction: "INBOUND" }, channel: "WHATSAPP", productName: "Plano Anual EAD",  productType: "SERVICE", tags: [TAGS[0]], pendingActivities: 2, hasOverdueActivity: false, unreadCount: 1 },
-      { id: "dl-2002", number: 2002, title: "Licenças — Acme Tech",   value: 12000,  status: "OPEN", position: 1, expectedClose: null,                   createdAt: "2026-05-19T09:10:00Z", updatedAt: "2026-05-26T14:00:00Z", isRotting: true,  priority: "MEDIUM", contact: { id: "ct-1002", name: "Carlos Eduardo Lima",  email: "carlos.lima@acme.com",           phone: "+5511997640112", avatarUrl: null }, owner: { id: "u-rafael",  name: "Rafael Almeida", avatarUrl: null }, lastMessage: null,                                                                                                channel: "EMAIL",    productName: null,            productType: null,      tags: [],        pendingActivities: 0, hasOverdueActivity: true,  unreadCount: 0 },
+      { id: "dl-2001", number: 2001, title: "Plano Anual — Stellar",  value: 28500,  status: "OPEN", position: 0, expectedClose: "2026-06-30T00:00:00Z", createdAt: "2026-05-22T13:40:00Z", updatedAt: "2026-05-28T10:00:00Z", isRotting: false, priority: "HIGH",   contact: { id: "ct-1001", name: "Ana Beatriz Ferreira", email: "ana.ferreira@example.com", phone: "+5511999990020", avatarUrl: null }, owner: { id: "u-demo-agente-a", name: "Agente Demo A",  avatarUrl: null }, lastMessage: { content: "Pode me enviar a proposta?",                 createdAt: "2026-05-28T09:55:00Z", direction: "INBOUND" }, channel: "WHATSAPP", productName: "Plano Anual EAD",  productType: "SERVICE", tags: [TAGS[0]], pendingActivities: 2, hasOverdueActivity: false, unreadCount: 1 },
+      { id: "dl-2002", number: 2002, title: "Licenças — Acme Tech",   value: 12000,  status: "OPEN", position: 1, expectedClose: null,                   createdAt: "2026-05-19T09:10:00Z", updatedAt: "2026-05-26T14:00:00Z", isRotting: true,  priority: "MEDIUM", contact: { id: "ct-1002", name: "Carlos Eduardo Lima",  email: "carlos.lima@example.com",           phone: "+5511999990021", avatarUrl: null }, owner: { id: "u-demo-agente-b",  name: "Agente Demo B", avatarUrl: null }, lastMessage: null,                                                                                                channel: "EMAIL",    productName: null,            productType: null,      tags: [],        pendingActivities: 0, hasOverdueActivity: true,  unreadCount: 0 },
     ],
   },
   {
     id: "st-2", name: "Qualificado", color: "#8b5cf6", position: 1, winProbability: 35, rottingDays: 10, totalCount: 1,
     deals: [
-      { id: "dl-2003", number: 2003, title: "Consultoria — Globex",   value: 45000,  status: "OPEN", position: 0, expectedClose: "2026-07-15T00:00:00Z", createdAt: "2026-04-30T16:05:00Z", updatedAt: "2026-05-27T11:30:00Z", isRotting: false, priority: "HIGH",   contact: { id: "ct-1003", name: "Patrícia Gomes",       email: "patricia@globex.com.br",          phone: "+5511996330078", avatarUrl: null }, owner: { id: "u-marcelo", name: "Marcelo Santos", avatarUrl: null }, lastMessage: { content: "Fechado, vamos seguir!",                    createdAt: "2026-05-27T11:25:00Z", direction: "INBOUND" }, channel: "WHATSAPP", productName: "Consultoria EaD", productType: "SERVICE", tags: [TAGS[1]], pendingActivities: 1, hasOverdueActivity: false, unreadCount: 0 },
+      { id: "dl-2003", number: 2003, title: "Consultoria — Globex",   value: 45000,  status: "OPEN", position: 0, expectedClose: "2026-07-15T00:00:00Z", createdAt: "2026-04-30T16:05:00Z", updatedAt: "2026-05-27T11:30:00Z", isRotting: false, priority: "HIGH",   contact: { id: "ct-1003", name: "Patrícia Gomes",       email: "patricia@example.com",          phone: "+5511999990022", avatarUrl: null }, owner: { id: "u-demo-gestor", name: "Gestor Demo", avatarUrl: null }, lastMessage: { content: "Fechado, vamos seguir!",                    createdAt: "2026-05-27T11:25:00Z", direction: "INBOUND" }, channel: "WHATSAPP", productName: "Consultoria EaD", productType: "SERVICE", tags: [TAGS[1]], pendingActivities: 1, hasOverdueActivity: false, unreadCount: 0 },
     ],
   },
   { id: "st-3", name: "Proposta",   color: "#f59e0b", position: 2, winProbability: 60, rottingDays: 14, totalCount: 0, deals: [] },
@@ -745,10 +745,10 @@ const SERVICE_OVERVIEW = {
     { name: "Instagram DMs",    value: 227, color: "#a855f7" },
   ],
   byAttendant: [
-    { name: "Marcelo Santos",  value: 412, color: "#3b82f6" },
-    { name: "Juliana Costa",   value: 388, color: "#a855f7" },
-    { name: "Rafael Almeida",  value: 295, color: "#22c55e" },
-    { name: "Camila Souza",    value: 189, color: "#f59e0b" },
+    { name: "Gestor Demo",  value: 412, color: "#3b82f6" },
+    { name: "Agente Demo A",   value: 388, color: "#a855f7" },
+    { name: "Agente Demo B",  value: 295, color: "#22c55e" },
+    { name: "Agente Demo C",    value: 189, color: "#f59e0b" },
   ],
   byPlatform: {
     rows: [
@@ -776,10 +776,10 @@ const SERVICE_OVERVIEW = {
     yLabels: ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
   },
   attendantRanking: [
-    { id: "u-marcelo", name: "Marcelo Santos",  attended: 412, avgResponse: "1m 50s", resolution: 94 },
-    { id: "u-juliana", name: "Juliana Costa",   attended: 388, avgResponse: "2m 10s", resolution: 91 },
-    { id: "u-rafael",  name: "Rafael Almeida",  attended: 295, avgResponse: "2m 35s", resolution: 89 },
-    { id: "u-camila",  name: "Camila Souza",    attended: 189, avgResponse: "3m 05s", resolution: 86 },
+    { id: "u-demo-gestor", name: "Gestor Demo",  attended: 412, avgResponse: "1m 50s", resolution: 94 },
+    { id: "u-demo-agente-a", name: "Agente Demo A",   attended: 388, avgResponse: "2m 10s", resolution: 91 },
+    { id: "u-demo-agente-b",  name: "Agente Demo B",  attended: 295, avgResponse: "2m 35s", resolution: 89 },
+    { id: "u-demo-agente-c",  name: "Agente Demo C",    attended: 189, avgResponse: "3m 05s", resolution: 86 },
   ],
 };
 
@@ -810,7 +810,7 @@ const ROLES = [
     id: "role-admin",   name: "ADMIN",   description: "Acesso total à plataforma", isSystem: true,  systemPreset: "ADMIN",
     permissions: ["*"],
     _count: { assignments: 1, groups: 0 },
-    _members: [{ id: "u-marcelo", name: "Marcelo Santos", email: "marcelo@eduit.com.br", avatarUrl: null }],
+    _members: [{ id: "u-demo-gestor", name: "Gestor Demo", email: "gestor.demo@example.com", avatarUrl: null }],
   },
   {
     id: "role-manager", name: "MANAGER", description: "Gestão de times e negócios", isSystem: true,  systemPreset: "MANAGER",
@@ -823,16 +823,16 @@ const ROLES = [
     permissions: ["deal:view_own","deal:create","deal:edit","conversation:view_own","conversation:view_unassigned","conversation:assign","contact:view","contact:create"],
     _count: { assignments: 3, groups: 1 },
     _members: [
-      { id: "u-juliana", name: "Juliana Costa",  email: "juliana@eduit.com.br", avatarUrl: null },
-      { id: "u-rafael",  name: "Rafael Almeida", email: "rafael@eduit.com.br",  avatarUrl: null },
-      { id: "u-camila",  name: "Camila Souza",   email: "camila@eduit.com.br",  avatarUrl: null },
+      { id: "u-demo-agente-a", name: "Agente Demo A",  email: "agente.a@example.com", avatarUrl: null },
+      { id: "u-demo-agente-b",  name: "Agente Demo B", email: "agente.b@example.com",  avatarUrl: null },
+      { id: "u-demo-agente-c",  name: "Agente Demo C",   email: "agente.c@example.com",  avatarUrl: null },
     ],
   },
   {
     id: "role-supervisor", name: "Supervisor SP", description: "Acesso restrito a WhatsApp e fases iniciais", isSystem: false, systemPreset: null,
     permissions: ["deal:view_group","deal:create","deal:edit","conversation:view_group","conversation:view_unassigned","conversation:assign","conversation:close","contact:view","contact:create"],
     _count: { assignments: 1, groups: 1 },
-    _members: [{ id: "u-juliana", name: "Juliana Costa", email: "juliana@eduit.com.br", avatarUrl: null }],
+    _members: [{ id: "u-demo-agente-a", name: "Agente Demo A", email: "agente.a@example.com", avatarUrl: null }],
   },
 ];
 

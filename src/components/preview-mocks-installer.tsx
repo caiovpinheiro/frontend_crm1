@@ -1,12 +1,23 @@
 "use client";
 
 /**
- * PreviewMocksInstaller — só renderiza em preview mode.
+ * PreviewMocksInstaller — só age em preview mode.
  *
  * Faz monkey patch em `window.fetch` na primeira render do client e
  * intercepta qualquer chamada a `/api/*`, devolvendo respostas do
  * catálogo em `lib/preview-mocks.ts`. Chamadas a outros hosts (CDN,
  * `_next/...`, etc.) passam direto pro fetch original.
+ *
+ * ## Mocks fora do bundle de produção
+ *
+ * O catálogo de mocks NÃO é importado estaticamente: ele entra por `import()`
+ * dentro de um `if` cuja condição é a chave de build
+ * `NEXT_PUBLIC_PREVIEW_MOCKS_BUNDLED` (calculada em `next.config.ts`: `"true"`
+ * fora de produção, ou em build de produção com a dupla chave do preview).
+ * A comparação é LITERAL de propósito: o bundler avalia
+ * `process.env.NEXT_PUBLIC_*` em build time e descarta o ramo morto — com o
+ * preview desligado o chunk de mocks nem é gerado, quanto mais baixado.
+ * Não extraia a condição para uma variável/função: isso quebra a eliminação.
  *
  * Idempotente: se já estiver instalado (segundo render no StrictMode),
  * não re-aplica.
@@ -16,7 +27,6 @@ import { logger } from "@/lib/logger";
 import { useEffect } from "react";
 
 import { isPreviewMode } from "@/lib/preview-mode";
-import { findMockResponse } from "@/lib/preview-mocks";
 
 declare global {
   interface Window {
@@ -26,45 +36,36 @@ declare global {
 
 export function PreviewMocksInstaller() {
   useEffect(() => {
-    if (!isPreviewMode()) return;
-    if (typeof window === "undefined") return;
-    if (window.__previewFetchInstalled) return;
+    if (process.env.NEXT_PUBLIC_PREVIEW_MOCKS_BUNDLED === "true") {
+      if (!isPreviewMode()) return;
+      if (typeof window === "undefined") return;
+      if (window.__previewFetchInstalled) return;
 
-    const originalFetch = window.fetch.bind(window);
+      const originalFetch = window.fetch.bind(window);
+      // O chunk carrega em paralelo; o patch entra JÁ (síncrono) e cada
+      // request espera o chunk — assim nada escapa para o backend real
+      // enquanto os mocks ainda estão baixando.
+      const ready = import("@/lib/preview-fetch");
 
-    window.fetch = async function previewFetch(
-      input: RequestInfo | URL,
-      init?: RequestInit,
-    ): Promise<Response> {
-      try {
-        const rawUrl =
-          typeof input === "string"
-            ? input
-            : input instanceof URL
-              ? input.toString()
-              : input.url;
-        const url = new URL(rawUrl, window.location.origin);
-        // Só intercepta requests no mesmo host (não vamos mexer em CDN,
-        // assets do Next, fontes do Google, etc).
-        if (url.origin === window.location.origin) {
-          const mock = findMockResponse(url, init);
-          if (mock) {
-            // Latência fake leve só pra UI não piscar
-            await new Promise((r) => setTimeout(r, 80));
-            return mock;
-          }
+      window.fetch = async function previewFetch(
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ): Promise<Response> {
+        let mod: typeof import("@/lib/preview-fetch");
+        try {
+          mod = await ready;
+        } catch {
+          return originalFetch(input as RequestInfo, init);
         }
-      } catch {
-        /* fallthrough — usa fetch real */
-      }
-      return originalFetch(input as RequestInfo, init);
-    };
+        return mod.previewFetch(originalFetch, input, init);
+      };
 
-    window.__previewFetchInstalled = true;
-    logger.debug(
-      "preview",
-      "fetch mocks instalados — /api/* não vai bater no backend",
-    );
+      window.__previewFetchInstalled = true;
+      logger.debug(
+        "preview",
+        "fetch mocks instalados — /api/* não vai bater no backend",
+      );
+    }
   }, []);
 
   return null;

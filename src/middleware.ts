@@ -5,6 +5,7 @@ import { getToken } from "next-auth/jwt";
 import { devOnlyRouteDecision } from "@/lib/dev-only-routes";
 import { unknownTenantHtml } from "@/lib/html-escape";
 import { isProductionRuntime, shouldBypassAuthForPreview } from "@/lib/preview-mode";
+import { shouldVerifyTenantExistence } from "@/lib/tenant-existence";
 import {
   isSingleHostCrm,
   resolveTenantFromRequest,
@@ -315,12 +316,10 @@ export async function middleware(req: NextRequest) {
     const reqAuth = await readAuthFromRequestCookie(req);
 
     let cacheTenantVerified = false;
-    if (
-      tenantSlug &&
-      pathname !== "/api/organization/by-slug" &&
-      !pathname.startsWith("/_next") &&
-      !pathname.startsWith("/api/health")
-    ) {
+    // `/api/*` NÃO passa pela checagem de existência: senão um subdomínio
+    // inexistente devolvia 404 HTML e um existente 401 JSON — oráculo de
+    // enumeração de slugs (pentest). Ver `shouldVerifyTenantExistence`.
+    if (tenantSlug && shouldVerifyTenantExistence(pathname)) {
       const existence = await verifyTenantSlugExists(
         req,
         tenantSlug,

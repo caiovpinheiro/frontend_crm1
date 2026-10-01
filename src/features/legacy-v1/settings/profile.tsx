@@ -628,7 +628,7 @@ function ProfileCard({
               id="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="(11) 96123-4567"
+              placeholder="(11) 99999-0000"
               autoComplete="tel"
               className="h-full flex-1 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
             />

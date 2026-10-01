@@ -32,7 +32,7 @@ export const MOCK_LEADS_PARTICIPANTS: LeadsParticipantsResponse = {
     {
       userId: "u-mock-1",
       name: "Ana Souza",
-      email: "ana@eduit.com.br",
+      email: "ana@example.com",
       avatarUrl: null,
       status: "ACTIVE",
       weight: 3,
@@ -46,7 +46,7 @@ export const MOCK_LEADS_PARTICIPANTS: LeadsParticipantsResponse = {
     {
       userId: "u-mock-2",
       name: "Bruno Lima",
-      email: "bruno@eduit.com.br",
+      email: "bruno@example.com",
       avatarUrl: null,
       status: "ACTIVE",
       weight: 1,
@@ -60,7 +60,7 @@ export const MOCK_LEADS_PARTICIPANTS: LeadsParticipantsResponse = {
     {
       userId: "u-mock-3",
       name: "Carla Mendes",
-      email: "carla@eduit.com.br",
+      email: "carla@example.com",
       avatarUrl: null,
       status: "INACTIVE",
       weight: 0,
@@ -89,14 +89,14 @@ export const MOCK_LEADS_STATS: LeadsStatsResponse = {
 };
 
 const MOCK_LEADS_HISTORY_SEED = [
-  { phone: "+555494316336", userId: "u-mock-1", name: "Ana Souza", minutes: 8 },
-  { phone: "+5511974895736", userId: "u-mock-2", name: "Bruno Lima", minutes: 26 },
-  { phone: "+5511952266566", userId: "u-mock-1", name: "Ana Souza", minutes: 41 },
-  { phone: "+5511976387964", userId: "u-mock-1", name: "Ana Souza", minutes: 55 },
-  { phone: "+5511951259983", userId: "u-mock-3", name: "Carla Mendes", minutes: 73 },
-  { phone: "+5511991172389", userId: "u-mock-1", name: "Ana Souza", minutes: 90 },
-  { phone: "+5511960306481", userId: "u-mock-2", name: "Bruno Lima", minutes: 112 },
-  { phone: "+5512997048019", userId: "u-mock-1", name: "Ana Souza", minutes: 140 },
+  { phone: "+5511999990038", userId: "u-mock-1", name: "Ana Souza", minutes: 8 },
+  { phone: "+5511999990039", userId: "u-mock-2", name: "Bruno Lima", minutes: 26 },
+  { phone: "+5511999990040", userId: "u-mock-1", name: "Ana Souza", minutes: 41 },
+  { phone: "+5511999990041", userId: "u-mock-1", name: "Ana Souza", minutes: 55 },
+  { phone: "+5511999990042", userId: "u-mock-3", name: "Carla Mendes", minutes: 73 },
+  { phone: "+5511999990043", userId: "u-mock-1", name: "Ana Souza", minutes: 90 },
+  { phone: "+5511999990044", userId: "u-mock-2", name: "Bruno Lima", minutes: 112 },
+  { phone: "+5511999990045", userId: "u-mock-1", name: "Ana Souza", minutes: 140 },
 ];
 
 export const MOCK_LEADS_HISTORY: LeadsHistoryResponse = {

@@ -795,8 +795,8 @@ function connectionsBlock(
   band: PeriodBand,
 ): PainelConnections {
   const connSeries = [
-    { key: "wa-vendas", label: "WhatsApp Vendas · +55 11 90000-1001", color: "var(--color-success)" },
-    { key: "wa-suporte", label: "WhatsApp Suporte · +55 11 90000-1002", color: "var(--color-destructive)" },
+    { key: "wa-vendas", label: "WhatsApp Vendas · +55 11 99999-0036", color: "var(--color-success)" },
+    { key: "wa-suporte", label: "WhatsApp Suporte · +55 11 99999-0037", color: "var(--color-destructive)" },
     { key: "ig", label: "Instagram principal", color: "var(--color-lead)" },
   ];
   const platSeries = [
