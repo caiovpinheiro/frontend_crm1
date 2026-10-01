@@ -937,7 +937,10 @@ export function SalesHubView({
 
           <DealQueue
             deals={sortedDeals}
-            stages={filteredStages}
+            // Menu "Mover" do card: TODAS as etapas do funil. A fila pode
+            // estar filtrada (ex.: só Perdido) — passar `filteredStages`
+            // deixava o menu só com a etapa atual, sem para onde mover.
+            stages={stages}
             activeDealId={activeDealId}
             onSelectDeal={handleSelectDeal}
             onDeselect={handleDeselectDeal}
