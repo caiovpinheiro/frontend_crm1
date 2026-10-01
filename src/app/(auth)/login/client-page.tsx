@@ -13,6 +13,12 @@ import { Button } from "@/components/ui/button";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  isOrgSelectable,
+  normalizeDisplayName,
+  normalizeTenantOrgs,
+  resolveLoginError,
+} from "@/lib/login-contract";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
 import {
@@ -189,7 +195,7 @@ function LoginForm() {
   }
 
   function handleSelectOrg(org: TenantOrgChoice) {
-    if (org.status !== "ACTIVE") {
+    if (!isOrgSelectable(org)) {
       showError("Esta organização está expirada e não pode ser acessada.");
       return;
     }
@@ -207,22 +213,25 @@ function LoginForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: email.trim() }),
         });
+        // `orgs`/`displayName` como `unknown`: o contrato novo do backend não
+        // devolve mais `displayName` nem `name`/`status` das orgs — quem
+        // normaliza é `@/lib/login-contract`.
         const data = (await res.json().catch(() => null)) as
           | {
               ok?: boolean;
               slug?: string | null;
               apex?: boolean;
-              orgs?: TenantOrgChoice[];
-              displayName?: string | null;
+              orgs?: unknown;
+              displayName?: unknown;
             }
           | null;
         if (!res.ok || !data?.ok) {
           showError("Não encontramos uma conta com este e-mail.");
           return;
         }
-        const orgs = Array.isArray(data.orgs) ? data.orgs : [];
+        const orgs = normalizeTenantOrgs(data.orgs);
         if (orgs.length > 1) {
-          setWelcomeName(data.displayName ?? null);
+          setWelcomeName(normalizeDisplayName(data.displayName));
           setOrgChoices(orgs);
           return;
         }
@@ -245,14 +254,14 @@ function LoginForm() {
         const lookup = (await lookupRes.json().catch(() => null)) as
           | {
               ok?: boolean;
-              orgs?: TenantOrgChoice[];
-              displayName?: string | null;
+              orgs?: unknown;
+              displayName?: unknown;
               slug?: string | null;
             }
           | null;
-        const orgs = Array.isArray(lookup?.orgs) ? lookup.orgs : [];
+        const orgs = normalizeTenantOrgs(lookup?.orgs);
         if (lookupRes.ok && lookup?.ok && orgs.length > 1) {
-          setWelcomeName(lookup.displayName ?? null);
+          setWelcomeName(normalizeDisplayName(lookup.displayName));
           setOrgChoices(orgs);
           return;
         }
@@ -282,32 +291,17 @@ function LoginForm() {
       const hasError = !result.ok || Boolean(result.error);
 
       if (hasError) {
-        if (result.code === "database_unavailable") {
-          showError(
-            "Não foi possível conectar ao banco de dados. Inicie o PostgreSQL (ex.: docker compose up -d) e confira o DATABASE_URL no .env.",
-          );
-        } else if (result.code === "account_locked") {
-          showError(
-            "Conta temporariamente bloqueada por várias tentativas. Aguarde alguns minutos ou peça a um admin para revisar o bloqueio.",
-          );
-        } else if (result.code === "mfa_required") {
-          showError(
-            "Esta conta exige MFA. Use o fluxo de código de autenticação (em desenvolvimento no login web).",
-          );
-        } else if (result.code === "email_unverified") {
+        // Códigos antigos (o backend de produção ainda os envia) seguem
+        // tratados; código genérico/desconhecido do contrato novo cai na
+        // mensagem única, que não revela se o e-mail existe.
+        const resolved = resolveLoginError(result.code);
+        showError(resolved.message);
+        if (resolved.goToVerifyEmail) {
           const q = new URLSearchParams();
           if (email.trim()) q.set("email", email.trim());
-          showError(
-            "Confirme seu e-mail para entrar. Enviamos um código de 6 dígitos.",
-          );
           window.setTimeout(() => {
             window.location.assign(`/verify-email?${q.toString()}`);
           }, 800);
-        } else {
-          // Default: credenciais inválidas (CredentialsSignin) ou qualquer
-          // outro erro genérico. Mensagem única evita user-enumeration
-          // (não revela se o e-mail existe).
-          showError("E-mail ou senha incorretos.");
         }
         return;
       }

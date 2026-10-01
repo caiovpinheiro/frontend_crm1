@@ -11,10 +11,15 @@ import { Button } from "@/components/ui/button";
 import { HeroGeometric } from "@/components/ui/hero-geometric";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  isOrgSelectable,
+  normalizeTenantOrgs,
+  type TenantOrgChoice,
+} from "@/lib/login-contract";
 import { isMarketingApexHost } from "@/lib/tenant-host";
 import { buildTenantUrl } from "@/lib/tenant-url";
 
-type OrgChoice = { slug: string; name: string; status: string };
+type OrgChoice = TenantOrgChoice;
 
 function ForgotForm() {
   const searchParams = useSearchParams();
@@ -73,10 +78,13 @@ function ForgotForm() {
         const data = (await lookup.json().catch(() => ({}))) as {
           ok?: boolean;
           slug?: string | null;
-          orgs?: OrgChoice[];
+          // `unknown`: o contrato novo do tenant-lookup não devolve mais
+          // `name`/`status` das orgs (ver `@/lib/login-contract`).
+          orgs?: unknown;
         };
-        if (data?.ok && Array.isArray(data.orgs) && data.orgs.length > 1) {
-          setOrgs(data.orgs.filter((o) => o.status === "ACTIVE"));
+        const lookupOrgs = normalizeTenantOrgs(data?.orgs);
+        if (data?.ok && lookupOrgs.length > 1) {
+          setOrgs(lookupOrgs.filter(isOrgSelectable));
           return;
         }
         if (data?.ok && data.slug) {
