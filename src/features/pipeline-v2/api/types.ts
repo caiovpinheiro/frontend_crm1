@@ -84,7 +84,23 @@ export interface BoardStageDto {
   loadedCount?: number;
   hasMore?: boolean;
   offset?: number;
+  /**
+   * Cursor opaco depois do último card carregado — "carregar mais" pede só
+   * os próximos cards desta etapa (POST /board/columns). `null` = nada a
+   * carregar por cursor; ausente = backend antigo (usa `offsetByStage`).
+   */
+  nextCursor?: string | null;
   deals: BoardDealDto[];
+}
+
+/** Uma página de cards de UMA etapa (POST /api/pipelines/:id/board/columns). */
+export interface BoardColumnPageDto {
+  stageId: string;
+  deals: BoardDealDto[];
+  /** Total atual da etapa com os mesmos filtros do board. */
+  totalCount?: number;
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export interface PipelineListItemDto {
