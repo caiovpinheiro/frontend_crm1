@@ -20,7 +20,7 @@ import {
   setBoardColumnLoaded,
   stageCanLoadByCursor,
 } from "../board-column-paging";
-import { BOARD_PAGE_SIZE, boardKey } from "./use-board";
+import { BOARD_LOAD_MORE_PAGE_SIZE, boardKey } from "./use-board";
 
 const NO_STAGES: ReadonlySet<string> = new Set();
 
@@ -37,7 +37,9 @@ function stageHasMore(stage: BoardStageDto): boolean {
  * Caminho novo — a etapa veio com `nextCursor`: pede só os próximos
  * `pageSize` cards de cada etapa (uma requisição para todas as pedidas) e
  * anexa ao board em cache com `setQueryData`. Nada é recarregado; os cards
- * já visíveis mantêm a mesma referência.
+ * já visíveis mantêm a mesma referência. Pedidos feitos no mesmo instante
+ * (colunas cuja sentinela entra na tela no mesmo frame) saem numa
+ * requisição só.
  *
  * Caminho antigo — backend sem cursor, ou a rota recusou (4xx): soma
  * `pageSize` em `legacyOffsets`, que o host entrega ao `useBoard`
@@ -51,14 +53,18 @@ export function useBoardLoadMore(params: {
   pipelineId: string | null;
   status?: StatusFilter;
   sort?: BoardSortParam;
+  /** Cards pedidos a cada "carregar mais" (padrão: `BOARD_LOAD_MORE_PAGE_SIZE`). */
   pageSize?: number;
+  /** `perStage` da 1ª página do board, para o modo antigo. Padrão: `pageSize`. */
+  firstPageSize?: number;
 }) {
   const qc = useQueryClient();
   const pipelineId = params.pipelineId;
   const status = params.status ?? "OPEN";
   const sortField = params.sort?.field;
   const sortDirection = params.sort?.direction;
-  const pageSize = params.pageSize ?? BOARD_PAGE_SIZE;
+  const pageSize = params.pageSize ?? BOARD_LOAD_MORE_PAGE_SIZE;
+  const firstPageSize = params.firstPageSize ?? pageSize;
 
   const sort = useMemo<BoardSortParam | undefined>(
     () => (sortField && sortDirection ? { field: sortField, direction: sortDirection } : undefined),
@@ -72,8 +78,34 @@ export function useBoardLoadMore(params: {
 
   const [legacyOffsets, setLegacyOffsets] = useState<Record<string, number>>({});
   const [loadingStageIds, setLoadingStageIds] = useState<ReadonlySet<string>>(NO_STAGES);
-  /** Etapas com pedido por cursor em voo — o sentinela de scroll dispara em rajada. */
+  /** Etapas com pedido por cursor em voo: não entram em outro pedido. */
   const inFlight = useRef(new Set<string>());
+  /** Pedidos do mesmo instante, à espera de sair numa requisição só. */
+  const batch = useRef<{
+    ids: Set<string>;
+    timer: ReturnType<typeof setTimeout>;
+    done: Promise<void>;
+  } | null>(null);
+  useEffect(
+    () => () => {
+      if (batch.current) clearTimeout(batch.current.timer);
+      batch.current = null;
+    },
+    [],
+  );
+
+  /** Marca/desmarca só as etapas dadas (colunas carregam em paralelo). */
+  const markLoading = useCallback((ids: readonly string[], loading: boolean) => {
+    if (ids.length === 0) return;
+    setLoadingStageIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (loading) next.add(id);
+        else next.delete(id);
+      }
+      return next.size === 0 ? NO_STAGES : next;
+    });
+  }, []);
 
   // Modo antigo: cada mudança nos offsets refaz o board (POST com
   // `offsetByStage` — o `useBoard` já enxerga o valor novo neste render).
@@ -100,7 +132,7 @@ export function useBoardLoadMore(params: {
     clearBoardPaging(qc, keyHash);
   }, [qc, keyHash]);
 
-  const loadMore = useCallback(
+  const runLoadMore = useCallback(
     async (stageIds: readonly string[]) => {
       if (!pipelineId) return;
       const board = qc.getQueryData<BoardStageDto[]>(queryKey) ?? [];
@@ -109,6 +141,7 @@ export function useBoardLoadMore(params: {
         (s) => wanted.has(s.id) && stageHasMore(s) && !inFlight.current.has(s.id),
       );
       if (targets.length === 0) return;
+      const targetIds = targets.map((s) => s.id);
 
       const cursorOff = isBoardCursorDisabled(qc, keyHash);
       const byCursor = cursorOff
@@ -121,7 +154,7 @@ export function useBoardLoadMore(params: {
       // servidor não pagina por cursor (`hasMore` com `nextCursor: null`).
       let legacy = targets.filter((s) => !cursorIds.has(s.id));
 
-      setLoadingStageIds(new Set(targets.map((s) => s.id)));
+      markLoading(targetIds, true);
 
       if (byCursor.length > 0) {
         for (const id of cursorIds) inFlight.current.add(id);
@@ -146,7 +179,7 @@ export function useBoardLoadMore(params: {
         } catch (err) {
           if (!(err instanceof BoardColumnsError) || !err.fallback) {
             // Rede/5xx: nada mudou; o próximo clique tenta de novo.
-            setLoadingStageIds(NO_STAGES);
+            markLoading(targetIds, false);
             return;
           }
           if (err.routeMissing) disableBoardCursor(qc, keyHash);
@@ -156,23 +189,55 @@ export function useBoardLoadMore(params: {
         }
       }
 
-      if (legacy.length === 0) {
-        setLoadingStageIds(NO_STAGES);
-        return;
-      }
+      // As etapas do modo antigo seguem "carregando" até o refetch do board.
+      const legacyIds = new Set(legacy.map((s) => s.id));
+      markLoading(
+        targetIds.filter((id) => !legacyIds.has(id)),
+        false,
+      );
+      if (legacy.length === 0) return;
       for (const stage of legacy) clearBoardColumnLoaded(qc, keyHash, stage.id);
       setLegacyOffsets((prev) => {
         const next = { ...prev };
         for (const stage of legacy) {
           // Extras além da 1ª página: o que já está carregado + uma página.
-          const extras = Math.max(prev[stage.id] ?? 0, stage.deals.length - pageSize, 0);
+          const extras = Math.max(
+            prev[stage.id] ?? 0,
+            stage.deals.length - firstPageSize,
+            0,
+          );
           next[stage.id] = extras + pageSize;
         }
         return next;
       });
     },
-    [qc, queryKey, keyHash, pipelineId, status, sort, pageSize],
+    [qc, queryKey, keyHash, pipelineId, status, sort, pageSize, firstPageSize, markLoading],
   );
+
+  // Junta os pedidos do mesmo instante. Macrotask (não microtask): as
+  // sentinelas de colunas diferentes avisam em callbacks separados do
+  // mesmo frame.
+  const runLoadMoreRef = useRef(runLoadMore);
+  useEffect(() => {
+    runLoadMoreRef.current = runLoadMore;
+  }, [runLoadMore]);
+  const loadMore = useCallback((stageIds: readonly string[]): Promise<void> => {
+    const pending = batch.current;
+    if (pending) {
+      for (const id of stageIds) pending.ids.add(id);
+      return pending.done;
+    }
+    const ids = new Set(stageIds);
+    let timer!: ReturnType<typeof setTimeout>;
+    const done = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        batch.current = null;
+        resolve(runLoadMoreRef.current([...ids]));
+      }, 0);
+    });
+    batch.current = { ids, timer, done };
+    return done;
+  }, []);
 
   return {
     /** Entregar ao `useBoard` como `offsetByStage` (modo antigo). */

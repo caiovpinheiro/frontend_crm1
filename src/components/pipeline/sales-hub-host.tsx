@@ -35,6 +35,7 @@ import {
   useBoardLoadMore,
   useBoardFiltered,
   BOARD_PAGE_SIZE,
+  BOARD_LOAD_MORE_PAGE_SIZE,
   useDealDeepLink,
   useDealDetail,
   usePipelineRealtime,
@@ -237,7 +238,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
     pipelineId,
     status,
     sort: boardSort,
-    pageSize: BOARD_PAGE_SIZE,
+    pageSize: BOARD_LOAD_MORE_PAGE_SIZE,
+    firstPageSize: BOARD_PAGE_SIZE,
   });
   const loadingMoreQueue = queueLoadMore.loadingStageIds.size > 0;
 

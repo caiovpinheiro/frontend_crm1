@@ -41,8 +41,16 @@ function shareLiveBoard(
   );
 }
 
-/** Página de cards por coluna no Kanban (scroll soma +10). */
+/** 1ª página de cards por coluna: o board inteiro vem com 10 por etapa. */
 export const BOARD_PAGE_SIZE = 10;
+
+/**
+ * Cards pedidos a cada "carregar mais" de uma coluna (Kanban e fila do Flow).
+ * Maior que a 1ª página de propósito: com 10 por vez, rolar uma coluna
+ * disparava uma requisição a cada ~1.000px (rajada de POST /board/columns e
+ * o "Carregando..." piscando). 30 cards cobrem uns 3.000px por requisição.
+ */
+export const BOARD_LOAD_MORE_PAGE_SIZE = 30;
 
 /** Lista de pipelines (dropdown do header) — key canônica compartilhada. */
 export function usePipelines(enabled = true) {
