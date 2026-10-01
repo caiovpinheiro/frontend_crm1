@@ -1106,6 +1106,7 @@ export function SalesHubView({
                       activeConversation.department?.requireTabulationOnClose ??
                       false
                     }
+                    hideResolveItem
                     onResolved={() => {
                       queryClient.invalidateQueries({
                         queryKey: [

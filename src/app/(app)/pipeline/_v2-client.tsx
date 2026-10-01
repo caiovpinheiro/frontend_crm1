@@ -1468,8 +1468,6 @@ export default function KanbanV2ClientPage({
           (dealDetail?.contact as { conversations?: { closedAt?: string | null }[] } | null | undefined)
             ?.conversations?.[0]?.closedAt ?? null
         }
-        conversationDepartmentId={dealConversationDepartmentId}
-        conversationRequiresTabulation={dealConversationRequiresTabulation}
         tabContentOverride={{
           keeps: <KeepPeekPanel />,
           ...(activeDealId

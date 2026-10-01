@@ -36,8 +36,6 @@ import {
   IconSettings,
   IconSparkles,
   IconX,
-  IconCircleCheck,
-  IconCircleDashed,
   IconAffiliate,
   IconBrandWhatsapp,
   IconMail,
@@ -55,9 +53,6 @@ import {
   formatConnectionShort,
   type ConnectionRef,
 } from "@/lib/connection-label"
-import { useResolveConversationFlow } from "@/features/inbox-v2/extras/use-resolve-conversation-flow"
-import { useConversationFeatures } from "@/features/inbox-v2/hooks/use-conversation-features"
-import { RequirePermission } from "@/components/auth/require-permission"
 import { FavoritesPanel } from "@/components/crm/favorites-panel"
 import {
   ConversationSearchBar,
@@ -296,9 +291,6 @@ interface DealDetailPanelProps {
   conversationNumber?: number | null
   /** ISO do `closedAt` da conversa — usado no chip "Encerrada" do TabsBar. */
   conversationClosedAt?: string | null
-  /** Departamento da conversa — modal de tabulação no Encerrar (TabsBar). */
-  conversationDepartmentId?: string | null
-  conversationRequiresTabulation?: boolean
   /**
    * Conexão (Channel) por onde o contato está conversando (qual WhatsApp).
    * Exibida como chip no header do contato — distingue quando a pessoa fala
@@ -374,8 +366,6 @@ export function DealDetailPanel({
   isResolved,
   conversationNumber,
   conversationClosedAt,
-  conversationDepartmentId,
-  conversationRequiresTabulation,
   connection,
 }: DealDetailPanelProps) {
   // Retrocompatibilidade: split slots sobrepõem o legado fieldConfigSlot
@@ -1635,14 +1625,8 @@ export function DealDetailPanel({
                 onSearchChange={setSearchQuery}
                 searchState={conversationSearch}
                 conversationId={conversationId}
-                isResolved={isResolved}
                 conversationNumber={conversationNumber}
                 conversationClosedAt={conversationClosedAt}
-                conversationDepartmentId={conversationDepartmentId}
-                conversationRequiresTabulation={conversationRequiresTabulation}
-                dealId={deal.id}
-                contactId={deal.contactId}
-                contactName={deal.name}
                 callButtonSlot={callButtonSlot}
               />
 
@@ -1745,15 +1729,9 @@ function TabsBar({
   onSearchChange,
   searchState,
   conversationId,
-  isResolved,
   conversationNumber,
   conversationClosedAt,
   callButtonSlot,
-  conversationDepartmentId,
-  conversationRequiresTabulation,
-  dealId,
-  contactId,
-  contactName,
 }: {
   activeTab: TabId
   onChange: (id: TabId) => void
@@ -1764,10 +1742,6 @@ function TabsBar({
   /** Contagem + navegação da busca (hook `useConversationSearch`). */
   searchState?: ConversationSearchState
   conversationId?: string | null
-  isResolved?: boolean
-  dealId?: string | null
-  contactId?: string | null
-  contactName?: string | null
   /** #N sequencial da conversa — chip minimalista no header do container. */
   conversationNumber?: number | null
   /** ISO de encerramento — vira tooltip no chip "Encerrada". */
@@ -1775,23 +1749,10 @@ function TabsBar({
   /** Botao "Ligar" (softphone) — renderizado no canto direito, ao lado do
    *  kebab de acoes da conversa. Antes vivia no header do card do deal. */
   callButtonSlot?: React.ReactNode
-  /** Departamento da conversa — abre modal de tabulacao no encerrar quando exige. */
-  conversationDepartmentId?: string | null
-  conversationRequiresTabulation?: boolean
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [favoritesOpen, setFavoritesOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
-  const { handleToggleResolve, toggleResolve, dialogs } =
-    useResolveConversationFlow({
-      conversationId: conversationId ?? null,
-      isResolved,
-      departmentId: conversationDepartmentId,
-      requireTabulationOnClose: conversationRequiresTabulation,
-      dealId,
-      contactId,
-      contactName,
-    })
 
   /* Fecha kebab ao clicar fora */
   useEffect(() => {
@@ -1805,10 +1766,6 @@ function TabsBar({
 
   const hasConversaActions = (activeTab === "conversa" && !!onSearchOpen) || !!conversationId
   const { hideEvents, toggleHideEvents } = useHideChatEvents()
-  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas): o botão
-  // ✓/↻ ao lado do Nº da conversa já cobre os dois — evita duplicidade.
-  const { features: convFeatures } = useConversationFeatures()
-  const showResolveItem = convFeatures.showResolveInMenu
 
   return (
     <div className="shrink-0 border-b border-[var(--glass-border-subtle)]">
@@ -1894,7 +1851,8 @@ function TabsBar({
         )}
         {callButtonSlot}
 
-        {/* Kebab de ações do header — lupa + encerrar conversa */}
+        {/* Kebab de ações do header — lupa + favoritas. Encerrar/Reabrir
+            ficam só no botão ✓/↻ ao lado do Nº da conversa (composer). */}
         {hasConversaActions && (
           <div ref={menuRef} className="relative">
             <button
@@ -1943,27 +1901,6 @@ function TabsBar({
                     Mensagens favoritas
                   </button>
                 )}
-
-                {/* Encerrar / Reabrir conversa */}
-                {conversationId && showResolveItem && (
-                  <RequirePermission permission="conversation:resolve">
-                    <button
-                      type="button"
-                      disabled={toggleResolve.isPending}
-                      onClick={() => {
-                        setMenuOpen(false)
-                        handleToggleResolve()
-                      }}
-                      className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left font-display text-[12.5px] text-[var(--text-primary)] hover:bg-[var(--glass-bg-subtle)] disabled:opacity-50"
-                    >
-                      {isResolved
-                        ? <IconCircleDashed size={14} className="shrink-0 text-[var(--text-muted)]" />
-                        : <IconCircleCheck size={14} className="shrink-0 text-[var(--text-muted)]" />
-                      }
-                      {isResolved ? "Reabrir conversa" : "Encerrar conversa"}
-                    </button>
-                  </RequirePermission>
-                )}
               </div>
             )}
           </div>
@@ -1975,7 +1912,6 @@ function TabsBar({
         onOpenChange={setFavoritesOpen}
         conversationId={conversationId ?? null}
       />
-      {dialogs}
     </div>
   )
 }
