@@ -40,6 +40,16 @@ describe("scheduledMessagesQueryOptions", () => {
     expect(closed.refetchInterval).toBe(false);
   });
 
+  it("com o SSE conectado não faz poll — o evento scheduled_message_updated invalida", () => {
+    const connected = scheduledMessagesQueryOptions("c1", true, true);
+    expect(connected.enabled).toBe(true);
+    expect(connected.refetchInterval).toBe(false);
+
+    // SSE caiu: o poll de 60 s volta como fallback (só com a aba visível).
+    expect(scheduledMessagesQueryOptions("c1", true, false).refetchInterval).toBe(60_000);
+    expect(scheduledMessagesQueryOptions("c1", false, false).refetchInterval).toBe(false);
+  });
+
   it("queryFn lista pela conversa", async () => {
     api.listScheduledMessages.mockResolvedValue({ items: [{ id: "s1" }] });
     const res = await scheduledMessagesQueryOptions("c1", true).queryFn();
