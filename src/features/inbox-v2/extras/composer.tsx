@@ -9,90 +9,33 @@ import {
   type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
-  type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   IconSend,
-  IconMoodSmile,
-  IconLock,
-  IconMessage,
-  IconSignature,
-  IconPencil,
-  IconCheck,
-  IconX,
-  IconCornerUpLeft,
-  IconFile,
-  IconPaperclip,
 } from "@tabler/icons-react";
 
-import { cn } from "@/lib/utils";
 import { composerDraftKey } from "../composer-draft";
 import { useComposerDraftPersistence } from "../hooks/use-composer-draft";
 import { useTypingNotifier } from "../hooks/use-typing-notifier";
 import { ButtonGlass } from "@/components/crm/button-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { EmojiPicker } from "@/components/inbox/emoji-picker";
 import {
-  useSlashMenu,
   SlashCommandMenu,
 } from "@/components/inbox/slash-command-menu";
 import { getContact } from "@/features/inbox-v2/api/misc";
 import {
-  sendAttachment,
-  sendAttachmentReuse,
-  sendConversationProducts,
   sendInternalTemplateSequence,
   mediaNeedsSequence,
 } from "@/features/inbox-v2/api";
 import { applyOutboundPreviewToInboxCaches, messagesKey } from "@/features/inbox-v2/hooks";
 import type { InternalTemplateContext } from "@/lib/internal-template-variables";
-import {
-  clearPendingComposerInsert,
-  COMPOSER_INSERT_EVENT,
-  takePendingComposerInsert,
-  type ComposerInsertPayload,
-  type ComposerInsertStep,
-} from "@/lib/composer-insert";
-
-const WHATSAPP_IMAGE_CAPTION_MAX = 1024;
-
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-const IMAGE_FILE_EXT = /\.(png|jpe?g|gif|webp|bmp|heic|heif)$/i;
-
-/** Windows Explorer muitas vezes entrega `file.type` vazio no arraste. */
-function fileIsImage(file: File): boolean {
-  return file.type.startsWith("image/") || IMAGE_FILE_EXT.test(file.name);
-}
-
-function dragEventHasFiles(e: DragEvent): boolean {
-  const types = e.dataTransfer?.types;
-  if (types) {
-    for (let i = 0; i < types.length; i += 1) {
-      const t = types[i];
-      if (t === "Files" || t === "application/x-moz-file") return true;
-    }
-  }
-  return (e.dataTransfer?.files?.length ?? 0) > 0;
-}
-
-function isForeignFileDropZone(e: DragEvent): boolean {
-  const target = e.target;
-  return target instanceof Element && !!target.closest("[data-file-drop-zone]");
-}
 
 import { ActiveBotsButton } from "./active-bots-button";
 import { AudioRecorderButton, type AudioRecordState } from "./audio-recorder-button";
-import { ChannelSelector } from "./channel-selector";
 import {
   SESSION_CLOSED_TOAST,
   channelSwitchConfirmOptions,
@@ -101,14 +44,29 @@ import {
 import { ComposerMenu } from "./composer-menu";
 import { QuickReplyPopover } from "./quick-reply-popover";
 import type { QuickReplyCatalogItem } from "./quick-reply-catalog";
-import { ConversationResolveButton } from "./conversation-resolve-button";
 import { ScheduledMessagesBanner } from "./scheduled-messages-banner";
 import {
   TemplateComposePanel,
   whatsappTemplateToPending,
   type PendingTemplate,
 } from "./template-compose-panel";
-import type { OutboundChannelOption } from "@/features/inbox-v2/hooks/use-channels";
+import { ComposerTopRow } from "./composer/composer-top-row";
+import { EmojiButton, useEmojiPanel } from "./composer/emoji-button";
+import { fileIsImage, imageExtFromMime } from "./composer/attachment-helpers";
+import {
+  FileDropOverlay,
+  PendingFileChips,
+  PendingMediaChips,
+} from "./composer/pending-attachments";
+import { useOutboundFlush } from "./composer/outbound-flush";
+import { ReplyPreviewBar } from "./composer/reply-preview-bar";
+import { useComposerInsertBridge } from "./composer/use-composer-insert-bridge";
+import { useComposerSignature } from "./composer/use-composer-signature";
+import { useComposerSlash } from "./composer/use-composer-slash";
+import { useFileDropListeners } from "./composer/use-file-drop-listeners";
+import { usePendingFiles } from "./composer/use-pending-files";
+import { useProductOfferSender } from "./composer/use-product-offer-sender";
+import type { ComposerProps } from "./composer/types";
 
 /**
  * Composer completo para o ChatArea. Substitui o footer estático
@@ -165,89 +123,7 @@ export function Composer({
   onRequestTemplate,
   sessionExpired,
   enableCallPermission,
-}: {
-  conversationId: string | null;
-  value: string;
-  onChange: (value: string) => void;
-  /** Pode retornar Promise — o composer aguarda antes de enviar anexos do modelo. */
-  onSend: (value: string) => void | Promise<void>;
-  /** Envio como nota interna (isPrivate). Quando ausente, o item "Nota interna" não aparece no menu. */
-  onSendNote?: (value: string) => void;
-  sending?: boolean;
-  disabled?: boolean;
-  placeholder?: string;
-  /** Quando definido, habilita o item Finalizar/Reabrir no menu "+". */
-  isResolved?: boolean;
-  contactId?: string | null;
-  contactName?: string | null;
-  /** Negócio exibido — padrão ao criar tarefa pelo menu "+". */
-  dealId?: string | null;
-  dealTitle?: string | null;
-  /** Negócios do contato para o seletor da tarefa. */
-  deals?: { id: string; title: string }[];
-  /**
-   * Template empurrado por um picker externo (ex.: modal de sessão expirada).
-   * Quando muda para não-nulo, abre o painel de validação aqui dentro.
-   */
-  externalTemplate?: PendingTemplate | null;
-  /** Avisado quando o `externalTemplate` foi absorvido (para o pai limpar). */
-  onExternalTemplateConsumed?: () => void;
-  /** Permissão org-level: agentes podem usar assinatura. Default true. */
-  signatureAllowed?: boolean;
-  /** Permissão org-level: agentes podem editar o texto da assinatura. Default true. */
-  signatureEditable?: boolean;
-  /**
-   * Canais WhatsApp CONNECTED da org (para seletor de canal de envio).
-   * O seletor só é renderizado quando `availableChannels.length > 1` —
-   * orgs com 1 canal não precisam do widget.
-   */
-  availableChannels?: OutboundChannelOption[];
-  /** Canal selecionado para o envio. Controlado pelo pai. */
-  selectedChannelId?: string | null;
-  /** Canal "atual" da conversa (último inbound) — destacado como referência. */
-  conversationChannelId?: string | null;
-  /** Canal da última mensagem pública — usado pra pré-selecionar no modal. */
-  lastMessageChannelId?: string | null;
-  /** Callback quando o agente troca o canal de envio. */
-  onSelectChannel?: (channelId: string) => void;
-  /**
-   * Mensagem selecionada para "responder" (estilo WhatsApp). Quando não
-   * nula, o composer renderiza uma barra de preview acima do input com o
-   * remetente citado + preview do texto. O caller é responsável por incluir
-   * `replyToId: replyTo.id` no payload de `sendMessage` e limpar após o envio.
-   */
-  replyTo?: {
-    id: string;
-    preview: string;
-    senderName?: string | null;
-  } | null;
-  /** Handler do X para cancelar a resposta. */
-  onCancelReply?: () => void;
-  /** Departamento da conversa — propagado ao ComposerMenu para abrir
-   *  modal de tabulacao ao encerrar quando o dept exige. */
-  departmentId?: string | null;
-  assignedToId?: string | null;
-  requireTabulationOnClose?: boolean;
-  /** Reabrir pelo menu "+" cria um NOVO ticket (modelo de ticket); troca o
-   *  chat ativo pro id novo. Sem isto o reopen acontece no backend mas a UI
-   *  fica presa no ticket resolvido (que some do colapso) — parece "não reabriu". */
-  onReopenNewConversation?: (newConversationId: string) => void;
-  /** Após Encerrar — atualiza sticky/status local (evita toast de deep-link). */
-  onResolved?: (conversationId: string) => void;
-  onFollowedUp?: (conversationId: string) => void;
-  /** Nº do ticket — exibido ao lado de Encerrar/Reabrir. */
-  conversationNumber?: number | null;
-  /** Quem mais está com o negócio aberto — mesma linha das tabs. */
-  viewersSlot?: ReactNode;
-  /** Slot à esquerda das tabs (ex.: TransferPopover). */
-  transferSlot?: ReactNode;
-  /** Abre o fluxo de template (sessão 24h encerrada). */
-  onRequestTemplate?: () => void;
-  /** Janela de 24h da Meta encerrada — aviso dedicado + CTA de template. */
-  sessionExpired?: boolean;
-  /** Exibe "Pedir permissão de ligação" no menu +. */
-  enableCallPermission?: boolean;
-}) {
+}: ComposerProps) {
   const { confirm: confirmDialog, dialog: confirmDialogNode } = useConfirm();
   const [noteMode, setNoteMode] = useState(false);
   const [audioRecState, setAudioRecState] = useState<AudioRecordState>("idle");
@@ -257,25 +133,7 @@ export function Composer({
   const notifyTyping = useTypingNotifier(conversationId, !noteMode);
 
   // Painel de emoji — abre acima do botão smiley. Insere no cursor do textarea.
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const emojiWrapRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!emojiOpen) return;
-    function onDoc(e: MouseEvent) {
-      if (emojiWrapRef.current && !emojiWrapRef.current.contains(e.target as Node)) {
-        setEmojiOpen(false);
-      }
-    }
-    function onEsc(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") setEmojiOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, [emojiOpen]);
+  const { emojiOpen, setEmojiOpen, emojiWrapRef } = useEmojiPanel();
 
   function insertEmoji(emoji: string) {
     const el = textareaRef.current;
@@ -338,28 +196,14 @@ export function Composer({
 
   const qc = useQueryClient();
 
-  // Arquivos colados (Ctrl+V), arrastados ou escolhidos em "Anexar arquivo"
-  // → ficam "encostados" como anexos pendentes e só são enviados quando o
-  // operador clica em enviar / pressiona Enter (mesma ideia do pendingMedia,
-  // mas guardando o File binário + URL de preview; `previewUrl` só p/ imagem).
-  const [pendingFiles, setPendingFiles] = useState<
-    { id: string; file: File; previewUrl: string | null; name: string }[]
-  >([]);
-  const pendingFilesRef = useRef(pendingFiles);
-  useEffect(() => {
-    pendingFilesRef.current = pendingFiles;
-  }, [pendingFiles]);
-  // Revoga as URLs de preview ainda pendentes ao desmontar (evita vazamento).
-  useEffect(
-    () => () => {
-      pendingFilesRef.current.forEach((f) => {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-      });
-    },
-    [],
-  );
-  // Overlay "solte o arquivo aqui" — arrastar arquivo do SO para a página.
-  const [dropActive, setDropActive] = useState(false);
+  const {
+    pendingFiles,
+    setPendingFiles,
+    pendingFilesRef,
+    removePendingFile,
+    dropActive,
+    setDropActive,
+  } = usePendingFiles();
 
   // ── Contexto para interpolação de templates internos ─────────────
   // Reusa a mesma queryKey do ContactAside — evita GET /contacts ×2
@@ -432,171 +276,17 @@ export function Composer({
         : undefined,
     };
   }, [contactData, session]);
-  const [sigEnabled, setSigEnabled] = useState(true);
-  const [sigValue, setSigValue] = useState("");
-  const [sigEditing, setSigEditing] = useState(false);
-  const [sigDraft, setSigDraft] = useState("");
+  const signature = useComposerSignature({ agentName, signatureAllowed });
+  const { applySignature } = signature;
 
-  useEffect(() => {
-    try {
-      const e = window.localStorage.getItem("eduit:signature:enabled");
-      const v = window.localStorage.getItem("eduit:signature:value");
-      if (e !== null) setSigEnabled(e === "1");
-      if (v !== null) setSigValue(v);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const effectiveSignature = (sigValue.trim() || agentName).trim();
-
-  function persistSigEnabled(v: boolean) {
-    setSigEnabled(v);
-    try {
-      window.localStorage.setItem("eduit:signature:enabled", v ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-  }
-  function persistSigValue(v: string) {
-    setSigValue(v);
-    try {
-      window.localStorage.setItem("eduit:signature:value", v);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // Prefixa a assinatura de forma idempotente (não duplica se o texto já
-  // vier assinado em qualquer um dos formatos usados historicamente).
-  function applySignature(text: string): string {
-    const sig = effectiveSignature;
-    // Respeita a permissão org-level "Permitir assinatura": quando desligada,
-    // a assinatura nunca é aplicada, mesmo que o agente a tenha habilitado
-    // localmente antes (estado persistido em localStorage).
-    if (!signatureAllowed || !sigEnabled || !sig) return text;
-    const s = sig.toLowerCase();
-    const lower = text.toLowerCase();
-    const already =
-      lower.startsWith(`*${s}:*`) ||
-      lower.startsWith(`*${s}*:`) ||
-      lower.startsWith(`*${s}*`) ||
-      lower.startsWith(`${s}:`);
-    return already ? text : `*${sig}*: ${text}`;
-  }
-
-  const productSendLock = useRef(false);
-  async function sendProductOfferSteps(steps: ComposerInsertStep[]) {
-    const cid = conversationId;
-    if (!cid) {
-      toast.error("Abra a conversa para enviar os produtos.");
-      return;
-    }
-    if (productSendLock.current) return;
-    productSendLock.current = true;
-    setSequenceSending(true);
-    try {
-      const productIds = steps
-        .map((s) => s.productId?.trim())
-        .filter((id): id is string => Boolean(id));
-      if (productIds.length > 0) {
-        try {
-          let result = await sendConversationProducts(cid, {
-            productIds,
-            format: "auto",
-            header: "Produtos",
-            channelId: selectedChannelId,
-          });
-          if (result.used === "ask") {
-            result = await sendConversationProducts(cid, {
-              productIds,
-              format:
-                productIds.length <= 1
-                  ? "catalog_product"
-                  : "catalog_product_list",
-              header: "Produtos",
-              channelId: selectedChannelId,
-            });
-          }
-          if (result.used === "catalog") {
-            applyOutboundPreviewToInboxCaches(qc, cid, {
-              content:
-                productIds.length <= 1
-                  ? "Produto enviado no catálogo WhatsApp"
-                  : "Carrossel de produtos enviado no WhatsApp",
-            });
-            toast.success(
-              productIds.length <= 1
-                ? "Produto enviado no catálogo WhatsApp."
-                : "Carrossel de produtos enviado no WhatsApp.",
-            );
-            return;
-          }
-        } catch (err) {
-          toast.error(
-            err instanceof Error ? err.message : "Falha ao enviar no catálogo Meta.",
-          );
-          return;
-        }
-      }
-      for (const step of steps) {
-        const captionText = applySignature(step.text.trim());
-        const media = (step.media ?? []).find(
-          (m) => typeof m.url === "string" && m.url.trim(),
-        );
-        try {
-          if (media) {
-            const reuseUrl = media.url.trim();
-            if (
-              captionText.length > 0 &&
-              captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX
-            ) {
-              await sendAttachmentReuse(cid, {
-                reuseUrl,
-                fileName: media.name ?? undefined,
-                mimeType: media.mimeType ?? undefined,
-                caption: captionText,
-                channelId: selectedChannelId,
-                waitUntilSent: true,
-                deferChatUntilSent: true,
-              });
-            } else {
-              if (captionText.length > WHATSAPP_IMAGE_CAPTION_MAX) {
-                toast.message(
-                  "Texto longo demais para legenda do WhatsApp; enviando imagem e texto separados.",
-                );
-              }
-              await sendAttachmentReuse(cid, {
-                reuseUrl,
-                fileName: media.name ?? undefined,
-                mimeType: media.mimeType ?? undefined,
-                channelId: selectedChannelId,
-                waitUntilSent: true,
-                deferChatUntilSent: true,
-              });
-              if (captionText) {
-                await Promise.resolve(onSend(captionText));
-              }
-            }
-          } else if (captionText) {
-            await Promise.resolve(onSend(captionText));
-          }
-        } catch (err) {
-          toast.error(
-            err instanceof Error
-              ? err.message
-              : "Falha ao enviar um dos produtos.",
-          );
-        }
-      }
-      applyOutboundPreviewToInboxCaches(qc, cid, {
-        content: steps[steps.length - 1]?.text?.trim() || "produto",
-      });
-    } finally {
-      productSendLock.current = false;
-      setSequenceSending(false);
-    }
-  }
+  const sendProductOfferSteps = useProductOfferSender({
+    conversationId,
+    selectedChannelId,
+    qc,
+    applySignature,
+    onSend,
+    setSequenceSending,
+  });
 
   const sendProductOfferStepsRef = useRef(sendProductOfferSteps);
   sendProductOfferStepsRef.current = sendProductOfferSteps;
@@ -703,157 +393,31 @@ export function Composer({
   // payload fica em `takePendingComposerInsert` e é aplicado ao montar.
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
-  useEffect(() => {
-    function applyInsert(payload: ComposerInsertPayload) {
-      const steps = Array.isArray(payload?.steps) ? payload.steps : [];
-      const productIds = Array.isArray(payload?.productIds)
-        ? payload.productIds.filter((id) => typeof id === "string" && id.trim())
-        : steps
-            .map((s) => s.productId)
-            .filter((id): id is string => Boolean(id));
-      if (steps.length > 1 || productIds.length > 0) {
-        clearPendingComposerInsert();
-        const resolvedSteps =
-          steps.length > 0
-            ? steps
-            : [
-                {
-                  text: typeof payload?.text === "string" ? payload.text : "",
-                  media: payload?.media,
-                  productId: productIds[0],
-                },
-              ];
-        if (productIds.length > 0 && !resolvedSteps.some((s) => s.productId)) {
-          resolvedSteps.forEach((s, i) => {
-            if (!s.productId && productIds[i]) s.productId = productIds[i];
-          });
-        }
-        void sendProductOfferStepsRef.current(resolvedSteps);
-        return;
-      }
-      const text = typeof payload?.text === "string" ? payload.text : "";
-      const media = Array.isArray(payload?.media)
-        ? payload.media
-            .filter((m) => typeof m?.url === "string" && m.url.trim())
-            .map((m) => ({
-              url: m.url.trim(),
-              name: m.name ?? null,
-              mimeType: m.mimeType ?? null,
-              sendBeforeText: Boolean(m.sendBeforeText),
-            }))
-        : [];
-      if (!text.trim() && media.length === 0) return;
-      if (text.trim()) {
-        const current = (draftRef.current || "").trimEnd();
-        const incoming = text.trim();
-        if (!(current === incoming || current.endsWith(incoming))) {
-          insertTemplateTextRef.current(text);
-        }
-      }
-      if (media.length > 0) {
-        setPendingMediaList((prev) => [...prev, ...media]);
-      }
-      clearPendingComposerInsert();
-    }
-    function onInsert(e: Event) {
-      const detail = (e as CustomEvent<ComposerInsertPayload>).detail;
-      applyInsert(detail ?? { text: "" });
-    }
-    window.addEventListener(COMPOSER_INSERT_EVENT, onInsert as EventListener);
-    const pending = takePendingComposerInsert();
-    if (pending) applyInsert(pending);
-    return () => {
-      window.removeEventListener(COMPOSER_INSERT_EVENT, onInsert as EventListener);
-    };
-  }, []);
-
-  // ── Slash command (/modelos) ────────────────────────────────────
-  // Modelo interno → o hook insere o texto interpolado no campo (editável).
-  // Template Meta → abre o painel de validação.
-  // Wrapper de `setDraft` para o slash menu: atualiza `draftRef`
-  // SINCRONAMENTE antes de propagar pro estado do pai. O slash chama
-  // `setDraft(next)` e, logo em seguida (ainda síncrono), `onInsertMedia` —
-  // por isso `draftRef.current` já reflete o texto novo quando
-  // `onInsertMedia` roda, mesmo a prop `value` só atualizando no próximo render.
-  function handleSlashDraftChange(next: string) {
-    draftRef.current = next;
-    onChange(next);
-  }
-
-  const slash = useSlashMenu({
-    draft: value,
-    setDraft: handleSlashDraftChange,
-    textareaRef,
-    templateContext,
-    // Conversa/contato atuais — habilitam a seção "Automações" no menu "/".
-    conversationId,
-    contactId,
-    channelId: selectedChannelId ?? conversationChannelId ?? null,
-    // Desabilita o atalho em modo nota (não faz sentido inserir templates ali)
-    disabled: disabled || noteMode,
-    // Modelo/mensagem rápida com anexo — 1 anexo sem messageBefore encosta
-    // pra ir junto no Enter (editável); multi-anexo ou messageBefore>=1
-    // exige a SEQUÊNCIA imediata (texto já está em `draftRef` — ver acima).
-    onInsertMedia: (media) => {
-      const list = Array.isArray(media) ? media : [media];
-      if (mediaNeedsSequence(list) && conversationId) {
-        const targetConversationId = conversationId;
-        // `queueMicrotask` garante que rodamos após o restante do handler
-        // síncrono do slash (setDraft já rodou, `draftRef` já está fresco).
-        queueMicrotask(() => {
-          const text = draftRef.current;
-          onChange("");
-          draftRef.current = "";
-          setSequenceSending(true);
-          void (async () => {
-            try {
-              await sendInternalTemplateSequence({
-                conversationId: targetConversationId,
-                content: text,
-                attachments: list,
-              });
-              qc.invalidateQueries({ queryKey: messagesKey(targetConversationId) });
-              applyOutboundPreviewToInboxCaches(qc, targetConversationId, {
-                content: text,
-              });
-            } finally {
-              setSequenceSending(false);
-            }
-          })();
-        });
-        return;
-      }
-      setPendingMediaList((prev) => [...prev, ...list]);
-    },
-    onPickMetaTemplate: (item) =>
-      setPendingTemplate({
-        name: item.name,
-        label: item.label || undefined,
-        content: item.bodyPreview,
-        metaTemplateId: item.id,
-        operatorVariables: item.operatorVariables ?? null,
-      }),
+  useComposerInsertBridge({
+    insertTemplateTextRef,
+    sendProductOfferStepsRef,
+    draftRef,
+    setPendingMediaList,
   });
 
-  // Fechar o slash menu via ESC (mesmo sem foco no textarea) e ao clicar
-  // fora do composer — o hook só fecha por teclado com o textarea focado.
-  useEffect(() => {
-    if (!slash.state.open) return;
-    function onEsc(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") slash.close();
-    }
-    function onPointer(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        slash.close();
-      }
-    }
-    document.addEventListener("keydown", onEsc);
-    document.addEventListener("mousedown", onPointer);
-    return () => {
-      document.removeEventListener("keydown", onEsc);
-      document.removeEventListener("mousedown", onPointer);
-    };
-  }, [slash.state.open, slash.close]);
+  const slash = useComposerSlash({
+    value,
+    onChange,
+    draftRef,
+    textareaRef,
+    rootRef,
+    templateContext,
+    conversationId,
+    contactId,
+    selectedChannelId,
+    conversationChannelId,
+    disabled,
+    noteMode,
+    qc,
+    setSequenceSending,
+    setPendingMediaList,
+    setPendingTemplate,
+  });
 
   // `disabled` vindo do caller representa restrição do canal de saída
   // (ex.: sessão WhatsApp de 24h expirada — só pode enviar template).
@@ -913,157 +477,19 @@ export function Composer({
     );
   }
 
-  // Envia os anexos encostados (mídia de modelo/mensagem rápida) logo após o
-  // texto do Enter — via o helper compartilhado (SEQUENCIAL, com toast em
-  // falha intermediária). Lê de `pendingMediaListRef` (não do state direto)
-  // pra evitar stale closure entre o render que agendou e o flush em si.
-  async function flushPendingMedia(beforeText: boolean) {
-    const all = pendingMediaListRef.current;
-    const list = all.filter((m) => Boolean(m.sendBeforeText) === beforeText);
-    if (list.length === 0 || !conversationId) return;
-    const remaining = all.filter((m) => Boolean(m.sendBeforeText) !== beforeText);
-    setPendingMediaList(remaining);
-    pendingMediaListRef.current = remaining;
-    await sendInternalTemplateSequence({
-      conversationId,
-      content: "",
-      attachments: list,
-      channelId: selectedChannelId,
-    });
-  }
-
-  // Remove um arquivo da fila de pendentes (revoga a URL de preview).
-  function removePendingFile(id: string) {
-    setPendingFiles((prev) => {
-      const target = prev.find((f) => f.id === id);
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter((f) => f.id !== id);
-    });
-  }
-
-  // Envia os arquivos encostados, um a um, na ordem. `caption` (texto do
-  // composer) vai na legenda do PRIMEIRO arquivo — igual ao WhatsApp. Limpa
-  // o estado e revoga as URLs de preview ao final.
-  async function flushPendingFiles(caption?: string) {
-    const files = pendingFilesRef.current;
-    if (files.length === 0 || !conversationId) return;
-    setPendingFiles([]);
-    pendingFilesRef.current = [];
-    let failed = 0;
-    for (const [index, f] of files.entries()) {
-      try {
-        await sendAttachment(conversationId, f.file, {
-          fileName: f.name,
-          channelId: selectedChannelId,
-          ...(index === 0 && caption ? { caption } : {}),
-        });
-      } catch {
-        failed += 1;
-      }
-    }
-    files.forEach((f) => {
-      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-    });
-    qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-    if (failed > 0) {
-      toast.error(
-        failed === 1 ? "Falha ao enviar 1 anexo" : `Falha ao enviar ${failed} anexos`,
-      );
-    }
-  }
-
-  // Limite de caption de imagem na WhatsApp Cloud API.
-
-  async function flushOutbound(text: string | null) {
-    const all = pendingMediaListRef.current;
-    const before = all.filter((m) => Boolean(m.sendBeforeText));
-    const captionText = text?.trim() ?? "";
-    const canCaption =
-      Boolean(conversationId) &&
-      before.length > 0 &&
-      captionText.length > 0 &&
-      captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
-
-    if (canCaption && conversationId) {
-      const remaining = all.filter((m) => !m.sendBeforeText);
-      setPendingMediaList(remaining);
-      pendingMediaListRef.current = remaining;
-      onChange("");
-      draftRef.current = "";
-      setSequenceSending(true);
-      try {
-        const [first, ...rest] = before;
-        await sendAttachmentReuse(conversationId, {
-          reuseUrl: first.url,
-          fileName: first.name ?? undefined,
-          mimeType: first.mimeType ?? undefined,
-          caption: captionText,
-          channelId: selectedChannelId,
-          waitUntilSent: true,
-        });
-        for (const m of rest) {
-          await sendAttachmentReuse(conversationId, {
-            reuseUrl: m.url,
-            fileName: m.name ?? undefined,
-            mimeType: m.mimeType ?? undefined,
-            channelId: selectedChannelId,
-            waitUntilSent: true,
-          });
-        }
-        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
-        applyOutboundPreviewToInboxCaches(qc, conversationId, {
-          content: captionText,
-        });
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Falha ao enviar imagem com legenda.");
-      } finally {
-        setSequenceSending(false);
-      }
-    } else {
-      // Arquivo encostado (arrastado / anexado / colado) + texto curto: o
-      // texto vira legenda do primeiro arquivo, em vez de sair como
-      // mensagem separada antes dele.
-      const filesTakeCaption =
-        Boolean(conversationId) &&
-        before.length === 0 &&
-        pendingFilesRef.current.length > 0 &&
-        captionText.length > 0 &&
-        captionText.length <= WHATSAPP_IMAGE_CAPTION_MAX;
-      if (filesTakeCaption && conversationId) {
-        onChange("");
-        draftRef.current = "";
-        setSequenceSending(true);
-        try {
-          await flushPendingFiles(captionText);
-          applyOutboundPreviewToInboxCaches(qc, conversationId, {
-            content: captionText,
-          });
-        } finally {
-          setSequenceSending(false);
-        }
-        await flushPendingMedia(false);
-        return;
-      }
-      if (
-        (before.length > 0 || pendingFilesRef.current.length > 0) &&
-        captionText.length > WHATSAPP_IMAGE_CAPTION_MAX
-      ) {
-        toast.message(
-          "Texto longo demais para legenda do WhatsApp; enviando arquivo e texto separados.",
-        );
-      }
-      await flushPendingMedia(true);
-      if (text) {
-        try {
-          await Promise.resolve(onSend(text));
-        } catch {
-          /* texto falhou; ainda tenta anexos se o caller não bloqueou */
-        }
-      }
-    }
-    await flushPendingMedia(false);
-    await flushPendingFiles();
-  }
+  const { flushOutbound } = useOutboundFlush({
+    conversationId,
+    selectedChannelId,
+    qc,
+    onChange,
+    onSend,
+    draftRef,
+    pendingMediaListRef,
+    setPendingMediaList,
+    pendingFilesRef,
+    setPendingFiles,
+    setSequenceSending,
+  });
 
   async function performSend() {
     const trimmed = value.trim();
@@ -1111,20 +537,6 @@ export function Composer({
         ? [{ url: item.attachmentUrl, name: null, mimeType: null, messageBefore: null }]
         : null,
     );
-  }
-
-  // Extensão de arquivo a partir do mime da imagem colada.
-  function imageExtFromMime(mime: string): string {
-    const map: Record<string, string> = {
-      "image/png": "png",
-      "image/jpeg": "jpg",
-      "image/jpg": "jpg",
-      "image/gif": "gif",
-      "image/webp": "webp",
-      "image/bmp": "bmp",
-      "image/svg+xml": "svg",
-    };
-    return map[mime] ?? "png";
   }
 
   // Ctrl+V de imagem (print / copiar imagem) → encosta como anexo PENDENTE
@@ -1198,46 +610,7 @@ export function Composer({
   // Zonas marcadas com data-file-drop-zone (importar CSV) continuam donas.
   const stageFilesRef = useRef(stageFiles);
   stageFilesRef.current = stageFiles;
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    let depth = 0;
-    const onDragEnter = (e: DragEvent) => {
-      if (!dragEventHasFiles(e) || isForeignFileDropZone(e)) return;
-      e.preventDefault();
-      depth += 1;
-      setDropActive(true);
-    };
-    const onDragOver = (e: DragEvent) => {
-      if (!dragEventHasFiles(e) || isForeignFileDropZone(e)) return;
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    };
-    const onDragLeave = (e: DragEvent) => {
-      if (!dragEventHasFiles(e)) return;
-      depth = Math.max(0, depth - 1);
-      if (depth === 0) setDropActive(false);
-    };
-    const onDrop = (e: DragEvent) => {
-      if (!dragEventHasFiles(e)) return;
-      depth = 0;
-      setDropActive(false);
-      if (isForeignFileDropZone(e)) return;
-      e.preventDefault();
-      const files = Array.from(e.dataTransfer?.files ?? []);
-      stageFilesRef.current(files, "arquivo-arrastado");
-    };
-    const opts: AddEventListenerOptions = { capture: true };
-    document.addEventListener("dragenter", onDragEnter, opts);
-    document.addEventListener("dragover", onDragOver, opts);
-    document.addEventListener("dragleave", onDragLeave, opts);
-    document.addEventListener("drop", onDrop, opts);
-    return () => {
-      document.removeEventListener("dragenter", onDragEnter, opts);
-      document.removeEventListener("dragover", onDragOver, opts);
-      document.removeEventListener("dragleave", onDragLeave, opts);
-      document.removeEventListener("drop", onDrop, opts);
-    };
-  }, []);
+  useFileDropListeners({ stageFilesRef, setDropActive });
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Deixa o slash menu consumir Up/Down/Enter/Esc/Tab primeiro
@@ -1284,132 +657,27 @@ export function Composer({
           Aparece quando o agente clicou "Responder" numa mensagem. O X limpa
           o estado no caller; o envio já inclui replyToId no payload. */}
       {replyTo && (
-        <div className="mb-2 flex items-stretch gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-3 py-2 shadow-[var(--glass-shadow-sm)] backdrop-blur-md">
-          <div className="flex shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)]/12 p-1.5 text-[var(--brand-primary)]">
-            <IconCornerUpLeft size={14} />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5 border-l-[3px] border-[var(--brand-primary)] pl-2">
-            <span className="font-display text-[10.5px] font-bold uppercase tracking-wider text-[var(--brand-primary)]">
-              Respondendo {replyTo.senderName?.trim() ? `a ${replyTo.senderName.trim()}` : "mensagem"}
-            </span>
-            <span className="line-clamp-2 break-words font-body text-[12px] leading-snug text-[var(--text-secondary)]">
-              {replyTo.preview}
-            </span>
-          </div>
-          {onCancelReply && (
-            <button
-              type="button"
-              onClick={onCancelReply}
-              aria-label="Cancelar resposta"
-              className="shrink-0 self-start rounded-full p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]"
-            >
-              <IconX size={14} />
-            </button>
-          )}
-        </div>
+        <ReplyPreviewBar replyTo={replyTo} onCancelReply={onCancelReply} />
       )}
 
       {/* Anexo(s) encostado(s) por um modelo/mensagem rápida — vão junto no envio.
           (Só aparece pra 1 anexo sem messageBefore — os demais casos disparam
           a sequência na hora, sem passar por aqui.) */}
       {pendingMediaList.length > 0 && (
-        <div className="mb-2 flex flex-col gap-1.5">
-          {pendingMediaList.map((media, i) => {
-            const before = i > 0 ? media.messageBefore?.trim() : "";
-            return (
-              <div
-                key={`${media.url}-${i}`}
-                className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-3 py-2 shadow-[var(--glass-shadow-sm)]"
-              >
-                <div className="flex shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)]/12 p-1.5 text-[var(--brand-primary)]">
-                  <IconPaperclip size={14} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="block truncate font-body text-[12px] text-[var(--text-secondary)]">
-                    {media.name?.trim() || "Anexo do modelo"} ·{" "}
-                    {media.sendBeforeText
-                      ? "imagem com a mensagem (legenda)"
-                      : "será enviado junto"}
-                  </span>
-                  {before ? (
-                    <span className="block truncate font-body text-[11px] italic text-[var(--text-muted)]">
-                      Antes: &ldquo;{before}&rdquo;
-                    </span>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPendingMediaList((prev) => prev.filter((_, idx) => idx !== i))}
-                  aria-label="Remover anexo"
-                  className="shrink-0 rounded-full p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]"
-                >
-                  <IconX size={14} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        <PendingMediaChips
+          pendingMediaList={pendingMediaList}
+          setPendingMediaList={setPendingMediaList}
+        />
       )}
 
       {/* Overlay de drop — arquivo do SO sendo arrastado sobre a página. */}
       {dropActive && (
-        <div
-          aria-hidden
-          className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center bg-[var(--brand-primary)]/10 backdrop-blur-[2px]"
-        >
-          <div className="flex items-center gap-3 rounded-[var(--radius-2xl)] border-2 border-dashed border-[var(--brand-primary)] bg-[var(--glass-bg-strong)] px-6 py-4 shadow-[var(--glass-shadow-lg)]">
-            <IconPaperclip size={22} className="text-[var(--brand-primary)]" />
-            <div className="font-body">
-              <p className="text-[14px] font-semibold text-[var(--text-primary)]">
-                Solte para anexar à conversa
-              </p>
-              <p className="text-[12px] text-[var(--text-secondary)]">
-                O arquivo fica no composer; você escreve a legenda e envia.
-              </p>
-            </div>
-          </div>
-        </div>
+        <FileDropOverlay />
       )}
 
       {/* Arquivos encostados (colados, arrastados ou anexados) — enviados no próximo envio. */}
       {pendingFiles.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
-          {pendingFiles.map((f) => (
-            <div
-              key={f.id}
-              className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2 py-1.5 shadow-[var(--glass-shadow-sm)]"
-            >
-              {f.previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={f.previewUrl}
-                  alt={f.name}
-                  className="h-16 w-16 shrink-0 rounded-[var(--radius-sm)] object-cover"
-                />
-              ) : (
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
-                  <IconFile size={18} />
-                </span>
-              )}
-              <span className="flex min-w-0 flex-col">
-                <span className="max-w-[160px] truncate font-body text-[12px] text-[var(--text-primary)]">
-                  {f.name}
-                </span>
-                <span className="font-body text-[10.5px] text-[var(--text-muted)]">
-                  {formatFileSize(f.file.size)}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => removePendingFile(f.id)}
-                aria-label="Remover anexo"
-                className="shrink-0 rounded-full p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]"
-              >
-                <IconX size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
+        <PendingFileChips pendingFiles={pendingFiles} removePendingFile={removePendingFile} />
       )}
 
       {/* Slash command menu — modal central (renderizada via portal) */}
@@ -1431,195 +699,34 @@ export function Composer({
         (!noteMode && (availableChannels?.length ?? 0) > 1) ||
         conversationId ||
         conversationNumber != null) && (
-        <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 px-0.5">
-          {transferSlot}
-
-          {/* Tabs Mensagem / Nota interna */}
-          {onSendNote && (
-            <>
-              <button
-                type="button"
-                onClick={() => setNoteMode(false)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-[11.5px] font-semibold transition-all",
-                  !noteMode
-                    ? "bg-[var(--brand-primary)] text-white shadow-[0_2px_8px_rgba(91,111,245,0.35)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                )}
-              >
-                <IconMessage size={12} />
-                Mensagem
-              </button>
-              <button
-                type="button"
-                onClick={() => setNoteMode(true)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-display text-[11.5px] font-semibold transition-all",
-                  noteMode
-                    ? "border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] text-[var(--text-primary)] shadow-[var(--glass-shadow-sm)] backdrop-blur-md"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]",
-                )}
-              >
-                <IconLock size={12} />
-                Nota interna
-              </button>
-            </>
-          )}
-
-          <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
-          {/* Seletor de canal — só quando há >1 WhatsApp CONNECTED e fora do modo nota.
-              Notas internas não trafegam por canal. */}
-          {!noteMode &&
-            availableChannels &&
-            availableChannels.length > 1 &&
-            onSelectChannel ? (
-            <ChannelSelector
-              channels={availableChannels}
-              selectedChannelId={selectedChannelId ?? null}
-              conversationChannelId={conversationChannelId ?? null}
-              onSelect={onSelectChannel}
-              disabled={busy}
-            />
-          ) : null}
-
-          {/* Slot direito: badge "Nota" no modo nota, assinatura no modo mensagem */}
-          {noteMode ? (
-            /* Badge de nota — ocupa o mesmo espaço da assinatura */
-            <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2.5 py-1 font-display text-[11.5px] font-semibold text-warning ring-1 ring-inset ring-warning/25">
-              <IconLock size={12} /> Nota
-            </span>
-          ) : signatureAllowed ? (
-            /* Assinatura do agente */
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={sigEnabled}
-                aria-label={sigEnabled ? "Desligar assinatura" : "Ligar assinatura"}
-                onClick={() => persistSigEnabled(!sigEnabled)}
-                className={cn(
-                  "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
-                  sigEnabled ? "bg-[var(--brand-primary)]" : "bg-[var(--text-muted)]/40",
-                )}
-              >
-                <span
-                  className={cn(
-                    "inline-block size-3 rounded-full bg-white shadow transition-transform",
-                    sigEnabled ? "translate-x-[14px]" : "translate-x-[2px]",
-                  )}
-                />
-              </button>
-              <IconSignature size={13} className="shrink-0 text-[var(--text-muted)]" />
-              {sigEditing ? (
-                <span className="flex items-center gap-1">
-                  <input
-                    autoFocus
-                    value={sigDraft}
-                    onChange={(e) => setSigDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        persistSigValue(sigDraft.trim());
-                        setSigEditing(false);
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        setSigEditing(false);
-                      }
-                    }}
-                    placeholder={agentName || "Seu nome"}
-                    className="h-6 w-40 rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2 font-body text-[11.5px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-                  />
-                  <button
-                    type="button"
-                    aria-label="Salvar assinatura"
-                    onClick={() => { persistSigValue(sigDraft.trim()); setSigEditing(false); }}
-                    className="rounded-[var(--radius-sm)] p-0.5 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
-                  >
-                    <IconCheck size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Cancelar"
-                    onClick={() => setSigEditing(false)}
-                    className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-muted)] hover:bg-[var(--text-muted)]/10"
-                  >
-                    <IconX size={14} />
-                  </button>
-                </span>
-              ) : (
-                <>
-                  <TooltipGlass
-                    label={effectiveSignature ? `Assinando como ${effectiveSignature}` : "Defina um nome para assinar"}
-                    side="top"
-                  >
-                    <span
-                      className={cn(
-                        "max-w-[140px] truncate font-body text-[11.5px] font-semibold transition-colors",
-                        sigEnabled
-                          ? "text-[var(--text-primary)]"
-                          : "text-[var(--text-muted)] line-through",
-                      )}
-                    >
-                      {effectiveSignature || "Sem assinatura"}
-                    </span>
-                  </TooltipGlass>
-                  {signatureEditable && (
-                    <button
-                      type="button"
-                      aria-label="Editar assinatura"
-                      onClick={() => { setSigDraft(sigValue); setSigEditing(true); }}
-                      className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
-                    >
-                      <IconPencil size={12} />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          ) : null}
-
-          {viewersSlot}
-
-          {/* Nº da conversa + Encerrar/Reabrir */}
-          {(conversationNumber != null || conversationId) && (
-            <div className="flex shrink-0 items-center gap-1.5">
-              {conversationNumber != null && (
-                <TooltipGlass
-                  label={`Conversa Nº ${conversationNumber}`}
-                  side="top"
-                >
-                  <span
-                    className={cn(
-                      "cursor-default font-display text-[11px] font-semibold tabular-nums",
-                      isResolved
-                        ? "text-[var(--text-muted)]"
-                        : "text-emerald-600 v2-dark:text-emerald-400",
-                    )}
-                  >
-                    Nº {conversationNumber}
-                  </span>
-                </TooltipGlass>
-              )}
-              {conversationId && (
-                <ConversationResolveButton
-                  conversationId={conversationId}
-                  isResolved={isResolved}
-                  departmentId={departmentId}
-                  assignedToId={assignedToId}
-                  requireTabulationOnClose={requireTabulationOnClose}
-                  onReopenNewConversation={onReopenNewConversation}
-                  onResolved={onResolved}
-                  onFollowedUp={onFollowedUp}
-                  contactId={contactId}
-                  contactName={contactName}
-                  dealId={dealId}
-                  disabled={busy}
-                />
-              )}
-            </div>
-          )}
-          </div>
-        </div>
+        <ComposerTopRow
+          transferSlot={transferSlot}
+          onSendNote={onSendNote}
+          noteMode={noteMode}
+          setNoteMode={setNoteMode}
+          availableChannels={availableChannels}
+          selectedChannelId={selectedChannelId}
+          conversationChannelId={conversationChannelId}
+          onSelectChannel={onSelectChannel}
+          busy={busy}
+          signatureAllowed={signatureAllowed}
+          signature={signature}
+          agentName={agentName}
+          signatureEditable={signatureEditable}
+          viewersSlot={viewersSlot}
+          conversationNumber={conversationNumber}
+          conversationId={conversationId}
+          isResolved={isResolved}
+          departmentId={departmentId}
+          assignedToId={assignedToId}
+          requireTabulationOnClose={requireTabulationOnClose}
+          onReopenNewConversation={onReopenNewConversation}
+          onResolved={onResolved}
+          onFollowedUp={onFollowedUp}
+          contactId={contactId}
+          contactName={contactName}
+          dealId={dealId}
+        />
       )}
 
       <form
@@ -1657,43 +764,14 @@ export function Composer({
               onStageFiles={(files) => stageFiles(files)}
               enableCallPermission={enableCallPermission}
             />
-            <div ref={emojiWrapRef} className="relative">
-              <TooltipGlass label="Emoji" side="top">
-                <span className="inline-flex">
-                  <ButtonGlass
-                    type="button"
-                    variant="icon"
-                    size="icon"
-                    className={cn(
-                      "h-9 w-9 shrink-0",
-                      emojiOpen && "text-[var(--brand-primary)]",
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEmojiOpen((v) => !v);
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    disabled={inputDisabled || busy}
-                  >
-                    <IconMoodSmile size={20} />
-                  </ButtonGlass>
-                </span>
-              </TooltipGlass>
-              {emojiOpen && (
-                <div
-                  className="absolute bottom-12 left-0 z-50 w-[380px]"
-                  onMouseDown={(e) => e.stopPropagation()}
-                >
-                  <EmojiPicker
-                    open={emojiOpen}
-                    onPick={(emoji) => {
-                      insertEmoji(emoji);
-                      setEmojiOpen(false);
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+            <EmojiButton
+              emojiWrapRef={emojiWrapRef}
+              emojiOpen={emojiOpen}
+              setEmojiOpen={setEmojiOpen}
+              inputDisabled={inputDisabled}
+              busy={busy}
+              insertEmoji={insertEmoji}
+            />
             <QuickReplyPopover
               disabled={busy}
               sending={busy}
