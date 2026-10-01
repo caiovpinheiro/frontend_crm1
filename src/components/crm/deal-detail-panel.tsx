@@ -56,6 +56,7 @@ import {
   type ConnectionRef,
 } from "@/lib/connection-label"
 import { useResolveConversationFlow } from "@/features/inbox-v2/extras/use-resolve-conversation-flow"
+import { useConversationFeatures } from "@/features/inbox-v2/hooks/use-conversation-features"
 import { RequirePermission } from "@/components/auth/require-permission"
 import { FavoritesPanel } from "@/components/crm/favorites-panel"
 import {
@@ -1804,6 +1805,9 @@ function TabsBar({
 
   const hasConversaActions = (activeTab === "conversa" && !!onSearchOpen) || !!conversationId
   const { hideEvents, toggleHideEvents } = useHideChatEvents()
+  // "Encerrar" no ⋮ é opt-in (Configurações › Conversas); "Reabrir" fica.
+  const { features: convFeatures } = useConversationFeatures()
+  const showResolveItem = isResolved || convFeatures.showResolveInMenu
 
   return (
     <div className="shrink-0 border-b border-[var(--glass-border-subtle)]">
@@ -1940,7 +1944,7 @@ function TabsBar({
                 )}
 
                 {/* Encerrar / Reabrir conversa */}
-                {conversationId && (
+                {conversationId && showResolveItem && (
                   <RequirePermission permission="conversation:resolve">
                     <button
                       type="button"

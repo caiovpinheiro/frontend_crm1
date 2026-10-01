@@ -226,6 +226,11 @@ export type SalesHubViewProps = {
   pipelineId: string;
   stages: BoardStage[];
   /**
+   * Etapas da fila/stepper (Ganho/Perdido ocultos por padrão). Ausente =
+   * `stages`. O painel do negócio segue com `stages` (mover p/ Ganho etc.).
+   */
+  queueStages?: BoardStage[];
+  /**
    * Status ativo no topo da página (Abertos/Ganhos/Perdidos/Todos).
    * Usado para montar a queryKey correta do board e permitir que o
    * DealCrmPanel faça update otimista no cache quando o quick-move
@@ -275,6 +280,7 @@ export type SalesHubViewProps = {
 export function SalesHubView({
   pipelineId,
   stages,
+  queueStages: queueStagesProp,
   statusFilter = "OPEN",
   filter,
   currentUserId,
@@ -311,13 +317,24 @@ export function SalesHubView({
     setSelectedStageId(id);
   }, []);
 
+  const queueStages = queueStagesProp ?? stages;
+
   const { hydrated: stageHydrated } = useStageUrlSync(
-    stages,
+    queueStages,
     selectedStageId,
     setStageFromUrl,
     pipelineId,
   );
-  const stageRestorePending = !stageHydrated && stages.length > 0;
+  const stageRestorePending = !stageHydrated && queueStages.length > 0;
+
+  // Etapa focada saiu da fila (ex.: desligou "Exibir todas as fases" com
+  // Ganho focado) → volta para "Todas".
+  useEffect(() => {
+    if (!stageHydrated || !selectedStageId || queueStages.length === 0) return;
+    if (queueStages.some((s) => s.id === selectedStageId)) return;
+    selectedStageIdRef.current = null;
+    setSelectedStageId(null);
+  }, [stageHydrated, selectedStageId, queueStages]);
   const chromePending = queueBoardPending || stageRestorePending;
   const [recentlyMovedDealId, setRecentlyMovedDealId] = useState<string | null>(
     null,
@@ -437,7 +454,7 @@ export function SalesHubView({
       stageFocusedForDealRef.current = activeDealId;
       return;
     }
-    const stage = stages.find((s) =>
+    const stage = queueStages.find((s) =>
       s.deals.some(
         (d) => d.id === activeDealId || String(d.number) === activeDealId,
       ),
@@ -450,7 +467,7 @@ export function SalesHubView({
     }
     // Só reage a mudança de deal (não a selectedStageId) pra não loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDealId, stages]);
+  }, [activeDealId, queueStages]);
 
   const filteredStages = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -461,12 +478,12 @@ export function SalesHubView({
       filterStage !== "all" ||
       filterMsg !== "all" ||
       filterOverdue;
-    if (!hasAny) return stages;
+    if (!hasAny) return queueStages;
 
     const stagesSource =
       filterStage !== "all"
-        ? stages.filter((s) => s.id === filterStage)
-        : stages;
+        ? queueStages.filter((s) => s.id === filterStage)
+        : queueStages;
 
     return stagesSource.map((s) => ({
       ...s,
@@ -512,7 +529,7 @@ export function SalesHubView({
       }),
     }));
   }, [
-    stages,
+    queueStages,
     filter,
     currentUserId,
     searchQuery,
