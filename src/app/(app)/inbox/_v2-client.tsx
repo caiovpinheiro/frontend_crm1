@@ -1950,7 +1950,6 @@ export default function InboxV2ClientPage({
               conversationNumber={activeRow?.number}
               contactId={activeContactId}
               isResolved={activeRow.status === "RESOLVED"}
-              assigneeId={activeRow.assignedTo?.id ?? null}
               assigneeName={activeRow.assignedTo?.name ?? null}
               assigneeType={activeRow.assignedTo?.type ?? null}
               aiHandoffContext={{
@@ -1964,27 +1963,7 @@ export default function InboxV2ClientPage({
               }}
               onSearchInConversation={() => searchControlRef.current?.open()}
               onOpenFavorites={() => setFavoritesOpen(true)}
-              onReopenNewConversation={handleReopenNewConversation}
-              onResolved={(id) => {
-                setStickyRow((prev) =>
-                  prev?.id === id
-                    ? {
-                        ...prev,
-                        status: "RESOLVED",
-                        closedAt: new Date().toISOString(),
-                      }
-                    : prev,
-                );
-              }}
-              onFollowedUp={handleFollowedUp}
-              contactName={
-                contactAsideView?.name ?? activeRow.contact?.name ?? null
-              }
               dealId={firstDealId}
-              departmentId={activeRow.departmentId ?? activeRow.department?.id ?? null}
-              requireTabulationOnClose={
-                activeRow.department?.requireTabulationOnClose ?? false
-              }
               onDepartmentChanged={(dept) => {
                 setStickyRow((prev) =>
                   prev

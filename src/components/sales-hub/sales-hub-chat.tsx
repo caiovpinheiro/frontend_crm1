@@ -405,6 +405,7 @@ export function SalesHubChat({
             }
             isResolved={isResolved}
             hideResolveInMenu
+            hideResolveButton={convFeatures.showResolveInFunnel === false}
             contactId={contactId}
             contactName={contactName}
             dealId={dealId}

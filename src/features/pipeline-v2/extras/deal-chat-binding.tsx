@@ -1089,6 +1089,7 @@ export function useDealChatBinding(params: {
       onCancelReply={handleCancelReply}
       isResolved={isResolved}
       hideResolveInMenu
+      hideResolveButton={convFeatures.showResolveInFunnel === false}
       conversationNumber={conversationNumber ?? null}
       departmentId={departmentId ?? null}
       requireTabulationOnClose={requireTabulationOnClose ?? false}

@@ -30,10 +30,10 @@ export interface InboxSettings {
    */
   countAgentReplyAsAnswered: boolean;
   /**
-   * Item "Encerrar/Reabrir conversa" no menu ⋮ do chat. Default desligado —
-   * os dois ficam no botão ao lado do Nº da conversa.
+   * Botão Encerrar/Reabrir (ao lado do Nº da conversa) quando o chat é
+   * aberto pelo Kanban ou pelo Flow. Default ligado; na inbox aparece sempre.
    */
-  showResolveInMenu: boolean;
+  showResolveInFunnel: boolean;
 }
 
 const DEFAULTS: InboxSettings = {
@@ -48,7 +48,7 @@ const DEFAULTS: InboxSettings = {
   transcriptionLanguage: "pt-BR",
   showInboundSignal: true,
   countAgentReplyAsAnswered: false,
-  showResolveInMenu: false,
+  showResolveInFunnel: true,
 };
 
 /**
@@ -85,7 +85,8 @@ export async function fetchInboxSettings(): Promise<InboxSettings> {
     showInboundSignal: data["conversation.showInboundSignal"] !== "false",
     countAgentReplyAsAnswered:
       data["conversation.countAgentReplyAsAnswered"] === "true",
-    showResolveInMenu: data["conversation.showResolveInMenu"] === "true",
+    // Default ligado: ausência da chave mantém o botão no funil.
+    showResolveInFunnel: data["conversation.showResolveInFunnel"] !== "false",
   };
 }
 
