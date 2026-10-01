@@ -177,9 +177,10 @@ export function InboxMessageAlerts() {
         const owner = soundRef.current;
         if (owner.isOwner()) {
           playInboxPing();
-        } else if (!isInboxAudioRunning() && !(await owner.heldElsewhere())) {
-          // Nenhuma aba pode tocar: o ping travado acende o
-          // "Clique para ativar o som" nesta aba.
+        } else if (!(await owner.heldElsewhere())) {
+          // Nenhuma aba é dona do som: esta toca. Com o áudio travado o
+          // ping acende o "Clique para ativar o som"; destravado, toca —
+          // melhor um bip a mais do que mensagem de cliente em silêncio.
           playInboxPing();
         }
       }

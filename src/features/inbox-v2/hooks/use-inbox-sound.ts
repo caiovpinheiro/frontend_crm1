@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { createAudioRunningAnnouncer } from "./audio-running-announcer";
+
 /**
  * Aviso sonoro do inbox: toca um "ping" curto a cada mensagem RECEBIDA
  * (direction="in"). O operador pode silenciar; a preferência fica no
@@ -37,6 +39,10 @@ export function setInboxSoundMuted(muted: boolean): void {
 
 let audioCtx: AudioContext | null = null;
 
+const announceRunning = createAudioRunningAnnouncer(() => {
+  window.dispatchEvent(new CustomEvent(INBOX_AUDIO_UNLOCKED_EVENT));
+});
+
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const Ctor =
@@ -44,7 +50,11 @@ function getCtx(): AudioContext | null {
     (window as unknown as { webkitAudioContext?: typeof AudioContext })
       .webkitAudioContext;
   if (!Ctor) return null;
-  audioCtx ??= new Ctor();
+  if (!audioCtx) {
+    const ctx = new Ctor();
+    audioCtx = ctx;
+    ctx.addEventListener("statechange", () => announceRunning(ctx.state));
+  }
   return audioCtx;
 }
 
@@ -59,15 +69,17 @@ export function isInboxAudioRunning(): boolean {
 /** Destrava o AudioContext num gesto do usuário (clique/tecla). */
 export async function resumeAudio(): Promise<void> {
   const ctx = getCtx();
-  if (!ctx || ctx.state === "running" || ctx.state === "closed") return;
-  try {
-    await ctx.resume();
-  } catch {
-    /* ignore */
+  if (!ctx || ctx.state === "closed") return;
+  if (ctx.state !== "running") {
+    try {
+      await ctx.resume();
+    } catch {
+      /* ignore */
+    }
   }
-  if ((ctx.state as string) === "running") {
-    window.dispatchEvent(new CustomEvent(INBOX_AUDIO_UNLOCKED_EVENT));
-  }
+  // Criado dentro de um gesto o contexto já nasce `running` e o `resume()`
+  // nem roda: o aviso sai daqui (uma vez), senão a aba nunca disputa o som.
+  announceRunning(ctx.state);
 }
 
 /** Evita bip duplicado quando vários `useInboxRealtime` estão montados. */

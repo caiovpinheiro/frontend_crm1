@@ -21,6 +21,7 @@ import { Bell, BellOff } from "lucide-react";
 
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
 import type { EmailAccount } from "@/features/email-v2/api/types";
+import { createAudioRunningAnnouncer } from "@/features/inbox-v2/hooks/audio-running-announcer";
 import { resumeAudio as resumeInboxAudio } from "@/features/inbox-v2/hooks/use-inbox-sound";
 import {
   useInboxSoundOwner,
@@ -131,13 +132,21 @@ function writeSoundMuted(muted: boolean): void {
 let audioCtx: AudioContext | null = null;
 let lastPingAt = 0;
 
+const announceNavAudioRunning = createAudioRunningAnnouncer(() => {
+  window.dispatchEvent(new CustomEvent(NAV_AUDIO_UNLOCKED_EVENT));
+});
+
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const Ctor =
     window.AudioContext ??
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) return null;
-  audioCtx ??= new Ctor();
+  if (!audioCtx) {
+    const ctx = new Ctor();
+    audioCtx = ctx;
+    ctx.addEventListener("statechange", () => announceNavAudioRunning(ctx.state));
+  }
   return audioCtx;
 }
 
@@ -147,15 +156,16 @@ function isNavAlertAudioRunning(): boolean {
 
 async function resumeNavAlertAudio(): Promise<void> {
   const ctx = getCtx();
-  if (!ctx || ctx.state === "running" || ctx.state === "closed") return;
-  try {
-    await ctx.resume();
-  } catch {
-    /* ignore */
+  if (!ctx || ctx.state === "closed") return;
+  if (ctx.state !== "running") {
+    try {
+      await ctx.resume();
+    } catch {
+      /* ignore */
+    }
   }
-  if ((ctx.state as string) === "running") {
-    window.dispatchEvent(new CustomEvent(NAV_AUDIO_UNLOCKED_EVENT));
-  }
+  // Contexto que nasce `running` (criado num gesto) também precisa avisar.
+  announceNavAudioRunning(ctx.state);
 }
 
 /** Fonte de áudio do trilho para a eleição de dona do som (MA-6). */
