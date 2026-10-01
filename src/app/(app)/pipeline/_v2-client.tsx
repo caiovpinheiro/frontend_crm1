@@ -122,6 +122,7 @@ import {
   DealNotesTab,
   DealTimelineTab,
   InlineEditText,
+  MOVE_TO_STAGE_MENU_MAX_HEIGHT,
   MoveToStageMenu,
   PipelineSwitcher,
   StagePicker,
@@ -1846,7 +1847,11 @@ function CardMoveDropdown({
   onSelect: (stageId: string, toPipelineId?: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const [coords, setCoords] = useState<{
+    right: number;
+    top?: number;
+    bottom?: number;
+  } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -1869,8 +1874,19 @@ function CardMoveDropdown({
   function handleOpen() {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    // Posiciona acima do botão, alinhado à direita
-    setCoords({ top: rect.top + window.scrollY, left: rect.right + window.scrollX });
+    // Alinhado à direita do botão. Abre para cima (padrão: botão fica no
+    // rodapé do card) e só desce quando falta espaço acima — evita o menu
+    // cortado no topo da tela. A rolagem fica só na lista interna.
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp =
+      spaceAbove >= MOVE_TO_STAGE_MENU_MAX_HEIGHT || spaceAbove >= spaceBelow;
+    const right = Math.max(8, window.innerWidth - rect.right);
+    setCoords(
+      openUp
+        ? { right, bottom: window.innerHeight - rect.top + 6 }
+        : { right, top: rect.bottom + 6 },
+    );
     setOpen((v) => !v);
   }
 
@@ -1879,14 +1895,13 @@ function CardMoveDropdown({
         <div
           ref={menuRef}
           style={{
-            position: "absolute",
+            position: "fixed",
             top: coords.top,
-            left: coords.left,
+            bottom: coords.bottom,
+            right: coords.right,
             zIndex: "var(--z-popover)",
-            transform: "translate(-100%, -100%)",
-            marginBottom: "6px",
           }}
-          className="max-h-[320px] min-w-[220px] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)] py-1 shadow-[0_8px_24px_rgba(15,20,40,0.18)]"
+          className="min-w-[220px] max-w-[320px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)] py-1 shadow-[0_8px_24px_rgba(15,20,40,0.18)]"
         >
           <MoveToStageMenu
             stages={stages}

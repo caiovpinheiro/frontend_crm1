@@ -1,7 +1,7 @@
 export { AssigneePopover } from "./assignee-popover";
 export { TagsPopover, DealCardTagsTrigger } from "./tags-popover";
 export { StagePicker } from "./stage-picker";
-export { MoveToStageMenu } from "./move-to-stage-menu";
+export { MoveToStageMenu, MOVE_TO_STAGE_MENU_MAX_HEIGHT } from "./move-to-stage-menu";
 export type { MoveToStageMenuStage } from "./move-to-stage-menu";
 export { InlineEditText } from "./inline-edit";
 export { DealActionsMenu, WinButton, DealDeleteButton } from "./actions-menu";
