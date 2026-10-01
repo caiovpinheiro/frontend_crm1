@@ -165,9 +165,12 @@ function InboxList({ tab }: { tab: InboxTab[] }) {
 }
 
 const LIST = '[data-tour="inbox-list"]';
-const SENTINEL = `${LIST} div[aria-hidden="true"].h-1`;
+const SENTINEL = `${LIST} [data-load-more-sentinel]`;
 /** Linhas da lista (wrappers da janela de render), renderizadas ou não. */
-const ROWS = `${LIST} .flex-col.gap-2 > .shrink-0:not(.h-1):not(.flex), ${LIST} .flex-col.gap-2.pt-1 > .shrink-0`;
+const ROWS = `${LIST} .min-h-full > .flex.flex-col.gap-2 > .shrink-0, ${LIST} .flex-col.gap-2.pt-1 > .shrink-0`;
+/** Indicador do fim: fica no DOM (espaço reservado) e só aparece durante a busca. */
+const loadingShown = (c: HTMLElement) =>
+  c.querySelector("[data-load-more-indicator]")?.getAttribute("aria-hidden") === "false";
 
 function mount(tab: InboxTab[], layoutInit: Partial<ListLayout> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -221,9 +224,11 @@ describe("Inbox — rolagem da lista × requisições", { timeout: 30_000 }, () 
     await t.settle();
     expect(requests()).toBe(afterMount);
 
-    // Um gesto novo no fim da lista (roda do mouse, com inércia): mais UMA página.
+    // Um gesto no fim da lista (roda do mouse, 8 cliques = mais que uma tela): mais UMA página.
     await act(async () => {
-      for (let i = 0; i < 8; i += 1) t.scroller().dispatchEvent(new Event("wheel"));
+      for (let i = 0; i < 8; i += 1) {
+        t.scroller().dispatchEvent(Object.assign(new Event("wheel"), { deltaY: 100, deltaMode: 0 }));
+      }
     });
     await t.settle();
     expect(requests()).toBe(afterMount + 1);
@@ -283,13 +288,13 @@ describe("Inbox — rolagem da lista × requisições", { timeout: 30_000 }, () 
     expect(during.length).toBe(before.length);
     expect(during.every((el, i) => el === before[i])).toBe(true);
     expect(during[0]!.textContent).toBe(firstCardText);
-    expect(t.view.container.textContent).toContain("Carregando mais...");
+    expect(loadingShown(t.view.container)).toBe(true);
     expect(t.view.container.querySelector("[data-app-loading-state]")).toBeNull();
 
     await act(async () => release!());
     await t.settle();
     expect(requests()).toBe(2);
-    expect(t.view.container.textContent).not.toContain("Carregando mais...");
+    expect(loadingShown(t.view.container)).toBe(false);
     expect(t.layout.rows()).toBe(2 * PER_PAGE);
   });
 

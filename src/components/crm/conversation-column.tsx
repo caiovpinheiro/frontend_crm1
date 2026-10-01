@@ -482,6 +482,7 @@ export function ConversationColumn({
     onLoadMore: () => onLoadMore?.(),
     marginPx: 80,
     resetKey: selectedTabIds?.join(","),
+    itemCount: conversations.length,
   })
   // Janela de render (FE-14): um IO por lista, root = scroller. As linhas
   // fora do viewport ± 600px viram placeholders com a altura medida. A
@@ -982,7 +983,11 @@ export function ConversationColumn({
             {queueSections.map((section) => {
               const renderCards = (items: Conversation[]) =>
                 items.map((conversation, index) => (
-                  <WindowedRow key={conversation.id} index={index} registry={rowWindow}>
+                  <WindowedRow
+                    key={conversation.rowKey ?? conversation.id}
+                    index={index}
+                    registry={rowWindow}
+                  >
                     {() => {
                       // Slots só para linhas na janela (custo ∝ visíveis).
                       const slots = renderCardSlots?.(conversation)
@@ -1034,21 +1039,33 @@ export function ConversationColumn({
               </div>
             )}
 
-            {/* Sentinela do infinite scroll. Fica vazia mas é observada pelo
-                IntersectionObserver acima. Quando aparece no viewport, pede
-                a próxima página. */}
-            {hasMore && (
-              <div
-                ref={sentinelRef}
-                aria-hidden="true"
-                className="h-1 w-full shrink-0"
-              />
-            )}
-
-            {isLoadingMore && (
-              <div className="flex shrink-0 items-center justify-center py-3 text-[11.5px] text-[var(--text-muted)]">
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
-                <span className="ml-2">Carregando mais...</span>
+            {/* Rodapé do scroll infinito, com altura reservada enquanto há
+                mais páginas: o "Carregando mais..." só aparece/some dentro
+                dele, sem a lista mudar de altura (antes ela pulava e o
+                navegador rolava sozinho). A sentinela fica no topo do
+                rodapé, logo depois da última linha (placeholders da janela
+                de render incluídos). */}
+            {(hasMore || isLoadingMore) && (
+              <div data-load-more-footer className="relative h-10 w-full shrink-0">
+                {hasMore && (
+                  <div
+                    ref={sentinelRef}
+                    data-load-more-sentinel
+                    aria-hidden="true"
+                    className="absolute inset-x-0 top-0 h-1"
+                  />
+                )}
+                <div
+                  data-load-more-indicator
+                  aria-hidden={!isLoadingMore}
+                  className={cn(
+                    "flex h-full items-center justify-center text-[11.5px] text-[var(--text-muted)]",
+                    !isLoadingMore && "invisible",
+                  )}
+                >
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--text-muted)] border-t-transparent" />
+                  <span className="ml-2">Carregando mais...</span>
+                </div>
               </div>
             )}
           </>
