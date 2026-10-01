@@ -147,13 +147,16 @@ function collapsingPages(count: number): ConversationListRow[][] {
 
 function InboxList({ tab }: { tab: InboxTab[] }) {
   useInboxRealtime({ activeConversationId: null, currentUserId: "u_me" });
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPlaceholderData } =
+  const { data, listTiers, fetchNextPage, hasNextPage, isFetchingNextPage, isPlaceholderData } =
     useConversations({ tab, filters: {}, search: "" });
   const handleLoadMore = useCallback(() => {
     if (!hasNextPage || isFetchingNextPage || isPlaceholderData) return;
     void fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, isPlaceholderData, fetchNextPage]);
-  const rows = useMemo(() => sortInboxListRows(data?.items ?? []), [data]);
+  const rows = useMemo(
+    () => sortInboxListRows(data?.items ?? [], { tiers: listTiers }),
+    [data, listTiers],
+  );
   const cards = useMemo(() => toInboxListCards(rows, { tab }), [rows, tab]);
   return (
     <ConversationColumn
@@ -332,12 +335,13 @@ describe("Inbox (lista real, janela de render) — cenários do HAR", { timeout:
     await t.scrollToEnd();
     await t.frame(60);
     // Busca em voo: mesmo elemento, mesmo tamanho; só o conteúdo aparece.
-    expect(t.scroller().textContent).toContain("Carregando mais...");
+    const indicator = () => idle.querySelector("[data-load-more-indicator]");
+    expect(indicator()?.getAttribute("aria-hidden")).toBe("false");
     expect(footer()).toBe(idle);
     expect(idle.className).toContain("h-10");
     await t.settle(600);
     expect(footer()).toBe(idle);
-    expect(idle.querySelector("[data-load-more-indicator]")?.getAttribute("aria-hidden")).toBe("true");
+    expect(indicator()?.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("ticket aberto do mesmo contato numa página posterior não remonta o card já na tela", async () => {

@@ -510,6 +510,7 @@ export default function InboxV2ClientPage({
 
   const {
     data: listData,
+    listTiers,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -571,8 +572,8 @@ export default function InboxV2ClientPage({
     if (createdFrom || createdTo) {
       list = list.filter((r) => inIsoDayRange(r.createdAt, createdFrom, createdTo));
     }
-    return sortInboxListRows(list, { by: sortBy, order: sortOrder });
-  }, [rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
+    return sortInboxListRows(list, { by: sortBy, order: sortOrder, tiers: listTiers });
+  }, [listTiers, rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
 
   const { data: tabCounts } = useTabCounts(
     canFetchInbox && tabHydrated && filtersHydrated,
