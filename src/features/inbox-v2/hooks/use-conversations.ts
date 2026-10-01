@@ -110,7 +110,54 @@ export type InboxTabsCursor = Record<
 export type InboxPageParam =
   | number
   | string
+  | { cursor: string; perPage: number }
   | { tabs: InboxTabsCursor; page: number };
+
+/**
+ * Página cheia de tickets (≥ `LOW_YIELD_MIN_ITEMS`) que rendeu menos linhas
+ * novas que `LOW_YIELD_MIN_NEW_ROWS` (tickets do mesmo contato colapsam num
+ * card) faz a seguinte vir maior: `LOW_YIELD_PAGE_SIZE`.
+ */
+const LOW_YIELD_MIN_ITEMS = 25;
+const LOW_YIELD_MIN_NEW_ROWS = 10;
+/** Teto do backend (`perPage` ≤ 200). */
+const LOW_YIELD_PAGE_SIZE = 200;
+
+/** Quantos cards (grupo contato+canal) a última página acrescentou à lista. */
+function newGroupsInLastPage(pages: readonly InboxListPage[]): number {
+  const last = pages[pages.length - 1];
+  if (!last) return 0;
+  const before = new Set<string>();
+  for (const page of pages.slice(0, -1)) {
+    for (const row of page?.items ?? []) if (row?.id) before.add(inboxCardGroupKey(row));
+  }
+  const fresh = new Set<string>();
+  for (const row of last.items ?? []) {
+    if (!row?.id) continue;
+    const key = inboxCardGroupKey(row);
+    if (!before.has(key)) fresh.add(key);
+  }
+  return fresh.size;
+}
+
+/**
+ * Próximo `pageParam` com página maior quando a última quase não rendeu.
+ * O topo de "Todas as conversas" pode ter centenas de tickets do mesmo
+ * contato: com 50 por vez eram dezenas de GET para aparecer um card novo.
+ * Só sem filas em paralelo (cada fila já anda pelo próprio cursor).
+ */
+export function nextInboxPageParamAdaptive(
+  pages: readonly InboxListPage[],
+  parallel: boolean,
+): InboxPageParam | undefined {
+  const last = pages[pages.length - 1];
+  if (!last) return undefined;
+  const next = nextInboxPageParam(last, parallel);
+  if (parallel || typeof next !== "string") return next;
+  if ((last.items?.length ?? 0) < LOW_YIELD_MIN_ITEMS) return next;
+  if (newGroupsInLastPage(pages) >= LOW_YIELD_MIN_NEW_ROWS) return next;
+  return { cursor: next, perPage: LOW_YIELD_PAGE_SIZE };
+}
 
 /** Página agregada das filas em paralelo carrega os cursores de cada fila. */
 export type InboxListPage = ConversationListResponse & {
@@ -313,6 +360,11 @@ export function fetchInboxConversationsPage(args: {
   if (typeof args.pageParam === "string" && args.pageParam.length > 0) {
     return listConversations({ ...base, cursor: args.pageParam });
   }
+  const param = args.pageParam;
+  if (param && typeof param === "object" && "cursor" in param) {
+    const { cursor, perPage } = param as { cursor: string; perPage: number };
+    return listConversations({ ...base, perPage, cursor });
+  }
   return listConversations({
     ...base,
     page: typeof args.pageParam === "number" ? args.pageParam : 1,
@@ -414,7 +466,8 @@ export function useConversations(params: {
     initialPageParam: 1 as InboxPageParam,
     // "Carregar mais" busca SÓ a página seguinte (keyset) e anexa; as
     // páginas já carregadas ficam como estão (o SSE as mantém em dia).
-    getNextPageParam: (last) => nextInboxPageParam(last, Boolean(parallelTabs)),
+    getNextPageParam: (_last, pages) =>
+      nextInboxPageParamAdaptive(pages, Boolean(parallelTabs)),
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
     // SSE (`useInboxRealtime`) patcha o card em new_message /
     // conversation_updated. Sem timer: lista só no mount, troca de

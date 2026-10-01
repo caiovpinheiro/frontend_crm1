@@ -55,6 +55,7 @@ import {
   sortInboxListRows,
   toInboxListCards,
 } from "@/features/inbox-v2/inbox-list-order";
+import { SCROLL_LOAD_MORE_MAX_AUTO_PAGES } from "@/hooks/use-scroll-load-more";
 import { installFakeIntersectionObserver, sleep } from "@/test-support/scroll-harness";
 
 // ── Dados ────────────────────────────────────────────────────────────
@@ -372,21 +373,29 @@ describe("Inbox (lista real, janela de render) — cenários do HAR", { timeout:
   });
 
   it("cenário 1: páginas que colapsam em 0 linhas + cliques de roda espaçados no fim (antes: 1 GET por clique)", async () => {
-    const t = mount(collapsingPages(12), 60);
-    await t.settle(200);
+    // 1ª página com 50 contatos; depois 2.000 tickets RESOLVED de 3 deles.
+    const t = mount(collapsingPages(41), 60);
+    await t.settle(300);
     expect(requests()).toBe(1);
 
     await t.scrollToEnd();
-    await t.settle(400);
-    // Cinco cliques de roda, 300 ms entre eles, parado no fim da lista.
+    await t.settle(1500);
+    // O gesto pede 1 página; as que não rendem continuam sozinhas (uma de
+    // cada vez, páginas de 200) até o teto de 5 — sem isso a lista ficava
+    // parada sem nada novo (defeito do #131).
+    const afterGesture = requests();
+    expect(afterGesture).toBeGreaterThanOrEqual(2);
+    expect(afterGesture).toBeLessThanOrEqual(1 + 1 + SCROLL_LOAD_MORE_MAX_AUTO_PAGES);
+    expect(api.listConversations.mock.calls.at(-1)![0]).toMatchObject({ perPage: 200 });
+
+    // Cinco cliques de roda, 300 ms entre eles, parado no fim (500 px, menos
+    // que uma tela): nenhum pedido a mais.
     for (let i = 0; i < 5; i += 1) {
       await t.wheelClick();
       await t.settle(300);
     }
     await t.settle(600);
-    // Gesto até o fim: 1 página (0 linhas novas) + no máximo 1 automática.
-    // Os cliques (500 px, menos que uma tela) não pedem mais nada.
-    expect(requests()).toBeLessThanOrEqual(3);
+    expect(requests()).toBe(afterGesture);
     expect(t.rowEls().length).toBe(PER_PAGE);
   });
 
@@ -458,9 +467,14 @@ describe("Inbox (lista real, janela de render) — defeito do #131 no DEV", { ti
     expect(t.rowEls().length).toBeGreaterThan(shown.length);
     expect(t.height()).toBeGreaterThan(heightBefore);
     await t.scrollToEnd();
-    await t.frame();
-    const last = t.rowEls().at(-1)!;
-    expect(last.querySelector("article")).not.toBeNull();
+    await t.settle(200);
+    // As linhas na tela (no fim, que agora inclui as do gesto) estão montadas.
+    const onScreen = t
+      .rowEls()
+      .filter((_, i) => (i + 1) * ROW_H > t.top() && i * ROW_H < t.top() + VIEWPORT);
+    expect(onScreen.length).toBeGreaterThan(0);
+    expect(onScreen.every((el) => el.querySelector("article"))).toBe(true);
+    expect(t.rowEls().indexOf(onScreen.at(-1)!)).toBeGreaterThanOrEqual(shown.length);
 
     // 3) Sem flash: o que já estava na lista não remonta nem sai do lugar,
     //    e o rodapé do "Carregando mais..." é o mesmo elemento.
@@ -484,7 +498,7 @@ describe("Inbox (lista real, janela de render) — defeito do #131 no DEV", { ti
     await t.settle(600);
     expect(t.rowEls().length).toBe(80 + 5);
     await t.scrollToEnd();
-    await t.frame();
+    await t.settle(200);
     expect(t.rowEls().at(-1)!.querySelector("article")).not.toBeNull();
     // Fila esgotada não é pedida de novo: 2 GET na 1ª página, 1 no gesto.
     expect(requests()).toBe(3);
