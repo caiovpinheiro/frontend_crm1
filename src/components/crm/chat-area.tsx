@@ -468,6 +468,9 @@ export function ChatArea({
   const [olderArmed, setOlderArmed] = useState(false)
   const pinSettledRef = useRef(false)
   const viewportPrefetchDoneRef = useRef<string | null>(null)
+  // Ticket atual vazio + tickets anteriores: conversa para a qual a fatia
+  // anterior já foi pedida sozinha (decide skeleton × convite no vazio).
+  const [emptyHistoryTriedFor, setEmptyHistoryTriedFor] = useState<string | null>(null)
   // Citação/pin fora da fatia: pagina older (mesmo path do scroll-up)
   // até achar a âncora — sem mudar open/prefetch/gesto.
   const pendingJumpIdRef = useRef<string | null>(null)
@@ -620,7 +623,18 @@ export function ChatArea({
     pinToBottom(container)
     requestAnimationFrame(() => {
       pinToBottom(container)
-      if (messagesLoading || messages.length === 0) return
+      if (messagesLoading) return
+      if (messages.length === 0) {
+        // Ticket atual vazio (ex.: aberto e encerrado sem mensagens) com
+        // tickets anteriores: sem lista não há viewport para medir nem
+        // gesto de scroll possível — sem esta carga a tela parava em
+        // "Nenhuma mensagem" com o histórico do contato inalcançável.
+        if (!hasOlderTickets || viewportPrefetchDoneRef.current === convKey) return
+        viewportPrefetchDoneRef.current = convKey
+        setEmptyHistoryTriedFor(convKey)
+        onLoadOlderRef.current?.()
+        return
+      }
       if (viewportPrefetchDoneRef.current === convKey) {
         pinSettledRef.current = true
         return
@@ -1034,6 +1048,26 @@ export function ChatArea({
             className="min-h-0 flex-1"
             error="Não foi possível carregar as mensagens."
           />
+        ) : messages.length === 0 && hasOlderTickets ? (
+          // Ticket vazio, mas o contato tem tickets anteriores: nunca o
+          // estado vazio. Carregando (ou prestes a) → skeleton; se a carga
+          // automática falhou, o convite deixa tentar de novo.
+          isLoadingOlder || emptyHistoryTriedFor !== convKey ? (
+            <ConversationThreadSkeleton />
+          ) : (
+            <div className="m-auto flex flex-col items-center gap-2 text-center">
+              <p className="text-[13px] text-muted-foreground">
+                Nenhuma mensagem neste atendimento.
+              </p>
+              <button
+                type="button"
+                onClick={() => onLoadOlderRef.current?.()}
+                className="cursor-pointer rounded-full border border-border px-3 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg-overlay)]"
+              >
+                Carregar mensagens anteriores
+              </button>
+            </div>
+          )
         ) : messages.length === 0 ? (
           <p className="m-auto text-center text-[13px] text-muted-foreground">
             Nenhuma mensagem nesta conversa.
