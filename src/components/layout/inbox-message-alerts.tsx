@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryFunctionContext } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { IconBell as Bell, IconVolume as Volume2, IconX as X } from "@tabler/icons-react";
 
@@ -47,6 +47,11 @@ import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { apiUrl } from "@/lib/api";
 import { markJustArrived } from "@/lib/just-arrived";
 import { isNativePlatform } from "@/lib/native/capacitor";
+import {
+  fromShellBootstrap,
+  normalizeAlertConfigBlock,
+  type MyAlertConfig,
+} from "@/lib/shell-bootstrap";
 import { ALERT_CONFIG_STALE_MS } from "@/lib/shell-polling";
 import { cn } from "@/lib/utils";
 
@@ -63,18 +68,22 @@ type NewMessageEnvelope = {
   cardOmitted?: "hidden" | "budget";
 };
 
-type MyAlertConfig = { config: InboxAlertConfig; departmentIds: string[] };
-
-async function fetchMyAlertConfig(): Promise<MyAlertConfig> {
+async function fetchMyAlertConfigFromApi(): Promise<MyAlertConfig> {
   const res = await fetch(apiUrl("/api/agents/me/alert-config"));
   if (!res.ok) throw new Error(`alert-config ${res.status}`);
   const data = (await res.json()) as { config?: InboxAlertConfig; departmentIds?: unknown };
-  return {
-    config: data.config ?? DEFAULT_INBOX_ALERT_CONFIG,
-    departmentIds: Array.isArray(data.departmentIds)
-      ? data.departmentIds.filter((id): id is string => typeof id === "string")
-      : [],
-  };
+  return normalizeAlertConfigBlock(data);
+}
+
+/** Bloco `alertConfig` do bootstrap do shell em voo; senão o GET de sempre. */
+function fetchMyAlertConfig(
+  ctx: Pick<QueryFunctionContext, "client">,
+): Promise<MyAlertConfig> {
+  return fromShellBootstrap<MyAlertConfig>(
+    ctx.client,
+    (p) => (p.alertConfig ? normalizeAlertConfigBlock(p.alertConfig) : null),
+    fetchMyAlertConfigFromApi,
+  );
 }
 
 function toToastCard(card: ConversationListRow): InboxMessageToastPayload["card"] {

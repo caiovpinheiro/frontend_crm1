@@ -10,12 +10,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryFunctionContext,
+} from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
 
 import { listEmailAccounts } from "@/features/email-v2/api/accounts";
+import type { EmailAccount } from "@/features/email-v2/api/types";
 import { resumeAudio as resumeInboxAudio } from "@/features/inbox-v2/hooks/use-inbox-sound";
 import {
   useInboxSoundOwner,
@@ -31,8 +36,23 @@ import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { useMyPermissions } from "@/hooks/use-my-permissions";
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 import { useUserRole } from "@/hooks/use-user-role";
+import { fromShellBootstrap } from "@/lib/shell-bootstrap";
 import { EMAIL_ACCOUNTS_POLL_MS, pollWhileVisible } from "@/lib/shell-polling";
 import { cn } from "@/lib/utils";
+
+/** O badge do trilho só lê `unreadCount`; o bootstrap manda só este resumo. */
+type NavEmailAccount = Pick<EmailAccount, "id" | "email" | "unreadCount">;
+
+/** Bloco `emailUnread` do bootstrap do shell em voo; senão o GET de sempre. */
+function fetchNavEmailAccounts(
+  ctx: Pick<QueryFunctionContext, "client">,
+): Promise<NavEmailAccount[]> {
+  return fromShellBootstrap<NavEmailAccount[]>(
+    ctx.client,
+    (p) => p.emailUnread?.accounts,
+    listEmailAccounts,
+  );
+}
 
 const SOUND_KEY = "bwipo:nav-alert-sound-muted";
 const SOUND_EVENT = "bwipo:nav-alert-sound-muted-changed";
@@ -246,9 +266,9 @@ export function NavMessageAlertsProvider({ children }: { children: ReactNode }) 
     return total;
   }, [liveUnreads, roomsQuery.data?.rooms]);
 
-  const emailQuery = useQuery({
+  const emailQuery = useQuery<NavEmailAccount[]>({
     queryKey: ["nav-email-accounts"],
-    queryFn: listEmailAccounts,
+    queryFn: fetchNavEmailAccounts,
     enabled: canEmail,
     // Contador de não lidas do e-mail: sem SSE de conta, o poll é a fonte —
     // 5 min basta para o badge; sem refetch por foco (MA-5).

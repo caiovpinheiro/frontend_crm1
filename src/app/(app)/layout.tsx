@@ -27,6 +27,7 @@ import { SystemPresenceHeartbeat } from "@/components/layout/system-presence-hea
 import { InboxConversationsPrefetch } from "@/components/layout/inbox-conversations-prefetch";
 import { NativeFcmBootstrap } from "@/components/layout/native-fcm-bootstrap";
 import { NavMessageAlertsProvider } from "@/components/layout/nav-message-alerts";
+import { ShellBootstrap } from "@/components/layout/shell-bootstrap";
 import { TaskAlertCenter } from "@/components/layout/task-alert-center";
 import { SettingsDrawerProvider } from "@/features/settings/settings-drawer-context";
 import { AgentStatusProvider } from "@/components/crm/agent-status-context";
@@ -44,6 +45,9 @@ export default function AppLayout({
 }) {
   return (
     <SettingsDrawerProvider>
+      {/* 1 GET /api/me/bootstrap semeia os caches do shell antes dos
+          queryFns dos providers abaixo (ver lib/shell-bootstrap.ts). */}
+      <ShellBootstrap />
       <AgentStatusProvider>
       <NavMessageAlertsProvider>
       <MessageToastProvider>

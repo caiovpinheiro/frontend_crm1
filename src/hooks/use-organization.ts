@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { apiUrl, parseApiResponse } from "@/lib/api";
+import { fromShellBootstrap } from "@/lib/shell-bootstrap";
 
 export const ORG_BRAND_CACHE_KEY = "crm:org-brand";
 
@@ -57,6 +58,12 @@ export type OrganizationData = {
   onboardingCompletedAt: string | null;
 };
 
+async function fetchOrganization(): Promise<OrganizationData | null> {
+  const res = await fetch(apiUrl("/api/organization"));
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export function useOrganization() {
   const { data: session } = useSession();
   const orgId = (session?.user as { organizationId?: string } | undefined)
@@ -64,11 +71,14 @@ export function useOrganization() {
 
   const query = useQuery({
     queryKey: ["organization", orgId],
-    queryFn: async (): Promise<OrganizationData | null> => {
-      const res = await fetch(apiUrl("/api/organization"));
-      if (!res.ok) return null;
-      return res.json();
-    },
+    // Bloco `organization` do bootstrap do shell quando ele está em voo;
+    // senão o GET de sempre (ver lib/shell-bootstrap.ts).
+    queryFn: (ctx) =>
+      fromShellBootstrap<OrganizationData | null>(
+        ctx.client,
+        (p) => p.organization,
+        fetchOrganization,
+      ),
     enabled: !!orgId,
     staleTime: 5 * 60_000, // 5 min — identidade da org quase não muda na sessão
   });
