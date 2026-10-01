@@ -59,6 +59,17 @@ interface MoveToStageMenuProps {
   enableCrossPipeline?: boolean;
 }
 
+/**
+ * Altura máxima da lista rolável (etapas ou funis). É o ÚNICO ponto de
+ * rolagem do menu: o container externo dos callers não deve ter
+ * `max-h`/`overflow-y-auto` próprio — senão aparecem duas barras e o
+ * item "Outro funil…" (fora da lista) fica escondido abaixo da dobra.
+ */
+const MENU_LIST_MAX_H = "max-h-[min(380px,55vh)]";
+
+/** Altura máxima aproximada do menu inteiro (cabeçalho + lista + "Outro funil…"). */
+export const MOVE_TO_STAGE_MENU_MAX_HEIGHT = 460;
+
 export function MoveToStageMenu({
   stages,
   currentStageId,
@@ -115,7 +126,7 @@ export function MoveToStageMenu({
     return (
       <div className={cn("min-w-[220px]", className)}>
         <BackHeader label="Outro funil" onBack={() => setView({ kind: "root" })} />
-        <ul role="listbox" className="max-h-[280px] overflow-y-auto py-1">
+        <ul role="listbox" className={cn("scrollbar-thin overflow-y-auto py-1", MENU_LIST_MAX_H)}>
           {pipelinesLoading ? (
             <li className="px-3 py-2 text-[11px] italic text-[var(--color-ink-muted)]">
               Carregando funis…
@@ -204,7 +215,7 @@ function StageList({
     [stages],
   );
   return (
-    <ul role="listbox" className="scrollbar-thin max-h-[280px] overflow-y-auto py-1">
+    <ul role="listbox" className={cn("scrollbar-thin overflow-y-auto py-1", MENU_LIST_MAX_H)}>
       {sorted.length === 0 ? (
         <li className="px-3 py-2 text-[11px] italic text-[var(--color-ink-muted)]">
           Nenhum estágio.
