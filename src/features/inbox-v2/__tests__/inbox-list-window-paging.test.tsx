@@ -90,19 +90,33 @@ function row(
   } as unknown as ConversationListRow;
 }
 
-/** Servidor por cursor: `pages[n-1]` é a página n. Sempre `total: 51`, `page: 1` (o que o DEV devolve). */
-function mockServer(pages: ConversationListRow[][], latencyMs: number) {
-  api.listConversations.mockImplementation(async (args: { cursor?: string }) => {
+/**
+ * Servidor por cursor (keyset ≈ offset na ordem do servidor). `pages` é só
+ * a forma de escrever os dados: o servidor junta tudo e corta pelo
+ * `perPage` de cada pedido. Sempre `total: 51`, `page: 1` (o que o DEV
+ * devolve). `byTab` dá uma lista por fila (seções).
+ */
+type ListArgs = { tab?: string | string[]; cursor?: string; perPage?: number };
+function mockServer(
+  pages: ConversationListRow[][] | Record<string, ConversationListRow[][]>,
+  latencyMs: number,
+) {
+  const byTab = Array.isArray(pages) ? null : pages;
+  const flatAll = Array.isArray(pages) ? pages.flat() : [];
+  api.listConversations.mockImplementation(async (args: ListArgs) => {
     await sleep(latencyMs);
-    const n = args.cursor ? Number(args.cursor.split("CUR-")[1]) : 1;
-    const hasMore = n < pages.length;
+    const flat = byTab ? (byTab[String(args.tab)] ?? []).flat() : flatAll;
+    const perPage = args.perPage ?? PER_PAGE;
+    const from = args.cursor ? Number(args.cursor.split("CUR-")[1]) : 0;
+    const items = flat.slice(from, from + perPage);
+    const hasMore = from + perPage < flat.length;
     const res: ConversationListResponse = {
-      items: pages[n - 1] ?? [],
-      total: PER_PAGE + 1,
+      items,
+      total: perPage + 1,
       page: 1,
-      perPage: PER_PAGE,
+      perPage,
       hasMore,
-      nextCursor: hasMore ? `CUR-${n + 1}` : null,
+      nextCursor: hasMore ? `CUR-${from + perPage}` : null,
     };
     return res;
   });
@@ -143,6 +157,30 @@ function collapsingPages(count: number): ConversationListRow[][] {
   return [first, ...rest];
 }
 
+/**
+ * Dados do print do DEV depois do #131: o topo de "Todas as conversas" é
+ * de poucos contatos com centenas de tickets RESOLVED cada (Encerrada /
+ * Expirada) — páginas inteiras colapsam em 0 linhas novas. Depois vem o
+ * lote importado (contatos distintos, mesmo `updatedAt`).
+ */
+function fewContactsManyTickets(opts: {
+  contacts: number;
+  ticketsEach: number;
+  imported: number;
+}): ConversationListRow[][] {
+  const tickets = Array.from({ length: opts.contacts * opts.ticketsEach }, (_, k) =>
+    row(`t-${k}`, {
+      sec: 6_000_000 - k,
+      contact: `ct-poucos-${k % opts.contacts}`,
+      status: "RESOLVED",
+    }),
+  );
+  const imported = Array.from({ length: opts.imported }, (_, i) =>
+    row(`imp-${i}`, { sec: 5_000_000 - i }),
+  );
+  return [tickets, imported];
+}
+
 // ── Host: mesma ligação de `app/(app)/inbox/_v2-client.tsx` ─────────
 
 function InboxList({ tab }: { tab: InboxTab[] }) {
@@ -179,25 +217,31 @@ const LIST = '[data-tour="inbox-list"]';
 const ROW_H = 92;
 const VIEWPORT = 600;
 
-function mount(pages: ConversationListRow[][], latencyMs: number) {
+function mount(
+  pages: Parameters<typeof mockServer>[0],
+  latencyMs: number,
+  tab: InboxTab[] = ["todos"],
+) {
   mockServer(pages, latencyMs);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const view = render(
-    <QueryClientProvider client={qc}>
-      <TooltipProvider>
-        <InboxList tab={["todos"]} />
-      </TooltipProvider>
-    </QueryClientProvider>,
-  );
-  const scroller = () => view.container.querySelector<HTMLElement>(LIST)!;
-  /** Wrappers das linhas (`WindowedRow`), renderizadas ou placeholder, na ordem da tela. */
+  let container: HTMLElement | null = null;
+  const scroller = () => container!.querySelector<HTMLElement>(LIST)!;
+  /**
+   * Wrappers das linhas (`WindowedRow`), renderizadas ou placeholder, na
+   * ordem da tela — lista plana ou seções por fila.
+   */
   const rowEls = () => [
-    ...scroller().querySelectorAll<HTMLElement>(".min-h-full > .flex.flex-col.gap-2 > .shrink-0"),
+    ...scroller().querySelectorAll<HTMLElement>(
+      ".min-h-full > .flex.flex-col.gap-2 > .shrink-0, .flex.flex-col.gap-2.pt-1 > .shrink-0",
+    ),
   ];
   let scrollTop = 0;
   const listHeight = () => rowEls().length * ROW_H;
   const maxTop = () => Math.max(0, listHeight() - VIEWPORT);
 
+  // ANTES do render: a coluna só cria a janela de render se houver
+  // IntersectionObserver no 1º render (sem isso a lista renderiza tudo e
+  // o teste não exercita a janela).
   const io = installFakeIntersectionObserver((target, _root, margin) => {
     const rows = rowEls();
     const idx = rows.indexOf(target as HTMLElement);
@@ -206,6 +250,14 @@ function mount(pages: ConversationListRow[][], latencyMs: number) {
     const bottom = top + (idx >= 0 ? ROW_H : 1);
     return bottom >= scrollTop - margin && top <= scrollTop + VIEWPORT + margin;
   });
+  const view = render(
+    <QueryClientProvider client={qc}>
+      <TooltipProvider>
+        <InboxList tab={tab} />
+      </TooltipProvider>
+    </QueryClientProvider>,
+  );
+  container = view.container;
 
   let anchor: { el: HTMLElement; idx: number } | null = null;
   const bind = () => {
@@ -223,6 +275,7 @@ function mount(pages: ConversationListRow[][], latencyMs: number) {
       },
     });
   };
+  bind();
   const recordAnchor = () => {
     const rows = rowEls();
     const idx = Math.floor(scrollTop / ROW_H);
@@ -272,7 +325,21 @@ function mount(pages: ConversationListRow[][], latencyMs: number) {
       if (scrollTop !== before) scroller().dispatchEvent(new Event("scroll"));
     });
   };
-  return { qc, view, scroller, rowEls, bind, frame, settle, scrollToEnd, wheelClick, top: () => scrollTop };
+  /** Linhas com o card montado (fora da janela = placeholder vazio). */
+  const renderedCount = () => rowEls().filter((el) => el.querySelector("article")).length;
+  return {
+    qc,
+    view,
+    scroller,
+    rowEls,
+    renderedCount,
+    frame,
+    settle,
+    scrollToEnd,
+    wheelClick,
+    top: () => scrollTop,
+    height: () => scroller().scrollHeight,
+  };
 }
 
 const requests = () => api.listConversations.mock.calls.length;
@@ -289,7 +356,6 @@ describe("Inbox (lista real, janela de render) — cenários do HAR", { timeout:
   it("cenário 2: páginas que entram acima do fim não encadeiam sozinhas (antes: 7 GET seguidos)", async () => {
     const t = mount(interleavingPages(9), 180);
     await t.settle(400);
-    t.bind();
     expect(requests()).toBe(1);
     expect(t.rowEls().length).toBe(PER_PAGE);
 
@@ -308,7 +374,6 @@ describe("Inbox (lista real, janela de render) — cenários do HAR", { timeout:
   it("cenário 1: páginas que colapsam em 0 linhas + cliques de roda espaçados no fim (antes: 1 GET por clique)", async () => {
     const t = mount(collapsingPages(12), 60);
     await t.settle(200);
-    t.bind();
     expect(requests()).toBe(1);
 
     await t.scrollToEnd();
@@ -328,7 +393,6 @@ describe("Inbox (lista real, janela de render) — cenários do HAR", { timeout:
   it("indicador do fim tem espaço reservado: buscar a próxima página não muda a altura da lista", async () => {
     const t = mount(interleavingPages(4), 250);
     await t.settle(400);
-    t.bind();
     const footer = () => t.scroller().querySelector<HTMLElement>("[data-load-more-footer]");
     expect(footer()).not.toBeNull();
     const idle = footer()!;
@@ -355,13 +419,75 @@ describe("Inbox (lista real, janela de render) — cenários do HAR", { timeout:
     ];
     const t = mount([first, second, interleavingPages(2)[1]!], 60);
     await t.settle(300);
-    t.bind();
     const card = t.rowEls()[2]!;
     expect(card.textContent).toContain("Contato p1-2");
     await t.scrollToEnd();
     await t.settle(400);
     expect(requests()).toBeGreaterThanOrEqual(2);
     expect(t.rowEls()[2]).toBe(card);
+  });
+});
+
+describe("Inbox (lista real, janela de render) — defeito do #131 no DEV", { timeout: 60_000 }, () => {
+  it("páginas que colapsam em 0 linhas: as conversas de baixo aparecem e rolam, 1–2 páginas por gesto, sem flash", async () => {
+    // 6 contatos × 100 tickets RESOLVED (12 páginas de 50 que não rendem
+    // nenhuma linha nova) e depois 200 contatos do lote importado.
+    const t = mount(fewContactsManyTickets({ contacts: 6, ticketsEach: 100, imported: 200 }), 40);
+    await t.settle(1500);
+
+    // 1) Linhas novas visíveis e roláveis: a lista enche a tela sozinha
+    //    (antes: 6 cards e espaço vazio embaixo) e passa do viewport.
+    expect(t.rowEls().length).toBeGreaterThan(6);
+    expect(t.height()).toBeGreaterThan(VIEWPORT);
+    expect(t.renderedCount()).toBeGreaterThanOrEqual(Math.ceil(VIEWPORT / ROW_H));
+    expect(t.scroller().textContent).toContain("Contato imp-0");
+    const fill = requests();
+    // Preencher não vira rajada: pedidos limitados, mesmo com 600 tickets inúteis.
+    expect(fill).toBeLessThanOrEqual(6);
+    await t.settle(800);
+    expect(requests()).toBe(fill);
+
+    // 2) Um gesto até o fim: 1–2 páginas, e as linhas novas aparecem lá embaixo.
+    const footer = t.scroller().querySelector("[data-load-more-footer]");
+    const shown = t.rowEls();
+    const heightBefore = t.height();
+    await t.scrollToEnd();
+    await t.settle(800);
+    expect(requests() - fill).toBeGreaterThanOrEqual(1);
+    expect(requests() - fill).toBeLessThanOrEqual(2);
+    expect(t.rowEls().length).toBeGreaterThan(shown.length);
+    expect(t.height()).toBeGreaterThan(heightBefore);
+    await t.scrollToEnd();
+    await t.frame();
+    const last = t.rowEls().at(-1)!;
+    expect(last.querySelector("article")).not.toBeNull();
+
+    // 3) Sem flash: o que já estava na lista não remonta nem sai do lugar,
+    //    e o rodapé do "Carregando mais..." é o mesmo elemento.
+    expect(t.rowEls().slice(0, shown.length)).toEqual(shown);
+    expect(t.scroller().querySelector("[data-load-more-footer]")).toBe(footer);
+  });
+
+  it("seções por fila (várias filas): as páginas novas de cada fila aparecem e rolam", async () => {
+    const entrada = Array.from({ length: 80 }, (_, i) =>
+      row(`ent-${i}`, { sec: 7_000_000 - i * 10 }),
+    );
+    const esperando = Array.from({ length: 5 }, (_, i) =>
+      row(`esp-${i}`, { sec: 7_000_000 - i * 10 - 5 }),
+    );
+    const t = mount({ entrada: [entrada], esperando: [esperando] }, 40, ["entrada", "esperando"]);
+    await t.settle(600);
+    expect(t.rowEls().length).toBe(PER_PAGE + 5);
+    expect(t.height()).toBeGreaterThan(VIEWPORT);
+
+    await t.scrollToEnd();
+    await t.settle(600);
+    expect(t.rowEls().length).toBe(80 + 5);
+    await t.scrollToEnd();
+    await t.frame();
+    expect(t.rowEls().at(-1)!.querySelector("article")).not.toBeNull();
+    // Fila esgotada não é pedida de novo: 2 GET na 1ª página, 1 no gesto.
+    expect(requests()).toBe(3);
   });
 });
 
