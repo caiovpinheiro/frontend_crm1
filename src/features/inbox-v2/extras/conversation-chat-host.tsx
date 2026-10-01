@@ -712,6 +712,7 @@ export function ConversationChatHost({
                 : undefined
             }
             isResolved={isResolved}
+            hideResolveInMenu
             contactId={contactId}
             contactName={contactName}
             dealId={dealId ?? null}
