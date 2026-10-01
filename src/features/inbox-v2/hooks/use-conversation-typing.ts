@@ -47,13 +47,14 @@ export function useConversationTyping(
   conversationId: string | null,
   selfId: string | null,
 ): string | null {
-  const [hint, setHint] = useState<string | null>(null);
+  // O texto guarda a conversa a que pertence: trocar de conversa esconde
+  // o indicador da anterior sem precisar de um setState no efeito.
+  const [hint, setHint] = useState<{ conversationId: string; label: string } | null>(
+    null,
+  );
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selfRef = useRef(selfId);
-  selfRef.current = selfId;
 
   useEffect(() => {
-    setHint(null);
     if (!conversationId) return;
 
     const clear = () => {
@@ -65,14 +66,14 @@ export function useConversationTyping(
       typing: (raw: unknown) => {
         const ev = (raw ?? {}) as TypingEvent;
         if (ev.conversationId !== conversationId) return;
-        if (ev.userId && ev.userId === selfRef.current) return;
+        if (ev.userId && ev.userId === selfId) return;
         const ttl = typingHintTtlMs(ev.until);
         clear();
         if (ttl <= 0) {
           setHint(null);
           return;
         }
-        setHint(typingHintLabel(ev.userName));
+        setHint({ conversationId, label: typingHintLabel(ev.userName) });
         timerRef.current = setTimeout(() => {
           timerRef.current = null;
           setHint(null);
@@ -84,7 +85,7 @@ export function useConversationTyping(
       clear();
       unsubscribe();
     };
-  }, [conversationId]);
+  }, [conversationId, selfId]);
 
-  return hint;
+  return hint && hint.conversationId === conversationId ? hint.label : null;
 }

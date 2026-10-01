@@ -150,7 +150,7 @@ describe("presença entre abas — heartbeat só da líder, agregado", () => {
   });
 
   it("aba oculta: até 30s nada muda; depois sai e, ao voltar, entra de novo na hora", async () => {
-    const a = abrirAba(hub, server, "a");
+    abrirAba(hub, server, "a"); // líder
     const b = abrirAba(hub, server, "b");
     await tick();
     b.presence.register("deal", "d2", vi.fn());
