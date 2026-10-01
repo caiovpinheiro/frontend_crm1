@@ -67,6 +67,7 @@ import {
   useUpdateNote,
   useWhatsappChannels,
 } from "@/features/inbox-v2/hooks";
+import { useConversationTyping } from "@/features/inbox-v2/hooks/use-conversation-typing";
 import { KeepPeekPanel } from "@/features/keeps/keep-peek-panel";
 import { DealNotesTab } from "@/features/pipeline-v2/extras/deal-notes-tab";
 import { clearBoardUnreadForContact } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
@@ -282,6 +283,8 @@ export function ConversationChatHost({
     currentUserId: session?.user?.id ?? null,
     enabled: realtime && !!conversationId,
   });
+  // "Fulano está digitando…" (SSE `typing` de outro agente desta conversa).
+  const typingHint = useConversationTyping(conversationId, session?.user?.id ?? null);
 
   // ── Canal de envio (multi-WABA) + janela de 24h ──────────────────
   const { data: whatsappChannels } = useWhatsappChannels(!!conversationId);
@@ -658,6 +661,7 @@ export function ConversationChatHost({
         onAddToLog={onAddToLog ?? (dealId ? handleAddToLog : undefined)}
         pinnedNote={effectivePinnedNote}
         headerActionsSlot={headerActions}
+        typingHint={typingHint}
         searchControlRef={searchRef}
         className={className ?? CHAT_AREA_CLASS}
         notesSlot={
