@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 
-/** Página que rendeu menos linhas que isto ganha UMA página automática. */
-export const SCROLL_LOAD_MORE_MIN_NEW_ITEMS = 10;
+/**
+ * Teto sugerido de páginas automáticas seguidas para preencher a tela
+ * (`maxAutoPages`). Depois disso, espera o usuário.
+ */
+export const SCROLL_LOAD_MORE_MAX_AUTO_PAGES = 5;
 
 /**
  * Entre o pedido e o `loading` chegar ao componente (o React Query avisa
@@ -29,10 +32,15 @@ const FIRE_SETTLE_MS = 400;
  * lista viravam "gestos novos". As duas coisas encadeavam páginas sem o
  * usuário pedir (HAR do DEV: 15 GET num gesto).
  *
- * A lista começa com uma permissão: se a 1ª página não enche o scroller, um
- * preenchimento automático acontece. Com `itemCount`, a página que
- * acrescenta menos de `minNewItems` linhas (cards que colapsam, filtro no
- * cliente) ganha UMA página automática; depois disso, espera o usuário.
+ * A lista começa com uma permissão (1ª página curta: um preenchimento).
+ *
+ * Preenchimento (`maxAutoPages` > 0): quando um pedido termina e o fim da
+ * lista AINDA está na área de disparo — a página não acrescentou o bastante
+ * para passar da tela (cards que colapsam, filtro no cliente) —, a próxima
+ * página sai sozinha, uma de cada vez, até `maxAutoPages` seguidas; depois,
+ * espera o usuário. Sem isso a Inbox ficava com poucos cards e espaço vazio
+ * embaixo, sem nada para rolar (defeito do #131: topo de "Todas as
+ * conversas" com centenas de tickets do mesmo contato).
  *
  * Devolve o ref (callback) da sentinela, que fica no fim da lista.
  */
@@ -48,9 +56,8 @@ export function useScrollLoadMore(options: {
   marginPx?: number;
   /** Mudou a lista (aba, etapa, filtro): vale um preenchimento de novo. */
   resetKey?: unknown;
-  /** Linhas na lista — liga a página automática quando uma página rende pouco. */
-  itemCount?: number;
-  minNewItems?: number;
+  /** Páginas automáticas seguidas para preencher a tela. Padrão 0 (desligado). */
+  maxAutoPages?: number;
   /** Rolagem do usuário (px) que libera o próximo pedido. Padrão: a altura do scroller. */
   gestureDistancePx?: number;
 }): (el: HTMLElement | null) => void {
@@ -61,17 +68,16 @@ export function useScrollLoadMore(options: {
     onLoadMore,
     marginPx = 200,
     resetKey,
-    itemCount,
-    minNewItems = SCROLL_LOAD_MORE_MIN_NEW_ITEMS,
+    maxAutoPages = 0,
     gestureDistancePx,
   } = options;
   const [sentinel, setSentinel] = useState<HTMLElement | null>(null);
 
   // Valores do último render para os handlers (observer/eventos), sem
   // recriar o observer a cada render.
-  const latest = useRef({ enabled, loading, onLoadMore, itemCount, gestureDistancePx });
+  const latest = useRef({ enabled, loading, onLoadMore, gestureDistancePx });
   useEffect(() => {
-    latest.current = { enabled, loading, onLoadMore, itemCount, gestureDistancePx };
+    latest.current = { enabled, loading, onLoadMore, gestureDistancePx };
   });
 
   const armedRef = useRef(true);
@@ -79,18 +85,24 @@ export function useScrollLoadMore(options: {
   const leftSinceFireRef = useRef(false);
   /** Rolagem do usuário (px, para baixo) desde o último pedido. */
   const distanceRef = useRef(0);
-  /** Último pedido: linhas na hora e se foi a página automática. */
-  const pendingRef = useRef<{ count?: number; auto: boolean; started: boolean } | null>(null);
+  /** Último pedido: se já começou (`loading` chegou). */
+  const pendingRef = useRef<{ started: boolean } | null>(null);
   const fireRef = useRef<((auto: boolean) => void) | null>(null);
+  /** Fim da lista dentro da área de disparo (geometria do scroller). */
+  const nearEndRef = useRef<(() => boolean) | null>(null);
+  /** Páginas automáticas seguidas desde o último pedido do usuário. */
+  const autoStreakRef = useRef(0);
   const firedAtRef = useRef(Number.NEGATIVE_INFINITY);
 
   useEffect(() => {
     if (!enabled) return;
     armedRef.current = true;
     pendingRef.current = null;
+    autoStreakRef.current = 0;
   }, [enabled, resetKey]);
 
-  // Fim de um pedido: se rendeu pouco, UMA página automática.
+  // Fim de um pedido: se o fim da lista ainda está na área de disparo, a
+  // próxima página sai sozinha (preencher), até `maxAutoPages` seguidas.
   useEffect(() => {
     const pending = pendingRef.current;
     if (!pending) return;
@@ -100,11 +112,12 @@ export function useScrollLoadMore(options: {
     }
     if (!pending.started) return;
     pendingRef.current = null;
-    if (pending.auto || pending.count == null || itemCount == null) return;
-    if (itemCount - pending.count >= minNewItems) return;
+    if (autoStreakRef.current >= maxAutoPages) return;
+    if (!nearEndRef.current?.()) return;
+    autoStreakRef.current += 1;
     armedRef.current = true;
     fireRef.current?.(true);
-  }, [loading, itemCount, minNewItems]);
+  }, [loading, maxAutoPages]);
 
   useEffect(() => {
     const root = scrollerRef.current;
@@ -122,13 +135,16 @@ export function useScrollLoadMore(options: {
       firedAtRef.current = Date.now();
       leftSinceFireRef.current = false;
       distanceRef.current = 0;
-      pendingRef.current = { count: now.itemCount, auto, started: false };
+      // Pedido do usuário: o teto de páginas automáticas recomeça.
+      if (!auto) autoStreakRef.current = 0;
+      pendingRef.current = { started: false };
       now.onLoadMore();
     };
     fireRef.current = fire;
 
     const nearEnd = () =>
       root.scrollHeight - root.scrollTop - root.clientHeight <= marginPx;
+    nearEndRef.current = nearEnd;
 
     /** O usuário pediu `px` de rolagem para baixo. */
     const userScrolled = (px: number) => {
@@ -212,6 +228,7 @@ export function useScrollLoadMore(options: {
     window.addEventListener("pointercancel", onPointerUp, passive);
     return () => {
       if (fireRef.current === fire) fireRef.current = null;
+      if (nearEndRef.current === nearEnd) nearEndRef.current = null;
       observer?.disconnect();
       root.removeEventListener("scroll", onScroll);
       root.removeEventListener("wheel", onWheel);

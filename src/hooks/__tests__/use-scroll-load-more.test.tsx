@@ -27,7 +27,7 @@ function List(props: {
   enabled?: boolean;
   loading?: boolean;
   resetKey?: string;
-  itemCount?: number;
+  maxAutoPages?: number;
   onLoadMore: () => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -38,7 +38,7 @@ function List(props: {
     onLoadMore: props.onLoadMore,
     marginPx: MARGIN,
     resetKey: props.resetKey,
-    itemCount: props.itemCount,
+    maxAutoPages: props.maxAutoPages,
   });
   return (
     <div ref={scrollerRef} data-scroller>
@@ -87,13 +87,7 @@ function setup(initial: Props) {
     respond: (added = 0) => {
       props = { ...props, loading: true };
       view.rerender(<List {...props} onLoadMore={onLoadMore} />);
-      const rows = props.rows + added;
-      props = {
-        ...props,
-        loading: false,
-        rows,
-        itemCount: props.itemCount == null ? undefined : props.itemCount + added,
-      };
+      props = { ...props, loading: false, rows: props.rows + added };
       view.rerender(<List {...props} onLoadMore={onLoadMore} />);
     },
     /** Clique de roda (100px para baixo); a lista rola se puder. */
@@ -215,27 +209,44 @@ describe("useScrollLoadMore", () => {
     expect(t.onLoadMore).toHaveBeenCalledTimes(2);
   });
 
-  it("página que rende poucas linhas ganha UMA página automática, e só", () => {
-    const t = setup({ rows: 20, itemCount: 20 });
+  it("preenchimento (maxAutoPages): página que não passa da tela puxa a seguinte, até o teto", () => {
+    const t = setup({ rows: 2, maxAutoPages: 3 }); // 200px num viewport de 500
     t.frame();
-    for (let i = 0; i < 14; i += 1) t.wheel();
     expect(t.onLoadMore).toHaveBeenCalledTimes(1);
-
-    // Página com 2 linhas novas (< 10): pede a próxima sozinho.
-    t.respond(2);
+    // Páginas que acrescentam 0 linhas: o fim segue na tela → mais uma, sozinha.
+    t.respond(0);
     expect(t.onLoadMore).toHaveBeenCalledTimes(2);
-    // Essa não rende nada: agora espera o usuário.
+    t.respond(0);
+    t.respond(0);
+    expect(t.onLoadMore).toHaveBeenCalledTimes(4);
+    // Teto (3 automáticas): agora espera o usuário.
     t.respond(0);
     t.frame();
-    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
-
-    // Uma tela de rolagem: mais um pedido. Página que rende bem não pede
-    // a seguinte sozinha.
+    expect(t.onLoadMore).toHaveBeenCalledTimes(4);
+    // Uma tela de rolagem do usuário: pede e o teto recomeça.
     for (let i = 0; i < 5; i += 1) t.wheel();
-    expect(t.onLoadMore).toHaveBeenCalledTimes(3);
-    t.respond(30);
+    expect(t.onLoadMore).toHaveBeenCalledTimes(5);
+    t.respond(0);
+    expect(t.onLoadMore).toHaveBeenCalledTimes(6);
+  });
+
+  it("preenchimento para quando a lista passa da tela", () => {
+    const t = setup({ rows: 2, maxAutoPages: 5 });
     t.frame();
-    expect(t.onLoadMore).toHaveBeenCalledTimes(3);
+    expect(t.onLoadMore).toHaveBeenCalledTimes(1);
+    t.respond(3); // 500px: o fim ainda está na margem → mais uma
+    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
+    t.respond(20); // 2.500px: o fim saiu da área
+    t.frame();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(2);
+  });
+
+  it("sem maxAutoPages (Kanban/Flow), uma página que não passa da tela não puxa outra", () => {
+    const t = setup({ rows: 2 });
+    t.frame();
+    t.respond(0);
+    t.frame();
+    expect(t.onLoadMore).toHaveBeenCalledTimes(1);
   });
 
   it("teclado (End / PageDown) também conta como rolagem do usuário", () => {

@@ -4,7 +4,10 @@ import { memo, useCallback, useEffect, useRef, useState, type ChangeEvent } from
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { createRowWindowRegistry } from "@/lib/row-window"
-import { useScrollLoadMore } from "@/hooks/use-scroll-load-more"
+import {
+  SCROLL_LOAD_MORE_MAX_AUTO_PAGES,
+  useScrollLoadMore,
+} from "@/hooks/use-scroll-load-more"
 import { WindowedRow } from "@/components/crm/windowed-row"
 import {
   compareMessageActivity,
@@ -482,7 +485,9 @@ export function ConversationColumn({
     onLoadMore: () => onLoadMore?.(),
     marginPx: 80,
     resetKey: selectedTabIds?.join(","),
-    itemCount: conversations.length,
+    // Páginas que colapsam (vários tickets do mesmo contato) não passam da
+    // tela: as seguintes saem sozinhas até a lista ter o que rolar.
+    maxAutoPages: SCROLL_LOAD_MORE_MAX_AUTO_PAGES,
   })
   // Janela de render (FE-14): um IO por lista, root = scroller. As linhas
   // fora do viewport ± 600px viram placeholders com a altura medida. A

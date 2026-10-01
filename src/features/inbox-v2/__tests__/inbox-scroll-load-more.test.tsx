@@ -65,6 +65,7 @@ import type {
 } from "@/features/inbox-v2/api";
 import { useConversations } from "@/features/inbox-v2/hooks/use-conversations";
 import { useInboxRealtime } from "@/features/inbox-v2/hooks/use-realtime";
+import { SCROLL_LOAD_MORE_MAX_AUTO_PAGES } from "@/hooks/use-scroll-load-more";
 import {
   FAKE_LATENCY_MS,
   bindScroller,
@@ -212,26 +213,30 @@ afterEach(() => {
 });
 
 describe("Inbox — rolagem da lista × requisições", { timeout: 30_000 }, () => {
-  it("sentinela visível o tempo todo não encadeia páginas", async () => {
-    mockServer({ entrada: 8 });
+  it("sentinela visível o tempo todo: preenche no máximo o teto de páginas e para", async () => {
+    mockServer({ entrada: 9 });
     // Lista que nunca passa do viewport (o caso da página que não acrescenta
-    // cards): a sentinela fica sempre dentro da margem.
+    // cards): a sentinela fica sempre dentro da margem. A Inbox preenche a
+    // tela sozinha, uma página por vez, até o teto — e para.
     const t = mount(["entrada"], { rowHeight: 0 });
-    await t.settle();
-    // 1ª página + no máximo UM preenchimento automático; nada de rajada.
-    expect(requests()).toBeLessThanOrEqual(2);
+    await t.settle(16);
+    // 1ª página + o preenchimento + até o teto de automáticas.
+    expect(requests()).toBe(2 + SCROLL_LOAD_MORE_MAX_AUTO_PAGES);
     const afterMount = requests();
     await t.settle();
     expect(requests()).toBe(afterMount);
 
-    // Um gesto no fim da lista (roda do mouse, 8 cliques = mais que uma tela): mais UMA página.
+    // Um gesto no fim da lista (roda do mouse, 8 cliques = mais que uma
+    // tela): uma página pelo gesto, e o preenchimento recomeça (aqui sobra
+    // só mais uma no servidor).
     await act(async () => {
       for (let i = 0; i < 8; i += 1) {
         t.scroller().dispatchEvent(Object.assign(new Event("wheel"), { deltaY: 100, deltaMode: 0 }));
       }
     });
     await t.settle();
-    expect(requests()).toBe(afterMount + 1);
+    expect(requests()).toBe(9);
+    expect(requests()).toBeGreaterThan(afterMount);
   });
 
   it("rolar até o fim uma vez busca exatamente uma página", async () => {
