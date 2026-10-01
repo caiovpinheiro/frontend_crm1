@@ -94,6 +94,7 @@ export function Composer({
   disabled,
   placeholder,
   isResolved,
+  hideResolveInMenu,
   contactId,
   contactName,
   dealId,
@@ -729,7 +730,7 @@ export function Composer({
               className="h-9 w-9 shrink-0"
               noteMode={noteMode}
               onToggleNote={onSendNote ? () => setNoteMode((v) => !v) : undefined}
-              isResolved={isResolved}
+              isResolved={hideResolveInMenu ? undefined : isResolved}
               contactId={contactId}
               contactName={contactName}
               dealId={dealId}
