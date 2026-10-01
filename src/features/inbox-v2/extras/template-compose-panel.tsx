@@ -78,6 +78,29 @@ export function whatsappTemplateToPending(tpl: WhatsappTemplate): PendingTemplat
   };
 }
 
+/**
+ * Normaliza um template Meta escolhido no menu "/" em `PendingTemplate`.
+ * O cabeçalho vai junto: sem ele o painel não pede a variável do HEADER e a
+ * Meta recusa o envio por parâmetro faltando.
+ */
+export function slashTemplateToPending(item: {
+  id: string;
+  name: string;
+  label?: string | null;
+  bodyPreview: string;
+  headerPreview?: string | null;
+  operatorVariables?: OperatorVariableMeta[] | null;
+}): PendingTemplate {
+  return {
+    name: item.name,
+    label: item.label || undefined,
+    content: item.bodyPreview,
+    headerText: item.headerPreview ?? "",
+    metaTemplateId: item.id,
+    operatorVariables: item.operatorVariables ?? null,
+  };
+}
+
 /** Metadados visuais da categoria WABA — mesma paleta do picker. */
 function categoryMeta(category?: string | null): { label: string; color: string } | null {
   const c = (category ?? "").toUpperCase();
