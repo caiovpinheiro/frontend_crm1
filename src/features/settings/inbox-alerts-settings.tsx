@@ -27,6 +27,7 @@ import {
   type InboxAlertChannel,
   type InboxAlertConfig,
   type InboxAlertKind,
+  withInboxAlertDefaults,
 } from "@/features/inbox-v2/inbox-alert-audience";
 import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,8 @@ const QUERY_KEY = ["settings", "inbox-alerts"];
 const KIND_LABEL: Record<InboxAlertKind, { title: string; hint: string }> = {
   mine: { title: "Minhas conversas", hint: "Atribuídas ao usuário" },
   queue: { title: "Fila do departamento", hint: "Sem responsável, num departamento dele" },
-  others: { title: "Outras que ele vê", hint: "Outro agente, fila da IA, sem departamento" },
+  ai: { title: "Conversas com a IA", hint: "Atendidas por um agente de IA" },
+  others: { title: "Outras que ele vê", hint: "Outro agente, sem departamento" },
 };
 
 const CHANNEL_LABEL: Record<InboxAlertChannel, string> = {
@@ -58,7 +60,19 @@ const CHANNEL_LABEL: Record<InboxAlertChannel, string> = {
 async function fetchSettings(): Promise<SettingsData> {
   const res = await fetch(apiUrl("/api/settings/inbox-alerts"));
   if (!res.ok) throw new Error(`inbox-alerts ${res.status}`);
-  return (await res.json()) as SettingsData;
+  const data = (await res.json()) as SettingsData;
+  // Configs gravadas antes de um tipo existir (ex.: `ai`) vêm sem ele.
+  return {
+    defaults: withInboxAlertDefaults(data.defaults),
+    departments: data.departments.map((d) => ({
+      ...d,
+      config: d.config ? withInboxAlertDefaults(d.config) : null,
+    })),
+    users: data.users.map((u) => ({
+      ...u,
+      config: u.config ? withInboxAlertDefaults(u.config) : null,
+    })),
+  };
 }
 
 async function saveConfig(body: { scope: Scope; id: string; config: InboxAlertConfig | null }) {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { inboxAlertKind } from "../inbox-alert-audience";
+import {
+  DEFAULT_INBOX_ALERT_CONFIG,
+  inboxAlertKind,
+  withInboxAlertDefaults,
+} from "../inbox-alert-audience";
 
 const ME = "u_me";
 const DEPTS = ["d_vendas"];
@@ -18,14 +22,21 @@ describe("inboxAlertKind", () => {
     ).toBe("others");
   });
 
-  it("fila da IA → others", () => {
+  it("conversa com a IA → ai (linha própria na config)", () => {
     expect(
       inboxAlertKind(
         { assignedToId: "u_ia", assignedTo: { type: "AI" }, departmentId: "d_vendas" },
         ME,
         DEPTS,
       ),
-    ).toBe("others");
+    ).toBe("ai");
+  });
+
+  it("config sem o tipo ai (backend/config antigos) → ai vale o padrão", () => {
+    const old = { ...DEFAULT_INBOX_ALERT_CONFIG } as Partial<typeof DEFAULT_INBOX_ALERT_CONFIG>;
+    delete old.ai;
+    expect(withInboxAlertDefaults(old).ai).toEqual(DEFAULT_INBOX_ALERT_CONFIG.ai);
+    expect(withInboxAlertDefaults(null)).toEqual(DEFAULT_INBOX_ALERT_CONFIG);
   });
 
   it("sem responsável no meu departamento → queue", () => {

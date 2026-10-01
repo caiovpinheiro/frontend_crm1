@@ -6,19 +6,20 @@ import type { ConversationListRow } from "./api";
  *
  * - `"mine"`   — atribuída a mim;
  * - `"queue"`  — sem responsável, num departamento de que sou membro;
- * - `"others"` — qualquer outra que eu vejo (outro agente, fila da IA,
- *                sem departamento, fora dos meus).
+ * - `"ai"`     — atendida por um agente de IA (padrão: não avisa);
+ * - `"others"` — qualquer outra que eu vejo (outro agente, sem
+ *                departamento, fora dos meus).
  *
  * Quais canais cada tipo aciona vem da config do admin
  * (`InboxAlertConfig`, `GET /api/agents/me/alert-config`). Espelha
  * `lib/inbox-alert-config.ts` do backend.
  */
-export type InboxAlertKind = "mine" | "queue" | "others";
+export type InboxAlertKind = "mine" | "queue" | "ai" | "others";
 export type InboxAlertChannel = "sound" | "toast" | "native" | "tab";
 export type InboxAlertChannels = Record<InboxAlertChannel, boolean>;
 export type InboxAlertConfig = Record<InboxAlertKind, InboxAlertChannels>;
 
-export const INBOX_ALERT_KINDS: readonly InboxAlertKind[] = ["mine", "queue", "others"];
+export const INBOX_ALERT_KINDS: readonly InboxAlertKind[] = ["mine", "queue", "ai", "others"];
 export const INBOX_ALERT_CHANNELS: readonly InboxAlertChannel[] = [
   "sound",
   "toast",
@@ -30,8 +31,24 @@ export const INBOX_ALERT_CHANNELS: readonly InboxAlertChannel[] = [
 export const DEFAULT_INBOX_ALERT_CONFIG: InboxAlertConfig = {
   mine: { sound: true, toast: true, native: true, tab: true },
   queue: { sound: false, toast: true, native: false, tab: false },
+  ai: { sound: false, toast: false, native: false, tab: false },
   others: { sound: false, toast: false, native: false, tab: false },
 };
+
+/**
+ * Completa tipos que a config recebida não tem (backend anterior ao tipo
+ * `ai`, config gravada antes dele) com o padrão.
+ */
+export function withInboxAlertDefaults(
+  config: Partial<InboxAlertConfig> | null | undefined,
+): InboxAlertConfig {
+  const out = { ...DEFAULT_INBOX_ALERT_CONFIG };
+  for (const kind of INBOX_ALERT_KINDS) {
+    const channels = config?.[kind];
+    if (channels) out[kind] = channels;
+  }
+  return out;
+}
 
 type AudienceCard = Pick<ConversationListRow, "assignedToId" | "departmentId"> & {
   assignedTo?: { type?: string | null } | null;
@@ -44,9 +61,9 @@ export function inboxAlertKind(
 ): InboxAlertKind | null {
   if (!meId) return null;
   if (card.assignedToId && card.assignedToId === meId) return "mine";
-  const isAi = String(card.assignedTo?.type ?? "").toUpperCase() === "AI";
+  if (String(card.assignedTo?.type ?? "").toUpperCase() === "AI") return "ai";
   const dept = card.departmentId;
-  if (!isAi && !card.assignedToId && dept && myDepartmentIds?.includes(dept)) {
+  if (!card.assignedToId && dept && myDepartmentIds?.includes(dept)) {
     return "queue";
   }
   return "others";

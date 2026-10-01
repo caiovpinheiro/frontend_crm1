@@ -32,6 +32,7 @@ import {
 import {
   DEFAULT_INBOX_ALERT_CONFIG,
   inboxAlertKind,
+  withInboxAlertDefaults,
   type InboxAlertConfig,
 } from "@/features/inbox-v2/inbox-alert-audience";
 import {
@@ -169,7 +170,7 @@ export function InboxMessageAlerts() {
       const alerts = alertsRef.current;
       const kind = inboxAlertKind(card, meRef.current, alerts?.departmentIds);
       if (!kind) return;
-      const channels = (alerts?.config ?? DEFAULT_INBOX_ALERT_CONFIG)[kind];
+      const channels = withInboxAlertDefaults(alerts?.config)[kind];
       if (!channels.sound && !channels.toast && !channels.native && !channels.tab) return;
 
       if (channels.sound) {
