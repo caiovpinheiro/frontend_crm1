@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState, type ChangeEvent } from
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { createRowWindowRegistry } from "@/lib/row-window"
+import { useScrollLoadMore } from "@/hooks/use-scroll-load-more"
 import { WindowedRow } from "@/components/crm/windowed-row"
 import {
   compareMessageActivity,
@@ -469,13 +470,19 @@ export function ConversationColumn({
   isRefreshing = false,
   scrollToTopKey,
 }: ConversationColumnProps) {
-  // Sentinela no fim da lista. Callback via ref para o observer
-  // não remountar a cada render (onLoadMore inline + sentinela
-  // visível = cascata de páginas). Pausa enquanto carrega.
-  const sentinelRef = useRef<HTMLDivElement>(null)
+  // Sentinela no fim da lista: um pedido por gesto de rolagem
+  // (`useScrollLoadMore`). A sentinela que continua visível depois de
+  // uma página (página que não acrescenta cards, seções recolhidas) NÃO
+  // encadeia a seguinte — isso virava cascata de páginas.
   const listScrollRef = useRef<HTMLDivElement>(null)
-  const onLoadMoreRef = useRef(onLoadMore)
-  onLoadMoreRef.current = onLoadMore
+  const sentinelRef = useScrollLoadMore({
+    scrollerRef: listScrollRef,
+    enabled: hasMore && !isLoading,
+    loading: isLoadingMore,
+    onLoadMore: () => onLoadMore?.(),
+    marginPx: 80,
+    resetKey: selectedTabIds?.join(","),
+  })
   // Janela de render (FE-14): um IO por lista, root = scroller. As linhas
   // fora do viewport ± 600px viram placeholders com a altura medida. A
   // lista vem só do cliente (react-query), então criar o registro já no
@@ -490,21 +497,6 @@ export function ConversationColumn({
     if (!scrollToTopKey) return
     listScrollRef.current?.scrollTo({ top: 0 })
   }, [scrollToTopKey])
-  useEffect(() => {
-    if (!hasMore || isLoading || isLoadingMore) return
-    const el = sentinelRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          onLoadMoreRef.current?.()
-        }
-      },
-      { root: listScrollRef.current, rootMargin: "80px 0px" },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [hasMore, isLoading, isLoadingMore])
 
   // Seções recolhidas (2+ filas). Default = todas expandidas.
   // Toggle só por seção; persistido como as demais prefs do inbox.

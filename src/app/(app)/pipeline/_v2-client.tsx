@@ -79,6 +79,7 @@ import {
   useBoardLoadMore,
   useStableBoardStages,
   BOARD_PAGE_SIZE,
+  BOARD_LOAD_MORE_PAGE_SIZE,
   useDealDetail,
   useEntityViewers,
   useMoveDeal,
@@ -297,7 +298,8 @@ export default function KanbanV2ClientPage({
     pipelineId: boardLookupId,
     status,
     sort: boardSort,
-    pageSize: BOARD_PAGE_SIZE,
+    pageSize: BOARD_LOAD_MORE_PAGE_SIZE,
+    firstPageSize: BOARD_PAGE_SIZE,
   });
 
   const boardNormal = useBoard({
