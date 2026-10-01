@@ -1,33 +1,24 @@
 import { memo, useState, useRef, useEffect, useCallback, type TouchEvent } from "react"
+import { IconPinFilled, IconRefresh } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { MetaSendErrorBalloon } from "@/components/crm/meta-send-error-balloon"
-import { AutomationBotIcon } from "@/components/icons/automation-bot-icon"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { StatusTicks } from "@/components/crm/status-ticks"
-import { UserAvatar } from "@/components/crm/user-avatar"
-import { avatarInitials } from "@/lib/avatar"
 import { NoteRow } from "@/components/crm/chat-timeline"
 import type { MessageBubbleProps } from "./message-bubble/types"
 import {
-  AUTOMATION_ACCENT,
   AUTOMATION_BG,
   AUTOMATION_TEXT,
-  CAMPAIGN_ACCENT,
   MENU_LONG_PRESS_MS,
 } from "./message-bubble/constants"
+import { BubbleBadges } from "./message-bubble/bubble-badges"
+import { BubbleMeta } from "./message-bubble/bubble-meta"
 import { MessageButtons, QuotedPreview, ReactionBadge } from "./message-bubble/bubble-parts"
 import { useDeliveryStale } from "./message-bubble/delivery-stale"
 import { MessageContent, MetaReserve } from "./message-bubble/message-content"
 import { MessageActionsMenu } from "./message-bubble/message-actions-menu"
+import { SenderAvatar } from "./message-bubble/sender-avatar"
 import {
   detectMediaKind,
   isPlaceholderContent,
 } from "./message-bubble/media-helpers"
-import { templateBadgeInfo } from "./message-bubble/template-badge"
 import {
   CatalogOrderBubble,
   FormBubble,
@@ -40,27 +31,6 @@ export { STALE_DELIVERY_MS, isDeliveryStale } from "./message-bubble/delivery-st
 export { templateBadgeInfo } from "./message-bubble/template-badge"
 
 export type { FormField, Message, MessageBubbleProps } from "./message-bubble/types"
-
-
-import {
-  IconRobot,
-  IconPinFilled,
-  IconStarFilled,
-  IconSpeakerphone,
-  IconClockExclamation,
-  IconRefresh,
-} from "@tabler/icons-react"
-
-
-
-
-
-
-
-
-
-
-
 
 /**
  * `memo`: o chat re-renderiza a cada tecla do composer / patch SSE. Com
@@ -225,78 +195,13 @@ export const MessageBubble = memo(function MessageBubble({
             Automação manual (colab): robô + chip de iniciais do agente que
             acionou, sobreposto no canto inferior direito. */}
         {isOutgoing && (
-          message.isAutomationRun && message.automationAgentInitials ? (
-            <div className="relative flex shrink-0">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className="flex h-9 w-9 cursor-default items-center justify-center rounded-full font-display text-[10px] font-bold text-white"
-                    style={{ background: AUTOMATION_ACCENT }}
-                  >
-                    <IconRobot size={20} aria-label="Automação" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="left" className="font-medium text-[11px]">
-                  Automação
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="absolute -bottom-1 -right-1 flex h-[21px] min-w-[21px] cursor-default items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-secondary)] px-0.5 font-display text-[10px] font-bold leading-none text-white shadow-[0_1px_3px_rgba(15,20,40,0.28)]">
-                    {message.automationAgentInitials}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="left" className="font-medium text-[11px]">
-                  Disparada por {message.automationAgentName || "agente"}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {isBot ? (
-                  <div
-                    className="flex h-9 w-9 shrink-0 cursor-default items-center justify-center overflow-hidden rounded-full font-display text-[11px] font-bold text-white"
-                    style={{
-                      background: isCampaign ? CAMPAIGN_ACCENT : AUTOMATION_ACCENT,
-                    }}
-                  >
-                    {isCampaign ? (
-                      <IconSpeakerphone size={18} aria-label="Campanha" />
-                    ) : (
-                      <IconRobot size={19} aria-label="Automação" />
-                    )}
-                  </div>
-                ) : (
-                  <span className="inline-flex shrink-0">
-                    <UserAvatar
-                      name={senderName}
-                      initials={
-                        message.senderInitials ||
-                        avatarInitials(senderName) ||
-                        "?"
-                      }
-                      imageUrl={
-                        message.senderImageUrl ||
-                        (senderPhotoByName && senderName
-                          ? senderPhotoByName.get(
-                              senderName.trim().toLowerCase(),
-                            ) ?? null
-                          : null) ||
-                        null
-                      }
-                      size={36}
-                    />
-                  </span>
-                )}
-              </TooltipTrigger>
-              {senderName && (
-                <TooltipContent side="left" className="font-medium text-[11px]">
-                  {senderName}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          )
+          <SenderAvatar
+            message={message}
+            isBot={isBot}
+            isCampaign={isCampaign}
+            senderName={senderName}
+            senderPhotoByName={senderPhotoByName}
+          />
         )}
         <div
           className={cn(
@@ -356,74 +261,13 @@ export const MessageBubble = memo(function MessageBubble({
               <IconPinFilled size={10} className="text-[var(--brand-primary)]" />
             </span>
           )}
-          {/* Badge CAMPANHA — pill + nome da campanha (sem duplicar
-              "Campanha: …" no pill genérico de bot). */}
-          {isCampaign && (
-            <div className="mb-1.5 flex flex-col gap-0.5">
-              <span
-                className="inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 font-display text-[9.5px] font-bold uppercase tracking-widest"
-                style={{
-                  background: "var(--chat-bubble-campaign-badge-bg)",
-                  color: "var(--chat-bubble-campaign-badge-text)",
-                }}
-                title={senderName || "Campanha"}
-              >
-                <IconSpeakerphone size={11} />
-                Campanha
-              </span>
-              {message.campaignName ? (
-                <span className="font-display text-[11.5px] font-semibold leading-snug">
-                  {message.campaignName}
-                </span>
-              ) : null}
-            </div>
-          )}
-          {/* Badge AUTOMAÇÃO — pill escuro em cima do card claro tintado.
-              Exibe o nome da automação (senderName) quando o backend envia;
-              caso contrário cai no rótulo genérico "Automação". */}
-          {isBot && !isCampaign && (
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-[9.5px] font-bold uppercase tracking-widest"
-                style={{ background: "rgba(199,210,254,0.18)", color: "#e0e7ff" }}
-                title={
-                  message.isAutomationRun
-                    ? "Automação disparada manualmente"
-                    : senderName || "Automação"
-                }
-              >
-                <AutomationBotIcon size={11} />
-                {message.isAutomationRun ? "Manual" : senderName || "Automação"}
-              </span>
-            </div>
-          )}
-          {/* Badge TEMPLATE — identifica visualmente quando a mensagem
-              foi enviada usando um template pré-aprovado da Meta. Pode
-              coexistir com o badge AUTOMAÇÃO (automação disparando um
-              template) ou aparecer sozinho (agente enviando template
-              manualmente). Usa cor accent que contrasta com ambos os
-              fundos (bolha azul regular e bolha automação tintada). */}
-          {message.messageType === "template" && (() => {
-            const tpl = templateBadgeInfo(message.templateMeta)
-            const TplIcon = tpl.icon
-            return (
-              <div className={cn("mb-1.5 flex items-center gap-1.5", isBot && "-mt-0.5")}>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-display text-[9.5px] font-bold uppercase tracking-widest",
-                    isOutgoing && !isBot
-                      ? "bg-white/22 text-white ring-1 ring-inset ring-white/25"
-                      : "bg-[color-mix(in_srgb,#0ea5e9_14%,white)] text-[#0369a1] ring-1 ring-inset ring-[color-mix(in_srgb,#0ea5e9_35%,transparent)]",
-                  )}
-                  title={tpl.title}
-                  data-template-category={tpl.category ?? undefined}
-                >
-                  <TplIcon size={10} />
-                  {tpl.label}
-                </span>
-              </div>
-            )
-          })()}
+          <BubbleBadges
+            message={message}
+            isOutgoing={isOutgoing}
+            isBot={isBot}
+            isCampaign={isCampaign}
+            senderName={senderName}
+          />
           {/* Citação: cliente respondeu uma mensagem específica.
               Barra vertical + trecho curto, estilo WhatsApp. */}
           {message.replyTo?.snippet && (
@@ -447,63 +291,15 @@ export const MessageBubble = memo(function MessageBubble({
               (canto inferior direito — padrão WhatsApp Web).
               `bottom`/`right` batem com py-2 / px-3.
               COM botões, entra em fluxo abaixo deles. */}
-          <span
-            className={cn(
-              "pointer-events-none select-none items-center gap-0.5 whitespace-nowrap text-[10.5px] leading-none",
-              hasButtons
-                ? "mt-1.5 flex w-full justify-end"
-                : "absolute bottom-2 right-3 inline-flex",
-              timeOverMedia &&
-                "rounded px-1 py-0.5 text-white shadow-[0_1px_2px_rgba(0,0,0,0.55)] [text-shadow:0_1px_2px_rgba(0,0,0,0.75)] bg-black/35",
-              !timeOverMedia && isOutgoing && isBot && !isCampaign && "text-white/70",
-              !timeOverMedia && isOutgoing && isCampaign && "opacity-65",
-              !timeOverMedia && !isOutgoing && "text-[var(--text-muted)]",
-            )}
-            style={
-              !timeOverMedia && isOutgoing && !isBot && !isCampaign
-                ? { color: "var(--chat-bubble-sent-time)" }
-                : undefined
-            }
-          >
-            {message.isFavorited && (
-              <IconStarFilled size={10} className="text-amber-400" aria-label="Favoritada" />
-            )}
-            {message.time}
-            {isOutgoing && message.status === "failed" ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="pointer-events-auto inline-flex cursor-help">
-                    <StatusTicks status="failed" onLightBg={false} />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="top"
-                  align="end"
-                  className="border-0 bg-transparent p-0 shadow-none"
-                >
-                  <MetaSendErrorBalloon sendError={message.sendError} />
-                </TooltipContent>
-              </Tooltip>
-            ) : isOutgoing && deliveryStale ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    className="pointer-events-auto inline-flex cursor-help text-amber-300"
-                    aria-label="Entrega não confirmada"
-                    data-delivery-stale
-                  >
-                    <IconClockExclamation size={13} stroke={2.4} />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" align="end" className="max-w-[240px] text-left leading-tight">
-                  Entrega não confirmada após 5 min — o número pode estar
-                  pausado, sinalizado ou com qualidade rebaixada na Meta.
-                </TooltipContent>
-              </Tooltip>
-            ) : isOutgoing && message.status ? (
-              <StatusTicks status={message.status} onLightBg={false} />
-            ) : null}
-          </span>
+          <BubbleMeta
+            message={message}
+            isOutgoing={isOutgoing}
+            isBot={isBot}
+            isCampaign={isCampaign}
+            hasButtons={hasButtons}
+            timeOverMedia={timeOverMedia}
+            deliveryStale={deliveryStale}
+          />
           {/* Badge de reação: sobrepõe a borda inferior (não o horário, que
               fica à direita). z-index acima do card seguinte; o parent tem
               overflow visible + margem pra não clipar. */}
@@ -553,8 +349,6 @@ export const MessageBubble = memo(function MessageBubble({
     </div>
   )
 })
-
-
 
 export {
   formatChatDayLabel,

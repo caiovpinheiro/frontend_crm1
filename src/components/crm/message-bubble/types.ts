@@ -160,7 +160,6 @@ export interface Message {
   }
 }
 
-
 export interface MessageBubbleProps {
   message: Message
   /** @deprecated Não usar para avatar — a bolha identifica o REMETENTE
