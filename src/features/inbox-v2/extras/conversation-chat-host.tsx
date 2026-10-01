@@ -613,6 +613,7 @@ export function ConversationChatHost({
             dealId={dealId ?? null}
             departmentId={departmentId ?? null}
             requireTabulationOnClose={requireTabulationOnClose ?? false}
+            hideResolveItem
             onSearchInConversation={openSearch}
             onOpenFavorites={openFavorites}
             onReopenNewConversation={onConversationReopened}

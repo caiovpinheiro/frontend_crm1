@@ -92,6 +92,11 @@ interface ConversationActionsMenuProps {
   /** Se true, o botao "Encerrar" abre um modal exigindo folha da arvore. */
   requireTabulationOnClose?: boolean;
   /**
+   * Kanban/Flow: o host já tem o botão ✓/↻ ao lado do Nº da conversa —
+   * Encerrar/Reabrir saem do ⋮ mesmo com a chave de Configurações ligada.
+   */
+  hideResolveItem?: boolean;
+  /**
    * Após "Distribuir p/ departamento", atualiza sticky/cache local com o
    * novo depto (e se exige tabulação) — senão Encerrar usa flag antigo.
    */
@@ -128,6 +133,7 @@ export function ConversationActionsMenu({
   dealId,
   departmentId,
   requireTabulationOnClose,
+  hideResolveItem,
   onDepartmentChanged,
   assigneeId: _assigneeId,
   assigneeName,
@@ -160,10 +166,10 @@ export function ConversationActionsMenu({
     });
   const executeDist = useExecuteDistribution();
   const { hideEvents, toggleHideEvents } = useHideChatEvents();
-  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas): o botão
-  // ✓/↻ ao lado do Nº da conversa já cobre os dois — evita duplicidade.
+  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas, só inbox):
+  // o botão ✓/↻ ao lado do Nº da conversa já cobre os dois.
   const { features: convFeatures } = useConversationFeatures();
-  const showResolveItem = convFeatures.showResolveInMenu;
+  const showResolveItem = !hideResolveItem && convFeatures.showResolveInMenu;
 
   const departmentsQuery = useQuery({
     queryKey: ["inbox-distribute-departments"],
