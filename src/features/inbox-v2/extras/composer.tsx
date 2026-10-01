@@ -18,10 +18,6 @@ import {
   IconMoodSmile,
   IconLock,
   IconMessage,
-  IconSignature,
-  IconPencil,
-  IconCheck,
-  IconX,
 } from "@tabler/icons-react";
 
 import { cn } from "@/lib/utils";
@@ -85,6 +81,8 @@ import {
   PendingMediaChips,
 } from "./composer/pending-attachments";
 import { ReplyPreviewBar } from "./composer/reply-preview-bar";
+import { SignatureControl } from "./composer/signature-control";
+import { useComposerSignature } from "./composer/use-composer-signature";
 import type { ComposerProps } from "./composer/types";
 
 /**
@@ -327,58 +325,8 @@ export function Composer({
         : undefined,
     };
   }, [contactData, session]);
-  const [sigEnabled, setSigEnabled] = useState(true);
-  const [sigValue, setSigValue] = useState("");
-  const [sigEditing, setSigEditing] = useState(false);
-  const [sigDraft, setSigDraft] = useState("");
-
-  useEffect(() => {
-    try {
-      const e = window.localStorage.getItem("eduit:signature:enabled");
-      const v = window.localStorage.getItem("eduit:signature:value");
-      if (e !== null) setSigEnabled(e === "1");
-      if (v !== null) setSigValue(v);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const effectiveSignature = (sigValue.trim() || agentName).trim();
-
-  function persistSigEnabled(v: boolean) {
-    setSigEnabled(v);
-    try {
-      window.localStorage.setItem("eduit:signature:enabled", v ? "1" : "0");
-    } catch {
-      /* ignore */
-    }
-  }
-  function persistSigValue(v: string) {
-    setSigValue(v);
-    try {
-      window.localStorage.setItem("eduit:signature:value", v);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // Prefixa a assinatura de forma idempotente (não duplica se o texto já
-  // vier assinado em qualquer um dos formatos usados historicamente).
-  function applySignature(text: string): string {
-    const sig = effectiveSignature;
-    // Respeita a permissão org-level "Permitir assinatura": quando desligada,
-    // a assinatura nunca é aplicada, mesmo que o agente a tenha habilitado
-    // localmente antes (estado persistido em localStorage).
-    if (!signatureAllowed || !sigEnabled || !sig) return text;
-    const s = sig.toLowerCase();
-    const lower = text.toLowerCase();
-    const already =
-      lower.startsWith(`*${s}:*`) ||
-      lower.startsWith(`*${s}*:`) ||
-      lower.startsWith(`*${s}*`) ||
-      lower.startsWith(`${s}:`);
-    return already ? text : `*${sig}*: ${text}`;
-  }
+  const signature = useComposerSignature({ agentName, signatureAllowed });
+  const { applySignature } = signature;
 
   const productSendLock = useRef(false);
   async function sendProductOfferSteps(steps: ComposerInsertStep[]) {
@@ -1266,92 +1214,11 @@ export function Composer({
             </span>
           ) : signatureAllowed ? (
             /* Assinatura do agente */
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={sigEnabled}
-                aria-label={sigEnabled ? "Desligar assinatura" : "Ligar assinatura"}
-                onClick={() => persistSigEnabled(!sigEnabled)}
-                className={cn(
-                  "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
-                  sigEnabled ? "bg-[var(--brand-primary)]" : "bg-[var(--text-muted)]/40",
-                )}
-              >
-                <span
-                  className={cn(
-                    "inline-block size-3 rounded-full bg-white shadow transition-transform",
-                    sigEnabled ? "translate-x-[14px]" : "translate-x-[2px]",
-                  )}
-                />
-              </button>
-              <IconSignature size={13} className="shrink-0 text-[var(--text-muted)]" />
-              {sigEditing ? (
-                <span className="flex items-center gap-1">
-                  <input
-                    autoFocus
-                    value={sigDraft}
-                    onChange={(e) => setSigDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        persistSigValue(sigDraft.trim());
-                        setSigEditing(false);
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        setSigEditing(false);
-                      }
-                    }}
-                    placeholder={agentName || "Seu nome"}
-                    className="h-6 w-40 rounded-[var(--radius-sm)] border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] px-2 font-body text-[11.5px] text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-                  />
-                  <button
-                    type="button"
-                    aria-label="Salvar assinatura"
-                    onClick={() => { persistSigValue(sigDraft.trim()); setSigEditing(false); }}
-                    className="rounded-[var(--radius-sm)] p-0.5 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
-                  >
-                    <IconCheck size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Cancelar"
-                    onClick={() => setSigEditing(false)}
-                    className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-muted)] hover:bg-[var(--text-muted)]/10"
-                  >
-                    <IconX size={14} />
-                  </button>
-                </span>
-              ) : (
-                <>
-                  <TooltipGlass
-                    label={effectiveSignature ? `Assinando como ${effectiveSignature}` : "Defina um nome para assinar"}
-                    side="top"
-                  >
-                    <span
-                      className={cn(
-                        "max-w-[140px] truncate font-body text-[11.5px] font-semibold transition-colors",
-                        sigEnabled
-                          ? "text-[var(--text-primary)]"
-                          : "text-[var(--text-muted)] line-through",
-                      )}
-                    >
-                      {effectiveSignature || "Sem assinatura"}
-                    </span>
-                  </TooltipGlass>
-                  {signatureEditable && (
-                    <button
-                      type="button"
-                      aria-label="Editar assinatura"
-                      onClick={() => { setSigDraft(sigValue); setSigEditing(true); }}
-                      className="rounded-[var(--radius-sm)] p-0.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-primary)]"
-                    >
-                      <IconPencil size={12} />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+            <SignatureControl
+              signature={signature}
+              agentName={agentName}
+              signatureEditable={signatureEditable}
+            />
           ) : null}
 
           {viewersSlot}
