@@ -18,6 +18,8 @@ import {
   normalizeDisplayName,
   normalizeTenantOrgs,
   resolveLoginError,
+  tenantLookupFailureMessage,
+  verifyEmailHref,
 } from "@/lib/login-contract";
 import { isNativePlatform } from "@/lib/native/capacitor";
 import { isPreviewMode, isV0PreviewHost } from "@/lib/preview-mode";
@@ -114,6 +116,8 @@ function LoginForm() {
   );
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Link para /verify-email mostrado junto do erro genérico de credenciais.
+  const [errorVerifyHref, setErrorVerifyHref] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -167,8 +171,9 @@ function LoginForm() {
    *
    * Critério rígido de sucesso: `ok === true` E sem `error`.
    */
-  function showError(message: string) {
+  function showError(message: string, opts?: { verifyEmailLink?: boolean }) {
     setError(message);
+    setErrorVerifyHref(opts?.verifyEmailLink ? verifyEmailHref(email) : null);
     setLoginSuccess(false);
     setErrorBump((n) => n + 1);
     // Devolve foco pro campo de senha pra reentrada rápida; SR anuncia o
@@ -226,7 +231,7 @@ function LoginForm() {
             }
           | null;
         if (!res.ok || !data?.ok) {
-          showError("Não encontramos uma conta com este e-mail.");
+          showError(tenantLookupFailureMessage(res.status, res.headers.get("Retry-After")));
           return;
         }
         const orgs = normalizeTenantOrgs(data.orgs);
@@ -259,6 +264,12 @@ function LoginForm() {
               slug?: string | null;
             }
           | null;
+        if (lookupRes.status === 429) {
+          showError(
+            tenantLookupFailureMessage(lookupRes.status, lookupRes.headers.get("Retry-After")),
+          );
+          return;
+        }
         const orgs = normalizeTenantOrgs(lookup?.orgs);
         if (lookupRes.ok && lookup?.ok && orgs.length > 1) {
           setWelcomeName(normalizeDisplayName(lookup.displayName));
@@ -292,10 +303,11 @@ function LoginForm() {
 
       if (hasError) {
         // Códigos antigos (o backend de produção ainda os envia) seguem
-        // tratados; código genérico/desconhecido do contrato novo cai na
-        // mensagem única, que não revela se o e-mail existe.
+        // tratados; `credentials`/desconhecido do contrato novo cai na
+        // mensagem única, que não revela se o e-mail existe e só OFERECE o
+        // link de confirmação (sem redirecionar).
         const resolved = resolveLoginError(result.code);
-        showError(resolved.message);
+        showError(resolved.message, { verifyEmailLink: resolved.offerVerifyEmailLink });
         if (resolved.goToVerifyEmail) {
           const q = new URLSearchParams();
           if (email.trim()) q.set("email", email.trim());
@@ -555,7 +567,20 @@ function LoginForm() {
               className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span className="flex-1">{error}</span>
+              <span className="flex-1">
+                {error}
+                {errorVerifyHref ? (
+                  <>
+                    {" "}
+                    <Link
+                      href={errorVerifyHref}
+                      className="font-semibold underline underline-offset-4"
+                    >
+                      Confirmar e-mail
+                    </Link>
+                  </>
+                ) : null}
+              </span>
             </motion.div>
           ) : null}
 

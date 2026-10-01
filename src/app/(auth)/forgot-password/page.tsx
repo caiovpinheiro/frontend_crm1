@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import {
   isOrgSelectable,
   normalizeTenantOrgs,
+  tenantLookupFailureMessage,
   type TenantOrgChoice,
 } from "@/lib/login-contract";
 import { isMarketingApexHost } from "@/lib/tenant-host";
@@ -82,6 +83,11 @@ function ForgotForm() {
           // `name`/`status` das orgs (ver `@/lib/login-contract`).
           orgs?: unknown;
         };
+        // Limite de tentativas: avisa, em vez de fingir que o e-mail foi enviado.
+        if (lookup.status === 429) {
+          setError(tenantLookupFailureMessage(lookup.status, lookup.headers.get("Retry-After")));
+          return;
+        }
         const lookupOrgs = normalizeTenantOrgs(data?.orgs);
         if (data?.ok && lookupOrgs.length > 1) {
           setOrgs(lookupOrgs.filter(isOrgSelectable));

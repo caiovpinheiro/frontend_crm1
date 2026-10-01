@@ -8,10 +8,15 @@
  *    `name` e `status`.
  *
  * Novo (correção do pentest — enumeração de contas):
- *  - o login não distingue mais "e-mail não verificado" de "credencial
- *    inválida": vem um código único genérico e o próprio servidor reenvia a
- *    verificação quando cabe;
- *  - o `tenant-lookup` deixa de devolver `displayName`, `name` e `status`.
+ *  - códigos do login: `credentials`, `account_locked`, `rate_limited`,
+ *    `mfa_required`, `mfa_invalid`, `database_unavailable`. Não existe mais
+ *    `email_unverified`: conta sem verificação responde `credentials` e o
+ *    próprio servidor reenvia o código — a tela só OFERECE o link para
+ *    `/verify-email`, sem redirecionar sozinha;
+ *  - `tenant-lookup`: 200 `{ ok, slug, apex, orgs: [{ slug, name, status }] }`
+ *    sem `displayName` (`name` vem igual ao slug e `status` sempre "ACTIVE" —
+ *    só o `slug` é confiável), 404 `{ ok: false }` e 429
+ *    `{ ok: false, error: "rate_limit_exceeded" }` com `Retry-After`.
  *
  * Helpers puros (sem React/Next) para serem testados em vitest (node).
  */
@@ -27,12 +32,17 @@ export type TenantOrgChoice = {
 
 /** Mensagem única para código genérico ou desconhecido (não revela se a conta existe). */
 export const GENERIC_LOGIN_ERROR =
-  "E-mail ou senha incorretos. Se a conta existir e ainda precisar de verificação, enviamos um novo e-mail.";
+  "E-mail ou senha incorretos. Se a sua conta ainda precisa de confirmação, enviamos um novo código para o seu e-mail.";
 
 export type LoginErrorResolution = {
   message: string;
   /** Contrato antigo: `email_unverified` leva o usuário para `/verify-email`. */
   goToVerifyEmail: boolean;
+  /**
+   * Contrato novo: junto da mensagem genérica vai um link para
+   * `/verify-email` (sem redirecionar — a tela não sabe se a conta existe).
+   */
+  offerVerifyEmailLink: boolean;
 };
 
 /**
@@ -46,28 +56,45 @@ export function resolveLoginError(code: string | null | undefined): LoginErrorRe
         message:
           "Não foi possível conectar ao banco de dados. Inicie o PostgreSQL (ex.: docker compose up -d) e confira o DATABASE_URL no .env.",
         goToVerifyEmail: false,
+        offerVerifyEmailLink: false,
       };
     case "account_locked":
       return {
         message:
           "Conta temporariamente bloqueada por várias tentativas. Aguarde alguns minutos ou peça a um admin para revisar o bloqueio.",
         goToVerifyEmail: false,
+        offerVerifyEmailLink: false,
       };
     case "mfa_required":
       return {
         message:
           "Esta conta exige MFA. Use o fluxo de código de autenticação (em desenvolvimento no login web).",
         goToVerifyEmail: false,
+        offerVerifyEmailLink: false,
+      };
+    case "rate_limited":
+      return {
+        message: "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.",
+        goToVerifyEmail: false,
+        offerVerifyEmailLink: false,
+      };
+    case "mfa_invalid":
+      return {
+        message: "Código de autenticação (MFA) inválido. Confira o código e tente novamente.",
+        goToVerifyEmail: false,
+        offerVerifyEmailLink: false,
       };
     case "email_unverified":
+      // Só o backend antigo (ainda em produção) emite este código.
       return {
         message: "Confirme seu e-mail para entrar. Enviamos um código de 6 dígitos.",
         goToVerifyEmail: true,
+        offerVerifyEmailLink: false,
       };
     default:
-      // Credenciais inválidas (CredentialsSignin), código genérico do contrato
-      // novo ou qualquer código desconhecido: mensagem única.
-      return { message: GENERIC_LOGIN_ERROR, goToVerifyEmail: false };
+      // `credentials` (contrato novo), CredentialsSignin ou qualquer código
+      // desconhecido: mensagem única + link para confirmar o e-mail.
+      return { message: GENERIC_LOGIN_ERROR, goToVerifyEmail: false, offerVerifyEmailLink: true };
   }
 }
 
@@ -113,4 +140,35 @@ export function normalizeDisplayName(raw: unknown): string | null {
  */
 export function isOrgSelectable(org: Pick<TenantOrgChoice, "status">): boolean {
   return org.status === null || org.status === "ACTIVE";
+}
+
+/** Link de confirmação de e-mail oferecido junto da mensagem genérica. */
+export function verifyEmailHref(email: string | null | undefined): string {
+  const trimmed = (email ?? "").trim();
+  return trimmed ? `/verify-email?email=${encodeURIComponent(trimmed)}` : "/verify-email";
+}
+
+/** Espera sugerida pelo `Retry-After` (em segundos), em texto; `null` se ausente/inválido. */
+function retryAfterText(retryAfter: string | null | undefined): string | null {
+  const seconds = Number((retryAfter ?? "").trim());
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  if (seconds < 60) return `${Math.ceil(seconds)} segundo(s)`;
+  return `${Math.ceil(seconds / 60)} minuto(s)`;
+}
+
+/**
+ * Mensagem quando o `tenant-lookup` não devolve `ok`.
+ * 429 (limite de tentativas) tem texto próprio — não é "conta não encontrada".
+ */
+export function tenantLookupFailureMessage(
+  status: number,
+  retryAfter?: string | null,
+): string {
+  if (status === 429) {
+    const wait = retryAfterText(retryAfter);
+    return wait
+      ? `Muitas tentativas. Aguarde ${wait} e tente novamente.`
+      : "Muitas tentativas. Aguarde um pouco e tente novamente.";
+  }
+  return "Não encontramos uma conta com este e-mail.";
 }
