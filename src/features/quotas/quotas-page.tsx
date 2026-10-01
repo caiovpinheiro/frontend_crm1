@@ -14,6 +14,7 @@ import { ButtonGlass } from "@/components/crm/button-glass";
 import { PageActionsMenu } from "@/components/crm/page-toolbar";
 import { SettingsListFilterBar } from "@/components/crm/settings-filter-bar";
 import { useSettingsHeaderSlots } from "@/app/(app)/settings/_v2-shell";
+import { useConfirm } from "@/hooks/use-confirm";
 import { apiUrl } from "@/lib/api";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -80,6 +81,7 @@ export function QuotasPage() {
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [catDialogOpen, setCatDialogOpen] = React.useState(false);
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const { data: quotas = [], isLoading } = useQuery({
     queryKey: ["quotas", search],
@@ -272,8 +274,14 @@ export function QuotasPage() {
                 {q.active && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(`Desativar cota "${q.name}"?`)) deleteMut.mutate(q.id);
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: "Desativar cota?",
+                        description: `Desativar cota "${q.name}"?`,
+                        confirmLabel: "Desativar",
+                        variant: "destructive",
+                      });
+                      if (ok) deleteMut.mutate(q.id);
                     }}
                     aria-label={`Desativar ${q.name}`}
                     className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] hover:text-[var(--color-danger)]"

@@ -191,11 +191,22 @@ describe("newMessageLikelyOnTabs", () => {
       }),
     ).toBe(false);
     expect(
-      newMessageLikelyOnTabs(["esperando"], {
-        direction: "in",
-        assignedToId: "u1",
-      }),
+      newMessageLikelyOnTabs(
+        ["esperando"],
+        { direction: "in", assignedToId: "u1" },
+        "u1",
+      ),
     ).toBe(true);
+  });
+
+  it("na aba Aguardando ignora ticket de outro agente", () => {
+    expect(
+      newMessageLikelyOnTabs(
+        ["esperando"],
+        { direction: "in", assignedToId: "u2" },
+        "u1",
+      ),
+    ).toBe(false);
   });
 
   it("Todas hidrata qualquer direção", () => {

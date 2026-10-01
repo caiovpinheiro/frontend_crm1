@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { DeptGlyph } from "@/features/conversations-settings/department-icons";
+import { useConfirm } from "@/hooks/use-confirm";
 
 import {
   SETTINGS_HUB_BACK,
@@ -1099,6 +1100,7 @@ function TreeCard(props: {
   onDelete: (id: string) => void;
 }) {
   const { node, depth } = props;
+  const confirm = useConfirm();
   const [open, setOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(node.name);
@@ -1289,10 +1291,14 @@ function TreeCard(props: {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm(`Remover "${node.name}" e todos os subitens?`)) {
-                    props.onDelete(node.id);
-                  }
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Remover tabulação?",
+                    description: `Remover "${node.name}" e todos os subitens?`,
+                    confirmLabel: "Remover",
+                    variant: "destructive",
+                  });
+                  if (ok) props.onDelete(node.id);
                 }}
                 aria-label="Excluir"
                 className="flex size-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--color-danger-bg)] hover:text-[var(--color-danger)] sm:size-9"
