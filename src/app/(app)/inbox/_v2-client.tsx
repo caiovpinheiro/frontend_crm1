@@ -28,10 +28,6 @@ import {
 } from "@tabler/icons-react";
 import { Plus } from "lucide-react";
 import { cn, ownerLabel } from "@/lib/utils";
-import {
-  compareMessageActivity,
-  messageActivityTimestamp,
-} from "@/lib/message-activity-sort";
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
 import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
@@ -93,7 +89,6 @@ import {
   lastInboundAtFromThread,
   toChatContact,
   toContactAside,
-  toConversationCard,
   toMessageBubble,
 } from "@/features/inbox-v2/adapters";
 import {
@@ -149,7 +144,8 @@ import {
 } from "@/features/inbox-v2/extras/channel-switch-confirm";
 import type { ConversationListRow } from "@/features/inbox-v2/api";
 import { postConversationAction } from "@/features/inbox-v2/api";
-import { inboxQueueSectionFor, inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { inboxQueueTabFor, pickVisibleInboxTab, rowBelongsToAnyInboxTab } from "@/features/inbox-v2/inbox-queue-tab";
+import { sortInboxListRows, toInboxListCards } from "@/features/inbox-v2/inbox-list-order";
 import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
@@ -514,6 +510,7 @@ export default function InboxV2ClientPage({
 
   const {
     data: listData,
+    listTiers,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -575,20 +572,8 @@ export default function InboxV2ClientPage({
     if (createdFrom || createdTo) {
       list = list.filter((r) => inIsoDayRange(r.createdAt, createdFrom, createdTo));
     }
-    const by = sortBy ?? "lastInboundAt";
-    const order = (sortOrder ?? "desc") === "asc" ? "asc" : "desc";
-    const lastActivityTs = (r: (typeof rawRows)[number]) =>
-      messageActivityTimestamp(r.lastMessageAt, r.lastInboundAt);
-    return [...list].sort((a, b) => {
-      if (by === "unreadCount") {
-        const d = (b.unreadCount ?? 0) - (a.unreadCount ?? 0);
-        return d !== 0
-          ? d
-          : compareMessageActivity(lastActivityTs(a), lastActivityTs(b), "desc");
-      }
-      return compareMessageActivity(lastActivityTs(a), lastActivityTs(b), order);
-    });
-  }, [rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
+    return sortInboxListRows(list, { by: sortBy, order: sortOrder, tiers: listTiers });
+  }, [listTiers, rawRows, lastMessageDirection, lastMessageFrom, lastMessageTo, createdFrom, createdTo, sortBy, sortOrder]);
 
   const { data: tabCounts } = useTabCounts(
     canFetchInbox && tabHydrated && filtersHydrated,
@@ -1279,15 +1264,7 @@ export default function InboxV2ClientPage({
   // ── Adapters → tipos do v0 ─────────────────────────────────────
   const conversationCards = useMemo(
     () =>
-      displayRows
-        .filter(Boolean)
-        .map((r) => ({
-          ...toConversationCard(r, { active: r.id === activeId }),
-          queueTab:
-            r.queueTab && tab.includes(r.queueTab)
-              ? r.queueTab
-              : inboxQueueSectionFor(r, tab),
-        })),
+      toInboxListCards(displayRows, { tab, activeId }),
     [displayRows, activeId, tab],
   );
   const contactName = activeRow?.contact?.name ?? "";
