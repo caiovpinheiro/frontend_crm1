@@ -41,7 +41,10 @@ import type { BoardDeal } from "@/components/pipeline/kanban-types";
 import type { BoardStage } from "@/components/pipeline/kanban-board";
 import { cn, formatCurrency } from "@/lib/utils";
 import { SUBTLE_SPRING } from "@/lib/design-system";
-import { MoveToStageMenu } from "@/features/pipeline-v2/extras/move-to-stage-menu";
+import {
+  MOVE_TO_STAGE_MENU_MAX_HEIGHT,
+  MoveToStageMenu,
+} from "@/features/pipeline-v2/extras/move-to-stage-menu";
 import {
   useMoveDeal,
   type MoveVars,
@@ -235,7 +238,14 @@ export function DealMoveStageButton({
     stages,
     onMoved,
   });
-  const position = computePopoverPosition(rect, 320, 240);
+  // Horizontal pelo helper comum; vertical ancorado pela borda (top ou
+  // bottom) para o menu não ficar descolado do botão quando é mais baixo
+  // que a altura máxima estimada. A rolagem fica só na lista interna.
+  const { left: popoverLeft } = computePopoverPosition(rect, MOVE_TO_STAGE_MENU_MAX_HEIGHT, 240);
+  const viewportH = typeof window !== "undefined" ? window.innerHeight : 800;
+  const openUp = rect
+    ? viewportH - rect.bottom < MOVE_TO_STAGE_MENU_MAX_HEIGHT && rect.top > viewportH - rect.bottom
+    : false;
   const noDeal = !deal;
   const disabled = noDeal || moveMutation.isPending || !canChangeStage;
   const tooltip = !canChangeStage
@@ -288,11 +298,13 @@ export function DealMoveStageButton({
             <div
               ref={popoverRef}
               role="listbox"
-              className="max-h-[320px] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)] py-1 shadow-[0_12px_32px_rgba(15,23,42,0.18)] v2-dark:shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
+              className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--dropdown-solid-bg)] py-1 shadow-[0_12px_32px_rgba(15,23,42,0.18)] v2-dark:shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
               style={{
                 position: "fixed",
-                top: position.top,
-                left: position.left,
+                ...(openUp
+                  ? { bottom: viewportH - rect.top + 4 }
+                  : { top: rect.bottom + 4 }),
+                left: popoverLeft,
                 width: 240,
                 zIndex: "var(--z-popover)",
               }}
