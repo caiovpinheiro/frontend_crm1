@@ -60,6 +60,15 @@ export function dealFilterChips(
     });
   }
 
+  if (filters.showAllStages) {
+    chips.push({
+      id: "all-stages",
+      title: "Todas as fases",
+      count: 1,
+      onRemove: () => onPatch({ showAllStages: undefined }),
+    });
+  }
+
   if (filters.statuses && filters.statuses.length > 0) {
     chips.push({
       id: "status",

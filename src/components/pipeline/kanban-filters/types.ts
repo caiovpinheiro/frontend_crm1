@@ -44,6 +44,11 @@ export type AdvancedDealFilters = {
   search?: string;
   pipelineId?: string;
   stageIds?: string[];
+  /**
+   * Kanban/Flow: exibe também Ganho/Perdido (ocultos por padrão). Só UI —
+   * não vai ao servidor (ver `hasServerSideFilters`).
+   */
+  showAllStages?: boolean;
   statuses?: DealStatus[];
   ownerIds?: (string | null)[];
   withoutOwner?: boolean;
@@ -155,7 +160,7 @@ export function countActiveFilters(f: AdvancedDealFilters | null | undefined): n
   if (!f) return 0;
   let n = 0;
   if (f.search?.trim()) n++;
-  if (f.stageIds?.length) n++;
+  if (f.stageIds?.length || f.showAllStages) n++;
   if (f.statuses?.length) n++;
   if (f.ownerIds?.length || f.withoutOwner) n++;
   if (f.withoutContact) n++;
@@ -204,6 +209,11 @@ export function hasServerSideFilters(
   f: AdvancedDealFilters | null | undefined,
 ): boolean {
   if (!f) return false;
-  const { valueFrom: _vf, valueTo: _vt, ...server } = f;
+  const {
+    valueFrom: _vf,
+    valueTo: _vt,
+    showAllStages: _all,
+    ...server
+  } = f;
   return !isEmptyFilters(server);
 }

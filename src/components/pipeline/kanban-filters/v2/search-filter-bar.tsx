@@ -59,6 +59,8 @@ interface PipelineSearchFilterBarProps {
   pipelineId?: string | null;
   onPickDeal?: (deal: DealListItemDto) => void;
   onFilterPanelOpenChange?: (open: boolean) => void;
+  /** Kanban/Flow: "Exibir todas as fases" + etapas só do funil aberto. */
+  boardStages?: boolean;
 }
 
 export function PipelineSearchFilterBar({
@@ -74,11 +76,15 @@ export function PipelineSearchFilterBar({
   onSortKeyChange,
   placeholder = "Pesquisar e filtrar...",
   className,
-  pipelineId: _pipelineId,
+  pipelineId,
   onPickDeal,
   onFilterPanelOpenChange,
+  boardStages,
 }: PipelineSearchFilterBarProps) {
-  void _pipelineId;
+  const stageBoard = React.useMemo(
+    () => (boardStages ? { pipelineId: pipelineId ?? null } : undefined),
+    [boardStages, pipelineId],
+  );
   const [open, setOpenState] = React.useState(false);
   const setOpen = React.useCallback(
     (next: boolean) => {
@@ -230,6 +236,7 @@ export function PipelineSearchFilterBar({
         onRequestSave={handleSave}
         sortKey={sortKey}
         onSortKeyChange={onSortKeyChange}
+        stageBoard={stageBoard}
       />
     </div>
   );

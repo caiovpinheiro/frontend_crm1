@@ -70,7 +70,7 @@ function middleTabCount(id: MiddleTab, f: AdvancedDealFilters): number {
   if (id === "negocio") {
     return (
       (f.search?.trim() ? 1 : 0) +
-      (f.stageIds?.length ? 1 : 0) +
+      (f.stageIds?.length || f.showAllStages ? 1 : 0) +
       (f.sources?.length || f.withoutSource ? 1 : 0) +
       (f.utmSources?.length || f.withoutUtmSource ? 1 : 0) +
       (f.statuses?.length ? 1 : 0) +
@@ -95,6 +95,7 @@ function middleTabCount(id: MiddleTab, f: AdvancedDealFilters): number {
 type ModalProps = VariantProps & {
   sortKey?: PipelineSortKey;
   onSortKeyChange?: (key: PipelineSortKey) => void;
+  stageBoard?: SectionProps["stageBoard"];
 };
 
 /** Chips de tags — coluna dedicada (multi-seleção com busca). */
@@ -533,6 +534,7 @@ export function FilterModalThreeCol({
   onRequestSave,
   sortKey = "default",
   onSortKeyChange,
+  stageBoard,
 }: ModalProps) {
   const { draft, setDraftField, applyWhole, toggleArray, reset } = useFilterDraft(
     value,
@@ -556,6 +558,7 @@ export function FilterModalThreeCol({
     optionsError,
     setDraftField,
     toggleArray,
+    stageBoard,
   };
 
   function handleClear() {
