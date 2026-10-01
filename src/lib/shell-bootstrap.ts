@@ -47,6 +47,8 @@ import { apiFetch } from "@/lib/api";
 import {
   DEFAULT_INBOX_ALERT_CONFIG,
   type InboxAlertConfig,
+  type InboxTabAudience,
+  parseInboxTabAudience,
 } from "@/features/inbox-v2/inbox-alert-audience";
 import { isPreviewMode } from "@/lib/preview-mode";
 
@@ -112,6 +114,8 @@ export type BootstrapOrganization = {
 export type BootstrapAlertConfig = {
   config: InboxAlertConfig;
   departmentIds: string[];
+  /** Ausente em backend anterior ao campo. */
+  tabAudience?: string | null;
 };
 
 /** Mesmo shape de `GET /api/agents/:id/status` (fallback OFFLINE incluso). */
@@ -191,18 +195,25 @@ export const shellBootstrapKeys = {
 } as const;
 
 /** Formato consumido pela query `agents-me-alert-config`. */
-export type MyAlertConfig = { config: InboxAlertConfig; departmentIds: string[] };
+export type MyAlertConfig = {
+  config: InboxAlertConfig;
+  departmentIds: string[];
+  /** Público do aviso na aba (org); `null` = coluna "Aba" por tipo. */
+  tabAudience: InboxTabAudience | null;
+};
 
 /** Mesma normalização que o GET individual aplica ao corpo cru. */
 export function normalizeAlertConfigBlock(raw: {
   config?: InboxAlertConfig | null;
   departmentIds?: unknown;
+  tabAudience?: unknown;
 }): MyAlertConfig {
   return {
     config: raw.config ?? DEFAULT_INBOX_ALERT_CONFIG,
     departmentIds: Array.isArray(raw.departmentIds)
       ? raw.departmentIds.filter((id): id is string => typeof id === "string")
       : [],
+    tabAudience: parseInboxTabAudience(raw.tabAudience),
   };
 }
 
