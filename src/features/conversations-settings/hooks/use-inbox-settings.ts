@@ -30,8 +30,8 @@ export interface InboxSettings {
    */
   countAgentReplyAsAnswered: boolean;
   /**
-   * Item "Encerrar conversa" no menu ⋮ do chat. Default desligado — o
-   * encerramento fica no botão ✓ ao lado do Nº da conversa.
+   * Item "Encerrar/Reabrir conversa" no menu ⋮ do chat. Default desligado —
+   * os dois ficam no botão ao lado do Nº da conversa.
    */
   showResolveInMenu: boolean;
 }

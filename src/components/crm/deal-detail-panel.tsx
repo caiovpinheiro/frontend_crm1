@@ -1805,9 +1805,10 @@ function TabsBar({
 
   const hasConversaActions = (activeTab === "conversa" && !!onSearchOpen) || !!conversationId
   const { hideEvents, toggleHideEvents } = useHideChatEvents()
-  // "Encerrar" no ⋮ é opt-in (Configurações › Conversas); "Reabrir" fica.
+  // Encerrar/Reabrir no ⋮ é opt-in (Configurações › Conversas): o botão
+  // ✓/↻ ao lado do Nº da conversa já cobre os dois — evita duplicidade.
   const { features: convFeatures } = useConversationFeatures()
-  const showResolveItem = isResolved || convFeatures.showResolveInMenu
+  const showResolveItem = convFeatures.showResolveInMenu
 
   return (
     <div className="shrink-0 border-b border-[var(--glass-border-subtle)]">
