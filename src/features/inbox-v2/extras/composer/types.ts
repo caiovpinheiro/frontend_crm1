@@ -15,6 +15,11 @@ export interface ComposerProps {
   placeholder?: string;
   /** Quando definido, habilita o item Finalizar/Reabrir no menu "+". */
   isResolved?: boolean;
+  /**
+   * Kanban/Flow: tira Finalizar/Reabrir do menu "+" — o botão ✓/↻ ao lado
+   * do Nº da conversa é o único ponto de encerrar/reabrir.
+   */
+  hideResolveInMenu?: boolean;
   contactId?: string | null;
   contactName?: string | null;
   /** Negócio exibido — padrão ao criar tarefa pelo menu "+". */
