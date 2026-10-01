@@ -404,6 +404,7 @@ export function SalesHubChat({
                 : undefined
             }
             isResolved={isResolved}
+            hideResolveInMenu
             contactId={contactId}
             contactName={contactName}
             dealId={dealId}

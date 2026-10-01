@@ -1088,6 +1088,7 @@ export function useDealChatBinding(params: {
       replyTo={replyTo}
       onCancelReply={handleCancelReply}
       isResolved={isResolved}
+      hideResolveInMenu
       conversationNumber={conversationNumber ?? null}
       departmentId={departmentId ?? null}
       requireTabulationOnClose={requireTabulationOnClose ?? false}

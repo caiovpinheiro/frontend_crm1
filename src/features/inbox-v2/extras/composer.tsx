@@ -130,6 +130,7 @@ export function Composer({
   disabled,
   placeholder,
   isResolved,
+  hideResolveInMenu,
   contactId,
   contactName,
   dealId,
@@ -171,6 +172,11 @@ export function Composer({
   placeholder?: string;
   /** Quando definido, habilita o item Finalizar/Reabrir no menu "+". */
   isResolved?: boolean;
+  /**
+   * Kanban/Flow: tira Finalizar/Reabrir do menu "+" — o botão ✓/↻ ao lado
+   * do Nº da conversa é o único ponto de encerrar/reabrir.
+   */
+  hideResolveInMenu?: boolean;
   contactId?: string | null;
   contactName?: string | null;
   /** Negócio exibido — padrão ao criar tarefa pelo menu "+". */
@@ -1471,7 +1477,7 @@ export function Composer({
               className="h-9 w-9 shrink-0"
               noteMode={noteMode}
               onToggleNote={onSendNote ? () => setNoteMode((v) => !v) : undefined}
-              isResolved={isResolved}
+              isResolved={hideResolveInMenu ? undefined : isResolved}
               contactId={contactId}
               contactName={contactName}
               dealId={dealId}
