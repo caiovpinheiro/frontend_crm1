@@ -11,4 +11,3 @@ declare module "@fontsource-variable/manrope";
 
 // CSS side-effect imports (globals.css, reactflow styles, etc.)
 declare module "*.css";
-declare module "reactflow/dist/style.css";
