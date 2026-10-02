@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { IconAt as AtSign, IconBuilding as Building2, IconExternalLink as ExternalLink, IconMail as Mail, IconPhone as Phone, IconUser as User } from "@tabler/icons-react";
 
-import { COURSE_MODE_LABEL, type CourseLevel, type CourseMode, type ProductKind } from "@/features/products-v2/types";
+import { type CourseLevel, type CourseMode, type ProductKind } from "@/features/products-v2/types";
 import { cn } from "@/lib/utils";
 import { formatPhoneDisplay } from "@/lib/phone";
 
@@ -141,6 +141,7 @@ export type CatalogProduct = {
     level: CourseLevel | null;
     mode: CourseMode;
     semester: number | null;
+    grau?: string | null;
   } | null;
 };
 
@@ -151,8 +152,9 @@ export function catalogProductSubtitle(p: CatalogProduct): string {
     if (cc.level === "POSTGRADUATE" && cc.semester != null && cc.semester > 0) {
       return `${cc.semester} meses`;
     }
-    if (cc.level === "GRADUATION" && cc.mode) {
-      return COURSE_MODE_LABEL[cc.mode] ?? cc.mode;
+    if (cc.level === "GRADUATION") {
+      const grau = cc.grau?.trim();
+      if (grau) return grau;
     }
   }
   return (p.sku ?? "").trim();
