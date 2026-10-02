@@ -23,6 +23,8 @@ export interface DealListItemDto {
   contactId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** ISO. Mais recente entre alteração do deal e última atividade da conversa. */
+  lastInteractionAt?: string | null;
   contact: {
     id: string;
     name: string;
