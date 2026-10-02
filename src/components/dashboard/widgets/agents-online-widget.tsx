@@ -8,6 +8,7 @@ import { ChatAvatar } from "@/components/inbox/chat-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
+import { AGENTS_ONLINE_QUERY_KEY } from "@/hooks/use-system-presence-sync";
 
 type AgentPresence = "ONLINE" | "AWAY" | "OFFLINE";
 
@@ -31,13 +32,16 @@ const STATUS_META: Record<AgentPresence, { label: string; tone: string; dot: str
 
 export function AgentsOnlineWidget({ search = "" }: { search?: string }) {
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
-    queryKey: ["dashboard-agents-online"],
+    queryKey: AGENTS_ONLINE_QUERY_KEY,
     queryFn: async () => {
       const r = await fetch(apiUrl("/api/monitor/agents"));
       if (!r.ok) throw new Error("Falha ao carregar agentes");
       return r.json();
     },
-    refetchInterval: 60_000,
+    // Status chega por SSE (`presence_update` → useSystemPresenceSync faz
+    // o patch desta cache). O poll de 5 min é só rede de segurança para
+    // queda silenciosa da stream; a mesma rede já roda no hook do shell.
+    refetchInterval: 300_000,
     refetchOnWindowFocus: false,
     staleTime: 10_000,
   });
