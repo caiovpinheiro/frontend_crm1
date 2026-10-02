@@ -106,6 +106,7 @@ import { useCan, useMyPermissions } from "@/hooks/use-my-permissions";
 import { useStuckTimeout } from "@/hooks/use-stuck-timeout";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { BulkActionsBar } from "@/components/pipeline/bulk-actions-bar";
+import { StageUndoToast } from "@/components/pipeline/stage-undo-toast";
 import type { BulkScopeContext } from "@/components/pipeline/bulk-edit-fields-dialog";
 import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
 import type {
@@ -338,20 +339,68 @@ export default function KanbanV2ClientPage({
   // Só pede motivo se a etapa Perdido do funil estiver com tabulação
   // Ativa (pipelines.lossReasonRequired). Cancelar = não move.
   const [pendingLostMove, setPendingLostMove] = useState<MoveVars | null>(null);
+  const [stageUndo, setStageUndo] = useState<{
+    key: string;
+    title: string;
+    stageName: string;
+    reverse: MoveVars;
+  } | null>(null);
 
   // Key compartilhada com LossReasonDialog / actions-menu / bulk-bar.
   const lossMetaQuery = usePipelineLossReasons(pipelineId, {
     enabled: !!pendingLostMove,
   });
+  const moveSeqRef = useRef(0);
+
+  const commitMove = useCallback(
+    (vars: MoveVars) => {
+      const stageChange = vars.fromStageId !== vars.toStageId;
+      let undo: {
+        key: string;
+        title: string;
+        stageName: string;
+        reverse: MoveVars;
+      } | null = null;
+      if (stageChange && !vars.skipSuccessToast) {
+        const from = board.find((s) => s.id === vars.fromStageId);
+        const fromIndex = from?.deals.findIndex((d) => d.id === vars.dealId) ?? -1;
+        const deal = fromIndex >= 0 ? from?.deals[fromIndex] : undefined;
+        const stageName =
+          moveStages.find((s) => s.id === vars.toStageId)?.name ?? "outra fila";
+        undo = {
+          key: `${vars.dealId}-${Date.now()}`,
+          title: deal?.title?.trim() || "Negócio",
+          stageName,
+          reverse: {
+            dealId: vars.dealId,
+            fromStageId: vars.toStageId,
+            toStageId: vars.fromStageId,
+            toIndex: fromIndex >= 0 ? fromIndex : 0,
+            skipSuccessToast: true,
+          },
+        };
+      }
+      const seq = ++moveSeqRef.current;
+      moveDeal.mutate(stageChange ? { ...vars, skipSuccessToast: true } : vars, {
+        onSuccess: () => {
+          if (undo && moveSeqRef.current === seq) setStageUndo(undo);
+        },
+      });
+    },
+    [board, moveStages, moveDeal],
+  );
+
+  const commitMoveRef = useRef(commitMove);
+  commitMoveRef.current = commitMove;
 
   useEffect(() => {
     if (!pendingLostMove) return;
     if (lossMetaQuery.isPending) return;
     if (!lossMetaQuery.data?.lossReasonRequired) {
-      moveDeal.mutate(pendingLostMove);
+      commitMoveRef.current(pendingLostMove);
       setPendingLostMove(null);
     }
-  }, [pendingLostMove, lossMetaQuery.isPending, lossMetaQuery.data, moveDeal]);
+  }, [pendingLostMove, lossMetaQuery.isPending, lossMetaQuery.data]);
 
   const requestMove = useCallback(
     (vars: MoveVars) => {
@@ -368,10 +417,19 @@ export default function KanbanV2ClientPage({
         setPendingLostMove(vars);
         return;
       }
-      moveDeal.mutate(vars);
+      commitMove(vars);
     },
-    [moveStages, moveDeal, canChangeStage],
+    [moveStages, commitMove, canChangeStage],
   );
+
+  const stageUndoRef = useRef(stageUndo);
+  stageUndoRef.current = stageUndo;
+  const undoStageMove = useCallback(() => {
+    const current = stageUndoRef.current;
+    if (!current) return;
+    setStageUndo(null);
+    moveDeal.mutate(current.reverse);
+  }, [moveDeal]);
 
   // ── Seleção em massa (resgatada da versão antiga) ────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1641,10 +1699,25 @@ export default function KanbanV2ClientPage({
         description="Informe o motivo da perda para concluir a movimentação."
         onConfirm={(reason) => {
           if (!pendingLostMove) return;
-          moveDeal.mutate({ ...pendingLostMove, lostReason: reason });
+          commitMove({ ...pendingLostMove, lostReason: reason });
           setPendingLostMove(null);
         }}
       />
+
+      {stageUndo &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <StageUndoToast
+            key={stageUndo.key}
+            title={stageUndo.title}
+            stageName={stageUndo.stageName}
+            onUndo={undoStageMove}
+            onDismiss={() =>
+              setStageUndo((current) => (current?.key === stageUndo.key ? null : current))
+            }
+          />,
+          document.body,
+        )}
 
       {pipelineId ? (
         <BulkActionsBar
