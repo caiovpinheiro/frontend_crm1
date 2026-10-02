@@ -324,6 +324,7 @@ export function toDealListRow(deal: DealListItemDto): DealListRow {
     stageColor: deal.stage.color,
     ownerName,
     createdAt: formatDateBr(deal.createdAt),
+    lastInteractionAt: deal.lastInteractionAt || deal.updatedAt || null,
     status: DEAL_STATUS_TO_LIST[deal.status] ?? "OPEN",
   };
 }

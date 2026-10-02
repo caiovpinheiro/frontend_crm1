@@ -25,6 +25,7 @@ export type DealListColumnKey =
   | "value"
   | "stageName"
   | "ownerName"
+  | "lastInteractionAt"
   | "createdAt"
   | "status";
 
@@ -40,6 +41,8 @@ export interface DealListRow {
   stageColor: string;
   ownerName?: string | null;
   createdAt: string;
+  /** ISO da última interação (mensagem ou alteração do negócio). */
+  lastInteractionAt?: string | null;
   status: DealListStatus;
 }
 
@@ -56,6 +59,7 @@ export const DEAL_LIST_COLUMNS: {
   { key: "value", label: "Valor", fr: "0.9fr", minPx: 110 },
   { key: "stageName", label: "Etapa", fr: "1.2fr", minPx: 150 },
   { key: "ownerName", label: "Responsável", fr: "1.1fr", minPx: 150 },
+  { key: "lastInteractionAt", label: "Última interação", fr: "1.15fr", minPx: 168 },
   { key: "createdAt", label: "Criado em", fr: "1fr", minPx: 120 },
   { key: "status", label: "Status", fr: "0.9fr", minPx: 110 },
 ];
@@ -70,6 +74,7 @@ const COLUMN_WIDTH_DEFAULTS: Record<string, number> = {
   value: 120,
   stageName: 170,
   ownerName: 160,
+  lastInteractionAt: 176,
   createdAt: 130,
   status: 120,
 };
@@ -86,6 +91,20 @@ interface DealListTableProps {
   selectedIds?: Set<string>;
   onSelectionChange?: (next: Set<string>) => void;
   view?: CardsTableView;
+}
+
+/** "Hoje 12:48", "Ontem 12:48" ou "30/08/2026 12:48". */
+function formatLastInteraction(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  if (dayDiff === 0) return `Hoje ${time}`;
+  if (dayDiff === 1) return `Ontem ${time}`;
+  const date = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  return `${date} ${time}`;
 }
 
 const statusToTab: Record<DealListStatus, Exclude<DealListTab, "todos">> = {
@@ -230,6 +249,12 @@ export function DealListTable({
         return (
           <span className="truncate font-display text-[13px] text-[var(--text-muted)]">
             {d.ownerName ?? "—"}
+          </span>
+        );
+      case "lastInteractionAt":
+        return (
+          <span className="truncate font-display text-[13px] text-[var(--text-muted)]">
+            {formatLastInteraction(d.lastInteractionAt)}
           </span>
         );
       case "createdAt":

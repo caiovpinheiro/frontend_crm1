@@ -96,6 +96,8 @@ import {
 
 const DEFAULT_PER_PAGE = 25;
 const COLUMNS_STORAGE_KEY = "pipeline-list-columns:v1";
+/** Uma vez: quem já tinha a lista salva passa a ver a coluna nova. Esconder depois fica. */
+const LAST_INTERACTION_COLUMN_SEEN_KEY = "pipeline-list-columns:last-interaction-seen";
 
 const STATUS_TABS: { id: DealListTab; label: string; icon: React.ReactNode }[] = [
   { id: "abertos", label: "Abertos", icon: <IconClock size={13} /> },
@@ -119,11 +121,21 @@ function readStoredColumns(): DealListColumnKey[] {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return DEFAULT_DEAL_LIST_COLUMN_KEYS;
     const allowed = new Set(DEAL_LIST_COLUMNS.map((c) => c.key));
-    const keys = parsed.filter(
+    let keys = parsed.filter(
       (k): k is DealListColumnKey => typeof k === "string" && allowed.has(k as DealListColumnKey),
     );
     if (!keys.includes("dealTitle")) keys.unshift("dealTitle");
-    return keys.length ? keys : DEFAULT_DEAL_LIST_COLUMN_KEYS;
+    if (!keys.length) return DEFAULT_DEAL_LIST_COLUMN_KEYS;
+    if (
+      !keys.includes("lastInteractionAt") &&
+      localStorage.getItem(LAST_INTERACTION_COLUMN_SEEN_KEY) !== "1"
+    ) {
+      keys = DEFAULT_DEAL_LIST_COLUMN_KEYS.filter(
+        (k) => keys.includes(k) || k === "lastInteractionAt",
+      );
+    }
+    localStorage.setItem(LAST_INTERACTION_COLUMN_SEEN_KEY, "1");
+    return keys;
   } catch {
     return DEFAULT_DEAL_LIST_COLUMN_KEYS;
   }
