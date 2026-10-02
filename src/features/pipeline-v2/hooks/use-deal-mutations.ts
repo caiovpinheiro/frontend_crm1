@@ -41,6 +41,8 @@ export interface MoveVars {
    * update otimista local (que assume board único).
    */
   toPipelineId?: string | null;
+  /** Kanban mostra o pop-up de desfazer no lugar do toast de sucesso. */
+  skipSuccessToast?: boolean;
 }
 
 /**
@@ -158,6 +160,7 @@ export function useMoveDeal(pipelineId: string | null, status: StatusFilter = "O
       toast.error(err.message || "Falha ao mover deal");
     },
     onSuccess: (data, vars) => {
+      if (vars.skipSuccessToast) return;
       // IB1: feedback visivel — antes a UI atualizava (ou nao) sem
       // qualquer toast e o operador nao tinha certeza de que tinha
       // funcionado. O backend POST /move retorna o deal direto
