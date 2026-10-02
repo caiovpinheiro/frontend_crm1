@@ -7,6 +7,9 @@ import { apiUrl } from "@/lib/api";
 import { useSSE } from "@/hooks/use-sse";
 import { TEAM_USERS_QUERY_PREFIX } from "@/features/shared/queries/team-users";
 
+/** Widget "Equipe online" do dashboard (/api/monitor/agents). */
+export const AGENTS_ONLINE_QUERY_KEY = ["dashboard-agents-online"] as const;
+
 const PRESENCE_SSE_EVENTS: readonly string[] = [
   "system_presence_update",
   "presence_update",
@@ -103,7 +106,7 @@ function invalidateIfObserved(
   void qc.invalidateQueries({ queryKey, refetchType: "active" });
 }
 
-type PatchEvent =
+export type PatchEvent =
   | {
       kind: "system";
       userId: string;
@@ -135,7 +138,7 @@ function patchUsersCaches(
 
 type MaybeUser = { id?: string; userId?: string } & Record<string, unknown>;
 
-function mergePresence(prev: unknown, evt: PatchEvent): unknown {
+export function mergePresence(prev: unknown, evt: PatchEvent): unknown {
   if (Array.isArray(prev)) {
     let touched = false;
     const next = prev.map((item) => {
