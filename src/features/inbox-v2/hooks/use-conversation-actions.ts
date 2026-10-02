@@ -13,38 +13,51 @@ import {
 } from "../api";
 import { distributionOutcomeToast } from "@/features/distribution/outcome-toast";
 import {
+  applyAssigneeOptimistic,
+  rollbackAssignee,
+  syncAssigneeEverywhere,
+} from "@/features/shared/queries/assignee-sync";
+import {
   applyConversationFieldsToInboxCaches,
   applyInboxConversationRow,
 } from "./apply-outbound-inbox-card";
 import { messagesKey } from "./use-messages";
 
-/** Atribuir conversa (assign) — comportamento otimista. */
+/**
+ * Atribuir conversa (assign) — otimista: o card muda no clique, com o nome
+ * real do responsável, e volta ao estado anterior se a API recusar.
+ */
 export function useAssignConversation() {
   const qc = useQueryClient();
   return useMutation<
     Awaited<ReturnType<typeof postConversationAction>>,
     Error,
-    { conversationId: string; assignedToId: string | null }
+    { conversationId: string; assignedToId: string | null },
+    { previous: ReturnType<typeof applyAssigneeOptimistic> }
   >({
     mutationFn: (vars) =>
       postConversationAction(vars.conversationId, {
         action: "assign",
         assignedToId: vars.assignedToId,
       }),
-    onSuccess: (_data, vars) => {
-      applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
-        assignedToId: vars.assignedToId,
-        assignedTo:
-          vars.assignedToId == null
-            ? null
-            : { id: vars.assignedToId, name: "", type: "HUMAN" },
-      });
+    onMutate: (vars) => ({
+      previous: applyAssigneeOptimistic(qc, vars.conversationId, vars.assignedToId),
+    }),
+    onSuccess: (data, vars) => {
+      // Reaplica com o responsável que o servidor devolveu (nome/avatar reais).
+      applyAssigneeOptimistic(
+        qc,
+        vars.conversationId,
+        vars.assignedToId,
+        data.conversation?.assignedTo,
+      );
       qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
-      qc.invalidateQueries({
-        queryKey: ["conversation-timeline", vars.conversationId],
-      });
+      syncAssigneeEverywhere(qc, { conversationId: vars.conversationId });
     },
-    onError: (err) => toast.error(err.message || "Falha ao atribuir"),
+    onError: (err, vars, ctx) => {
+      rollbackAssignee(qc, vars.conversationId, ctx?.previous);
+      toast.error(err.message || "Falha ao atribuir");
+    },
   });
 }
 
@@ -64,7 +77,8 @@ export function useTransferConversation() {
       conversationId: string;
       assignedToId?: string | null;
       departmentId?: string | null;
-    }
+    },
+    { previous: ReturnType<typeof applyAssigneeOptimistic> }
   >({
     mutationFn: (vars) =>
       postConversationAction(vars.conversationId, {
@@ -76,6 +90,13 @@ export function useTransferConversation() {
           ? { departmentId: vars.departmentId }
           : {}),
       }),
+    // Só a troca de agente é otimista; departamento depende da distribuição.
+    onMutate: (vars) => ({
+      previous:
+        vars.assignedToId !== undefined
+          ? applyAssigneeOptimistic(qc, vars.conversationId, vars.assignedToId)
+          : null,
+    }),
     onSuccess: (data, vars) => {
       const dist = data.distribution;
       if (vars.departmentId != null) {
@@ -96,24 +117,22 @@ export function useTransferConversation() {
       }
 
       if (vars.assignedToId !== undefined) {
-        applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
-          assignedToId: vars.assignedToId,
-          assignedTo:
-            vars.assignedToId == null
-              ? null
-              : { id: vars.assignedToId, name: "", type: "HUMAN" },
-        });
+        applyAssigneeOptimistic(
+          qc,
+          vars.conversationId,
+          vars.assignedToId,
+          data.conversation?.assignedTo,
+        );
       }
       qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
-      qc.invalidateQueries({
-        queryKey: ["conversation-timeline", vars.conversationId],
-      });
-      qc.invalidateQueries({ queryKey: ["deal-detail-v2"] });
-      qc.invalidateQueries({ queryKey: ["deal-timeline-v2"] });
+      syncAssigneeEverywhere(qc, { conversationId: vars.conversationId });
       qc.invalidateQueries({ queryKey: ["activity-feed"] });
       qc.invalidateQueries({ queryKey: ["distribution"] });
     },
-    onError: (err) => toast.error(err.message || "Falha ao transferir"),
+    onError: (err, vars, ctx) => {
+      rollbackAssignee(qc, vars.conversationId, ctx?.previous);
+      toast.error(err.message || "Falha ao transferir");
+    },
   });
 }
 

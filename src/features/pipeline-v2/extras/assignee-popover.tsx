@@ -22,6 +22,7 @@ import {
   sortByPresence,
 } from "@/components/crm/system-presence-indicator";
 
+import { applyAssigneeOptimistic } from "@/features/shared/queries/assignee-sync";
 import { useTeamUsers, useUpdateDeal } from "@/features/pipeline-v2/hooks";
 import type { StatusFilter } from "@/features/pipeline-v2/api";
 import { useCan } from "@/hooks/use-my-permissions";
@@ -123,6 +124,11 @@ export function AssigneePopover({
     ) {
       try {
         await onTransferConversation(userId);
+        // Card da conversa e header mudam já, com o nome real (a lista de
+        // equipe está carregada: é a que abriu este popover).
+        if (conversationId) {
+          applyAssigneeOptimistic(qc, conversationId, userId);
+        }
       } catch {
         /* segue o PUT do negócio mesmo se o assign do chat falhar */
       }
@@ -144,6 +150,9 @@ export function AssigneePopover({
               queryKey: ["conversation-timeline", conversationId],
             });
             qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+            // Header do chat no Flow lê as conversas do contato. O board e o
+            // detalhe do negócio já são refeitos pelo `useUpdateDeal`.
+            qc.invalidateQueries({ queryKey: ["saleshub-contact-conversations"] });
           }
         },
       },
