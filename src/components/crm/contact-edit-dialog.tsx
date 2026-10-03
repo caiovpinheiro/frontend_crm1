@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,7 +68,7 @@ export function ContactEditDialog({
       qc.invalidateQueries({ queryKey: ["v2-contacts"], exact: false });
       qc.invalidateQueries({ queryKey: ["v2-contact", contactId] });
       qc.invalidateQueries({ queryKey: ["contact-sidebar", contactId] });
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"], exact: false });
+      void refreshInboxLists(qc);
       toast.success("Contato atualizado.");
       onSaved?.();
       setOpen(false);

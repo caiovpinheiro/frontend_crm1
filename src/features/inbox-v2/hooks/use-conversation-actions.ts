@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "./inbox-list-refresh";
 import { toast } from "sonner";
 
 import {
@@ -411,7 +412,7 @@ export function useBulkConversationAction() {
         },
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      void refreshInboxLists(qc);
       qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       // Toast do resultado fica no caller (`handleBulkAction`) para não
       // empilhar com "Nenhuma conversa para encerrar" / "em segundo plano".
@@ -454,7 +455,7 @@ export function useBulkAssignConversations() {
           : { assignedToId: vars.assignedToId },
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      void refreshInboxLists(qc);
       qc.invalidateQueries({ queryKey: ["conversations"] });
       qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });

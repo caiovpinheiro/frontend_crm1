@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { toast } from "sonner";
 import {
   IconAlertTriangle,
@@ -344,7 +345,7 @@ export function WhatsappTemplatePickerModal({
         if (res.reopenedConversationId) {
           qc.invalidateQueries({ queryKey: messagesKey(res.reopenedConversationId) });
           emitConversationReopened(res.reopenedConversationId);
-          qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+          void refreshInboxLists(qc);
           qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
         } else {
           applyOutboundPreviewToInboxCaches(qc, conversationId, {

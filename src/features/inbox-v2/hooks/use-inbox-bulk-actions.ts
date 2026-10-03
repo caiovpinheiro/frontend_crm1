@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "./inbox-list-refresh";
 import { toast } from "sonner";
 
 import { isBulkOperationFinished, useBulkOperation } from "@/hooks/use-bulk-operation";
@@ -323,8 +324,8 @@ export function useInboxBulkActions(params: {
         );
       }
     }
-    void qc.refetchQueries({ queryKey: ["inbox-conversations"] });
-    void qc.refetchQueries({ queryKey: ["conversations", "tab-counts"] });
+    void refreshInboxLists(qc);
+    void qc.refetchQueries({ queryKey: ["conversations", "tab-counts"], type: "active" });
     qc.invalidateQueries({ queryKey: ["distribution-responsibles"] });
     qc.invalidateQueries({ queryKey: ["distribution-pending"] });
     setBulkOpId(null);

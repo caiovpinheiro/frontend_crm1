@@ -11,6 +11,7 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateQueryKey } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { toast } from "sonner";
 import { IconPencil, IconCheck, IconX, IconLoader2 } from "@tabler/icons-react";
 import { CopyValueButton } from "@/components/crm/copy-value-button";
@@ -143,7 +144,7 @@ export function InlineNativeEditor({
       onSaved?.(trimmed);
       if (invalidateKeys) {
         for (const key of invalidateKeys) {
-          qc.invalidateQueries({ queryKey: key });
+          invalidateQueryKey(qc, key);
         }
       }
       if (fieldKey === "source") {

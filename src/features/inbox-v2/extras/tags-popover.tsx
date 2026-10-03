@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { toast } from "sonner";
 
 import { Chip } from "@/components/crm/chip";
@@ -66,7 +67,7 @@ export function TagsPopover({
   // replica a tag no deal OPEN do contato, a mudança precisa refletir
   // nas duas telas imediatamente.
   function invalidateAfterTagChange() {
-    qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+    void refreshInboxLists(qc);
     qc.invalidateQueries({ queryKey: ["contact-detail"] });
     // Pipeline v2 — match por prefixo: board é
     // ["pipeline-board", pipelineId, status] e o detalhe é

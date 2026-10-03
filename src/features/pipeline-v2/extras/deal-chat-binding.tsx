@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { toast } from "sonner";
 import { IconMessageCirclePlus } from "@tabler/icons-react";
 
@@ -91,7 +92,7 @@ export function useDealChatBinding(params: {
     onSuccess: (conv, cid) => {
       qc.invalidateQueries({ queryKey: ["contact", cid] });
       qc.invalidateQueries({ queryKey: ["conversation-timeline", conv.id] });
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      void refreshInboxLists(qc);
       if (ensureTargetRef.current !== cid) return;
       setEnsured({ contactId: cid, id: conv.id });
     },

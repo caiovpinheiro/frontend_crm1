@@ -11,6 +11,7 @@
 
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateQueryKey } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { toast } from "sonner";
 import {
   IconCheck,
@@ -106,7 +107,7 @@ export function InlineFieldEditor({
       onSaved?.(draft);
       if (invalidateKeys) {
         for (const key of invalidateKeys) {
-          qc.invalidateQueries({ queryKey: key });
+          invalidateQueryKey(qc, key);
         }
       }
       setEditing(false);
@@ -230,7 +231,7 @@ export function InlineFieldEditor({
           onSaved?.(v);
           if (invalidateKeys) {
             for (const key of invalidateKeys) {
-              qc.invalidateQueries({ queryKey: key });
+              invalidateQueryKey(qc, key);
             }
           }
           setEditing(false);
@@ -269,7 +270,7 @@ export function InlineFieldEditor({
                   onSaved?.(opt);
                   if (invalidateKeys) {
                     for (const key of invalidateKeys) {
-                      qc.invalidateQueries({ queryKey: key });
+                      invalidateQueryKey(qc, key);
                     }
                   }
                   setEditing(false);
