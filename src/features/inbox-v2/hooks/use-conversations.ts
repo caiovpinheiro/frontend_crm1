@@ -198,6 +198,7 @@ async function listConversationsTaggedByTab(args: {
   page: number;
   /** Ausente na 1ª página. */
   cursors?: InboxTabsCursor;
+  signal?: AbortSignal;
 }): Promise<InboxListPage> {
   const fetched = await Promise.all(
     args.tabs.map(async (tab) => {
@@ -207,13 +208,16 @@ async function listConversationsTaggedByTab(args: {
         return { tab, res: null, requestedPage: null };
       }
       const next = state?.next ?? { page: args.cursors ? args.page : 1 };
-      const res = await listConversations({
-        tab,
-        ...args.filters,
-        search: args.search,
-        perPage: PAGE_SIZE,
-        ...("cursor" in next ? { cursor: next.cursor } : { page: next.page }),
-      });
+      const res = await listConversations(
+        {
+          tab,
+          ...args.filters,
+          search: args.search,
+          perPage: PAGE_SIZE,
+          ...("cursor" in next ? { cursor: next.cursor } : { page: next.page }),
+        },
+        args.signal,
+      );
       return { tab, res, requestedPage: "page" in next ? next.page : null };
     }),
   );
@@ -320,7 +324,14 @@ export function fetchInboxConversationsPage(args: {
   filters: InboxFilters;
   search: string;
   pageParam: unknown;
+  /**
+   * `signal` do `queryFn`: refetch cancelado (abrir conversa, trocar de
+   * aba/filtro) aborta o GET em voo e o TanStack não segue para as páginas
+   * seguintes — sem consumir o signal a cadeia inteira continuava.
+   */
+  signal?: AbortSignal;
 }): Promise<InboxListPage> {
+  const signal = args.signal;
   const parallelTabs = tabsForParallelFetch(args.tab);
   if (parallelTabs) {
     const param = args.pageParam;
@@ -340,6 +351,7 @@ export function fetchInboxConversationsPage(args: {
       filters: args.filters,
       search: args.search,
       page,
+      signal,
       // `page` numérico > 1 sem cursores = cache de antes desta versão:
       // todas as filas por página, como era.
       cursors:
@@ -358,17 +370,20 @@ export function fetchInboxConversationsPage(args: {
     perPage: PAGE_SIZE,
   };
   if (typeof args.pageParam === "string" && args.pageParam.length > 0) {
-    return listConversations({ ...base, cursor: args.pageParam });
+    return listConversations({ ...base, cursor: args.pageParam }, signal);
   }
   const param = args.pageParam;
   if (param && typeof param === "object" && "cursor" in param) {
     const { cursor, perPage } = param as { cursor: string; perPage: number };
-    return listConversations({ ...base, perPage, cursor });
+    return listConversations({ ...base, perPage, cursor }, signal);
   }
-  return listConversations({
-    ...base,
-    page: typeof args.pageParam === "number" ? args.pageParam : 1,
-  });
+  return listConversations(
+    {
+      ...base,
+      page: typeof args.pageParam === "number" ? args.pageParam : 1,
+    },
+    signal,
+  );
 }
 
 const NO_TIERS: ReadonlyMap<string, number> = new Map();
@@ -421,14 +436,14 @@ export function prefetchInboxWarmCache(
   return Promise.all([
     queryClient.prefetchInfiniteQuery({
       queryKey: [INBOX_CONVERSATIONS_QUERY_PREFIX, tabKey, filters, search],
-      queryFn: ({ pageParam }) =>
-        fetchInboxConversationsPage({ tab, filters, search, pageParam }),
+      queryFn: ({ pageParam, signal }) =>
+        fetchInboxConversationsPage({ tab, filters, search, pageParam, signal }),
       initialPageParam: 1 as InboxPageParam,
       staleTime: 60_000,
     }),
     queryClient.prefetchQuery({
       queryKey: ["conversations", "tab-counts", tabCountsFilterKey(filters), null],
-      queryFn: () => fetchTabCounts(filters, null),
+      queryFn: ({ signal }) => fetchTabCounts(filters, null, signal),
       staleTime: 60_000,
     }),
   ]);
@@ -454,12 +469,13 @@ export function useConversations(params: {
   const parallelTabs = tabsForParallelFetch(params.tab);
   const query = useInfiniteQuery<InboxListPage>({
     queryKey: [INBOX_CONVERSATIONS_QUERY_PREFIX, tabKey, params.filters, params.search],
-    queryFn: async ({ pageParam }) => ({
+    queryFn: async ({ pageParam, signal }) => ({
       ...(await fetchInboxConversationsPage({
         tab: params.tab,
         filters: params.filters,
         search: params.search,
         pageParam,
+        signal,
       })),
       receivedAt: Date.now(),
     }),
@@ -642,7 +658,7 @@ export function useTabCounts(
   const filterKey = filters ? tabCountsFilterKey(filters) : null;
   return useQuery<TabCounts>({
     queryKey: ["conversations", "tab-counts", filterKey, searchKey],
-    queryFn: () => fetchTabCounts(filters, searchKey),
+    queryFn: ({ signal }) => fetchTabCounts(filters, searchKey, signal),
     // Sem timer. Badges ±1 no SSE; GET `?counts=1` só em troca de
     // aba/filtro/busca, bulk, refresh explícito ou reconnect com gap.
     refetchInterval: false,
