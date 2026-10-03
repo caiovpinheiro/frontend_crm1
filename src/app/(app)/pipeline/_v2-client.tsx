@@ -75,13 +75,9 @@ import { pageActionsMenuTriggerClass } from "@/components/crm/page-toolbar";
 import { avatarInitials } from "@/features/inbox-v2/adapters";
 import { useContactSidebar } from "@/features/inbox-v2/hooks";
 import {
-  useBoard,
-  useBoardFiltered,
-  useBoardLoadMore,
   useStableBoardStages,
-  BOARD_PAGE_SIZE,
-  BOARD_LOAD_MORE_PAGE_SIZE,
   useDealDetail,
+  useKanbanBoard,
   useEntityViewers,
   useMoveDeal,
   usePipelineRealtime,
@@ -145,7 +141,6 @@ import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanba
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
   isEmptyFilters,
-  hasServerSideFilters,
   type AdvancedDealFilters,
 } from "@/components/pipeline/kanban-filters/types";
 
@@ -259,21 +254,6 @@ export default function KanbanV2ClientPage({
   // URL `?pipeline=<number>` + LS interno; nunca CUID/slug na query.
   const { pipelineId, setPipelineId } = usePipelineUrlSync(pipelines);
 
-  // Board aceita number público (`?pipeline=8`) — não espera a lista
-  // resolver o CUID. Quando o funil selecionado tem `number`, a key
-  // permanece o mesmo dígito e não refetcha.
-  const boardLookupId = useMemo(() => {
-    const selectedNumber = pipelines?.find((p) => p.id === pipelineId)?.number;
-    if (typeof selectedNumber === "number" && Number.isFinite(selectedNumber)) {
-      return String(selectedNumber);
-    }
-    if (typeof window !== "undefined") {
-      const urlKey = new URL(window.location.href).searchParams.get("pipeline");
-      if (urlKey && /^\d+$/.test(urlKey)) return urlKey;
-    }
-    return pipelineId;
-  }, [pipelines, pipelineId]);
-
   const boardSort = useMemo<BoardSortParam | undefined>(() => {
     if (sortKey === "created_newest") return { field: "createdAt", direction: "desc" };
     if (sortKey === "created_oldest") return { field: "createdAt", direction: "asc" };
@@ -303,35 +283,14 @@ export default function KanbanV2ClientPage({
     return f;
   }, [filters, debouncedSearch]);
 
-  const hasServerBoard = hasServerSideFilters(mergedFilters);
-
-  // "Carregar mais" por coluna. Com cursor (etapa com `nextCursor`) os
-  // próximos cards são anexados ao cache, sem refazer o board; sem cursor
-  // (backend antigo) soma extras em `legacyOffsets` e o board volta a vir
-  // do POST /board com offset — ver `useBoardLoadMore`. Usa o MESMO id do
-  // `useBoard` (`boardLookupId`): a query é localizada pela chave.
-  const boardLoadMore = useBoardLoadMore({
-    pipelineId: boardLookupId,
+  // Board paginado, filtrado (POST) e "carregar mais" por coluna — todos
+  // pela chave do CUID do funil (ver `useKanbanBoard`).
+  const { hasServerBoard, boardLoadMore, boardNormal, boardFiltered } = useKanbanBoard({
+    pipelineId,
     status,
     sort: boardSort,
-    pageSize: BOARD_LOAD_MORE_PAGE_SIZE,
-    firstPageSize: BOARD_PAGE_SIZE,
-  });
-
-  const boardNormal = useBoard({
-    pipelineId: boardLookupId,
-    status,
-    sort: boardSort,
-    enabled: canFetch && !hasServerBoard,
-    perStage: BOARD_PAGE_SIZE,
-    offsetByStage: boardLoadMore.legacyOffsets,
-  });
-  const boardFiltered = useBoardFiltered({
-    pipelineId: boardLookupId,
-    status,
     filters: mergedFilters,
-    sort: boardSort,
-    enabled: canFetch && hasServerBoard,
+    enabled: canFetch,
   });
   const board = hasServerBoard ? boardFiltered.data ?? [] : boardNormal.data ?? [];
   // Board + etapas fora do filtro (GET /api/pipelines): com filtro de etapa o
@@ -1043,12 +1002,12 @@ export default function KanbanV2ClientPage({
   // spinner (query idle/`refetchOnMount: false` não tem isError).
   const pipelinesPending =
     sessionStatus === "loading" ||
-    (canFetch && !boardLookupId && !pipelinesEmpty && !pipelinesQuery.isError);
+    (canFetch && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
   const pipelinesStuck = useStuckTimeout(pipelinesPending);
   const waitingForPipeline = pipelinesPending && !pipelinesStuck;
 
   const boardPending =
-    !!boardLookupId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
+    !!pipelineId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
   const boardStuck = useStuckTimeout(boardPending);
   const waitingForBoard = boardPending && !boardStuck;
 
@@ -1059,10 +1018,10 @@ export default function KanbanV2ClientPage({
     !boardQuery.isError;
 
   useLayoutEffect(() => {
-    if (!boardLookupId || !canFetch) return;
+    if (!pipelineId || !canFetch) return;
     if (boardIdleUnfetched) void boardQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardLookupId, canFetch, boardIdleUnfetched]);
+  }, [pipelineId, canFetch, boardIdleUnfetched]);
 
   function handleDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
