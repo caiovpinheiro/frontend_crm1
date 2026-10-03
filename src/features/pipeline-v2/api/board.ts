@@ -82,6 +82,7 @@ export async function getBoard(
   status: StatusFilter = "OPEN",
   sort?: BoardSortParam,
   perStage?: number,
+  signal?: AbortSignal,
 ): Promise<BoardStageDto[]> {
   const params = new URLSearchParams();
   if (status !== "OPEN") params.set("status", status);
@@ -91,7 +92,10 @@ export async function getBoard(
   }
   if (perStage) params.set("perStage", String(perStage));
   const q = params.toString();
-  const res = await fetch(apiUrl(`/api/pipelines/${pipelineId}/board${q ? `?${q}` : ""}`));
+  const res = await fetch(
+    apiUrl(`/api/pipelines/${pipelineId}/board${q ? `?${q}` : ""}`),
+    signal ? { signal } : undefined,
+  );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(

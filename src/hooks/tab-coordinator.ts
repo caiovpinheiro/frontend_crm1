@@ -8,7 +8,11 @@
  * Eleição:
  *  - Com Web Locks (`navigator.locks`): lock exclusivo `crm:tabs:<nome>`.
  *    Quem o detém é líder; quando a aba fecha ou trava o browser libera o
- *    lock e a próxima da fila assume na hora (< 2s).
+ *    lock e a próxima da fila assume na hora (< 2s). A líder também emite
+ *    `lead` a cada 5s: uma líder congelada/estrangulada segura o lock sem
+ *    retransmitir nada, então uma seguidora VISÍVEL que fica 15s sem ouvir
+ *    a líder rouba o lock (`steal`) e assume; a antiga, ao saber que
+ *    perdeu o lock, vira seguidora e volta para a fila (N-MA-1).
  *  - Sem Web Locks: a líder emite `lead` a cada 500ms pelo canal; sem
  *    batimento por 1,5s uma seguidora reivindica (`claim`), espera 50–300ms
  *    por um `lead`/`claim` melhor (termo maior, depois menor tabId) e vira
@@ -56,7 +60,7 @@ export interface TabChannelLike {
 export interface TabLocksLike {
   request(
     name: string,
-    options: { mode: "exclusive" },
+    options: { mode: "exclusive"; steal?: boolean; signal?: AbortSignal },
     callback: () => Promise<void>,
   ): Promise<void>;
 }
@@ -72,10 +76,17 @@ export interface TabEnv {
    * bfcache, entra de novo na eleição.
    */
   lifecycle?: (handlers: { hide: () => void; show: () => void }) => () => void;
+  /** Aba visível? Só uma seguidora visível rouba a liderança. Padrão: sim. */
+  isVisible?: () => boolean;
 }
 
 export const FALLBACK_HEARTBEAT_MS = 500;
 export const FALLBACK_TIMEOUT_MS = 1_500;
+/** Batimento da líder no modo Web Locks. */
+export const LEADER_BEAT_MS = 5_000;
+/** Seguidora sem ouvir a líder por este tempo rouba o lock. */
+export const LEADER_STALE_MS = 15_000;
+const LEADER_WATCH_MS = 2_000;
 const CLAIM_WAIT_MIN_MS = 50;
 const CLAIM_WAIT_SPREAD_MS = 250;
 export const STATE_REFRESH_MS = 20_000;
@@ -100,6 +111,13 @@ export class TabCoordinator {
   private destroyed = false;
   private usingLocks = false;
   private releaseLock: (() => void) | null = null;
+  /** Pedido de lock em espera (abortado ao roubar). */
+  private lockAbort: AbortController | null = null;
+  /** Geração do pedido de lock: respostas de pedidos substituídos são ignoradas. */
+  private lockGen = 0;
+  /** Última mensagem da líder (modo Web Locks). */
+  private leaderSeenAt = Date.now();
+  private leaderWatchTimer: ReturnType<typeof setInterval> | null = null;
 
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private timeoutTimer: ReturnType<typeof setTimeout> | null = null;
@@ -181,6 +199,7 @@ export class TabCoordinator {
     if (this.stateSyncTimer) clearTimeout(this.stateSyncTimer);
     this.timeoutTimer = null;
     this.stateSyncTimer = null;
+    this.dropLockRequest();
     this.releaseLock?.();
     this.releaseLock = null;
     this.setLeaderId(null);
@@ -280,6 +299,7 @@ export class TabCoordinator {
     this.timeoutTimer = null;
     this.claimTimer = null;
     this.stateSyncTimer = null;
+    this.dropLockRequest();
     this.releaseLock?.();
     this.releaseLock = null;
     this.channel?.close();
@@ -287,21 +307,70 @@ export class TabCoordinator {
 
   // ── Eleição ───────────────────────────────────────────────────────
 
-  private startLocks(locks: TabLocksLike): void {
+  /** Invalida o pedido de lock atual (e tira da fila o que ainda espera). */
+  private dropLockRequest(): void {
+    this.lockGen += 1;
+    this.lockAbort?.abort();
+    this.lockAbort = null;
+  }
+
+  private startLocks(locks: TabLocksLike, steal = false): void {
+    this.dropLockRequest();
+    const gen = this.lockGen;
+    const abort = steal || typeof AbortController === "undefined" ? null : new AbortController();
+    this.lockAbort = abort;
+    let granted = false;
+    const options: { mode: "exclusive"; steal?: boolean; signal?: AbortSignal } = steal
+      ? { mode: "exclusive", steal: true }
+      : abort
+        ? { mode: "exclusive", signal: abort.signal }
+        : { mode: "exclusive" };
     void locks
-      .request(`crm:tabs:${this.name}`, { mode: "exclusive" }, () => {
-        if (this.destroyed) return Promise.resolve();
+      .request(`crm:tabs:${this.name}`, options, () => {
+        if (this.destroyed || gen !== this.lockGen) return Promise.resolve();
+        granted = true;
+        if (this.lockAbort === abort) this.lockAbort = null;
         this.becomeLeader(this.termValue + 1);
         return new Promise<void>((resolve) => {
           this.releaseLock = resolve;
         });
       })
       .catch(() => {
-        // API indisponível/abortada: cai no protocolo de batimentos.
-        if (this.destroyed || this.roleValue === "leader") return;
+        // Pedido substituído (roubo nosso, suspend, destroy): nada a fazer.
+        if (this.destroyed || gen !== this.lockGen) return;
+        if (granted) {
+          // Outra aba roubou o lock (esta estava congelada/estrangulada):
+          // deixa de ser líder e volta para a fila.
+          if (this.roleValue === "leader") this.loseLeadership();
+          this.startLocks(locks);
+          return;
+        }
+        // API indisponível: cai no protocolo de batimentos.
+        if (this.roleValue === "leader") return;
         this.usingLocks = false;
         this.startFallback();
       });
+  }
+
+  /** Seguidora visível sem ouvir a líder há `LEADER_STALE_MS`: rouba o lock. */
+  private watchLeader(): void {
+    if (this.destroyed || this.suspended || !this.usingLocks || !this.env.locks) return;
+    if (this.roleValue === "leader") return;
+    if (Date.now() - this.leaderSeenAt < LEADER_STALE_MS) return;
+    if (this.env.isVisible && !this.env.isVisible()) return;
+    this.leaderSeenAt = Date.now();
+    this.startLocks(this.env.locks, true);
+  }
+
+  /** O lock foi roubado: seguidora sem líder conhecida (a nova se anuncia). */
+  private loseLeadership(): void {
+    this.roleValue = "follower";
+    this.releaseLock = null;
+    this.stopLeaderDuties();
+    this.setLeaderId(null);
+    this.startFollowerDuties();
+    this.emitRole("follower");
+    this.scheduleStateSync();
   }
 
   private startFallback(): void {
@@ -349,8 +418,11 @@ export class TabCoordinator {
     this.stopFollowerDuties();
     this.setLeaderId(this.tabId);
     this.post({ t: "lead" });
-    if (this.channel && !this.usingLocks) {
-      this.heartbeatTimer = setInterval(() => this.post({ t: "lead" }), FALLBACK_HEARTBEAT_MS);
+    if (this.channel) {
+      this.heartbeatTimer = setInterval(
+        () => this.post({ t: "lead" }),
+        this.usingLocks ? LEADER_BEAT_MS : FALLBACK_HEARTBEAT_MS,
+      );
     }
     if (this.channel) {
       this.sweepTimer = setInterval(() => this.sweepFollowers(), STATE_SWEEP_MS);
@@ -364,6 +436,13 @@ export class TabCoordinator {
     this.roleValue = "follower";
     this.termValue = term;
     this.stopLeaderDuties();
+    // Com locks, uma líder de termo maior só existe se o lock desta foi
+    // roubado: se ainda o segura, solta e volta para a fila.
+    if (this.usingLocks && this.releaseLock && this.env.locks) {
+      this.releaseLock();
+      this.releaseLock = null;
+      this.startLocks(this.env.locks);
+    }
     this.setLeaderId(newLeaderId);
     this.startFollowerDuties();
     if (!this.usingLocks) this.armTimeout();
@@ -393,13 +472,21 @@ export class TabCoordinator {
   }
 
   private startFollowerDuties(): void {
-    if (this.stateRefreshTimer || !this.channel) return;
-    this.stateRefreshTimer = setInterval(() => this.postState(), STATE_REFRESH_MS);
+    if (!this.channel) return;
+    if (!this.stateRefreshTimer) {
+      this.stateRefreshTimer = setInterval(() => this.postState(), STATE_REFRESH_MS);
+    }
+    if (!this.leaderWatchTimer && this.env.locks) {
+      this.leaderSeenAt = Date.now();
+      this.leaderWatchTimer = setInterval(() => this.watchLeader(), LEADER_WATCH_MS);
+    }
   }
 
   private stopFollowerDuties(): void {
     if (this.stateRefreshTimer) clearInterval(this.stateRefreshTimer);
     this.stateRefreshTimer = null;
+    if (this.leaderWatchTimer) clearInterval(this.leaderWatchTimer);
+    this.leaderWatchTimer = null;
   }
 
   private setLeaderId(id: string | null): void {
@@ -441,6 +528,7 @@ export class TabCoordinator {
         // `event`/`status`/`viewers` só valem vindos da líder atual.
         if (msg.term < this.termValue) return;
         if (this.roleValue === "leader") return;
+        this.leaderSeenAt = Date.now();
         break;
     }
     for (const fn of this.messageListeners) {
@@ -478,6 +566,7 @@ export class TabCoordinator {
     if (msg.term < this.termValue) return;
     this.cancelClaim();
     this.termValue = msg.term;
+    this.leaderSeenAt = Date.now();
     const changed = this.leaderIdValue !== msg.from;
     this.setLeaderId(msg.from);
     if (!this.usingLocks) this.armTimeout();
@@ -565,6 +654,8 @@ export function browserTabEnv(): TabEnv {
     createChannel: (name) =>
       hasChannel ? (new BroadcastChannel(name) as unknown as TabChannelLike) : null,
     locks,
+    isVisible: () =>
+      typeof document === "undefined" || document.visibilityState === "visible",
     lifecycle: ({ hide, show }) => {
       if (typeof window === "undefined") return () => {};
       const onShow = (ev: PageTransitionEvent) => {

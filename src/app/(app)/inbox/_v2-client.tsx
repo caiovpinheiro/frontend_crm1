@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -38,12 +38,14 @@ import {
   usePersistentWidth,
 } from "@/components/crm/column-resizer";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { useStableCallback } from "@/hooks/use-stable-callback";
 
 import { toChatContact, toContactAside } from "@/features/inbox-v2/adapters";
 import {
   useConversationFeatures,
   useContactSidebar,
   useInboxRealtime,
+  useInboxSafetyPoll,
   useMessages,
   useInboxSoundMuted,
 } from "@/features/inbox-v2/hooks";
@@ -63,7 +65,6 @@ import { useInboxSelection } from "@/features/inbox-v2/hooks/use-inbox-selection
 import { useInboxVisibleTabs } from "@/features/inbox-v2/hooks/use-inbox-visible-tabs";
 import {
   AssigneePopover,
-  Composer,
   ConversationActionsMenu,
   ConversationTimelineTab,
   InboxFilterButton,
@@ -98,6 +99,7 @@ import {
 import { ActivitiesPanel } from "@/components/pipeline/deal-workspace/panels/activities";
 import { DealNotesTab } from "@/features/pipeline-v2/extras";
 
+import { InboxComposer } from "./_components/inbox-composer";
 import { InboxContactAside } from "./_components/inbox-contact-aside";
 import {
   InboxBulkActionsBar,
@@ -113,6 +115,9 @@ import { InboxShell } from "./_components/inbox-shell";
  * com hrefs novos). Sem nada passado, o componente mantém o comportamento
  * legado: renderiza o `<NavRail />` antigo internamente.
  */
+/** Lista vazia estável (sem conversa carregada): não refaz as bolhas a cada render. */
+const NO_MESSAGES: never[] = [];
+
 interface InboxV2ClientPageProps {
   /** Override do trilho de navegação (1ª coluna). */
   navRail?: React.ReactNode;
@@ -182,7 +187,8 @@ export default function InboxV2ClientPage({
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
+  // Rascunho do composer vive no `InboxComposer` (FE-1): digitar não
+  // re-renderiza a página.
   const [templateOpen, setTemplateOpen] = useState(false);
   // "Buscar na conversa" do kebab abre a busca inline do ChatArea.
   const searchControlRef = useRef<{ open: () => void } | null>(null);
@@ -275,7 +281,7 @@ export default function InboxV2ClientPage({
     isError: messagesFailed,
     error: messagesErrorObj,
   } = useMessages(conversationApiId);
-  const messages = messagesData?.messages ?? [];
+  const messages = messagesData?.messages ?? NO_MESSAGES;
   const sessionInfo = messagesData?.session;
 
   const { data: contactDetail } = useContactSidebar(activeContactId);
@@ -288,6 +294,8 @@ export default function InboxV2ClientPage({
     currentUserId: session?.user?.id ?? null,
     enabled: canFetchInbox && tabHydrated && filtersHydrated,
   });
+  // SSE fora (ou parado) com a aba visível: lista + contadores a cada 90s.
+  useInboxSafetyPoll(canFetchInbox && tabHydrated && filtersHydrated);
 
   const handleReopenNewConversation = useInboxConversationReopen(setActiveId, setTab);
 
@@ -382,13 +390,14 @@ export default function InboxV2ClientPage({
     activeRow,
   });
 
-  function handleSelect(id: string) {
+  // Identidade estável: vai para cada linha `memo` da coluna.
+  const handleSelect = useStableCallback((id: string) => {
     if (pinnedFromSearch && pinnedFromSearch.id !== id) setPinnedFromSearch(null);
     if (id === activeId) return;
     setActiveId(id);
     markRead.mutate(id);
     setReplyTo(null);
-  }
+  });
 
   function handlePickSearchConversation(row: ConversationListRow) {
     setPinnedFromSearch(row);
@@ -410,6 +419,7 @@ export default function InboxV2ClientPage({
     setMobilePaneTab("chat");
   }
 
+  // O `InboxComposer` limpa o rascunho quando isto resolve.
   async function handleSend(value: string) {
     if (!conversationApiId) return;
     try {
@@ -424,7 +434,6 @@ export default function InboxV2ClientPage({
           ? { channelId: selectedChannelId }
           : {}),
       });
-      setDraft("");
       setReplyTo(null);
       // Conversa estava encerrada e o envio reabriu como NOVO ticket:
       // troca o chat ativo para o id novo (regra "reabrir = novo id").
@@ -447,15 +456,14 @@ export default function InboxV2ClientPage({
     }
   }
 
-  function handleSendNote(value: string) {
+  async function handleSendNote(value: string) {
     if (!conversationApiId) return;
-    sendMessage.mutate(
-      { content: value, asNote: true },
-      {
-        onSuccess: () => setDraft(""),
-        onError: (err) => toast.error(err.message || "Falha ao salvar nota"),
-      },
-    );
+    try {
+      await sendMessage.mutateAsync({ content: value, asNote: true });
+    } catch (err) {
+      toast.error((err as Error)?.message || "Falha ao salvar nota");
+      throw err;
+    }
   }
 
   // ── Adapters → tipos do v0 ─────────────────────────────────────
@@ -536,6 +544,46 @@ export default function InboxV2ClientPage({
   // Aviso sonoro por mensagem recebida — o botão só (des)liga a preferência
   // (persistida no localStorage). O ping em si toca no useInboxRealtime.
   const [soundMuted, setSoundMuted] = useInboxSoundMuted();
+
+  // Slots do card (responsável) por conversa, reaproveitados enquanto os
+  // dados do slot não mudam: com o slot recriado a cada render, o `memo`
+  // das linhas da coluna não segurava nada.
+  const cardSlotCache = useRef(
+    new Map<string, { key: string; slots: { assigneeSlot: React.ReactNode } }>(),
+  );
+  const renderCardSlots = useCallback(
+    (c: (typeof conversationCards)[number]) => {
+      const key = [c.assignee ?? "", c.assigneeId ?? "", c.assigneeAvatarUrl ?? ""].join("|");
+      const hit = cardSlotCache.current.get(c.id);
+      if (hit && hit.key === key) return hit.slots;
+      const slots = {
+        assigneeSlot: (
+          <RequirePermission
+            permission="conversation:reassign_others"
+            fallback={
+              <AssigneePopover
+                conversationId={c.id}
+                currentAssigneeName={c.assignee}
+                currentAssigneeId={c.assigneeId ?? null}
+                currentAssigneeImageUrl={c.assigneeAvatarUrl ?? null}
+                disabled
+              />
+            }
+          >
+            <AssigneePopover
+              conversationId={c.id}
+              currentAssigneeName={c.assignee}
+              currentAssigneeId={c.assigneeId ?? null}
+              currentAssigneeImageUrl={c.assigneeAvatarUrl ?? null}
+            />
+          </RequirePermission>
+        ),
+      };
+      cardSlotCache.current.set(c.id, { key, slots });
+      return slots;
+    },
+    [],
+  );
 
   const conversationColumnNode = (
     <ConversationColumn
@@ -644,29 +692,7 @@ export default function InboxV2ClientPage({
       isLoadingMore={isFetchingNextPage}
       isLoading={listBootstrapping}
       className="h-full min-h-0"
-      renderCardSlots={(c) => ({
-        assigneeSlot: (
-          <RequirePermission
-            permission="conversation:reassign_others"
-            fallback={
-              <AssigneePopover
-                conversationId={c.id}
-                currentAssigneeName={c.assignee}
-                currentAssigneeId={c.assigneeId ?? null}
-                currentAssigneeImageUrl={c.assigneeAvatarUrl ?? null}
-                disabled
-              />
-            }
-          >
-            <AssigneePopover
-              conversationId={c.id}
-              currentAssigneeName={c.assignee}
-              currentAssigneeId={c.assigneeId ?? null}
-              currentAssigneeImageUrl={c.assigneeAvatarUrl ?? null}
-            />
-          </RequirePermission>
-        ),
-      })}
+      renderCardSlots={renderCardSlots}
     />
   );
 
@@ -811,10 +837,8 @@ export default function InboxV2ClientPage({
           </>
         }
         composerSlot={
-          <Composer
+          <InboxComposer
             conversationId={conversationApiId}
-            value={draft}
-            onChange={setDraft}
             onSend={handleSend}
             onSendNote={handleSendNote}
             sending={sendMessage.isPending}

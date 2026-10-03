@@ -59,7 +59,7 @@ class FakeChannel implements TabChannelLike {
     hub.channels.add(this);
   }
   postMessage(message: unknown) {
-    if (this.closed) return;
+    if (this.closed || this.hub.tabs.get(this.tabId)?.frozen) return;
     this.hub.deliver(this, message);
   }
   close() {
@@ -72,7 +72,10 @@ type LockWaiter = {
   tabId: string;
   cb: () => Promise<void>;
   resolve: () => void;
+  reject: (err: unknown) => void;
 };
+
+const abortError = (msg: string) => Object.assign(new Error(msg), { name: "AbortError" });
 
 class FakeLockManager {
   private readonly held = new Map<string, LockWaiter>();
@@ -80,11 +83,31 @@ class FakeLockManager {
 
   forTab(tabId: string): TabLocksLike {
     return {
-      request: (name, _opts, cb) =>
-        new Promise<void>((resolve) => {
-          const waiter: LockWaiter = { tabId, cb, resolve };
+      request: (name, opts, cb) =>
+        new Promise<void>((resolve, reject) => {
+          const waiter: LockWaiter = { tabId, cb, resolve, reject };
           if (!this.queue.has(name)) this.queue.set(name, []);
-          this.queue.get(name)!.push(waiter);
+          const queue = this.queue.get(name)!;
+          if (opts.signal) {
+            if (opts.signal.aborted) return reject(abortError("aborted"));
+            opts.signal.addEventListener("abort", () => {
+              const i = queue.indexOf(waiter);
+              if (i < 0) return; // já concedido: o abort não solta o lock
+              queue.splice(i, 1);
+              reject(abortError("aborted"));
+            });
+          }
+          if (opts.steal) {
+            // Como no browser: quem segurava perde o lock (promise rejeitada).
+            const current = this.held.get(name);
+            if (current) {
+              this.held.delete(name);
+              current.reject(abortError("stolen"));
+            }
+            queue.unshift(waiter);
+          } else {
+            queue.push(waiter);
+          }
           this.grantNext(name);
         }),
     };
@@ -140,7 +163,7 @@ export class FakeTabHub {
     for (const ch of [...this.channels]) {
       if (ch === from || ch.name !== from.name || ch.closed) continue;
       setTimeout(() => {
-        if (!ch.closed) ch.onmessage?.({ data });
+        if (!ch.closed && !this.tabs.get(ch.tabId)?.frozen) ch.onmessage?.({ data });
       }, 0);
     }
   }
@@ -170,6 +193,12 @@ export class FakeTab {
   readonly eventSources: FakeEventSource[] = [];
   readonly channels: FakeChannel[] = [];
   hidden = false;
+  /**
+   * Aba congelada/estrangulada: não manda nem recebe nada pelo canal (o
+   * lock continua com ela). Os timers dela seguem no relógio falso, mas o
+   * que postam não chega a ninguém.
+   */
+  frozen = false;
   private lifecycle: { hide: () => void; show: () => void } | null = null;
   private readonly visibilityHandlers = new Set<() => void>();
   private readonly userActiveHandlers = new Set<() => void>();
@@ -191,6 +220,7 @@ export class FakeTab {
       },
       locks: this.locksEnabled ? this.hub.locks.forTab(this.id) : null,
       random: () => 0.5,
+      isVisible: () => !this.hidden,
       lifecycle: (handlers) => {
         this.lifecycle = handlers;
         return () => {

@@ -16,6 +16,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import {
   SystemPresenceIndicator,
@@ -143,7 +144,7 @@ export function AssigneePopover({
             qc.invalidateQueries({
               queryKey: ["conversation-timeline", conversationId],
             });
-            qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+            void refreshInboxLists(qc);
           }
         },
       },

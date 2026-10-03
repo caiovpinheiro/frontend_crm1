@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import type { Message as BubbleMessage } from "@/components/crm/message-bubble";
 import { usePinDurationDialog } from "@/components/crm/pin-duration-dialog";
+import { useStableCallback } from "@/hooks/use-stable-callback";
 
 import {
   useBulkConversationAction,
@@ -117,6 +118,14 @@ export function useInboxMessageActions(
     setReplyTo({ id: message.id, preview, senderName });
   }
 
+  // Identidade estável: os handlers vão para cada `MessageBubble` (memo);
+  // recriados a cada render da página, derrubavam o memo de todas as bolhas.
+  const onReactMessage = useStableCallback(handleReactMessage);
+  const onPinMessage = useStableCallback(handlePinMessage);
+  const onUnpinMessage = useStableCallback(handleUnpinMessage);
+  const onFavoriteMessage = useStableCallback(handleFavoriteMessage);
+  const onReplyMessage = useStableCallback(handleReplyMessage);
+
   return {
     sendMessage,
     markRead,
@@ -126,10 +135,10 @@ export function useInboxMessageActions(
     setFavoritesOpen,
     replyTo,
     setReplyTo,
-    handleReactMessage,
-    handlePinMessage,
-    handleUnpinMessage,
-    handleFavoriteMessage,
-    handleReplyMessage,
+    handleReactMessage: onReactMessage,
+    handlePinMessage: onPinMessage,
+    handleUnpinMessage: onUnpinMessage,
+    handleFavoriteMessage: onFavoriteMessage,
+    handleReplyMessage: onReplyMessage,
   };
 }

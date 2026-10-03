@@ -15,6 +15,7 @@ import {
 } from "./use-messages";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { scheduledMessagesKey } from "./use-scheduled-messages";
+import { refreshInboxLists, scheduleInboxListRefresh } from "./inbox-list-refresh";
 import {
   conversationUpdatedLikelyOnTabs,
   inboxQueueTabFor,
@@ -369,9 +370,9 @@ function removeConversationFromInboxCaches(
   if (fromTab) patchInboxTabCounts(qc, fromTab, null);
 }
 
-/** Acima disso, 1 refetch das queries que já listam os ids é mais barato
- *  que N× GET /:id (ex.: assign em massa). */
-const CARD_SYNC_BURST_LIMIT = 8;
+/** Teto do `GET ?ids=` (`getConversationsByIds`). Acima disso, refresh
+ *  (1ª página) das listas que já mostram os ids (ex.: assign em massa). */
+const CARD_SYNC_BURST_LIMIT = 80;
 
 /** Burst de conversation_updated: não re-GET o mesmo id após 404. */
 const CONVERSATION_404_TTL_MS = 60_000;
@@ -785,10 +786,10 @@ function invalidateInboxQueriesTouching(
     );
     if (!hit) continue;
     anyHit = true;
-    qc.invalidateQueries({ queryKey, exact: true });
+    void refreshInboxLists(qc, { queryKey, exact: true });
   }
   if (!anyHit) {
-    qc.invalidateQueries({ queryKey: ["inbox-conversations", "entrada"] });
+    void refreshInboxLists(qc, { queryKey: ["inbox-conversations", "entrada"] });
   }
 }
 
@@ -932,7 +933,9 @@ function applyConversationRowToInboxCaches(
     }
 
     if (!found && belongs) {
-      qc.invalidateQueries({ queryKey, exact: true });
+      // Filtro opaco: não dá para saber onde o card entra. 1ª página da
+      // lista, com debounce (uma rajada de eventos = 1 GET), não todas.
+      scheduleInboxListRefresh(qc, queryKey);
     }
   }
 
@@ -972,10 +975,9 @@ export function useInboxRealtime(options: {
     let alive = true;
 
     function refetchInboxAfterSseGap() {
-      qc.invalidateQueries({
-        queryKey: ["inbox-conversations"],
-        refetchType: "active",
-      });
+      // Só a 1ª página das listas montadas — refazer todas as páginas
+      // (× K filas) em cada reconexão era a rajada do N-FE-1.
+      void refreshInboxLists(qc);
       qc.invalidateQueries({
         queryKey: ["conversations", "tab-counts"],
         refetchType: "active",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
   getBoard,
@@ -58,6 +58,10 @@ export function usePipelines(enabled = true) {
 }
 
 /**
+ * `pipelineId` é SEMPRE o CUID do funil — o escopo do SSE (`pipelineIds`),
+ * as mutações e o "Mover" localizam o board por ele. O número público
+ * (`?pipeline=8`) é resolvido para o CUID antes (`usePipelineUrlSync`).
+ *
  * Quando `sort` é passado, anexamos o discriminador `field:direction`
  * à query key pra que cada modo tenha cache próprio (Mais recentes
  * ↔ Mais antigos não invalidam um ao outro). Quando OMITIDO, voltamos
@@ -74,6 +78,51 @@ export function boardKey(
   const base = ["pipeline-board", pipelineId ?? "__none__", status] as const;
   if (!sort) return base;
   return [...base, `${sort.field}:${sort.direction}`] as const;
+}
+
+/**
+ * Chaves de board em cache — paginado (`pipeline-board`), busca e filtrado.
+ * Todas têm o CUID do funil em `[1]`.
+ */
+export function isBoardCacheKey(key: readonly unknown[]): boolean {
+  const root = key[0];
+  return (
+    root === "pipeline-board" ||
+    root === "pipeline-board-search" ||
+    root === "pipeline-board-filtered"
+  );
+}
+
+/**
+ * Predicate dos boards de um funil (qualquer variante, status e ordenação).
+ * Sem `pipelineId`, casa todos os boards.
+ */
+export function boardsOfPipeline(pipelineId: string | null | undefined) {
+  return (query: { queryKey: readonly unknown[] }) =>
+    isBoardCacheKey(query.queryKey) && (!pipelineId || query.queryKey[1] === pipelineId);
+}
+
+/**
+ * Etapa `stageId` num board em cache do funil — prefere o paginado do
+ * `status` pedido, depois qualquer variante/ordenação.
+ */
+export function findCachedBoardStage(
+  qc: QueryClient,
+  pipelineId: string | null,
+  status: StatusFilter,
+  stageId: string,
+): BoardStageDto | undefined {
+  const boards = qc.getQueriesData<BoardStageDto[]>({ predicate: boardsOfPipeline(pipelineId) });
+  const ranked = [...boards].sort(([a], [b]) => rank(a) - rank(b));
+  for (const [, data] of ranked) {
+    const hit = Array.isArray(data) ? data.find((s) => s.id === stageId) : undefined;
+    if (hit) return hit;
+  }
+  return undefined;
+
+  function rank(key: readonly unknown[]): number {
+    return (key[0] === "pipeline-board" ? 0 : 2) + (key[2] === status ? 0 : 1);
+  }
 }
 
 /** Board (stages + deals) do pipeline ativo. */
@@ -115,7 +164,7 @@ export function useBoard(params: {
   const pagingKey = boardPagingKey(queryKey);
   return useQuery<BoardStageDto[]>({
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const pid = params.pipelineId ?? "pl-1";
       const offsets = offsetByStageRef.current;
       const limit = perStageRef.current;
@@ -126,16 +175,20 @@ export function useBoard(params: {
             sort,
             perStage: limit,
             offsetByStage: offsets,
+            signal,
           })
-        : getBoard(pid, status, sort, limit));
+        : getBoard(pid, status, sort, limit, signal));
       // Colunas expandidas por cursor: a 1ª página acabou de voltar sem
       // elas. Lido DEPOIS do board para pegar um "carregar mais" que tenha
       // terminado durante o fetch.
       return reloadBoardExpansions({
         base,
         loaded: getBoardColumnsLoaded(qc, pagingKey),
-        fetchColumns: (columns) => getBoardColumns(pid, { status, sort, columns }),
-        onFailure: () => clearBoardPaging(qc, pagingKey),
+        fetchColumns: (columns) => getBoardColumns(pid, { status, sort, columns, signal }),
+        // Refetch cancelado não é falha: as colunas expandidas continuam.
+        onFailure: () => {
+          if (!signal.aborted) clearBoardPaging(qc, pagingKey);
+        },
       });
     },
     enabled: preview ? true : ((params.enabled ?? true) && !!params.pipelineId),

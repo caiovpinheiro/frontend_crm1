@@ -14,6 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { toast } from "sonner";
 import {
   IconAlertTriangle,
@@ -314,7 +315,7 @@ export function TemplateComposePanel({
       if (data.reopenedConversationId) {
         qc.invalidateQueries({ queryKey: messagesKey(data.reopenedConversationId) });
         emitConversationReopened(data.reopenedConversationId);
-        qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+        void refreshInboxLists(qc);
         qc.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       } else {
         const headerLine = renderedHeader.trim();

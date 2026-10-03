@@ -102,8 +102,9 @@ export async function findCurrentInboxConversationForContact(
 /** GET /api/conversations?perPage&tab&ownerId&channel&stageId&tagIds&sortBy&sortOrder&search */
 export async function listConversations(
   params: ListConversationsParams,
+  signal?: AbortSignal,
 ): Promise<ConversationListResponse> {
-  const res = await fetch(apiUrl(buildConversationsUrl(params)));
+  const res = await fetch(apiUrl(buildConversationsUrl(params)), signal ? { signal } : undefined);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
@@ -138,12 +139,16 @@ function normalizeTabCounts(raw: unknown): TabCounts {
 export async function fetchTabCounts(
   filters?: InboxFilters | null,
   search?: string | null,
+  signal?: AbortSignal,
 ): Promise<TabCounts> {
   const q = new URLSearchParams({ counts: "1" });
   if (filters) appendInboxServerFilters(q, filters);
   const s = search?.trim();
   if (s) q.set("search", s);
-  const res = await fetch(apiUrl(`/api/conversations?${q.toString()}`));
+  const res = await fetch(
+    apiUrl(`/api/conversations?${q.toString()}`),
+    signal ? { signal } : undefined,
+  );
   if (!res.ok) {
     // Não gravar zeros no cache — um GET abortado/401 na navegação
     // zerava os badges com a lista ainda visível (keepPreviousData).
