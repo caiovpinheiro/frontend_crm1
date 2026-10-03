@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { InboxTab } from "../api";
 
@@ -19,13 +19,14 @@ export function useInboxSelection(tab: InboxTab[]) {
   // mesmo `where` da lista e processa no leads-worker.
   const [selectAllFilter, setSelectAllFilter] = useState(false);
 
-  function exitSelectionMode() {
+  const exitSelectionMode = useCallback(() => {
     setSelectionMode(false);
     setSelectedIds(new Set());
     setSelectAllFilter(false);
-  }
+  }, []);
 
-  function toggleSelectOne(id: string) {
+  // Identidade estável: vai para cada linha `memo` da coluna.
+  const toggleSelectOne = useCallback((id: string) => {
     // Qualquer toggle manual sai do modo "todas do filtro".
     setSelectAllFilter(false);
     setSelectedIds((prev) => {
@@ -34,7 +35,7 @@ export function useInboxSelection(tab: InboxTab[]) {
       else next.add(id);
       return next;
     });
-  }
+  }, []);
 
   // Trocar de aba muda o conjunto de conversas visíveis — limpa a seleção
   // pra não arrastar ids que já não aparecem na lista atual.
