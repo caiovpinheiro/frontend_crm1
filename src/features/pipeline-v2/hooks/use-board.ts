@@ -164,7 +164,7 @@ export function useBoard(params: {
   const pagingKey = boardPagingKey(queryKey);
   return useQuery<BoardStageDto[]>({
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const pid = params.pipelineId ?? "pl-1";
       const offsets = offsetByStageRef.current;
       const limit = perStageRef.current;
@@ -175,16 +175,20 @@ export function useBoard(params: {
             sort,
             perStage: limit,
             offsetByStage: offsets,
+            signal,
           })
-        : getBoard(pid, status, sort, limit));
+        : getBoard(pid, status, sort, limit, signal));
       // Colunas expandidas por cursor: a 1ª página acabou de voltar sem
       // elas. Lido DEPOIS do board para pegar um "carregar mais" que tenha
       // terminado durante o fetch.
       return reloadBoardExpansions({
         base,
         loaded: getBoardColumnsLoaded(qc, pagingKey),
-        fetchColumns: (columns) => getBoardColumns(pid, { status, sort, columns }),
-        onFailure: () => clearBoardPaging(qc, pagingKey),
+        fetchColumns: (columns) => getBoardColumns(pid, { status, sort, columns, signal }),
+        // Refetch cancelado não é falha: as colunas expandidas continuam.
+        onFailure: () => {
+          if (!signal.aborted) clearBoardPaging(qc, pagingKey);
+        },
       });
     },
     enabled: preview ? true : ((params.enabled ?? true) && !!params.pipelineId),
