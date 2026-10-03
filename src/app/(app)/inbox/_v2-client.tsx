@@ -44,6 +44,7 @@ import {
   useConversationFeatures,
   useContactSidebar,
   useInboxRealtime,
+  useInboxSafetyPoll,
   useMessages,
   useInboxSoundMuted,
 } from "@/features/inbox-v2/hooks";
@@ -288,6 +289,8 @@ export default function InboxV2ClientPage({
     currentUserId: session?.user?.id ?? null,
     enabled: canFetchInbox && tabHydrated && filtersHydrated,
   });
+  // SSE fora (ou parado) com a aba visível: lista + contadores a cada 90s.
+  useInboxSafetyPoll(canFetchInbox && tabHydrated && filtersHydrated);
 
   const handleReopenNewConversation = useInboxConversationReopen(setActiveId, setTab);
 
