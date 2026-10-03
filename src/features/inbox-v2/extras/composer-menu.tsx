@@ -15,6 +15,7 @@ import {
   IconPhone,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 import { toast } from "sonner";
 import { CallPermissionTemplateDialog } from "@/components/inbox/call-permission-template-dialog";
 import { applyOutboundPreviewToInboxCaches } from "@/features/inbox-v2/hooks/apply-outbound-inbox-card";
@@ -170,7 +171,7 @@ export function ComposerMenu({
         queryClient.invalidateQueries({
           queryKey: messagesKey(j.reopenedConversationId),
         });
-        queryClient.invalidateQueries({ queryKey: ["inbox-conversations"] });
+        void refreshInboxLists(queryClient);
         queryClient.invalidateQueries({ queryKey: ["conversations", "tab-counts"] });
       } else {
         applyOutboundPreviewToInboxCaches(queryClient, conversationId, {

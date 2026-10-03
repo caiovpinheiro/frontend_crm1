@@ -3,6 +3,7 @@
 import { logger } from "@/lib/logger";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { refreshInboxLists } from "./inbox-list-refresh";
 import { useSession } from "next-auth/react";
 
 import {
@@ -403,7 +404,7 @@ export function useForwardMessage(sourceConversationId: string | null) {
       if (sourceConversationId) {
         qc.invalidateQueries({ queryKey: messagesKey(sourceConversationId) });
       }
-      qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      void refreshInboxLists(qc);
     },
   });
 }
