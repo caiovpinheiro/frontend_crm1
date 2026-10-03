@@ -62,9 +62,9 @@ const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
 });
 
 function wrapperFor(qc: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  };
 }
 
 function makeClient() {
