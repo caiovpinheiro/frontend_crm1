@@ -120,7 +120,7 @@ export function DistributionModeToggle() {
   );
 }
 
-/** Liga/desliga o sorteio automático. O passo da automação continua. */
+/** Liga o bloco da automação e a ferramenta do agente. Não sorteia sozinho. */
 export function DistributionEnabledToggle() {
   const settingsQuery = useDistributionSettings();
   const updateSettings = useUpdateDistributionSettings();
@@ -137,8 +137,8 @@ export function DistributionEnabledToggle() {
         </p>
         <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
           {enabled
-            ? "Ligado: o motor atribui consultor nas conversas novas e drena a fila de espera."
-            : "Desligado: o sistema não sorteia sozinho. O passo Executar distribuição da automação, o agente de IA e a redistribuição manual continuam atribuindo."}
+            ? "Ligado: atribui só no bloco Executar distribuição da automação, ou na ferramenta Executar distribuição de um agente de IA que tenha isso ligado. Conversa nova não é sorteada sozinha."
+            : "Desligado: ninguém é atribuído. Ligue para o bloco da automação e a ferramenta do agente funcionarem."}
         </p>
       </div>
       <GlassSwitch
@@ -152,42 +152,6 @@ export function DistributionEnabledToggle() {
                 toast.success(
                   data.enabled ? "Distribuição ligada." : "Distribuição desligada.",
                 ),
-              onError: (e) =>
-                toast.error(
-                  e instanceof Error ? e.message : "Erro ao salvar configuração.",
-                ),
-            },
-          );
-        }}
-      />
-    </div>
-  );
-}
-
-export function AutoOnInboundToggle() {
-  const settingsQuery = useDistributionSettings();
-  const updateSettings = useUpdateDistributionSettings();
-  const autoOnInbound = settingsQuery.data?.autoOnInbound ?? true;
-
-  return (
-    <div className={cn("flex items-center justify-between gap-4 py-3", LIST_CARD_ROW_CLASS)}>
-      <div className="min-w-0">
-        <p className="font-display text-[14px] font-bold text-[var(--text-primary)]">
-          Distribuir cada conversa nova automaticamente
-        </p>
-        <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
-          {autoOnInbound
-            ? "Ligado: toda mensagem inbound sem responsável entra na fila de espera, mesmo sem passo na automação."
-            : "Desligado: só entra na fila quem passar pelo passo Executar distribuição (automação, IA ou redistribuição manual)."}
-        </p>
-      </div>
-      <GlassSwitch
-        checked={autoOnInbound}
-        disabled={updateSettings.isPending || settingsQuery.isLoading}
-        onClick={() => {
-          updateSettings.mutate(
-            { autoOnInbound: !autoOnInbound },
-            {
               onError: (e) =>
                 toast.error(
                   e instanceof Error ? e.message : "Erro ao salvar configuração.",
@@ -281,7 +245,6 @@ export function DepartmentsDistributionPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      <AutoOnInboundToggle />
       <div className="flex flex-col gap-2.5 rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-overlay)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
