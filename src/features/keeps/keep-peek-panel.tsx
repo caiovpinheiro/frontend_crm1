@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Copy, Lightbulb } from "lucide-react";
+import { ChevronDown, Copy, Lightbulb, Star } from "lucide-react";
 import { toast } from "sonner";
 
 import { HeaderPillToggle } from "@/components/crm/section-header";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { formDialogCancelClass } from "@/components/ui/form-dialog";
 import { cn } from "@/lib/utils";
-import { useKeepCategories, useKeepNotes } from "./hooks";
+import { useKeepCategories, useKeepMutations, useKeepNotes } from "./hooks";
 import type { KeepNote, KeepViewMode } from "./types";
 import { keepPreviewText } from "./preview";
 
@@ -35,9 +35,11 @@ async function copyKeepPlainText(note: KeepNote) {
 function KeepPeekCard({
   note,
   onOpen,
+  onFavorite,
 }: {
   note: KeepNote;
   onOpen: (note: KeepNote) => void;
+  onFavorite: (note: KeepNote) => void;
 }) {
   return (
     <div
@@ -56,6 +58,22 @@ function KeepPeekCard({
           {keepPreviewText(note).trim() || "Nota vazia"}
         </p>
       </button>
+      <ButtonGlass
+        type="button"
+        variant="icon"
+        size="icon"
+        title={note.favorite ? "Remover dos favoritos" : "Favoritar"}
+        tooltipSide="bottom"
+        className="size-8 shrink-0 text-muted-foreground"
+        aria-label={note.favorite ? "Remover dos favoritos" : "Favoritar"}
+        aria-pressed={note.favorite}
+        onClick={(e) => {
+          e.stopPropagation();
+          onFavorite(note);
+        }}
+      >
+        <Star className={cn("size-3.5", note.favorite && "fill-amber-400 text-amber-500")} />
+      </ButtonGlass>
       <ButtonGlass
         type="button"
         variant="icon"
@@ -79,14 +97,16 @@ function KeepPeekCard({
 function NotesGrid({
   notes,
   onOpen,
+  onFavorite,
 }: {
   notes: KeepNote[];
   onOpen: (note: KeepNote) => void;
+  onFavorite: (note: KeepNote) => void;
 }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {notes.map((note) => (
-        <KeepPeekCard key={note.id} note={note} onOpen={onOpen} />
+        <KeepPeekCard key={note.id} note={note} onOpen={onOpen} onFavorite={onFavorite} />
       ))}
     </div>
   );
@@ -99,6 +119,10 @@ export function KeepPeekPanel({ className }: { className?: string }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const notesQuery = useKeepNotes("notes", q);
   const categoriesQuery = useKeepCategories();
+  const mut = useKeepMutations("notes", q);
+  function toggleFavorite(note: KeepNote) {
+    mut.patch.mutate({ id: note.id, patch: { favorite: !note.favorite } });
+  }
   const items = notesQuery.data?.items ?? [];
   const categories = categoriesQuery.data?.items ?? [];
   const categoriesMode = viewMode === "categories";
@@ -212,7 +236,7 @@ export function KeepPeekPanel({ className }: { className?: string }) {
                       {section.notes.length === 0 ? (
                         <p className="text-xs text-muted-foreground">Nenhuma nota nesta categoria.</p>
                       ) : (
-                        <NotesGrid notes={section.notes} onOpen={setOpen} />
+                        <NotesGrid notes={section.notes} onOpen={setOpen} onFavorite={toggleFavorite} />
                       )}
                     </div>
                   ) : null}
@@ -221,7 +245,7 @@ export function KeepPeekPanel({ className }: { className?: string }) {
             })}
           </div>
         ) : (
-          <NotesGrid notes={items} onOpen={setOpen} />
+          <NotesGrid notes={items} onOpen={setOpen} onFavorite={toggleFavorite} />
         )}
       </div>
       <KeepPeekDialog note={open} onClose={() => setOpen(null)} />
