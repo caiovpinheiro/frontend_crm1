@@ -829,7 +829,7 @@ export function DealProductsSection({
       toast.success(
         steps.length === 1
           ? "Mensagem do produto pronta no chat — confira e envie."
-          : "Mensagens dos produtos prontas no chat — confira e envie.",
+          : "Cada produto está sendo enviado em uma mensagem separada.",
       );
     } catch {
       toast.error("Falha ao preparar a mensagem dos produtos.");
