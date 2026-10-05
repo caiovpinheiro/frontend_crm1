@@ -1290,7 +1290,10 @@ dialog *  { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.18) transpar
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
-  touch-action: pan-y;
+  /* pan-y sozinho impede o scroll horizontal nativo. O Safari do iPhone
+     obedece e ainda cancela o pointermove; o Chrome no Android deixa o
+     arraste em JS. pan-x pan-y devolve o gesto do dedo ao overflow. */
+  touch-action: pan-x pan-y;
   cursor: grab;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
