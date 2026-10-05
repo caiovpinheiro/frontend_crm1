@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * "Escutar a equipe": liga a leitura dos atendimentos de uma ou mais pessoas
- * da equipe por um período. O agente não muda o atendimento enquanto escuta;
+ * "Escutar a equipe": liga a leitura dos atendimentos de uma origem
+ * acadêmica, de pessoas da equipe, ou das duas, por um período. O agente não muda o atendimento enquanto escuta;
  * monta propostas de conhecimento (material), abordagem (regras) e tom de
  * voz, que quem configura adiciona ao rascunho ou recusa.
  */
@@ -43,6 +43,7 @@ type Session = {
   id: string;
   status: Status;
   people: Array<{ id: string; name: string }>;
+  origins?: Array<{ id: string; name: string; pipelineName: string }>;
   mode: "today" | "days" | "range" | "continuous";
   endsAt: string | null;
   maxUsdPerDay: number;
@@ -132,6 +133,7 @@ function pathLabel(path: string, themeName: (id: string) => string | undefined):
 export function ListenTeam({
   agentId,
   users,
+  pipelines,
   themes,
   dirty,
   saving,
@@ -140,6 +142,7 @@ export function ListenTeam({
 }: {
   agentId: string;
   users: Array<{ id: string; name: string }>;
+  pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
   themes: Array<{ id: string; name: string }>;
   /** Alterações na tela ainda não salvas: aplicar no rascunho espera. */
   dirty: boolean;
@@ -198,7 +201,12 @@ export function ListenTeam({
             <IconChip icon={IconEar} tone="teal" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-[15px] font-semibold leading-tight">{active.people.map((p) => p.name).join(", ") || "Equipe"}</h3>
+                <h3 className="text-[15px] font-semibold leading-tight">
+                  {[
+                    active.origins?.length ? active.origins.map((o) => o.name).join(", ") : "",
+                    active.people.map((p) => p.name).join(", "),
+                  ].filter(Boolean).join(" · ") || "Equipe"}
+                </h3>
                 <Pill tone={STATUS[active.status].tone}>{STATUS[active.status].label}</Pill>
                 {active.stats.capHit && <Pill tone="amber">limite do dia atingido</Pill>}
               </div>
@@ -241,7 +249,7 @@ export function ListenTeam({
           </div>
         </section>
       ) : (
-        <StartListening agentId={agentId} users={users} previous={session} onStarted={refresh} />
+        <StartListening agentId={agentId} users={users} pipelines={pipelines} previous={session} onStarted={refresh} />
       )}
 
       <Proposals
@@ -273,27 +281,43 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 function StartListening({
   agentId,
   users,
+  pipelines,
   previous,
   onStarted,
 }: {
   agentId: string;
   users: Array<{ id: string; name: string }>;
+  pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
   previous: Session | null;
   onStarted: () => void;
 }) {
   const [people, setPeople] = React.useState<string[]>([]);
+  const [origins, setOrigins] = React.useState<string[]>([]);
   const [period, setPeriod] = React.useState<Period>("today");
   const [limit, setLimit] = React.useState("1");
+  const originOptions = pipelines
+    .filter((p) => !/atendimento/i.test(p.name))
+    .flatMap((p) =>
+      p.stages
+        .filter((s) => !/^(ganho|perdido)$/i.test(s.name))
+        .map((s) => ({ value: s.id, label: `${p.name} · ${s.name}` })),
+    );
   const estimate = useQuery({
-    queryKey: ["ai-agents-v2-listen-estimate", agentId, people],
-    queryFn: () => send<{ conversationsPerDay: number; usdPerDay: number }>(`/api/ai-agents-v2/${agentId}/listen/estimate`, { userIds: people }, "Erro ao estimar."),
-    enabled: people.length > 0,
+    queryKey: ["ai-agents-v2-listen-estimate", agentId, people, origins],
+    queryFn: () =>
+      send<{ conversationsPerDay: number; usdPerDay: number }>(
+        `/api/ai-agents-v2/${agentId}/listen/estimate`,
+        { userIds: people, originStageIds: origins },
+        "Erro ao estimar.",
+      ),
+    enabled: people.length > 0 || origins.length > 0,
     staleTime: 60_000,
   });
   const start = useMutation({
     mutationFn: () =>
       send(`/api/ai-agents-v2/${agentId}/listen`, {
         userIds: people,
+        originStageIds: origins,
         mode: period === "today" ? "today" : period === "continuous" ? "continuous" : "days",
         days: period === "7" ? 7 : period === "30" ? 30 : undefined,
         maxUsdPerDay: Number(limit.replace(",", ".")) || 1,
@@ -305,6 +329,8 @@ function StartListening({
     onError: (e) => toast.error(e instanceof Error ? e.message : "Erro ao ligar a escuta."),
   });
   const names = users.filter((u) => people.includes(u.id)).map((u) => u.name);
+  const originNames = originOptions.filter((o) => origins.includes(o.value)).map((o) => o.label);
+  const ready = people.length > 0 || origins.length > 0;
 
   return (
     <section className={cn(SURFACE, "space-y-4 p-5 sm:p-6")}>
@@ -312,18 +338,32 @@ function StartListening({
         icon={IconEar}
         tone="teal"
         title="Escutar a equipe"
-        description="Escolha quem o agente deve observar. Ele lê os atendimentos dessas pessoas e propõe conhecimento, jeito de conduzir e tom de voz — você decide o que entra no rascunho."
+        description="Escolha a origem do aluno, as pessoas da equipe, ou as duas. Ele lê esses atendimentos e propõe conhecimento, jeito de conduzir e tom de voz — você decide o que entra no rascunho."
       />
       {previous && (
         <p className="text-xs text-muted-foreground">
-          Última escuta: {previous.people.map((p) => p.name).join(", ")} · {STATUS[previous.status].label.toLowerCase()} · {previous.stats.samples ?? 0} atendimento(s) lido(s)
+          Última escuta: {[
+            previous.origins?.length ? previous.origins.map((o) => o.name).join(", ") : "",
+            previous.people.map((p) => p.name).join(", "),
+          ].filter(Boolean).join(" · ") || "sem filtro"} · {STATUS[previous.status].label.toLowerCase()} · {previous.stats.samples ?? 0} atendimento(s) lido(s)
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">Origem</span>
+          <MultiSelectPopover
+            label={originNames.length ? originNames.join(", ") : "Etapa de onde veio"}
+            options={originOptions}
+            selected={origins}
+            onChange={setOrigins}
+            emptyLabel="Nenhuma etapa fora do funil Atendimento."
+            searchable
+          />
+        </div>
+        <div className="space-y-1">
           <span className="text-xs font-medium text-muted-foreground">Quem</span>
           <MultiSelectPopover
-            label={names.length ? names.join(", ") : "Escolher pessoas"}
+            label={names.length ? names.join(", ") : "Qualquer consultor"}
             options={users.map((u) => ({ value: u.id, label: u.name }))}
             selected={people}
             onChange={setPeople}
@@ -350,21 +390,21 @@ function StartListening({
           <Input value={limit} onChange={(e) => setLimit(e.target.value)} inputMode="decimal" className="h-9 w-24" />
         </label>
       </div>
-      {people.length > 0 && (
+      {ready && (
         <p className="text-xs text-muted-foreground">
           {estimate.isLoading
             ? "Calculando…"
             : estimate.data
               ? estimate.data.conversationsPerDay > 0
                 ? `Pelos últimos 7 dias: ~${String(estimate.data.conversationsPerDay).replace(".", ",")} atendimento(s) por dia · ≈ ${usd(estimate.data.usdPerDay)} por dia`
-                : "Essas pessoas não enviaram mensagens nos últimos 7 dias pelo CRM: a escuta pode demorar a ter o que ler."
+                : "Nada nesse recorte nos últimos 7 dias: a escuta pode demorar a ter o que ler."
               : ""}
         </p>
       )}
       <p className="text-xs text-muted-foreground">
-        Nada muda no atendimento enquanto escuta. Fica registrado quem ligou e quem foi escutado; avise as pessoas escolhidas. Dados de clientes são mascarados antes de ir ao modelo.
+        A origem é a etapa de onde o aluno veio antes de entrar em atendimento. Vale mesmo com o card em Em Atendimento. Nada muda no atendimento enquanto escuta. Dados de clientes são mascarados antes de ir ao modelo.
       </p>
-      <Button className="gap-1.5" disabled={people.length === 0 || start.isPending} onClick={() => start.mutate()}>
+      <Button className="gap-1.5" disabled={!ready || start.isPending} onClick={() => start.mutate()}>
         {start.isPending ? <IconLoader2 className="size-4 animate-spin" /> : <IconEar className="size-4" />} Começar a escutar
       </Button>
     </section>
@@ -585,15 +625,18 @@ export function ListenHomeCard({ agentId, onOpen }: { agentId: string; onOpen: (
         <h3 className="text-[15px] font-semibold leading-tight">Escutar a equipe</h3>
         <p className="text-[13px] text-muted-foreground">
           {idle
-            ? "O agente acompanha atendimentos reais de quem você escolher e propõe materiais, jeito de conduzir e tom de voz. Você decide o que entra."
+            ? "O agente acompanha atendimentos reais pela origem do aluno ou pelas pessoas da equipe, e propõe materiais, jeito de conduzir e tom de voz. Você decide o que entra."
             : active
-              ? `${STATUS[s!.status].label} ${s!.people.map((p) => p.name).join(", ")} · ${until(s!)}`
+              ? `${STATUS[s!.status].label} ${[
+                  s!.origins?.length ? s!.origins.map((o) => o.name).join(", ") : "",
+                  s!.people.map((p) => p.name).join(", "),
+                ].filter(Boolean).join(" · ") || "qualquer consultor"} · ${until(s!)}`
               : "Escuta encerrada"}
           {open > 0 ? ` · ${open} proposta${open === 1 ? "" : "s"} para decidir` : ""}
         </p>
       </div>
       <Button size="sm" variant={idle ? "outline" : "ghost"} onClick={onOpen}>
-        {idle ? "Escolher quem escutar" : "Ver"}
+        {idle ? "Configurar escuta" : "Ver"}
       </Button>
     </section>
   );
