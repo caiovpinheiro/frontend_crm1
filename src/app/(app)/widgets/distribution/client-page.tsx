@@ -88,7 +88,6 @@ import {
   useUpdateResponsible,
 } from "@/features/distribution/hooks";
 import {
-  AutoOnInboundToggle,
   DepartmentsDistributionPanel,
   DistributionEnabledToggle,
   DistributionModeToggle,
@@ -754,7 +753,6 @@ export default function DistributionClientPage({
                 <>
                   <DistributionModeToggle />
                   <DistributionEnabledToggle />
-                  <AutoOnInboundToggle />
                 </>
               )}
 
