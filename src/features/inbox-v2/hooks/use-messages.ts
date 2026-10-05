@@ -31,6 +31,7 @@ import {
 
 import { patchBoardLastMessage } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { useSSEConnected } from "@/hooks/use-sse";
 import { applyOutboundPreviewToInboxCaches } from "./apply-outbound-inbox-card";
 import { isInboxConversationNumberParam } from "./use-inbox-url-sync";
 
@@ -64,6 +65,38 @@ function inferHasMore(page: MessagesResponse, limit: number): boolean {
 
 export function isSseMessageStubId(id: string): boolean {
   return id.startsWith("sse:");
+}
+
+/**
+ * Stub do SSE que corresponde à mensagem real (`real`): mesma direção,
+ * mesmo texto e horário a menos de 8 s. Stub sem texto nunca casa (não dá
+ * para saber qual mídia era) — fica para o GET.
+ */
+export function stubMatchesMessage(stub: InboxMessageDto, real: InboxMessageDto): boolean {
+  if (!isSseMessageStubId(String(stub.id))) return false;
+  if (!(stub.content ?? "").trim()) return false;
+  if (stub.direction !== real.direction) return false;
+  if ((stub.content ?? "") !== (real.content ?? "")) return false;
+  const a = Date.parse(stub.createdAt);
+  const b = Date.parse(real.createdAt);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
+  return Math.abs(a - b) < 8_000;
+}
+
+/**
+ * Grava a mensagem que o POST devolveu na conversa (fim do ciclo do envio:
+ * a resposta já é a bolha completa, com o id que o GET usaria) e tira o
+ * stub do eco do SSE que chegou antes dela. Já presente: devolve `old`.
+ */
+export function upsertSentMessage(
+  old: MessagesResponse | undefined,
+  message: InboxMessageDto,
+): MessagesResponse | undefined {
+  if (!old) return old;
+  const id = String(message.id);
+  if (old.messages.some((m) => String(m.id) === id)) return old;
+  const kept = old.messages.filter((m) => !stubMatchesMessage(m, message));
+  return { ...old, messages: [...kept, message] };
 }
 
 function serverHasSameMessage(page: InboxMessageDto[], stub: InboxMessageDto): boolean {
@@ -169,6 +202,17 @@ function mergeHistory(
   }
 }
 
+/**
+ * Com a SSE conectada a conversa em cache se mantém em dia por evento
+ * (`new_message` hidrata, `message_status` patcha o tick, reconexão marca
+ * tudo como velho): reabrir/remontar o chat dentro deste prazo não refaz o
+ * GET. Sem SSE (ou com o stream parado), o prazo curto de sempre.
+ */
+export const MESSAGES_STALE_MS_SSE = 5 * 60_000;
+export const MESSAGES_STALE_MS = 20_000;
+/** Poll de segurança da conversa aberta — só com a SSE fora. */
+export const MESSAGES_SAFETY_POLL_MS = 90_000;
+
 export function useMessages(conversationId: string | null) {
   const qc = useQueryClient();
   const fetchingOlderRef = useRef(false);
@@ -176,6 +220,7 @@ export function useMessages(conversationId: string | null) {
   conversationIdRef.current = conversationId;
   const [isFetchingOlder, setIsFetchingOlder] = useState(false);
   const visible = useDocumentVisible();
+  const sseConnected = useSSEConnected();
 
   const query = useQuery<MessagesResponse>({
     queryKey: messagesKey(conversationId),
@@ -185,10 +230,11 @@ export function useMessages(conversationId: string | null) {
       return mergeTail(prev, page);
     },
     enabled: !!conversationId && !isInboxConversationNumberParam(conversationId),
-    staleTime: 20_000,
-    // SSE invalida na hora em new_message da conversa ativa. Poll só
-    // das mensagens do ticket aberto — não toca lista/counts.
-    refetchInterval: visible ? 90_000 : false,
+    staleTime: sseConnected ? MESSAGES_STALE_MS_SSE : MESSAGES_STALE_MS,
+    // Com a SSE conectada o `new_message` da conversa hidrata o cache
+    // (`use-realtime.ts`); o poll é só a rede de segurança com a SSE fora
+    // ou parada, e só da conversa aberta — não toca lista/counts.
+    refetchInterval: visible && !sseConnected ? MESSAGES_SAFETY_POLL_MS : false,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
@@ -292,23 +338,26 @@ export function useSendMessage(
     mutationFn: (vars) =>
       sendMessage(conversationId as string, vars),
     onSuccess: (data, vars) => {
-      if (!vars.asNote && data.message && conversationId) {
+      // A resposta do POST já é a bolha completa (mesmo id do GET): grava
+      // no cache e dispensa o GET. Antes cada envio custava 2 GETs (este
+      // invalidate + o refetch do eco `new_message` no SSE). Nota interna
+      // vem no mesmo formato (`messageType: "note"`).
+      let stored = false;
+      if (data.message?.id && conversationId) {
         const userImage = (session?.user as { image?: string | null } | undefined)
           ?.image;
-        const optimistic: InboxMessageDto = {
+        const sent: InboxMessageDto = {
           ...data.message,
           senderImageUrl: data.message.senderImageUrl ?? userImage ?? null,
         };
-        qc.setQueryData<MessagesResponse>(messagesKey(conversationId), (old) => {
-          if (!old) return old;
-          const exists = old.messages.some(
-            (m) => String(m.id) === String(optimistic.id),
-          );
-          if (exists) return old;
-          return { ...old, messages: [...old.messages, optimistic] };
-        });
+        qc.setQueryData<MessagesResponse>(messagesKey(conversationId), (old) =>
+          upsertSentMessage(old, sent),
+        );
+        stored = Boolean(qc.getQueryData<MessagesResponse>(messagesKey(conversationId)));
       }
-      qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+      if (!stored || data.reopenedConversationId) {
+        qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+      }
       // Reabriu como novo ticket: invalida também o histórico do id novo
       // para o chat carregar a linha do tempo já com a mensagem enviada.
       if (data.reopenedConversationId) {
