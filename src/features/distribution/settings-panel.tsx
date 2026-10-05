@@ -120,7 +120,7 @@ export function DistributionModeToggle() {
   );
 }
 
-/** Liga/desliga o motor (inbound, drenagem, automação, IA). */
+/** Liga/desliga o sorteio automático. O passo da automação continua. */
 export function DistributionEnabledToggle() {
   const settingsQuery = useDistributionSettings();
   const updateSettings = useUpdateDistributionSettings();
@@ -138,7 +138,7 @@ export function DistributionEnabledToggle() {
         <p className="mt-0.5 font-body text-[12px] text-muted-foreground">
           {enabled
             ? "Ligado: o motor atribui consultor nas conversas novas e drena a fila de espera."
-            : "Desligado: ninguém é atribuído automaticamente. Clique de novo para religar."}
+            : "Desligado: o sistema não sorteia sozinho. O passo Executar distribuição da automação, o agente de IA e a redistribuição manual continuam atribuindo."}
         </p>
       </div>
       <GlassSwitch
