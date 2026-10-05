@@ -207,4 +207,26 @@ describe("Kanban: identidade do funil no board (N-FE-7)", () => {
       lostReason: undefined,
     });
   });
+
+  it("mover um negócio não refaz o GET do board", async () => {
+    const { qc, view } = setup();
+    await boardLoaded(view);
+    expect(api.getBoard).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await view.result.current.move.mutateAsync({
+        dealId: "a",
+        fromStageId: "s1",
+        toStageId: "s2",
+        toIndex: 0,
+      });
+    });
+    expect(api.getBoard).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      const board = view.result.current.kanban.boardNormal.data!;
+      expect(board.map((s) => s.deals.map((d) => d.id))).toEqual([[], ["a", "x", "y"]]);
+    });
+    expect(qc.getQueryData<BoardStageDto[]>(["pipeline-board", CUID, "OPEN"])![1].deals[0].id).toBe(
+      "a",
+    );
+  });
 });

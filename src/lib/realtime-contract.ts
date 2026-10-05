@@ -221,6 +221,49 @@ export type TeamChatEvent = {
   [field: string]: unknown;
 };
 
+/**
+ * Card enxuto para inserir o negócio num funil que ainda não o tem em
+ * cache. Quem já tem o card ignora `lastMessage` daqui (não vem).
+ */
+export type DealMovedCard = {
+  id: string;
+  title: string;
+  value?: number | string;
+  status?: string;
+  lostReason?: string | null;
+  position?: number;
+  expectedClose?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  contact?: {
+    id: string;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+  owner?: {
+    id: string;
+    name: string;
+    avatarUrl?: string | null;
+    type?: string | null;
+  } | null;
+  tags?: Array<{ id: string; name: string; color: string }>;
+};
+
+/** Negócio já commitado em outra etapa/posição. `position` é a fração do banco. */
+export type DealMovedEvent = {
+  organizationId: string;
+  dealId: string;
+  fromPipelineId: string;
+  toPipelineId: string;
+  fromStageId: string;
+  toStageId: string;
+  position: number;
+  updatedAt: string;
+  card?: DealMovedCard;
+};
+
 // ── União discriminada ──────────────────────────────────────────────────
 
 export type RealtimeEventMap = {
@@ -249,6 +292,7 @@ export type RealtimeEventMap = {
   team_chat_typing: TeamChatEvent;
   team_chat_work_item_updated: TeamChatEvent;
   team_chat_forward_updated: TeamChatEvent;
+  deal_moved: DealMovedEvent;
 };
 
 export type RealtimeEventName = keyof RealtimeEventMap;
@@ -285,6 +329,7 @@ export const REALTIME_EVENT_NAMES = [
   "team_chat_typing",
   "team_chat_work_item_updated",
   "team_chat_forward_updated",
+  "deal_moved",
 ] as const satisfies readonly RealtimeEventName[];
 
 /**

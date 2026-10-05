@@ -14,18 +14,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const sse = vi.hoisted(() => ({
   handler: null as ((event: string, data: unknown) => void) | null,
   events: null as readonly string[] | null,
+  subs: 0,
 }));
-vi.mock("@/hooks/use-sse", () => ({
-  useSSE: (
-    _url: string,
-    handler: (event: string, data: unknown) => void,
-    _enabled: boolean,
-    events: readonly string[],
-  ) => {
-    sse.handler = handler;
-    sse.events = events;
-  },
-}));
+vi.mock("@/hooks/use-sse", async () => {
+  const React = await import("react");
+  return {
+    useSSE: (
+      _url: string,
+      handler: (event: string, data: unknown) => void,
+      enabled: boolean,
+      events: readonly string[],
+    ) => {
+      sse.handler = handler;
+      sse.events = events;
+      const eventsKey = events.join(",");
+      React.useEffect(() => {
+        if (!enabled) return;
+        sse.subs += 1;
+        return () => {
+          sse.subs -= 1;
+        };
+      }, [enabled, eventsKey]);
+    },
+  };
+});
 
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import {
@@ -118,6 +130,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   sse.handler = null;
   sse.events = null;
+  sse.subs = 0;
 });
 
 afterEach(() => {
@@ -126,9 +139,45 @@ afterEach(() => {
 });
 
 describe("usePipelineRealtime", () => {
-  it("assina só new_message e message_status", async () => {
+  it("assina new_message, message_status e deal_moved na conexão já existente", async () => {
     await setup();
-    expect(sse.events).toEqual(["new_message", "message_status"]);
+    expect(sse.events).toEqual(["new_message", "message_status", "deal_moved"]);
+    expect(sse.subs).toBe(1);
+  });
+
+  it("deal_moved move o card sem GET do board", async () => {
+    const { qc, fetchBoard } = await setup();
+    const before = qc.getQueryData<BoardStageDto[]>(OPEN_KEY)!;
+    const untouched = before[0].deals[1];
+
+    await emit("deal_moved", {
+      organizationId: "org-1",
+      dealId: "deal-a1",
+      fromPipelineId: "p1",
+      toPipelineId: "p1",
+      fromStageId: "stage-1",
+      toStageId: "stage-1",
+      position: 2,
+      updatedAt: T_NEW,
+    });
+
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
+    const after = qc.getQueryData<BoardStageDto[]>(OPEN_KEY)!;
+    expect(after[0].deals.map((d) => d.id)).toEqual(["deal-b1", "deal-a1"]);
+    expect(after[0].deals[0].title).toBe(untouched.title);
+    expect(after[0].deals[1].position).toBe(2);
+    expect(qc.getQueryState(OPEN_KEY)?.isInvalidated).toBe(false);
+  });
+
+  it("rerender e remontar não acumulam assinatura", async () => {
+    const { view } = await setup();
+    expect(sse.subs).toBe(1);
+    view.rerender();
+    expect(sse.subs).toBe(1);
+    view.unmount();
+    expect(sse.subs).toBe(0);
+    await setup();
+    expect(sse.subs).toBe(1);
   });
 
   it("evento com pipelineIds de outro funil: não refaz nem altera o board aberto", async () => {
