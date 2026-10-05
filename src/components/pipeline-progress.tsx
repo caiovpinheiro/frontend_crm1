@@ -370,7 +370,9 @@ export function PipelineProgress({
   }, []);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // Toque usa o scroll nativo (pan-x). No iPhone, capturar o pointer
+    // e escrever scrollLeft compete com o Safari e o gesto não anda.
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
     const el = scrollerRef.current;
     if (!el) return;
     dragRef.current = {
