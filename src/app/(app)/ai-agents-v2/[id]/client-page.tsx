@@ -1465,6 +1465,7 @@ export default function AIAgentV2EditPage() {
                       <ListenTeam
                         agentId={id}
                         users={(catalogs.users ?? []).filter((u) => u.type === "HUMAN")}
+                        pipelines={catalogs.pipelines ?? []}
                         themes={((config.themes as Array<{ id: string; name: string }>) ?? []).map((t) => ({ id: t.id, name: t.name }))}
                         dirty={dirty}
                         saving={saving}
