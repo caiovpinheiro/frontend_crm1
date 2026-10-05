@@ -144,6 +144,8 @@ export async function sendAttachment(
     fileName?: string;
     /** Mesma semântica do `channelId` em `sendMessage` (override por mensagem). */
     channelId?: string | null;
+    /** Grava como nota interna. O arquivo não sai no WhatsApp. */
+    asNote?: boolean;
   },
 ): Promise<{
   message: InboxMessageDto;
@@ -157,7 +159,8 @@ export async function sendAttachment(
     options?.fileName ?? (file instanceof File ? file.name : "anexo.bin"),
   );
   if (options?.caption) form.append("caption", options.caption);
-  if (options?.channelId) form.append("channelId", options.channelId);
+  if (options?.asNote) form.append("asNote", "1");
+  else if (options?.channelId) form.append("channelId", options.channelId);
   const res = await fetch(apiUrl(`/api/conversations/${conversationId}/attachments`), {
     method: "POST",
     body: form,

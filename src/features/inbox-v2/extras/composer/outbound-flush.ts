@@ -63,6 +63,34 @@ export function useOutboundFlush({
   // Envia os arquivos encostados, um a um, na ordem. `caption` (texto do
   // composer) vai na legenda do PRIMEIRO arquivo — igual ao WhatsApp. Limpa
   // o estado e revoga as URLs de preview ao final.
+  async function flushNoteFiles(caption?: string) {
+    const files = pendingFilesRef.current;
+    if (files.length === 0 || !conversationId) return;
+    setPendingFiles([]);
+    pendingFilesRef.current = [];
+    let failed = 0;
+    for (const [index, f] of files.entries()) {
+      try {
+        await sendAttachment(conversationId, f.file, {
+          fileName: f.name,
+          asNote: true,
+          ...(index === 0 && caption ? { caption } : {}),
+        });
+      } catch {
+        failed += 1;
+      }
+    }
+    files.forEach((f) => {
+      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+    });
+    qc.invalidateQueries({ queryKey: messagesKey(conversationId) });
+    if (failed > 0) {
+      toast.error(
+        failed === 1 ? "Falha ao anexar 1 arquivo na nota" : `Falha ao anexar ${failed} arquivos na nota`,
+      );
+    }
+  }
+
   async function flushPendingFiles(caption?: string) {
     const files = pendingFilesRef.current;
     if (files.length === 0 || !conversationId) return;
@@ -184,5 +212,5 @@ export function useOutboundFlush({
     await flushPendingFiles();
   }
 
-  return { flushPendingMedia, flushPendingFiles, flushOutbound };
+  return { flushPendingMedia, flushPendingFiles, flushNoteFiles, flushOutbound };
 }

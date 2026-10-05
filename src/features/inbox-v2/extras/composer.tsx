@@ -493,7 +493,7 @@ export function Composer({
     );
   }
 
-  const { flushOutbound } = useOutboundFlush({
+  const { flushOutbound, flushNoteFiles } = useOutboundFlush({
     conversationId,
     selectedChannelId,
     qc,
@@ -521,7 +521,21 @@ export function Composer({
       return;
     }
     if (noteMode && onSendNote) {
-      // Nota interna não carrega anexo de modelo/imagem.
+      if (pendingMediaList.length > 0) {
+        toast.error("Nota interna não usa modelo. Remova o modelo ou volte para Mensagem.");
+        return;
+      }
+      if (pendingFiles.length > 0) {
+        onChange("");
+        draftRef.current = "";
+        setSequenceSending(true);
+        try {
+          await flushNoteFiles(trimmed || undefined);
+        } finally {
+          setSequenceSending(false);
+        }
+        return;
+      }
       if (trimmed) onSendNote(trimmed);
       return;
     }
@@ -600,10 +614,6 @@ export function Composer({
     }
     if (inputDisabled) {
       warnOutboundBlocked();
-      return;
-    }
-    if (noteMode) {
-      toast.error("Nota interna não aceita anexo. Volte para Mensagem para enviar o arquivo.");
       return;
     }
     const now = Date.now();

@@ -192,7 +192,19 @@ export function MessageContent({
 
   // ── Documento ──────────────────────────────────────────────────
   if (kind === "document" && url) {
-    return <LazyChatDocument url={url} fileName={documentLabel(content)} />
+    const lines = content.split("\n")
+    const fileLine = lines.find((line) => line.trim().startsWith("📎"))
+    const lead = fileLine
+      ? lines.filter((line) => line !== fileLine).join("\n").trim()
+      : ""
+    return (
+      <div className="flex min-w-0 flex-col gap-1.5">
+        {lead ? (
+          <span className="whitespace-pre-wrap break-words">{formatWhatsapp(lead)}</span>
+        ) : null}
+        <LazyChatDocument url={url} fileName={documentLabel(fileLine ?? content)} />
+      </div>
+    )
   }
 
   // ── Mídia sem URL (download falhou) — placeholder amigável ──────
