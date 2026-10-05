@@ -32,13 +32,13 @@ export function formatDurationMs(ms: number | null | undefined): string {
   return rh > 0 ? `${d}d ${rh}h` : `${d}d`;
 }
 
-/** Duração no estilo Kommo: `15 h. 20 m.` */
+/** Duração compacta de uso: `4h05`, `18min`. Cabe numa coluna estreita sem quebrar. */
 export function formatUsageHours(seconds: number): string {
-  const safe = Math.max(0, Math.round(seconds));
-  const h = Math.floor(safe / 3600);
-  const m = Math.round((safe % 3600) / 60);
-  if (h <= 0) return `${m} m.`;
-  return `${h} h. ${m} m.`;
+  const totalMin = Math.max(0, Math.round(seconds / 60));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h <= 0) return `${m}min`;
+  return `${h}h${String(m).padStart(2, "0")}`;
 }
 
 export function formatPct(value: number | null | undefined): string {
