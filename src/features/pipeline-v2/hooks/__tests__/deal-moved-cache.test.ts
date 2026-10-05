@@ -18,7 +18,6 @@ function deal(id: string, position: number, extra: Partial<BoardDealDto> = {}): 
     title: extra.title ?? id,
     value: 0,
     status: "OPEN",
-    position,
     expectedClose: null,
     createdAt: T0,
     updatedAt: T0,
