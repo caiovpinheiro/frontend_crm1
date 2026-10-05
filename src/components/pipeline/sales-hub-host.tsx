@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   IconAntenna,
   IconDownload,
@@ -61,7 +61,10 @@ import {
 } from "@/lib/search-query";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
+import {
+  filtersNeedOptions,
+  useFilterOptions,
+} from "@/components/pipeline/kanban-filters/use-filter-options";
 import { setBoardPinnedDealIds } from "@/features/pipeline-v2/board-live-activity";
 import {
   filtersForVisibleStages,
@@ -70,7 +73,6 @@ import {
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
-  isEmptyFilters,
   hasServerSideFilters,
   type AdvancedDealFilters,
 } from "@/components/pipeline/kanban-filters/types";
@@ -154,14 +156,9 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   const { filters, setFilters, patch: patchFilters, clear: clearFilters } =
     useKanbanFilters();
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const filterOptionsQuery = useQuery({
-    queryKey: ["kanban-filter-options"],
-    queryFn: fetchFilterOptions,
-    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
+  const filterOptionsQuery = useFilterOptions(
+    canFetch && (filterPanelOpen || filtersNeedOptions(filters)),
+  );
   const filterOptions = filterOptionsQuery.data ?? null;
   const filterOptionsLoading = filterOptionsQuery.isLoading;
 

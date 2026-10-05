@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   IconCheck,
@@ -48,7 +48,10 @@ import {
 } from "@/components/crm/deal-list-table";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
+import {
+  filtersNeedOptions,
+  useFilterOptions,
+} from "@/components/pipeline/kanban-filters/use-filter-options";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
@@ -68,6 +71,7 @@ import { useStuckTimeout } from "@/hooks/use-stuck-timeout";
 
 import {
   useDealsList,
+  useDealsListPage,
   usePipelineUrlSync,
   usePipelines,
   useTeamUsers,
@@ -189,14 +193,9 @@ export default function V2PipelineListClientPage() {
   }, [filters]);
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const filterOptionsQuery = useQuery({
-    queryKey: ["kanban-filter-options"],
-    queryFn: fetchFilterOptions,
-    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
+  const filterOptionsQuery = useFilterOptions(
+    canFetch && (filterPanelOpen || filtersNeedOptions(filters)),
+  );
   const filterOptions = filterOptionsQuery.data ?? null;
   const filterOptionsLoading = filterOptionsQuery.isLoading;
 
@@ -213,7 +212,9 @@ export default function V2PipelineListClientPage() {
 
   const listSearch = normalizeSearchQuery(debounced);
 
-  const dealsQuery = useDealsList({
+  // Página + paginação. O total do recorte é contado na 1ª página e
+  // reaproveitado nas seguintes; filtros entram com debounce (ver o hook).
+  const dealsList = useDealsListPage({
     pipelineId: pipelineId ?? undefined,
     search: listSearch || undefined,
     status: statusFromTab(statusTab),
@@ -222,6 +223,7 @@ export default function V2PipelineListClientPage() {
     filters: isEmptyFilters(advancedForList) ? undefined : advancedForList,
     enabled: canFetch && !!pipelineId,
   });
+  const dealsQuery = dealsList.query;
 
   // Etapas vêm do GET /api/pipelines já carregado acima — a lista não
   // precisa do board (175 KB com 100 cards/coluna) só para nomes/cores.
@@ -231,9 +233,7 @@ export default function V2PipelineListClientPage() {
   );
   const { data: teamUsers = [] } = useTeamUsers(canFetch && selectedIds.size > 0);
 
-  const total = dealsQuery.data?.total ?? 0;
-  const lastPage = Math.max(1, Math.ceil(total / perPage));
-  const items = dealsQuery.data?.items ?? [];
+  const { total, lastPage, items } = dealsList;
   const rows = items.map(toDealListRow);
 
   // Limpa seleção ao mudar página / filtros / pipeline / status.
@@ -450,7 +450,7 @@ export default function V2PipelineListClientPage() {
           page={page}
           lastPage={lastPage}
           canPrev={page > 1}
-          canNext={page < lastPage}
+          canNext={dealsList.canNext}
           onPrev={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(lastPage, p + 1))}
           perPage={perPage}
@@ -725,6 +725,8 @@ function DealDuplicatesSheet({
     status,
     page: 1,
     perPage: 200,
+    // Só os itens interessam aqui: sem o COUNT do recorte.
+    withTotal: false,
     enabled: enabled && open,
   });
 

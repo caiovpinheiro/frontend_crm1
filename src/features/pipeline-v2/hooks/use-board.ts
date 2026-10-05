@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
@@ -15,6 +15,7 @@ import {
 
 import type { AdvancedDealFilters } from "@/components/pipeline/kanban-filters/types";
 import { hasServerSideFilters } from "@/components/pipeline/kanban-filters/types";
+import { canonicalFiltersKey } from "@/components/pipeline/kanban-filters/canonical";
 
 import { isPreviewMode } from "@/lib/preview-mode";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
@@ -51,6 +52,13 @@ export const BOARD_PAGE_SIZE = 10;
  * o "Carregando..." piscando). 30 cards cobrem uns 3.000px por requisição.
  */
 export const BOARD_LOAD_MORE_PAGE_SIZE = 30;
+
+/**
+ * 1ª página por coluna do board FILTRADO do Kanban (POST /board). Antes eram
+ * 200 por etapa (~4 MB por resposta em funil cheio), sem "carregar mais";
+ * agora o resto vem ao rolar a coluna, pelo cursor da etapa.
+ */
+export const BOARD_FILTERED_PAGE_SIZE = 50;
 
 /** Lista de pipelines (dropdown do header) — key canônica compartilhada. */
 export function usePipelines(enabled = true) {
@@ -273,6 +281,28 @@ export function useBoardSearch(params: {
 }
 
 /**
+ * Chave do board filtrado. `filters` entra na forma canônica: o mesmo
+ * recorte (ids em outra ordem, campos vazios ou padrão sobrando) cai na
+ * mesma entrada do cache em vez de pedir outro POST.
+ */
+export function boardFilteredKey(
+  pipelineId: string | null,
+  status: StatusFilter,
+  filters: AdvancedDealFilters | null | undefined,
+  sort: BoardSortParam | undefined,
+  perStage: number,
+) {
+  return [
+    "pipeline-board-filtered",
+    pipelineId ?? "__none__",
+    status,
+    canonicalFiltersKey(filters),
+    sort ? `${sort.field}:${sort.direction}` : "default",
+    perStage,
+  ] as const;
+}
+
+/**
  * Board com filtros avançados server-side via POST /api/pipelines/:id/board.
  *
  * Ativado quando há qualquer critério em `filters` (origem, tags, datas,
@@ -286,32 +316,65 @@ export function useBoardFiltered(params: {
   sort?: BoardSortParam;
   enabled?: boolean;
   perStage?: number;
+  /**
+   * Modo antigo do "Carregar mais" (etapa sem `nextCursor`): stageId →
+   * extras além de `perStage`. Mesma queryKey — ver `useBoard`.
+   */
+  offsetByStage?: Record<string, number>;
 }) {
-  const sortKey = params.sort
-    ? `${params.sort.field}:${params.sort.direction}`
-    : "default";
   const perStage = params.perStage ?? 200;
-  const active = hasServerSideFilters(params.filters);
-  // Key estável (string) — objeto `filters` novo a cada render NÃO deve
-  // criar query nova nem disparar outro POST caro (~10–15s em prod).
-  const filtersKey = JSON.stringify(params.filters ?? {});
+  // Key estável (string canônica) — objeto `filters` novo a cada render NÃO
+  // deve criar query nova nem disparar outro POST caro (~10–15s em prod).
+  const filtersKey = canonicalFiltersKey(params.filters);
+  // O corpo do POST também vai na forma canônica (ajuda o cache do servidor,
+  // cuja chave inclui os filtros como chegam).
+  const filters = useMemo(
+    () => JSON.parse(filtersKey) as AdvancedDealFilters,
+    [filtersKey],
+  );
+  const active = hasServerSideFilters(filters);
+  const offsetByStageRef = useRef(params.offsetByStage);
+  offsetByStageRef.current = params.offsetByStage;
+  const qc = useQueryClient();
+  const queryKey = boardFilteredKey(
+    params.pipelineId,
+    params.status,
+    filters,
+    params.sort,
+    perStage,
+  );
+  const pagingKey = boardPagingKey(queryKey);
   return useQuery<BoardStageDto[]>({
-    queryKey: [
-      "pipeline-board-filtered",
-      params.pipelineId ?? "__none__",
-      params.status,
-      filtersKey,
-      sortKey,
-      perStage,
-    ],
-    queryFn: ({ signal }) =>
-      getBoardFiltered(params.pipelineId ?? "pl-1", {
+    queryKey,
+    queryFn: async ({ signal }) => {
+      const pid = params.pipelineId ?? "pl-1";
+      const offsets = offsetByStageRef.current;
+      const base = await getBoardFiltered(pid, {
         status: params.status,
-        filters: params.filters,
+        filters,
         sort: params.sort,
         perStage,
+        offsetByStage: offsets && Object.keys(offsets).length > 0 ? offsets : undefined,
         signal,
-      }),
+      });
+      // Colunas expandidas por cursor ("carregar mais"): a 1ª página voltou
+      // sem elas — recarrega só o que faltava, com os mesmos filtros.
+      return reloadBoardExpansions({
+        base,
+        loaded: getBoardColumnsLoaded(qc, pagingKey),
+        fetchColumns: (columns) =>
+          getBoardColumns(pid, {
+            status: params.status,
+            filters,
+            sort: params.sort,
+            columns,
+            signal,
+          }),
+        onFailure: () => {
+          if (!signal.aborted) clearBoardPaging(qc, pagingKey);
+        },
+      });
+    },
     enabled: (params.enabled ?? true) && !!params.pipelineId && active,
     staleTime: 30_000,
     refetchOnWindowFocus: false,

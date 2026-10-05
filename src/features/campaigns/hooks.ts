@@ -10,7 +10,7 @@ import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
+import { filterOptionsQuery } from "@/components/pipeline/kanban-filters/use-filter-options";
 import type { FilterOptionsResponse } from "@/components/pipeline/kanban-filters/types";
 
 import {
@@ -235,14 +235,12 @@ export function useTemplates(enabled = true, channelId?: string | null) {
  */
 export function useAudienceOptions(enabled = true) {
   return useQuery<FilterOptionsResponse, Error, AudienceFilterOptions>({
-    queryKey: ["kanban-filter-options"],
-    queryFn: fetchFilterOptions,
+    ...filterOptionsQuery,
     select: (data) => ({
       tags: data.tags ?? [],
       pipelines: data.pipelines ?? [],
       users: data.users ?? [],
     }),
     enabled: resolveEnabled(enabled),
-    staleTime: 5 * 60_000,
   });
 }
