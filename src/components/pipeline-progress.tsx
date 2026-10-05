@@ -370,7 +370,11 @@ export function PipelineProgress({
   }, []);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // Arrastar-para-rolar é só para mouse. Toque/caneta usam a rolagem
+    // nativa (com inércia): com o drag em JS no mobile, qualquer componente
+    // vertical do gesto fazia o navegador assumir o pan da página e
+    // cancelar o arraste (`pointercancel`) — a faixa não rolava.
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
     const el = scrollerRef.current;
     if (!el) return;
     dragRef.current = {
