@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import {
@@ -15,6 +15,7 @@ import {
 
 import type { AdvancedDealFilters } from "@/components/pipeline/kanban-filters/types";
 import { hasServerSideFilters } from "@/components/pipeline/kanban-filters/types";
+import { canonicalFiltersKey } from "@/components/pipeline/kanban-filters/canonical";
 
 import { isPreviewMode } from "@/lib/preview-mode";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
@@ -273,6 +274,28 @@ export function useBoardSearch(params: {
 }
 
 /**
+ * Chave do board filtrado. `filters` entra na forma canônica: o mesmo
+ * recorte (ids em outra ordem, campos vazios ou padrão sobrando) cai na
+ * mesma entrada do cache em vez de pedir outro POST.
+ */
+export function boardFilteredKey(
+  pipelineId: string | null,
+  status: StatusFilter,
+  filters: AdvancedDealFilters | null | undefined,
+  sort: BoardSortParam | undefined,
+  perStage: number,
+) {
+  return [
+    "pipeline-board-filtered",
+    pipelineId ?? "__none__",
+    status,
+    canonicalFiltersKey(filters),
+    sort ? `${sort.field}:${sort.direction}` : "default",
+    perStage,
+  ] as const;
+}
+
+/**
  * Board com filtros avançados server-side via POST /api/pipelines/:id/board.
  *
  * Ativado quando há qualquer critério em `filters` (origem, tags, datas,
@@ -287,27 +310,23 @@ export function useBoardFiltered(params: {
   enabled?: boolean;
   perStage?: number;
 }) {
-  const sortKey = params.sort
-    ? `${params.sort.field}:${params.sort.direction}`
-    : "default";
   const perStage = params.perStage ?? 200;
-  const active = hasServerSideFilters(params.filters);
-  // Key estável (string) — objeto `filters` novo a cada render NÃO deve
-  // criar query nova nem disparar outro POST caro (~10–15s em prod).
-  const filtersKey = JSON.stringify(params.filters ?? {});
+  // Key estável (string canônica) — objeto `filters` novo a cada render NÃO
+  // deve criar query nova nem disparar outro POST caro (~10–15s em prod).
+  const filtersKey = canonicalFiltersKey(params.filters);
+  // O corpo do POST também vai na forma canônica (ajuda o cache do servidor,
+  // cuja chave inclui os filtros como chegam).
+  const filters = useMemo(
+    () => JSON.parse(filtersKey) as AdvancedDealFilters,
+    [filtersKey],
+  );
+  const active = hasServerSideFilters(filters);
   return useQuery<BoardStageDto[]>({
-    queryKey: [
-      "pipeline-board-filtered",
-      params.pipelineId ?? "__none__",
-      params.status,
-      filtersKey,
-      sortKey,
-      perStage,
-    ],
+    queryKey: boardFilteredKey(params.pipelineId, params.status, filters, params.sort, perStage),
     queryFn: ({ signal }) =>
       getBoardFiltered(params.pipelineId ?? "pl-1", {
         status: params.status,
-        filters: params.filters,
+        filters,
         sort: params.sort,
         perStage,
         signal,

@@ -11,6 +11,7 @@ import {
   useBoardFiltered,
 } from "./use-board";
 import { useBoardLoadMore } from "./use-board-load-more";
+import { useDebouncedFilters } from "./use-debounced-filters";
 
 /**
  * Queries do board do Kanban: "carregar mais" por coluna, board paginado
@@ -23,6 +24,11 @@ import { useBoardLoadMore } from "./use-board-load-more";
  * calculava posição 0. O número → CUID é resolvido uma vez, antes do
  * paint, em `usePipelineUrlSync` (a lista de funis é a query
  * compartilhada do shell).
+ *
+ * `filters` é o que a tela mostra agora; o board só pede ao servidor o
+ * recorte depois do debounce e na forma canônica (`appliedFilters`).
+ * Seleção em massa e totais devem usar `appliedFilters` — é o recorte do
+ * quadro que está na tela.
  */
 export function useKanbanBoard(params: {
   pipelineId: string | null;
@@ -31,8 +37,10 @@ export function useKanbanBoard(params: {
   filters: AdvancedDealFilters;
   enabled: boolean;
 }) {
-  const { pipelineId, status, sort, filters, enabled } = params;
+  const { pipelineId, status, sort, enabled } = params;
 
+  const debounced = useDebouncedFilters(params.filters);
+  const filters = debounced.filters;
   const hasServerBoard = hasServerSideFilters(filters);
 
   const boardLoadMore = useBoardLoadMore({
@@ -60,6 +68,10 @@ export function useKanbanBoard(params: {
   });
 
   return {
+    /** Recorte pedido ao servidor (canônico, depois do debounce). */
+    appliedFilters: filters,
+    /** Há alteração de filtro esperando o debounce. */
+    filtersPending: debounced.pending,
     hasServerBoard,
     boardLoadMore,
     boardNormal,

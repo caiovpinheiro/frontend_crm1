@@ -33,7 +33,6 @@ import {
   writePipelineViewPreference,
 } from "@/lib/pipeline-view-preference";
 import {
-  SEARCH_DEBOUNCE_MS,
   normalizeSearchQuery,
 } from "@/lib/search-query";
 
@@ -260,29 +259,33 @@ export default function KanbanV2ClientPage({
   // tags, datas, etc.). Quando há qualquer critério ativo, trocamos pelo
   // POST /board com `filters` — mesma engine do backend usada na edição em massa.
   const rawSearch = (filters.search ?? search).trim();
-  const [debouncedSearch, setDebouncedSearch] = useState(rawSearch);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(rawSearch), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [rawSearch]);
 
-  const mergedFilters = useMemo(() => {
+  // O que a tela mostra agora. O board só pede ao servidor depois do
+  // debounce (`useKanbanBoard` → `mergedFilters`): digitar na busca ou
+  // marcar vários critérios seguidos vira um POST só.
+  const liveFilters = useMemo(() => {
     const f: AdvancedDealFilters = { ...filters };
     // Só UI (colunas Ganho/Perdido) — não vai ao servidor.
     delete f.showAllStages;
-    const q = normalizeSearchQuery(debouncedSearch);
+    const q = normalizeSearchQuery(rawSearch);
     if (q) f.search = q;
     else delete f.search;
     return f;
-  }, [filters, debouncedSearch]);
+  }, [filters, rawSearch]);
 
   // Board paginado, filtrado (POST) e "carregar mais" por coluna — todos
   // pela chave do CUID do funil (ver `useKanbanBoard`).
-  const { hasServerBoard, boardLoadMore, boardNormal, boardFiltered } = useKanbanBoard({
+  const {
+    appliedFilters: mergedFilters,
+    hasServerBoard,
+    boardLoadMore,
+    boardNormal,
+    boardFiltered,
+  } = useKanbanBoard({
     pipelineId,
     status,
     sort: boardSort,
-    filters: mergedFilters,
+    filters: liveFilters,
     enabled: canFetch,
   });
   const board = hasServerBoard ? boardFiltered.data ?? [] : boardNormal.data ?? [];
