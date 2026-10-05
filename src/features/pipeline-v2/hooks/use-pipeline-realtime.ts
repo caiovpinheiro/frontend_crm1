@@ -293,49 +293,132 @@ export function applyBoardNewMessage(
 export const BOARD_REFRESH_DEBOUNCE_MS = 800;
 
 /**
- * Invalidação debounced do board paginado. Junta os pedidos da janela:
- * vários funis viram uma invalidação por funil; um pedido `"all"` vence.
+ * Intervalo mínimo entre dois refetches do board do MESMO funil causados
+ * por eventos. O evento de mensagem não traz o card do negócio (etapa,
+ * posição), então card fora da página carregada só entra refazendo o
+ * board; sem teto, um funil movimentado refazia o board a cada mensagem
+ * (uma por segundo = um GET por segundo).
+ */
+export const BOARD_REFRESH_MIN_INTERVAL_MS = 10_000;
+
+/** Pedido sem escopo (`"all"`): refaz todo board paginado em cache. */
+const ALL_BOARDS = "*";
+
+function documentVisible(): boolean {
+  return typeof document === "undefined" || document.visibilityState !== "hidden";
+}
+
+/**
+ * Invalidação do board paginado pedida por eventos, coalescida:
+ * - junta os pedidos da janela (`delayMs`): vários funis viram uma
+ *   invalidação por funil; um pedido `"all"` cobre todos;
+ * - no máximo um refetch a cada `minIntervalMs` por funil — o que chega no
+ *   intervalo fica pendente e sai quando ele fecha (o primeiro pedido de um
+ *   funil parado continua saindo em `delayMs`);
+ * - com a aba oculta não refaz nada: o pendente sai quando a aba volta.
+ *
  * Não inclui o POST filtrado/busca: quem não está no filtro não pode
  * refazer essa query (no Flow a tela ficava em refresh o tempo todo).
  */
 export function createBoardRefreshScheduler(
   qc: QueryClient,
   delayMs = BOARD_REFRESH_DEBOUNCE_MS,
+  minIntervalMs = BOARD_REFRESH_MIN_INTERVAL_MS,
 ) {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let pending: "all" | Set<string> | null = null;
+  /** Funis (ou `ALL_BOARDS`) à espera de refetch. */
+  const pending = new Set<string>();
+  /** Último refetch por funil (e de `ALL_BOARDS`), em ms. */
+  const lastRun = new Map<string, number>();
+  let waitingVisible = false;
+
+  /** Quando `key` pode ser refeito de novo. */
+  function dueAt(key: string): number {
+    const lastAll = lastRun.get(ALL_BOARDS);
+    let last = lastAll;
+    if (key === ALL_BOARDS) {
+      // "Todos" inclui cada funil: respeita o refetch mais recente de qualquer um.
+      for (const at of lastRun.values()) last = last == null ? at : Math.max(last, at);
+    } else {
+      const own = lastRun.get(key);
+      if (own != null) last = last == null ? own : Math.max(last, own);
+    }
+    return last == null ? 0 : last + minIntervalMs;
+  }
+
+  function onVisibility() {
+    if (!documentVisible()) return;
+    stopWaitingVisible();
+    arm();
+  }
+
+  function stopWaitingVisible() {
+    if (!waitingVisible) return;
+    waitingVisible = false;
+    document.removeEventListener("visibilitychange", onVisibility);
+  }
+
+  function arm() {
+    if (timer || pending.size === 0) return;
+    if (!documentVisible()) {
+      if (!waitingVisible) {
+        waitingVisible = true;
+        document.addEventListener("visibilitychange", onVisibility);
+      }
+      return;
+    }
+    const now = Date.now();
+    let earliest = Infinity;
+    for (const key of pending) earliest = Math.min(earliest, dueAt(key));
+    timer = setTimeout(flush, Math.max(delayMs, earliest - now));
+  }
 
   function flush() {
     timer = null;
-    const request = pending;
-    pending = null;
-    if (!request) return;
-    qc.invalidateQueries({
-      predicate: (q) => {
-        if (!isPagedBoardQueryKey(q.queryKey)) return false;
-        if (request === "all") return true;
-        const pipelineId = boardPipelineId(q.queryKey);
-        return pipelineId != null && request.has(pipelineId);
-      },
-    });
+    if (!documentVisible()) {
+      arm();
+      return;
+    }
+    const now = Date.now();
+    const ready = new Set<string>();
+    for (const key of pending) {
+      if (dueAt(key) <= now) ready.add(key);
+    }
+    if (ready.size > 0) {
+      const all = ready.has(ALL_BOARDS);
+      if (all) {
+        pending.clear();
+        lastRun.set(ALL_BOARDS, now);
+      } else {
+        for (const key of ready) {
+          pending.delete(key);
+          lastRun.set(key, now);
+        }
+      }
+      qc.invalidateQueries({
+        predicate: (q) => {
+          if (!isPagedBoardQueryKey(q.queryKey)) return false;
+          if (all) return true;
+          const pipelineId = boardPipelineId(q.queryKey);
+          return pipelineId != null && ready.has(pipelineId);
+        },
+      });
+    }
+    arm();
   }
 
   return {
     schedule(request: BoardRefreshRequest) {
       if (!request) return;
-      if (request === "all") {
-        pending = "all";
-      } else if (pending !== "all") {
-        const set = pending ?? new Set<string>();
-        for (const id of request) set.add(id);
-        pending = set;
-      }
-      if (!timer) timer = setTimeout(flush, delayMs);
+      if (request === "all") pending.add(ALL_BOARDS);
+      else for (const id of request) pending.add(id);
+      arm();
     },
     cancel() {
       if (timer) clearTimeout(timer);
       timer = null;
-      pending = null;
+      pending.clear();
+      stopWaitingVisible();
     },
   };
 }
@@ -589,7 +672,9 @@ export function applyDealMoved(
  *   Com `pipelineIds`/`dealIds` no evento: só os cards e o funil
  *   afetados; funil que não está no evento não é tocado. Sem esses
  *   campos (backend antigo): contato fora da página dispara um refetch
- *   debounced do board paginado. Ver `applyBoardNewMessage`.
+ *   do board paginado. Ver `applyBoardNewMessage`. O refetch é coalescido:
+ *   no máximo um a cada `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e só com
+ *   a aba visível (`createBoardRefreshScheduler`).
  * - `conversation_updated` → ignora (ticket assign/status/consent não
  *   muda estágio do deal; poll 60s + mutations locais cobrem o board).
  * - `message_status` → patch otimista do `sendStatus` (ticks), sem
