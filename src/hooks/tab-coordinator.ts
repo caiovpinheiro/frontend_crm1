@@ -47,7 +47,9 @@ export type TabMessage =
   | { t: "state"; state: TabState }
   | { t: "event"; url: string; name: string; data: unknown }
   | { t: "status"; url: string; open: boolean }
-  | { t: "viewers"; key: string; viewers: unknown };
+  | { t: "viewers"; key: string; viewers: unknown }
+  /** Seguidora → líder: interações de uso real (`presence-ticker.ts`). */
+  | { t: "activity"; count: number };
 
 export type TabEnvelope = TabMessage & { v: 1; from: string; term: number };
 
@@ -234,7 +236,7 @@ export class TabCoordinator {
     this.leaderListeners.add(fn);
     return () => this.leaderListeners.delete(fn);
   }
-  /** Mensagens de aplicação (`event`, `status`, `viewers`, `state`). */
+  /** Mensagens de aplicação (`event`, `status`, `viewers`, `state`, `activity`). */
   onMessage(fn: (msg: TabEnvelope) => void): () => void {
     this.messageListeners.add(fn);
     return () => this.messageListeners.delete(fn);
@@ -523,6 +525,10 @@ export class TabCoordinator {
         if (this.roleValue !== "leader") return;
         this.followers.set(msg.from, { state: msg.state ?? {}, seenAt: Date.now() });
         this.emitFollowersChanged();
+        break;
+      case "activity":
+        // Endereçada à líder (de qualquer termo: a contagem não envelhece).
+        if (this.roleValue !== "leader") return;
         break;
       default:
         // `event`/`status`/`viewers` só valem vindos da líder atual.
