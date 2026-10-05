@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   IconCheck,
@@ -48,7 +48,10 @@ import {
 } from "@/components/crm/deal-list-table";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
+import {
+  filtersNeedOptions,
+  useFilterOptions,
+} from "@/components/pipeline/kanban-filters/use-filter-options";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
@@ -189,14 +192,9 @@ export default function V2PipelineListClientPage() {
   }, [filters]);
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const filterOptionsQuery = useQuery({
-    queryKey: ["kanban-filter-options"],
-    queryFn: fetchFilterOptions,
-    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
+  const filterOptionsQuery = useFilterOptions(
+    canFetch && (filterPanelOpen || filtersNeedOptions(filters)),
+  );
   const filterOptions = filterOptionsQuery.data ?? null;
   const filterOptionsLoading = filterOptionsQuery.isLoading;
 

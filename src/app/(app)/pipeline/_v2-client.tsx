@@ -94,7 +94,7 @@ import {
   filtersForVisibleStages,
   visibleBoardStages,
 } from "@/features/pipeline-v2/stage-visibility";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
 import { createContact } from "@/features/directory-v2/api";
@@ -136,7 +136,10 @@ import { ContactTagsPopover } from "@/features/inbox-v2/extras/contact-tags-popo
 import { CountUpNumber } from "@/components/crm/count-up";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
+import {
+  filtersNeedOptions,
+  useFilterOptions,
+} from "@/components/pipeline/kanban-filters/use-filter-options";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
@@ -502,15 +505,11 @@ export default function KanbanV2ClientPage({
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
 
-  // Options de filtro: só quando o modal abre ou já há filtro ativo.
-  const filterOptionsQuery = useQuery({
-    queryKey: ["kanban-filter-options"],
-    queryFn: fetchFilterOptions,
-    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
+  // Opções de filtro: só ao abrir o painel (ou com filtro por campo
+  // personalizado, cujo chip precisa do rótulo) — não na montagem.
+  const filterOptionsQuery = useFilterOptions(
+    canFetch && (filterPanelOpen || filtersNeedOptions(filters)),
+  );
   const filterOptions = filterOptionsQuery.data ?? null;
   const filterOptionsLoading = filterOptionsQuery.isLoading;
 
