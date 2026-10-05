@@ -7,6 +7,8 @@ import { endOfDay, format, parseISO, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   IconChartBar,
+  IconChevronDown,
+  IconChevronRight,
   IconClipboardList,
   IconFilter,
   IconLoader2,
@@ -25,7 +27,8 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ButtonGlass } from "@/components/crm/button-glass";
-import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
+import { RankBarList, type RankBarRow } from "@/components/crm/dashboard/rank-bar-list";
+import { TabsGlass } from "@/components/crm/tabs-glass";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
 import { cn } from "@/lib/utils";
@@ -125,6 +128,21 @@ export function TabulationKpiWidget({
   );
 }
 
+const TOP_LIMIT = 8;
+const PATH_SEPARATOR = " › ";
+
+type TabulationRow = TabulationAnalyticsResponse["byTabulation"][number];
+
+function splitTabulationPath(row: TabulationRow) {
+  const parts = row.path.split(PATH_SEPARATOR).filter(Boolean);
+  const leaf = parts.length ? parts[parts.length - 1]! : row.path;
+  return {
+    group: parts[0] ?? row.path,
+    prefix: parts.slice(0, -1).join(PATH_SEPARATOR),
+    leaf: row.number != null ? `${leaf} (#${row.number})` : leaf,
+  };
+}
+
 export function TabulationTopWidget({
   rows,
   departmentId,
@@ -138,9 +156,155 @@ export function TabulationTopWidget({
   onToggleDepartment: (id: string) => void;
 }) {
   const selectedDeptIds = departmentIds ?? (departmentId ? [departmentId] : []);
+  const [view, setView] = useState<"tabulation" | "group">("tabulation");
+  const [showAll, setShowAll] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
+
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+
+  const departmentButton = (row: Pick<TabulationRow, "departmentId" | "departmentName">) =>
+    row.departmentId && row.departmentName ? (
+      <button
+        type="button"
+        aria-pressed={selectedDeptIds.includes(row.departmentId)}
+        aria-label={
+          selectedDeptIds.includes(row.departmentId)
+            ? `Limpar filtro de ${row.departmentName}`
+            : `Filtrar por ${row.departmentName}`
+        }
+        title={
+          selectedDeptIds.includes(row.departmentId)
+            ? `Limpar filtro de ${row.departmentName}`
+            : `Filtrar por ${row.departmentName}`
+        }
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleDepartment(row.departmentId as string);
+        }}
+        className="mt-0.5 max-w-full truncate text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      >
+        {row.departmentName}
+      </button>
+    ) : undefined;
+
+  const pctLabel = (value: number) =>
+    total > 0 ? ` · ${Math.round((value / total) * 100)}% do total` : "";
+
+  const tabulationRow = (row: TabulationRow, indent = false): RankBarRow => {
+    const { prefix, leaf } = splitTabulationPath(row);
+    const fullLabel = row.number != null ? `${row.path} (#${row.number})` : row.path;
+    return {
+      id: row.tabulationId,
+      label: leaf,
+      labelPrefix: indent ? undefined : prefix || undefined,
+      title: [fullLabel, row.departmentName, `${row.count} tabulações${pctLabel(row.count)}`]
+        .filter(Boolean)
+        .join("\n"),
+      value: row.count,
+      indent,
+      labelExtra: departmentButton(row),
+    };
+  };
+
+  const groups = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; rows: TabulationRow[] }>();
+    for (const row of rows) {
+      const { group } = splitTabulationPath(row);
+      const entry = map.get(group) ?? { name: group, count: 0, rows: [] };
+      entry.count += row.count;
+      entry.rows.push(row);
+      map.set(group, entry);
+    }
+    return [...map.values()]
+      .map((g) => ({ ...g, rows: [...g.rows].sort((a, b) => b.count - a.count) }))
+      .sort((a, b) => b.count - a.count);
+  }, [rows]);
+
+  const sortedRows = useMemo(() => [...rows].sort((a, b) => b.count - a.count), [rows]);
+  const itemCount = view === "group" ? groups.length : sortedRows.length;
+  const limited = !showAll && itemCount > TOP_LIMIT;
+
+  const top3 = (view === "group" ? groups.map((g) => g.count) : sortedRows.map((r) => r.count))
+    .slice(0, 3)
+    .reduce((sum, n) => sum + n, 0);
+
+  const listRows: RankBarRow[] = [];
+  if (view === "group") {
+    const visible = limited ? groups.slice(0, TOP_LIMIT) : groups;
+    for (const group of visible) {
+      const open = openGroups.has(group.name);
+      const departments = [
+        ...new Set(group.rows.map((r) => r.departmentName).filter(Boolean)),
+      ].join(", ");
+      listRows.push({
+        id: `group:${group.name}`,
+        label: group.name,
+        title: `${group.name}\n${group.count} tabulações${pctLabel(group.count)}`,
+        value: group.count,
+        ariaExpanded: open,
+        onClick: () =>
+          setOpenGroups((prev) => {
+            const next = new Set(prev);
+            if (next.has(group.name)) next.delete(group.name);
+            else next.add(group.name);
+            return next;
+          }),
+        leading: open ? (
+          <IconChevronDown size={14} className="mr-1 shrink-0 text-muted-foreground" aria-hidden />
+        ) : (
+          <IconChevronRight size={14} className="mr-1 shrink-0 text-muted-foreground" aria-hidden />
+        ),
+        labelExtra: (
+          <span className="mt-0.5 max-w-full truncate pl-[18px] text-[11px] text-muted-foreground">
+            {group.rows.length} {group.rows.length === 1 ? "tabulação" : "tabulações"}
+            {departments ? ` · ${departments}` : ""}
+          </span>
+        ),
+      });
+      if (open) {
+        for (const row of group.rows) listRows.push(tabulationRow(row, true));
+      }
+    }
+  } else {
+    const visible = limited ? sortedRows.slice(0, TOP_LIMIT) : sortedRows;
+    for (const row of visible) listRows.push(tabulationRow(row));
+  }
+
+  if (limited) {
+    const rest = view === "group" ? groups.slice(TOP_LIMIT) : sortedRows.slice(TOP_LIMIT);
+    const restCount = rest.reduce((sum, r) => sum + r.count, 0);
+    const noun = view === "group" ? "assuntos" : "tabulações";
+    listRows.push({
+      id: "__others__",
+      label: `Outros (${rest.length} ${noun})`,
+      title: `Soma de ${rest.length} ${noun} fora do top ${TOP_LIMIT}${pctLabel(restCount)}`,
+      value: restCount,
+      muted: true,
+    });
+  }
+
   return (
     <GlassCard className="min-w-0 overflow-hidden p-4">
-      <h3 className="mb-3 text-[13px] font-semibold text-foreground">Principais tabulações</h3>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-semibold text-foreground">Principais tabulações</h3>
+          {total > 0 ? (
+            <p className="text-[11px] text-muted-foreground">
+              {total} tabulações · top 3 = {Math.round((top3 / total) * 100)}% do volume
+            </p>
+          ) : null}
+        </div>
+        {rows.length ? (
+          <TabsGlass
+            tabs={["Por tabulação", "Por assunto"]}
+            activeTab={view === "group" ? 1 : 0}
+            onChange={(index) => {
+              setView(index === 1 ? "group" : "tabulation");
+              setShowAll(false);
+            }}
+          />
+        ) : null}
+      </div>
       {!rows.length ? (
         <EmptyState
           icon={<IconChartBar size={22} />}
@@ -149,38 +313,23 @@ export function TabulationTopWidget({
           className="py-6"
         />
       ) : (
-        <RankBarList
-          rows={rows.map((row) => ({
-            id: row.tabulationId,
-            label: row.number != null ? `${row.path} (#${row.number})` : row.path,
-            title: row.departmentName ? `${row.path} / ${row.departmentName}` : row.path,
-            value: row.count,
-            labelExtra:
-              row.departmentId && row.departmentName ? (
-                <button
-                  type="button"
-                  aria-pressed={selectedDeptIds.includes(row.departmentId)}
-                  aria-label={
-                    selectedDeptIds.includes(row.departmentId)
-                      ? `Limpar filtro de ${row.departmentName}`
-                      : `Filtrar por ${row.departmentName}`
-                  }
-                  title={
-                    selectedDeptIds.includes(row.departmentId)
-                      ? `Limpar filtro de ${row.departmentName}`
-                      : `Filtrar por ${row.departmentName}`
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleDepartment(row.departmentId as string);
-                  }}
-                  className="mt-0.5 truncate text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                >
-                  {row.departmentName}
-                </button>
-              ) : undefined,
-          }))}
-        />
+        <>
+          <RankBarList
+            variant="inline"
+            rows={listRows}
+            total={total}
+            max={view === "group" ? groups[0]?.count : sortedRows[0]?.count}
+          />
+          {itemCount > TOP_LIMIT ? (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-2 px-1.5 text-[12px] font-medium text-primary hover:underline"
+            >
+              {showAll ? `Mostrar top ${TOP_LIMIT}` : `Ver todas (${itemCount})`}
+            </button>
+          ) : null}
+        </>
       )}
     </GlassCard>
   );
