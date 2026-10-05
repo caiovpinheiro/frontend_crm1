@@ -53,6 +53,13 @@ export const BOARD_PAGE_SIZE = 10;
  */
 export const BOARD_LOAD_MORE_PAGE_SIZE = 30;
 
+/**
+ * 1ª página por coluna do board FILTRADO do Kanban (POST /board). Antes eram
+ * 200 por etapa (~4 MB por resposta em funil cheio), sem "carregar mais";
+ * agora o resto vem ao rolar a coluna, pelo cursor da etapa.
+ */
+export const BOARD_FILTERED_PAGE_SIZE = 50;
+
 /** Lista de pipelines (dropdown do header) — key canônica compartilhada. */
 export function usePipelines(enabled = true) {
   return usePipelinesQuery<PipelineListItemDto>(enabled);
@@ -309,6 +316,11 @@ export function useBoardFiltered(params: {
   sort?: BoardSortParam;
   enabled?: boolean;
   perStage?: number;
+  /**
+   * Modo antigo do "Carregar mais" (etapa sem `nextCursor`): stageId →
+   * extras além de `perStage`. Mesma queryKey — ver `useBoard`.
+   */
+  offsetByStage?: Record<string, number>;
 }) {
   const perStage = params.perStage ?? 200;
   // Key estável (string canônica) — objeto `filters` novo a cada render NÃO
@@ -321,16 +333,48 @@ export function useBoardFiltered(params: {
     [filtersKey],
   );
   const active = hasServerSideFilters(filters);
+  const offsetByStageRef = useRef(params.offsetByStage);
+  offsetByStageRef.current = params.offsetByStage;
+  const qc = useQueryClient();
+  const queryKey = boardFilteredKey(
+    params.pipelineId,
+    params.status,
+    filters,
+    params.sort,
+    perStage,
+  );
+  const pagingKey = boardPagingKey(queryKey);
   return useQuery<BoardStageDto[]>({
-    queryKey: boardFilteredKey(params.pipelineId, params.status, filters, params.sort, perStage),
-    queryFn: ({ signal }) =>
-      getBoardFiltered(params.pipelineId ?? "pl-1", {
+    queryKey,
+    queryFn: async ({ signal }) => {
+      const pid = params.pipelineId ?? "pl-1";
+      const offsets = offsetByStageRef.current;
+      const base = await getBoardFiltered(pid, {
         status: params.status,
         filters,
         sort: params.sort,
         perStage,
+        offsetByStage: offsets && Object.keys(offsets).length > 0 ? offsets : undefined,
         signal,
-      }),
+      });
+      // Colunas expandidas por cursor ("carregar mais"): a 1ª página voltou
+      // sem elas — recarrega só o que faltava, com os mesmos filtros.
+      return reloadBoardExpansions({
+        base,
+        loaded: getBoardColumnsLoaded(qc, pagingKey),
+        fetchColumns: (columns) =>
+          getBoardColumns(pid, {
+            status: params.status,
+            filters,
+            sort: params.sort,
+            columns,
+            signal,
+          }),
+        onFailure: () => {
+          if (!signal.aborted) clearBoardPaging(qc, pagingKey);
+        },
+      });
+    },
     enabled: (params.enabled ?? true) && !!params.pipelineId && active,
     staleTime: 30_000,
     refetchOnWindowFocus: false,

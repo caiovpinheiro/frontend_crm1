@@ -46,11 +46,9 @@ export function createFakeBoardServer(totals: Record<string, number>, firstPage 
     return { deals, total, hasMore, nextCursor: hasMore ? `${stageId}@${to}` : null };
   };
 
-  return {
-    async getBoard(): Promise<BoardStageDto[]> {
-      await sleep(FAKE_LATENCY_MS);
-      return stageIds.map((id, index) => {
-        const page = slice(id, 0, firstPage);
+  const board = (perStage: number, offsets: Record<string, number> = {}): BoardStageDto[] =>
+    stageIds.map((id, index) => {
+        const page = slice(id, 0, perStage + (offsets[id] ?? 0));
         return {
           id,
           name: `Etapa ${id}`,
@@ -65,6 +63,19 @@ export function createFakeBoardServer(totals: Record<string, number>, firstPage 
           deals: page.deals,
         } as BoardStageDto;
       });
+
+  return {
+    async getBoard(): Promise<BoardStageDto[]> {
+      await sleep(FAKE_LATENCY_MS);
+      return board(firstPage);
+    },
+    /** POST /board: a 1ª página tem o `perStage` pedido (+ `offsetByStage`). */
+    async getBoardFiltered(
+      _pipelineId: string,
+      opts: { perStage?: number; offsetByStage?: Record<string, number> },
+    ): Promise<BoardStageDto[]> {
+      await sleep(FAKE_LATENCY_MS);
+      return board(opts.perStage ?? firstPage, opts.offsetByStage);
     },
     async getBoardColumns(
       _pipelineId: string,

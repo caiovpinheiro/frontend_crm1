@@ -32,6 +32,19 @@ export function stageCanLoadByCursor(
 }
 
 /**
+ * "Carregar mais" da coluna: quantos cards ainda estão no servidor, ou
+ * `null` quando a coluna já está inteira. O restante sai do total que o
+ * servidor informou (`totalCount`), não do tamanho da lista carregada.
+ */
+export function boardColumnLoadMore(
+  stage: Pick<BoardStageDto, "hasMore" | "totalCount" | "deals"> | undefined,
+): { remaining: number } | null {
+  if (!stage?.hasMore) return null;
+  const remaining = Math.max(0, (stage.totalCount ?? 0) - stage.deals.length);
+  return remaining > 0 ? { remaining } : null;
+}
+
+/**
  * Anexa as páginas às colunas. Só as etapas que receberam página ganham
  * objeto novo; os cards já carregados e as demais etapas mantêm a mesma
  * referência. Card que já está no board (em qualquer etapa) não é

@@ -5,8 +5,10 @@ import { hasServerSideFilters } from "@/components/pipeline/kanban-filters/types
 
 import type { BoardSortParam, StatusFilter } from "../api";
 import {
+  BOARD_FILTERED_PAGE_SIZE,
   BOARD_LOAD_MORE_PAGE_SIZE,
   BOARD_PAGE_SIZE,
+  boardFilteredKey,
   useBoard,
   useBoardFiltered,
 } from "./use-board";
@@ -43,12 +45,20 @@ export function useKanbanBoard(params: {
   const filters = debounced.filters;
   const hasServerBoard = hasServerSideFilters(filters);
 
+  // Um "carregar mais" só, apontado para o board que está na tela: o
+  // paginado (GET, 10 por etapa) ou o filtrado (POST, 50 por etapa). Com
+  // filtro, o cursor leva os mesmos filtros e os cards entram no cache do
+  // board filtrado.
   const boardLoadMore = useBoardLoadMore({
     pipelineId,
     status,
     sort,
     pageSize: BOARD_LOAD_MORE_PAGE_SIZE,
-    firstPageSize: BOARD_PAGE_SIZE,
+    firstPageSize: hasServerBoard ? BOARD_FILTERED_PAGE_SIZE : BOARD_PAGE_SIZE,
+    queryKey: hasServerBoard
+      ? boardFilteredKey(pipelineId, status, filters, sort, BOARD_FILTERED_PAGE_SIZE)
+      : undefined,
+    filters: hasServerBoard ? filters : undefined,
   });
 
   const boardNormal = useBoard({
@@ -57,7 +67,7 @@ export function useKanbanBoard(params: {
     sort,
     enabled: enabled && !hasServerBoard,
     perStage: BOARD_PAGE_SIZE,
-    offsetByStage: boardLoadMore.legacyOffsets,
+    offsetByStage: hasServerBoard ? undefined : boardLoadMore.legacyOffsets,
   });
   const boardFiltered = useBoardFiltered({
     pipelineId,
@@ -65,6 +75,8 @@ export function useKanbanBoard(params: {
     filters,
     sort,
     enabled: enabled && hasServerBoard,
+    perStage: BOARD_FILTERED_PAGE_SIZE,
+    offsetByStage: hasServerBoard ? boardLoadMore.legacyOffsets : undefined,
   });
 
   return {
