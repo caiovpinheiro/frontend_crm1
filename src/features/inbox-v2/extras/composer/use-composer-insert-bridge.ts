@@ -6,6 +6,7 @@ import {
   takePendingComposerInsert,
   type ComposerInsertMedia,
   type ComposerInsertPayload,
+  type ComposerInsertStep,
 } from "@/lib/composer-insert";
 import type { PendingMedia } from "./types";
 
@@ -30,16 +31,23 @@ export function useComposerInsertBridge({
   insertTemplateTextRef,
   draftRef,
   setPendingMediaList,
+  sendProductStepsRef,
 }: {
   insertTemplateTextRef: RefObject<(text: string) => void>;
   draftRef: RefObject<string>;
   setPendingMediaList: Dispatch<SetStateAction<PendingMedia[]>>;
+  /** Vários produtos: uma mensagem por item, sem juntar o texto. */
+  sendProductStepsRef: RefObject<(steps: ComposerInsertStep[]) => Promise<void>>;
 }) {
   useEffect(() => {
     function applyInsert(payload: ComposerInsertPayload) {
       const steps = Array.isArray(payload?.steps) ? payload.steps : [];
-      // Um ou mais produtos: o texto cai no campo, editável, e a imagem
-      // fica encostada. O envio só acontece quando o operador confirma.
+      if (steps.length > 1) {
+        clearPendingComposerInsert();
+        void sendProductStepsRef.current(steps);
+        return;
+      }
+      // Um produto: o texto cai no campo, editável, e a imagem fica encostada.
       const text =
         steps.length > 0
           ? steps

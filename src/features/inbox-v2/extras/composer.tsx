@@ -60,6 +60,7 @@ import {
 } from "./composer/pending-attachments";
 import { useOutboundFlush } from "./composer/outbound-flush";
 import { ReplyPreviewBar } from "./composer/reply-preview-bar";
+import { sendProductSteps } from "./composer/send-product-steps";
 import { useComposerInsertBridge } from "./composer/use-composer-insert-bridge";
 import { useComposerSignature } from "./composer/use-composer-signature";
 import { useComposerSlash } from "./composer/use-composer-slash";
@@ -382,10 +383,14 @@ export function Composer({
   // payload fica em `takePendingComposerInsert` e é aplicado ao montar.
   const insertTemplateTextRef = useRef(insertTemplateText);
   insertTemplateTextRef.current = insertTemplateText;
+  const sendProductStepsRef = useRef<
+    (steps: Parameters<typeof sendProductSteps>[0]["steps"]) => Promise<void>
+  >(async () => {});
   useComposerInsertBridge({
     insertTemplateTextRef,
     draftRef,
     setPendingMediaList,
+    sendProductStepsRef,
   });
 
   const slash = useComposerSlash({
@@ -428,6 +433,29 @@ export function Composer({
     wasBusyRef.current = false;
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [busy, inputDisabled]);
+
+  sendProductStepsRef.current = async (steps) => {
+    if (!conversationId) {
+      toast.error("Abra a conversa para enviar os produtos.");
+      return;
+    }
+    if (inputDisabled) {
+      warnOutboundBlocked();
+      return;
+    }
+    setSequenceSending(true);
+    try {
+      await sendProductSteps({
+        conversationId,
+        channelId: selectedChannelId,
+        steps,
+        qc,
+        applySignature,
+      });
+    } finally {
+      setSequenceSending(false);
+    }
+  };
 
   function warnOutboundBlocked() {
     if (sessionExpired) {
