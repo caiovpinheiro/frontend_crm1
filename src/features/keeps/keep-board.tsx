@@ -89,6 +89,7 @@ export function KeepBoard({
   sections,
   onOpen,
   onPin,
+  onFavorite,
   onArchive,
   onTrash,
   onColor,
@@ -97,6 +98,7 @@ export function KeepBoard({
   sections: KeepBoardSection[];
   onOpen: (note: KeepNote) => void;
   onPin?: (note: KeepNote) => void;
+  onFavorite?: (note: KeepNote) => void;
   onArchive: (note: KeepNote) => void;
   onTrash: (note: KeepNote) => void;
   onReorder: (sections: Array<{ key: string; notes: KeepNote[] }>) => void;
@@ -244,6 +246,7 @@ export function KeepBoard({
                   ghost={drag?.id === note.id}
                   onOpen={() => handleOpen(note)}
                   onPin={onPin ? () => onPin(note) : undefined}
+                  onFavorite={onFavorite ? () => onFavorite(note) : undefined}
                   onArchive={() => onArchive(note)}
                   onTrash={() => onTrash(note)}
                   onColor={note.categoryId ? undefined : (color) => onColor(note, color)}

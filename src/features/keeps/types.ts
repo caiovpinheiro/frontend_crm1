@@ -19,6 +19,7 @@ export type KeepNote = {
   content: KeepDoc;
   plainText: string;
   pinned: boolean;
+  favorite: boolean;
   archived: boolean;
   trashed: boolean;
   trashedAt: string | null;

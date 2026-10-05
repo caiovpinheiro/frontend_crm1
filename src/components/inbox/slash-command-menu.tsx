@@ -38,6 +38,7 @@ import {
   IconMessageQuestion as MessageSquareQuote,
           IconMessage2,
   IconClipboardList as ClipboardList,
+  IconNote,
   IconSearch,
   IconSparkles,
   IconStar,
@@ -65,7 +66,8 @@ export type SlashItemKind =
   | "quick-reply"
   | "meta-template"
   | "wa-flow"
-  | "automation";
+  | "automation"
+  | "keep";
 
 /** Metadados de destaque (favorito / uso) anexados a qualquer item. */
 type SlashItemHighlight = {
@@ -126,6 +128,12 @@ export type SlashItem = SlashItemHighlight &
       stepCount: number;
       category: string;
       categoryLabel: string;
+    }
+  | {
+      kind: "keep";
+      id: string;
+      name: string;
+      content: string;
     } );
 
 export type SlashSelectionResult =
@@ -351,6 +359,20 @@ function shortcutKey(kind: SlashItemKind, id: string): string {
   return `${kind}:${id}`;
 }
 
+type FavoriteKeep = { id: string; title: string; plainText: string };
+
+async function fetchFavoriteKeeps(): Promise<FavoriteKeep[]> {
+  const r = await fetch(apiUrl("/api/keeps?folder=notes&favorite=1"), { credentials: "include" });
+  if (!r.ok) return [];
+  const data = await r.json().catch(() => ({}));
+  return Array.isArray(data?.items) ? (data.items as FavoriteKeep[]) : [];
+}
+
+function isKeepsQuery(query: string): boolean {
+  const q = normalizeSearch(query);
+  return q === "keeps" || q === "keep";
+}
+
 async function fetchAgentShortcuts(): Promise<ShortcutRow[]> {
   const r = await fetch(apiUrl("/api/slash-shortcuts"));
   if (!r.ok) return [];
@@ -529,16 +551,36 @@ export function useSlashMenu({
     refetchOnMount: "always",
   });
 
-  const isLoading =
-    queriesEnabled &&
-    (internalsQ.isLoading || metasQ.isLoading || quickRepliesQ.isLoading || flowsQ.isLoading);
-
   // Busca unificada: o campo da modal tem prioridade; sem ele, usa o
   // token "/..." do composer. Accent-insensitive, prioriza TÍTULO.
   const effectiveQuery = (search.trim() || token?.query || "").trim();
+  const keepsMode = isKeepsQuery(effectiveQuery);
+  const keepsQ = useQuery({
+    queryKey: ["slash-favorite-keeps"],
+    queryFn: fetchFavoriteKeeps,
+    enabled: queriesEnabled && keepsMode,
+    staleTime: 0,
+  });
+
+  const isLoading = keepsMode
+    ? queriesEnabled && keepsQ.isLoading
+    : queriesEnabled &&
+      (internalsQ.isLoading || metasQ.isLoading || quickRepliesQ.isLoading || flowsQ.isLoading);
 
   const items = React.useMemo<SlashItem[]>(() => {
     const q = normalizeSearch(effectiveQuery);
+    if (keepsMode) {
+      return (keepsQ.data ?? []).map((note) => {
+        const body = (note.plainText ?? "").trim();
+        const title = (note.title ?? "").trim() || body.split("\n")[0] || "Nota sem título";
+        return {
+          kind: "keep" as const,
+          id: note.id,
+          name: title,
+          content: body || title,
+        };
+      });
+    }
     // `title` = casa no título (peso alto); `sec` = descrição/preview/categoria.
     const hitTitle = (s: string) => q === "" ? false : normalizeSearch(s).includes(q);
     const hitSec = (s: string) => q === "" ? false : normalizeSearch(s).includes(q);
@@ -682,6 +724,8 @@ export function useSlashMenu({
     automationsEnabled,
     effectiveQuery,
     shortcutMap,
+    keepsMode,
+    keepsQ.data,
   ]);
 
   // Reset activeIndex sempre que a query muda — sem isso o índice
@@ -896,7 +940,7 @@ export function useSlashMenu({
             mimeType: item.mediaType ?? null,
           });
         }
-      } else if (item.attachmentUrl) {
+      } else if (item.kind === "quick-reply" && item.attachmentUrl) {
         onInsertMedia?.({ url: item.attachmentUrl, name: null });
       }
 
@@ -1009,6 +1053,7 @@ const KIND_ORDER: SlashItemKind[] = [
   "meta-template",
   "wa-flow",
   "automation",
+  "keep",
 ];
 
 const KIND_GROUP_LABEL: Record<SlashItemKind, string> = {
@@ -1017,6 +1062,7 @@ const KIND_GROUP_LABEL: Record<SlashItemKind, string> = {
   "meta-template": "Templates WhatsApp (Meta)",
   "wa-flow": "Formulários WhatsApp",
   automation: "Automações",
+  keep: "Keeps favoritos",
 };
 
 const KIND_GROUP_HINT: Record<SlashItemKind, string> = {
@@ -1025,6 +1071,7 @@ const KIND_GROUP_HINT: Record<SlashItemKind, string> = {
   "meta-template": "Modelo aprovado na Meta — abre painel para confirmar envio",
   "wa-flow": "Formulário publicado — envia na janela de 24h e abre no WhatsApp",
   automation: "Dispara a automação permitida nesta conversa",
+  keep: "Texto da nota entra na mensagem",
 };
 
 const KIND_ICON: Record<SlashItemKind, React.ComponentType<{ className?: string; strokeWidth?: number }>> = {
@@ -1033,6 +1080,7 @@ const KIND_ICON: Record<SlashItemKind, React.ComponentType<{ className?: string;
   "meta-template": MessageSquareQuote,
   "wa-flow": ClipboardList,
   automation: Bolt,
+  keep: IconNote,
 };
 
 /** Visual (fg/bg) por tipo — mesmos tokens glass da modal de automação. */
@@ -1056,6 +1104,10 @@ const KIND_VISUAL: Record<SlashItemKind, { fg: string; bg: string }> = {
   automation: {
     fg: "text-[var(--color-lavender)]",
     bg: "bg-[var(--color-lavender-soft)]",
+  },
+  keep: {
+    fg: "text-amber-600 dark:text-amber-300",
+    bg: "bg-amber-500/12",
   },
 };
 
@@ -1119,6 +1171,7 @@ export function SlashCommandMenu({
     "meta-template": [],
     "wa-flow": [],
     automation: [],
+    keep: [],
   };
   // "Destaques" = favoritos + mais usados do agente (topo). Esses itens saem
   // das seções por tipo para não duplicar; o `globalIndex` (ordem em
@@ -1129,6 +1182,7 @@ export function SlashCommandMenu({
     const highlighted =
       item.kind !== "automation" &&
       item.kind !== "wa-flow" &&
+      item.kind !== "keep" &&
       (!!item.favorite || (item.useCount ?? 0) > 0);
     if (highlighted) destaque.push({ item, globalIndex: i });
     else byKind[item.kind].push({ item, globalIndex: i });
@@ -1236,9 +1290,11 @@ export function SlashCommandMenu({
                 </div>
               ) : !hasContent ? (
                 <div className="py-12 text-center text-[13px] tracking-tight text-[var(--text-muted)]">
-                  {state.query
-                    ? `Nenhuma mensagem pronta encontrada para "${state.query}".`
-                    : "Nenhuma mensagem pronta disponível."}
+                  {isKeepsQuery(state.query)
+                    ? "Nenhum Keep favoritado. Marque a estrela na nota em Bwipo Keeps."
+                    : state.query
+                      ? `Nenhuma mensagem pronta encontrada para "${state.query}".`
+                      : "Nenhuma mensagem pronta disponível."}
                 </div>
               ) : (
                 <>
@@ -1382,7 +1438,7 @@ function SlashItemCard({
   const visual = KIND_VISUAL[item.kind];
   const title = item.kind === "meta-template" ? item.label || item.name : item.name;
   // Favorito/uso só se aplicam a modelos/mensagens/templates (não automações).
-  const canFavorite = item.kind !== "automation" && item.kind !== "wa-flow" && !!onToggleFavorite;
+  const canFavorite = SHORTCUT_KINDS.has(item.kind) && !!onToggleFavorite;
   const isFav = !!item.favorite;
   const preview =
     item.kind === "meta-template"

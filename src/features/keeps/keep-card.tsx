@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, GripVertical, Palette, Paperclip, Pin, PinOff, RotateCcw, Trash2 } from "lucide-react";
+import { Archive, GripVertical, Palette, Paperclip, Pin, PinOff, RotateCcw, Star, Trash2 } from "lucide-react";
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
@@ -13,6 +13,7 @@ export function KeepCard({
   note,
   onOpen,
   onPin,
+  onFavorite,
   onArchive,
   onTrash,
   onRestore,
@@ -24,6 +25,7 @@ export function KeepCard({
   note: KeepNote;
   onOpen: () => void;
   onPin?: () => void;
+  onFavorite?: () => void;
   onArchive?: () => void;
   onTrash?: () => void;
   onRestore?: () => void;
@@ -86,6 +88,17 @@ export function KeepCard({
         className="mt-3 flex items-center gap-1"
         onPointerDown={(e) => e.stopPropagation()}
       >
+        {onFavorite ? (
+          <button
+            type="button"
+            onClick={onFavorite}
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            aria-label={note.favorite ? "Remover dos favoritos" : "Favoritar"}
+            aria-pressed={note.favorite}
+          >
+            <Star className={cn("size-3.5", note.favorite && "fill-amber-400 text-amber-500")} />
+          </button>
+        ) : null}
         {onPin ? (
           <button
             type="button"

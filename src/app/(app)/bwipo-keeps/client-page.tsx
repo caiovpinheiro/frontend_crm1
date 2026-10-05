@@ -524,6 +524,7 @@ export default function BwipoKeepsClientPage() {
               sections={categorySections}
               onOpen={setActive}
               onPin={(note) => mut.patch.mutate({ id: note.id, patch: { pinned: !note.pinned } })}
+              onFavorite={(note) => mut.patch.mutate({ id: note.id, patch: { favorite: !note.favorite } })}
               onArchive={(note) => mut.patch.mutate({ id: note.id, patch: { archived: true } })}
               onTrash={(note) => mut.remove.mutate({ id: note.id })}
               onColor={(note, color) => {
@@ -540,6 +541,7 @@ export default function BwipoKeepsClientPage() {
             sections={normalSections}
             onOpen={setActive}
             onPin={(note) => mut.patch.mutate({ id: note.id, patch: { pinned: !note.pinned } })}
+            onFavorite={(note) => mut.patch.mutate({ id: note.id, patch: { favorite: !note.favorite } })}
             onArchive={(note) => mut.patch.mutate({ id: note.id, patch: { archived: true } })}
             onTrash={(note) => mut.remove.mutate({ id: note.id })}
               onColor={(note, color) => {
