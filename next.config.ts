@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
 
+import { SW_PUBLIC_PRECACHE_PATTERNS } from "./src/lib/sw-precache";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -49,6 +51,8 @@ const withSerwist = withSerwistInit({
   cacheOnNavigation: false,
   reloadOnOnline: true,
   disable: process.env.NODE_ENV !== "production",
+  // Sem o vídeo do tutorial e os APKs no precache (ver `src/lib/sw-precache.ts`).
+  globPublicPatterns: SW_PUBLIC_PRECACHE_PATTERNS,
   exclude: [
     /\.map$/,
     /^manifest.*\.js$/,

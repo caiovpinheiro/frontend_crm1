@@ -30,6 +30,8 @@ import {
 } from "@/features/keeps/keep-tutorial-assets";
 import { mediaAssetUrl, resolveMediaCdnBaseUrl } from "@/lib/media-cdn";
 import { publicApkUrl } from "@/lib/native/mobile-release-config";
+import { SW_PUBLIC_PRECACHE_PATTERNS } from "@/lib/sw-precache";
+import { globSync } from "glob";
 
 const ROOT = path.resolve(__dirname, "../../..");
 const IMMUTABLE = "public, max-age=31536000, immutable";
@@ -137,5 +139,21 @@ describe("URL configurável (Spaces/CDN)", () => {
     expect(publicApkUrl(apk, "https://bwipo-media.nyc3.cdn.digitaloceanspaces.com")).toBe(
       "https://bwipo-media.nyc3.cdn.digitaloceanspaces.com/releases/bwipo-1.0.10.apk",
     );
+  });
+});
+
+describe("precache do service worker", () => {
+  it("vídeo e APKs ficam fora; o resto de public/ continua", () => {
+    // Mesma chamada do `@serwist/next` (globSync com cwd em public/).
+    const files = globSync(SW_PUBLIC_PRECACHE_PATTERNS, {
+      nodir: true,
+      follow: true,
+      cwd: path.join(ROOT, "public"),
+    }).map((f) => f.split(path.sep).join("/"));
+    expect(files.some((f) => f.startsWith("tutorials/"))).toBe(false);
+    expect(files.some((f) => f.startsWith("releases/"))).toBe(false);
+    expect(files.some((f) => /\.(mp4|apk)$/.test(f))).toBe(false);
+    expect(files).toContain("icon-512.png");
+    expect(files.some((f) => f.startsWith("avatars/presets/"))).toBe(true);
   });
 });
