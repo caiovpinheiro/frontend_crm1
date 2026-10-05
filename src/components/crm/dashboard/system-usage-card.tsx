@@ -2,6 +2,7 @@
 
 import { CategoricalChart } from "@/components/crm/dashboard/categorical-chart";
 import { PainelCard, PainelEmpty } from "@/components/crm/dashboard/painel-block";
+import { SystemUsageBars } from "@/components/crm/dashboard/system-usage-bars";
 import {
   DEFAULT_USAGE_CHART_TYPE,
   resolveChartType,
@@ -33,6 +34,7 @@ export function SystemUsageCard({
 
   const total = rows.reduce((sum, row) => sum + row.totalSeconds, 0);
   const avg = Math.round(total / rows.length);
+  const aboveAverage = rows.filter((row) => row.totalSeconds >= avg).length;
 
   return (
     <PainelCard
@@ -54,20 +56,41 @@ export function SystemUsageCard({
             </p>
             <p className="text-sm font-bold tabular-nums">{formatUsageHours(avg)}</p>
           </div>
+          <div className="h-8 w-px bg-border" />
+          <div title="Usuários na média ou acima">
+            <p className="text-[10px] font-semibold text-muted-foreground">
+              Na média
+            </p>
+            <p className="text-sm font-bold tabular-nums">
+              {aboveAverage}/{rows.length}
+            </p>
+          </div>
         </div>
       }
     >
       <div data-dashboard-no-drag className="flex flex-col gap-3">
-        <CategoricalChart
-          type={type}
-          rows={rows.map((row) => ({
-            id: row.userId,
-            name: row.userName ?? "Usuário",
-            value: row.totalSeconds,
-          }))}
-          formatValue={formatUsageHours}
-          average={avg}
-        />
+        {type === "bar" || type === "dot" ? (
+          <SystemUsageBars
+            rows={rows.map((row) => ({
+              id: row.userId,
+              name: row.userName ?? "Usuário",
+              seconds: row.totalSeconds,
+            }))}
+            average={avg}
+            formatValue={formatUsageHours}
+          />
+        ) : (
+          <CategoricalChart
+            type={type}
+            rows={rows.map((row) => ({
+              id: row.userId,
+              name: row.userName ?? "Usuário",
+              value: row.totalSeconds,
+            }))}
+            formatValue={formatUsageHours}
+            average={avg}
+          />
+        )}
       </div>
     </PainelCard>
   );
