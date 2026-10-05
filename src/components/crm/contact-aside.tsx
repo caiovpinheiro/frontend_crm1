@@ -46,7 +46,6 @@ import {
 import { resolveHighlight, SEVERITY_COLORS, type HighlightSeverity } from "@/lib/highlight"
 import { InlineFieldEditor } from "@/components/crm/fields/inline-field-editor"
 import { InlineNativeEditor } from "@/components/crm/fields/inline-native-editor"
-import { useContactSources } from "@/hooks/use-contact-sources"
 import { TrackedInfoSection } from "@/components/crm/tracked-info-section"
 import { formatPhoneDisplay } from "@/lib/phone"
 import { DealProductsSection } from "@/components/pipeline/deal-detail/sidebar"
@@ -727,7 +726,6 @@ export function ContactAside({
   // Estados de modo edição
   const [contactEditMode, setContactEditMode] = useState(false)
   const [dealFieldsEditMode, setDealFieldsEditMode] = useState(false)
-  const { data: contactSources = [] } = useContactSources(true)
   const canEditContact = useCan("contact:edit")
   const canEditDeal = useCan("deal:edit")
 
@@ -1136,7 +1134,7 @@ export function ContactAside({
                                     placeholder="Adicionar origem"
                                     editMode={contactEditMode}
                                     invalidateKeys={contactInvalidateKeys}
-                                    suggestions={contactSources}
+                                    suggestionsFrom="contact-sources"
                                     onSaved={(v) => setNativeValues((p) => ({ ...p, source: v }))}
                                     textClassName="text-right font-display text-[13px] font-semibold text-[var(--text-primary)]"
                                   />

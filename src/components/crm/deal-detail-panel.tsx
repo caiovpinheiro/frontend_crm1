@@ -47,7 +47,6 @@ import { useSectionOrder } from "@/hooks/use-section-order"
 import { useFieldLayout } from "@/hooks/use-field-layout"
 import { resolveCustomFieldGroups, type CustomFieldDef } from "@/lib/field-layout"
 import { CustomFieldGroupBlock } from "@/components/crm/fields/custom-field-group-block"
-import { useContactSources } from "@/hooks/use-contact-sources"
 import { formatPhoneDisplay } from "@/lib/phone"
 import { useIsMobile } from "@/hooks/use-media-query"
 import { useMobileChatChrome } from "@/hooks/use-mobile-chat-chrome"
@@ -334,7 +333,6 @@ export function DealDetailPanel({
   // por seção em vez de uma única engrenagem global no hero.
   const [contactConfigOpen, setContactConfigOpen] = useState(false)
   const [dealConfigOpen, setDealConfigOpen] = useState(false)
-  const { data: contactSources = [] } = useContactSources(isOpen)
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
   // Optimistic updates para campos nativos do deal
   const [dealNative, setDealNative] = useState<Record<string, string>>({})
@@ -947,7 +945,7 @@ export function DealDetailPanel({
                         entityId={deal.contactId}
                         fieldKey="source"
                         placeholder="Adicionar origem"
-                        suggestions={contactSources}
+                        suggestionsFrom="contact-sources"
                         invalidateKeys={[
                           ["contact-sidebar", deal.contactId],
                           ["deal-detail-v2", deal.id],
@@ -1168,7 +1166,7 @@ export function DealDetailPanel({
                                                 fieldKey="source"
                                                 placeholder="Adicionar origem"
                                                 invalidateKeys={[["contact-sidebar", deal.contactId]]}
-                                                suggestions={contactSources}
+                                                suggestionsFrom="contact-sources"
                                                 onSaved={(v) => setDealNative((p) => ({ ...p, source: v }))}
                                                 textClassName="text-right font-display text-[13px] font-semibold text-[var(--text-primary)]"
                                               />

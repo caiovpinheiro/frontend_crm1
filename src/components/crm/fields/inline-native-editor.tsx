@@ -18,6 +18,8 @@ import { CopyValueButton } from "@/components/crm/copy-value-button";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
 import { useCan } from "@/hooks/use-my-permissions";
+import { useContactSources } from "@/hooks/use-contact-sources";
+import { FILTER_OPTIONS_QUERY_KEY } from "@/components/pipeline/kanban-filters/use-filter-options";
 
 export interface InlineNativeEditorProps {
   value: string | undefined | null;
@@ -46,6 +48,12 @@ export interface InlineNativeEditorProps {
   customSave?: (trimmedValue: string) => Promise<void>;
   /** Quando informado, exibe lista de sugestões ao editar (ex.: origem do contato). */
   suggestions?: string[];
+  /**
+   * Sugestões buscadas pelo próprio editor, só quando o usuário começa a
+   * editar. `"contact-sources"` = origens já usadas na organização — antes
+   * quem montava o campo buscava a lista ao abrir a conversa/negócio.
+   */
+  suggestionsFrom?: "contact-sources";
 }
 
 async function putNativeField(
@@ -92,7 +100,8 @@ export function InlineNativeEditor({
   formatDisplay,
   editMode = false,
   customSave,
-  suggestions,
+  suggestions: suggestionsProp,
+  suggestionsFrom,
 }: InlineNativeEditorProps) {
   const qc = useQueryClient();
   // Sem a permission do recurso, o valor é só leitura — o backend também
@@ -105,6 +114,11 @@ export function InlineNativeEditor({
   const [saving, setSaving] = React.useState(false);
   const [pickingSuggestion, setPickingSuggestion] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const contactSources = useContactSources(
+    suggestionsFrom === "contact-sources" && editing,
+  );
+  const suggestions =
+    suggestionsFrom === "contact-sources" ? contactSources.data : suggestionsProp;
 
   React.useEffect(() => {
     setDraft(value ?? "");
@@ -150,7 +164,7 @@ export function InlineNativeEditor({
       if (fieldKey === "source") {
         // Mesma key do `useContactSources` (P1-2 — cache compartilhado
         // com as filter-options do Kanban).
-        qc.invalidateQueries({ queryKey: ["kanban-filter-options"] });
+        qc.invalidateQueries({ queryKey: FILTER_OPTIONS_QUERY_KEY });
       }
       setEditing(false);
     } catch (e: unknown) {
