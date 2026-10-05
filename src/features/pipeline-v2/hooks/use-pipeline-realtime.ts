@@ -5,7 +5,7 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { useSSE } from "@/hooks/use-sse";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
-import type { BoardStageDto } from "@/features/pipeline-v2/api";
+import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import { foldActivityOntoDeal } from "@/features/pipeline-v2/board-live-activity";
 import {
   readBoardScope,
@@ -18,6 +18,7 @@ import {
 const PIPELINE_SSE_EVENTS: readonly RealtimeEventName[] = [
   "new_message",
   "message_status",
+  "deal_moved",
 ];
 
 /** Não entra no preview/ordem do card (igual ao SQL do board). */
@@ -338,6 +339,245 @@ export function createBoardRefreshScheduler(
   };
 }
 
+type BoardSortSpec = { field: "position" | "createdAt" | "lastInteraction"; direction: "asc" | "desc" };
+
+function boardSortSpec(key: readonly unknown[]): BoardSortSpec {
+  const root = key[0];
+  const raw = root === "pipeline-board" ? key[3] : key[4];
+  if (typeof raw !== "string" || raw === "default" || !raw.includes(":")) {
+    return { field: "position", direction: "asc" };
+  }
+  const [field, direction] = raw.split(":");
+  const dir = direction === "desc" ? "desc" : "asc";
+  if (field === "createdAt" || field === "lastInteraction") return { field, direction: dir };
+  return { field: "position", direction: dir };
+}
+
+function boardAcceptsStatus(key: readonly unknown[], status: string | undefined): boolean {
+  const filter = key[2];
+  if (typeof filter !== "string" || filter === "ALL" || !status) return true;
+  return filter === status;
+}
+
+function sortValue(deal: BoardDealDto, field: BoardSortSpec["field"]): string | number {
+  if (field === "createdAt") return deal.createdAt ?? "";
+  if (field === "lastInteraction") return deal.lastMessage?.createdAt ?? deal.updatedAt ?? "";
+  return deal.position;
+}
+
+function comesBefore(a: BoardDealDto, b: BoardDealDto, spec: BoardSortSpec): boolean {
+  const av = sortValue(a, spec.field);
+  const bv = sortValue(b, spec.field);
+  if (av !== bv) return spec.direction === "desc" ? av > bv : av < bv;
+  if (a.position !== b.position) return a.position < b.position;
+  return a.id < b.id;
+}
+
+function insertionIndex(deals: BoardDealDto[], deal: BoardDealDto, spec: BoardSortSpec): number {
+  for (let i = 0; i < deals.length; i++) {
+    if (comesBefore(deal, deals[i]!, spec)) return i;
+  }
+  return deals.length;
+}
+
+function isDealCard(value: unknown): value is Partial<BoardDealDto> & { id: string; title: string } {
+  if (!value || typeof value !== "object") return false;
+  const row = value as { id?: unknown; title?: unknown };
+  return typeof row.id === "string" && row.id.length > 0 && typeof row.title === "string" && row.title.length > 0;
+}
+
+function dealFromCard(
+  card: Partial<BoardDealDto> & { id: string; title: string },
+  position: number,
+  updatedAt: string,
+): BoardDealDto {
+  return {
+    id: card.id,
+    title: card.title,
+    value: card.value ?? 0,
+    status: card.status ?? "OPEN",
+    lostReason: card.lostReason ?? null,
+    position,
+    expectedClose: card.expectedClose ?? null,
+    createdAt: card.createdAt ?? updatedAt,
+    updatedAt: updatedAt || card.updatedAt || card.createdAt || "",
+    isRotting: card.isRotting ?? false,
+    contact: card.contact ?? null,
+    owner: card.owner ?? null,
+    lastMessage: null,
+    unreadCount: card.unreadCount ?? 0,
+    tags: card.tags,
+    priority: card.priority,
+    channel: card.channel ?? null,
+    productName: card.productName ?? null,
+    productType: card.productType ?? null,
+  };
+}
+
+function movedDeal(
+  existing: BoardDealDto | null,
+  card: (Partial<BoardDealDto> & { id: string; title: string }) | null,
+  position: number,
+  updatedAt: string,
+): BoardDealDto | null {
+  if (existing) {
+    return {
+      ...existing,
+      position,
+      updatedAt: updatedAt || existing.updatedAt,
+      status: card?.status ?? existing.status,
+      lostReason: card && "lostReason" in card ? (card.lostReason ?? null) : existing.lostReason,
+    };
+  }
+  if (!card) return null;
+  return dealFromCard(card, position, updatedAt);
+}
+
+function shiftCounts(stage: BoardStageDto, delta: number): BoardStageDto {
+  return {
+    ...stage,
+    totalCount:
+      typeof stage.totalCount === "number" ? Math.max(0, stage.totalCount + delta) : stage.totalCount,
+    loadedCount:
+      typeof stage.loadedCount === "number"
+        ? Math.max(0, stage.loadedCount + delta)
+        : stage.loadedCount,
+  };
+}
+
+/**
+ * Tira o deal de qualquer coluna e, se `deal` vier preenchido, coloca na
+ * etapa destino. Coluna que não contém o deal e não é o destino devolve
+ * a mesma referência.
+ */
+function relocateDeal(
+  stages: BoardStageDto[],
+  dealId: string,
+  toStageId: string,
+  deal: BoardDealDto | null,
+  spec: BoardSortSpec,
+): BoardStageDto[] {
+  let changed = false;
+  const stripped = stages.map((stage) => {
+    if (!stage.deals.some((item) => item.id === dealId)) return stage;
+    changed = true;
+    const deals = stage.deals.filter((item) => item.id !== dealId);
+    return { ...shiftCounts(stage, deals.length - stage.deals.length), deals };
+  });
+  if (!deal) return changed ? stripped : stages;
+
+  const toIdx = stripped.findIndex((stage) => stage.id === toStageId);
+  if (toIdx === -1) return changed ? stripped : stages;
+
+  const stage = stripped[toIdx]!;
+  const at = insertionIndex(stage.deals, deal, spec);
+  const deals = stage.deals.slice();
+  deals.splice(at, 0, deal);
+  const next = stripped.slice();
+  next[toIdx] = { ...shiftCounts(stage, 1), deals };
+  return next;
+}
+
+function samePlacement(before: BoardStageDto[], after: BoardStageDto[]): boolean {
+  if (before === after) return true;
+  if (before.length !== after.length) return false;
+  for (let i = 0; i < before.length; i++) {
+    if (before[i] === after[i]) continue;
+    const a = before[i]!;
+    const b = after[i]!;
+    if (a.totalCount !== b.totalCount || a.loadedCount !== b.loadedCount) return false;
+    if (a.deals.length !== b.deals.length) return false;
+    for (let j = 0; j < a.deals.length; j++) {
+      const left = a.deals[j]!;
+      const right = b.deals[j]!;
+      if (
+        left.id !== right.id ||
+        left.position !== right.position ||
+        left.updatedAt !== right.updatedAt ||
+        left.status !== right.status
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * Aplica `deal_moved` nos boards já em cache. Não cria query, não invalida
+ * e não refaz o GET: remove da origem, insere no destino pela `position`
+ * (ou pelo sort daquela cache). Idempotente — evento repetido ou o eco do
+ * otimista local não duplica o card.
+ *
+ * Devolve false quando nada foi escrito (evento incompleto, atrasado,
+ * board fora do escopo ou já no lugar).
+ */
+export function applyDealMoved(
+  qc: QueryClient,
+  payload: RealtimePayload<"deal_moved">,
+): boolean {
+  const dealId = payload.dealId;
+  const toStageId = payload.toStageId;
+  const toPipelineId = payload.toPipelineId;
+  if (!dealId || !toStageId || !toPipelineId) return false;
+  if (typeof payload.position !== "number" || !Number.isFinite(payload.position)) return false;
+  const position = payload.position;
+  const updatedAt = typeof payload.updatedAt === "string" ? payload.updatedAt : "";
+  const fromPipelineId = payload.fromPipelineId ?? null;
+
+  const boards = qc.getQueriesData<BoardStageDto[]>({
+    predicate: (q) => isBoardQueryKey(q.queryKey),
+  });
+
+  let existing: BoardDealDto | null = null;
+  let newest = "";
+  for (const [, data] of boards) {
+    if (!Array.isArray(data)) continue;
+    for (const stage of data) {
+      const found = stage.deals.find((deal) => deal.id === dealId);
+      if (!found) continue;
+      const stamp = found.updatedAt ?? "";
+      if (!existing || stamp >= newest) {
+        existing = found;
+        newest = stamp;
+      }
+    }
+  }
+  if (updatedAt && newest && newest > updatedAt) return false;
+
+  const card = isDealCard(payload.card) && payload.card.id === dealId ? payload.card : null;
+  const deal = movedDeal(existing, card, position, updatedAt);
+  const affected = new Set(
+    [fromPipelineId, toPipelineId].filter((id): id is string => typeof id === "string" && id.length > 0),
+  );
+
+  let wrote = false;
+  for (const [queryKey, data] of boards) {
+    if (!Array.isArray(data)) continue;
+    const pipelineId = boardPipelineId(queryKey);
+    const contains = data.some((stage) => stage.deals.some((item) => item.id === dealId));
+    const inScope = pipelineId != null && affected.has(pipelineId);
+    // Busca/filtro só se o card já está nessa cache. Inserir aqui mostraria
+    // um negócio que não bate no critério. O board paginado é quem recebe
+    // o card que entrou de outro funil.
+    const paged = queryKey[0] === "pipeline-board";
+    if (!contains && !(paged && inScope)) continue;
+
+    const accepts = boardAcceptsStatus(queryKey, deal?.status);
+    const next = relocateDeal(
+      data,
+      dealId,
+      toStageId,
+      accepts ? deal : null,
+      boardSortSpec(queryKey),
+    );
+    if (samePlacement(data, next)) continue;
+    qc.setQueryData(queryKey, next);
+    wrote = true;
+  }
+  return wrote;
+}
+
 /**
  * Mantém os cards do Kanban/Flow em dia sem esperar o polling de 30s.
  *
@@ -353,6 +593,8 @@ export function createBoardRefreshScheduler(
  *   muda estágio do deal; poll 60s + mutations locais cobrem o board).
  * - `message_status` → patch otimista do `sendStatus` (ticks), sem
  *   recompute do board.
+ * - `deal_moved` → tira o card da etapa de origem e coloca na de destino
+ *   pela `position`, só nas caches daqueles funis. Sem `invalidateQueries`.
  */
 export function usePipelineRealtime(enabled = true) {
   const qc = useQueryClient();
@@ -390,6 +632,11 @@ export function usePipelineRealtime(enabled = true) {
       if (event === "new_message") {
         const payload = (data ?? {}) as RealtimePayload<"new_message">;
         refreshRef.current?.schedule(applyBoardNewMessage(qc, payload));
+        return;
+      }
+
+      if (event === "deal_moved") {
+        applyDealMoved(qc, (data ?? {}) as RealtimePayload<"deal_moved">);
         return;
       }
 

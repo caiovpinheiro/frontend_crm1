@@ -25,6 +25,7 @@ import {
 } from "../api";
 import { boardKey } from "./use-board";
 import { dealDetailKey } from "./use-deal-detail";
+import { applyDealMoved } from "./use-pipeline-realtime";
 
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 
@@ -45,9 +46,84 @@ export interface MoveVars {
   skipSuccessToast?: boolean;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+/**
+ * O POST /move devolve o deal na raiz (`NextResponse.json(deal)`). O tipo
+ * do client ainda diz `{ deal }`. Aceita os dois.
+ */
+function moveResponseDeal(data: unknown): Record<string, unknown> | null {
+  const root = asRecord(data);
+  if (!root) return null;
+  const nested = asRecord(root.deal);
+  if (nested && (typeof nested.position === "number" || nested.stage)) return nested;
+  return root;
+}
+
+/**
+ * Reconcilia o cache do autor com a resposta HTTP. Não depende do SSE:
+ * o publish pode falhar depois do commit. Não refaz o board.
+ */
+export function reconcileMovedDealFromHttp(
+  qc: ReturnType<typeof useQueryClient>,
+  data: unknown,
+  vars: Pick<MoveVars, "dealId" | "fromStageId" | "toStageId" | "toPipelineId">,
+  fromPipelineId: string | null,
+): boolean {
+  const body = moveResponseDeal(data);
+  if (!body) return false;
+  const position = body.position;
+  if (typeof position !== "number" || !Number.isFinite(position)) return false;
+
+  const stage = asRecord(body.stage);
+  const pipeline = stage ? asRecord(stage.pipeline) : null;
+  const toStageId =
+    typeof stage?.id === "string" && stage.id ? stage.id : vars.toStageId;
+  const toPipelineId =
+    (typeof stage?.pipelineId === "string" && stage.pipelineId) ||
+    (typeof pipeline?.id === "string" && pipeline.id) ||
+    vars.toPipelineId ||
+    fromPipelineId;
+  if (!toStageId || !toPipelineId) return false;
+
+  const updatedAt =
+    typeof body.updatedAt === "string"
+      ? body.updatedAt
+      : body.updatedAt instanceof Date
+        ? body.updatedAt.toISOString()
+        : "";
+  const dealId = typeof body.id === "string" && body.id ? body.id : vars.dealId;
+  const title = typeof body.title === "string" && body.title ? body.title : dealId;
+  const status = typeof body.status === "string" ? body.status : undefined;
+  const lostReason =
+    typeof body.lostReason === "string" || body.lostReason === null ? body.lostReason : undefined;
+
+  return applyDealMoved(qc, {
+    dealId,
+    fromPipelineId: fromPipelineId ?? undefined,
+    toPipelineId,
+    fromStageId: vars.fromStageId,
+    toStageId,
+    position,
+    updatedAt,
+    card: {
+      id: dealId,
+      title,
+      status,
+      lostReason,
+      position,
+      updatedAt: updatedAt || undefined,
+    },
+  });
+}
+
 /**
  * Move um deal entre estágios — com update otimista do cache do
  * board ativo. Em erro, reverte ao snapshot anterior.
+ * No sucesso, a resposta HTTP grava posição/etapa/status canônicos
+ * no card. O SSE só avisa as outras sessões.
  */
 export function useMoveDeal(pipelineId: string | null, status: StatusFilter = "OPEN") {
   const qc = useQueryClient();
@@ -160,6 +236,7 @@ export function useMoveDeal(pipelineId: string | null, status: StatusFilter = "O
       toast.error(err.message || "Falha ao mover deal");
     },
     onSuccess: (data, vars) => {
+      reconcileMovedDealFromHttp(qc, data, vars, pipelineId);
       if (vars.skipSuccessToast) return;
       // IB1: feedback visivel — antes a UI atualizava (ou nao) sem
       // qualquer toast e o operador nao tinha certeza de que tinha
@@ -187,20 +264,10 @@ export function useMoveDeal(pipelineId: string | null, status: StatusFilter = "O
       );
     },
     onSettled: (_data, _err, vars) => {
-      // Refetch de TODAS as variantes do board (normal + filtered + search),
-      // ativas — o `_v2-client` alterna entre elas conforme sort/filtros/busca
-      // e o refetch por prefixo unico deixava a UI com dado stale ate F5.
-      qc.refetchQueries({
-        type: "active",
-        predicate: (q) => isBoardCacheKey(q.queryKey),
-      });
+      // O board não é refeito: o otimista posiciona na hora e o HTTP
+      // grava a posição canônica. O SSE avisa as outras sessões.
       qc.refetchQueries({ queryKey: ["contact-sidebar"], type: "active" });
       qc.refetchQueries({ queryKey: dealDetailKey(vars.dealId), type: "active" });
-      // Boards inativos (aberto em outra aba/tela) so' marcam stale.
-      qc.invalidateQueries({
-        type: "inactive",
-        predicate: (q) => isBoardCacheKey(q.queryKey),
-      });
     },
   });
 }

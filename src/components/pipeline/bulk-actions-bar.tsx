@@ -63,6 +63,16 @@ type AsyncBulkResult = {
 };
 type BulkResult = SyncBulkResult | AsyncBulkResult;
 
+/**
+ * Movimentação em massa não atualiza o Pipeline na hora: sem `deal_moved`,
+ * sem patch card a card e sem `invalidateQueries` do board. O quadro
+ * converge no polling de 120 s ou num refresh manual. Ganhar/Perder em
+ * lote entram aqui porque também trocam a etapa de muitos cards.
+ */
+export function bulkStageMoveSkipsPipelineRefresh(action: string): boolean {
+  return action === "move_stage" || action === "mark_won" || action === "mark_lost";
+}
+
 async function bulkAction(body: Record<string, unknown>): Promise<BulkResult> {
   const res = await fetch(apiUrl("/api/deals/bulk"), {
     method: "POST",
@@ -116,7 +126,7 @@ const ACTIVE_OP_KEY = "crm:bulk-op:active";
 // descartadas no mount, evitando "pill fantasma" de jobs já purgados no
 // backend (que dariam 404 e ficariam repollando para sempre).
 const RESTORE_MAX_AGE_MS = 60 * 60 * 1000; // 1h
-type PersistedOp = { id: string; total: number };
+type PersistedOp = { id: string; total: number; action?: string };
 type StoredOp = PersistedOp & { at: number };
 
 function readPersistedOp(): PersistedOp | null {
@@ -130,7 +140,11 @@ function readPersistedOp(): PersistedOp | null {
       window.localStorage.removeItem(ACTIVE_OP_KEY);
       return null;
     }
-    return { id: parsed.id, total: typeof parsed.total === "number" ? parsed.total : 0 };
+    return {
+      id: parsed.id,
+      total: typeof parsed.total === "number" ? parsed.total : 0,
+      action: typeof parsed.action === "string" ? parsed.action : undefined,
+    };
   } catch {
     /* ignore */
   }
@@ -193,6 +207,7 @@ export function BulkActionsBar({
 
   // ID e total da BulkOperation atualmente acompanhada. Quando setado,
   // o `BulkOperationProgressDialog` abre e faz polling no backend.
+  const [trackedAction, setTrackedAction] = React.useState<string>("");
   const [progressOperationId, setProgressOperationId] = React.useState<string | null>(null);
   const [progressTotal, setProgressTotal] = React.useState<number>(0);
   // Minimizado: o acompanhamento segue ativo (polling), mas o modal fica
@@ -202,12 +217,13 @@ export function BulkActionsBar({
   const [progressDoneStatus, setProgressDoneStatus] = React.useState<string | null>(null);
 
   // Começa a acompanhar uma operação (centraliza persistência + reset).
-  const startTracking = React.useCallback((operationId: string, total: number) => {
+  const startTracking = React.useCallback((operationId: string, total: number, action = "") => {
+    setTrackedAction(action);
     setProgressDoneStatus(null);
     setProgressMinimized(false);
     setProgressTotal(total);
     setProgressOperationId(operationId);
-    writePersistedOp({ id: operationId, total });
+    writePersistedOp({ id: operationId, total, action });
   }, []);
 
   // Encerra o acompanhamento de vez (usuário fechou após terminar).
@@ -223,6 +239,7 @@ export function BulkActionsBar({
   React.useEffect(() => {
     const persisted = readPersistedOp();
     if (persisted) {
+      setTrackedAction(persisted.action ?? "");
       setProgressTotal(persisted.total);
       setProgressOperationId(persisted.id);
       setProgressMinimized(true);
@@ -230,8 +247,10 @@ export function BulkActionsBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const invalidate = React.useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["pipeline-board", pipelineId] });
+  const invalidate = React.useCallback((action = "") => {
+    if (!bulkStageMoveSkipsPipelineRefresh(action)) {
+      queryClient.invalidateQueries({ queryKey: ["pipeline-board", pipelineId] });
+    }
     queryClient.invalidateQueries({ queryKey: ["deals-list"] });
   }, [queryClient, pipelineId]);
 
@@ -250,13 +269,13 @@ export function BulkActionsBar({
           }
           toast.success(`Operação enfileirada — ${data.total} negócio(s) em segundo plano.`);
         }
-        startTracking(data.operationId, data.total);
+          startTracking(data.operationId, data.total, data.action);
         onClear();
         return;
       }
       toast.success(`${data.affected} negócio(s) atualizados`);
       onClear();
-      invalidate();
+      invalidate(data.action);
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -686,9 +705,10 @@ export function BulkActionsBar({
           if (!open) stopTracking();
         }}
         onFinished={(opData) => {
-          // Worker terminou — atualiza o board e marca o status para o pill.
+          // Confirmação já saiu no diálogo. Movimentação em massa não
+          // refaz o board; as outras ações em massa continuam invalidando.
           setProgressDoneStatus(opData.status);
-          invalidate();
+          invalidate(trackedAction);
         }}
       />
     </>
