@@ -85,6 +85,7 @@ import {
   useTeamUsers,
   type MoveVars,
 } from "@/features/pipeline-v2/hooks";
+import { boardColumnLoadMore } from "@/features/pipeline-v2/board-column-paging";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
@@ -730,7 +731,7 @@ export default function KanbanV2ClientPage({
   const resetBoardLoadMore = boardLoadMore.reset;
   useEffect(() => {
     resetBoardLoadMore();
-  }, [pipelineId, status, sortKey, hasServerBoard, resetBoardLoadMore]);
+  }, [pipelineId, status, sortKey, hasServerBoard, mergedFilters, resetBoardLoadMore]);
 
   const loadMoreColumns = boardLoadMore.loadMore;
   const handleLoadMoreColumn = useCallback(
@@ -1179,10 +1180,10 @@ export default function KanbanV2ClientPage({
             className="kanban-board-hscroll flex min-h-0 min-w-0 flex-1 gap-3.5 overflow-x-auto overflow-y-hidden"
           >
             {columns.map((col) => {
-              const rawStage = boardNormal.data?.find((s) => s.id === col.stageId);
-              const remaining = Math.max(
-                0,
-                (rawStage?.totalCount ?? 0) - (rawStage?.deals.length ?? 0),
+              // Etapa do board que está na tela (paginado ou filtrado): o
+              // restante sai do total do servidor, não da lista carregada.
+              const columnMore = boardColumnLoadMore(
+                board.find((s) => s.id === col.stageId),
               );
               return (
               <DroppableColumn
@@ -1208,9 +1209,9 @@ export default function KanbanV2ClientPage({
                 }
                 canChangeStage={canChangeStage}
                 loadMore={
-                  !hasServerBoard && rawStage?.hasMore && remaining > 0
+                  columnMore
                     ? {
-                        remaining,
+                        remaining: columnMore.remaining,
                         loading: boardLoadMore.loadingStageIds.has(col.stageId),
                         onClick: () => handleLoadMoreColumn(col.stageId),
                       }
