@@ -38,6 +38,7 @@ export async function patchKeepNote(
     title: string;
     content: KeepDoc;
     pinned: boolean;
+    favorite: boolean;
     archived: boolean;
     trashed: boolean;
     color: string | null;

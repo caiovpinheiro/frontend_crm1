@@ -40,7 +40,10 @@ export function useKeepCategories() {
 
 export function useKeepMutations(folder: KeepFolder, q: string, colors: string[] = []) {
   const qc = useQueryClient();
-  const invalidate = () => void qc.invalidateQueries({ queryKey: ["keeps"] });
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["keeps"] });
+    void qc.invalidateQueries({ queryKey: ["slash-favorite-keeps"] });
+  };
 
   return {
     create: useMutation({
