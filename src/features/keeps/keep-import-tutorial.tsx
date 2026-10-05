@@ -4,10 +4,13 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
+import { googleKeepTutorialPlayerUrl } from "./keep-tutorial-assets";
+
 /**
  * Player isolado: HTML estático em aba nova (sem React, sem iframe do CRM).
+ * Local (`public/tutorials`) ou na CDN (`NEXT_PUBLIC_MEDIA_CDN_BASE_URL`).
  */
-export const GOOGLE_KEEP_TUTORIAL_PLAYER = "/tutorials/como-importar-google-keep.html";
+export const GOOGLE_KEEP_TUTORIAL_PLAYER = googleKeepTutorialPlayerUrl();
 
 export function KeepImportTutorial({
   open,
