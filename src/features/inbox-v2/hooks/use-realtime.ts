@@ -1395,14 +1395,9 @@ export function useInboxRealtime(options: {
         }
       },
 
-      // Só o próprio usuário: `useSystemPresenceSync` já patcha o cache
-      // pelo evento; o refetch aqui é a confirmação do meu status. Antes
-      // era 1 GET por mudança de status de qualquer agente da org (FE-4).
-      presence_update: (data) => {
-        const me = userIdRef.current;
-        if (!me || data?.userId !== me) return;
-        qc.invalidateQueries({ queryKey: ["my-agent-status", me] });
-      },
+      // `presence_update` (status de qualquer agente, inclusive o meu) é só
+      // patch em `useSystemPresenceSync`: o evento já traz o status — sem
+      // GET de confirmação (R3-FE-9, F2).
 
       // Agendamento criado/cancelado/enviado/falhou na conversa — o banner
       // (`useScheduledMessages`) refaz o GET só se a conversa está aberta

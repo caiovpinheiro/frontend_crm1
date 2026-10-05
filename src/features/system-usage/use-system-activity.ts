@@ -3,18 +3,15 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-import { apiUrl } from "@/lib/api";
+import {
+  acquirePresenceTicker,
+  recordPresenceActivity,
+} from "@/hooks/presence-ticker";
 import {
   INTERACTIVE_SELECTOR,
   isEditableTag,
   isTrackableKey,
 } from "./activity-target";
-
-/**
- * Janela de agregação: envia no máximo um pulso a cada 90s.
- * O primeiro pulso vai imediatamente para abrir a sessão no backend.
- */
-const AGGREGATE_WINDOW_MS = 90_000;
 
 /**
  * Rastreador global de USO REAL.
@@ -25,71 +22,27 @@ const AGGREGATE_WINDOW_MS = 90_000;
  *   - change/submit em qualquer parte da árvore;
  *   - mudança de rota (usePathname).
  *
- * Envia pulsos agregados via POST /api/agents/me/activity com
- * `{ interactionCount }`. Falha silenciosa; sem retry automático.
+ * A contagem vai para o tique de presença (`hooks/presence-ticker.ts`): a
+ * aba líder do navegador manda `POST /api/agents/me/activity` com
+ * `{ interactionCount }` agregado de todas as abas, junto do ping, no
+ * máximo um por janela de 90 s (a 1ª interação depois de 5 min parado
+ * antecipa o envio para abrir a sessão). Troca de rota só conta — não é
+ * mais um POST próprio. Falha silenciosa; sem retry automático.
  */
 export function useSystemActivity(enabled = true) {
   const pathname = usePathname();
   const pathnameRef = useRef<string | null>(null);
-  const bufferRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const enabledRef = useRef(enabled);
-
-  useEffect(() => {
-    enabledRef.current = enabled;
-  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) return;
     if (typeof window === "undefined") return;
+    const release = acquirePresenceTicker();
 
-    // ── Envio ────────────────────────────────────────────────────────
-    function flush() {
-      const count = bufferRef.current;
-      bufferRef.current = 0;
-      timerRef.current = null;
-      if (count <= 0) return;
-      try {
-        void fetch(apiUrl("/api/agents/me/activity"), {
-          method: "POST",
-          keepalive: true,
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ interactionCount: count }),
-        }).catch(() => {
-          /* silencioso — próximo pulso reajusta */
-        });
-      } catch {
-        /* silencioso */
-      }
-    }
-
-    function scheduleFlush() {
-      if (timerRef.current) return;
-      timerRef.current = setTimeout(flush, AGGREGATE_WINDOW_MS);
-    }
-
-    /**
-     * Registra uma interação. Se é a primeira do ciclo, dispara flush
-     * imediato para abrir a sessão no backend. As demais aguardam o
-     * término da janela de 90s.
-     */
+    // Só com a aba visível (o tique também confere).
     function record() {
       if (typeof document === "undefined") return;
       if (document.visibilityState !== "visible") return;
-
-      const first = bufferRef.current === 0 && timerRef.current === null;
-      bufferRef.current += 1;
-
-      if (first) {
-        // Envia imediatamente e abre janela para acumular as próximas.
-        // Coloca 1 no buffer via increment já feito → flush envia 1.
-        flush();
-        // Reinicia janela para acumular novas ações dos próximos 90s.
-        timerRef.current = setTimeout(flush, AGGREGATE_WINDOW_MS);
-      } else {
-        scheduleFlush();
-      }
+      recordPresenceActivity(1);
     }
 
     // ── Listeners ────────────────────────────────────────────────────
@@ -140,28 +93,8 @@ export function useSystemActivity(enabled = true) {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("change", onChange, true);
       document.removeEventListener("submit", onSubmit, true);
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      // Descarga oportuna de contador remanescente ao desmontar.
-      const remaining = bufferRef.current;
-      bufferRef.current = 0;
-      if (remaining > 0) {
-        try {
-          void fetch(apiUrl("/api/agents/me/activity"), {
-            method: "POST",
-            keepalive: true,
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ interactionCount: remaining }),
-          }).catch(() => {
-            /* silencioso */
-          });
-        } catch {
-          /* silencioso */
-        }
-      }
+      // O tique descarrega o que ainda não saiu ao ser desligado.
+      release();
     };
   }, [enabled]);
 
@@ -175,24 +108,7 @@ export function useSystemActivity(enabled = true) {
     pathnameRef.current = pathname;
     if (prev === null) return; // primeira montagem: já contamos como abertura na primeira ação real
     if (prev === pathname) return;
-
-    // Reaproveita o mesmo caminho de gravação através de um custom event
-    // para não duplicar código — mas mais simples: chama diretamente o
-    // endpoint via um contador manual sem depender do closure do useEffect
-    // acima. Como o buffer/timer são refs, poderíamos referenciar aqui,
-    // mas isolar o envio é mais claro:
-    try {
-      void fetch(apiUrl("/api/agents/me/activity"), {
-        method: "POST",
-        keepalive: true,
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interactionCount: 1 }),
-      }).catch(() => {
-        /* silencioso */
-      });
-    } catch {
-      /* silencioso */
-    }
+    // Conta como interação; vai no próximo tique (antes: 1 POST por rota).
+    recordPresenceActivity(1);
   }, [pathname, enabled]);
 }

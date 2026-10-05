@@ -6,6 +6,7 @@
  * `EventSource`s, visibilidade e ciclo de vida (`pagehide`).
  */
 import type { PresenceEnv } from "../presence-sync";
+import type { PresenceTickerEnv } from "../presence-ticker";
 import {
   TabCoordinator,
   type TabChannelLike,
@@ -154,6 +155,8 @@ class FakeLockManager {
 }
 
 export class FakeTabHub {
+  /** `localStorage` do navegador (compartilhado entre as abas). */
+  readonly storage = new Map<string, string>();
   readonly channels = new Set<FakeChannel>();
   readonly locks = new FakeLockManager();
   readonly tabs = new Map<string, FakeTab>();
@@ -268,6 +271,30 @@ export class FakeTab {
       heartbeat: io.heartbeat,
       leave: io.leave,
       isHidden: () => this.hidden,
+      onVisibilityChange: (fn) => {
+        this.visibilityHandlers.add(fn);
+        return () => this.visibilityHandlers.delete(fn);
+      },
+    };
+  }
+
+  presenceTickerEnv(
+    tabs: TabCoordinator | null,
+    io: Pick<PresenceTickerEnv, "ping" | "activity">,
+  ): PresenceTickerEnv {
+    const key = "bwipo:presence:last-tick";
+    return {
+      tabs,
+      ping: io.ping,
+      activity: io.activity,
+      readLastTick: () => {
+        const raw = this.hub.storage.get(key);
+        return raw ? Number(raw) : null;
+      },
+      writeLastTick: (at) => {
+        this.hub.storage.set(key, String(at));
+      },
+      isVisible: () => !this.hidden,
       onVisibilityChange: (fn) => {
         this.visibilityHandlers.add(fn);
         return () => this.visibilityHandlers.delete(fn);

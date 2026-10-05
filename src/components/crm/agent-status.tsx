@@ -15,6 +15,7 @@ import {
 import { apiUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { subscribeSSE } from "@/hooks/use-sse";
+import { fromShellBootstrap } from "@/lib/shell-bootstrap";
 
 export type AgentOnlineStatus = "ONLINE" | "OFFLINE" | "AWAY";
 
@@ -113,17 +114,26 @@ export function useAgentStatus(): AgentStatusController {
   const myUserId = (session?.user as { id?: string } | undefined)?.id;
   const queryClient = useQueryClient();
 
-  // Sem poll: o status chega por SSE (`presence_update` → patch em
-  // `useSystemPresenceSync`). Refetch só quando a stream reabre depois de
-  // um gap — o que passou com a conexão caída não tem replay (FE-4).
+  // Sem poll e sem GET em regime (F2): a carga usa o bloco `agentStatus`
+  // do bootstrap do shell; depois o status chega por SSE
+  // (`presence_update` → patch em `useSystemPresenceSync`) e pela resposta
+  // do PUT. GET só sem bootstrap (backend antigo/erro) e quando a stream
+  // reabre depois de um gap — o que passou com a conexão caída não tem
+  // replay (FE-4).
   const { data, isSuccess } = useQuery<{ status: AgentOnlineStatus }>({
     queryKey: ["my-agent-status", myUserId],
-    queryFn: async () => {
-      const r = await fetch(apiUrl(`/api/agents/${myUserId}/status`));
-      if (!r.ok) throw new Error("Falha ao carregar status");
-      return r.json();
-    },
+    queryFn: (ctx) =>
+      fromShellBootstrap<{ status: AgentOnlineStatus }>(
+        ctx.client,
+        (p) => (p.agentStatus as { status: AgentOnlineStatus } | null) ?? null,
+        async () => {
+          const r = await fetch(apiUrl(`/api/agents/${myUserId}/status`));
+          if (!r.ok) throw new Error("Falha ao carregar status");
+          return r.json();
+        },
+      ),
     enabled: !!myUserId,
+    staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
@@ -181,13 +191,25 @@ export function useAgentStatus(): AgentStatusController {
       );
       return { prev };
     },
+    onSuccess: (body, next) => {
+      // A resposta do PUT já é o status gravado: sem GET de confirmação.
+      queryClient.setQueryData(
+        ["my-agent-status", myUserId],
+        (prev: Record<string, unknown> | undefined) => ({
+          ...(prev ?? {}),
+          ...body,
+          status: body.status ?? next,
+        }),
+      );
+    },
     onError: (_err, _next, ctx) => {
       if (ctx?.prev) {
         queryClient.setQueryData(["my-agent-status", myUserId], ctx.prev);
       }
+      // Estado incerto (o PUT pode ter gravado): confirma no servidor.
+      queryClient.invalidateQueries({ queryKey: ["my-agent-status", myUserId] });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-agent-status", myUserId] });
       // Elegibilidade / fila dependem do status — refetch sem F5.
       queryClient.invalidateQueries({ queryKey: ["distribution-responsibles"] });
       queryClient.invalidateQueries({ queryKey: ["distribution-pending"] });
