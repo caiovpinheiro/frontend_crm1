@@ -138,7 +138,7 @@ export function NoteRow({
   return (
     <div
       className={cn(
-        "group relative flex w-full items-center gap-2.5 rounded-[var(--radius-lg)] border px-3.5 py-2 text-sm leading-[1.45] transition-colors",
+        "group relative flex w-full items-start gap-2.5 rounded-[var(--radius-lg)] border px-3.5 py-2 text-sm leading-[1.45] transition-colors",
         isPinned
           ? "border-[color-mix(in_srgb,var(--brand-primary)_35%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,var(--glass-bg-base))]"
           : "border-[color-mix(in_srgb,var(--text-muted)_18%,transparent)] bg-[color-mix(in_srgb,var(--text-muted)_7%,var(--glass-bg-base))]",
@@ -154,7 +154,7 @@ export function NoteRow({
         </span>
       )}
 
-      <span className="flex shrink-0 items-center gap-1.5">
+      <span className="mt-0.5 flex shrink-0 items-center gap-1.5">
         <IconLock
           size={13}
           className="text-[var(--brand-primary)]"
@@ -200,7 +200,7 @@ export function NoteRow({
           </NoteAction>
         </span>
       ) : (
-        <span className="min-w-0 flex-1 text-[var(--text-primary)]">{content}</span>
+        <div className="min-w-0 flex-1 text-[var(--text-primary)]">{content}</div>
       )}
 
       {hasNoteActions && !editing && (
@@ -244,7 +244,7 @@ export function NoteRow({
         </span>
       )}
 
-      <span className="ml-auto flex shrink-0 items-center gap-2">
+      <span className="ml-auto mt-0.5 flex shrink-0 items-center gap-2">
         {senderName && (
           <span className="font-display text-[11px] font-semibold text-[var(--text-secondary)]">
             {senderName}
