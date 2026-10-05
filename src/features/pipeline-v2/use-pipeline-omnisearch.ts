@@ -23,11 +23,14 @@ export function usePipelineOmnisearch(
 
   const deals = useQuery({
     queryKey: ["pipeline-omnisearch", query],
-    queryFn: () =>
+    // O menu só mostra os primeiros resultados: sem COUNT e cancelável.
+    queryFn: ({ signal }) =>
       fetchDealsList({
         search: query,
         page: 1,
         perPage: RESULT_LIMIT,
+        withTotal: false,
+        signal,
       }),
     enabled: ready,
     staleTime: 15_000,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { canonicalFiltersKey } from "@/components/pipeline/kanban-filters/canonical";
 import {
@@ -8,8 +8,15 @@ import {
   type AdvancedDealFilters,
 } from "@/components/pipeline/kanban-filters/types";
 
+import { useDebouncedValue } from "./use-debounced-value";
+
 /** Espera depois da última alteração de filtro antes de pedir o board. */
 export const BOARD_FILTERS_DEBOUNCE_MS = 350;
+
+/** Recorte sem critério de servidor: não há POST a economizar. */
+function appliesAtOnce(key: string): boolean {
+  return !hasServerSideFilters(JSON.parse(key) as AdvancedDealFilters);
+}
 
 /**
  * Filtros que o board de fato pede ao servidor: forma canônica
@@ -28,23 +35,10 @@ export function useDebouncedFilters(
   delayMs: number = BOARD_FILTERS_DEBOUNCE_MS,
 ): { filters: AdvancedDealFilters; pending: boolean } {
   const key = canonicalFiltersKey(filters);
-  const [appliedKey, setAppliedKey] = useState(key);
-  const immediate =
-    key !== appliedKey && !hasServerSideFilters(JSON.parse(key) as AdvancedDealFilters);
-  // Ajuste de estado durante o render (o React refaz o render com o valor
-  // novo): limpar os filtros não espera o debounce.
-  if (immediate) setAppliedKey(key);
-
-  useEffect(() => {
-    if (key === appliedKey || immediate) return;
-    const timer = setTimeout(() => setAppliedKey(key), delayMs);
-    return () => clearTimeout(timer);
-  }, [key, appliedKey, immediate, delayMs]);
-
-  const currentKey = immediate ? key : appliedKey;
+  const appliedKey = useDebouncedValue(key, delayMs, { immediate: appliesAtOnce });
   const applied = useMemo(
-    () => JSON.parse(currentKey) as AdvancedDealFilters,
-    [currentKey],
+    () => JSON.parse(appliedKey) as AdvancedDealFilters,
+    [appliedKey],
   );
-  return { filters: applied, pending: key !== currentKey };
+  return { filters: applied, pending: key !== appliedKey };
 }
