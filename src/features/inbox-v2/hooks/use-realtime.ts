@@ -1016,13 +1016,14 @@ export function useInboxRealtime(options: {
       const openId = activeRef.current;
       if (openId) {
         qc.refetchQueries({ queryKey: messagesKey(openId) });
-        // O banner de agendados só faz poll com o SSE fora; o que mudou
-        // durante o gap (`scheduled_message_updated` perdido) entra aqui.
-        qc.invalidateQueries({
-          queryKey: scheduledMessagesKey(openId),
-          refetchType: "active",
-        });
       }
+      // O banner de agendados só faz poll com o SSE fora; o que mudou
+      // durante o gap (`scheduled_message_updated` perdido) entra aqui: a
+      // aberta busca agora, as outras em cache ficam velhas para o reabrir.
+      qc.invalidateQueries({
+        queryKey: ["scheduled-messages"],
+        refetchType: "active",
+      });
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a

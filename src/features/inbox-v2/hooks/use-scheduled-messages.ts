@@ -8,6 +8,11 @@
  * de 60 s fica só como fallback: roda quando o SSE está desconectado —
  * com a aba visível e com conversa aberta (`enabled`). Quem cria/cancela
  * nesta aba invalida a mesma chave na hora, sem esperar o evento.
+ *
+ * Com a SSE conectada o cache se mantém por evento (e a reconexão com gap
+ * marca todas como velhas): voltar a uma conversa / remontar o composer
+ * dentro de `SCHEDULED_MESSAGES_STALE_MS_SSE` não refaz o GET (F3, 05/10;
+ * antes o prazo era 15 s e cada abertura buscava).
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -20,6 +25,8 @@ import {
 } from "@/features/inbox-v2/api";
 
 export const SCHEDULED_MESSAGES_POLL_MS = 60_000;
+export const SCHEDULED_MESSAGES_STALE_MS = 15_000;
+export const SCHEDULED_MESSAGES_STALE_MS_SSE = 5 * 60_000;
 
 /** Mesma chave que o ChatWindow legado usa — os caches convergem. */
 export function scheduledMessagesKey(conversationId: string | null) {
@@ -37,7 +44,7 @@ export function scheduledMessagesQueryOptions(
     queryFn: (): Promise<{ items: ScheduledMessage[] }> =>
       listScheduledMessages(conversationId as string),
     enabled,
-    staleTime: 15_000,
+    staleTime: sseConnected ? SCHEDULED_MESSAGES_STALE_MS_SSE : SCHEDULED_MESSAGES_STALE_MS,
     refetchInterval:
       enabled && visible && !sseConnected ? SCHEDULED_MESSAGES_POLL_MS : false,
     refetchIntervalInBackground: false,
