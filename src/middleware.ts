@@ -498,7 +498,10 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // api/uploads e academic-records/upload ficam fora do matcher: multipart
   // grande não deve passar pelo buffer do middleware; auth no backend.
+  // Vídeo (`/tutorials`) e APK (`/releases`) também: são públicos, o
+  // `<video>` pede vários `Range` (cada um pagava JWT + checagem de tenant)
+  // e o instalador do app baixa o APK sem cookie (recebia o HTML do login).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/uploads|api/academic-records/upload|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/uploads|api/academic-records/upload|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm|apk)$).*)",
   ],
 };
