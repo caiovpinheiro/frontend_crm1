@@ -297,6 +297,7 @@ export function TabulationTopWidget({
         {rows.length ? (
           <TabsGlass
             tabs={["Por tabulação", "Por assunto"]}
+            scrollable
             activeTab={view === "group" ? 1 : 0}
             onChange={(index) => {
               setView(index === 1 ? "group" : "tabulation");
