@@ -2,6 +2,7 @@
 
 import { ApiError, apiUrl, parseApiResponse } from "@/lib/api";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,7 +37,6 @@ import {
   VariableShortcutInput,
 } from "@/components/crm/variable-shortcut-input";
 import { cn } from "@/lib/utils";
-import { ListHScroll } from "@/components/crm/list-hscroll";
 import { ListColumnLabel, listTableHeadRowClass } from "@/components/crm/sortable-header";
 import {
   HubCallout,
@@ -53,6 +53,129 @@ const TPL_GRID_COLS =
 
 const DOCS_LIST =
   "https://developers.facebook.com/docs/graph-api/reference/whats-app-business-account/message_templates/";
+
+/**
+ * A lista é longa: a barra nativa ficaria depois da última linha.
+ * O miolo rola na horizontal e esta faixa espelha o scrollLeft,
+ * presa na base do painel (o zoom do `.v2-root` é o containing block do fixed).
+ */
+function TemplateBottomHScroll({ children }: { children: React.ReactNode }) {
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const barRef = React.useRef<HTMLDivElement>(null);
+  const lock = React.useRef(false);
+  const [port, setPort] = React.useState<HTMLElement | null>(null);
+  const [box, setBox] = React.useState<{
+    left: number;
+    width: number;
+    bottom: number;
+    scrollWidth: number;
+  } | null>(null);
+
+  React.useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    setPort((el.closest(".v2-root") as HTMLElement | null) ?? document.body);
+
+    const measure = () => {
+      const root = el.closest(".v2-root") as HTMLElement | null;
+      const zoomRaw = root ? Number(getComputedStyle(root).zoom) : 1;
+      const zoom = Number.isFinite(zoomRaw) && zoomRaw > 0 ? zoomRaw : 1;
+      const rect = el.getBoundingClientRect();
+      const port = el.closest("[data-page-scroll], .v2-page-scroll");
+      const portRect = (port ?? el).getBoundingClientRect();
+      const navRaw = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-nav-h"),
+      );
+      const nav = Number.isFinite(navRaw) ? navRaw : 0;
+      const gap = Math.max(0, Math.round((window.innerHeight - portRect.bottom) / zoom));
+      const overflow = el.clientWidth > 8 && el.scrollWidth > el.clientWidth + 1;
+      const visible = rect.bottom > 8 && rect.top < window.innerHeight - 8;
+      const next = overflow && visible
+        ? {
+            left: Math.round(rect.left / zoom),
+            width: el.clientWidth,
+            bottom: Math.max(nav, gap),
+            scrollWidth: el.scrollWidth,
+          }
+        : null;
+      setBox((prev) => {
+        if (!next) return prev === null ? prev : null;
+        if (
+          prev &&
+          prev.left === next.left &&
+          prev.width === next.width &&
+          prev.bottom === next.bottom &&
+          prev.scrollWidth === next.scrollWidth
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    const wide = el.firstElementChild;
+    if (wide instanceof Element) ro.observe(wide);
+    const port = el.closest("[data-page-scroll], .v2-page-scroll");
+    if (port) ro.observe(port);
+    port?.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      port?.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const bar = barRef.current;
+    const el = scrollerRef.current;
+    if (!bar || !el || !box) return;
+    bar.scrollLeft = el.scrollLeft;
+  }, [box]);
+
+  return (
+    <>
+      <div
+        ref={scrollerRef}
+        onScroll={() => {
+          const bar = barRef.current;
+          const el = scrollerRef.current;
+          if (!bar || !el || lock.current) return;
+          lock.current = true;
+          bar.scrollLeft = el.scrollLeft;
+          lock.current = false;
+        }}
+        className="list-freeze-hscroll min-w-0 max-w-full overflow-x-auto overscroll-x-contain"
+      >
+        {children}
+      </div>
+      {box && port
+        ? createPortal(
+            <div
+              ref={barRef}
+              aria-label="Rolagem horizontal dos templates"
+              onScroll={() => {
+                const bar = barRef.current;
+                const el = scrollerRef.current;
+                if (!bar || !el || lock.current) return;
+                lock.current = true;
+                el.scrollLeft = bar.scrollLeft;
+                lock.current = false;
+              }}
+              className="list-hscroll fixed z-40 border-t border-[var(--glass-border)] bg-[var(--bg-base)]"
+              style={{ left: box.left, width: box.width, bottom: box.bottom, height: 14 }}
+            >
+              <div style={{ width: box.scrollWidth, height: 1 }} />
+            </div>,
+            port,
+          )
+        : null}
+    </>
+  );
+}
 const DOCS_COMPONENTS =
   "https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates/components/";
 const DOCS_CALL_PERMISSION =
@@ -948,7 +1071,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
   }
 
   return (
-    <div className={embedded ? "w-full space-y-4" : "w-full space-y-6"}>
+    <div className={embedded ? "w-full space-y-4 pb-4" : "w-full space-y-6"}>
       {!embedded && (
         <Link
           href="/settings"
@@ -1130,7 +1253,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
           </div>
         ) : (
           <div className="p-4">
-          <ListHScroll scrollerClassName="pb-1">
+          <TemplateBottomHScroll>
             <div className="flex w-max min-w-full flex-col gap-2">
               <div
                 className={listTableHeadRowClass("grid gap-3 border border-transparent px-4 py-2")}
@@ -1387,7 +1510,7 @@ function WhatsappMetaTemplatesPage({ embedded = false }: { embedded?: boolean })
                 );
               })}
             </div>
-          </ListHScroll>
+          </TemplateBottomHScroll>
           </div>
         )}
       </HubPanel>
