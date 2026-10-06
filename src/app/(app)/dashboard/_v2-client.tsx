@@ -45,6 +45,7 @@ import {
   usePainelEventCards,
   usePainelInsights,
   usePainelService,
+  usePipelineOptions,
   useSystemUsageToday,
 } from "@/features/dashboard-v2/hooks";
 import {
@@ -193,7 +194,9 @@ function DashboardWarmup({
 }) {
   // Gestor não usa /me — só aquece enquanto o papel ainda é desconhecido.
   useDashboardMe(canFetch && manager !== true);
-  useDashboardFilterOptions(canFetch);
+  // Lista de funis (resolve `?pipeline=7` → CUID). As opções de filtro
+  // (tags/usuários/origens) só saem ao abrir o painel.
+  usePipelineOptions(canFetch);
   return null;
 }
 
@@ -355,15 +358,18 @@ function ManagerHome({
   const isDeals = activeTab === "deals";
   const isService = activeTab === "service";
 
-  const optionsQuery = useDashboardFilterOptions(canFetch);
-  const options = optionsQuery.data;
-  const { filters, patch, settled: filtersSettled } = useDashboardFilters(options?.pipelines);
+  // Funis (com etapas) da lista do shell: resolve `?pipeline=7` → CUID e
+  // alimenta o seletor/painel. As opções de filtro (`filter-options`, rota
+  // cara) ficam para quando o painel ou o diálogo de card abre.
+  const pipelinesQuery = usePipelineOptions(canFetch);
+  const pipelines = pipelinesQuery.data;
+  const { filters, patch, settled: filtersSettled } = useDashboardFilters(pipelines);
   // Painéis só com os filtros assentados (funil da URL/localStorage já
   // resolvido para CUID e restore feito). `isFetched` não bastava: no mesmo
   // render em que a lista chegava, `pipelineIds` ainda era [] e o efeito de
   // funil padrão reescrevia os filtros → 7 GETs abortados e refeitos.
-  // Se a lista de opções falhar, libera mesmo assim (backend usa o padrão).
-  const tabReady = canFetch && (filtersSettled || optionsQuery.isError);
+  // Se a lista de funis falhar, libera mesmo assim (backend usa o padrão).
+  const tabReady = canFetch && (filtersSettled || pipelinesQuery.isError);
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
   const agoraQuery = usePainelAgora(clock, tabReady && isService);
   const serviceQuery = usePainelService(filters, clock, tabReady && isService);
@@ -373,6 +379,8 @@ function ManagerHome({
   );
   const effectivePipelineId = filters.pipelineIds[0] ?? filters.pipelineId;
   const [addCardOpen, setAddCardOpen] = useState(false);
+  // Campos personalizados do diálogo "adicionar card": só quando ele abre.
+  const { data: options } = useDashboardFilterOptions(canFetch && addCardOpen && isDeals);
   const [organizing, setOrganizing] = useState(false);
   const [tabLogPage, setTabLogPage] = useState(1);
   const grid = useNegociosGrid();
@@ -481,7 +489,6 @@ function ManagerHome({
 
   const liveUserOptions = useMemo(() => {
     const map = new Map<string, string>();
-    for (const u of options?.users ?? []) map.set(u.id, u.name);
     if (dealsQuery.data?.funnel.ok) {
       for (const stage of dealsQuery.data.funnel.data.stages) {
         for (const row of stage.byUser ?? []) map.set(row.id, row.name);
@@ -494,7 +501,7 @@ function ManagerHome({
       if (row.userId) map.set(row.userId, row.userName ?? row.userId);
     }
     return [...map.entries()].map(([value, label]) => ({ value, label }));
-  }, [options?.users, dealsQuery.data, usageQuery.data]);
+  }, [dealsQuery.data, usageQuery.data]);
 
   const periodActive = filters.period !== "today";
 
@@ -504,7 +511,8 @@ function ManagerHome({
       onSearch={setSearch}
       filters={filters}
       onPatch={patch}
-      options={options}
+      pipelines={pipelines}
+      canFetch={canFetch}
       effectivePipelineId={effectivePipelineId}
       variant={isService ? "service" : "deals"}
       actorUserIds={tabActorUserIds}
@@ -514,7 +522,7 @@ function ManagerHome({
       userOptions={
         isService
           ? (usersQuery.data ?? []).map((u) => ({ value: u.id, label: u.name }))
-          : (options?.users ?? []).map((u) => ({ value: u.id, label: u.name }))
+          : []
       }
       liveUserOptions={liveUserOptions}
       departmentOptions={(Array.isArray(departmentsQuery.data)
@@ -697,7 +705,7 @@ function ManagerHome({
                 filters.pipelineIds,
                 filters.userIds,
                 <FunnelPipelinePicker
-                  pipelines={(options?.pipelines ?? []).map((p) => ({ id: p.id, name: p.name }))}
+                  pipelines={(pipelines ?? []).map((p) => ({ id: p.id, name: p.name }))}
                   selectedId={effectivePipelineId}
                   onSelect={(id) =>
                     patch({ pipelineIds: [id], pipelineId: id, stageIds: [] })

@@ -23,19 +23,27 @@ import {
 import { SearchFilterBar } from "@/components/crm/search-filter-bar";
 import { FilterChip } from "@/components/crm/filter-popover";
 import { cn } from "@/lib/utils";
-import type { FilterOptionsResponse } from "@/components/pipeline/kanban-filters/types";
 import {
   SOURCE_NONE,
   type DashboardFiltersState,
 } from "@/features/dashboard-v2/api";
+import { useDashboardFilterOptions } from "@/features/dashboard-v2/hooks";
 import { countStructuralDashboardFilters } from "@/features/dashboard-v2/use-dashboard-filters";
+
+/** Funil com etapas, como vem de `GET /api/pipelines` (lista do shell). */
+export type DashboardFilterPipeline = {
+  id: string;
+  name: string;
+  stages?: { id: string; name: string; color?: string | null; position: number }[];
+};
 
 export function DashboardSearchFilterBar({
   search,
   onSearch,
   filters,
   onPatch,
-  options,
+  pipelines = [],
+  canFetch = true,
   effectivePipelineId,
   variant,
   actorUserIds = [],
@@ -50,26 +58,33 @@ export function DashboardSearchFilterBar({
   onSearch: (value: string) => void;
   filters: DashboardFiltersState;
   onPatch: (partial: Partial<DashboardFiltersState>) => void;
-  options?: FilterOptionsResponse;
+  /** Funis (com etapas) da lista do shell — não vêm das opções de filtro. */
+  pipelines?: DashboardFilterPipeline[];
+  /** Sessão válida: as opções de filtro só são buscadas com o painel aberto. */
+  canFetch?: boolean;
   effectivePipelineId?: string;
   variant: "deals" | "service";
   actorUserIds?: string[];
   onActorUserIdsChange?: (ids: string[]) => void;
   departmentIds?: string[];
   onDepartmentIdsChange?: (ids: string[]) => void;
+  /** Atendimentos: usuários da equipe (a aba Negócios usa as opções de filtro). */
   userOptions?: { value: string; label: string }[];
   /** Usuários vistos no funil/uso — o filtro de Negócios se atualiza sozinho. */
   liveUserOptions?: { value: string; label: string }[];
   departmentOptions?: { value: string; label: string }[];
 }) {
   const [open, setOpen] = useState(false);
+  // Tags/usuários/origens só aparecem dentro do painel: a rota (cara) sai
+  // ao abrir, pela mesma chave de 10 min do Kanban/Flow/Lista — nunca na
+  // montagem do dashboard.
+  const { data: options } = useDashboardFilterOptions(canFetch && open);
 
   const structuralCount = countStructuralDashboardFilters(filters);
   const tabulationCount =
     (actorUserIds.length ? 1 : 0) + (departmentIds.length ? 1 : 0);
   const activeCount = variant === "service" ? tabulationCount : structuralCount;
 
-  const pipelines = options?.pipelines ?? [];
   const selectedPipelineIds = filters.pipelineIds?.length
     ? filters.pipelineIds
     : effectivePipelineId
@@ -84,7 +99,7 @@ export function DashboardSearchFilterBar({
       for (const s of [...(p.stages ?? [])].sort((a, b) => a.position - b.position)) {
         if (seen.has(s.id)) continue;
         seen.add(s.id);
-        rows.push({ value: s.id, label: s.name, color: s.color });
+        rows.push({ value: s.id, label: s.name, color: s.color ?? "" });
       }
     }
     return rows;
@@ -102,7 +117,10 @@ export function DashboardSearchFilterBar({
     value: u.id,
     label: u.name,
   }));
-  const dealUsers = mergeUserOptions(userOptions, liveUserOptions);
+  const dealUsers = mergeUserOptions(
+    variant === "service" ? userOptions : ownerOptions,
+    liveUserOptions,
+  );
 
   function handleClear() {
     if (variant === "service") {
