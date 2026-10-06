@@ -31,6 +31,10 @@ import { useDebouncedFilters } from "./use-debounced-filters";
  * recorte depois do debounce e na forma canônica (`appliedFilters`).
  * Seleção em massa e totais devem usar `appliedFilters` — é o recorte do
  * quadro que está na tela.
+ *
+ * `enabled` deve esperar os filtros serem lidos da URL
+ * (`useKanbanFilters().hydrated`): até lá nada é pedido, e o 1º pedido já
+ * sai com o recorte da URL (sem GET sem filtro antes do POST filtrado).
  */
 export function useKanbanBoard(params: {
   pipelineId: string | null;
@@ -41,7 +45,7 @@ export function useKanbanBoard(params: {
 }) {
   const { pipelineId, status, sort, enabled } = params;
 
-  const debounced = useDebouncedFilters(params.filters);
+  const debounced = useDebouncedFilters(params.filters, undefined, { ready: enabled });
   const filters = debounced.filters;
   const hasServerBoard = hasServerSideFilters(filters);
 
