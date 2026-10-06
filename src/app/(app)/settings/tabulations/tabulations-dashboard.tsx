@@ -230,12 +230,14 @@ export function TabulationLogWidget({
   isLoading: boolean;
   onPage: (next: number) => void;
 }) {
+  // Backend novo: `total` conta conversas e `eventsTotal` conta eventos do log.
+  const logTotal = data ? (data.eventsTotal ?? data.total) : 0;
   return (
     <GlassCard className="overflow-hidden p-0">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <h3 className="text-[13px] font-semibold text-foreground">Log de tabulações</h3>
         <span className="text-[11px] text-muted-foreground">
-          {data ? `${data.total} registro(s)` : "—"}
+          {data ? `${logTotal} registro(s)` : "—"}
         </span>
       </div>
       {isLoading ? (
@@ -289,7 +291,7 @@ export function TabulationLogWidget({
           </table>
         </div>
       )}
-      {data && data.total > data.perPage ? (
+      {data && logTotal > data.perPage ? (
         <div className="flex items-center justify-between border-t border-border px-4 py-2">
           <button
             type="button"
@@ -464,7 +466,7 @@ export function TabulationsDashboard({
   const data = analyticsQuery.data;
   const totalPages = useMemo(() => {
     if (!data) return 1;
-    return Math.max(1, Math.ceil(data.total / data.perPage));
+    return Math.max(1, Math.ceil((data.eventsTotal ?? data.total) / data.perPage));
   }, [data]);
 
   const loadingValue = analyticsQuery.isLoading ? "…" : "—";
