@@ -983,6 +983,14 @@ export function useInboxRealtime(options: {
   /** Usuário logado — decide o patch do card e a aba (bip: `InboxMessageAlerts`). */
   currentUserId?: string | null;
   enabled?: boolean;
+  /**
+   * Mensagem RECEBIDA (`direction: "in"`) na conversa aberta. O host marca
+   * como lida (`POST /read` → contador zerado e visto azul na Meta): abrir a
+   * conversa só marca quando há não lidas, então é este aviso que cobre a
+   * mensagem que chega com ela já aberta. Chamado depois do patch do card
+   * (o `unreadCount` em cache já conta a mensagem).
+   */
+  onOpenConversationInbound?: (conversationId: string) => void;
 }) {
   const { activeConversationId, currentUserId = null, enabled = true } = options;
   const qc = useQueryClient();
@@ -990,6 +998,8 @@ export function useInboxRealtime(options: {
   activeRef.current = activeConversationId;
   const userIdRef = useRef(currentUserId);
   userIdRef.current = currentUserId;
+  const onOpenInboundRef = useRef(options.onOpenConversationInbound);
+  onOpenInboundRef.current = options.onOpenConversationInbound;
   const { registerActiveConversation } = useMessageToast();
 
   useEffect(() => {
@@ -1229,6 +1239,20 @@ export function useInboxRealtime(options: {
           }
         } catch (e) {
           logger.error("sse", "new_message card patch failed", e);
+        }
+
+        // Recebida na conversa aberta: o host marca como lida.
+        if (
+          data.direction === "in" &&
+          data.conversationId &&
+          data.conversationId === activeRef.current &&
+          !isEventMessageType(data.messageType)
+        ) {
+          try {
+            onOpenInboundRef.current?.(data.conversationId);
+          } catch (e) {
+            logger.error("sse", "onOpenConversationInbound failed", e);
+          }
         }
       },
 

@@ -57,6 +57,7 @@ import {
   useFavoriteMessage,
   useInboxRealtime,
   useMarkConversationRead,
+  useMarkConversationReadIfUnread,
   useMessages,
   usePinMessage,
   usePinNote,
@@ -236,23 +237,32 @@ export function ConversationChatHost({
 
   // Abrir a conversa marca como lida (mesmo hook do /inbox: zera o
   // contador da lista de forma otimista) e tira o badge dos cards do
-  // contato no board (Kanban/Flow). Dispara UMA vez por conversa: o
-  // contactId pode chegar depois (seed do board → detail) sem repetir o
-  // POST /read.
+  // contato no board (Kanban/Flow) — só quando há não lidas no cache da
+  // lista (ou a lista não conhece a conversa). Dispara UMA vez por
+  // conversa: o contactId pode chegar depois (seed do board → detail) sem
+  // repetir o POST /read.
+  const markReadIfUnread = useMarkConversationReadIfUnread();
   const { mutate: markReadMutate } = useMarkConversationRead();
   const contactIdRef = useRef(contactId);
   useEffect(() => {
     contactIdRef.current = contactId;
   }, [contactId]);
+  const clearBoardUnread = useCallback(() => {
+    const cid = contactIdRef.current;
+    if (cid) clearBoardUnreadForContact(queryClient, cid);
+  }, [queryClient]);
   useEffect(() => {
     if (!markAsRead || !conversationId) return;
-    markReadMutate(conversationId, {
-      onSuccess: () => {
-        const cid = contactIdRef.current;
-        if (cid) clearBoardUnreadForContact(queryClient, cid);
-      },
-    });
-  }, [markAsRead, conversationId, markReadMutate, queryClient]);
+    markReadIfUnread(conversationId, { onSuccess: clearBoardUnread });
+  }, [markAsRead, conversationId, markReadIfUnread, clearBoardUnread]);
+  // Mensagem recebida com a conversa aberta: marca como lida (visto azul).
+  const handleOpenConversationInbound = useCallback(
+    (id: string) => {
+      if (!markAsRead) return;
+      markReadMutate(id, { onSuccess: clearBoardUnread });
+    },
+    [markAsRead, markReadMutate, clearBoardUnread],
+  );
 
   const {
     data: messagesData,
@@ -282,6 +292,7 @@ export function ConversationChatHost({
     activeConversationId: conversationId,
     currentUserId: session?.user?.id ?? null,
     enabled: realtime && !!conversationId,
+    onOpenConversationInbound: handleOpenConversationInbound,
   });
   // "Fulano está digitando…" (SSE `typing` de outro agente desta conversa).
   const typingHint = useConversationTyping(conversationId, session?.user?.id ?? null);

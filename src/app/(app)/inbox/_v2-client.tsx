@@ -46,6 +46,8 @@ import {
   useContactSidebar,
   useInboxRealtime,
   useInboxSafetyPoll,
+  useMarkConversationRead,
+  useMarkConversationReadIfUnread,
   useMessages,
   useInboxSoundMuted,
 } from "@/features/inbox-v2/hooks";
@@ -286,6 +288,16 @@ export default function InboxV2ClientPage({
 
   const { data: contactDetail } = useContactSidebar(activeContactId);
 
+  // Marcar como lida: ao abrir, só com não lidas no cache (voltar a uma
+  // conversa já lida não manda POST /read); mensagem recebida com a
+  // conversa aberta marca sempre (visto azul na Meta).
+  const markReadIfUnread = useMarkConversationReadIfUnread();
+  const { mutate: markReadOnInbound } = useMarkConversationRead();
+  const handleOpenConversationInbound = useCallback(
+    (id: string) => markReadOnInbound(id),
+    [markReadOnInbound],
+  );
+
   // ── Realtime ────────────────────────────────────────────────────
   // Só após prefs (tab/filtros) — evita invalidate lista+counts no
   // connect enquanto a query key ainda está mudando no hydrate.
@@ -293,6 +305,8 @@ export default function InboxV2ClientPage({
     activeConversationId: conversationApiId,
     currentUserId: session?.user?.id ?? null,
     enabled: canFetchInbox && tabHydrated && filtersHydrated,
+    // Mensagem recebida com a conversa aberta: marca como lida (visto azul).
+    onOpenConversationInbound: handleOpenConversationInbound,
   });
   // SSE fora (ou parado) com a aba visível: lista + contadores a cada 90s.
   useInboxSafetyPoll(canFetchInbox && tabHydrated && filtersHydrated);
@@ -317,7 +331,6 @@ export default function InboxV2ClientPage({
   const contactName = activeRow?.contact?.name ?? "";
   const {
     sendMessage,
-    markRead,
     bulkAction,
     pinDurationDialog,
     favoritesOpen,
@@ -395,7 +408,8 @@ export default function InboxV2ClientPage({
     if (pinnedFromSearch && pinnedFromSearch.id !== id) setPinnedFromSearch(null);
     if (id === activeId) return;
     setActiveId(id);
-    markRead.mutate(id);
+    // Só com não lidas: voltar a uma conversa já lida não manda POST /read.
+    markReadIfUnread(id);
     setReplyTo(null);
   });
 
@@ -412,7 +426,7 @@ export default function InboxV2ClientPage({
     }
     if (row.id !== activeId) {
       setActiveId(row.id);
-      markRead.mutate(row.id);
+      markReadIfUnread(row.id);
       setReplyTo(null);
     }
     setSearchInput("");
