@@ -393,7 +393,7 @@ export function BulkActionsBar({
               <ChevronDown className="size-3" />
             </Button>
             {ownerOpen && (
-              <div className="absolute bottom-full left-0 mb-2 min-w-[180px] rounded-xl border border-border bg-popover py-1 text-popover-foreground shadow-xl">
+              <div className="scrollbar-thin absolute bottom-full left-0 z-10 mb-2 max-h-[min(380px,55vh)] min-w-[180px] overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover py-1 text-popover-foreground shadow-xl">
                 <button
                   type="button"
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
