@@ -4,15 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  fetchDashboard,
   fetchDashboardMe,
-  fetchServiceOverview,
-  type DashboardData,
   type DashboardFiltersState,
   type DashboardMeData,
-  type DashboardPeriod,
-  type PipelineOption,
-  type ServiceOverview,
 } from "./api";
 import {
   fetchPainelAgora,
@@ -33,7 +27,6 @@ import { useActivityStats } from "@/features/activity-feed/use-activity-stats";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
-import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import {
   mockEventCard,
   mockFilterOptions,
@@ -42,35 +35,6 @@ import {
 import type { PainelCustomFieldCard, PainelEventCard } from "./painel-api";
 import type { NegociosCustomCard } from "./use-negocios-grid";
 import { todayRangeISO } from "./use-dashboard-filters";
-
-export function useServiceOverview(params: {
-  period: DashboardPeriod;
-  enabled?: boolean;
-}) {
-  return useQuery<ServiceOverview>({
-    queryKey: ["dashboard-v2", "service", params.period],
-    queryFn: () => fetchServiceOverview({ period: params.period }),
-    enabled: isPreviewMode() ? true : (params.enabled ?? true),
-    staleTime: 30_000,
-  });
-}
-
-export function usePipelineOptions(enabled = true) {
-  return usePipelinesQuery<PipelineOption>(enabled);
-}
-
-export function useDashboard(
-  filters: DashboardFiltersState,
-  enabled = true,
-) {
-  return useQuery<DashboardData>({
-    queryKey: ["dashboard-v2", "commercial", filters],
-    queryFn: () => fetchDashboard(filters),
-    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 30_000,
-    placeholderData: (prev) => prev,
-  });
-}
 
 const DEAL_LIVE_SECTIONS = [
   "kpis",
