@@ -388,6 +388,20 @@ export interface InboxMessageDto {
    *  compartilhado entre agentes). Alimenta a estrela preenchida no
    *  menu contextual e no bubble. */
   favoritedByMe?: boolean;
+  referral?: {
+    sourceId?: string;
+    sourceType?: string;
+    ctwaClid?: string;
+    headline?: string;
+    body?: string;
+    sourceUrl?: string;
+    mediaType?: string;
+    imageUrl?: string;
+    videoUrl?: string;
+    thumbnailUrl?: string;
+    storedImageUrl?: string;
+    storedThumbnailUrl?: string;
+  } | null;
   catalogOrder?: {
     catalogId: string;
     text: string | null;

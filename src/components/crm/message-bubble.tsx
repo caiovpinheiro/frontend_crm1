@@ -19,6 +19,8 @@ import {
   detectMediaKind,
   isPlaceholderContent,
 } from "./message-bubble/media-helpers"
+import { AdReferralCard } from "./message-bubble/ad-referral-card"
+import { isAdReferral } from "@/lib/ad-referral"
 import {
   CatalogOrderBubble,
   FormBubble,
@@ -280,6 +282,9 @@ export const MessageBubble = memo(function MessageBubble({
               onJump={onJumpToQuotedMessage}
             />
           )}
+          {!isOutgoing && message.referral && isAdReferral(message.referral) ? (
+            <AdReferralCard referral={message.referral} />
+          ) : null}
           {/* Conteúdo: mídia (áudio/imagem/vídeo/documento) ou texto */}
           <MessageContent message={message} isOutgoing={isOutgoing} metaReserve={metaReserve} />
           {/* Botões de resposta rápida (interactive/template) — cards

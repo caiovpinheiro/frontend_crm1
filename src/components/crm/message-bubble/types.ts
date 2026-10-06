@@ -116,6 +116,21 @@ export interface Message {
    * em grupos futuramente). Renderiza como badge flutuante na base.
    */
   reactions?: Array<{ emoji: string; from: string; at?: string }>
+  /** Referral do anúncio Meta que originou esta mensagem inbound. */
+  referral?: {
+    sourceId?: string
+    sourceType?: string
+    ctwaClid?: string
+    headline?: string
+    body?: string
+    sourceUrl?: string
+    mediaType?: string
+    imageUrl?: string
+    videoUrl?: string
+    thumbnailUrl?: string
+    storedImageUrl?: string
+    storedThumbnailUrl?: string
+  } | null
   catalogOrder?: {
     catalogId: string
     text: string | null
