@@ -234,7 +234,13 @@ export default function KanbanV2ClientPage({
     null,
   );
   const canChangeStage = useCan("deal:change_stage");
-  const { filters, setFilters, patch: patchFilters, clear: clearFilters } = useKanbanFilters();
+  const {
+    filters,
+    setFilters,
+    patch: patchFilters,
+    clear: clearFilters,
+    hydrated: filtersHydrated,
+  } = useKanbanFilters();
   // Busca (`?q=`) e ordenação (`?sort=`) na URL — link copiável reproduz a
   // visão. Ordenação: `created_*`/`interaction_*` são delegados ao backend
   // (ver `boardSort`), porque ordenar só os deals já carregados (100/coluna)
@@ -297,7 +303,9 @@ export default function KanbanV2ClientPage({
     status,
     sort: boardSort,
     filters: liveFilters,
-    enabled: canFetch,
+    // Só depois de ler os filtros da URL: a 1ª requisição já sai filtrada
+    // (antes: GET sem filtro no 1º render + POST filtrado logo depois).
+    enabled: canFetch && filtersHydrated,
   });
   const board = hasServerBoard ? boardFiltered.data ?? [] : boardNormal.data ?? [];
   // Board + etapas fora do filtro (GET /api/pipelines): com filtro de etapa o
@@ -1021,10 +1029,10 @@ export default function KanbanV2ClientPage({
     !boardQuery.isError;
 
   useLayoutEffect(() => {
-    if (!pipelineId || !canFetch) return;
+    if (!pipelineId || !canFetch || !filtersHydrated) return;
     if (boardIdleUnfetched) void boardQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pipelineId, canFetch, boardIdleUnfetched]);
+  }, [pipelineId, canFetch, filtersHydrated, boardIdleUnfetched]);
 
   function handleDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
