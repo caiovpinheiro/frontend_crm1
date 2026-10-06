@@ -7,9 +7,6 @@ import { apiUrl } from "@/lib/api";
 import { useSSE } from "@/hooks/use-sse";
 import { TEAM_USERS_QUERY_PREFIX } from "@/features/shared/queries/team-users";
 
-/** Widget "Equipe online" do dashboard (/api/monitor/agents). */
-export const AGENTS_ONLINE_QUERY_KEY = ["dashboard-agents-online"] as const;
-
 const PRESENCE_SSE_EVENTS: readonly string[] = [
   "system_presence_update",
   "presence_update",
