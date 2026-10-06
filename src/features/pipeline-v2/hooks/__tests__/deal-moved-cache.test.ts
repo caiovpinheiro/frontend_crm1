@@ -367,4 +367,35 @@ describe("applyDealMoved", () => {
     expect(dest[0]).toBe(newer);
     expect(dest[2]).toBe(older);
   });
+
+  it("automação (mesmo deal_moved): a outra sessão atualiza sem GET e sem duplicar", () => {
+    const other = new QueryClient({
+      defaultOptions: { queries: { structuralSharing: false } },
+    });
+    const key = ["pipeline-board", "p1", "OPEN"] as const;
+    other.setQueryData(key, [stage("s-a", [deal("d1", 4)]), stage("s-b", [deal("x", 0), deal("y", 2)])]);
+    const invalidate = vi.spyOn(other, "invalidateQueries");
+    const refetch = vi.spyOn(other, "refetchQueries");
+    const event = moved({
+      dealId: "d1",
+      fromPipelineId: "p1",
+      toPipelineId: "p1",
+      fromStageId: "s-a",
+      toStageId: "s-b",
+      position: 1,
+      updatedAt: T1,
+    });
+
+    applyDealMoved(other, event);
+    const once = other.getQueryData(key);
+    expect(applyDealMoved(other, event)).toBe(false);
+    expect(other.getQueryData(key)).toBe(once);
+
+    const board = once as BoardStageDto[];
+    expect(board[0].deals.map((d) => d.id)).toEqual([]);
+    expect(board[1].deals.map((d) => d.id)).toEqual(["x", "d1", "y"]);
+    expect(board.flatMap((s) => s.deals.filter((d) => d.id === "d1"))).toHaveLength(1);
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(refetch).not.toHaveBeenCalled();
+  });
 });
