@@ -4,15 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  fetchDashboard,
   fetchDashboardMe,
-  fetchServiceOverview,
-  type DashboardData,
   type DashboardFiltersState,
   type DashboardMeData,
-  type DashboardPeriod,
-  type PipelineOption,
-  type ServiceOverview,
 } from "./api";
 import {
   fetchPainelAgora,
@@ -44,19 +38,7 @@ import {
 } from "./mock-painel";
 import type { PainelCustomFieldCard, PainelEventCard } from "./painel-api";
 import type { NegociosCustomCard } from "./use-negocios-grid";
-import { todayRangeISO } from "./use-dashboard-filters";
-
-export function useServiceOverview(params: {
-  period: DashboardPeriod;
-  enabled?: boolean;
-}) {
-  return useQuery<ServiceOverview>({
-    queryKey: ["dashboard-v2", "service", params.period],
-    queryFn: () => fetchServiceOverview({ period: params.period }),
-    enabled: isPreviewMode() ? true : (params.enabled ?? true),
-    staleTime: 30_000,
-  });
-}
+import { todayRangeISO, type DashboardPipelineOption } from "./use-dashboard-filters";
 
 /**
  * Lista de funis (com etapas) — a query compartilhada do shell
@@ -65,20 +47,7 @@ export function useServiceOverview(params: {
  * filtro (`useDashboardFilterOptions`), que só são buscadas ao abrir o painel.
  */
 export function usePipelineOptions(enabled = true) {
-  return usePipelinesQuery<PipelineListItemDto & PipelineOption>(enabled);
-}
-
-export function useDashboard(
-  filters: DashboardFiltersState,
-  enabled = true,
-) {
-  return useQuery<DashboardData>({
-    queryKey: ["dashboard-v2", "commercial", filters],
-    queryFn: () => fetchDashboard(filters),
-    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 30_000,
-    placeholderData: (prev) => prev,
-  });
+  return usePipelinesQuery<PipelineListItemDto & DashboardPipelineOption>(enabled);
 }
 
 const DEAL_LIVE_SECTIONS = [
