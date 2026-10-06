@@ -53,6 +53,7 @@ import { CallHistoryList } from "@/features/softphone/components/call-history-li
 import { ActivitiesPanel } from "@/components/pipeline/deal-workspace/panels/activities";
 import { ConversationThreadSkeleton } from "@/components/crm/conversation-skeleton";
 import { ConversationChatHost } from "@/features/inbox-v2/extras/conversation-chat-host";
+import { WhatsappCallChip } from "@/components/inbox/whatsapp-call-chip";
 import { ContactEditDialog } from "@/components/crm/contact-edit-dialog";
 import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
 import { Chip } from "@/components/crm/chip";
@@ -1339,6 +1340,19 @@ export default function KanbanV2ClientPage({
               requireTabulationOnClose={dealConversationRequiresTabulation}
               viewersSlot={dealViewersSlot}
               showTabs={false}
+              headerActionsSlot={
+                <WhatsappCallChip
+                  conversationId={effectiveConversationId}
+                  channel={
+                    dealConversation?.id === effectiveConversationId
+                      ? (dealConversation.channel ?? null)
+                      : null
+                  }
+                  contactName={dealContactName}
+                  variant="cta"
+                  onlyWhenGranted
+                />
+              }
               onConversationReopened={refreshActiveDealDetail}
               onResolved={refreshActiveDealDetail}
             />
