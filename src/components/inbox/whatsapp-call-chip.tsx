@@ -242,6 +242,7 @@ export function WhatsappCallChip({
   contactName,
   variant = "chip",
   hasCalling = false,
+  onlyWhenGranted = false,
 }: {
   conversationId: string;
   channel: string | null | undefined;
@@ -254,6 +255,12 @@ export function WhatsappCallChip({
    * chat não autoriza request.
    */
   hasCalling?: boolean;
+  /**
+   * Painel do negócio (`/pipeline`): o botão de ligar só existe com
+   * permissão aceita (ou chamada em curso). Sem aceite, não renderiza.
+   * Nesse modo o GET de calling-context roda na conversa WhatsApp aberta.
+   */
+  onlyWhenGranted?: boolean;
 }) {
   const isCta = variant === "cta";
   const isWaVoiceChannel = channel === "whatsapp" || channel === "meta";
@@ -283,7 +290,7 @@ export function WhatsappCallChip({
     !!conversationId &&
     isWaVoiceChannel &&
     !callingContextMisses.has(conversationId) &&
-    (hasCalling || sseCalling);
+    (hasCalling || sseCalling || onlyWhenGranted);
 
   const { data, isLoading } = useQuery({
     queryKey: key,
@@ -698,6 +705,7 @@ export function WhatsappCallChip({
   };
 
   if (isLoading) {
+    if (onlyWhenGranted) return null;
     return isCta ? (
       <span className="inline-flex size-11 shrink-0 items-center justify-center" aria-label="Enviar template de ligação">
         <Loader2 className="size-5 animate-spin text-emerald-500" />
@@ -1042,6 +1050,13 @@ export function WhatsappCallChip({
           )}
     </>
   );
+
+  const showGrantedCall =
+    canInitiate ||
+    !!canTerminate ||
+    hasActiveCall ||
+    outbound.isInitiating;
+  if (onlyWhenGranted && !showGrantedCall) return null;
 
   return (
     <>
