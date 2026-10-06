@@ -7,6 +7,9 @@ import { apiFetch } from "@/lib/api";
 
 export type TabulationAnalyticsResponse = {
   total: number;
+  /** Total de eventos do log paginado (backend novo); `total` passa a contar conversas. */
+  eventsTotal?: number;
+  rangeClamped?: boolean;
   page: number;
   perPage: number;
   distinctTabulations: number;
