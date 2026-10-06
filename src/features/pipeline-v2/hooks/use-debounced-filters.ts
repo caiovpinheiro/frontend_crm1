@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { canonicalFiltersKey } from "@/components/pipeline/kanban-filters/canonical";
 import {
@@ -29,13 +29,27 @@ function appliesAtOnce(key: string): boolean {
  *
  * Voltar a um recorte sem critério de servidor (limpar filtros) aplica na
  * hora: não há POST a economizar e o board paginado já está em cache.
+ *
+ * `ready` = o recorte visível já é o de verdade (filtros lidos da URL).
+ * Enquanto é `false` — e no render em que vira `true` — o recorte aplicado
+ * acompanha o visível na hora: a 1ª query do board já sai com o filtro da
+ * URL, em vez de sair sem filtro e ser refeita depois do debounce.
  */
 export function useDebouncedFilters(
   filters: AdvancedDealFilters,
   delayMs: number = BOARD_FILTERS_DEBOUNCE_MS,
+  options: { ready?: boolean } = {},
 ): { filters: AdvancedDealFilters; pending: boolean } {
+  const ready = options.ready ?? true;
+  // "Valor do render anterior" (ajuste de estado durante o render): o render
+  // em que `ready` vira `true` ainda aplica na hora.
+  const [wasReady, setWasReady] = useState(ready);
+  if (wasReady !== ready) setWasReady(ready);
+  const settling = !ready || !wasReady;
   const key = canonicalFiltersKey(filters);
-  const appliedKey = useDebouncedValue(key, delayMs, { immediate: appliesAtOnce });
+  const appliedKey = useDebouncedValue(key, delayMs, {
+    immediate: (next) => settling || appliesAtOnce(next),
+  });
   const applied = useMemo(
     () => JSON.parse(appliedKey) as AdvancedDealFilters,
     [appliedKey],

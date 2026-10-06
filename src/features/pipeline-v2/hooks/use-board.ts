@@ -25,6 +25,7 @@ import { mergeBoardKeepingLiveActivity } from "../board-live-activity";
 import {
   boardPagingKey,
   clearBoardPaging,
+  findReusableBoardColumnPage,
   getBoardColumnsLoaded,
   reloadBoardExpansions,
 } from "../board-column-paging";
@@ -177,6 +178,7 @@ export function useBoard(params: {
       const offsets = offsetByStageRef.current;
       const limit = perStageRef.current;
       const useOffsets = !!offsets && Object.keys(offsets).length > 0;
+      const startedAt = Date.now();
       const base = await (useOffsets
         ? getBoardFiltered(pid, {
             status,
@@ -188,10 +190,13 @@ export function useBoard(params: {
         : getBoard(pid, status, sort, limit, signal));
       // Colunas expandidas por cursor: a 1ª página acabou de voltar sem
       // elas. Lido DEPOIS do board para pegar um "carregar mais" que tenha
-      // terminado durante o fetch.
+      // terminado durante o fetch — e esse, se foi pelo mesmo cursor da 1ª
+      // página nova, é reaproveitado em vez de pedido de novo.
       return reloadBoardExpansions({
         base,
         loaded: getBoardColumnsLoaded(qc, pagingKey),
+        reusable: (stageId, cursor) =>
+          findReusableBoardColumnPage(qc, pagingKey, stageId, cursor, startedAt),
         fetchColumns: (columns) => getBoardColumns(pid, { status, sort, columns, signal }),
         // Refetch cancelado não é falha: as colunas expandidas continuam.
         onFailure: () => {
@@ -349,6 +354,7 @@ export function useBoardFiltered(params: {
     queryFn: async ({ signal }) => {
       const pid = params.pipelineId ?? "pl-1";
       const offsets = offsetByStageRef.current;
+      const startedAt = Date.now();
       const base = await getBoardFiltered(pid, {
         status: params.status,
         filters,
@@ -358,10 +364,13 @@ export function useBoardFiltered(params: {
         signal,
       });
       // Colunas expandidas por cursor ("carregar mais"): a 1ª página voltou
-      // sem elas — recarrega só o que faltava, com os mesmos filtros.
+      // sem elas — recarrega só o que faltava, com os mesmos filtros (página
+      // que chegou durante este fetch, pelo mesmo cursor, é reaproveitada).
       return reloadBoardExpansions({
         base,
         loaded: getBoardColumnsLoaded(qc, pagingKey),
+        reusable: (stageId, cursor) =>
+          findReusableBoardColumnPage(qc, pagingKey, stageId, cursor, startedAt),
         fetchColumns: (columns) =>
           getBoardColumns(pid, {
             status: params.status,

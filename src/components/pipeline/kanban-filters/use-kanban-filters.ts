@@ -98,6 +98,13 @@ export type UseKanbanFiltersResult = {
   /** Patch parcial — mantém o resto dos critérios. */
   patch: (partial: Partial<AdvancedDealFilters>) => void;
   isEmpty: boolean;
+  /**
+   * Os filtros já foram lidos da URL/localStorage (1º commit). Antes disso
+   * `filters` é `{}` por construção (SSR sem `window`) e NÃO descreve a
+   * visão: quem pede o board espera por isto, senão a 1ª query sai sem
+   * filtro e é refeita logo em seguida com ele.
+   */
+  hydrated: boolean;
 };
 
 export function useKanbanFilters(): UseKanbanFiltersResult {
@@ -217,6 +224,7 @@ export function useKanbanFilters(): UseKanbanFiltersResult {
     patch,
     clear,
     isEmpty: isEmptyFilters(filters),
+    hydrated,
   };
 }
 

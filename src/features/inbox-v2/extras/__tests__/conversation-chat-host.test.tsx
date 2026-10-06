@@ -63,6 +63,11 @@ vi.mock("@/features/inbox-v2/hooks", async () => {
   const channels = await vi.importActual<
     typeof import("@/features/inbox-v2/hooks/use-channels")
   >("@/features/inbox-v2/hooks/use-channels");
+  // Estável entre renders (como o `useCallback` real); delega ao mesmo mock.
+  const markReadIfUnread = (id: string, opts?: unknown) => {
+    h.markReadMutate(id, opts);
+    return true;
+  };
   return {
     useMessages: h.useMessages,
     useSendMessage: () => ({
@@ -83,6 +88,7 @@ vi.mock("@/features/inbox-v2/hooks", async () => {
     }),
     useInboxRealtime: h.useInboxRealtime,
     useMarkConversationRead: () => ({ mutate: h.markReadMutate }),
+    useMarkConversationReadIfUnread: () => markReadIfUnread,
     useWhatsappChannels: h.useWhatsappChannels,
     useSelectedOutboundChannel: h.useSelectedOutboundChannel,
     useChannelSession: h.useChannelSession,
@@ -452,12 +458,32 @@ describe("ConversationChatHost — abrir a conversa", () => {
     expect(h.markReadMutate).not.toHaveBeenCalled();
   });
 
+  it("mensagem recebida com a conversa aberta marca como lida e limpa o badge do board", () => {
+    const { qc } = renderHost();
+    h.markReadMutate.mockClear();
+    const { onOpenConversationInbound } = h.useInboxRealtime.mock.calls.at(-1)![0];
+
+    onOpenConversationInbound("conv-1");
+    expect(h.markReadMutate).toHaveBeenCalledTimes(1);
+    expect(h.markReadMutate.mock.calls[0][0]).toBe("conv-1");
+    h.markReadMutate.mock.calls[0][1].onSuccess();
+    expect(h.clearBoardUnreadForContact).toHaveBeenCalledWith(qc, "contact-1");
+  });
+
+  it("markAsRead=false não marca nem com mensagem recebida", () => {
+    renderHost({ markAsRead: false });
+    const { onOpenConversationInbound } = h.useInboxRealtime.mock.calls.at(-1)![0];
+    onOpenConversationInbound("conv-1");
+    expect(h.markReadMutate).not.toHaveBeenCalled();
+  });
+
   it("monta o realtime para a conversa ativa (e desliga com realtime=false)", () => {
     renderHost();
     expect(h.useInboxRealtime).toHaveBeenCalledWith({
       activeConversationId: "conv-1",
       currentUserId: "user-1",
       enabled: true,
+      onOpenConversationInbound: expect.any(Function),
     });
 
     cleanup();

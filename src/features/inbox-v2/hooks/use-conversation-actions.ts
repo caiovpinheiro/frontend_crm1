@@ -1,6 +1,12 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
+import {
+  useMutation,
+  useQueryClient,
+  type MutateOptions,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { refreshInboxLists } from "./inbox-list-refresh";
 import { toast } from "sonner";
 
@@ -16,6 +22,7 @@ import { distributionOutcomeToast } from "@/features/distribution/outcome-toast"
 import {
   applyConversationFieldsToInboxCaches,
   applyInboxConversationRow,
+  findCachedConversationRow,
 } from "./apply-outbound-inbox-card";
 import { messagesKey } from "./use-messages";
 
@@ -372,6 +379,44 @@ export function useMarkConversationRead() {
       }
     },
   });
+}
+
+/**
+ * Não lidas da conversa no cache da lista do Inbox; `null` quando a lista
+ * não a conhece (chat do board sem a lista montada).
+ */
+export function cachedConversationUnread(
+  qc: QueryClient,
+  conversationId: string,
+): number | null {
+  const row = findCachedConversationRow(qc, conversationId);
+  return row ? (row.unreadCount ?? 0) : null;
+}
+
+/**
+ * Marcar como lida AO ABRIR, só quando há o que marcar: a conversa tem
+ * `unreadCount > 0` no cache da lista, ou a lista não a conhece (não dá
+ * para saber — manda, como antes). Voltar a uma conversa já lida não manda
+ * `POST /read` (ele também avisa a Meta — visto azul). Mensagem nova
+ * chegando com a conversa aberta é tratada à parte
+ * (`useInboxRealtime` → `onOpenConversationInbound`).
+ *
+ * Devolve `true` quando o POST saiu.
+ */
+export function useMarkConversationReadIfUnread() {
+  const qc = useQueryClient();
+  const { mutate } = useMarkConversationRead();
+  return useCallback(
+    (
+      conversationId: string,
+      options?: MutateOptions<void, Error, string, { previous: Array<[unknown, unknown]> }>,
+    ): boolean => {
+      if (cachedConversationUnread(qc, conversationId) === 0) return false;
+      mutate(conversationId, options);
+      return true;
+    },
+    [qc, mutate],
+  );
 }
 
 /** Ações em lote (bulk) — usadas no modo de seleção. */

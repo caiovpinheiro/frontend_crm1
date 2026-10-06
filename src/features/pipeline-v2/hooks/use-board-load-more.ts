@@ -17,6 +17,7 @@ import {
   clearBoardPaging,
   disableBoardCursor,
   isBoardCursorDisabled,
+  rememberBoardColumnPages,
   setBoardColumnLoaded,
   stageCanLoadByCursor,
 } from "../board-column-paging";
@@ -179,16 +180,21 @@ export function useBoardLoadMore(params: {
       if (byCursor.length > 0) {
         for (const id of cursorIds) inFlight.current.add(id);
         try {
+          const columns = byCursor.map((s) => ({
+            stageId: s.id,
+            cursor: s.nextCursor,
+            limit: pageSize,
+          }));
+          const requestedAt = Date.now();
           const pages = await getBoardColumns(pipelineId, {
             status,
             filters,
             sort,
-            columns: byCursor.map((s) => ({
-              stageId: s.id,
-              cursor: s.nextCursor,
-              limit: pageSize,
-            })),
+            columns,
           });
+          // Um refetch do board já em voo reaproveita esta página em vez de
+          // pedir o mesmo cursor de novo (`reloadBoardExpansions`).
+          rememberBoardColumnPages(qc, keyHash, columns, pages, requestedAt);
           const next = qc.setQueryData<BoardStageDto[]>(queryKey, (old) =>
             appendBoardColumnPages(old, pages),
           );

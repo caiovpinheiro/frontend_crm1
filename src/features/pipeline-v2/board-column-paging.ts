@@ -101,7 +101,25 @@ type BoardPagingState = {
   loaded: Record<string, number>;
   /** O backend recusou a rota de colunas (404): não tentar de novo. */
   cursorDisabled: boolean;
+  /**
+   * Páginas que um "carregar mais" trouxe, pelo cursor pedido e com o
+   * instante em que o pedido saiu. Um refetch do board que já estava em
+   * voo quando a página chegou reaproveita-a (`reloadBoardExpansions`)
+   * em vez de pedir o mesmo cursor de novo.
+   */
+  pages: BoardColumnPageFetched[];
 };
+
+type BoardColumnPageFetched = {
+  stageId: string;
+  cursor: string;
+  /** `Date.now()` de quando o pedido saiu. */
+  at: number;
+  page: BoardColumnPageDto;
+};
+
+/** Páginas lembradas por query do board (as mais antigas saem). */
+const MAX_REMEMBERED_PAGES = 40;
 
 const states = new WeakMap<QueryClient, Map<string, BoardPagingState>>();
 
@@ -113,7 +131,7 @@ function stateFor(qc: QueryClient, keyHash: string): BoardPagingState {
   }
   let state = byKey.get(keyHash);
   if (!state) {
-    state = { loaded: {}, cursorDisabled: false };
+    state = { loaded: {}, cursorDisabled: false, pages: [] };
     byKey.set(keyHash, state);
   }
   return state;
@@ -148,6 +166,54 @@ export function getBoardColumnsLoaded(
   return states.get(qc)?.get(keyHash)?.loaded ?? {};
 }
 
+/**
+ * Guarda as páginas que um "carregar mais" trouxe (`columns` = o que foi
+ * pedido; `pages` = o que voltou, por etapa), com o instante do pedido.
+ */
+export function rememberBoardColumnPages(
+  qc: QueryClient,
+  keyHash: string,
+  columns: readonly { stageId: string; cursor: string }[],
+  pages: readonly BoardColumnPageDto[],
+  at: number,
+): void {
+  const state = stateFor(qc, keyHash);
+  const byStage = new Map(pages.map((p) => [p.stageId, p]));
+  for (const { stageId, cursor } of columns) {
+    const page = byStage.get(stageId);
+    if (!page) continue;
+    state.pages = state.pages.filter(
+      (p) => !(p.stageId === stageId && p.cursor === cursor),
+    );
+    state.pages.push({ stageId, cursor, at, page });
+  }
+  if (state.pages.length > MAX_REMEMBERED_PAGES) {
+    state.pages.splice(0, state.pages.length - MAX_REMEMBERED_PAGES);
+  }
+}
+
+/**
+ * Página já carregada para `cursor` da etapa, pedida em `since` ou depois
+ * — ou seja, pelo menos tão nova quanto um board cujo fetch começou em
+ * `since`. Páginas anteriores não valem: o refetch existe justamente para
+ * renovar o que o usuário expandiu.
+ */
+export function findReusableBoardColumnPage(
+  qc: QueryClient,
+  keyHash: string,
+  stageId: string,
+  cursor: string,
+  since: number,
+): BoardColumnPageDto | undefined {
+  const pages = states.get(qc)?.get(keyHash)?.pages;
+  if (!pages) return undefined;
+  for (let i = pages.length - 1; i >= 0; i -= 1) {
+    const p = pages[i]!;
+    if (p.stageId === stageId && p.cursor === cursor && p.at >= since) return p.page;
+  }
+  return undefined;
+}
+
 export function isBoardCursorDisabled(qc: QueryClient, keyHash: string): boolean {
   return states.get(qc)?.get(keyHash)?.cursorDisabled ?? false;
 }
@@ -161,11 +227,19 @@ export function clearBoardPaging(qc: QueryClient, keyHash: string): void {
   states.get(qc)?.delete(keyHash);
 }
 
+/** Teto de páginas reaproveitadas em sequência numa etapa (cursor que não anda). */
+const MAX_REUSED_PAGES_PER_STAGE = 50;
+
 /**
  * Depois do refetch da 1ª página: recarrega, pelo cursor novo de cada etapa,
  * os cards que o usuário já tinha expandido. Uma requisição para todas as
  * etapas expandidas. Falhou → devolve só a 1ª página (colunas encolhem) e
  * esquece as expansões.
+ *
+ * `reusable(stageId, cursor)`: página que um "carregar mais" trouxe para
+ * esse cursor ENQUANTO este board estava sendo pedido (tão nova quanto a 1ª
+ * página). Com ela, o cursor não é pedido de novo — era o 2º
+ * `POST /board/columns` idêntico ao tirar o filtro com a coluna rolada.
  */
 export async function reloadBoardExpansions(args: {
   base: BoardStageDto[];
@@ -173,19 +247,36 @@ export async function reloadBoardExpansions(args: {
   fetchColumns: (
     columns: { stageId: string; cursor: string; limit: number }[],
   ) => Promise<BoardColumnPageDto[]>;
+  reusable?: (stageId: string, cursor: string) => BoardColumnPageDto | undefined;
   onFailure?: () => void;
 }): Promise<BoardStageDto[]> {
-  const columns = args.base.flatMap((stage) => {
+  let base = args.base;
+  if (args.reusable) {
+    for (const first of args.base) {
+      let stage = first;
+      for (let n = 0; n < MAX_REUSED_PAGES_PER_STAGE; n += 1) {
+        const missing = (args.loaded[stage.id] ?? 0) - stage.deals.length;
+        if (missing <= 0 || !stageCanLoadByCursor(stage)) break;
+        const page = args.reusable(stage.id, stage.nextCursor);
+        if (!page) break;
+        const next = appendBoardColumnPages(base, [page]);
+        if (!next || next === base) break;
+        base = next;
+        stage = base.find((s) => s.id === stage.id) ?? stage;
+      }
+    }
+  }
+  const columns = base.flatMap((stage) => {
     const missing = (args.loaded[stage.id] ?? 0) - stage.deals.length;
     if (missing <= 0 || !stageCanLoadByCursor(stage)) return [];
     return [{ stageId: stage.id, cursor: stage.nextCursor, limit: missing }];
   });
-  if (columns.length === 0) return args.base;
+  if (columns.length === 0) return base;
   try {
     const pages = await args.fetchColumns(columns);
-    return appendBoardColumnPages(args.base, pages) ?? args.base;
+    return appendBoardColumnPages(base, pages) ?? base;
   } catch {
     args.onFailure?.();
-    return args.base;
+    return base;
   }
 }
