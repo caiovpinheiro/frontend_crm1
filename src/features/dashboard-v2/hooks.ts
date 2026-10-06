@@ -25,15 +25,18 @@ import {
   type PainelServiceResult,
 } from "./painel-api";
 
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
 import type { FilterOptionsResponse } from "@/components/pipeline/kanban-filters/types";
+import { filterOptionsQuery } from "@/components/pipeline/kanban-filters/use-filter-options";
 import { fetchSystemUsageSummary } from "@/features/system-usage/api";
 import type { SystemUsageSummaryResponse } from "@/features/system-usage/types";
 import { useActivityStats } from "@/features/activity-feed/use-activity-stats";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
-import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
+import {
+  usePipelinesQuery,
+  type PipelineListItemDto,
+} from "@/features/shared/queries/pipelines";
 import {
   mockEventCard,
   mockFilterOptions,
@@ -55,8 +58,14 @@ export function useServiceOverview(params: {
   });
 }
 
+/**
+ * Lista de funis (com etapas) — a query compartilhada do shell
+ * (`GET /api/pipelines`). É daqui que o `?pipeline=7` da URL vira CUID e
+ * que o painel de filtros lista funis/etapas; não depende das opções de
+ * filtro (`useDashboardFilterOptions`), que só são buscadas ao abrir o painel.
+ */
 export function usePipelineOptions(enabled = true) {
-  return usePipelinesQuery<PipelineOption>(enabled);
+  return usePipelinesQuery<PipelineListItemDto & PipelineOption>(enabled);
 }
 
 export function useDashboard(
@@ -384,13 +393,24 @@ export function useDashboardMe(enabled = true) {
   });
 }
 
+/**
+ * Opções do painel de filtros (tags, usuários, origens, campos). Mesma
+ * chave e validade (10 min) do Kanban/Flow/Lista — a rota é cara e só
+ * serve dentro do painel: `enabled` deve ser "painel aberto" (ou o diálogo
+ * que precisa dos campos personalizados), nunca a montagem da página.
+ */
 export function useDashboardFilterOptions(enabled = true) {
-  return useQuery<FilterOptionsResponse>({
-    queryKey: ["dashboard-filter-options", isPageMockMode() ? "mock" : "live"],
-    queryFn: () => (isPageMockMode() ? mockFilterOptions() : fetchFilterOptions()),
-    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 5 * 60_000,
-  });
+  const mock = isPageMockMode();
+  return useQuery<FilterOptionsResponse>(
+    mock
+      ? {
+          queryKey: ["dashboard-filter-options", "mock"],
+          queryFn: () => mockFilterOptions(),
+          enabled: true,
+          staleTime: 5 * 60_000,
+        }
+      : { ...filterOptionsQuery, enabled: isPreviewMode() ? true : enabled },
+  );
 }
 
 export function useSystemUsageToday(enabled = true) {
