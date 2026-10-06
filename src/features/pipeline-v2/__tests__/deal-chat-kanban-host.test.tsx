@@ -47,6 +47,11 @@ vi.mock("@/features/inbox-v2/hooks", async () => {
   const channels = await vi.importActual<typeof import("@/features/inbox-v2/hooks/use-channels")>(
     "@/features/inbox-v2/hooks/use-channels",
   );
+  // Estável entre renders (como o `useCallback` real); delega ao mesmo mock.
+  const markReadIfUnread = (id: string, opts?: unknown) => {
+    h.markReadMutate(id, opts);
+    return true;
+  };
   return {
     useMessages: h.useMessages,
     useSendMessage: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
@@ -61,6 +66,7 @@ vi.mock("@/features/inbox-v2/hooks", async () => {
     useConversationFeatures: () => ({ features: { agentSignatureEnabled: true, agentSignatureEditable: true } }),
     useInboxRealtime: h.useInboxRealtime,
     useMarkConversationRead: () => ({ mutate: h.markReadMutate }),
+    useMarkConversationReadIfUnread: () => markReadIfUnread,
     useWhatsappChannels: () => ({ data: h.whatsappChannels }),
     useSelectedOutboundChannel: () => ({ selectedChannelId: "ch-1", setSelectedChannelId: vi.fn() }),
     useChannelSession: h.useChannelSession,
