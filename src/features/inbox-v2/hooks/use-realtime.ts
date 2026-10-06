@@ -1,6 +1,7 @@
 "use client";
 
 import { logger } from "@/lib/logger";
+import { normalizeAdReferral } from "@/lib/ad-referral";
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
@@ -85,10 +86,11 @@ import {
  */
 type NewMessagePayload = Omit<
   RealtimePayload<"new_message">,
-  "card" | "catalogOrder"
+  "card" | "catalogOrder" | "referral"
 > & {
   card?: ConversationListRow;
   catalogOrder?: InboxMessageDto["catalogOrder"];
+  referral?: InboxMessageDto["referral"];
 };
 
 /**
@@ -616,6 +618,7 @@ function appendSseMessageToOpenChat(
       data.catalogOrder && Array.isArray(data.catalogOrder.items)
         ? data.catalogOrder
         : undefined,
+    referral: normalizeAdReferral(data.referral) ?? null,
   };
   qc.setQueryData<MessagesResponse>(messagesKey(activeId), (old) => {
     if (!old?.messages) return old;

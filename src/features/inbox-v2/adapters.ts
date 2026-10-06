@@ -17,6 +17,7 @@ import { avatarInitials as avatarInitialsFromLib } from "@/lib/avatar";
 import type { ConnectionRef } from "@/lib/connection-label";
 import { ownerLabel } from "@/lib/utils";
 import { sanitizeContactName } from "@/lib/display-name";
+import { normalizeAdReferral } from "@/lib/ad-referral";
 
 import { agentNameFromWhatsappCallSender } from "@/lib/whatsapp-call-chat";
 import {
@@ -682,6 +683,7 @@ export function toMessageBubble(
             .map((r) => ({ emoji: r.emoji, from: r.from, at: r.at }))
         : undefined,
     isFavorited: dto.favoritedByMe || undefined,
+    referral: normalizeAdReferral(dto.referral),
     catalogOrder:
       dto.catalogOrder && Array.isArray(dto.catalogOrder.items)
         ? dto.catalogOrder
