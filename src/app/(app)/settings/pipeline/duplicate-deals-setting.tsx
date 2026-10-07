@@ -55,6 +55,10 @@ export function DuplicateDealsSetting({ pipelineId }: { pipelineId: string }) {
         );
         return;
       }
+      if (!allowDuplicateDeals) {
+        toast.success("Preferência salva. Os cards repetidos estão sendo unidos.");
+        return;
+      }
       toast.success("Preferência do funil salva.");
     },
     onError: (err: Error) => {
