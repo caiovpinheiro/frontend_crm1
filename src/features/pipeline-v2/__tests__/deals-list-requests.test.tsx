@@ -167,7 +167,7 @@ describe("aba Lista — contagem só na 1ª página do recorte", () => {
     act(() => view.rerender({ page: 2 }));
     await flush();
     qc.removeQueries({
-      predicate: (q) => q.queryKey[0] === "deals-list" && q.queryKey[6] === 1,
+      predicate: (q) => q.queryKey[0] === "deals-list" && q.queryKey.at(-2) === 1,
     });
     act(() => view.rerender({ page: 3 }));
     await flush();
