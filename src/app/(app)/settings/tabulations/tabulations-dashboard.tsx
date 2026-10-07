@@ -40,6 +40,7 @@ import {
   deptKey,
   splitTabulationPath,
   summarizeTabulations,
+  tabulationActorLabel,
   tabulationDetail,
 } from "@/features/dashboard-v2/tabulation-view";
 import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable-widget-stack";
@@ -398,7 +399,7 @@ export function TabulationLogWidget({
                   <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
                     {format(parseISO(row.occurredAt), "dd/MM/yy HH:mm", { locale: ptBR })}
                   </td>
-                  <td className="px-4 py-2">{row.actorName ?? "—"}</td>
+                  <td className="px-4 py-2">{tabulationActorLabel(row)}</td>
                   <td className="px-4 py-2">{row.contactName ?? "—"}</td>
                   <td
                     className="max-w-[280px] truncate px-4 py-2"
