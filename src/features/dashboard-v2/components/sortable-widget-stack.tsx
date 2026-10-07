@@ -24,6 +24,7 @@ export function SortableWidgetStack({
   organizing = false,
   onRemove,
   canRemove,
+  hiddenIds,
   droppableId = "dashboard-widgets",
 }: {
   ids: string[];
@@ -34,6 +35,12 @@ export function SortableWidgetStack({
   organizing?: boolean;
   onRemove?: (id: string) => void;
   canRemove?: (id: string) => boolean;
+  /**
+   * Cards sem nada a mostrar (ex.: gráfico indisponível neste ambiente): somem
+   * do empilhamento. Seguem em `ids` — a ordem salva não perde a posição — e,
+   * ao organizar, aparecem como linha apagada para poder mover/remover.
+   */
+  hiddenIds?: ReadonlySet<string>;
   droppableId?: string;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -80,11 +87,13 @@ export function SortableWidgetStack({
     return (
       <>
         <div className="flex min-w-0 flex-col gap-1.5">
-          {ids.map((id) => (
-            <div key={id} className="min-w-0">
-              {render(id)}
-            </div>
-          ))}
+          {ids
+            .filter((id) => !hiddenIds?.has(id))
+            .map((id) => (
+              <div key={id} className="min-w-0">
+                {render(id)}
+              </div>
+            ))}
         </div>
         {confirmDialog}
       </>
@@ -132,7 +141,15 @@ export function SortableWidgetStack({
                         <GripVertical className="size-3.5" aria-hidden="true" />
                       </button>,
                     )}
-                    <div className="min-w-0 flex-1">{render(id)}</div>
+                    <div className="min-w-0 flex-1">
+                      {hiddenIds?.has(id) ? (
+                        <p className="rounded-xl border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                          {labels[id] ?? id}: indisponível neste ambiente
+                        </p>
+                      ) : (
+                        render(id)
+                      )}
+                    </div>
                   </section>
                 )}
               </Draggable>

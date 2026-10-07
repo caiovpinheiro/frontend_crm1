@@ -14,6 +14,11 @@ export const KPI_TONES = {
 
 export type KpiTone = keyof typeof KPI_TONES;
 
+/** Texto do valor para o `title` (só quando é texto/número). */
+function textOf(value: React.ReactNode): string | undefined {
+  return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
 type KpiCardProps = {
   label: string;
   value: React.ReactNode;
@@ -30,6 +35,11 @@ type KpiCardProps = {
   className?: string;
   /** Força o layout compacto (padding/ícone/valor menores) em qualquer breakpoint. */
   compact?: boolean;
+  /**
+   * Valor de texto longo (ex.: nome de motivo): até 2 linhas, nome completo no
+   * `title`, e o `hint` desce para a linha de baixo em vez de espremer o valor.
+   */
+  wrapValue?: boolean;
 };
 
 /**
@@ -47,6 +57,7 @@ export function KpiCard({
   onClick,
   className,
   compact = false,
+  wrapValue = false,
 }: KpiCardProps) {
   const classNames = cn(
     "flex items-center gap-3.5 rounded-xl border p-4 text-left transition-all",
@@ -75,27 +86,42 @@ export function KpiCard({
       </span>
       <div className="min-w-0">
         <p className="flex min-w-0 items-baseline gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground">
-          <span className="min-w-0 truncate" title={label}>
+          <span className="line-clamp-2 min-w-0 break-words" title={label}>
             {label}
           </span>
           {badge ? (
             <span className="font-medium text-muted-foreground/80">{badge}</span>
           ) : null}
         </p>
-        <p
-          className={cn(
-            "mt-0.5 flex min-w-0 items-baseline gap-1.5 text-2xl font-bold tracking-tight",
-            "max-sm:text-xl",
-            compact && "text-xl",
-          )}
-        >
-          <span className="min-w-0 truncate">{value}</span>
-          {hint && (
-            <small className="shrink-0 text-lg font-medium text-muted-foreground">
-              {hint}
-            </small>
-          )}
-        </p>
+        {wrapValue ? (
+          <p className="mt-0.5 min-w-0 text-base font-bold leading-snug tracking-tight">
+            <span className="line-clamp-2 break-words" title={textOf(value)}>
+              {value}
+            </span>
+            {hint && (
+              <small className="block break-words text-xs font-medium text-muted-foreground">
+                {hint}
+              </small>
+            )}
+          </p>
+        ) : (
+          <p
+            className={cn(
+              "mt-0.5 flex min-w-0 items-baseline gap-1.5 text-2xl font-bold tracking-tight",
+              "max-sm:text-xl",
+              compact && "text-xl",
+            )}
+          >
+            <span className="min-w-0 truncate" title={textOf(value)}>
+              {value}
+            </span>
+            {hint && (
+              <small className="shrink-0 text-lg font-medium text-muted-foreground">
+                {hint}
+              </small>
+            )}
+          </p>
+        )}
       </div>
     </>
   );

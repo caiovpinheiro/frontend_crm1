@@ -372,6 +372,7 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
   simulateTyping: true,
   typingPerCharMs: 25,
   markMessagesRead: true,
+  useDispatchText: false,
   allowedDomains: [],
   tone: "",
   globalRules: [],
@@ -5865,7 +5866,17 @@ function StepClosure({
       <InactivitySettings config={config} onChange={onChange} />
       <TabulationSettings config={config} catalogs={catalogs} onChange={onChange} />
 
-      <AdvancedOptions count={4}>
+      <AdvancedOptions count={5}>
+      <SectionCard title="Usar o texto do disparo" description="Quando o aluno responde um modelo, o agente lê o texto que ficou no chat. Se a bolha só tiver o nome, busca o texto salvo do modelo e continua a partir da resposta, sem começar de novo.">
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={config.useDispatchText === true}
+            onCheckedChange={(v) => onChange("useDispatchText", v)}
+            id="useDispatchText"
+          />
+          <Label htmlFor="useDispatchText">Usar o texto do disparo</Label>
+        </div>
+      </SectionCard>
       <SectionCard title="Dados a gravar ao encerrar" description="Ao encerrar, ele atualiza estes dados do contato ou do negócio.">
         <div className="space-y-2">
           {fieldUpdates.map((fu, i) => (
