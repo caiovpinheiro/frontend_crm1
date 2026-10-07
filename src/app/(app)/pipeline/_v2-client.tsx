@@ -87,6 +87,7 @@ import {
   type MoveVars,
 } from "@/features/pipeline-v2/hooks";
 import { boardColumnLoadMore } from "@/features/pipeline-v2/board-column-paging";
+import { useBoardTotalChip } from "@/features/pipeline-v2/board-total-chip";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
@@ -693,6 +694,13 @@ export default function KanbanV2ClientPage({
   const totalsPending = hasServerBoard
     ? boardFiltered.isPending
     : boardNormal.isPending;
+  // "Contando…" só sem total nenhum; com cache, o anterior fica na tela.
+  const totalChip = useBoardTotalChip({
+    pending: totalsPending,
+    total: filteredTotal,
+    pipelineId,
+    status,
+  });
 
   // Contexto para "selecionar todos que batem no filtro" na edição em massa.
   // Permite editar além dos ~100 cards carregados por coluna: o servidor
@@ -1083,8 +1091,13 @@ export default function KanbanV2ClientPage({
                 )}
                 aria-live="polite"
               >
-                {totalsPending ? (
+                {totalChip.counting ? (
                   "Contando…"
+                ) : totalsPending && totalChip.value != null ? (
+                  <>
+                    <CountUpNumber value={totalChip.value} className="tabular-nums" />
+                    {totalChip.value === 1 ? "negócio" : "negócios"}
+                  </>
                 ) : isFiltering &&
                   pipelineTotalUnfiltered != null &&
                   pipelineTotalUnfiltered !== filteredTotal ? (
@@ -2013,7 +2026,7 @@ function CardMoveDropdown({
           onClick={handleOpen}
           // Espelha o botão de transferência de conversa (inbox): pílula
           // ciano sólida, para a ação não passar despercebida no rodapé.
-          className="flex size-7 items-center justify-center rounded-full bg-cyan-500 text-white shadow-[0_2px_8px_rgba(6,182,212,0.35)] transition-all hover:bg-cyan-600 disabled:cursor-wait disabled:opacity-50"
+          className="touch-target-40 flex size-7 items-center justify-center rounded-full bg-cyan-500 text-white shadow-[0_2px_8px_rgba(6,182,212,0.35)] transition-all hover:bg-cyan-600 disabled:cursor-wait disabled:opacity-50"
         >
           <IconArrowsExchange size={15} stroke={2.2} />
         </button>

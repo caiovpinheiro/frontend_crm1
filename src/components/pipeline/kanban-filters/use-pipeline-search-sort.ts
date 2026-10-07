@@ -3,7 +3,10 @@
  *
  * Antes viviam só em localStorage, então o link copiado da barra de endereço
  * não reproduzia o que a pessoa estava vendo. Agora a URL é a fonte da verdade
- * e o localStorage é fallback para quem abre `/pipeline` sem query.
+ * e o localStorage só é reaplicado em navegação interna (voltar de outra
+ * tela do app), nunca sobre uma abertura fria com URL limpa. A busca grava e
+ * apaga a chave junto com a URL; a ordenação é preferência de visualização e
+ * continua valendo sempre.
  *
  * Escrita sempre com `replaceState`: digitar não deve empilhar uma entrada de
  * histórico por caractere, e ordenação é preferência de visualização (o botão
@@ -14,6 +17,7 @@
 
 import * as React from "react";
 
+import { isInternalFunnelEntry } from "@/lib/pipeline-entry-navigation";
 import { applyUrlParams, readLiveParams, useUrlPopstate } from "@/lib/url-state";
 
 import type { PipelineSortKey } from "./v2/variant-modal-three-col";
@@ -42,6 +46,9 @@ function initialSearch(): string {
   if (typeof window === "undefined") return "";
   const fromUrl = readLiveParams().get(SEARCH_URL_PARAM);
   if (fromUrl != null) return fromUrl;
+  // Abertura fria com URL limpa = busca vazia; o salvo só volta em navegação
+  // interna (ver `pipeline-entry-navigation`).
+  if (!isInternalFunnelEntry()) return "";
   try {
     return localStorage.getItem(PIPELINE_SEARCH_LS) ?? "";
   } catch {
@@ -76,7 +83,9 @@ export function usePipelineSearchSort(): UsePipelineSearchSortResult {
   React.useEffect(() => {
     applyUrlParams({ [SEARCH_URL_PARAM]: search.trim() || null }, "replace");
     try {
-      localStorage.setItem(PIPELINE_SEARCH_LS, search);
+      // Espelha a URL: busca vazia apaga a chave (não deixa resíduo).
+      if (search.trim()) localStorage.setItem(PIPELINE_SEARCH_LS, search);
+      else localStorage.removeItem(PIPELINE_SEARCH_LS);
     } catch {
       /* noop */
     }

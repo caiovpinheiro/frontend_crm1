@@ -67,6 +67,7 @@ import { ListHScroll } from "@/components/crm/list-hscroll";
 import { cn } from "@/lib/utils";
 import { formatPhoneDisplay } from "@/lib/phone";
 import { ChatAvatar } from "@/components/inbox/chat-avatar";
+import { ContactMobileCards } from "./_components/contact-mobile-cards";
 import { AVATAR_SIZE } from "@/lib/avatar";
 import {
   OmnisearchHitAvatar,
@@ -199,7 +200,14 @@ interface ColumnDef {
 
 /** Célula de texto padrão (truncada) das colunas da Tabela. */
 function txtCell(v: React.ReactNode) {
-  return <span className="block truncate font-display text-[13px] text-[var(--text-secondary)]">{v}</span>;
+  return (
+    <span
+      title={typeof v === "string" ? v : undefined}
+      className="block truncate font-display text-[13px] text-[var(--text-secondary)]"
+    >
+      {v}
+    </span>
+  );
 }
 
 /** Colunas nativas opcionais (a coluna Nome/E-mail é fixa e não entra aqui). */
@@ -532,6 +540,7 @@ export default function V2ContactsClientPage() {
         <SectionHeader
           icon={Users}
           title="Contatos"
+          stackSearchOnMobile
           searchSlot={
             <ContactsSearchFilterBar
               search={search}
@@ -621,9 +630,53 @@ export default function V2ContactsClientPage() {
           <AppLoading variant="inline" className="min-h-0 flex-1" />
         ) : (
         <>
-        {/* KPI cards — mobile: 4 quadrados em h-scroll; desktop: grid */}
+        {/* KPI cards — celular: grade 2×2; tablet: 4 quadrados em h-scroll; desktop: grid */}
         <section data-tour="contacts-kpis" className="w-full min-w-0 shrink-0" aria-label="Indicadores de contatos">
-          <div className="toolbar-hscroll min-w-0 max-w-full lg:hidden">
+          <div
+            data-testid="contacts-kpi-grid-mobile"
+            className="grid w-full grid-cols-2 gap-2 md:hidden"
+          >
+            {SEGMENTS.map((seg) => {
+              const val = seg.value(statsQuery.data);
+              const active = segment === seg.id;
+              return (
+                <button
+                  key={seg.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    setSegment((prev) => (prev === seg.id ? null : seg.id))
+                  }
+                  className={cn(
+                    "flex min-h-[64px] min-w-0 items-center gap-2.5 rounded-[var(--radius-xl)] border p-2.5 text-left shadow-[var(--glass-shadow-sm)] backdrop-blur-md transition-colors",
+                    active
+                      ? "border-[var(--brand-primary)] bg-[var(--color-primary-soft)]"
+                      : "border-[var(--glass-border)] bg-[var(--glass-bg-base)]",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] [&>svg]:size-4",
+                      KPI_TONES[seg.tone],
+                    )}
+                  >
+                    {seg.icon}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-display text-[18px] font-extrabold leading-none tabular-nums text-[var(--text-primary)]">
+                      {val === undefined ? "—" : val.toLocaleString("pt-BR")}
+                    </span>
+                    {/* Rótulo completo, em até 2 linhas (sem corte tipo "Sem re"). */}
+                    <span className="mt-1 block font-display text-[11px] font-semibold leading-tight text-muted-foreground">
+                      {seg.label}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="toolbar-hscroll hidden min-w-0 max-w-full md:block lg:hidden">
             <div className="flex w-max flex-nowrap items-stretch gap-2 pr-4">
             {SEGMENTS.map((seg) => {
               const val = seg.value(statsQuery.data);
@@ -1352,21 +1405,21 @@ function ContactRowActions({
         disabled={openingLeadId === c.id}
         aria-label={`Abrir lead de ${c.name}`}
         title="Abrir lead (cria se não existir)"
-        className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+        className="touch-target-40 flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--brand-primary)] disabled:opacity-50"
       >
         {openingLeadId === c.id ? <IconLoader2 size={16} className="animate-spin" /> : <IconMessageCircle size={16} />}
       </button>
-      <a href={c.phone ? `tel:${c.phone}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Ligar" aria-disabled={!c.phone} className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
+      <a href={c.phone ? `tel:${c.phone}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Ligar" aria-disabled={!c.phone} className="touch-target-40 flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
         <IconPhone size={16} />
       </a>
-      <a href={c.email ? `mailto:${c.email}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Enviar e-mail" aria-disabled={!c.email} className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
+      <a href={c.email ? `mailto:${c.email}` : undefined} onClick={(e) => e.stopPropagation()} aria-label="Enviar e-mail" aria-disabled={!c.email} className="touch-target-40 flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]">
         <IconMail size={16} />
       </a>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onEdit(c); }}
         aria-label={`Editar ${c.name}`}
-        className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--brand-primary)] transition-colors hover:bg-[var(--color-primary-soft)]"
+        className="touch-target-40 flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] border border-[var(--glass-border)] bg-[var(--glass-bg-base)] text-[var(--brand-primary)] transition-colors hover:bg-[var(--color-primary-soft)]"
       >
         <IconPencil size={16} />
       </button>
@@ -1393,11 +1446,12 @@ function ContactRowIdentity({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit(c); }}
+          title={c.name}
           className="block w-full truncate text-left font-display text-[14px] font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--brand-primary)]"
         >
           {c.name}
         </button>
-        <div className="truncate font-body text-[12px] text-[var(--text-muted)]">{c.email ?? "—"}</div>
+        <div title={c.email ?? undefined} className="truncate font-body text-[12px] text-[var(--text-muted)]">{c.email ?? "—"}</div>
       </div>
     </div>
   );
@@ -1436,7 +1490,7 @@ function CardsView({
   const header = (
     <>
         <span>
-          <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todos" />
+          <CheckboxGlass checked={allChecked} indeterminate={!allChecked && someChecked} onChange={onToggleAll} aria-label="Selecionar todos" touchTarget />
         </span>
         <div className="relative min-w-0 overflow-x-hidden overflow-y-visible pr-1">
           <SortableHeader label="Contato" sort={dirFor("name")} onSort={() => onSort("name")} />
@@ -1486,7 +1540,7 @@ function CardsView({
             )}
           >
             <span onClick={(e) => e.stopPropagation()}>
-              <CheckboxGlass checked={isSelected} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} />
+              <CheckboxGlass checked={isSelected} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} touchTarget />
             </span>
             <ContactRowIdentity contact={c} onEdit={onEdit} />
             {columns.map((col) => (
@@ -1509,7 +1563,19 @@ function CardsView({
 
   return (
     <>
-      <div className="relative min-w-0 lg:hidden">
+      <ContactMobileCards
+        items={items}
+        selected={selected}
+        allChecked={allChecked}
+        someChecked={someChecked}
+        onToggleAll={onToggleAll}
+        onToggleOne={onToggleOne}
+        onEdit={onEdit}
+        onOpenLead={onOpenLead}
+        openingLeadId={openingLeadId}
+      />
+
+      <div className="relative hidden min-w-0 md:block lg:hidden">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 z-20 w-10 bg-gradient-to-l from-[color-mix(in_srgb,var(--text-primary)_28%,transparent)] to-transparent"
@@ -1541,7 +1607,7 @@ function CardsView({
                   )}
                 >
                   <span onClick={(e) => e.stopPropagation()}>
-                    <CheckboxGlass checked={isSelected} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} />
+                    <CheckboxGlass checked={isSelected} onChange={() => onToggleOne(c.id)} aria-label={`Selecionar ${c.name}`} touchTarget />
                   </span>
                   <ContactRowIdentity contact={c} onEdit={onEdit} />
                   {columns.map((col) => (

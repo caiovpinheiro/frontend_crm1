@@ -9,7 +9,7 @@
  *   1. params legíveis (`status`, `created`, …)
  *   2. `?f=<base64>` legado (links antigos / export CSV) → reescrito em params
  *   3. `?filter=<savedFilterId>` → expandido em params
- *   4. localStorage
+ *   4. localStorage (só em navegação interna; ver `pipeline-entry-navigation`)
  *
  * Escrita: History API (`pushState` quando o usuário mexe no filtro — o botão
  * Voltar desfaz; `replaceState` na normalização inicial). Não usamos
@@ -21,6 +21,10 @@
 
 import * as React from "react";
 
+import {
+  isInternalFunnelEntry,
+  markFunnelViewMounted,
+} from "@/lib/pipeline-entry-navigation";
 import {
   applyUrlParams,
   readLiveParams,
@@ -125,6 +129,10 @@ export function useKanbanFilters(): UseKanbanFiltersResult {
     if (didHydrate.current) return;
     didHydrate.current = true;
     const params = readLiveParams();
+    // Lido ANTES de marcar: a 1ª visão do funil numa aba aberta direto nele
+    // não é "voltar de outra tela".
+    const internalEntry = isInternalFunnelEntry();
+    markFunnelViewMounted();
 
     if (hasDealFilterUrlParams(params)) {
       setFiltersState(dealFiltersFromUrlParams(params));
@@ -160,7 +168,7 @@ export function useKanbanFilters(): UseKanbanFiltersResult {
     const urlDescribesView =
       (params.get(SEARCH_URL_PARAM) ?? "").trim() !== "" ||
       (params.get(SORT_URL_PARAM) ?? "").trim() !== "";
-    if (!urlDescribesView) {
+    if (!urlDescribesView && internalEntry) {
       const stored = readStoredFilters();
       if (stored) setFiltersState(stored);
     }
