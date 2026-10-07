@@ -71,6 +71,7 @@ vi.mock("@/hooks/use-my-permissions", () => ({
   useCan: () => true,
   useMyPermissions: () => ({ data: undefined }),
 }));
+vi.mock("@/hooks/use-viewer-scope-sync", () => ({ useViewerScopeSync: () => {} }));
 vi.mock("@/hooks/use-user-role", () => ({ useUserRole: () => ({ isSuperAdmin: false }) }));
 vi.mock("@/hooks/use-media-query", () => ({ useIsDesktop: () => true }));
 vi.mock("@/components/crm/nav-rail", () => ({ NavRail: () => null }));

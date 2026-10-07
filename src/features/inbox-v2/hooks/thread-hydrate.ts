@@ -20,8 +20,15 @@ import { messagesKey } from "./use-messages";
  *    não busca;
  *  - um GET em voo é reaproveitado (`cancelRefetch: false`) em vez de
  *    abortado e refeito.
+ *
+ * Ação do próprio agente (transferir/atribuir): a resposta do POST só chega
+ * DEPOIS de o backend gravar a linha de evento no chat, então o GET que sai
+ * agora (`immediate`) já a traz. Ele absorve o GET agendado pelo evento SSE
+ * dessa linha (que chega antes da resposta) e dispensa o que chegar logo
+ * depois (`THREAD_IMMEDIATE_ABSORB_MS`) — antes eram 2 GET por transferência.
  */
 export const THREAD_HYDRATE_DELAY_MS = 1_000;
+export const THREAD_IMMEDIATE_ABSORB_MS = 1_200;
 
 type Pending = {
   timer: ReturnType<typeof setTimeout>;
@@ -32,6 +39,7 @@ type Pending = {
 };
 
 const pendingByClient = new WeakMap<QueryClient, Map<string, Pending>>();
+const immediateAtByClient = new WeakMap<QueryClient, Map<string, number>>();
 
 function pendingFor(qc: QueryClient): Map<string, Pending> {
   let map = pendingByClient.get(qc);
@@ -50,9 +58,33 @@ function threadHasAnyStub(data: MessagesResponse | undefined, ids: Set<string>):
 export function scheduleThreadHydrate(
   qc: QueryClient,
   conversationId: string,
-  opts: { stubId?: string | null; force?: boolean } = {},
+  opts: { stubId?: string | null; force?: boolean; immediate?: boolean } = {},
 ): void {
   const map = pendingFor(qc);
+  let immediateAt = immediateAtByClient.get(qc);
+  if (!immediateAt) {
+    immediateAt = new Map();
+    immediateAtByClient.set(qc, immediateAt);
+  }
+  if (opts.immediate) {
+    const pending = map.get(conversationId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      map.delete(conversationId);
+    }
+    immediateAt.set(conversationId, Date.now());
+    void qc.invalidateQueries({
+      queryKey: messagesKey(conversationId),
+      refetchType: "active",
+    });
+    return;
+  }
+  // Linha de evento/timeline (sem stub para trocar) logo depois de um GET
+  // imediato: esse GET começou depois de a linha ser gravada — já a trouxe.
+  if (opts.force && !opts.stubId) {
+    const at = immediateAt.get(conversationId);
+    if (at != null && Date.now() - at < THREAD_IMMEDIATE_ABSORB_MS) return;
+  }
   const existing = map.get(conversationId);
   if (existing) {
     if (opts.force) existing.force = true;

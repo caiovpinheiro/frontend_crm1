@@ -22,6 +22,7 @@ import {
   sameInboxCardGroup,
 } from "../inbox-card-group";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
+import { getInboxViewerScope, rowHiddenFromViewer } from "../inbox-viewer-scope";
 
 /**
  * Após um envio outbound o HAR (31/ago/26) mostrou GET lista 56KB +
@@ -202,6 +203,7 @@ function applyRowToInboxListCaches(
   qc: QueryClient,
   row: ConversationListRow,
 ): void {
+  const scope = getInboxViewerScope(qc);
   const entries = qc.getQueriesData<InboxListCache>({
     queryKey: ["inbox-conversations"],
   });
@@ -226,12 +228,14 @@ function applyRowToInboxListCaches(
       return { ...page, items: nextItems };
     });
 
-    const belongs =
+    const belongsByTab =
       tabs.length === 1 && tabs[0] === "automacao"
         ? found && rowStaysOnAutomacaoTab(row)
         : tabs.includes("automacao") && found && rowStaysOnAutomacaoTab(row)
           ? true
           : rowBelongsToAnyInboxTab(row, tabs);
+    // Transferida a outro agente por quem só vê as próprias: sai da lista.
+    const belongs = belongsByTab && !rowHiddenFromViewer(row, scope);
 
     if (found && belongs) {
       let siblingRemoved = 0;
@@ -344,7 +348,13 @@ export function applyConversationFieldsToInboxCaches(
   if (next.number != null) {
     qc.setQueryData(["inbox-conversation", String(next.number)], next);
   }
-  patchInboxTabCounts(qc, fromTab, inboxQueueTabFor(next));
+  const scope = getInboxViewerScope(qc);
+  if (rowHiddenFromViewer(next, scope) && !rowHiddenFromViewer(existing, scope)) {
+    // Saiu do escopo do usuário (transferida a outro): some dos badges também.
+    patchInboxTabCounts(qc, fromTab, null);
+  } else {
+    patchInboxTabCounts(qc, fromTab, inboxQueueTabFor(next));
+  }
   return true;
 }
 

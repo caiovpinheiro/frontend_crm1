@@ -32,6 +32,8 @@ import {
   sameInboxCardGroup,
 } from "../inbox-card-group";
 import { isInboxTab, parseInboxTabs } from "./use-inbox-filters-url-sync";
+import { findTeamUserById } from "./team-user-cache";
+import { getInboxViewerScope, rowHiddenFromViewer } from "../inbox-viewer-scope";
 import {
   findCachedConversationRow,
   findOpenInboxGroupSibling,
@@ -373,6 +375,28 @@ function removeConversationFromInboxCaches(
   if (fromTab) patchInboxTabCounts(qc, fromTab, null);
 }
 
+/**
+ * `cardOmitted: "hidden"`: o servidor avisa que ESTE usuário não lista mais a
+ * conversa (transferida a outro, fora do escopo). Sai das listas e dos
+ * badges; o cache da conversa individual recebe os campos novos — o chat que
+ * continua aberto (e o diálogo "Transferir conversa") lê o responsável certo.
+ */
+function removeHiddenConversation(
+  qc: QueryClient,
+  payload: ConversationUpdatedPayload,
+): void {
+  const id = payload.conversationId;
+  if (!id) return;
+  const existing = findCachedConversationRow(qc, id);
+  if (!existing) return;
+  const next = overlayConversationUpdated(qc, existing, payload);
+  removeConversationFromInboxCaches(qc, id);
+  qc.setQueryData(["inbox-conversation", next.id], next);
+  if (next.number != null) {
+    qc.setQueryData(["inbox-conversation", String(next.number)], next);
+  }
+}
+
 /** Teto do `GET ?ids=` (`getConversationsByIds`). Acima disso, refresh
  *  (1ª página) das listas que já mostram os ids (ex.: assign em massa). */
 const CARD_SYNC_BURST_LIMIT = 80;
@@ -703,45 +727,86 @@ function shouldGetConversationOnUpdated(
   return eventTouchesOpenConversation(qc, conversationId, activeId);
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return v != null && typeof v === "object" && !Array.isArray(v);
+}
+
 function hasPatchableUpdatedFields(payload: ConversationUpdatedPayload): boolean {
   return (
     payload.assignedToId !== undefined ||
     typeof payload.status === "string" ||
     payload.closedAt !== undefined ||
     payload.followUpAt !== undefined ||
+    payload.departmentId !== undefined ||
+    typeof payload.unreadCount === "number" ||
+    typeof payload.lastMessageAt === "string" ||
+    isRecord(payload.lastMessagePreview) ||
     typeof payload.whatsappCallConsentStatus === "string"
   );
 }
 
-/** Mescla assignedTo/status/closedAt no card cacheado e reavalia a aba. */
-function applyConversationUpdatedPatch(
+/**
+ * Responsável do evento: o objeto do payload (com nome, backend novo) manda;
+ * sem nome, só reaproveita o que já se sabe do MESMO usuário (cache da conversa
+ * ou equipe). Usuário diferente sem nome → `null`: manter o objeto anterior
+ * pintava o card com o nome de quem não atende mais — o card "no meu nome" que
+ * dá 404 no clique.
+ */
+function assignedToFromEvent(
   qc: QueryClient,
   payload: ConversationUpdatedPayload,
-  currentUserId: string | null,
-): boolean {
-  const id = payload.conversationId;
-  if (!id || !hasPatchableUpdatedFields(payload)) return false;
-  const existing = findCachedConversationRow(qc, id);
-  if (!existing) return false;
-  const next: ConversationListRow = { ...existing };
+  existing: ConversationListRow,
+): ConversationListRow["assignedTo"] {
+  const nextId = payload.assignedToId ?? null;
+  if (nextId == null) return null;
+  const fromEvent = payload.assignedTo;
+  const sameUser = nextId === existing.assignedToId ? existing.assignedTo : null;
+  const name =
+    (typeof fromEvent?.name === "string" && fromEvent.name.trim()
+      ? fromEvent.name
+      : null) ??
+    sameUser?.name ??
+    findTeamUserById(qc, nextId)?.name ??
+    null;
+  if (name == null) {
+    if (!sameUser) return null;
+    return {
+      ...sameUser,
+      type: fromEvent?.type ?? sameUser.type,
+    };
+  }
+  const team = findTeamUserById(qc, nextId);
+  return {
+    ...(sameUser ?? {}),
+    id: nextId,
+    name,
+    type: fromEvent?.type ?? sameUser?.type ?? team?.type ?? "HUMAN",
+    ...(fromEvent?.avatarUrl !== undefined
+      ? { avatarUrl: fromEvent.avatarUrl }
+      : team?.avatarUrl !== undefined && !sameUser
+        ? { avatarUrl: team.avatarUrl }
+        : {}),
+  };
+}
+
+/**
+ * Sobrepõe ao `base` os campos que o evento traz (só vêm os que mudaram).
+ * Sem `base` no cache não há o que sobrepor — quem chama decide.
+ */
+function overlayConversationUpdated(
+  qc: QueryClient,
+  base: ConversationListRow,
+  payload: ConversationUpdatedPayload,
+): ConversationListRow {
+  const next: ConversationListRow = { ...base };
   if (payload.assignedToId !== undefined) {
-    const nextAssignedToId = payload.assignedToId ?? null;
-    next.assignedToId = nextAssignedToId;
-    if (nextAssignedToId == null) {
-      next.assignedTo = null;
-    } else if (nextAssignedToId === existing.assignedToId) {
-      next.assignedTo =
-        payload.assignedTo && existing.assignedTo
-          ? {
-              ...existing.assignedTo,
-              type: payload.assignedTo.type ?? existing.assignedTo.type,
-            }
-          : existing.assignedTo;
-    } else {
-      // Transferiu para OUTRO usuário e o payload não traz nome/avatar do
-      // novo dono. Manter o objeto anterior pintava o card com o nome de
-      // quem não atende mais — o card "no meu nome" que dá 404 no clique.
-      next.assignedTo = null;
+    next.assignedToId = payload.assignedToId ?? null;
+    next.assignedTo = assignedToFromEvent(qc, payload, base);
+  }
+  if (payload.departmentId !== undefined) {
+    next.departmentId = payload.departmentId ?? null;
+    if (next.department && next.department.id !== next.departmentId) {
+      next.department = null;
     }
   }
   if (
@@ -754,18 +819,80 @@ function applyConversationUpdatedPatch(
   }
   if (payload.closedAt !== undefined) next.closedAt = payload.closedAt;
   if (payload.followUpAt !== undefined) next.followUpAt = payload.followUpAt;
+  if (typeof payload.unreadCount === "number") {
+    next.unreadCount = Math.max(0, payload.unreadCount);
+  }
+  if (typeof payload.lastMessageAt === "string") {
+    next.lastMessageAt = payload.lastMessageAt;
+  }
+  if (isRecord(payload.lastMessagePreview)) {
+    const p = payload.lastMessagePreview;
+    const content = typeof p.content === "string" ? p.content : "";
+    const direction =
+      typeof p.direction === "string" && p.direction
+        ? p.direction
+        : (base.lastMessagePreview?.direction ?? "");
+    next.lastMessagePreview = {
+      content,
+      messageType: typeof p.messageType === "string" ? p.messageType : "",
+      mediaUrl: typeof p.mediaUrl === "string" ? p.mediaUrl : null,
+      direction,
+      sendStatus: base.lastMessagePreview?.sendStatus ?? null,
+      sendError: base.lastMessagePreview?.sendError ?? null,
+    };
+    if (direction === "in" || direction === "out") {
+      next.lastMessageDirection = direction;
+    }
+    if (base.lastMessage) {
+      next.lastMessage = {
+        ...base.lastMessage,
+        preview: content,
+        direction:
+          direction === "in" || direction === "out"
+            ? direction
+            : base.lastMessage.direction,
+      };
+    }
+    if (direction === "in") {
+      next.lastInboundPreview = {
+        content,
+        messageType: typeof p.messageType === "string" && p.messageType ? p.messageType : "text",
+        createdAt: next.lastMessageAt ?? new Date().toISOString(),
+      };
+    }
+  }
   if (typeof payload.whatsappCallConsentStatus === "string") {
     next.whatsappCallConsentStatus = payload.whatsappCallConsentStatus;
   }
-  // A aba do card é por status, não por dono: sem relistar, o ticket que
-  // saiu para outro agente continuaria na lista de quem não pode abri-lo.
-  // Quem tem visibilidade ampla recebe o card de volta no refetch.
+  return next;
+}
+
+/**
+ * Mescla os campos do evento no card cacheado (todas as páginas/abas) e
+ * reavalia a aba. Zero GET quando dá para decidir localmente:
+ *  - a aba é por status/fila, não por dono: quem só vê as próprias
+ *    (`rowHiddenFromViewer`) perde a conversa transferida na hora;
+ *  - escopo do usuário desconhecido (permissões ainda sem resposta): o card
+ *    pode ter ficado invisível — 1 refetch (1ª página) só das listas que o
+ *    contêm, como antes. Quem tem visibilidade ampla recebe o card de volta.
+ */
+function applyConversationUpdatedPatch(
+  qc: QueryClient,
+  payload: ConversationUpdatedPayload,
+  currentUserId: string | null,
+): boolean {
+  const id = payload.conversationId;
+  if (!id || !hasPatchableUpdatedFields(payload)) return false;
+  const existing = findCachedConversationRow(qc, id);
+  if (!existing) return false;
+  const next = overlayConversationUpdated(qc, existing, payload);
+  const scope = getInboxViewerScope(qc);
   const movedToAnotherUser =
     next.assignedToId != null &&
     next.assignedToId !== existing.assignedToId &&
     next.assignedToId !== currentUserId;
   applyConversationRowToInboxCaches(qc, next);
-  if (movedToAnotherUser) {
+  if (movedToAnotherUser && (scope == null || scope.ownOnly == null)) {
     invalidateInboxQueriesTouching(qc, [id]);
   }
   return true;
@@ -875,7 +1002,8 @@ function applyConversationRowToInboxCaches(
 
     const belongs =
       rowFitsCachedQuery(mergedRow, tabs, found) &&
-      !rowKnownToMissFilters(mergedRow, inboxFiltersFromQueryKey(queryKey));
+      !rowKnownToMissFilters(mergedRow, inboxFiltersFromQueryKey(queryKey)) &&
+      !rowHiddenFromViewer(mergedRow, getInboxViewerScope(qc));
 
     if (found && belongs) {
       let siblingRemoved = 0;
@@ -968,7 +1096,12 @@ function applyConversationRowToInboxCaches(
 
   // Só ±1 quando o card já estava no cache e a fila canônica mudou.
   // Card novo/fora da página já entra no último GET ?counts=1.
-  if (prev && tabMoved(fromTab, toTab)) {
+  if (prev && rowHiddenFromViewer(mergedRow, getInboxViewerScope(qc))) {
+    // Saiu do escopo do usuário (transferida a outro): some dos badges também.
+    if (!rowHiddenFromViewer(prev, getInboxViewerScope(qc))) {
+      patchInboxTabCounts(qc, fromTab, null);
+    }
+  } else if (prev && tabMoved(fromTab, toTab)) {
     patchInboxTabCounts(qc, fromTab, toTab);
   }
 }
@@ -1109,6 +1242,83 @@ export function useInboxRealtime(options: {
           }
         })();
       }, 1000);
+    }
+
+    /**
+     * Mudança de uma conversa (status, responsável, departamento, não lidas,
+     * prévia). Tudo local sempre que o evento basta; rede só quando não dá:
+     *  - `card` (snapshot do barramento, já filtrado pela visibilidade deste
+     *    usuário) → insere/atualiza em todas as abas, sem GET;
+     *  - `cardOmitted: "hidden"` → o servidor diz que o usuário não lista mais
+     *    a conversa: sai das listas, sem GET;
+     *  - sem card: patch dos campos do evento no card em cache;
+     *  - nada em cache: GET :id só da aberta; GET ?ids= (debounce) só se a aba
+     *    puder mostrar.
+     * Os 4 s após abrir/marcar lida (`shouldSuppressInboxListRefresh`) só
+     * cortam a REDE — o patch local continua.
+     */
+    function onConversationChanged(raw: unknown) {
+      let payload: ConversationUpdatedPayload = (raw ?? {}) as ConversationUpdatedPayload;
+      const id = payload.conversationId;
+      // Conversa aberta: o usuário está lendo (o host marca como lida a cada
+      // mensagem recebida). Um não lido do evento — ou do card —, que pode ser
+      // anterior à leitura, não ressuscita o contador do item.
+      const reading = Boolean(
+        id && eventTouchesOpenConversation(qc, id, activeRef.current),
+      );
+      if (reading && typeof payload.unreadCount === "number" && payload.unreadCount > 0) {
+        payload = { ...payload, unreadCount: undefined };
+      }
+      const network = !shouldSuppressInboxListRefresh(id ?? activeRef.current);
+      if (!id) {
+        // Sem conversationId não dá pra patchar o card nem o badge.
+        if (network) scheduleDailyStatsRefresh();
+        return;
+      }
+      if (isCachedConversation404(id)) {
+        if (!eventTouchesOpenConversation(qc, id, activeRef.current)) {
+          removeConversationFromInboxCaches(qc, id);
+        }
+        scheduleDailyStatsRefresh();
+        return;
+      }
+      try {
+        const card = conversationRowFromSsePayload(raw);
+        if (card) {
+          const row = overlayConversationUpdated(qc, card, payload);
+          if (reading) {
+            row.unreadCount = findCachedConversationRow(qc, id)?.unreadCount ?? 0;
+          }
+          applyConversationRowToInboxCaches(qc, row);
+        } else if (payload.cardOmitted === "hidden") {
+          removeHiddenConversation(qc, payload);
+        } else if (applyConversationUpdatedPatch(qc, payload, userIdRef.current)) {
+          // Card + badges ±1 sem GET :id / counts=1.
+        } else if (!network) {
+          // Logo após abrir/marcar lida: não busca nada.
+        } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
+          scheduleConversationCardSync(id);
+        } else if (
+          !findCachedConversationRow(qc, id) &&
+          // Atribuída a outro agente que este usuário não lista: o GET ?ids=
+          // voltaria vazio (e, a cada transferência da org, N usuários buscando).
+          !rowHiddenFromViewer(
+            {
+              assignedToId: payload.assignedToId ?? null,
+              assignedTo: payload.assignedTo
+                ? { id: payload.assignedTo.id ?? "", name: "", type: payload.assignedTo.type }
+                : null,
+            },
+            getInboxViewerScope(qc),
+          ) &&
+          conversationUpdatedLikelyOnTabs(activeInboxListTabs(qc), payload)
+        ) {
+          scheduleMissingCardHydrate(qc, id);
+        }
+      } catch (e) {
+        logger.error("sse", "conversation_updated list patch failed", e);
+      }
+      scheduleDailyStatsRefresh();
     }
 
     // `realtimeHandlers`: nome de evento fora do contrato não compila e
@@ -1351,41 +1561,12 @@ export function useInboxRealtime(options: {
         }
       },
 
-      conversation_updated: (raw) => {
-        const payload: ConversationUpdatedPayload = raw ?? {};
-        const id = payload.conversationId;
-        if (shouldSuppressInboxListRefresh(id ?? activeRef.current)) {
-          scheduleDailyStatsRefresh();
-          return;
-        }
-        if (!id) {
-          // Sem conversationId não dá pra patchar o card nem o badge.
-          scheduleDailyStatsRefresh();
-          return;
-        }
-        if (isCachedConversation404(id)) {
-          if (!eventTouchesOpenConversation(qc, id, activeRef.current)) {
-            removeConversationFromInboxCaches(qc, id);
-          }
-          scheduleDailyStatsRefresh();
-          return;
-        }
-        const completeRow = conversationRowFromUpdatedEvent(raw);
-        if (completeRow) {
-          applyConversationRowToInboxCaches(qc, completeRow);
-        } else if (applyConversationUpdatedPatch(qc, payload, userIdRef.current)) {
-          // Card + badges ±1 sem GET :id / counts=1.
-        } else if (shouldGetConversationOnUpdated(qc, id, activeRef.current)) {
-          scheduleConversationCardSync(id);
-        } else if (
-          (raw as { cardOmitted?: string } | null)?.cardOmitted !== "hidden" &&
-          !findCachedConversationRow(qc, id) &&
-          conversationUpdatedLikelyOnTabs(activeInboxListTabs(qc), payload)
-        ) {
-          scheduleMissingCardHydrate(qc, id);
-        }
-        scheduleDailyStatsRefresh();
-      },
+      // `conversation_assigned`/`unassigned` (transferência da IA) têm o mesmo
+      // formato do que importa aqui (`conversationId` + `assignedToId`).
+      conversation_updated: (raw) => onConversationChanged(raw),
+      conversation_assigned: (raw) => onConversationChanged(raw),
+      conversation_unassigned: (raw) =>
+        onConversationChanged({ ...(raw ?? {}), assignedToId: null }),
 
       // Timeline (chatter) da conversa — encerramento/reabertura empurrados
       // pelo backend. Invalida ["conversation-timeline", id] p/ o

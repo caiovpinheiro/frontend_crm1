@@ -80,6 +80,27 @@ export function collapseInboxCardRows(
   return [...byGroup.values()];
 }
 
+/**
+ * Responsável do card depois do merge. `patch.assignedTo` ausente só herda o
+ * objeto anterior quando o responsável NÃO mudou: com outro `assignedToId`,
+ * herdar pintava o card com o nome de quem não atende mais (e o diálogo
+ * "Transferir conversa" marcava o antigo como "(atual)").
+ */
+function mergedAssignedTo(
+  prev: ConversationListRow,
+  patch: ConversationListRow,
+): ConversationListRow["assignedTo"] {
+  if (patch.assignedToId === null) return null;
+  if (patch.assignedTo) return patch.assignedTo;
+  if (
+    patch.assignedToId !== undefined &&
+    patch.assignedToId !== prev.assignedTo?.id
+  ) {
+    return null;
+  }
+  return prev.assignedTo;
+}
+
 /** Merge de patch SSE/outbound: não apaga channelId com `undefined`. */
 export function mergeInboxCardRow(
   prev: ConversationListRow,
@@ -90,9 +111,6 @@ export function mergeInboxCardRow(
     ...patch,
     channelId: patch.channelId ?? prev.channelId ?? null,
     contact: patch.contact ?? prev.contact,
-    assignedTo:
-      patch.assignedToId === null
-        ? null
-        : (patch.assignedTo ?? prev.assignedTo),
+    assignedTo: mergedAssignedTo(prev, patch),
   };
 }
