@@ -52,7 +52,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "Começo e fim da conversa",
-    keys: [["entry", "Boas-vindas e confirmação"], ["media", "Áudio, imagem e arquivo"], ["closure", "Encerramento"], ["inactivity", "Cliente sem responder"], ["tabulation", "Tabulação"]],
+    keys: [["entry", "Boas-vindas e confirmação"], ["media", "Áudio, imagem e arquivo"], ["closure", "Encerramento"], ["inactivity", "Cliente sem responder"], ["tabulation", "Tabulação"], ["useDispatchText", "Usar o texto do disparo"]],
   },
   {
     section: "Quando chama a equipe",
