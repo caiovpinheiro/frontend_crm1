@@ -7,6 +7,7 @@ import { useSSE } from "@/hooks/use-sse";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import { foldActivityOntoDeal } from "@/features/pipeline-v2/board-live-activity";
+import { dealHiddenFromViewer, getInboxViewerScope } from "@/features/inbox-v2/inbox-viewer-scope";
 import {
   readBoardScope,
   type BoardScope,
@@ -629,8 +630,12 @@ export function applyDealMoved(
   }
   if (updatedAt && newest && newest > updatedAt) return false;
 
+  // Quem só vê os próprios negócios e o evento diz que o dono é outro: o card
+  // sai de onde estiver e NÃO entra no destino (o evento vai para a org toda).
+  const hidden = dealHiddenFromViewer(payload.ownerId, getInboxViewerScope(qc));
+
   const card = isDealCard(payload.card) && payload.card.id === dealId ? payload.card : null;
-  const deal = movedDeal(existing, card, position, updatedAt);
+  const deal = hidden ? null : movedDeal(existing, card, position, updatedAt);
   const affected = new Set(
     [fromPipelineId, toPipelineId].filter((id): id is string => typeof id === "string" && id.length > 0),
   );

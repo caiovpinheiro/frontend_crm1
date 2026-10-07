@@ -33,6 +33,19 @@ export function getInboxViewerScope(qc: QueryClient): InboxViewerScope | null {
 }
 
 /**
+ * O negócio é de OUTRO responsável e o usuário só vê os próprios? Sem
+ * `ownerId` no evento (backend antigo) ou sem dono (pool livre) → não decide.
+ */
+export function dealHiddenFromViewer(
+  ownerId: string | null | undefined,
+  scope: InboxViewerScope | null | undefined,
+): boolean {
+  if (!scope || scope.ownOnly !== true || !scope.userId) return false;
+  if (typeof ownerId !== "string" || !ownerId) return false;
+  return ownerId !== scope.userId;
+}
+
+/**
  * A conversa está atribuída a outro HUMANO e o usuário só vê as próprias?
  * `assignedTo.type` ausente conta como humano; responsável IA nunca esconde
  * (a fila "Agente IA" é visível por permissão de aba, não por dono).
