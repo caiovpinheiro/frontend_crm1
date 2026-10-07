@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { RequirePermission } from "@/components/auth/require-permission";
@@ -35,9 +35,16 @@ const ChatArea = dynamic(
 import { InboxPeriodCalendar } from "@/features/inbox-v2/extras/inbox-period-calendar";
 import {
   ColumnResizer,
-  usePersistentWidth,
+  useStoredWidth,
 } from "@/components/crm/column-resizer";
-import { useIsDesktop } from "@/hooks/use-media-query";
+import {
+  INBOX_ASIDE_DRAG,
+  INBOX_LIST_DRAG,
+  resolveInboxPanelWidths,
+  resolveInboxTabletListWidth,
+} from "@/features/inbox-v2/inbox-panel-widths";
+import { useViewportLayout } from "@/hooks/use-media-query";
+import { useViewportWidth } from "@/hooks/use-viewport-width";
 import { useStableCallback } from "@/hooks/use-stable-callback";
 
 import { toChatContact, toContactAside } from "@/features/inbox-v2/adapters";
@@ -148,21 +155,22 @@ export default function InboxV2ClientPage({
   const router = useRouter();
   // Cookie do tenant já autentica o GET. Não espera o NextAuth hidratar.
   const canFetchInbox = sessionStatus !== "unauthenticated";
-  const isDesktop = useIsDesktop();
+  // Faixas: celular (< 768) painel único; tablet (768–1023) lista + conversa
+  // com o contato em gaveta; desktop (>= 1024) três colunas.
+  const layout = useViewportLayout();
+  const isDesktop = layout === "desktop";
+  const isTablet = layout === "tablet";
   const { data: myPermissions } = useMyPermissions();
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
   const { isSuperAdmin } = useUserRole();
   const canSkipAutomations = isSuperAdmin || sessionRole === "ADMIN";
 
-  // ── Largura das colunas (persistidas) ─────────────────────────
-  const [convWidth, setConvWidth] = usePersistentWidth(
-    "inbox-v2:conv-width",
-    300,
-  );
-  const [asideWidth, setAsideWidth] = usePersistentWidth(
-    "inbox-v2:aside-width",
-    300,
-  );
+  // ── Largura das colunas ───────────────────────────────────────
+  // Padrão proporcional à tela; só vira px fixo quando a pessoa arrasta o
+  // resizer (guardado em localStorage). Ver `resolveInboxPanelWidths`.
+  const [storedConvWidth, setConvWidth] = useStoredWidth("inbox-v2:conv-width");
+  const [storedAsideWidth, setAsideWidth] = useStoredWidth("inbox-v2:aside-width");
+  const viewportWidth = useViewportWidth();
 
   // ── Estado de UI local ─────────────────────────────────────────
   // Aba, busca e filtros vivem na URL (`?tab=&q=&owner=…`) — o link da barra
@@ -272,6 +280,28 @@ export default function InboxV2ClientPage({
   // colapso pra evitar o "vazio branco" que dá sensação de fantasma no
   // F5. Toggle manual continua funcionando quando há activeRow.
   const effectiveAsideCollapsed = asideCollapsed || !activeRow;
+  // Tablet: o contato é uma gaveta sobre a conversa, fechada por padrão e
+  // fechada de novo ao trocar de conversa.
+  const [tabletDrawerOpen, setTabletDrawerOpen] = useState(false);
+  useEffect(() => {
+    setTabletDrawerOpen(false);
+  }, [activeId]);
+  const panelWidths = resolveInboxPanelWidths({
+    viewport: viewportWidth,
+    storedList: storedConvWidth,
+    storedAside: storedAsideWidth,
+    asideCollapsed: effectiveAsideCollapsed,
+  });
+  const convWidth = isTablet
+    ? resolveInboxTabletListWidth(viewportWidth)
+    : panelWidths.list;
+  // Largura do painel mesmo recolhido (o grid usa 0 quando recolhido).
+  const asideWidth = resolveInboxPanelWidths({
+    viewport: viewportWidth,
+    storedList: storedConvWidth,
+    storedAside: storedAsideWidth,
+    asideCollapsed: false,
+  }).aside;
 
   const {
     data: messagesData,
@@ -696,8 +726,8 @@ export default function InboxV2ClientPage({
           <ColumnResizer
             value={convWidth}
             onChange={setConvWidth}
-            min={200}
-            max={400}
+            min={INBOX_LIST_DRAG.min}
+            max={INBOX_LIST_DRAG.max}
           />
         ) : undefined
       }
@@ -921,7 +951,7 @@ export default function InboxV2ClientPage({
           />
         }
         floatingCallSlot={
-          isDesktop ? (
+          isDesktop || isTablet ? (
             <DealCallButton
               fab
               dealId={firstDealId}
@@ -951,8 +981,10 @@ export default function InboxV2ClientPage({
         conversationTags={activeTags}
         contactId={activeContactId}
         contactTags={contactDetail?.tags}
-        collapsed={effectiveAsideCollapsed}
-        onToggleCollapse={() => setAsideCollapsed((v) => !v)}
+        collapsed={isTablet ? false : effectiveAsideCollapsed}
+        onToggleCollapse={() =>
+          isTablet ? setTabletDrawerOpen(false) : setAsideCollapsed((v) => !v)
+        }
       />
     ) : (
       <EmptyAside />
@@ -997,7 +1029,7 @@ export default function InboxV2ClientPage({
   return (
     <InboxShell
       pageHeader={pageHeader}
-      isDesktop={isDesktop}
+      layout={layout}
       navRail={navRailNode}
       hasActiveConversation={!!activeId}
       onCloseConversation={closeActiveConversation}
@@ -1013,6 +1045,10 @@ export default function InboxV2ClientPage({
       convWidth={convWidth}
       asideWidth={asideWidth}
       setAsideWidth={setAsideWidth}
+      asideMinWidth={INBOX_ASIDE_DRAG.min}
+      asideMaxWidth={INBOX_ASIDE_DRAG.max}
+      tabletDrawerOpen={tabletDrawerOpen}
+      onTabletDrawerChange={setTabletDrawerOpen}
       period={inboxPeriodNode}
       searchFilter={inboxSearchFilterNode}
       searchFilterWithPeriod={inboxSearchFilterWithPeriodNode}
