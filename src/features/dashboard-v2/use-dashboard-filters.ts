@@ -488,10 +488,12 @@ export function periodToRangeISO(f: DashboardFiltersState): {
     case "last_7":
       from.setDate(from.getDate() - 6);
       from.setHours(0, 0, 0, 0);
+      to.setHours(23, 59, 59, 999);
       break;
     case "last_30":
       from.setDate(from.getDate() - 29);
       from.setHours(0, 0, 0, 0);
+      to.setHours(23, 59, 59, 999);
       break;
     case "last_month": {
       const first = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
@@ -502,6 +504,7 @@ export function periodToRangeISO(f: DashboardFiltersState): {
     default:
       from.setDate(1);
       from.setHours(0, 0, 0, 0);
+      to.setHours(23, 59, 59, 999);
       break;
   }
   return { from: from.toISOString(), to: to.toISOString() };

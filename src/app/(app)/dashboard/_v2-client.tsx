@@ -39,8 +39,6 @@ import {
   TabulationTopWidget,
 } from "@/app/(app)/settings/tabulations/tabulations-dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
-import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 
 import { AddDashboardCardDialog } from "@/features/dashboard-v2/components/add-dashboard-card-dialog";
 import { DashboardSearchFilterBar } from "@/features/dashboard-v2/components/dashboard-filters";
@@ -51,6 +49,7 @@ import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable
 import {
   useDashboardFilterOptions,
   useDashboardMe,
+  useDashboardReferenceData,
   usePainelAgora,
   usePainelCustomFields,
   usePainelDeals,
@@ -444,8 +443,9 @@ function ManagerHome({
   const usageVisible = grid.hydrated && grid.widgetIds.includes("usage");
   const usageQuery = useSystemUsageToday(tabReady && isDeals && usageVisible);
 
-  const departmentsQuery = useDepartments(tabReady && isService);
-  const usersQuery = useTeamUsersQuery(tabReady && isService);
+  const { departments: departmentsQuery, users: usersQuery } = useDashboardReferenceData(
+    tabReady && isService,
+  );
 
   const hasServiceTabWidgets = serviceOrder.order.some((id) => isTabulationWidgetId(id));
   const tabulationsArmed = useArmedAfter(serviceFetch && serviceQuery.volumeReady, 2_500);

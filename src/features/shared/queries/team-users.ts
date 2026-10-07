@@ -70,14 +70,14 @@ export async function fetchTeamUsers<T = CanonicalTeamUser>(opts?: {
 /** Query canônica de usuários da org. */
 export function useTeamUsersQuery<T = CanonicalTeamUser>(
   enabled = true,
-  opts?: { includeAi?: boolean },
+  opts?: { includeAi?: boolean; staleTime?: number },
 ) {
   const includeAi = opts?.includeAi === true;
   return useQuery<T[]>({
     queryKey: teamUsersKey(includeAi),
     queryFn: () => fetchTeamUsers<T>({ includeAi }),
     enabled,
-    staleTime: 60_000,
+    staleTime: opts?.staleTime ?? 60_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
