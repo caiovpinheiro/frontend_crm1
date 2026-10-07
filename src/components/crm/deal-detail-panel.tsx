@@ -450,19 +450,10 @@ export function DealDetailPanel({
   //    grupos → devolve um único bucket com todos os campos (fallback
   //    flat = RN-05/CA-01), preservando o layout atual em grade.
   type SlotItem = NonNullable<typeof customFieldsSlot>[number]
-  const { data: extensionFields = [] } = useQuery({
-    queryKey: ["custom-fields-card-extension"],
-    queryFn: () => fetchJsonList<{ id: string }>("/api/custom-fields/card-extension"),
-    staleTime: 30_000,
-  })
-  const extensionIds = useMemo(
-    () => new Set(extensionFields.map((field) => field.id)),
-    [extensionFields],
-  )
   const customFieldGroups = useMemo<
     Array<{ id: string; title: string | null; collapsedDefault: boolean; fields: SlotItem[] }>
   >(() => {
-    const slot = (customFieldsSlot ?? []).filter((field) => !extensionIds.has(field.fieldId))
+    const slot = customFieldsSlot ?? []
     if (slot.length === 0) return []
     const dealDefs: CustomFieldDef[] = []
     const contactDefs: CustomFieldDef[] = []
@@ -498,7 +489,7 @@ export function DealDetailPanel({
       out.push({ id: "__orphans__", title: "Outros campos", collapsedDefault: false, fields: orphans })
     }
     return out
-  }, [customFieldsSlot, fieldLayoutSections, extensionIds])
+  }, [customFieldsSlot, fieldLayoutSections])
 
   // ── Resize da sidebar do detalhe (drag horizontal) ───────────────
   // Largura persistida em localStorage por operador. Min 280 evita
@@ -1522,13 +1513,8 @@ export function DealDetailPanel({
                                       })()}
                                     </FieldCard>
                                     <CardExtensionBlock
+                                      key={deal.id}
                                       dealId={deal.id}
-                                      contactId={deal.contactId}
-                                      slot={customFieldsSlot}
-                                      overrides={fieldValues}
-                                      onSaved={(fieldId, value) =>
-                                        setFieldValues((prev) => ({ ...prev, [fieldId]: value }))
-                                      }
                                       compactTitle={crmOnly}
                                       plain={viewMode !== "compact"}
                                     />
@@ -1798,12 +1784,12 @@ type ExtensionDef = {
   entity: string
   type: string
   options: string[]
+  highlightRules?: unknown[] | null
 }
 
 type ExtensionValue = {
   fieldId: string
   value: string | null
-  highlight?: { severity: string; label: string } | null
 }
 
 async function fetchJsonList<T>(path: string): Promise<T[]> {
@@ -1815,64 +1801,36 @@ async function fetchJsonList<T>(path: string): Promise<T[]> {
 
 function CardExtensionBlock({
   dealId,
-  contactId,
-  slot,
-  overrides,
-  onSaved,
   compactTitle,
   plain,
 }: {
   dealId: string
-  contactId?: string | null
-  slot?: {
-    fieldId: string
-    value: string | null
-    highlight?: { severity: string; label: string } | null
-    highlightRules?: unknown[] | null
-  }[]
-  overrides: Record<string, string>
-  onSaved: (fieldId: string, value: string) => void
   compactTitle?: boolean
   plain?: boolean
 }) {
+  const [overrides, setOverrides] = useState<Record<string, string>>({})
   const { data: fields = [] } = useQuery({
     queryKey: ["custom-fields-card-extension"],
     queryFn: () => fetchJsonList<ExtensionDef>("/api/custom-fields/card-extension"),
     staleTime: 30_000,
   })
-  const needsDeal = fields.some((field) => field.entity === "deal")
-  const needsContact = fields.some((field) => field.entity === "contact")
-  const { data: dealValues = [] } = useQuery({
-    queryKey: ["deal-custom-fields", dealId],
-    queryFn: () => fetchJsonList<ExtensionValue>(`/api/deals/${dealId}/custom-fields`),
-    enabled: needsDeal,
-  })
-  const { data: contactValues = [] } = useQuery({
-    queryKey: ["contact-custom-fields", contactId],
-    queryFn: () => fetchJsonList<ExtensionValue>(`/api/contacts/${contactId}/custom-fields`),
-    enabled: needsContact && !!contactId,
+  const { data: stored = [] } = useQuery({
+    queryKey: ["deal-card-extension", dealId],
+    queryFn: () => fetchJsonList<ExtensionValue>(`/api/deals/${dealId}/card-extension`),
+    enabled: fields.length > 0,
   })
 
   if (fields.length === 0) return null
 
-  const slotById = new Map((slot ?? []).map((field) => [field.fieldId, field]))
-  const valueById = new Map<string, ExtensionValue>()
-  for (const row of [...dealValues, ...contactValues]) valueById.set(row.fieldId, row)
+  const valueById = new Map(stored.map((row) => [row.fieldId, row.value]))
 
   return (
     <div className="mt-3">
       <FieldCard title="Extensão" compactTitle={compactTitle} plain={plain}>
         <div className={plain ? "px-0 pb-2" : "px-4"}>
           {fields.map((field, index) => {
-            const fromSlot = slotById.get(field.id)
-            const fromApi = valueById.get(field.id)
-            const currentValue = overrides[field.id] ?? fromSlot?.value ?? fromApi?.value ?? null
-            const hl =
-              fromSlot?.highlight ??
-              fromApi?.highlight ??
-              resolveHighlight(currentValue, fromSlot?.highlightRules)
-            const entityType = field.entity === "contact" ? "contact" : "deal"
-            const entityId = entityType === "contact" ? contactId ?? null : dealId
+            const currentValue = overrides[field.id] ?? valueById.get(field.id) ?? null
+            const hl = resolveHighlight(currentValue, field.highlightRules)
             return (
               <div
                 key={field.id}
@@ -1890,23 +1848,22 @@ function CardExtensionBlock({
                       severity={hl.severity as "danger" | "success" | "warning" | "info"}
                       label={hl.label}
                     />
-                  ) : entityId ? (
+                  ) : (
                     <InlineFieldEditor
                       fieldId={field.id}
                       fieldType={field.type || "TEXT"}
                       fieldOptions={field.options ?? []}
                       value={currentValue}
-                      entityType={entityType}
-                      entityId={entityId}
-                      invalidateKeys={[["deal-detail-v2", dealId]]}
-                      onSaved={(value) => onSaved(field.id, value)}
+                      entityType="deal"
+                      entityId={dealId}
+                      savePath={`/api/deals/${dealId}/card-extension`}
+                      invalidateKeys={[["deal-card-extension", dealId]]}
+                      onSaved={(value) =>
+                        setOverrides((prev) => ({ ...prev, [field.id]: value }))
+                      }
                       textClassName="font-display text-[12px] font-semibold text-[var(--text-primary)]"
                       placeholder="+ Adicionar"
                     />
-                  ) : (
-                    <span className="block min-w-0 max-w-full break-words font-display text-[12px] font-semibold text-[var(--text-primary)]">
-                      {currentValue || "—"}
-                    </span>
                   )}
                 </div>
               </div>

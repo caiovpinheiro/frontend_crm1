@@ -785,7 +785,7 @@ function CardExtensionManager() {
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3">
       <p className="text-[13px] text-[var(--text-muted)]">
-        Marque campos que já existem. Eles saem do card de cima e ficam neste segundo card, na conversa do negócio, nesta ordem. O valor continua o do mesmo campo.
+        Marque campos que já existem. Eles aparecem num segundo card na conversa do negócio, nesta ordem. O que for preenchido ali fica só nesse card, separado do card de cima.
       </p>
       <DragDropContext onDragEnd={onDragEnd}>
         <Droppable droppableId="card-extension">
