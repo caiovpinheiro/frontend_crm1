@@ -72,7 +72,7 @@ vi.mock("@/hooks/use-my-permissions", () => ({
   useMyPermissions: () => ({ data: undefined }),
 }));
 vi.mock("@/hooks/use-user-role", () => ({ useUserRole: () => ({ isSuperAdmin: false }) }));
-vi.mock("@/hooks/use-media-query", () => ({ useIsDesktop: () => true }));
+vi.mock("@/hooks/use-media-query", () => ({ useViewportLayout: () => "desktop" }));
 vi.mock("@/components/crm/nav-rail", () => ({ NavRail: () => null }));
 vi.mock("@/features/keeps/keep-peek-panel", () => ({ KeepPeekPanel: () => null }));
 vi.mock("@/features/inbox-v2/extras/inbox-period-calendar", () => ({
@@ -80,7 +80,7 @@ vi.mock("@/features/inbox-v2/extras/inbox-period-calendar", () => ({
 }));
 vi.mock("@/components/crm/column-resizer", () => ({
   ColumnResizer: () => null,
-  usePersistentWidth: () => [300, h.stable.setter],
+  useStoredWidth: () => [null, h.stable.setter],
 }));
 vi.mock("@/features/inbox-v2/extras/filter-panel", () => ({ InboxSearchFilterBar: () => null }));
 vi.mock("@/features/product-tour", () => ({ PageTourButton: () => null }));
