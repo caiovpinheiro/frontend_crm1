@@ -59,6 +59,10 @@ import {
   useSendMessage,
 } from "@/features/inbox-v2/hooks/use-messages";
 import { useInboxRealtime } from "@/features/inbox-v2/hooks/use-realtime";
+import {
+  useAssignConversation,
+  useTransferConversation,
+} from "@/features/inbox-v2/hooks/use-conversation-actions";
 import type { MessagesResponse } from "@/features/inbox-v2/api";
 
 const T0 = Date.parse("2026-10-05T12:00:00.000Z");
@@ -83,6 +87,16 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => 
   if (m && (init?.method ?? "GET") === "GET") {
     return new Response(
       JSON.stringify({ messages: server.get(m[1]) ?? [], hasMore: false }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const action = url.match(/\/api\/conversations\/([^/?]+)\/actions/);
+  if (action && init?.method === "POST") {
+    return new Response(
+      JSON.stringify({
+        conversation: { id: action[1], assignedToId: "u_bia", assignedTo: { id: "u_bia", name: "Bia" } },
+        distribution: null,
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
@@ -353,6 +367,72 @@ describe("GET /messages da conversa aberta — SSE conectada", () => {
     view.rerender({ id: "c2" });
     await flush();
     expect(tailGets("c2")).toBe(2);
+  });
+});
+
+describe("GET /messages após transferir/atribuir (QA 07/10: 2 GET por transferência)", () => {
+  /** Linha de evento que o backend espelha no chat (`new_message` do tipo evento). */
+  const chatterEvent = () => ({
+    conversationId: "c1",
+    messageType: "event_transferencia",
+    content: "Transferida de Ana para Bia",
+    timestamp: new Date().toISOString(),
+  });
+
+  it("evento do chat chega ANTES da resposta do POST: 1 GET", async () => {
+    const { qc } = mount("c1");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useTransferConversation(), { wrapper });
+    await flush();
+    const before = tailGets("c1");
+
+    emit("new_message", chatterEvent());
+    await act(async () => {
+      await result.current.mutateAsync({ conversationId: "c1", assignedToId: "u_bia" });
+    });
+    await flush(5_000);
+
+    expect(tailGets("c1") - before).toBe(1);
+  });
+
+  it("resposta do POST chega ANTES do evento do chat: 1 GET", async () => {
+    const { qc } = mount("c1");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useAssignConversation(), { wrapper });
+    await flush();
+    const before = tailGets("c1");
+
+    await act(async () => {
+      await result.current.mutateAsync({ conversationId: "c1", assignedToId: "u_bia" });
+    });
+    await flush(300);
+    emit("new_message", chatterEvent());
+    await flush(5_000);
+
+    expect(tailGets("c1") - before).toBe(1);
+  });
+
+  it("uma nota/evento qualquer bem depois (fora da janela) continua buscando", async () => {
+    const { qc } = mount("c1");
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useTransferConversation(), { wrapper });
+    await flush();
+    const before = tailGets("c1");
+
+    await act(async () => {
+      await result.current.mutateAsync({ conversationId: "c1", assignedToId: "u_bia" });
+    });
+    await flush(10_000);
+    emit("new_message", { ...chatterEvent(), content: "Conversa encerrada", messageType: "event_encerramento" });
+    await flush(5_000);
+
+    expect(tailGets("c1") - before).toBe(2);
   });
 });
 
