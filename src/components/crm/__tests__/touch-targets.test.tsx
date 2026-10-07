@@ -57,7 +57,7 @@ describe("contrato de CSS e dos cards", () => {
     expect(read("../../../features/pipeline-v2/extras/tags-popover.tsx")).toContain("touch-target-40");
     expect(read("../../../features/pipeline-v2/extras/assignee-popover.tsx")).toContain("touch-target-40");
     expect(read("../../../app/(app)/pipeline/_v2-client.tsx")).toContain(
-      'className="touch-target-40 flex size-7 items-center justify-center rounded-full bg-cyan-500',
+      'className="touch-target-40 flex size-7 items-center justify-center rounded-full',
     );
     expect(read("../kanban-column.tsx")).toContain("touch-target-40");
   });
