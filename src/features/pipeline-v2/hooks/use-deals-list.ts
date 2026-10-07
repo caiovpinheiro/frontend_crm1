@@ -24,6 +24,8 @@ export function dealsListKey(params: {
   page: number;
   perPage: number;
   filtersKey?: string;
+  /** `lastInteraction:asc` | `lastInteraction:desc` | "" */
+  sort?: string;
 }) {
   return [
     "deals-list",
@@ -32,6 +34,7 @@ export function dealsListKey(params: {
     params.ownerId ?? "__any__",
     params.search ?? "",
     params.filtersKey ?? "",
+    params.sort ?? "",
     params.page,
     params.perPage,
   ] as const;
@@ -46,12 +49,19 @@ type DealsListParams = {
   perPage?: number;
   filters?: Record<string, unknown>;
   enabled?: boolean;
+  /** Ordenação da lista inteira. Hoje só última interação. */
+  sort?: { field: "lastInteraction"; direction: "asc" | "desc" };
 };
 
 /**
  * Chave dos filtros: forma canônica, para o mesmo recorte (ids em outra
  * ordem, campos vazios) cair na mesma entrada do cache. Vazio = `""`.
  */
+function listSortKey(sort: DealsListParams["sort"]): string {
+  if (sort?.field !== "lastInteraction") return "";
+  return `lastInteraction:${sort.direction}`;
+}
+
 function listFiltersKey(filters: Record<string, unknown> | undefined): string {
   const key = canonicalFiltersKey(filters as AdvancedDealFilters | undefined);
   return key === "{}" ? "" : key;
@@ -77,6 +87,7 @@ export function useDealsList(params: DealsListParams & { withTotal?: boolean }) 
     [filtersKey],
   );
   const withTotal = params.withTotal;
+  const sortKey = listSortKey(params.sort);
   return useQuery<DealListPage>({
     queryKey: dealsListKey({
       pipelineId: params.pipelineId,
@@ -84,6 +95,7 @@ export function useDealsList(params: DealsListParams & { withTotal?: boolean }) 
       ownerId: params.ownerId,
       search: params.search,
       filtersKey,
+      sort: sortKey,
       page,
       perPage,
     }),
@@ -97,6 +109,8 @@ export function useDealsList(params: DealsListParams & { withTotal?: boolean }) 
         page,
         perPage,
         withTotal,
+        sort: params.sort?.field === "lastInteraction" ? "lastInteraction" : undefined,
+        direction: params.sort?.direction,
         signal,
       }),
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
@@ -168,6 +182,7 @@ export function useDealsListPage(params: DealsListParams) {
     () => (filtersKey ? (JSON.parse(filtersKey) as Record<string, unknown>) : undefined),
     [filtersKey],
   );
+  const sortKey = listSortKey(params.sort);
   const keyOf = (pageNumber: number) =>
     dealsListKey({
       pipelineId: params.pipelineId,
@@ -175,6 +190,7 @@ export function useDealsListPage(params: DealsListParams) {
       ownerId: params.ownerId,
       search: params.search,
       filtersKey,
+      sort: sortKey,
       page: pageNumber,
       perPage,
     });
@@ -197,6 +213,8 @@ export function useDealsListPage(params: DealsListParams) {
           page === 1 || freshFirstPageTotal(qc, firstPageKey) === null
             ? undefined
             : false,
+        sort: params.sort?.field === "lastInteraction" ? "lastInteraction" : undefined,
+        direction: params.sort?.direction,
         signal,
       }),
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
