@@ -44,7 +44,7 @@ import {
   resolveInboxTabletListWidth,
 } from "@/features/inbox-v2/inbox-panel-widths";
 import { useViewportLayout } from "@/hooks/use-media-query";
-import { useViewportWidth } from "@/hooks/use-viewport-width";
+import { useNavRailWidth, useViewportWidth } from "@/hooks/use-viewport-width";
 import { useStableCallback } from "@/hooks/use-stable-callback";
 
 import { toChatContact, toContactAside } from "@/features/inbox-v2/adapters";
@@ -171,6 +171,7 @@ export default function InboxV2ClientPage({
   const [storedConvWidth, setConvWidth] = useStoredWidth("inbox-v2:conv-width");
   const [storedAsideWidth, setAsideWidth] = useStoredWidth("inbox-v2:aside-width");
   const viewportWidth = useViewportWidth();
+  const navRailWidth = useNavRailWidth();
 
   // ── Estado de UI local ─────────────────────────────────────────
   // Aba, busca e filtros vivem na URL (`?tab=&q=&owner=…`) — o link da barra
@@ -291,9 +292,10 @@ export default function InboxV2ClientPage({
     storedList: storedConvWidth,
     storedAside: storedAsideWidth,
     asideCollapsed: effectiveAsideCollapsed,
+    navRail: navRailWidth,
   });
   const convWidth = isTablet
-    ? resolveInboxTabletListWidth(viewportWidth)
+    ? resolveInboxTabletListWidth(viewportWidth, navRailWidth)
     : panelWidths.list;
   // Largura do painel mesmo recolhido (o grid usa 0 quando recolhido).
   const asideWidth = resolveInboxPanelWidths({
@@ -301,6 +303,7 @@ export default function InboxV2ClientPage({
     storedList: storedConvWidth,
     storedAside: storedAsideWidth,
     asideCollapsed: false,
+    navRail: navRailWidth,
   }).aside;
 
   const {
