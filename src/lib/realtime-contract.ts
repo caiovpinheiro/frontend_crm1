@@ -285,6 +285,14 @@ export type DealMovedEvent = {
   toStageId: string;
   position: number;
   updatedAt: string;
+  /**
+   * Responsável atual do negócio (`null` = sem responsável). Aditivo: backend
+   * antigo não manda — sem ele o cliente não decide visibilidade por dono.
+   */
+  ownerId?: string | null;
+  /** Unidade/departamento do negócio. Aditivo (backend novo). */
+  orgUnitId?: string | null;
+  departmentId?: string | null;
   card?: DealMovedCard;
 };
 
