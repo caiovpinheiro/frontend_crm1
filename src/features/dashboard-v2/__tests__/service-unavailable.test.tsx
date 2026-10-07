@@ -71,7 +71,6 @@ function renderWidget(
       data={data}
       search=""
       clock="business"
-      onClock={() => {}}
       onRetry={() => {}}
     />,
   );

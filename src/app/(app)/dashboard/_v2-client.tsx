@@ -9,6 +9,7 @@ import { NavRail } from "@/components/crm/nav-rail";
 import { STUCK_TIMEOUT_MS } from "@/hooks/use-stuck-timeout";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { PeriodCalendarButton } from "@/components/crm/period-calendar-button";
+import { ClockToggle } from "@/components/crm/dashboard/clock-toggle";
 import {
   PainelBlockError,
   PainelSkeleton,
@@ -613,9 +614,13 @@ function ManagerHome({
       title="Dashboard"
       searchSlot={filterBar}
       period={
-        <PeriodCalendarButton active={periodActive} align="start">
-          <DashboardPeriodPanel filters={filters} onPatch={patch} />
-        </PeriodCalendarButton>
+        <>
+          <PeriodCalendarButton active={periodActive} align="start">
+            <DashboardPeriodPanel filters={filters} onPatch={patch} />
+          </PeriodCalendarButton>
+          {/* Relógio dos tempos: global da aba, junto do período. */}
+          {isService ? <ClockToggle value={clock} onChange={setClock} /> : null}
+        </>
       }
       actions={
         <HeaderTabs
@@ -803,13 +808,11 @@ function ManagerHome({
                       search,
                       filtered: teamScope.departmentIds.length + teamScope.userIds.length > 0,
                       clock,
-                      onClock: setClock,
                     })
                   : renderServiceWidget(
                       id as Exclude<ServiceWidgetId, TeamWidgetId>,
                       search,
                       clock,
-                      setClock,
                       agoraQuery,
                       serviceQuery,
                     )
@@ -939,7 +942,6 @@ function renderTeamWidget(
     search: string;
     filtered: boolean;
     clock: "business" | "elapsed";
-    onClock: (next: "business" | "elapsed") => void;
   },
 ) {
   const { query, search, filtered } = ctx;
@@ -982,7 +984,6 @@ function renderTeamWidget(
       filtered={filtered}
       notice={notice}
       clock={ctx.clock}
-      onClock={ctx.onClock}
       onRetry={retry}
     />
   );
@@ -992,7 +993,6 @@ function renderServiceWidget(
   id: Exclude<ServiceWidgetId, TeamWidgetId>,
   search: string,
   clock: "business" | "elapsed",
-  onClock: (next: "business" | "elapsed") => void,
   agoraQuery: ReturnType<typeof usePainelAgora>,
   serviceQuery: ReturnType<typeof usePainelService>,
 ) {
@@ -1001,6 +1001,7 @@ function renderServiceWidget(
       <PainelAgoraWidget
         data={agoraQuery.data}
         error={agoraQuery.error}
+        clock={clock}
         onRetry={() => void agoraQuery.refetch()}
       />
     );
@@ -1024,7 +1025,6 @@ function renderServiceWidget(
       data={serviceQuery.data}
       search={search}
       clock={clock}
-      onClock={onClock}
       onRetry={(section) => void serviceQuery.retrySection(section)}
     />
   );

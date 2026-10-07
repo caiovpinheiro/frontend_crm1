@@ -51,6 +51,7 @@ import {
   formatNumber,
   textMatchesQuery,
 } from "@/features/dashboard-v2/format";
+import { withClock, type DashboardClock } from "@/features/dashboard-v2/clock-label";
 import {
   isBlockPending as blockPending,
   isBlockUnavailable,
@@ -125,10 +126,13 @@ function formatAsOf(iso: string) {
 export function PainelAgoraWidget({
   data,
   error,
+  clock,
   onRetry,
 }: {
   data: PainelAgora | undefined;
   error: unknown;
+  /** Relógio global: "Maior espera atual" muda com ele. */
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (error && !data) {
@@ -141,7 +145,7 @@ export function PainelAgoraWidget({
   return (
     <PainelCard
       title="Agora"
-      subtitle={`agora · atualizado às ${formatAsOf(data.asOf)}`}
+      subtitle={withClock(`agora · atualizado às ${formatAsOf(data.asOf)}`, clock)}
     >
       <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-6">
         <KpiCard
@@ -197,14 +201,13 @@ export function PainelServiceWidget({
   data,
   search,
   clock,
-  onClock,
   onRetry,
 }: {
   id: Exclude<ServiceWidgetId, "agora" | TeamWidgetId>;
   data: PainelServiceResult | undefined;
   search: string;
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  /** Relógio global (vem do cabeçalho); aqui só vira rótulo dos cards que o usam. */
+  clock: DashboardClock;
   onRetry: (section: string) => void;
 }) {
   if (!data) return <PainelSkeleton className="min-h-[72px]" />;
@@ -223,12 +226,7 @@ export function PainelServiceWidget({
       );
     case "tempo":
       return (
-        <ServiceTempo
-          block={data.tempo}
-          clock={clock}
-          onClock={onClock}
-          onRetry={() => onRetry("tempo")}
-        />
+        <ServiceTempo block={data.tempo} clock={clock} onRetry={() => onRetry("tempo")} />
       );
     case "summaries":
       return (
@@ -250,6 +248,7 @@ export function PainelServiceWidget({
           dept={data.byDepartment}
           attendants={data.attendants}
           search={search}
+          clock={clock}
           onRetryDept={() => onRetry("byDepartment")}
           onRetryAttendants={() => onRetry("attendants")}
         />
@@ -259,6 +258,7 @@ export function PainelServiceWidget({
         <ServiceChannels
           block={data.channels}
           search={search}
+          clock={clock}
           onRetry={() => onRetry("channels")}
         />
       );
@@ -399,12 +399,10 @@ function TimeKpi({
 function ServiceTempo({
   block,
   clock,
-  onClock,
   onRetry,
 }: {
   block: PainelServiceResult["tempo"];
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
@@ -414,35 +412,10 @@ function ServiceTempo({
   return (
     <PainelCard
       title="Tempo de resposta"
-      subtitle="Mediana em destaque · média ao lado. Primeira resposta = até a primeira mensagem humana."
-      action={
-        <div className="flex rounded-xl border border-border bg-card p-0.5 text-xs">
-          <button
-            type="button"
-            className={cn(
-              "rounded-lg px-2.5 py-1",
-              clock === "business"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground",
-            )}
-            onClick={() => onClock("business")}
-          >
-            Comercial
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "rounded-lg px-2.5 py-1",
-              clock === "elapsed"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground",
-            )}
-            onClick={() => onClock("elapsed")}
-          >
-            Corrido
-          </button>
-        </div>
-      }
+      subtitle={withClock(
+        "Mediana em destaque · média ao lado. Primeira resposta = até a primeira mensagem humana.",
+        clock,
+      )}
     >
       {t.empty ? (
         <PainelEmpty
@@ -931,12 +904,14 @@ function ServiceTables({
   dept,
   attendants,
   search,
+  clock,
   onRetryDept,
   onRetryAttendants,
 }: {
   dept: PainelServiceResult["byDepartment"];
   attendants: PainelServiceResult["attendants"];
   search: string;
+  clock: DashboardClock;
   onRetryDept: () => void;
   onRetryAttendants: () => void;
 }) {
@@ -961,7 +936,7 @@ function ServiceTables({
       ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
       ) : (
-        <DeptMetricsTable rows={dept.data.table} search={search} />
+        <DeptMetricsTable rows={dept.data.table} search={search} clock={clock} />
       )}
       {attGone ? null : attPending ? (
         <PainelSkeleton className="min-h-[72px]" />
@@ -972,6 +947,7 @@ function ServiceTables({
           rows={attendants.data.rows}
           search={search}
           attribution={attendants.data.attribution}
+          clock={clock}
         />
       )}
     </ServicePair>
@@ -984,9 +960,11 @@ const TABLE_COLS =
 function DeptMetricsTable({
   rows,
   search,
+  clock,
 }: {
   rows: PainelDeptTableRow[];
   search: string;
+  clock: DashboardClock;
 }) {
   const [sort, setSort] = useState<TableSort>("finished");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -999,7 +977,7 @@ function DeptMetricsTable({
   return (
     <PainelCard
       title="Departamentos"
-      subtitle="Finalizados, em aberto e tempos médios no período"
+      subtitle={withClock("Finalizados, em aberto e tempos médios no período", clock)}
     >
       {list.length === 0 ? (
         <PainelEmpty embedded title="Não há dados no período" />
@@ -1050,10 +1028,12 @@ function AttendantMetricsTable({
   rows,
   search,
   attribution,
+  clock,
 }: {
   rows: PainelAttendantRow[];
   search: string;
   attribution: string;
+  clock: DashboardClock;
 }) {
   const [sort, setSort] = useState<TableSort>("finished");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -1067,7 +1047,7 @@ function AttendantMetricsTable({
   }, [rows, search, sort, dir]);
 
   return (
-    <PainelCard title="Atendentes" subtitle={attribution}>
+    <PainelCard title="Atendentes" subtitle={withClock(attribution, clock)}>
       {list.length === 0 ? (
         <PainelEmpty
           embedded
@@ -1189,10 +1169,12 @@ function MetricsTable({
 function ServiceChannels({
   block,
   search,
+  clock,
   onRetry,
 }: {
   block: PainelServiceResult["channels"];
   search: string;
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
@@ -1208,11 +1190,13 @@ function ServiceChannels({
         title="Por canal"
         emptyTitle="Não há dados no período"
         rows={channels}
+        clock={clock}
       />
       <ShortList
         title="Por motivo"
         emptyTitle="Não há tabulações no período"
         rows={motivos}
+        clock={clock}
       />
     </ServicePair>
   );
@@ -1222,13 +1206,15 @@ function ShortList({
   title,
   emptyTitle,
   rows,
+  clock,
 }: {
   title: string;
   emptyTitle: string;
   rows: { key: string; label: string; count: number; firstResponseMedianMs: number | null }[];
+  clock: DashboardClock;
 }) {
   return (
-    <PainelCard title={title} subtitle="Volume e mediana de primeira resposta">
+    <PainelCard title={title} subtitle={withClock("Volume e mediana de primeira resposta", clock)}>
       {rows.length === 0 ? (
         <PainelEmpty embedded title={emptyTitle} />
       ) : (

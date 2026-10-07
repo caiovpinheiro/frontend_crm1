@@ -25,6 +25,7 @@ import {
   formatNumber,
   textMatchesQuery,
 } from "@/features/dashboard-v2/format";
+import { clockLabel, type DashboardClock } from "@/features/dashboard-v2/clock-label";
 import { MEASURE_COLOR, heatFill } from "@/features/dashboard-v2/measure-colors";
 import type {
   PainelBlock,
@@ -349,15 +350,14 @@ export function TeamRankingsWidget({
   filtered,
   notice,
   clock,
-  onClock,
   onRetry,
 }: {
   block: PainelBlock<PainelTeamRanking> | undefined;
   search: string;
   filtered: boolean;
   notice?: string | null;
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  /** Relógio global (cabeçalho): só vira rótulo do ranking de tempo. */
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (teamBlockPending(block)) {
@@ -384,7 +384,6 @@ export function TeamRankingsWidget({
         filtered={filtered}
         notice={notice}
         clock={clock}
-        onClock={onClock}
       />
     </div>
   );
@@ -459,15 +458,13 @@ function ServiceTimeRanking({
   filtered,
   notice,
   clock,
-  onClock,
 }: {
   rows: PainelTeamRankRow[];
   capped: boolean;
   search: string;
   filtered: boolean;
   notice?: string | null;
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  clock: DashboardClock;
 }) {
   const color = MEASURE_COLOR.time;
   const [order, setOrder] = useState<"fast" | "slow">("fast");
@@ -495,20 +492,11 @@ function ServiceTimeRanking({
               { value: "slow", label: "Lentos" },
             ]}
           />
-          <SegmentedToggle
-            label="Relógio"
-            value={clock}
-            onChange={onClock}
-            options={[
-              { value: "business", label: "Comercial" },
-              { value: "elapsed", label: "Corrido" },
-            ]}
-          />
         </div>
       }
       title="Ranking de tempo médio de atendimento"
       subtitle={teamSubtitle(
-        `Abertura → encerramento · relógio ${clock === "business" ? "comercial" : "corrido"}`,
+        `Abertura → encerramento · ${clockLabel(clock)}`,
         { filtered, notice },
       )}
       info={`Tempo médio entre abrir e encerrar as conversas encerradas no período, creditado a quem estava responsável no encerramento. Entra quem encerrou ao menos ${MIN_SERVICE_SAMPLE} conversas. Ponto cheio = média, ponto vazado = mediana; a linha vertical marca a média da equipe.`}
