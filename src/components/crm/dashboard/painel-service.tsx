@@ -38,6 +38,7 @@ import {
   ListColumnLabel,
   SortableHeader,
 } from "@/components/crm/sortable-header";
+import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import {
   PainelAgoraSkeleton,
   PainelBlockError,
@@ -61,6 +62,7 @@ import type {
   PainelServiceResult,
   PainelTimeStat,
 } from "@/features/dashboard-v2/painel-api";
+import type { TeamWidgetId } from "@/components/crm/dashboard/painel-team";
 import type { ServiceWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
 import { cn } from "@/lib/utils";
 
@@ -188,7 +190,7 @@ export function PainelServiceWidget({
   onClock,
   onRetry,
 }: {
-  id: Exclude<ServiceWidgetId, "agora">;
+  id: Exclude<ServiceWidgetId, "agora" | TeamWidgetId>;
   data: PainelServiceResult | undefined;
   search: string;
   clock: "business" | "elapsed";
@@ -661,33 +663,23 @@ function RankList({
   subtitle: string;
   rows: { key: string; label: string; color?: string; started: number }[];
 }) {
-  const max = Math.max(1, ...rows.map((r) => r.started));
   return (
     <PainelCard title={title} subtitle={subtitle}>
       {rows.length === 0 ? (
         <PainelEmpty embedded title="Não há dados no período" />
       ) : (
-        <ul className="flex flex-col gap-2.5">
-          {rows.map((row) => (
-            <li key={row.key} className="min-w-0">
-              <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="truncate text-sm font-semibold">{row.label}</span>
-                <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
-                  {formatNumber(row.started)}
-                </span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.round((row.started / max) * 100)}%`,
-                    background: row.color ?? "var(--color-primary)",
-                  }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+        <RankBarList
+          variant="rank"
+          ariaLabel={title}
+          limit={10}
+          rows={rows.map((row) => ({
+            id: row.key,
+            label: row.label,
+            color: row.color,
+            value: row.started,
+            display: formatNumber(row.started),
+          }))}
+        />
       )}
     </PainelCard>
   );

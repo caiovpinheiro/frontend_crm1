@@ -10,6 +10,7 @@ export function PainelCard({
   subtitle,
   info,
   action,
+  wrapAction = false,
   children,
   className,
 }: {
@@ -17,13 +18,20 @@ export function PainelCard({
   subtitle?: string;
   info?: string;
   action?: React.ReactNode;
+  /** A ação desce para a linha de baixo quando não cabe ao lado do título. */
+  wrapAction?: boolean;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <section className={cn(CARD_SURFACE_CLASS, "p-3.5", className)}>
       {(title || action) && (
-        <header className="mb-2.5 flex items-start justify-between gap-3">
+        <header
+          className={cn(
+            "mb-2.5 flex items-start justify-between gap-3",
+            wrapAction && "flex-wrap gap-y-2",
+          )}
+        >
           <div className="min-w-0">
             {title ? (
               <h3 className="flex items-center gap-1.5 text-[15px] font-bold text-foreground">
@@ -39,7 +47,9 @@ export function PainelCard({
               <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
             ) : null}
           </div>
-          {action ? <div className="shrink-0">{action}</div> : null}
+          {action ? (
+            <div className={cn("shrink-0", wrapAction && "ml-auto")}>{action}</div>
+          ) : null}
         </header>
       )}
       {children}
