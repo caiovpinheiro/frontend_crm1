@@ -126,14 +126,16 @@ function mountRealtime(qc: QueryClient, activeId: string | null) {
 
 let qc: QueryClient;
 const listFetch = vi.fn();
-const fetchMock = vi.fn(async () => new Response(JSON.stringify({ items: [] }), { status: 200 }));
+const emptyList = async () => new Response(JSON.stringify({ items: [] }), { status: 200 });
+const fetchMock = vi.fn(emptyList);
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   vi.setSystemTime(Date.parse(T1));
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   listFetch.mockClear();
-  fetchMock.mockClear();
+  fetchMock.mockReset();
+  fetchMock.mockImplementation(emptyList);
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -346,6 +348,43 @@ describe("F1/F3 — conversa que passou a caber na aba entra no topo", () => {
     expect(itemsOf(qc, esperando).map((r) => r.id)).toEqual(["c9", "c3"]);
     expect(listFetch).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("F3: conversation_updated sem card, atribuída a mim e fora do cache: 1 GET ?ids= e entra no topo", async () => {
+    const todos = mountList(qc, "todos", [row("c2")], listFetch);
+    fetchMock.mockImplementation(
+      async () => new Response(JSON.stringify({ items: [card("c9")] }), { status: 200 }),
+    );
+    mountRealtime(qc, null);
+
+    emit("conversation_updated", {
+      conversationId: "c9",
+      assignedToId: ME,
+      assignedTo: { id: ME, name: "Eu", type: "HUMAN" },
+    });
+    emit("conversation_updated", { conversationId: "c9", assignedToId: ME });
+    await settle();
+
+    expect(itemsOf(qc, todos).map((r) => r.id)).toEqual(["c9", "c2"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(listFetch).not.toHaveBeenCalled();
+  });
+
+  it("F3: conversa atribuída a OUTRO agente que o usuário não vê não é buscada (sem 404 em massa)", async () => {
+    setInboxViewerScope(qc, { userId: ME, ownOnly: true });
+    const todos = mountList(qc, "todos", [row("c2")], listFetch);
+    mountRealtime(qc, null);
+
+    emit("conversation_updated", {
+      conversationId: "c9",
+      assignedToId: "u_bia",
+      assignedTo: { id: "u_bia", name: "Bia", type: "HUMAN" },
+    });
+    await settle();
+
+    expect(itemsOf(qc, todos).map((r) => r.id)).toEqual(["c2"]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(listFetch).not.toHaveBeenCalled();
   });
 
   it("F3: conversation_assigned (IA) para o usuário atual insere por GET ?ids= único, não relista", async () => {

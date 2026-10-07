@@ -1290,6 +1290,17 @@ export function useInboxRealtime(options: {
           scheduleConversationCardSync(id);
         } else if (
           !findCachedConversationRow(qc, id) &&
+          // Atribuída a outro agente que este usuário não lista: o GET ?ids=
+          // voltaria vazio (e, a cada transferência da org, N usuários buscando).
+          !rowHiddenFromViewer(
+            {
+              assignedToId: payload.assignedToId ?? null,
+              assignedTo: payload.assignedTo
+                ? { id: payload.assignedTo.id ?? "", name: "", type: payload.assignedTo.type }
+                : null,
+            },
+            getInboxViewerScope(qc),
+          ) &&
           conversationUpdatedLikelyOnTabs(activeInboxListTabs(qc), payload)
         ) {
           scheduleMissingCardHydrate(qc, id);
