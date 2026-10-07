@@ -54,6 +54,11 @@ import type {
   PainelFunnelStage,
   PainelKpi,
 } from "@/features/dashboard-v2/painel-api";
+import {
+  DEAL_KPI_GRID_CLASS,
+  EXCEPTIONS_GRID_CLASS,
+  KPI_CONTAINER_CLASS,
+} from "@/features/dashboard-v2/layout-classes";
 import type { DealCoreWidgetId } from "@/features/dashboard-v2/use-negocios-grid";
 import { cn } from "@/lib/utils";
 import { StageMetricCard } from "@/components/crm/dashboard/stage-metric-card";
@@ -155,7 +160,8 @@ function DealKpis({
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const k = block.data;
   return (
-    <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-5">
+    <div className={KPI_CONTAINER_CLASS}>
+    <div className={DEAL_KPI_GRID_CLASS}>
       <KpiCard
         icon={<Banknote className="size-5" />}
         label="Receita ganha"
@@ -191,6 +197,7 @@ function DealKpis({
         badge="hoje"
         tone="neutral"
       />
+    </div>
     </div>
   );
 }
@@ -503,7 +510,9 @@ function AgentRow({ row }: { row: PainelAgentRow }) {
         row.zeroActivity && "opacity-70",
       )}
     >
-      <span className="truncate font-semibold">{row.name}</span>
+      <span className="truncate font-semibold" title={row.name}>
+        {row.name}
+      </span>
       <span className="text-sm tabular-nums lg:text-right">{formatBRL(row.wonValue)}</span>
       <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.wonCount)}</span>
       <span className="text-sm tabular-nums lg:text-right">{formatPct(row.conversion)}</span>
@@ -586,7 +595,8 @@ function DealExceptions({
   }
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a lista filtrada">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={KPI_CONTAINER_CLASS}>
+      <div className={cn(EXCEPTIONS_GRID_CLASS, "gap-3")}>
         {block.data.map((row) => {
           const copy = EXCEPTION_COPY[row.key];
           const label =
@@ -611,6 +621,7 @@ function DealExceptions({
             </Link>
           );
         })}
+      </div>
       </div>
     </PainelCard>
   );

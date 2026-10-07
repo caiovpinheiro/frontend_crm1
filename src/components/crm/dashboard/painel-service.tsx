@@ -55,6 +55,13 @@ import {
 import { analyzeOutliers, outlierNote } from "@/features/dashboard-v2/outlier-axis";
 import { withClock, type DashboardClock } from "@/features/dashboard-v2/clock-label";
 import {
+  AGORA_GRID_CLASS,
+  AGORA_WAIT_CLASS,
+  EXCEPTIONS_GRID_CLASS,
+  KPI_CONTAINER_CLASS,
+  PERIOD_KPI_GRID_CLASS,
+} from "@/features/dashboard-v2/layout-classes";
+import {
   isBlockPending as blockPending,
   isBlockUnavailable,
 } from "@/features/dashboard-v2/service-availability";
@@ -149,7 +156,8 @@ export function PainelAgoraWidget({
       title="Agora"
       subtitle={withClock(`agora · atualizado às ${formatAsOf(data.asOf)}`, clock)}
     >
-      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-6">
+      <div className={KPI_CONTAINER_CLASS}>
+      <div className={AGORA_GRID_CLASS}>
         <KpiCard
           icon={<Inbox className="size-5" />}
           label="Aguardando resposta"
@@ -164,7 +172,8 @@ export function PainelAgoraWidget({
         />
         <div
           className={cn(
-            "rounded-xl border p-4 lg:col-span-3",
+            "min-w-0 rounded-xl border p-4",
+            AGORA_WAIT_CLASS,
             wait.overSla
               ? "border-destructive/40 bg-destructive/5"
               : "border-border bg-card",
@@ -181,7 +190,10 @@ export function PainelAgoraWidget({
           >
             {wait.ms > 0 ? formatDurationMs(wait.ms) : "—"}
           </p>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p
+            className="mt-1 truncate text-sm text-muted-foreground"
+            title={`${wait.contactName ?? "Ninguém aguardando"}${wait.agentName ? ` · ${wait.agentName}` : ""}`}
+          >
             {wait.contactName ?? "Ninguém aguardando"}
             {wait.agentName ? ` · ${wait.agentName}` : ""}
           </p>
@@ -193,6 +205,7 @@ export function PainelAgoraWidget({
           hint="online / total"
           tone="success"
         />
+      </div>
       </div>
     </PainelCard>
   );
@@ -299,7 +312,8 @@ function ServiceVolume({
   }));
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-4">
+      <div className={KPI_CONTAINER_CLASS}>
+      <div className={PERIOD_KPI_GRID_CLASS}>
         <KpiCard
           icon={<Inbox className="size-5" />}
           label="Total de atendimentos"
@@ -332,6 +346,7 @@ function ServiceVolume({
           hint={deltaHint(v.openWaiting.delta)}
           tone="orange"
         />
+      </div>
       </div>
       <PainelCard
         title="Iniciadas vs finalizadas"
@@ -1088,7 +1103,9 @@ function DeptMetricsTable({
                 "lg:gap-3",
               )}
             >
-              <span className="truncate font-semibold">{row.label}</span>
+              <span className="truncate font-semibold" title={row.label}>
+                {row.label}
+              </span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.finished)}</span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.stillOpen)}</span>
               <span className="text-sm tabular-nums lg:text-right">
@@ -1161,7 +1178,9 @@ function AttendantMetricsTable({
                 "lg:gap-3",
               )}
             >
-              <span className="truncate font-semibold">{row.name}</span>
+              <span className="truncate font-semibold" title={row.name}>
+                {row.name}
+              </span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.finished)}</span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.stillOpen)}</span>
               <span className="text-sm tabular-nums lg:text-right">
@@ -1308,7 +1327,9 @@ function ShortList({
               key={row.key}
               className="flex items-baseline justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
             >
-              <span className="min-w-0 truncate font-semibold">{row.label}</span>
+              <span className="min-w-0 truncate font-semibold" title={row.label}>
+                {row.label}
+              </span>
               <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
                 {formatNumber(row.count)} · {formatDurationMs(row.firstResponseMedianMs)}
               </span>
@@ -1339,7 +1360,8 @@ function ServiceExceptions({
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a inbox filtrada">
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={KPI_CONTAINER_CLASS}>
+      <div className={EXCEPTIONS_GRID_CLASS}>
         {block.data.map((row) => {
           const copy = SERVICE_EX_COPY[row.key];
           return (
@@ -1360,6 +1382,7 @@ function ServiceExceptions({
             </Link>
           );
         })}
+      </div>
       </div>
     </PainelCard>
   );
