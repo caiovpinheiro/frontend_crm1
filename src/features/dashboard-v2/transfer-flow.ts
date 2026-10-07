@@ -174,6 +174,47 @@ export function layoutFlows(
   return { sources, targets, links, height, total };
 }
 
+/** Abaixo desta largura (px) o diagrama empilha os rótulos e reserva uma coluna menor. */
+export const SANKEY_COMPACT_BELOW = 560;
+
+export type SankeyGeometry = {
+  /** Largura do viewBox (1 unidade = 1 px: o texto não é escalado). */
+  width: number;
+  /** Largura reservada para os rótulos de cada lado. */
+  labelW: number;
+  barW: number;
+  /** Fim da barra de origem / início da barra de destino. */
+  x0: number;
+  x1: number;
+  /** Estreito: nome e contagem em duas linhas, nome mais curto. */
+  compact: boolean;
+  /** Máximo de caracteres do nome antes de cortar com "…". */
+  nameChars: number;
+};
+
+/**
+ * Geometria horizontal do diagrama a partir da largura do container. No celular
+ * (< 560 px) os dois lados reservam uma coluna proporcional (~30%) para o nome,
+ * com a contagem numa 2ª linha; sem isso, o lado "PARA" ficava fora da tela.
+ */
+export function sankeyGeometry(containerWidth: number): SankeyGeometry {
+  const raw = Number.isFinite(containerWidth) ? Math.round(containerWidth) : 720;
+  const compact = raw < SANKEY_COMPACT_BELOW;
+  const width = compact ? Math.max(280, raw) : Math.min(960, raw);
+  const barW = 6;
+  const gap = 8;
+  const labelW = compact ? Math.max(76, Math.min(128, Math.round(width * 0.3))) : 170;
+  return {
+    width,
+    labelW,
+    barW,
+    x0: labelW + gap + barW,
+    x1: width - labelW - gap - barW,
+    compact,
+    nameChars: compact ? Math.max(8, Math.floor(labelW / 6.6)) : 24,
+  };
+}
+
 /** Caminho SVG de uma faixa (curva cúbica horizontal). */
 export function linkPath(link: FlowLink, x0: number, x1: number): string {
   const xm = (x0 + x1) / 2;

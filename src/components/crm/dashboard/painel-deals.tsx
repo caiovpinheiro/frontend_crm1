@@ -245,9 +245,9 @@ function DealFunnel({
           </Link>
         }
       >
-        <div className={funnelPicker ? "flex min-h-0 items-stretch" : undefined}>
+        <div className={funnelPicker ? "flex min-h-0 items-stretch max-md:flex-col" : undefined}>
           {funnelPicker ? (
-            <aside className="w-[196px] shrink-0 border-r border-border py-2">
+            <aside className="w-[196px] shrink-0 border-r border-border py-2 max-md:w-full max-md:border-b max-md:border-r-0">
               {funnelPicker}
             </aside>
           ) : null}

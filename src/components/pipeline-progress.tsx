@@ -439,9 +439,9 @@ export function PipelineProgress({
       role="region"
       aria-labelledby={labelId}
     >
-      <div className={cn(sidebar ? "flex min-h-0 items-stretch" : null)}>
+      <div className={cn(sidebar ? "flex min-h-0 items-stretch max-md:flex-col" : null)}>
       {sidebar ? (
-        <aside className="w-[196px] shrink-0 border-r border-[var(--pipeline-border)] bg-[var(--pipeline-surface)]/40 py-2">
+        <aside className="w-[196px] shrink-0 border-r border-[var(--pipeline-border)] bg-[var(--pipeline-surface)]/40 py-2 max-md:w-full max-md:border-b max-md:border-r-0">
           {sidebar}
         </aside>
       ) : null}
