@@ -93,6 +93,7 @@ import {
 import { useTabulationAnalytics } from "@/features/dashboard-v2/use-tabulation-analytics";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
 import { rangeClampedNotice } from "@/features/dashboard-v2/team-rankings";
+import { serviceSectionsFor, teamSectionsFor } from "@/features/dashboard-v2/visible-sections";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -383,8 +384,18 @@ function ManagerHome({
   // Se a lista de funis falhar, libera mesmo assim (backend usa o padrão).
   const tabReady = canFetch && (filtersSettled || pipelinesQuery.isError);
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
-  const agoraQuery = usePainelAgora(clock, tabReady && isService);
-  const serviceQuery = usePainelService(filters, clock, tabReady && isService);
+  // Ordem/visibilidade salva da aba Atendimentos: só se busca o que está visível.
+  const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {
+    allowHide: true,
+  });
+  // Espera o layout salvo chegar (senão buscaria tudo pela ordem padrão); se
+  // demorar, segue com o padrão.
+  const serviceLayoutReady = useLatchedReady(serviceOrder.hydrated, 3_000);
+  const serviceFetch = tabReady && isService && serviceLayoutReady;
+  const serviceSections = useMemo(() => serviceSectionsFor(serviceOrder.order), [serviceOrder.order]);
+  const teamSections = useMemo(() => teamSectionsFor(serviceOrder.order), [serviceOrder.order]);
+  const agoraQuery = usePainelAgora(clock, serviceFetch && serviceOrder.order.includes("agora"));
+  const serviceQuery = usePainelService(filters, clock, serviceFetch, "full", serviceSections);
   const teamScope = useMemo(
     () => ({ departmentIds: tabDepartmentIds, userIds: tabActorUserIds }),
     [tabDepartmentIds, tabActorUserIds],
@@ -407,21 +418,22 @@ function ManagerHome({
   const customFieldsQuery = usePainelCustomFields(filters, fieldIds, tabReady && isDeals);
   const eventCards = usePainelEventCards(filters, grid.cards, tabReady && isDeals);
   const insightsQuery = usePainelInsights(filters, grid.cards, tabReady && isDeals);
-  const usageQuery = useSystemUsageToday(tabReady && isDeals);
+  // O card de uso do sistema pode estar oculto: sem ele, sem GET.
+  const usageVisible = grid.hydrated && grid.widgetIds.includes("usage");
+  const usageQuery = useSystemUsageToday(tabReady && isDeals && usageVisible);
 
   const departmentsQuery = useDepartments(tabReady && isService);
   const usersQuery = useTeamUsersQuery(tabReady && isService);
 
-  const serviceOrder = useDashboardWidgetOrder("service", SERVICE_BOARD_WIDGET_IDS, {
-    allowHide: true,
-  });
   const hasServiceTabWidgets = serviceOrder.order.some((id) => isTabulationWidgetId(id));
-  const tabulationsArmed = useArmedAfter(
-    tabReady && isService && serviceQuery.data?.volume?.ok === true,
-    2_500,
+  const tabulationsArmed = useArmedAfter(serviceFetch && serviceQuery.volumeReady, 2_500);
+  const teamQuery = usePainelTeam(
+    filters,
+    clock,
+    teamScope,
+    tabulationsArmed && teamSections.length > 0,
+    teamSections,
   );
-  const hasTeamWidgets = serviceOrder.order.some((id) => isTeamWidgetId(id));
-  const teamQuery = usePainelTeam(filters, clock, teamScope, tabulationsArmed && hasTeamWidgets);
   const tabAnalyticsQuery = useTabulationAnalytics({
     fromIso: period.from,
     toIso: period.to,
