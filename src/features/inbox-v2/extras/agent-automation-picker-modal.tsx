@@ -54,7 +54,7 @@ function normalize(s: string) {
 
 async function runAutomation(
   automationId: string,
-  payload: { contactId: string; conversationId?: string | null },
+  payload: { contactId: string; conversationId?: string | null; dealId?: string | null },
 ): Promise<{ automationName?: string }> {
   const res = await fetch(apiUrl(`/api/automations/${automationId}/run`), {
     method: "POST",
@@ -62,6 +62,7 @@ async function runAutomation(
     body: JSON.stringify({
       contactId: payload.contactId,
       conversationId: payload.conversationId ?? undefined,
+      dealId: payload.dealId ?? undefined,
     }),
   });
   const json = (await res.json().catch(() => ({}))) as {
@@ -81,11 +82,14 @@ export function AgentAutomationPickerModal({
   onClose,
   conversationId,
   contactId,
+  dealId,
 }: {
   open: boolean;
   onClose: () => void;
   conversationId: string | null;
   contactId?: string | null;
+  /** Negócio aberto na tela. Sem ele, vários cards abertos não escolhem destino. */
+  dealId?: string | null;
 }) {
   const [query, setQuery] = React.useState("");
   const [runningId, setRunningId] = React.useState<string | null>(null);
@@ -158,7 +162,7 @@ export function AgentAutomationPickerModal({
     }
     setRunningId(a.id);
     try {
-      const result = await runAutomation(a.id, { contactId, conversationId });
+      const result = await runAutomation(a.id, { contactId, conversationId, dealId });
       toast.success(`Automação disparada: ${result.automationName ?? a.name}`);
       onClose();
     } catch (err) {

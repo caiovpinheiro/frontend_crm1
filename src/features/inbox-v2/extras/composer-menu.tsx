@@ -440,6 +440,7 @@ export function ComposerMenu({
         onClose={() => setAutomationOpen(false)}
         conversationId={conversationId}
         contactId={contactId}
+        dealId={dealId}
       />
       {conversationId ? (
         <InternalTemplatePickerModal
