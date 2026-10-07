@@ -21,6 +21,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -51,6 +52,7 @@ import {
   formatNumber,
   textMatchesQuery,
 } from "@/features/dashboard-v2/format";
+import { analyzeOutliers, outlierNote } from "@/features/dashboard-v2/outlier-axis";
 import { withClock, type DashboardClock } from "@/features/dashboard-v2/clock-label";
 import {
   isBlockPending as blockPending,
@@ -340,39 +342,121 @@ function ServiceVolume({
         }
         info="Acúmulo aparece quando iniciadas superam finalizadas por vários dias. Mensagens e volume respeitam o calendário — diferente do bloco Agora."
       >
-        <div className="h-[168px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={32} />
-              <Tooltip />
-              <Bar dataKey="started" name="Iniciadas" fill="var(--color-primary)" radius={[4, 4, 0, 0]}>
-                {chartData.map((d) => (
-                  <Cell
-                    key={d.date}
-                    fill="var(--color-primary)"
-                    fillOpacity={d.incomplete ? 0.45 : 1}
-                  />
-                ))}
-              </Bar>
-              <Bar dataKey="finished" name="Finalizadas" fill="var(--color-success)" radius={[4, 4, 0, 0]}>
-                {chartData.map((d) => (
-                  <Cell
-                    key={`${d.date}-f`}
-                    fill="var(--color-success)"
-                    fillOpacity={d.incomplete ? 0.45 : 1}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        {chartData.some((d) => d.incomplete) ? (
-          <p className="mt-2 text-xs text-muted-foreground">O dia de hoje está incompleto.</p>
-        ) : null}
+        <VolumeDayChart chartData={chartData} />
       </PainelCard>
     </div>
+  );
+}
+
+type VolumeDay = {
+  date: string;
+  label: string;
+  started: number;
+  finished: number;
+  incomplete: boolean;
+};
+
+/** Rótulo com o valor real nas barras recortadas (dia atípico). */
+function clippedValueLabel(outliers: ReadonlySet<number>, cap: number, active: boolean) {
+  return function ClippedValueLabel(props: {
+    x?: unknown;
+    y?: unknown;
+    width?: unknown;
+    value?: unknown;
+    index?: number;
+  }) {
+    const value = Number(props.value);
+    if (!active || !outliers.has(props.index ?? -1) || !(value > cap)) return null;
+    return (
+      <text
+        x={Number(props.x) + Number(props.width) / 2}
+        y={Math.max(Number(props.y), 10)}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fill="var(--foreground)"
+        style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: 3 }}
+      >
+        {formatNumber(value)}
+      </text>
+    );
+  };
+}
+
+/**
+ * Iniciadas × finalizadas por dia. Um dia atípico (>10× a mediana, ex.: importação)
+ * recorta o eixo para os demais dias não ficarem invisíveis; o valor real fica
+ * escrito na barra e no balão, e dá para alternar para a escala completa.
+ */
+function VolumeDayChart({ chartData }: { chartData: VolumeDay[] }) {
+  const [fullScale, setFullScale] = useState(false);
+  const analysis = useMemo(
+    () => analyzeOutliers([chartData.map((d) => d.started), chartData.map((d) => d.finished)]),
+    [chartData],
+  );
+  const clipped = analysis.hasOutlier && !fullScale;
+  const outliers = useMemo(() => new Set(analysis.outlierIndexes), [analysis]);
+  const note = outlierNote(
+    analysis,
+    chartData.map((d) => ({ date: d.date, values: [d.started, d.finished] })),
+  );
+  const valueLabel = clippedValueLabel(outliers, analysis.cap, clipped);
+  return (
+    <>
+      <div className="h-[168px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} barGap={4}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11 }}
+              width={32}
+              domain={clipped ? [0, analysis.cap] : [0, "auto"]}
+              allowDataOverflow={clipped}
+            />
+            <Tooltip />
+            <Bar dataKey="started" name="Iniciadas" fill="var(--color-primary)" radius={[4, 4, 0, 0]}>
+              {chartData.map((d) => (
+                <Cell
+                  key={d.date}
+                  fill="var(--color-primary)"
+                  fillOpacity={d.incomplete ? 0.45 : 1}
+                />
+              ))}
+              <LabelList dataKey="started" content={valueLabel} />
+            </Bar>
+            <Bar dataKey="finished" name="Finalizadas" fill="var(--color-success)" radius={[4, 4, 0, 0]}>
+              {chartData.map((d) => (
+                <Cell
+                  key={`${d.date}-f`}
+                  fill="var(--color-success)"
+                  fillOpacity={d.incomplete ? 0.45 : 1}
+                />
+              ))}
+              <LabelList dataKey="finished" content={valueLabel} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {note ? (
+        <p className="mt-2 text-xs text-muted-foreground" data-outlier-note>
+          {note}{" "}
+          <button
+            type="button"
+            aria-pressed={fullScale}
+            onClick={() => setFullScale((v) => !v)}
+            className="rounded-sm font-semibold text-foreground underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {fullScale ? "Recortar o dia atípico" : "Ver escala completa"}
+          </button>
+        </p>
+      ) : null}
+      {chartData.some((d) => d.incomplete) ? (
+        <p className="mt-2 text-xs text-muted-foreground">O dia de hoje está incompleto.</p>
+      ) : null}
+    </>
   );
 }
 
