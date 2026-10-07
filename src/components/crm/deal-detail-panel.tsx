@@ -1307,6 +1307,7 @@ export function DealDetailPanel({
                                   )}
 
                                   {sectionId === "campos" && (
+                                    <>
                                     <FieldCard
                                       title="Negócio"
                                       compactTitle={crmOnly}
@@ -1522,6 +1523,7 @@ export function DealDetailPanel({
                                       compactTitle={crmOnly}
                                       plain={viewMode !== "compact"}
                                     />
+                                    </>
                                   )}
                                 </div>
                               )}
