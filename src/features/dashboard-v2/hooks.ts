@@ -13,10 +13,13 @@ import {
   fetchPainelDeals,
   fetchPainelInsights,
   fetchPainelService,
+  fetchPainelTeam,
   type PainelAgora,
   type PainelDealsResult,
   type PainelInsights,
   type PainelServiceResult,
+  type PainelTeamResult,
+  type PainelTeamScope,
 } from "./painel-api";
 
 import type { FilterOptionsResponse } from "@/components/pipeline/kanban-filters/types";
@@ -494,5 +497,28 @@ export function usePainelInsights(
       fetchPainelInsights(filters, { inboundOwners, stageIds, taskGroups }, signal),
     enabled: (isPreviewMode() || isPageMockMode() ? false : enabled) && active,
     staleTime: 30_000,
+  });
+}
+
+/**
+ * Equipe da aba Atendimentos (departamento × hora, rankings e transferências).
+ * Chave só com período/relógio/escopo: trocar funil/etapa não refaz o GET.
+ */
+export function usePainelTeam(
+  filters: DashboardFiltersState,
+  clock: "business" | "elapsed",
+  scope: PainelTeamScope,
+  enabled = true,
+) {
+  const stamp = servicePeriodStamp(filters, clock);
+  const deptKey = [...scope.departmentIds].sort().join(",");
+  const userKey = [...scope.userIds].sort().join(",");
+  return useQuery<PainelTeamResult>({
+    queryKey: ["painel", "team", stamp, deptKey, userKey],
+    queryFn: ({ signal }) => fetchPainelTeam({ filters, clock, scope, signal }),
+    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
   });
 }

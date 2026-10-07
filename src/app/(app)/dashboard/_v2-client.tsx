@@ -15,6 +15,13 @@ import {
   PainelAgoraWidget,
   PainelServiceWidget,
 } from "@/components/crm/dashboard/painel-service";
+import {
+  DeptHourHeatmapWidget,
+  TeamRankingsWidget,
+  isTeamWidgetId,
+  type TeamWidgetId,
+} from "@/components/crm/dashboard/painel-team";
+import { TransfersWidget } from "@/components/crm/dashboard/painel-transfers";
 import { OperatorDashboardWidget } from "@/components/crm/dashboard/operator-dashboard";
 import { SystemUsageCard } from "@/components/crm/dashboard/system-usage-card";
 import { CustomMetricCard, TaskInsightCard } from "@/components/crm/dashboard/custom-metric-card";
@@ -45,6 +52,7 @@ import {
   usePainelEventCards,
   usePainelInsights,
   usePainelService,
+  usePainelTeam,
   usePipelineOptions,
   useSystemUsageToday,
 } from "@/features/dashboard-v2/hooks";
@@ -84,6 +92,7 @@ import {
 } from "@/features/dashboard-v2/use-dashboard-widget-order";
 import { useTabulationAnalytics } from "@/features/dashboard-v2/use-tabulation-analytics";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
+import { rangeClampedNotice } from "@/features/dashboard-v2/team-rankings";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -113,6 +122,9 @@ const SERVICE_LABELS: Record<string, string> = {
   attendants: "Tabelas",
   channels: "Canal e motivo",
   exceptions: "Exceções",
+  deptHour: "Mapa de calor por departamento",
+  teamRankings: "Rankings por atendente",
+  transfers: "Transferências de conversas",
   kpis: TABULATION_WIDGET_LABELS.kpis,
   top: TABULATION_WIDGET_LABELS.top,
   byUser: TABULATION_WIDGET_LABELS.byUser,
@@ -373,6 +385,10 @@ function ManagerHome({
   const dealsQuery = usePainelDeals(filters, tabReady && isDeals);
   const agoraQuery = usePainelAgora(clock, tabReady && isService);
   const serviceQuery = usePainelService(filters, clock, tabReady && isService);
+  const teamScope = useMemo(
+    () => ({ departmentIds: tabDepartmentIds, userIds: tabActorUserIds }),
+    [tabDepartmentIds, tabActorUserIds],
+  );
   const period = useMemo(
     () => ({ ...periodToRangeISO(filters), label: dashboardPeriodLabel(filters) }),
     [filters],
@@ -404,6 +420,8 @@ function ManagerHome({
     tabReady && isService && serviceQuery.data?.volume?.ok === true,
     2_500,
   );
+  const hasTeamWidgets = serviceOrder.order.some((id) => isTeamWidgetId(id));
+  const teamQuery = usePainelTeam(filters, clock, teamScope, tabulationsArmed && hasTeamWidgets);
   const tabAnalyticsQuery = useTabulationAnalytics({
     fromIso: period.from,
     toIso: period.to,
@@ -747,14 +765,22 @@ function ManagerHome({
                     tabLogPage,
                     setTabLogPage,
                   )
-                : renderServiceWidget(
-                    id as ServiceWidgetId,
-                    search,
-                    clock,
-                    setClock,
-                    agoraQuery,
-                    serviceQuery,
-                  )
+                : isTeamWidgetId(id)
+                  ? renderTeamWidget(id, {
+                      query: teamQuery,
+                      search,
+                      filtered: teamScope.departmentIds.length + teamScope.userIds.length > 0,
+                      clock,
+                      onClock: setClock,
+                    })
+                  : renderServiceWidget(
+                      id as Exclude<ServiceWidgetId, TeamWidgetId>,
+                      search,
+                      clock,
+                      setClock,
+                      agoraQuery,
+                      serviceQuery,
+                    )
             }
           />
           <AddDashboardCardDialog
@@ -874,8 +900,64 @@ function renderDealWidget(
   );
 }
 
+function renderTeamWidget(
+  id: TeamWidgetId,
+  ctx: {
+    query: ReturnType<typeof usePainelTeam>;
+    search: string;
+    filtered: boolean;
+    clock: "business" | "elapsed";
+    onClock: (next: "business" | "elapsed") => void;
+  },
+) {
+  const { query, search, filtered } = ctx;
+  if (query.error && !query.data) {
+    return (
+      <PainelBlockError
+        message={query.error instanceof Error ? query.error.message : "Erro ao carregar a equipe."}
+        onRetry={() => void query.refetch()}
+      />
+    );
+  }
+  const retry = () => void query.refetch();
+  const notice = rangeClampedNotice(query.data?.rangeClamped, query.data?.effectiveFrom);
+  if (id === "deptHour") {
+    return (
+      <DeptHourHeatmapWidget
+        block={query.data?.deptHour}
+        search={search}
+        filtered={filtered}
+        notice={notice}
+        onRetry={retry}
+      />
+    );
+  }
+  if (id === "transfers") {
+    return (
+      <TransfersWidget
+        block={query.data?.transfers}
+        search={search}
+        filtered={filtered}
+        notice={notice}
+        onRetry={retry}
+      />
+    );
+  }
+  return (
+    <TeamRankingsWidget
+      block={query.data?.ranking}
+      search={search}
+      filtered={filtered}
+      notice={notice}
+      clock={ctx.clock}
+      onClock={ctx.onClock}
+      onRetry={retry}
+    />
+  );
+}
+
 function renderServiceWidget(
-  id: ServiceWidgetId,
+  id: Exclude<ServiceWidgetId, TeamWidgetId>,
   search: string,
   clock: "business" | "elapsed",
   onClock: (next: "business" | "elapsed") => void,

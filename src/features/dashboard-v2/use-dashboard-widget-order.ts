@@ -23,6 +23,9 @@ export const SERVICE_WIDGET_IDS = [
   "attendants",
   "channels",
   "exceptions",
+  "deptHour",
+  "teamRankings",
+  "transfers",
 ] as const;
 
 export const TABULATION_WIDGET_IDS = ["kpis", "top", "byUser", "log"] as const;
