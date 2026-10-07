@@ -1,8 +1,9 @@
 "use client";
 
-import { RotateCw, CircleHelp } from "lucide-react";
+import { RotateCw, CircleHelp, Info } from "lucide-react";
 
 import { CARD_SURFACE_CLASS } from "@/components/crm/sortable-header";
+import { unavailableNoticeText } from "@/features/dashboard-v2/service-availability";
 import { cn } from "@/lib/utils";
 
 export function PainelCard({
@@ -66,6 +67,21 @@ export function PainelSkeleton({ className }: { className?: string }) {
         className,
       )}
     />
+  );
+}
+
+/** Aviso discreto e único: gráficos que o ambiente não consegue servir. */
+export function PainelUnavailableNotice({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <p
+      role="status"
+      data-painel-unavailable
+      className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground"
+    >
+      <Info className="size-3.5 shrink-0" aria-hidden />
+      {unavailableNoticeText(count)}
+    </p>
   );
 }
 

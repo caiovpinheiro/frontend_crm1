@@ -15,7 +15,17 @@ import {
 
 export type PainelDelta = { value: number; hidden: boolean };
 
-export type PainelBlock<T> = { ok: true; data: T } | { ok: false; error: string };
+export type PainelBlock<T> =
+  | { ok: true; data: T }
+  | {
+      ok: false;
+      error: string;
+      /**
+       * Aditivo do backend: `no_replica` = bloco pulado por falta de réplica de
+       * leitura (seção pedida, mas indisponível neste ambiente).
+       */
+      reason?: "no_replica" | (string & {});
+    };
 
 export type PainelKpi = {
   key: string;

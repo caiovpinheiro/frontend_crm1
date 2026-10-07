@@ -57,6 +57,29 @@ export function serviceSectionsFor(visibleIds: readonly string[]): ServiceSectio
   return [...out];
 }
 
+/**
+ * Widgets visíveis cujas seções de `/api/painel/service` estão TODAS
+ * indisponíveis (sem réplica de leitura): somem do grid. Com ao menos uma
+ * seção disponível o widget fica e omite só a parte que falta.
+ */
+export function unavailableServiceWidgets(
+  visibleIds: readonly string[],
+  isUnavailable: (section: ServiceSection) => boolean,
+): string[] {
+  return visibleIds.filter((id) => {
+    const sections = SERVICE_WIDGET_SECTIONS[id];
+    return Boolean(sections?.length) && sections!.every(isUnavailable);
+  });
+}
+
+/** Quantas seções (gráficos) dos widgets visíveis estão indisponíveis. */
+export function countUnavailableSections(
+  visibleIds: readonly string[],
+  isUnavailable: (section: ServiceSection) => boolean,
+): number {
+  return serviceSectionsFor(visibleIds).filter(isUnavailable).length;
+}
+
 export function teamSectionsFor(visibleIds: readonly string[]): PainelTeamSection[] {
   const out = new Set<PainelTeamSection>();
   for (const id of visibleIds) {

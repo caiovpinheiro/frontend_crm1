@@ -9,7 +9,11 @@ import { NavRail } from "@/components/crm/nav-rail";
 import { STUCK_TIMEOUT_MS } from "@/hooks/use-stuck-timeout";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { PeriodCalendarButton } from "@/components/crm/period-calendar-button";
-import { PainelBlockError, PainelSkeleton } from "@/components/crm/dashboard/painel-block";
+import {
+  PainelBlockError,
+  PainelSkeleton,
+  PainelUnavailableNotice,
+} from "@/components/crm/dashboard/painel-block";
 import { DealStageWidget, PainelDealWidget } from "@/components/crm/dashboard/painel-deals";
 import {
   PainelAgoraWidget,
@@ -93,7 +97,14 @@ import {
 import { useTabulationAnalytics } from "@/features/dashboard-v2/use-tabulation-analytics";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
 import { rangeClampedNotice } from "@/features/dashboard-v2/team-rankings";
-import { serviceSectionsFor, teamSectionsFor } from "@/features/dashboard-v2/visible-sections";
+import { isBlockUnavailable } from "@/features/dashboard-v2/service-availability";
+import {
+  countUnavailableSections,
+  serviceSectionsFor,
+  teamSectionsFor,
+  unavailableServiceWidgets,
+  type ServiceSection,
+} from "@/features/dashboard-v2/visible-sections";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -396,6 +407,16 @@ function ManagerHome({
   const teamSections = useMemo(() => teamSectionsFor(serviceOrder.order), [serviceOrder.order]);
   const agoraQuery = usePainelAgora(clock, serviceFetch && serviceOrder.order.includes("agora"));
   const serviceQuery = usePainelService(filters, clock, serviceFetch, "full", serviceSections);
+  // Seções que o ambiente não serve (sem réplica de leitura): o card some e um
+  // aviso único conta quantas ficaram de fora.
+  const serviceData = serviceQuery.data;
+  const serviceGone = useMemo(() => {
+    const gone = (section: ServiceSection) => isBlockUnavailable(serviceData?.[section]);
+    return {
+      hiddenIds: new Set(unavailableServiceWidgets(serviceOrder.order, gone)),
+      count: countUnavailableSections(serviceOrder.order, gone),
+    };
+  }, [serviceData, serviceOrder.order]);
   const teamScope = useMemo(
     () => ({ departmentIds: tabDepartmentIds, userIds: tabActorUserIds }),
     [tabDepartmentIds, tabActorUserIds],
@@ -755,9 +776,11 @@ function ManagerHome({
         </>
       ) : (
         <>
+          <PainelUnavailableNotice count={serviceGone.count} />
           <SortableWidgetStack
             ids={serviceOrder.order}
             labels={SERVICE_LABELS}
+            hiddenIds={serviceGone.hiddenIds}
             onReorder={serviceOrder.reorder}
             organizing={organizing}
             droppableId="dashboard-atendimento"

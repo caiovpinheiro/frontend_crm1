@@ -51,6 +51,10 @@ import {
   formatNumber,
   textMatchesQuery,
 } from "@/features/dashboard-v2/format";
+import {
+  isBlockPending as blockPending,
+  isBlockUnavailable,
+} from "@/features/dashboard-v2/service-availability";
 import type {
   PainelAgora,
   PainelAttendantRow,
@@ -66,20 +70,19 @@ import type { TeamWidgetId } from "@/components/crm/dashboard/painel-team";
 import type { ServiceWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
 import { cn } from "@/lib/utils";
 
-function blockPending<T>(block: PainelBlock<T> | undefined): boolean {
-  return !block || (block.ok === false && block.error === "omitido");
-}
-
 /** Pares 2-col: um skeleton enquanto os dois lados carregam; sem esticar card vazio. */
 function ServicePair({
   pending,
   empty,
   emptyTitle,
+  solo,
   children,
 }: {
   pending?: boolean;
   empty?: boolean;
   emptyTitle?: string;
+  /** Um dos lados está indisponível: o outro ocupa a linha inteira. */
+  solo?: boolean;
   children: ReactNode;
 }) {
   if (pending) return <PainelSkeleton className="min-h-[72px]" />;
@@ -91,7 +94,14 @@ function ServicePair({
     );
   }
   return (
-    <div className="grid grid-cols-1 items-start gap-1.5 lg:grid-cols-2">{children}</div>
+    <div
+      className={cn(
+        "grid grid-cols-1 items-start gap-1.5",
+        !solo && "lg:grid-cols-2",
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -267,6 +277,7 @@ function ServiceVolume({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const v = block.data;
   if (v.empty) {
@@ -397,6 +408,7 @@ function ServiceTempo({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const t = block.data;
   return (
@@ -709,6 +721,9 @@ function ServiceDeptAndHour({
 
   const deptPending = blockPending(byDepartment);
   const heatPending = blockPending(heatmap);
+  const deptGone = isBlockUnavailable(byDepartment);
+  const heatGone = isBlockUnavailable(heatmap);
+  if (deptGone && heatGone) return null;
   const bothEmpty =
     byDepartment.ok &&
     byDepartment.data.empty &&
@@ -716,8 +731,12 @@ function ServiceDeptAndHour({
     (!h || h.empty);
 
   return (
-    <ServicePair pending={deptPending && heatPending} empty={bothEmpty}>
-      {deptPending ? (
+    <ServicePair
+      pending={deptPending && heatPending}
+      empty={bothEmpty}
+      solo={deptGone || heatGone}
+    >
+      {deptGone ? null : deptPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !byDepartment.ok ? (
         <PainelBlockError message={byDepartment.error} onRetry={onRetryDept} />
@@ -732,7 +751,7 @@ function ServiceDeptAndHour({
           variant="stack"
         />
       )}
-      {heatPending ? (
+      {heatGone ? null : heatPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !heatmap.ok ? (
         <PainelBlockError message={heatmap.error} onRetry={onRetryHeatmap} />
@@ -811,14 +830,21 @@ function ServiceSummaries({
 }) {
   const deptPending = blockPending(dept);
   const attPending = blockPending(attendants);
+  const deptGone = isBlockUnavailable(dept);
+  const attGone = isBlockUnavailable(attendants);
+  if (deptGone && attGone) return null;
   const bothEmpty =
     dept.ok &&
     attendants.ok &&
     dept.data.summaries.length === 0 &&
     attendants.data.rows.length === 0;
   return (
-    <ServicePair pending={deptPending && attPending} empty={bothEmpty}>
-      {deptPending ? (
+    <ServicePair
+      pending={deptPending && attPending}
+      empty={bothEmpty}
+      solo={deptGone || attGone}
+    >
+      {deptGone ? null : deptPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
@@ -829,7 +855,7 @@ function ServiceSummaries({
           rows={dept.data.summaries.filter((r) => textMatchesQuery(r.label, search))}
         />
       )}
-      {attPending ? (
+      {attGone ? null : attPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
@@ -859,6 +885,7 @@ function ServiceConnections({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const c = block.data;
   return (
@@ -915,21 +942,28 @@ function ServiceTables({
 }) {
   const deptPending = blockPending(dept);
   const attPending = blockPending(attendants);
+  const deptGone = isBlockUnavailable(dept);
+  const attGone = isBlockUnavailable(attendants);
+  if (deptGone && attGone) return null;
   const bothEmpty =
     dept.ok &&
     attendants.ok &&
     dept.data.table.length === 0 &&
     attendants.data.rows.length === 0;
   return (
-    <ServicePair pending={deptPending && attPending} empty={bothEmpty}>
-      {deptPending ? (
+    <ServicePair
+      pending={deptPending && attPending}
+      empty={bothEmpty}
+      solo={deptGone || attGone}
+    >
+      {deptGone ? null : deptPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
       ) : (
         <DeptMetricsTable rows={dept.data.table} search={search} />
       )}
-      {attPending ? (
+      {attGone ? null : attPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
@@ -1162,6 +1196,7 @@ function ServiceChannels({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const channels = block.data.channels.filter((r) => textMatchesQuery(r.label, search));
   const motivos = block.data.motivos.filter((r) => textMatchesQuery(r.label, search));
@@ -1230,6 +1265,7 @@ function ServiceExceptions({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a inbox filtrada">
