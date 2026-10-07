@@ -29,6 +29,7 @@ import { TipScope, tipText } from "@/components/crm/dashboard/chart-tip";
 import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
+import { TABULATION_KPI_GRID_CLASS } from "@/features/dashboard-v2/layout-classes";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { formatNumber, textMatchesQuery } from "@/features/dashboard-v2/format";
@@ -102,7 +103,8 @@ export function TabulationKpiWidget({
     <KpiStrip
       aria-label="Indicadores de tabulações"
       cardMinWidth={168}
-      gridClassName="grid grid-cols-2 gap-2.5 xl:grid-cols-4"
+      className="@container min-w-0"
+      gridClassName={TABULATION_KPI_GRID_CLASS}
     >
       <KpiCard
         label="Tabulações no período"
@@ -121,6 +123,7 @@ export function TabulationKpiWidget({
       />
       <KpiCard
         label="Top motivo"
+        wrapValue
         value={data?.byTabulation[0]?.name ?? loadingValue}
         hint={
           data?.byTabulation[0]

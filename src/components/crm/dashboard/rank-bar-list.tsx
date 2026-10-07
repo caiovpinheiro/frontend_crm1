@@ -145,7 +145,9 @@ export function RankBarList({
                 </span>
                 <div className="min-w-0 leading-tight">
                   <p className="flex min-w-0 items-center gap-1 text-[13px] font-semibold text-foreground">
-                    <span className="truncate">{row.label}</span>
+                    <span className="truncate" title={row.title ?? row.label}>
+                      {row.label}
+                    </span>
                     {row.badge}
                   </p>
                   {row.detail ? (
