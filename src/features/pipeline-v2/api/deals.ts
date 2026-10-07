@@ -197,6 +197,25 @@ export async function deleteDeal(dealId: string): Promise<void> {
   }
 }
 
+/** POST /api/deals/:id/duplicate — cópia intencional, sem dados comerciais. */
+export async function duplicateDeal(
+  dealId: string,
+  payload: { pipelineId: string; stageId: string },
+): Promise<BoardDealDto> {
+  const res = await fetch(apiUrl(`/api/deals/${dealId}/duplicate`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      typeof data?.message === "string" ? data.message : "Erro ao duplicar negócio",
+    );
+  }
+  return data as BoardDealDto;
+}
+
 /** PUT /api/deals/:id/status — marcar WON / LOST / reabrir OPEN. */
 export type DealStatus = "WON" | "LOST" | "OPEN";
 

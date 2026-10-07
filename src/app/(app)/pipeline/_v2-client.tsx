@@ -1280,6 +1280,16 @@ export default function KanbanV2ClientPage({
         isOpen={!!activeDealId}
         onClose={() => setActiveDeal(null)}
         deal={dealDetailVm ?? undefined}
+        siblingDeals={(dealContact?.deals ?? []).map((item) => ({
+          id: item.id,
+          number: (item as { number?: number | null }).number ?? null,
+          title: item.title,
+          stageName: item.stageName ?? null,
+          stageColor: (item as { stageColor?: string | null }).stageColor ?? null,
+          pipelineName: (item as { pipelineName?: string | null }).pipelineName ?? null,
+          status: item.status ?? null,
+        }))}
+        onSelectDeal={(id, number) => setActiveDeal(id, number ?? null)}
         chatSlot={
           ensuring ? (
             <ConversationThreadSkeleton />
