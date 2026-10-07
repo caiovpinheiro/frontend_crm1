@@ -70,6 +70,17 @@ describe("L4 — larguras proporcionais dos painéis do Inbox", () => {
     expect(resolveInboxTabletListWidth(768)).toBeGreaterThanOrEqual(280);
     expect(resolveInboxTabletListWidth(1023)).toBeLessThanOrEqual(340);
   });
+
+  it("NavRail expandida (220 px) estreita a área útil: a conversa não é espremida", () => {
+    const recolhida = resolveInboxPanelWidths({ viewport: 1280, ...none });
+    const expandida = resolveInboxPanelWidths({ viewport: 1280, ...none, navRail: 220 });
+    expect(expandida.list + expandida.aside + expandida.chat).toBe(1280 - 220 - 16);
+    expect(expandida.list).toBeLessThanOrEqual(recolhida.list);
+    expect(expandida.chat).toBeGreaterThanOrEqual(INBOX_CHAT_MIN_WIDTH - 10);
+    // tablet com a rail aberta: a lista cede para a conversa ter >= 300 px
+    const lista = resolveInboxTabletListWidth(768, 220);
+    expect(768 - 220 - lista).toBeGreaterThanOrEqual(300);
+  });
 });
 
 describe("L4 — gatilho da fila: rótulo curto só para 'Todas as conversas'", () => {
