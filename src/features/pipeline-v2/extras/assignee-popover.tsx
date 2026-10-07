@@ -187,7 +187,7 @@ export function AssigneePopover({
             toggle();
           }}
           onMouseDown={(e) => e.stopPropagation()}
-          className="inline-flex"
+          className="touch-target-40 inline-flex items-center justify-center"
           aria-haspopup="listbox"
           aria-expanded={open}
         >

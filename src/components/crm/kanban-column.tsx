@@ -219,7 +219,7 @@ export const KanbanColumn = memo(function KanbanColumn({
                 aria-pressed={selection.someSelected}
                 aria-busy={selection.loading || undefined}
                 className={cn(
-                  "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors",
+                  "touch-target-40 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors",
                   selection.someSelected
                     ? "text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/10"
                     : "text-[var(--text-muted)] hover:bg-[var(--glass-bg-overlay)] hover:text-[var(--text-primary)]",
@@ -256,7 +256,7 @@ export const KanbanColumn = memo(function KanbanColumn({
             <button
               type="button"
               onClick={onAddDeal}
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:text-white"
+              className="touch-target-40 flex h-7 w-7 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] transition-colors hover:text-white"
               onMouseEnter={(e) => {
                 const btn = e.currentTarget
                 btn.style.background = effectiveColor
