@@ -83,7 +83,7 @@ export function TransfersWidget({
     [set, search],
   );
   const layout = useMemo(
-    () => layoutFlows(flows, { maxNodes: 7, rowHeight: 44, gap: 16, minHeight: 220 }),
+    () => layoutFlows(flows, { maxNodes: 7, rowHeight: 44, gap: 16 }),
     [flows],
   );
   const roundTrips = useMemo(() => roundTripRoutes(flows), [flows]);
