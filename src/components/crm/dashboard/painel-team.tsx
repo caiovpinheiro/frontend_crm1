@@ -36,8 +36,10 @@ import type {
 import {
   HEAT_BINS,
   MIN_SERVICE_SAMPLE,
+  ATTENDED_OPEN_LABEL,
   attendedEmptyTitle,
   attendedParts,
+  attendedRowText,
   axisDurationLabel,
   axisMaxMs,
   deltaFromTeam,
@@ -419,7 +421,7 @@ function AttendedRanking({
     <PainelCard
       title="Ranking de atendimentos"
       subtitle={teamSubtitle("Conversas do período que passaram pelo atendente", { filtered, notice })}
-      info="Conta a conversa para todo atendente que a recebeu (responsável atual + distribuições). Uma conversa transferida aparece para os dois, então a soma pode passar do total de conversas. 'Encerradas' são as conversas que o atendente encerrou no período: nunca passam do total da barra."
+      info="Conta a conversa para todo atendente que a recebeu (responsável atual + distribuições). Uma conversa transferida aparece para os dois, então a soma pode passar do total de conversas. 'Encerradas no período' são as conversas que o atendente encerrou dentro do período (podem ter começado antes): nunca passam do total da barra. 'Sem encerramento no período' = total − encerradas; não é o estoque atual de conversas abertas."
     >
       {rows.length === 0 ? (
         <PainelEmpty
@@ -434,25 +436,30 @@ function AttendedRanking({
           limit={TOP_N}
           rows={rows.map((r) => {
             const p = attendedParts(r.attended, r.finished);
+            const text = attendedRowText(p);
             return {
               id: r.id,
               label: r.name,
               value: p.total,
               innerValue: p.closed,
-              detail: `${p.closedPct.toLocaleString("pt-BR")}% encerradas`,
+              detail: text.detail,
               display: formatNumber(p.total),
-              displayDetail: `${formatNumber(p.open)} em aberto`,
+              displayDetail: text.displayDetail,
               tip: [
                 r.name,
                 `${formatNumber(p.total)} atendimentos · ${shareLabel(p.total, total)}`,
-                `${formatNumber(p.closed)} encerradas · ${formatNumber(p.open)} em aberto`,
+                ...text.tipLines,
               ],
             };
           })}
           footer={
             <>
-              <LegendSwatch color={color} label="Encerradas" />
-              <LegendSwatch color={color} tone="open" label="Total (em aberto)" />
+              <LegendSwatch color={color} label="Encerradas no período" />
+              <LegendSwatch
+                color={color}
+                tone="open"
+                label={`Total (${ATTENDED_OPEN_LABEL})`}
+              />
               <span className="tabular-nums">
                 {ranked.length} atendentes · {formatNumber(total)} atendimentos
               </span>
