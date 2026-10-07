@@ -45,6 +45,8 @@ export interface InlineFieldEditorProps {
   placeholder?: string;
   /** Quando true, o ícone ✏ fica sempre visível (seção em modo edição ativo) */
   editMode?: boolean;
+  /** Grava neste caminho em vez do valor do card de cima. O corpo continua `{ values }`. */
+  savePath?: string;
 }
 
 async function saveFieldValue(
@@ -52,11 +54,13 @@ async function saveFieldValue(
   entityId: string,
   fieldId: string,
   value: string,
+  savePath?: string,
 ) {
   const path =
-    entityType === "contact"
+    savePath ??
+    (entityType === "contact"
       ? `/api/contacts/${entityId}/custom-fields`
-      : `/api/deals/${entityId}/custom-fields`;
+      : `/api/deals/${entityId}/custom-fields`);
   const res = await fetch(apiUrl(path), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -81,6 +85,7 @@ export function InlineFieldEditor({
   textClassName,
   placeholder = "Adicionar",
   editMode: _editMode = false,
+  savePath,
 }: InlineFieldEditorProps) {
   const qc = useQueryClient();
   const canEditEntity = useCan(
@@ -102,7 +107,7 @@ export function InlineFieldEditor({
   }, [editing]);
 
   const mutation = useMutation({
-    mutationFn: () => saveFieldValue(entityType, entityId, fieldId, draft),
+    mutationFn: () => saveFieldValue(entityType, entityId, fieldId, draft, savePath),
     onSuccess: () => {
       onSaved?.(draft);
       if (invalidateKeys) {
@@ -226,7 +231,7 @@ export function InlineFieldEditor({
   if (fieldType === "SELECT" && fieldOptions.length > 0) {
     const saveSelect = (v: string) => {
       setDraft(v);
-      void saveFieldValue(entityType, entityId, fieldId, v)
+      void saveFieldValue(entityType, entityId, fieldId, v, savePath)
         .then(() => {
           onSaved?.(v);
           if (invalidateKeys) {
@@ -265,7 +270,7 @@ export function InlineFieldEditor({
             type="button"
             onClick={() => {
               setDraft(opt);
-              void saveFieldValue(entityType, entityId, fieldId, opt)
+              void saveFieldValue(entityType, entityId, fieldId, opt, savePath)
                 .then(() => {
                   onSaved?.(opt);
                   if (invalidateKeys) {
