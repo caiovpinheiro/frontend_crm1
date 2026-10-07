@@ -40,6 +40,10 @@ export type FlowLayout = {
 
 export type FlowSide = { id: string; name: string; total: number };
 
+/** Altura do diagrama: proporcional ao número de nós, entre estes limites (px). */
+export const FLOW_MIN_HEIGHT = 160;
+export const FLOW_MAX_HEIGHT = 480;
+
 /** Mantém os `max` maiores de cada lado; o resto vira "Outros". */
 export function collapseFlows(
   flows: PainelTransferFlow[],
@@ -104,17 +108,23 @@ export function layoutFlows(
     rowHeight?: number;
     gap?: number;
     minHeight?: number;
+    maxHeight?: number;
   } = {},
 ): FlowLayout {
   const maxNodes = opts.maxNodes ?? 7;
   const rowHeight = opts.rowHeight ?? 40;
-  const gap = opts.gap ?? 10;
   const collapsed = collapseFlows(flows, maxNodes);
   const srcSide = sides(collapsed, "from");
   const dstSide = sides(collapsed, "to");
   const total = collapsed.reduce((acc, f) => acc + f.count, 0);
   const rows = Math.max(srcSide.length, dstSide.length, 1);
-  const height = Math.max(opts.minHeight ?? 200, rows * rowHeight);
+  // Altura proporcional ao número de nós (antes: mínimo fixo de 220 px, que com
+  // 2 transferências ainda escalava até ~400 px de tela).
+  const minHeight = opts.minHeight ?? FLOW_MIN_HEIGHT;
+  const maxHeight = Math.max(minHeight, opts.maxHeight ?? FLOW_MAX_HEIGHT);
+  const height = Math.min(maxHeight, Math.max(minHeight, rows * rowHeight));
+  // Com muitos nós o espaço entre eles não pode comer a altura toda.
+  const gap = Math.min(opts.gap ?? 10, Math.floor((height * 0.4) / Math.max(1, rows - 1)));
   if (total === 0)
     return { sources: [], targets: [], links: [], height, total: 0 };
 
@@ -172,6 +182,47 @@ export function layoutFlows(
     };
   });
   return { sources, targets, links, height, total };
+}
+
+/** Abaixo desta largura (px) o diagrama empilha os rótulos e reserva uma coluna menor. */
+export const SANKEY_COMPACT_BELOW = 560;
+
+export type SankeyGeometry = {
+  /** Largura do viewBox (1 unidade = 1 px: o texto não é escalado). */
+  width: number;
+  /** Largura reservada para os rótulos de cada lado. */
+  labelW: number;
+  barW: number;
+  /** Fim da barra de origem / início da barra de destino. */
+  x0: number;
+  x1: number;
+  /** Estreito: nome e contagem em duas linhas, nome mais curto. */
+  compact: boolean;
+  /** Máximo de caracteres do nome antes de cortar com "…". */
+  nameChars: number;
+};
+
+/**
+ * Geometria horizontal do diagrama a partir da largura do container. No celular
+ * (< 560 px) os dois lados reservam uma coluna proporcional (~30%) para o nome,
+ * com a contagem numa 2ª linha; sem isso, o lado "PARA" ficava fora da tela.
+ */
+export function sankeyGeometry(containerWidth: number): SankeyGeometry {
+  const raw = Number.isFinite(containerWidth) ? Math.round(containerWidth) : 720;
+  const compact = raw < SANKEY_COMPACT_BELOW;
+  const width = compact ? Math.max(280, raw) : Math.min(960, raw);
+  const barW = 6;
+  const gap = 8;
+  const labelW = compact ? Math.max(76, Math.min(128, Math.round(width * 0.3))) : 170;
+  return {
+    width,
+    labelW,
+    barW,
+    x0: labelW + gap + barW,
+    x1: width - labelW - gap - barW,
+    compact,
+    nameChars: compact ? Math.max(8, Math.floor(labelW / 6.6)) : 24,
+  };
 }
 
 /** Caminho SVG de uma faixa (curva cúbica horizontal). */

@@ -93,8 +93,30 @@ export type ConversationUpdatedEvent<TCard = unknown> = {
   closedAt?: string | null;
   followUpAt?: string | null;
   assignedToId?: string | null;
-  assignedTo?: { type?: string | null } | null;
+  /**
+   * Responsável. `type` (HUMAN/AI) decide a aba; `id`/`name`/`avatarUrl` vêm
+   * em atribuição/transferência (backend novo) — backend antigo manda só `type`.
+   */
+  assignedTo?: {
+    type?: string | null;
+    id?: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+  /** Departamento atual (`null` = sem departamento). Atribuição/transferência. */
+  departmentId?: string | null;
+  /** Responsável antes da troca (`null` = estava sem). Atribuição/transferência. */
+  previousAssignedToId?: string | null;
   unreadCount?: number;
+  /** ISO da última mensagem de chat. */
+  lastMessageAt?: string | null;
+  /** Prévia da última mensagem, quando o publicador a tem (aditivo). */
+  lastMessagePreview?: {
+    content?: string | null;
+    messageType?: string | null;
+    mediaUrl?: string | null;
+    direction?: string | null;
+  } | null;
   whatsappCallConsentStatus?: string;
   card?: TCard;
   cardOmitted?: "hidden" | "budget";
@@ -263,6 +285,14 @@ export type DealMovedEvent = {
   toStageId: string;
   position: number;
   updatedAt: string;
+  /**
+   * Responsável atual do negócio (`null` = sem responsável). Aditivo: backend
+   * antigo não manda — sem ele o cliente não decide visibilidade por dono.
+   */
+  ownerId?: string | null;
+  /** Unidade/departamento do negócio. Aditivo (backend novo). */
+  orgUnitId?: string | null;
+  departmentId?: string | null;
   card?: DealMovedCard;
 };
 

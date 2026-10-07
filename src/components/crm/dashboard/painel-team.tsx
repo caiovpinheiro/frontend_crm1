@@ -25,6 +25,7 @@ import {
   formatNumber,
   textMatchesQuery,
 } from "@/features/dashboard-v2/format";
+import { clockLabel, type DashboardClock } from "@/features/dashboard-v2/clock-label";
 import { MEASURE_COLOR, heatFill } from "@/features/dashboard-v2/measure-colors";
 import type {
   PainelBlock,
@@ -35,7 +36,10 @@ import type {
 import {
   HEAT_BINS,
   MIN_SERVICE_SAMPLE,
+  ATTENDED_OPEN_LABEL,
+  attendedEmptyTitle,
   attendedParts,
+  attendedRowText,
   axisDurationLabel,
   axisMaxMs,
   deltaFromTeam,
@@ -349,15 +353,20 @@ export function TeamRankingsWidget({
   filtered,
   notice,
   clock,
-  onClock,
+  periodTotal,
   onRetry,
 }: {
   block: PainelBlock<PainelTeamRanking> | undefined;
   search: string;
   filtered: boolean;
   notice?: string | null;
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  /**
+   * "Total de atendimentos" do período (`volume.started` de /api/painel/service),
+   * quando já carregado: só alimenta a contagem "N sem atendente" do estado vazio.
+   */
+  periodTotal?: number | null;
+  /** Relógio global (cabeçalho): só vira rótulo do ranking de tempo. */
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (teamBlockPending(block)) {
@@ -376,6 +385,7 @@ export function TeamRankingsWidget({
         search={search}
         filtered={filtered}
         notice={notice}
+        periodTotal={periodTotal}
       />
       <ServiceTimeRanking
         rows={block!.data.rows}
@@ -384,7 +394,6 @@ export function TeamRankingsWidget({
         filtered={filtered}
         notice={notice}
         clock={clock}
-        onClock={onClock}
       />
     </div>
   );
@@ -395,11 +404,13 @@ function AttendedRanking({
   search,
   filtered,
   notice,
+  periodTotal,
 }: {
   rows: PainelTeamRankRow[];
   search: string;
   filtered: boolean;
   notice?: string | null;
+  periodTotal?: number | null;
 }) {
   const color = MEASURE_COLOR.conversations;
   const ranked = useMemo(() => rankByAttended(all), [all]);
@@ -410,10 +421,13 @@ function AttendedRanking({
     <PainelCard
       title="Ranking de atendimentos"
       subtitle={teamSubtitle("Conversas do período que passaram pelo atendente", { filtered, notice })}
-      info="Conta a conversa para todo atendente que a recebeu (responsável atual + distribuições). Uma conversa transferida aparece para os dois, então a soma pode passar do total de conversas. 'Encerradas' são as conversas que o atendente encerrou no período: nunca passam do total da barra."
+      info="Conta a conversa para todo atendente que a recebeu (responsável atual + distribuições). Uma conversa transferida aparece para os dois, então a soma pode passar do total de conversas. 'Encerradas no período' são as conversas que o atendente encerrou dentro do período (podem ter começado antes): nunca passam do total da barra. 'Sem encerramento no período' = total − encerradas; não é o estoque atual de conversas abertas."
     >
       {rows.length === 0 ? (
-        <PainelEmpty embedded title="Não há atendimentos no período" />
+        <PainelEmpty
+          embedded
+          title={attendedEmptyTitle({ total: periodTotal, attributed: total, filtered })}
+        />
       ) : (
         <RankBarList
           variant="rank"
@@ -422,25 +436,30 @@ function AttendedRanking({
           limit={TOP_N}
           rows={rows.map((r) => {
             const p = attendedParts(r.attended, r.finished);
+            const text = attendedRowText(p);
             return {
               id: r.id,
               label: r.name,
               value: p.total,
               innerValue: p.closed,
-              detail: `${p.closedPct.toLocaleString("pt-BR")}% encerradas`,
+              detail: text.detail,
               display: formatNumber(p.total),
-              displayDetail: `${formatNumber(p.open)} em aberto`,
+              displayDetail: text.displayDetail,
               tip: [
                 r.name,
                 `${formatNumber(p.total)} atendimentos · ${shareLabel(p.total, total)}`,
-                `${formatNumber(p.closed)} encerradas · ${formatNumber(p.open)} em aberto`,
+                ...text.tipLines,
               ],
             };
           })}
           footer={
             <>
-              <LegendSwatch color={color} label="Encerradas" />
-              <LegendSwatch color={color} tone="open" label="Total (em aberto)" />
+              <LegendSwatch color={color} label="Encerradas no período" />
+              <LegendSwatch
+                color={color}
+                tone="open"
+                label={`Total (${ATTENDED_OPEN_LABEL})`}
+              />
               <span className="tabular-nums">
                 {ranked.length} atendentes · {formatNumber(total)} atendimentos
               </span>
@@ -459,15 +478,13 @@ function ServiceTimeRanking({
   filtered,
   notice,
   clock,
-  onClock,
 }: {
   rows: PainelTeamRankRow[];
   capped: boolean;
   search: string;
   filtered: boolean;
   notice?: string | null;
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  clock: DashboardClock;
 }) {
   const color = MEASURE_COLOR.time;
   const [order, setOrder] = useState<"fast" | "slow">("fast");
@@ -495,20 +512,11 @@ function ServiceTimeRanking({
               { value: "slow", label: "Lentos" },
             ]}
           />
-          <SegmentedToggle
-            label="Relógio"
-            value={clock}
-            onChange={onClock}
-            options={[
-              { value: "business", label: "Comercial" },
-              { value: "elapsed", label: "Corrido" },
-            ]}
-          />
         </div>
       }
       title="Ranking de tempo médio de atendimento"
       subtitle={teamSubtitle(
-        `Abertura → encerramento · relógio ${clock === "business" ? "comercial" : "corrido"}`,
+        `Abertura → encerramento · ${clockLabel(clock)}`,
         { filtered, notice },
       )}
       info={`Tempo médio entre abrir e encerrar as conversas encerradas no período, creditado a quem estava responsável no encerramento. Entra quem encerrou ao menos ${MIN_SERVICE_SAMPLE} conversas. Ponto cheio = média, ponto vazado = mediana; a linha vertical marca a média da equipe.`}

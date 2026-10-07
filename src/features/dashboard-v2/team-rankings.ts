@@ -2,6 +2,7 @@
  * Regras puras dos gráficos de Equipe (aba Atendimentos).
  */
 
+import { formatNumber } from "./format";
 import type { PainelDeptHourRow, PainelTeamRankRow } from "./painel-api";
 
 /** Mínimo de conversas encerradas para entrar no ranking de tempo. */
@@ -117,6 +118,54 @@ export function attendedParts(attended: number, finished: number): AttendedParts
   const closed = Math.min(total, Math.max(0, finished));
   const closedPct = total > 0 ? Math.round((closed / total) * 1000) / 10 : 0;
   return { total, closed, open: total - closed, closedPct };
+}
+
+/** Conversas do período sem atendente: total do período − soma atribuída. */
+export function unassignedCount(total: number | null | undefined, attributed: number): number {
+  if (total == null || !Number.isFinite(total)) return 0;
+  return Math.max(0, Math.round(total) - attributed);
+}
+
+/**
+ * Título do estado vazio do ranking de atendimentos. `total` = "Total de
+ * atendimentos" do período (`volume.started` de /api/painel/service). Com filtro
+ * de departamento/usuário da aba o total não é comparável: sem a contagem.
+ */
+export function attendedEmptyTitle(opts: {
+  total: number | null | undefined;
+  attributed: number;
+  filtered: boolean;
+}): string {
+  const left = unassignedCount(opts.total, opts.attributed);
+  if (!opts.filtered && opts.attributed === 0 && left > 0) {
+    return `Nenhum atendimento com atendente no período (${formatNumber(left)} sem atendente)`;
+  }
+  return "Não há atendimentos no período";
+}
+
+/**
+ * O que o número "em aberto" do ranking é: `attended − encerradas`, onde
+ * `attended` = conversas INICIADAS no período que passaram pelo atendente e
+ * `finished` = conversas ENCERRADAS no período com ele como responsável. As duas
+ * bases são diferentes (data de início × data de encerramento), então a diferença
+ * é "sem encerramento no período" — NÃO é o estoque atual de conversas abertas.
+ */
+export const ATTENDED_OPEN_LABEL = "sem encerramento no período";
+
+/** Textos de uma linha do ranking de atendimentos (barra, 2ª linha e balão). */
+export function attendedRowText(parts: AttendedParts): {
+  detail: string;
+  displayDetail: string;
+  tipLines: string[];
+} {
+  return {
+    detail: `${parts.closedPct.toLocaleString("pt-BR")}% encerradas no período`,
+    displayDetail: `${formatNumber(parts.open)} sem encerr.`,
+    tipLines: [
+      `${formatNumber(parts.closed)} encerradas no período`,
+      `${formatNumber(parts.open)} ${ATTENDED_OPEN_LABEL}`,
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------

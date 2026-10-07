@@ -20,6 +20,7 @@ import { PipelineHeader } from "@/components/crm/pipeline-header";
 import { PageActionsMenu, type PageActionsMenuItem } from "@/components/crm/page-toolbar";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useCan } from "@/hooks/use-my-permissions";
+import { useViewerScopeSync } from "@/hooks/use-viewer-scope-sync";
 import type { DealDetail } from "@/components/crm/deal-detail-panel";
 import { pickTrackedAttribution } from "@/components/crm/tracked-info-section";
 import { FieldConfigPanel } from "@/components/crm/fields/field-config-panel";
@@ -264,6 +265,8 @@ export function SalesHubHost({ showPipelineName = false }: SalesHubHostProps = {
   });
 
   usePipelineRealtime(canFetch);
+  // "Só os meus": o board tira o negócio de outro responsável por evento.
+  useViewerScopeSync(canFetch);
 
   const queryClient = useQueryClient();
 
