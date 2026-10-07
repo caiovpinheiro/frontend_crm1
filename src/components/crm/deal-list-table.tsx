@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 
 import { DataView, DataRow } from "@/components/automations/data-view";
 import type { CardsTableView } from "@/components/automations/view-toggle";
@@ -31,6 +32,8 @@ export type DealListColumnKey =
 
 export interface DealListRow {
   id: string;
+  /** Número sequencial do negócio — vira `?deal=` no link da linha. */
+  number?: number | null;
   dealTitle: string;
   contactName: string;
   contactInitials: string;
@@ -85,7 +88,6 @@ interface DealListTableProps {
   deals: DealListRow[];
   statusTab?: DealListTab;
   visibleColumns?: DealListColumnKey[];
-  onRowClick?: (id: string) => void;
   className?: string;
   /** Seleção controlada (ações em massa na Lista). */
   selectedIds?: Set<string>;
@@ -122,6 +124,14 @@ const statusBadge: Record<
   LOST: { variant: "lead", label: "Perdido" },
 };
 
+/** Mesma URL do clique simples: o kanban abre o negócio em `?deal=`. */
+function dealListOpenHref(number: number | null | undefined): string {
+  if (typeof number === "number" && Number.isFinite(number)) {
+    return `/pipeline?deal=${encodeURIComponent(String(number))}`;
+  }
+  return "/pipeline";
+}
+
 function resolveColumns(keys?: DealListColumnKey[]) {
   const ordered = keys?.length
     ? DEAL_LIST_COLUMNS.filter((c) => keys.includes(c.key) || c.locked)
@@ -138,7 +148,6 @@ export function DealListTable({
   deals,
   statusTab = "abertos",
   visibleColumns,
-  onRowClick,
   className,
   selectedIds,
   onSelectionChange,
@@ -326,32 +335,40 @@ export function DealListTable({
             return (
               <DataRow
                 key={d.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => onRowClick?.(d.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onRowClick?.(d.id);
-                  }
-                }}
                 className={cn(
                   "group cursor-pointer",
                   isChecked && "border-primary bg-primary/10",
                 )}
               >
-                <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                {/* Link real: clique simples segue no app; Ctrl/Cmd, Shift e o
+                    botão do meio abrem a mesma URL em outra aba. O checkbox
+                    fica fora do <a> para a seleção em massa não navegar. */}
+                <Link
+                  href={dealListOpenHref(d.number)}
+                  prefetch={false}
+                  aria-label={`Abrir negócio ${d.dealTitle}`}
+                  className="z-0 row-start-1 grid min-w-0 items-center gap-3 rounded-[inherit] text-inherit no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  style={{ gridColumn: "1 / -1", gridRow: 1, gridTemplateColumns: gridTemplate }}
+                >
+                  <span aria-hidden="true" />
+                  {columns.map((col) => (
+                    <div key={col.key} className="min-w-0">
+                      {renderCell(d, col.key)}
+                    </div>
+                  ))}
+                </Link>
+                <span
+                  className="relative z-10 flex items-center"
+                  style={{ gridColumn: 1, gridRow: 1 }}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
                   <CheckboxGlass
                     checked={isChecked}
                     onChange={() => toggleOne(d.id)}
                     aria-label={`Selecionar ${d.dealTitle}`}
                   />
                 </span>
-                {columns.map((col) => (
-                  <div key={col.key} className="min-w-0">
-                    {renderCell(d, col.key)}
-                  </div>
-                ))}
               </DataRow>
             );
           })

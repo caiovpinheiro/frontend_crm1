@@ -437,10 +437,6 @@ export default function V2PipelineListClientPage() {
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
             view={view}
-            onRowClick={(id) => {
-              const item = items.find((d) => d.id === id);
-              openDeal(id, item?.number);
-            }}
           />
         )}
 
