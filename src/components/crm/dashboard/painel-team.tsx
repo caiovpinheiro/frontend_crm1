@@ -36,6 +36,7 @@ import type {
 import {
   HEAT_BINS,
   MIN_SERVICE_SAMPLE,
+  attendedEmptyTitle,
   attendedParts,
   axisDurationLabel,
   axisMaxMs,
@@ -350,12 +351,18 @@ export function TeamRankingsWidget({
   filtered,
   notice,
   clock,
+  periodTotal,
   onRetry,
 }: {
   block: PainelBlock<PainelTeamRanking> | undefined;
   search: string;
   filtered: boolean;
   notice?: string | null;
+  /**
+   * "Total de atendimentos" do período (`volume.started` de /api/painel/service),
+   * quando já carregado: só alimenta a contagem "N sem atendente" do estado vazio.
+   */
+  periodTotal?: number | null;
   /** Relógio global (cabeçalho): só vira rótulo do ranking de tempo. */
   clock: DashboardClock;
   onRetry: () => void;
@@ -376,6 +383,7 @@ export function TeamRankingsWidget({
         search={search}
         filtered={filtered}
         notice={notice}
+        periodTotal={periodTotal}
       />
       <ServiceTimeRanking
         rows={block!.data.rows}
@@ -394,11 +402,13 @@ function AttendedRanking({
   search,
   filtered,
   notice,
+  periodTotal,
 }: {
   rows: PainelTeamRankRow[];
   search: string;
   filtered: boolean;
   notice?: string | null;
+  periodTotal?: number | null;
 }) {
   const color = MEASURE_COLOR.conversations;
   const ranked = useMemo(() => rankByAttended(all), [all]);
@@ -412,7 +422,10 @@ function AttendedRanking({
       info="Conta a conversa para todo atendente que a recebeu (responsável atual + distribuições). Uma conversa transferida aparece para os dois, então a soma pode passar do total de conversas. 'Encerradas' são as conversas que o atendente encerrou no período: nunca passam do total da barra."
     >
       {rows.length === 0 ? (
-        <PainelEmpty embedded title="Não há atendimentos no período" />
+        <PainelEmpty
+          embedded
+          title={attendedEmptyTitle({ total: periodTotal, attributed: total, filtered })}
+        />
       ) : (
         <RankBarList
           variant="rank"

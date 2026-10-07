@@ -808,6 +808,10 @@ function ManagerHome({
                       search,
                       filtered: teamScope.departmentIds.length + teamScope.userIds.length > 0,
                       clock,
+                      periodTotal:
+                        serviceQuery.data?.volume.ok === true
+                          ? serviceQuery.data.volume.data.started.value
+                          : null,
                     })
                   : renderServiceWidget(
                       id as Exclude<ServiceWidgetId, TeamWidgetId>,
@@ -942,6 +946,8 @@ function renderTeamWidget(
     search: string;
     filtered: boolean;
     clock: "business" | "elapsed";
+    /** Total de atendimentos do período (volume.started), quando já carregado. */
+    periodTotal: number | null;
   },
 ) {
   const { query, search, filtered } = ctx;
@@ -984,6 +990,7 @@ function renderTeamWidget(
       filtered={filtered}
       notice={notice}
       clock={ctx.clock}
+      periodTotal={ctx.periodTotal}
       onRetry={retry}
     />
   );
