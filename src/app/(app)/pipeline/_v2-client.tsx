@@ -171,11 +171,17 @@ interface KanbanV2ClientPageProps {
    * lista fica inerte (legado `(v2)/pipeline/kanban-v2`).
    */
   listHref?: string;
+  /**
+   * `?deal=` já resolvido pelo App Router. Na navegação a partir da lista,
+   * `window.location` ainda não tem o parâmetro no primeiro render.
+   */
+  initialDealId?: string | null;
 }
 
 export default function KanbanV2ClientPage({
   navRail,
   listHref,
+  initialDealId = null,
 }: KanbanV2ClientPageProps = {}) {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
@@ -186,8 +192,8 @@ export default function KanbanV2ClientPage({
   }, []);
 
   const [activeDealId, setActiveDealId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return new URL(window.location.href).searchParams.get("deal");
+    if (typeof window === "undefined") return initialDealId;
+    return new URL(window.location.href).searchParams.get("deal") ?? initialDealId;
   });
 
   // Deep-link: negócio aberto em `?deal=<número>`. History API (sem RSC refetch).
@@ -213,9 +219,9 @@ export default function KanbanV2ClientPage({
   // cobre hydrate SSR sem esperar o frame do useEffect — evita spinner
   // no kanban e depois outro no overlay.
   useLayoutEffect(() => {
-    const d = new URL(window.location.href).searchParams.get("deal");
+    const d = new URL(window.location.href).searchParams.get("deal") ?? initialDealId;
     if (d) setActiveDealId((cur) => cur ?? d);
-  }, []);
+  }, [initialDealId]);
 
   // Voltar/avançar do navegador atualiza o negócio aberto.
   useEffect(() => {

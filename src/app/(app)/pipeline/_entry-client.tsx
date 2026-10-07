@@ -6,7 +6,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { RouteLoading } from "@/components/crm/page-loading";
 import {
@@ -53,22 +53,33 @@ function readServerSnapshot(): string {
  */
 export function PipelineEntryClient({ navRail }: { navRail?: ReactNode }) {
   const router = useRouter();
+  // Fonte da navegação do App Router. `window.location` no snapshot ainda é
+  // a lista durante o clique client-side: sem o `deal` daqui, o efeito abaixo
+  // fazia replace de volta para `/pipeline/list` e a aba nova não ficava aberta.
+  const dealInRouter = useSearchParams().get("deal");
   const entry = useSyncExternalStore(subscribeNoop, readEntrySnapshot, readServerSnapshot);
   const redirectHref = entry.startsWith(REDIRECT_PREFIX)
     ? entry.slice(REDIRECT_PREFIX.length)
     : null;
   const [fallbackKanban, setFallbackKanban] = useState(false);
+  const openDeal = Boolean(dealInRouter);
 
   useLayoutEffect(() => {
+    if (openDeal) return;
+    if (new URLSearchParams(window.location.search).get("deal")) return;
     if (!redirectHref) return;
     router.replace(redirectHref);
     const t = setTimeout(() => setFallbackKanban(true), REDIRECT_FALLBACK_MS);
     return () => clearTimeout(t);
-  }, [redirectHref, router]);
+  }, [openDeal, redirectHref, router]);
 
-  if (entry !== "kanban" && !fallbackKanban) return <RouteLoading />;
+  if (!openDeal && entry !== "kanban" && !fallbackKanban) return <RouteLoading />;
 
   return (
-    <KanbanV2ClientPage navRail={navRail} listHref="/pipeline/list" />
+    <KanbanV2ClientPage
+      navRail={navRail}
+      listHref="/pipeline/list"
+      initialDealId={dealInRouter}
+    />
   );
 }
