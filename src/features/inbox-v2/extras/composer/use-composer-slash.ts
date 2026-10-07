@@ -18,6 +18,7 @@ export function useComposerSlash({
   templateContext,
   conversationId,
   contactId,
+  dealId,
   selectedChannelId,
   conversationChannelId,
   disabled,
@@ -32,6 +33,7 @@ export function useComposerSlash({
   | "onChange"
   | "conversationId"
   | "contactId"
+  | "dealId"
   | "selectedChannelId"
   | "conversationChannelId"
   | "disabled"
@@ -67,6 +69,7 @@ export function useComposerSlash({
     // Conversa/contato atuais — habilitam a seção "Automações" no menu "/".
     conversationId,
     contactId,
+    dealId,
     channelId: selectedChannelId ?? conversationChannelId ?? null,
     // Desabilita o atalho em modo nota (não faz sentido inserir templates ali)
     disabled: disabled || noteMode,

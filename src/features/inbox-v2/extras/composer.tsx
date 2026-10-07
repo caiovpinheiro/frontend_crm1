@@ -402,6 +402,7 @@ export function Composer({
     templateContext,
     conversationId,
     contactId,
+    dealId,
     selectedChannelId,
     conversationChannelId,
     disabled,
@@ -866,6 +867,7 @@ export function Composer({
             inline
             contactId={contactId}
             conversationId={conversationId}
+            dealId={dealId}
           />
         )}
 

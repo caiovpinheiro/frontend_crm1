@@ -299,7 +299,7 @@ async function sendWaFlowRequest(
  */
 async function runAutomationRequest(
   automationId: string,
-  payload: { contactId: string; conversationId?: string | null },
+  payload: { contactId: string; conversationId?: string | null; dealId?: string | null },
 ): Promise<{ automationName?: string }> {
   const res = await fetch(apiUrl(`/api/automations/${automationId}/run`), {
     method: "POST",
@@ -307,6 +307,7 @@ async function runAutomationRequest(
     body: JSON.stringify({
       contactId: payload.contactId,
       conversationId: payload.conversationId ?? undefined,
+      dealId: payload.dealId ?? undefined,
     }),
   });
   const json = (await res.json().catch(() => ({}))) as {
@@ -463,6 +464,8 @@ export type UseSlashMenuOptions = {
    */
   conversationId?: string | null;
   contactId?: string | null;
+  /** Negócio aberto na tela, enviado no disparo manual. */
+  dealId?: string | null;
   /** Canal Cloud API — filtra templates Meta da WABA correta. */
   channelId?: string | null;
   /** Desliga totalmente o atalho (ex.: modo nota, anexo pendente). */
@@ -479,6 +482,7 @@ export function useSlashMenu({
   onInsertMedia,
   conversationId,
   contactId,
+  dealId,
   channelId,
   disabled = false,
 }: UseSlashMenuOptions) {
@@ -834,7 +838,7 @@ export function useSlashMenu({
           toast.error("Sem contato associado a esta conversa.");
           return;
         }
-        void runAutomationRequest(item.id, { contactId, conversationId })
+        void runAutomationRequest(item.id, { contactId, conversationId, dealId })
           .then((res) =>
             toast.success(`Automação disparada: ${res.automationName ?? item.name}`),
           )
@@ -953,7 +957,7 @@ export function useSlashMenu({
         el.setSelectionRange(pos, pos);
       });
     },
-    [draft, setDraft, token, close, onPickMetaTemplate, onSelectOverride, onInsertMedia, templateContext, textareaRef, contactId, conversationId, recordUsage, queryClient],
+    [draft, setDraft, token, close, onPickMetaTemplate, onSelectOverride, onInsertMedia, templateContext, textareaRef, contactId, conversationId, dealId, recordUsage, queryClient],
   );
 
   const applyActive = React.useCallback(() => {
