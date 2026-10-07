@@ -24,7 +24,7 @@ import {
   applyInboxConversationRow,
   findCachedConversationRow,
 } from "./apply-outbound-inbox-card";
-import { messagesKey } from "./use-messages";
+import { scheduleThreadHydrate } from "./thread-hydrate";
 import { findTeamUserById } from "./team-user-cache";
 
 /** Atribuir conversa (assign) — comportamento otimista. */
@@ -48,7 +48,8 @@ export function useAssignConversation() {
             ? null
             : { id: vars.assignedToId, name: "", type: "HUMAN" },
       });
-      qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
+      // 1 GET de mensagens (junta com o do evento SSE da linha do chat).
+      scheduleThreadHydrate(qc, vars.conversationId, { force: true, immediate: true });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
       });
@@ -172,7 +173,8 @@ export function useTransferConversation() {
           id: vars.conversationId,
         }),
       );
-      qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
+      // 1 GET de mensagens (junta com o do evento SSE da linha do chat).
+      scheduleThreadHydrate(qc, vars.conversationId, { force: true, immediate: true });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
       });
@@ -400,6 +402,52 @@ export function shouldSuppressInboxListRefresh(conversationId?: string | null) {
   return conversationId === suppressInboxListRefreshId;
 }
 
+/** `POST /read` em voo por conversa — a abertura não manda o segundo por cima. */
+const readInFlight = new Set<string>();
+
+type ListUnreadCache =
+  | { pages?: Array<{ items?: Array<{ id: string; number?: number | null; unreadCount?: number }> }> }
+  | undefined;
+
+/**
+ * Zera o contador da conversa em TODO cache que o guard lê: páginas da lista
+ * e a cópia individual (`["inbox-conversation", id|número]`) — que os patches
+ * de evento/mutação mantêm e `findCachedConversationRow` prefere. Zerar só a
+ * lista deixava a cópia com as não lidas antigas: o "voltar à conversa" achava
+ * que ainda havia o que marcar e mandava outro POST.
+ */
+function zeroConversationUnread(qc: QueryClient, conversationId: string): void {
+  const want = String(conversationId);
+  qc.setQueriesData<ListUnreadCache>(
+    { queryKey: ["inbox-conversations"] },
+    (old) => {
+      if (!old?.pages) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          items: page.items?.map((item) =>
+            String(item.id) === want || (item.number != null && String(item.number) === want)
+              ? { ...item, unreadCount: 0 }
+              : item,
+          ),
+        })),
+      };
+    },
+  );
+  const known = findCachedConversationRow(qc, want);
+  const keys = new Set<string>([want]);
+  if (known) {
+    keys.add(String(known.id));
+    if (known.number != null) keys.add(String(known.number));
+  }
+  for (const key of keys) {
+    qc.setQueryData<ConversationListRow | undefined>(["inbox-conversation", key], (old) =>
+      old && (old.unreadCount ?? 0) !== 0 ? { ...old, unreadCount: 0 } : old,
+    );
+  }
+}
+
 /** Marcar conversa como lida (swipe / ao abrir). */
 export function useMarkConversationRead() {
   const qc = useQueryClient();
@@ -409,26 +457,25 @@ export function useMarkConversationRead() {
     string,
     { previous: Array<[unknown, unknown]> }
   >({
-    mutationFn: (conversationId) => markConversationRead(conversationId),
+    mutationFn: async (conversationId) => {
+      readInFlight.add(conversationId);
+      try {
+        await markConversationRead(conversationId);
+      } finally {
+        readInFlight.delete(conversationId);
+      }
+    },
     onMutate: async (conversationId) => {
       noteInboxConversationOpened(conversationId);
+      const previous = [
+        ...qc.getQueriesData({ queryKey: ["inbox-conversations"] }),
+        ...qc.getQueriesData({ queryKey: ["inbox-conversation"] }),
+      ];
+      // Zera JÁ (síncrono): dois gatilhos no mesmo tick não mandam dois POST.
+      zeroConversationUnread(qc, conversationId);
       await qc.cancelQueries({ queryKey: ["inbox-conversations"] });
-      const previous = qc.getQueriesData({ queryKey: ["inbox-conversations"] });
-      qc.setQueriesData(
-        { queryKey: ["inbox-conversations"] },
-        (old: { pages?: Array<{ items?: Array<{ id: string; unreadCount?: number }> }> } | undefined) => {
-          if (!old?.pages) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items?.map((item) =>
-                item.id === conversationId ? { ...item, unreadCount: 0 } : item,
-              ),
-            })),
-          };
-        },
-      );
+      // O cancelamento pode devolver a lista ao estado de antes do fetch em voo.
+      zeroConversationUnread(qc, conversationId);
       return { previous };
     },
     onError: (_err, _id, ctx) => {
@@ -472,6 +519,7 @@ export function useMarkConversationReadIfUnread() {
       options?: MutateOptions<void, Error, string, { previous: Array<[unknown, unknown]> }>,
     ): boolean => {
       if (cachedConversationUnread(qc, conversationId) === 0) return false;
+      if (readInFlight.has(conversationId)) return false;
       mutate(conversationId, options);
       return true;
     },

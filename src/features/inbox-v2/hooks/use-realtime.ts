@@ -1263,8 +1263,17 @@ export function useInboxRealtime(options: {
      * cortam a REDE — o patch local continua.
      */
     function onConversationChanged(raw: unknown) {
-      const payload: ConversationUpdatedPayload = (raw ?? {}) as ConversationUpdatedPayload;
+      let payload: ConversationUpdatedPayload = (raw ?? {}) as ConversationUpdatedPayload;
       const id = payload.conversationId;
+      // Conversa aberta: o usuário está lendo (o host marca como lida a cada
+      // mensagem recebida). Um não lido do evento — ou do card —, que pode ser
+      // anterior à leitura, não ressuscita o contador do item.
+      const reading = Boolean(
+        id && eventTouchesOpenConversation(qc, id, activeRef.current),
+      );
+      if (reading && typeof payload.unreadCount === "number" && payload.unreadCount > 0) {
+        payload = { ...payload, unreadCount: undefined };
+      }
       const network = !shouldSuppressInboxListRefresh(id ?? activeRef.current);
       if (!id) {
         // Sem conversationId não dá pra patchar o card nem o badge.
@@ -1281,10 +1290,11 @@ export function useInboxRealtime(options: {
       try {
         const card = conversationRowFromSsePayload(raw);
         if (card) {
-          applyConversationRowToInboxCaches(
-            qc,
-            overlayConversationUpdated(qc, card, payload),
-          );
+          const row = overlayConversationUpdated(qc, card, payload);
+          if (reading) {
+            row.unreadCount = findCachedConversationRow(qc, id)?.unreadCount ?? 0;
+          }
+          applyConversationRowToInboxCaches(qc, row);
         } else if (payload.cardOmitted === "hidden") {
           removeHiddenConversation(qc, payload);
         } else if (applyConversationUpdatedPatch(qc, payload, userIdRef.current)) {

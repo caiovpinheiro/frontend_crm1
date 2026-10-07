@@ -210,6 +210,18 @@ describe("F1 — conversation_updated (transferência) atualiza o item da lista"
     expect(listFetch).not.toHaveBeenCalled();
   });
 
+  it("não lidas do evento valem para as outras conversas; na aberta (já lida na tela) não ressuscitam o contador", async () => {
+    const todos = mountList(qc, "todos", [row("c1"), row("c2")], listFetch);
+    mountRealtime(qc, "c1");
+
+    emit("conversation_updated", { conversationId: "c1", unreadCount: 3, lastMessageAt: T1 });
+    emit("conversation_updated", { conversationId: "c2", unreadCount: 3, lastMessageAt: T1 });
+    await settle();
+
+    expect(itemsOf(qc, todos).find((r) => r.id === "c1")!.unreadCount).toBe(0);
+    expect(itemsOf(qc, todos).find((r) => r.id === "c2")!.unreadCount).toBe(3);
+  });
+
   it("prévia que vem no evento entra no item", async () => {
     const todos = mountList(qc, "todos", [row("c1")], listFetch);
     mountRealtime(qc, "c1");
