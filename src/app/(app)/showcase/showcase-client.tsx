@@ -50,7 +50,7 @@ import { SwitchGlass } from "@/components/crm/switch-glass"
 import { TabsGlass } from "@/components/crm/tabs-glass"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
 import { TabulationTopWidget } from "@/app/(app)/settings/tabulations/tabulations-dashboard"
-import type { TabulationAnalyticsResponse } from "@/features/dashboard-v2/use-tabulation-analytics"
+import { MOCK_TABULATION_ROWS } from "@/features/dashboard-v2/mock-tabulations"
 
 // ---------------------------------------------------------------------------
 // Helpers de layout
@@ -220,35 +220,6 @@ const MOCK_MESSAGES: Message[] = [
     status: "sent",
   },
 ]
-
-const MOCK_TABULATIONS: TabulationAnalyticsResponse["byTabulation"] = (
-  [
-    ["Provas › Avaliação regimental", "SAC", 19],
-    ["Polo › Aluno de outro polo", "SAC", 17],
-    ["Sem Resposta", "Retenção", 14, 98],
-    ["Acadêmico › Dificuldade no AVA", "SAC", 13],
-    ["Acolhimento › Acolhimento inicial", "Acolhimento", 10],
-    ["Sem Resposta › Alunos inativos", "SAC", 8],
-    ["Acolhimento › Acolhimento de retorno", "Acolhimento", 7],
-    ["Transferencia › Teleatendimento", "SAC", 5],
-    ["Acadêmico › Acesso › Senha do AVA", "SAC", 5],
-    ["Acadêmico › Dp e Adaptação", "SAC", 4],
-    ["Tecnológico › Disciplina online", "SAC", 4],
-    ["Financeiro › Negociação de débito", "SAC", 4],
-    ["Acolhimento › Primeiro contato", "Acolhimento", 3],
-    ["Acadêmico › Dificuldade com prova", "SAC", 3],
-    ["Acadêmico › Pós › Dúvidas gerais", "SAC", 2],
-    ["Secretaria › Emissão de documentos", "SAC", 2],
-  ] as Array<[string, string, number, number?]>
-).map(([path, dept, count, number], i) => ({
-  tabulationId: `tab-${i}`,
-  name: path.split(" › ").pop() ?? path,
-  number: number ?? null,
-  path,
-  departmentId: `dept-${dept}`,
-  departmentName: dept === "SAC" ? "Atendimento - SAC" : dept,
-  count,
-}))
 
 const STAGES = [
   { label: "Novo lead", status: "done" as const },
@@ -760,8 +731,8 @@ export function ShowcaseClient() {
           </Block>
 
           {/* TabulationTopWidget */}
-          <Block title="TabulationTopWidget" usage="Principais tabulações: Por tabulação / Por assunto, top 8 + Outros, valor e % após a barra. Dados de exemplo.">
-            <TabulationTopWidget rows={MOCK_TABULATIONS} onToggleDepartment={() => {}} />
+          <Block title="TabulationTopWidget" usage="Principais tabulações: cor por departamento, barra de participação, chips que filtram e lista por volume com o caminho na 2ª linha. Dados de exemplo.">
+            <TabulationTopWidget rows={MOCK_TABULATION_ROWS} onToggleDepartment={() => {}} />
           </Block>
 
           {/* SessionAlert */}
