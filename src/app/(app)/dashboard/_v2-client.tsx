@@ -96,6 +96,7 @@ import {
   type ServiceWidgetId,
 } from "@/features/dashboard-v2/use-dashboard-widget-order";
 import { useTabulationAnalytics } from "@/features/dashboard-v2/use-tabulation-analytics";
+import { tabulationActorLabel } from "@/features/dashboard-v2/tabulation-view";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
 import { rangeClampedNotice } from "@/features/dashboard-v2/team-rankings";
 import { isBlockUnavailable } from "@/features/dashboard-v2/service-availability";
@@ -879,6 +880,7 @@ function renderTabBoardWidget(
   const logItems = (data?.items ?? []).filter(
     (row) =>
       textMatchesQuery(row.actorName, search) ||
+      textMatchesQuery(tabulationActorLabel(row), search) ||
       textMatchesQuery(row.contactName, search) ||
       textMatchesQuery(row.tabulationPath, search) ||
       textMatchesQuery(row.departmentName, search),
