@@ -87,6 +87,7 @@ import {
   type MoveVars,
 } from "@/features/pipeline-v2/hooks";
 import { boardColumnLoadMore } from "@/features/pipeline-v2/board-column-paging";
+import { useBoardTotalChip } from "@/features/pipeline-v2/board-total-chip";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
@@ -170,11 +171,17 @@ interface KanbanV2ClientPageProps {
    * lista fica inerte (legado `(v2)/pipeline/kanban-v2`).
    */
   listHref?: string;
+  /**
+   * `?deal=` já resolvido pelo App Router. Na navegação a partir da lista,
+   * `window.location` ainda não tem o parâmetro no primeiro render.
+   */
+  initialDealId?: string | null;
 }
 
 export default function KanbanV2ClientPage({
   navRail,
   listHref,
+  initialDealId = null,
 }: KanbanV2ClientPageProps = {}) {
   const router = useRouter();
   const { status: sessionStatus } = useSession();
@@ -185,8 +192,8 @@ export default function KanbanV2ClientPage({
   }, []);
 
   const [activeDealId, setActiveDealId] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return new URL(window.location.href).searchParams.get("deal");
+    if (typeof window === "undefined") return initialDealId;
+    return new URL(window.location.href).searchParams.get("deal") ?? initialDealId;
   });
 
   // Deep-link: negócio aberto em `?deal=<número>`. History API (sem RSC refetch).
@@ -212,9 +219,9 @@ export default function KanbanV2ClientPage({
   // cobre hydrate SSR sem esperar o frame do useEffect — evita spinner
   // no kanban e depois outro no overlay.
   useLayoutEffect(() => {
-    const d = new URL(window.location.href).searchParams.get("deal");
+    const d = new URL(window.location.href).searchParams.get("deal") ?? initialDealId;
     if (d) setActiveDealId((cur) => cur ?? d);
-  }, []);
+  }, [initialDealId]);
 
   // Voltar/avançar do navegador atualiza o negócio aberto.
   useEffect(() => {
@@ -693,6 +700,13 @@ export default function KanbanV2ClientPage({
   const totalsPending = hasServerBoard
     ? boardFiltered.isPending
     : boardNormal.isPending;
+  // "Contando…" só sem total nenhum; com cache, o anterior fica na tela.
+  const totalChip = useBoardTotalChip({
+    pending: totalsPending,
+    total: filteredTotal,
+    pipelineId,
+    status,
+  });
 
   // Contexto para "selecionar todos que batem no filtro" na edição em massa.
   // Permite editar além dos ~100 cards carregados por coluna: o servidor
@@ -1083,8 +1097,13 @@ export default function KanbanV2ClientPage({
                 )}
                 aria-live="polite"
               >
-                {totalsPending ? (
+                {totalChip.counting ? (
                   "Contando…"
+                ) : totalsPending && totalChip.value != null ? (
+                  <>
+                    <CountUpNumber value={totalChip.value} className="tabular-nums" />
+                    {totalChip.value === 1 ? "negócio" : "negócios"}
+                  </>
                 ) : isFiltering &&
                   pipelineTotalUnfiltered != null &&
                   pipelineTotalUnfiltered !== filteredTotal ? (
@@ -2013,7 +2032,7 @@ function CardMoveDropdown({
           onClick={handleOpen}
           // Espelha o botão de transferência de conversa (inbox): pílula
           // ciano sólida, para a ação não passar despercebida no rodapé.
-          className="flex size-7 items-center justify-center rounded-full bg-cyan-500 text-white shadow-[0_2px_8px_rgba(6,182,212,0.35)] transition-all hover:bg-cyan-600 disabled:cursor-wait disabled:opacity-50"
+          className="touch-target-40 flex size-7 items-center justify-center rounded-full bg-cyan-500 text-white shadow-[0_2px_8px_rgba(6,182,212,0.35)] transition-all hover:bg-cyan-600 disabled:cursor-wait disabled:opacity-50"
         >
           <IconArrowsExchange size={15} stroke={2.2} />
         </button>

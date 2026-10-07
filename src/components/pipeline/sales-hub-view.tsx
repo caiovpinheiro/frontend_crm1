@@ -849,7 +849,7 @@ export function SalesHubView({
 
       <div
         className={cn(
-          "min-h-0 flex-1 overflow-hidden",
+          "relative min-h-0 flex-1 overflow-hidden",
           // Grid estável (evita flex↔grid) + transition de colunas ao
           // abrir/fechar chat ou aside — sem thrash nos cards da fila.
           // Sempre split no desktop (fila ~300px + chat): evita cards
@@ -863,9 +863,15 @@ export function SalesHubView({
           // fechamento só clipe a coluna, sem re-layoutar o CRM inteiro.
           // Entrada e saída: mesma curva, um pouco mais lenta/fluida que o
           // drawer global (500ms / power3.out).
+          //
+          // Tablet (768–1023 px): só 2 tracks — fila (mín. 300px, nunca
+          // espremida) + conversa. O CRM do negócio não ganha track (300 +
+          // 360 não cabem e o chat ia a ~0): vira gaveta sobre a conversa
+          // (ver `<aside>` abaixo). A partir de `lg` volta o grid de 3 tracks.
+          "md:grid-cols-[minmax(300px,34%)_minmax(0,1fr)]",
           detailsOpen && activeDeal
-            ? "md:grid-cols-[300px_minmax(0,1fr)_minmax(360px,360px)]"
-            : "md:grid-cols-[300px_minmax(0,1fr)_minmax(0px,0px)]",
+            ? "lg:grid-cols-[300px_minmax(0,1fr)_minmax(360px,360px)]"
+            : "lg:grid-cols-[300px_minmax(0,1fr)_minmax(0px,0px)]",
         )}
       >
         {/* Coluna 1 — Fila: superfície igual `KanbanColumn`
@@ -1129,10 +1135,12 @@ export function SalesHubView({
               // Só `transform` (sem opacity): ease-out no fade esvaziava o
               // painel no começo da saída e deixava o container “fantasma”.
               "md:w-[360px] md:shrink-0",
+              // Tablet: gaveta sobre a conversa (sem track próprio).
+              "md:max-lg:absolute md:max-lg:inset-y-0 md:max-lg:right-0 md:max-lg:z-30 md:max-lg:w-[min(360px,92%)]",
               "md:transition-transform md:duration-[720ms] md:ease-[cubic-bezier(0.22,1,0.36,1)] md:motion-reduce:transition-none",
               detailsOpen
-                ? "flex border-[var(--glass-border-subtle)] shadow-[var(--glass-shadow-sm)] md:translate-x-0"
-                : "pointer-events-none hidden border-transparent shadow-none md:flex md:translate-x-[100px]",
+                ? "flex border-[var(--glass-border-subtle)] shadow-[var(--glass-shadow-sm)] md:translate-x-0 md:max-lg:shadow-[0_12px_32px_rgba(15,23,42,0.28)]"
+                : "pointer-events-none hidden border-transparent shadow-none md:flex md:translate-x-[100px] md:max-lg:translate-x-[110%]",
             )}
             aria-label="Detalhes do negócio"
             aria-hidden={!detailsOpen}

@@ -150,6 +150,43 @@ export function usePersistentWidth(
   return [v, setAndSave];
 }
 
+/**
+ * Largura que a PESSOA escolheu arrastando o resizer (`null` = nunca mexeu).
+ * Diferente de `usePersistentWidth`, não inventa um default em px: quem usa
+ * decide o padrão (ex.: proporcional à tela).
+ */
+export function useStoredWidth(
+  storageKey: string,
+): [number | null, (v: number) => void] {
+  const [v, setV] = useState<number | null>(null);
+
+  useIsoLayoutEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const n = Number(raw);
+        if (Number.isFinite(n) && n > 0) setV(n);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [storageKey]);
+
+  const setAndSave = useCallback(
+    (next: number) => {
+      setV(next);
+      try {
+        window.localStorage.setItem(storageKey, String(Math.round(next)));
+      } catch {
+        /* ignore */
+      }
+    },
+    [storageKey],
+  );
+
+  return [v, setAndSave];
+}
+
 /** Extrai px de classes Tailwind `w-[150px]`. */
 export function parseWidthClass(width: string, fallback = 140): number {
   const m = width.match(/w-\[(\d+)px\]/);

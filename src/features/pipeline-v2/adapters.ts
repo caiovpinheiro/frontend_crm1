@@ -314,6 +314,7 @@ export function toDealListRow(deal: DealListItemDto): DealListRow {
   const ownerName = ownerLabel(deal.owner?.name, deal.owner?.type) || null;
   return {
     id: deal.id,
+    number: deal.number ?? null,
     dealTitle: deal.title || `Negócio #${deal.number ?? deal.id.slice(0, 4)}`,
     contactName,
     contactInitials: avatarInitials(contactName),

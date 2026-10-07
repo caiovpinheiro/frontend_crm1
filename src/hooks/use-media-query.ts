@@ -58,6 +58,20 @@ export function useIsTablet() {
   return useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
 }
 
+/** Layout por faixa: celular (< 768), tablet (768–1023) e desktop (>= 1024). */
+export type ViewportLayout = "mobile" | "tablet" | "desktop";
+
+/**
+ * Faixa de layout atual. Mesmos breakpoints de `useIsMobile/useIsTablet/
+ * useIsDesktop`; aposta `desktop` no SSR (ver `useIsDesktop`).
+ */
+export function useViewportLayout(): ViewportLayout {
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true);
+  const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1023px)");
+  if (isDesktop) return "desktop";
+  return isTablet ? "tablet" : "mobile";
+}
+
 // Default `true`: CRM e' primariamente desktop. Sem esse default, no F5
 // o SSR renderiza mobile (`false`) e o cliente pinta 1 frame de layout
 // mobile (coluna unica, sem chat/aside) antes do useLayoutEffect flipar

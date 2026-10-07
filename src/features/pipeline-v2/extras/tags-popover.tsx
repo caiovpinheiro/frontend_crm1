@@ -228,7 +228,7 @@ export function TagsPopover({
         type="button"
         disabled={disabled || !dealId}
         onClick={toggle}
-        className="inline-flex shrink-0"
+        className="touch-target-40 inline-flex shrink-0 items-center justify-center"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
