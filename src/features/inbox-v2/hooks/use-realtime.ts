@@ -789,6 +789,14 @@ function assignedToFromEvent(
   };
 }
 
+function hasPreviewContent(p: Record<string, unknown>): boolean {
+  return (
+    (typeof p.content === "string" && p.content.trim() !== "") ||
+    (typeof p.messageType === "string" && p.messageType !== "") ||
+    (typeof p.mediaUrl === "string" && p.mediaUrl !== "")
+  );
+}
+
 /**
  * Sobrepõe ao `base` os campos que o evento traz (só vêm os que mudaram).
  * Sem `base` no cache não há o que sobrepor — quem chama decide.
@@ -825,7 +833,12 @@ function overlayConversationUpdated(
   if (typeof payload.lastMessageAt === "string") {
     next.lastMessageAt = payload.lastMessageAt;
   }
-  if (isRecord(payload.lastMessagePreview)) {
+  // Prévia sem texto, tipo nem mídia (publicador que não a conhece) não
+  // substitui a que o item já mostra.
+  if (
+    isRecord(payload.lastMessagePreview) &&
+    hasPreviewContent(payload.lastMessagePreview)
+  ) {
     const p = payload.lastMessagePreview;
     const content = typeof p.content === "string" ? p.content : "";
     const direction =
