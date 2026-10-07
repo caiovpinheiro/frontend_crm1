@@ -29,6 +29,7 @@ import { TipScope, tipText } from "@/components/crm/dashboard/chart-tip";
 import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
+import { TABULATION_KPI_GRID_CLASS } from "@/features/dashboard-v2/layout-classes";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { formatNumber, textMatchesQuery } from "@/features/dashboard-v2/format";
@@ -39,6 +40,7 @@ import {
   deptKey,
   splitTabulationPath,
   summarizeTabulations,
+  tabulationActorLabel,
   tabulationDetail,
 } from "@/features/dashboard-v2/tabulation-view";
 import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable-widget-stack";
@@ -102,7 +104,8 @@ export function TabulationKpiWidget({
     <KpiStrip
       aria-label="Indicadores de tabulações"
       cardMinWidth={168}
-      gridClassName="grid grid-cols-2 gap-2.5 xl:grid-cols-4"
+      className="@container min-w-0"
+      gridClassName={TABULATION_KPI_GRID_CLASS}
     >
       <KpiCard
         label="Tabulações no período"
@@ -121,6 +124,7 @@ export function TabulationKpiWidget({
       />
       <KpiCard
         label="Top motivo"
+        wrapValue
         value={data?.byTabulation[0]?.name ?? loadingValue}
         hint={
           data?.byTabulation[0]
@@ -395,7 +399,7 @@ export function TabulationLogWidget({
                   <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
                     {format(parseISO(row.occurredAt), "dd/MM/yy HH:mm", { locale: ptBR })}
                   </td>
-                  <td className="px-4 py-2">{row.actorName ?? "—"}</td>
+                  <td className="px-4 py-2">{tabulationActorLabel(row)}</td>
                   <td className="px-4 py-2">{row.contactName ?? "—"}</td>
                   <td
                     className="max-w-[280px] truncate px-4 py-2"

@@ -33,10 +33,13 @@ import {
   linkPath,
   roundTripRoutes,
   routeKey,
+  sankeyGeometry,
   topNode,
   type FlowLink,
   type FlowNode,
+  type SankeyGeometry,
 } from "@/features/dashboard-v2/transfer-flow";
+import { useElementWidth } from "@/hooks/use-element-width";
 import { cn } from "@/lib/utils";
 
 type Mode = "people" | "departments";
@@ -46,11 +49,6 @@ type Hover =
   | { kind: "node"; side: "from" | "to"; id: string }
   | null;
 
-const W = 720;
-const LABEL_W = 170;
-const BAR_W = 6;
-const X0 = LABEL_W + 8 + BAR_W; // fim da barra de origem
-const X1 = W - LABEL_W - 8 - BAR_W; // início da barra de destino
 const TOP_ROUTES = 8;
 const COLOR = MEASURE_COLOR.transfers;
 
@@ -73,6 +71,8 @@ export function TransfersWidget({
 }) {
   const [mode, setMode] = useState<Mode>("people");
   const [hover, setHover] = useState<Hover>(null);
+  const { ref: flowRef, width: flowWidth } = useElementWidth<HTMLDivElement>(720);
+  const geo = useMemo(() => sankeyGeometry(flowWidth), [flowWidth]);
 
   const set = block?.ok ? block.data[mode] : null;
   const flows = useMemo<PainelTransferFlow[]>(
@@ -83,7 +83,7 @@ export function TransfersWidget({
     [set, search],
   );
   const layout = useMemo(
-    () => layoutFlows(flows, { maxNodes: 7, rowHeight: 44, gap: 16, minHeight: 220 }),
+    () => layoutFlows(flows, { maxNodes: 7, rowHeight: 44, gap: 16 }),
     [flows],
   );
   const roundTrips = useMemo(() => roundTripRoutes(flows), [flows]);
@@ -190,10 +190,17 @@ export function TransfersWidget({
                 <span>De ({noun})</span>
                 <span>Para ({noun})</span>
               </p>
-              <div className="w-full overflow-x-auto" onMouseLeave={() => setHover(null)}>
+              <div
+                ref={flowRef}
+                className="w-full overflow-x-auto"
+                onMouseLeave={() => setHover(null)}
+              >
                 <svg
-                  viewBox={`0 0 ${W} ${layout.height}`}
-                  className="block h-auto w-full min-w-[540px]"
+                  viewBox={`0 0 ${geo.width} ${layout.height}`}
+                  width={geo.width}
+                  height={layout.height}
+                  data-sankey={geo.compact ? "compact" : "wide"}
+                  className="mx-auto block h-auto max-w-full"
                   role="img"
                   aria-label={`Fluxo de transferências por ${noun}. O detalhe está na lista de principais rotas.`}
                 >
@@ -203,6 +210,7 @@ export function TransfersWidget({
                       return (
                         <LinkBand
                           key={key}
+                          geo={geo}
                           link={l}
                           top={key === topKey}
                           lit={linkLit(l)}
@@ -220,6 +228,7 @@ export function TransfersWidget({
                   {layout.sources.map((n) => (
                     <NodeMark
                       key={`s-${n.id}`}
+                      geo={geo}
                       node={n}
                       side="from"
                       total={total}
@@ -230,6 +239,7 @@ export function TransfersWidget({
                   {layout.targets.map((n) => (
                     <NodeMark
                       key={`t-${n.id}`}
+                      geo={geo}
                       node={n}
                       side="to"
                       total={total}
@@ -316,12 +326,14 @@ export function TransfersWidget({
 }
 
 function LinkBand({
+  geo,
   link,
   top,
   lit,
   tip,
   onEnter,
 }: {
+  geo: SankeyGeometry;
   link: FlowLink;
   top: boolean;
   lit: boolean | null;
@@ -333,7 +345,7 @@ function LinkBand({
   const opacity = lit === null ? (top ? 0.5 : other ? 0.12 : 0.24) : lit ? 0.66 : 0.07;
   return (
     <path
-      d={linkPath(link, X0, X1)}
+      d={linkPath(link, geo.x0, geo.x1)}
       fill={other ? "var(--muted-foreground)" : COLOR}
       fillOpacity={opacity}
       stroke="var(--card)"
@@ -346,12 +358,14 @@ function LinkBand({
 }
 
 function NodeMark({
+  geo,
   node,
   side,
   total,
   lit,
   onEnter,
 }: {
+  geo: SankeyGeometry;
   node: FlowNode;
   side: "from" | "to";
   total: number;
@@ -359,9 +373,10 @@ function NodeMark({
   onEnter: () => void;
 }) {
   const other = node.id === OTHER_NODE_ID;
-  const barX = side === "from" ? X0 - BAR_W : X1;
+  const barX = side === "from" ? geo.x0 - geo.barW : geo.x1;
   const cy = node.y + node.h / 2;
-  const textX = side === "from" ? barX - 8 : barX + BAR_W + 8;
+  const textX = side === "from" ? barX - 8 : barX + geo.barW + 8;
+  const counts = `${formatNumber(node.total)} · ${shareLabel(node.total, total)}`;
   return (
     <g
       className="cursor-pointer"
@@ -377,31 +392,58 @@ function NodeMark({
       <rect
         x={side === "from" ? 0 : barX}
         y={node.y - 4}
-        width={LABEL_W + BAR_W + 8}
+        width={geo.labelW + geo.barW + 8}
         height={Math.max(node.h + 8, 20)}
         fill="transparent"
       />
+      <title>{node.name}</title>
       <rect
         x={barX}
         y={node.y}
-        width={BAR_W}
+        width={geo.barW}
         height={Math.max(2, node.h)}
         rx={2}
         fill={other ? "var(--muted-foreground)" : COLOR}
       />
-      <text
-        x={textX}
-        y={cy}
-        textAnchor={side === "from" ? "end" : "start"}
-        dominantBaseline="central"
-        className="fill-foreground"
-        style={{ fontSize: 12, fontWeight: 600 }}
-      >
-        {short(node.name)}
-        <tspan className="fill-muted-foreground" style={{ fontSize: 11, fontWeight: 400 }} dx={6}>
-          {formatNumber(node.total)} · {shareLabel(node.total, total)}
-        </tspan>
-      </text>
+      {geo.compact ? (
+        // Estreito: nome e contagem empilhados, cada lado dentro da sua coluna.
+        <>
+          <text
+            x={textX}
+            y={cy - 7}
+            textAnchor={side === "from" ? "end" : "start"}
+            dominantBaseline="central"
+            className="fill-foreground"
+            style={{ fontSize: 12, fontWeight: 600 }}
+          >
+            {short(node.name, geo.nameChars)}
+          </text>
+          <text
+            x={textX}
+            y={cy + 7}
+            textAnchor={side === "from" ? "end" : "start"}
+            dominantBaseline="central"
+            className="fill-muted-foreground"
+            style={{ fontSize: 10.5 }}
+          >
+            {counts}
+          </text>
+        </>
+      ) : (
+        <text
+          x={textX}
+          y={cy}
+          textAnchor={side === "from" ? "end" : "start"}
+          dominantBaseline="central"
+          className="fill-foreground"
+          style={{ fontSize: 12, fontWeight: 600 }}
+        >
+          {short(node.name, geo.nameChars)}
+          <tspan className="fill-muted-foreground" style={{ fontSize: 11, fontWeight: 400 }} dx={6}>
+            {counts}
+          </tspan>
+        </text>
+      )}
     </g>
   );
 }

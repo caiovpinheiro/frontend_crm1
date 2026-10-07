@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 
 import { mockTabulationAnalytics } from "./mock-tabulations";
+import type { TabulationActor } from "./tabulation-view";
 
 export type TabulationAnalyticsResponse = {
   total: number;
@@ -33,6 +34,8 @@ export type TabulationAnalyticsResponse = {
     conversationId: string | null;
     contactName: string | null;
     actorName: string | null;
+    /** Aditivo do backend: quem tabulou (automação/IA/sistema/usuário). */
+    actor?: TabulationActor | null;
     tabulationPath: string | null;
     tabulationNumber?: number | null;
     departmentName: string | null;

@@ -10,6 +10,43 @@ export const PATH_SEPARATOR = " › ";
 export const NO_DEPARTMENT_ID = "__none__";
 export const NO_DEPARTMENT_NAME = "Sem departamento";
 
+/**
+ * Quem fez a tabulação (campo ADITIVO de /api/analytics/tabulations; o backend
+ * atual não manda): usuário humano, automação, agente de IA ou sistema.
+ */
+export type TabulationActor = {
+  kind: "user" | "automation" | "ai_agent" | "system";
+  id: string | null;
+  name: string | null;
+};
+
+/**
+ * Texto da coluna "Agente" do log de tabulações.
+ *  - sem `actor` (backend atual): como sempre, `actorName` ou "—";
+ *  - humano: o nome;
+ *  - automação: "Automação"; IA: "IA · <nome>" (só "IA" sem nome); sistema: "Sistema".
+ */
+export function tabulationActorLabel(item: {
+  actorName: string | null;
+  actor?: TabulationActor | null;
+}): string {
+  const actor = item.actor;
+  if (!actor) return item.actorName ?? "—";
+  switch (actor.kind) {
+    case "automation":
+      return "Automação";
+    case "ai_agent": {
+      const name = (actor.name ?? item.actorName ?? "").trim();
+      return name ? `IA · ${name}` : "IA";
+    }
+    case "system":
+      return "Sistema";
+    case "user":
+    default:
+      return actor.name ?? item.actorName ?? "—";
+  }
+}
+
 export type TabulationRowInput = {
   tabulationId: string;
   name: string;

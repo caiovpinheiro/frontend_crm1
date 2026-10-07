@@ -30,6 +30,8 @@ import { filterOptionsQuery } from "@/components/pipeline/kanban-filters/use-fil
 import { fetchSystemUsageSummary } from "@/features/system-usage/api";
 import type { SystemUsageSummaryResponse } from "@/features/system-usage/types";
 import { useActivityStats } from "@/features/activity-feed/use-activity-stats";
+import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
+import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
@@ -45,6 +47,15 @@ import {
 import type { PainelCustomFieldCard, PainelEventCard } from "./painel-api";
 import type { NegociosCustomCard } from "./use-negocios-grid";
 import { todayRangeISO, type DashboardPipelineOption } from "./use-dashboard-filters";
+import {
+  isBlockPending,
+  isBlockUnavailable,
+  isSectionKnownUnavailable,
+  normalizeRequestedBlocks,
+  rememberUnavailableSections,
+  unavailableBlock,
+  useUnavailableSections,
+} from "./service-availability";
 import {
   SERVICE_HEAVY_SECTIONS,
   SERVICE_REST_SECTIONS,
@@ -217,12 +228,33 @@ async function fetchServiceWaves(
   const acc = emptyServiceResult();
   for (const section of waves) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    const keys = section
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean);
+    // Seção que já voltou sem réplica nesta sessão não é pedida de novo.
+    const live = keys.filter((key) => !isSectionKnownUnavailable(key));
+    for (const key of keys) {
+      if (!live.includes(key)) Object.assign(acc, { [key]: unavailableBlock() });
+    }
+    if (live.length === 0) {
+      onPartial({ ...acc });
+      continue;
+    }
     try {
-      Object.assign(acc, pickDefined(await fetchPainelService({ filters, clock, section, signal })));
+      const response = await fetchPainelService({
+        filters,
+        clock,
+        section: live.join(","),
+        signal,
+      });
+      const { blocks, unavailable } = normalizeRequestedBlocks(live, response);
+      if (unavailable.length) rememberUnavailableSections(unavailable);
+      Object.assign(acc, pickDefined(response), blocks);
     } catch (e) {
       if (signal.aborted) throw e;
       const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
-      for (const key of section.split(",")) {
+      for (const key of live) {
         Object.assign(acc, { [key]: { ok: false, error } });
       }
     }
@@ -301,7 +333,11 @@ export function usePainelService(
   });
 
   // Sem o widget de volume na tela, as ondas seguintes não esperam por ele.
-  const volumeOk = !wantVolume || volume.data?.volume?.ok === true;
+  const volumeOk =
+    !wantVolume ||
+    volume.data?.volume?.ok === true ||
+    // Volume indisponível não pode travar as ondas seguintes.
+    isBlockUnavailable(volume.data?.volume);
   const restArmed = useArmedAfter(live && restSections.length > 0 && volumeOk, REST_ARM_MS);
   const heavyArmed = useArmedAfter(live && heavySections.length > 0 && volumeOk, HEAVY_ARM_MS);
 
@@ -329,15 +365,25 @@ export function usePainelService(
     refetchOnWindowFocus: false,
   });
 
+  const unavailableKeys = useUnavailableSections();
   const data = useMemo(() => {
     if (!volume.data && !rest.data && !heavy.data) return undefined;
-    return {
+    const merged: PainelServiceResult = {
       ...emptyServiceResult(),
       ...pickDefined(volume.data ?? emptyServiceResult()),
       ...pickDefined(rest.data ?? emptyServiceResult()),
       ...pickDefined(heavy.data ?? emptyServiceResult()),
     };
-  }, [volume.data, rest.data, heavy.data]);
+    // Seção já conhecida como indisponível, ainda sem resposta nesta chave
+    // (ex.: trocou o período): aparece como indisponível, não como esqueleto.
+    for (const key of unavailableKeys) {
+      const block = merged[key as keyof PainelServiceResult];
+      if (block && isBlockPending(block)) {
+        Object.assign(merged, { [key]: unavailableBlock() });
+      }
+    }
+    return merged;
+  }, [volume.data, rest.data, heavy.data, unavailableKeys]);
 
   async function retrySection(section: string) {
     const next = await fetchPainelService({ filters, clock, section });
@@ -415,6 +461,20 @@ function pickDefined<T extends Record<string, { ok: boolean; error?: string }>>(
     }
   }
   return out;
+}
+
+/**
+ * Departamentos e usuários que alimentam os filtros da aba Atendimentos. Mudam
+ * raramente: ficam frescos por 5 min. Com a validade curta padrão (30–60 s) e o
+ * `enabled` ligando/desligando a cada troca de aba, voltar para Atendimentos
+ * refazia `GET /api/settings/departments` e `GET /api/users` toda vez.
+ */
+export const DASHBOARD_REFERENCE_STALE_MS = 5 * 60_000;
+
+export function useDashboardReferenceData(enabled = true) {
+  const departments = useDepartments(enabled, { staleTime: DASHBOARD_REFERENCE_STALE_MS });
+  const users = useTeamUsersQuery(enabled, { staleTime: DASHBOARD_REFERENCE_STALE_MS });
+  return { departments, users };
 }
 
 export function useDashboardMe(enabled = true) {

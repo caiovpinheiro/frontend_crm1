@@ -9,7 +9,12 @@ import { NavRail } from "@/components/crm/nav-rail";
 import { STUCK_TIMEOUT_MS } from "@/hooks/use-stuck-timeout";
 import { HeaderTabs, SectionHeader } from "@/components/crm/section-header";
 import { PeriodCalendarButton } from "@/components/crm/period-calendar-button";
-import { PainelBlockError, PainelSkeleton } from "@/components/crm/dashboard/painel-block";
+import { ClockToggle } from "@/components/crm/dashboard/clock-toggle";
+import {
+  PainelBlockError,
+  PainelSkeleton,
+  PainelUnavailableNotice,
+} from "@/components/crm/dashboard/painel-block";
 import { DealStageWidget, PainelDealWidget } from "@/components/crm/dashboard/painel-deals";
 import {
   PainelAgoraWidget,
@@ -34,8 +39,6 @@ import {
   TabulationTopWidget,
 } from "@/app/(app)/settings/tabulations/tabulations-dashboard";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
-import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 
 import { AddDashboardCardDialog } from "@/features/dashboard-v2/components/add-dashboard-card-dialog";
 import { DashboardSearchFilterBar } from "@/features/dashboard-v2/components/dashboard-filters";
@@ -46,6 +49,7 @@ import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable
 import {
   useDashboardFilterOptions,
   useDashboardMe,
+  useDashboardReferenceData,
   usePainelAgora,
   usePainelCustomFields,
   usePainelDeals,
@@ -65,6 +69,7 @@ import {
   createRemoteSliceSaver,
   loadRemoteDashboard,
   readDashboardUiState,
+  readHideInactiveAgents,
   readSavedActorUserIds,
   readSavedDepartmentIds,
   resolveDashboardSlice,
@@ -91,9 +96,17 @@ import {
   type ServiceWidgetId,
 } from "@/features/dashboard-v2/use-dashboard-widget-order";
 import { useTabulationAnalytics } from "@/features/dashboard-v2/use-tabulation-analytics";
+import { tabulationActorLabel } from "@/features/dashboard-v2/tabulation-view";
 import { textMatchesQuery } from "@/features/dashboard-v2/format";
 import { rangeClampedNotice } from "@/features/dashboard-v2/team-rankings";
-import { serviceSectionsFor, teamSectionsFor } from "@/features/dashboard-v2/visible-sections";
+import { isBlockUnavailable } from "@/features/dashboard-v2/service-availability";
+import {
+  countUnavailableSections,
+  serviceSectionsFor,
+  teamSectionsFor,
+  unavailableServiceWidgets,
+  type ServiceSection,
+} from "@/features/dashboard-v2/visible-sections";
 
 const DASHBOARD_TABS = [
   { key: "deals", label: "Negócios" },
@@ -361,6 +374,7 @@ function ManagerHome({
   const [clock, setClock] = useState<"business" | "elapsed">("business");
   const [tabActorUserIds, setTabActorUserIds] = useState<string[]>([]);
   const [tabDepartmentIds, setTabDepartmentIds] = useState<string[]>([]);
+  const [hideInactiveAgents, setHideInactiveAgents] = useState(false);
   const uiScope = useDashboardStorageScope();
   const [uiHydrated, setUiHydrated] = useState(false);
   const uiSaverRef = useRef(createRemoteSliceSaver("ui"));
@@ -396,6 +410,16 @@ function ManagerHome({
   const teamSections = useMemo(() => teamSectionsFor(serviceOrder.order), [serviceOrder.order]);
   const agoraQuery = usePainelAgora(clock, serviceFetch && serviceOrder.order.includes("agora"));
   const serviceQuery = usePainelService(filters, clock, serviceFetch, "full", serviceSections);
+  // Seções que o ambiente não serve (sem réplica de leitura): o card some e um
+  // aviso único conta quantas ficaram de fora.
+  const serviceData = serviceQuery.data;
+  const serviceGone = useMemo(() => {
+    const gone = (section: ServiceSection) => isBlockUnavailable(serviceData?.[section]);
+    return {
+      hiddenIds: new Set(unavailableServiceWidgets(serviceOrder.order, gone)),
+      count: countUnavailableSections(serviceOrder.order, gone),
+    };
+  }, [serviceData, serviceOrder.order]);
   const teamScope = useMemo(
     () => ({ departmentIds: tabDepartmentIds, userIds: tabActorUserIds }),
     [tabDepartmentIds, tabActorUserIds],
@@ -422,8 +446,9 @@ function ManagerHome({
   const usageVisible = grid.hydrated && grid.widgetIds.includes("usage");
   const usageQuery = useSystemUsageToday(tabReady && isDeals && usageVisible);
 
-  const departmentsQuery = useDepartments(tabReady && isService);
-  const usersQuery = useTeamUsersQuery(tabReady && isService);
+  const { departments: departmentsQuery, users: usersQuery } = useDashboardReferenceData(
+    tabReady && isService,
+  );
 
   const hasServiceTabWidgets = serviceOrder.order.some((id) => isTabulationWidgetId(id));
   const tabulationsArmed = useArmedAfter(serviceFetch && serviceQuery.volumeReady, 2_500);
@@ -471,6 +496,7 @@ function ManagerHome({
         if (saved.clock === "business" || saved.clock === "elapsed") setClock(saved.clock);
         setTabActorUserIds(readSavedActorUserIds(saved));
         setTabDepartmentIds(readSavedDepartmentIds(saved));
+        setHideInactiveAgents(readHideInactiveAgents(saved));
       }
       if (picked.source === "remote" && saved) {
         writeDashboardUiState(keyPart, saved);
@@ -501,6 +527,7 @@ function ManagerHome({
       tabDepartmentIds,
       tabActorUserId: tabActorUserIds[0] ?? "",
       tabDepartmentId: tabDepartmentIds[0] ?? "",
+      hideInactiveAgents,
     };
     writeDashboardUiState(uiScope.keyPart, value);
     if (skipUiRemoteEcho.current) {
@@ -511,7 +538,15 @@ function ManagerHome({
       storageKey: scopedKey(DASHBOARD_UI_KEY_PREFIX, uiScope.keyPart),
       value,
     });
-  }, [uiHydrated, uiScope.keyPart, activeTab, clock, tabActorUserIds, tabDepartmentIds]);
+  }, [
+    uiHydrated,
+    uiScope.keyPart,
+    activeTab,
+    clock,
+    tabActorUserIds,
+    tabDepartmentIds,
+    hideInactiveAgents,
+  ]);
 
   // Chrome + widgets as soon as the saved tab hydrates. Painel/service
   // can take minutes — widgets already skeleton; do not hold the page.
@@ -592,9 +627,13 @@ function ManagerHome({
       title="Dashboard"
       searchSlot={filterBar}
       period={
-        <PeriodCalendarButton active={periodActive} align="start">
-          <DashboardPeriodPanel filters={filters} onPatch={patch} />
-        </PeriodCalendarButton>
+        <>
+          <PeriodCalendarButton active={periodActive} align="start">
+            <DashboardPeriodPanel filters={filters} onPatch={patch} />
+          </PeriodCalendarButton>
+          {/* Relógio dos tempos: global da aba, junto do período. */}
+          {isService ? <ClockToggle value={clock} onChange={setClock} /> : null}
+        </>
       }
       actions={
         <HeaderTabs
@@ -738,6 +777,8 @@ function ManagerHome({
                     patch({ pipelineIds: [id], pipelineId: id, stageIds: [] })
                   }
                 />,
+                hideInactiveAgents,
+                setHideInactiveAgents,
               );
             }}
           />
@@ -755,9 +796,11 @@ function ManagerHome({
         </>
       ) : (
         <>
+          <PainelUnavailableNotice count={serviceGone.count} />
           <SortableWidgetStack
             ids={serviceOrder.order}
             labels={SERVICE_LABELS}
+            hiddenIds={serviceGone.hiddenIds}
             onReorder={serviceOrder.reorder}
             organizing={organizing}
             droppableId="dashboard-atendimento"
@@ -780,13 +823,15 @@ function ManagerHome({
                       search,
                       filtered: teamScope.departmentIds.length + teamScope.userIds.length > 0,
                       clock,
-                      onClock: setClock,
+                      periodTotal:
+                        serviceQuery.data?.volume.ok === true
+                          ? serviceQuery.data.volume.data.started.value
+                          : null,
                     })
                   : renderServiceWidget(
                       id as Exclude<ServiceWidgetId, TeamWidgetId>,
                       search,
                       clock,
-                      setClock,
                       agoraQuery,
                       serviceQuery,
                     )
@@ -835,6 +880,7 @@ function renderTabBoardWidget(
   const logItems = (data?.items ?? []).filter(
     (row) =>
       textMatchesQuery(row.actorName, search) ||
+      textMatchesQuery(tabulationActorLabel(row), search) ||
       textMatchesQuery(row.contactName, search) ||
       textMatchesQuery(row.tabulationPath, search) ||
       textMatchesQuery(row.departmentName, search),
@@ -883,6 +929,8 @@ function renderDealWidget(
   pipelineIds?: string[],
   userIds?: string[],
   funnelPicker?: ReactNode,
+  hideInactiveAgents?: boolean,
+  onHideInactiveAgents?: (next: boolean) => void,
 ) {
   if (id === "usage") return null;
   if (query.error && !query.data) {
@@ -904,6 +952,8 @@ function renderDealWidget(
       pipelineIds={pipelineIds}
       userIds={userIds}
       funnelPicker={funnelPicker}
+      hideInactiveAgents={hideInactiveAgents}
+      onHideInactiveAgents={onHideInactiveAgents}
       onRetry={(section) => void query.retrySection(section)}
     />
   );
@@ -916,7 +966,8 @@ function renderTeamWidget(
     search: string;
     filtered: boolean;
     clock: "business" | "elapsed";
-    onClock: (next: "business" | "elapsed") => void;
+    /** Total de atendimentos do período (volume.started), quando já carregado. */
+    periodTotal: number | null;
   },
 ) {
   const { query, search, filtered } = ctx;
@@ -959,7 +1010,7 @@ function renderTeamWidget(
       filtered={filtered}
       notice={notice}
       clock={ctx.clock}
-      onClock={ctx.onClock}
+      periodTotal={ctx.periodTotal}
       onRetry={retry}
     />
   );
@@ -969,7 +1020,6 @@ function renderServiceWidget(
   id: Exclude<ServiceWidgetId, TeamWidgetId>,
   search: string,
   clock: "business" | "elapsed",
-  onClock: (next: "business" | "elapsed") => void,
   agoraQuery: ReturnType<typeof usePainelAgora>,
   serviceQuery: ReturnType<typeof usePainelService>,
 ) {
@@ -978,6 +1028,7 @@ function renderServiceWidget(
       <PainelAgoraWidget
         data={agoraQuery.data}
         error={agoraQuery.error}
+        clock={clock}
         onRetry={() => void agoraQuery.refetch()}
       />
     );
@@ -1001,7 +1052,6 @@ function renderServiceWidget(
       data={serviceQuery.data}
       search={search}
       clock={clock}
-      onClock={onClock}
       onRetry={(section) => void serviceQuery.retrySection(section)}
     />
   );

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { PainelTransferFlow } from "./painel-api";
 import {
+  FLOW_MAX_HEIGHT,
+  FLOW_MIN_HEIGHT,
   OTHER_NODE_ID,
   collapseFlows,
   layoutFlows,
@@ -69,6 +71,42 @@ describe("layoutFlows", () => {
   it("aponta quem mais transferiu e recebeu", () => {
     expect(topNode(flows, "from")?.id).toBe("a");
     expect(topNode(flows, "to")?.id).toBe("x");
+  });
+});
+
+describe("altura do diagrama", () => {
+  it("2 transferências ficam no mínimo de 160 px (antes 200–220)", () => {
+    expect(FLOW_MIN_HEIGHT).toBe(160);
+    expect(layoutFlows([f("a", "x", 1), f("b", "y", 1)]).height).toBe(160);
+    expect(layoutFlows([f("a", "x", 1), f("b", "y", 1)], { rowHeight: 44, gap: 16 }).height).toBe(
+      160,
+    );
+  });
+
+  it("cresce com o número de nós", () => {
+    const nodes = (n: number) =>
+      Array.from({ length: n }, (_, i) => f(`s${i}`, `t${i}`, 5));
+    const h = (n: number) => layoutFlows(nodes(n), { rowHeight: 44, gap: 16 }).height;
+    expect(h(3)).toBe(160);
+    expect(h(5)).toBe(220);
+    expect(h(7)).toBe(308);
+    expect(h(7)).toBeGreaterThan(h(5));
+  });
+
+  it("nunca passa de 480 px, e as faixas continuam com espessura positiva", () => {
+    const many = Array.from({ length: 30 }, (_, i) => f(`s${i}`, `t${i}`, 3));
+    const layout = layoutFlows(many, { maxNodes: 30, rowHeight: 44, gap: 16 });
+    expect(FLOW_MAX_HEIGHT).toBe(480);
+    expect(layout.height).toBe(480);
+    expect(layout.links.every((l) => l.thickness > 0)).toBe(true);
+    // todo nó cabe dentro da altura
+    const last = layout.sources[layout.sources.length - 1]!;
+    expect(last.y + last.h).toBeLessThanOrEqual(layout.height + 1e-6);
+  });
+
+  it("minHeight e maxHeight explícitos continuam valendo", () => {
+    expect(layoutFlows([f("a", "x", 1)], { minHeight: 100 }).height).toBe(100);
+    expect(layoutFlows([f("a", "x", 1)], { minHeight: 300, maxHeight: 200 }).height).toBe(300);
   });
 });
 

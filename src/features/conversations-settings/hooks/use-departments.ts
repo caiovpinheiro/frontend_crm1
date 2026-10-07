@@ -44,12 +44,12 @@ async function fetchDepartments(): Promise<Department[]> {
   return normalizeDepartmentList(await res.json().catch(() => null));
 }
 
-export function useDepartments(enabled = true) {
+export function useDepartments(enabled = true, opts?: { staleTime?: number }) {
   return useQuery<Department[]>({
     queryKey: QUERY_KEY,
     queryFn: fetchDepartments,
     enabled,
-    staleTime: 30_000,
+    staleTime: opts?.staleTime ?? 30_000,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
