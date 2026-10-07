@@ -77,6 +77,12 @@ interface FetchDealsListParams {
    * o parâmetro e continua mandando `total`.
    */
   withTotal?: boolean;
+  /**
+   * `lastInteraction` ordena o recorte inteiro no servidor e só então
+   * pagina. `asc` = mais antigo primeiro; `desc` = mais novo primeiro.
+   */
+  sort?: "lastInteraction";
+  direction?: "asc" | "desc";
   signal?: AbortSignal;
 }
 
@@ -93,6 +99,10 @@ function buildQuery(params: FetchDealsListParams): string {
     sp.set("filters", JSON.stringify(params.filters));
   }
   if (params.withTotal === false) sp.set("withTotal", "0");
+  if (params.sort === "lastInteraction") {
+    sp.set("sort", "lastInteraction");
+    sp.set("direction", params.direction === "asc" ? "asc" : "desc");
+  }
   const s = sp.toString();
   return s ? `?${s}` : "";
 }
