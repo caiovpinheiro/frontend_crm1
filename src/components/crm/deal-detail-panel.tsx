@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { apiUrl } from "@/lib/api"
 import {
   DragDropContext,
   Droppable,
@@ -1509,6 +1511,17 @@ export function DealDetailPanel({
                                         )
                                       })()}
                                     </FieldCard>
+                                    <CardExtensionBlock
+                                      dealId={deal.id}
+                                      contactId={deal.contactId}
+                                      slot={customFieldsSlot}
+                                      overrides={fieldValues}
+                                      onSaved={(fieldId, value) =>
+                                        setFieldValues((prev) => ({ ...prev, [fieldId]: value }))
+                                      }
+                                      compactTitle={crmOnly}
+                                      plain={viewMode !== "compact"}
+                                    />
                                   )}
                                 </div>
                               )}
@@ -1768,6 +1781,132 @@ function HighlightBadge({
 
 /** Cartão que agrupa uma lista densa de FieldRow (estilo Kommo).
  *  Quando `dragHandleProps` é fornecido, exibe alça de arraste no header. */
+type ExtensionDef = {
+  id: string
+  label: string
+  entity: string
+  type: string
+  options: string[]
+}
+
+type ExtensionValue = {
+  fieldId: string
+  value: string | null
+  highlight?: { severity: string; label: string } | null
+}
+
+async function fetchJsonList<T>(path: string): Promise<T[]> {
+  const res = await fetch(apiUrl(path))
+  if (!res.ok) return []
+  const data = await res.json()
+  return Array.isArray(data) ? (data as T[]) : []
+}
+
+function CardExtensionBlock({
+  dealId,
+  contactId,
+  slot,
+  overrides,
+  onSaved,
+  compactTitle,
+  plain,
+}: {
+  dealId: string
+  contactId?: string | null
+  slot?: {
+    fieldId: string
+    value: string | null
+    highlight?: { severity: string; label: string } | null
+    highlightRules?: unknown[] | null
+  }[]
+  overrides: Record<string, string>
+  onSaved: (fieldId: string, value: string) => void
+  compactTitle?: boolean
+  plain?: boolean
+}) {
+  const { data: fields = [] } = useQuery({
+    queryKey: ["custom-fields-card-extension"],
+    queryFn: () => fetchJsonList<ExtensionDef>("/api/custom-fields/card-extension"),
+    staleTime: 30_000,
+  })
+  const needsDeal = fields.some((field) => field.entity === "deal")
+  const needsContact = fields.some((field) => field.entity === "contact")
+  const { data: dealValues = [] } = useQuery({
+    queryKey: ["deal-custom-fields", dealId],
+    queryFn: () => fetchJsonList<ExtensionValue>(`/api/deals/${dealId}/custom-fields`),
+    enabled: needsDeal,
+  })
+  const { data: contactValues = [] } = useQuery({
+    queryKey: ["contact-custom-fields", contactId],
+    queryFn: () => fetchJsonList<ExtensionValue>(`/api/contacts/${contactId}/custom-fields`),
+    enabled: needsContact && !!contactId,
+  })
+
+  if (fields.length === 0) return null
+
+  const slotById = new Map((slot ?? []).map((field) => [field.fieldId, field]))
+  const valueById = new Map<string, ExtensionValue>()
+  for (const row of [...dealValues, ...contactValues]) valueById.set(row.fieldId, row)
+
+  return (
+    <div className="mt-3">
+      <FieldCard title="Extensão" compactTitle={compactTitle} plain={plain}>
+        <div className={plain ? "px-0 pb-2" : "px-4"}>
+          {fields.map((field, index) => {
+            const fromSlot = slotById.get(field.id)
+            const fromApi = valueById.get(field.id)
+            const currentValue = overrides[field.id] ?? fromSlot?.value ?? fromApi?.value ?? null
+            const hl =
+              fromSlot?.highlight ??
+              fromApi?.highlight ??
+              resolveHighlight(currentValue, fromSlot?.highlightRules)
+            const entityType = field.entity === "contact" ? "contact" : "deal"
+            const entityId = entityType === "contact" ? contactId ?? null : dealId
+            return (
+              <div
+                key={field.id}
+                className={cn(
+                  "flex min-w-0 max-w-full items-center justify-between gap-2 py-2 text-sm",
+                  index > 0 && "border-t border-slate-50",
+                )}
+              >
+                <span className="w-[38%] shrink-0 text-[12px] font-medium leading-tight text-slate-500">
+                  {field.label}
+                </span>
+                <div className="min-w-0 max-w-full flex-1">
+                  {hl ? (
+                    <HighlightBadge
+                      severity={hl.severity as "danger" | "success" | "warning" | "info"}
+                      label={hl.label}
+                    />
+                  ) : entityId ? (
+                    <InlineFieldEditor
+                      fieldId={field.id}
+                      fieldType={field.type || "TEXT"}
+                      fieldOptions={field.options ?? []}
+                      value={currentValue}
+                      entityType={entityType}
+                      entityId={entityId}
+                      invalidateKeys={[["deal-detail-v2", dealId]]}
+                      onSaved={(value) => onSaved(field.id, value)}
+                      textClassName="font-display text-[12px] font-semibold text-[var(--text-primary)]"
+                      placeholder="+ Adicionar"
+                    />
+                  ) : (
+                    <span className="block min-w-0 max-w-full break-words font-display text-[12px] font-semibold text-[var(--text-primary)]">
+                      {currentValue || "—"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </FieldCard>
+    </div>
+  )
+}
+
 function FieldCard({
   title,
   titleMeta,
@@ -1811,6 +1950,8 @@ function FieldCard({
           <span className="flex min-w-0 flex-1 items-center gap-1.5 text-slate-600">
             {title === "Contato" ? (
               <IconUser size={16} className="shrink-0 text-orange-500" />
+            ) : title === "Extensão" ? (
+              <IconLayoutList size={16} className="shrink-0 text-[var(--brand-primary)]" />
             ) : (
               <IconBriefcase size={16} className="shrink-0 text-[var(--brand-primary)]" />
             )}
