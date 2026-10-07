@@ -40,6 +40,10 @@ export type FlowLayout = {
 
 export type FlowSide = { id: string; name: string; total: number };
 
+/** Altura do diagrama: proporcional ao número de nós, entre estes limites (px). */
+export const FLOW_MIN_HEIGHT = 160;
+export const FLOW_MAX_HEIGHT = 480;
+
 /** Mantém os `max` maiores de cada lado; o resto vira "Outros". */
 export function collapseFlows(
   flows: PainelTransferFlow[],
@@ -104,17 +108,23 @@ export function layoutFlows(
     rowHeight?: number;
     gap?: number;
     minHeight?: number;
+    maxHeight?: number;
   } = {},
 ): FlowLayout {
   const maxNodes = opts.maxNodes ?? 7;
   const rowHeight = opts.rowHeight ?? 40;
-  const gap = opts.gap ?? 10;
   const collapsed = collapseFlows(flows, maxNodes);
   const srcSide = sides(collapsed, "from");
   const dstSide = sides(collapsed, "to");
   const total = collapsed.reduce((acc, f) => acc + f.count, 0);
   const rows = Math.max(srcSide.length, dstSide.length, 1);
-  const height = Math.max(opts.minHeight ?? 200, rows * rowHeight);
+  // Altura proporcional ao número de nós (antes: mínimo fixo de 220 px, que com
+  // 2 transferências ainda escalava até ~400 px de tela).
+  const minHeight = opts.minHeight ?? FLOW_MIN_HEIGHT;
+  const maxHeight = Math.max(minHeight, opts.maxHeight ?? FLOW_MAX_HEIGHT);
+  const height = Math.min(maxHeight, Math.max(minHeight, rows * rowHeight));
+  // Com muitos nós o espaço entre eles não pode comer a altura toda.
+  const gap = Math.min(opts.gap ?? 10, Math.floor((height * 0.4) / Math.max(1, rows - 1)));
   if (total === 0)
     return { sources: [], targets: [], links: [], height, total: 0 };
 
