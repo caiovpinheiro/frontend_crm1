@@ -450,10 +450,19 @@ export function DealDetailPanel({
   //    grupos → devolve um único bucket com todos os campos (fallback
   //    flat = RN-05/CA-01), preservando o layout atual em grade.
   type SlotItem = NonNullable<typeof customFieldsSlot>[number]
+  const { data: extensionFields = [] } = useQuery({
+    queryKey: ["custom-fields-card-extension"],
+    queryFn: () => fetchJsonList<{ id: string }>("/api/custom-fields/card-extension"),
+    staleTime: 30_000,
+  })
+  const extensionIds = useMemo(
+    () => new Set(extensionFields.map((field) => field.id)),
+    [extensionFields],
+  )
   const customFieldGroups = useMemo<
     Array<{ id: string; title: string | null; collapsedDefault: boolean; fields: SlotItem[] }>
   >(() => {
-    const slot = customFieldsSlot ?? []
+    const slot = (customFieldsSlot ?? []).filter((field) => !extensionIds.has(field.fieldId))
     if (slot.length === 0) return []
     const dealDefs: CustomFieldDef[] = []
     const contactDefs: CustomFieldDef[] = []
@@ -489,7 +498,7 @@ export function DealDetailPanel({
       out.push({ id: "__orphans__", title: "Outros campos", collapsedDefault: false, fields: orphans })
     }
     return out
-  }, [customFieldsSlot, fieldLayoutSections])
+  }, [customFieldsSlot, fieldLayoutSections, extensionIds])
 
   // ── Resize da sidebar do detalhe (drag horizontal) ───────────────
   // Largura persistida em localStorage por operador. Min 280 evita
