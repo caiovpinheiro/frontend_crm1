@@ -25,6 +25,7 @@ import {
   findCachedConversationRow,
 } from "./apply-outbound-inbox-card";
 import { messagesKey } from "./use-messages";
+import { findTeamUserById } from "./team-user-cache";
 
 /** Atribuir conversa (assign) — comportamento otimista. */
 export function useAssignConversation() {
@@ -54,6 +55,66 @@ export function useAssignConversation() {
     },
     onError: (err) => toast.error(err.message || "Falha ao atribuir"),
   });
+}
+
+/**
+ * Estado final da transferência para o card (lista + cache da conversa).
+ * A resposta do POST já traz o responsável COM nome e o departamento — inclusive
+ * o que a distribuição escolheu ao transferir só para um departamento —, então
+ * ela manda; o pedido (`vars`) só vale quando a resposta não diz. Sem objeto do
+ * responsável, o nome vem da equipe em cache (nunca grava nome vazio).
+ */
+function transferredCardFields(
+  qc: QueryClient,
+  vars: { assignedToId?: string | null; departmentId?: string | null },
+  conversation: Partial<ConversationListRow> | null | undefined,
+): Partial<ConversationListRow> {
+  const fields: Partial<ConversationListRow> = {};
+  const existing = findCachedConversationRow(qc, conversation?.id ?? "");
+
+  const assignedToId =
+    conversation?.assignedToId !== undefined
+      ? conversation.assignedToId
+      : vars.assignedToId;
+  if (assignedToId !== undefined) {
+    fields.assignedToId = assignedToId;
+    if (assignedToId == null) {
+      fields.assignedTo = null;
+    } else {
+      const fromResponse =
+        conversation?.assignedTo?.id === assignedToId ? conversation.assignedTo : null;
+      const prev = existing?.assignedTo;
+      const team = findTeamUserById(qc, assignedToId);
+      const name = fromResponse?.name || team?.name || "";
+      fields.assignedTo = {
+        id: assignedToId,
+        name,
+        ...(fromResponse?.email ? { email: fromResponse.email } : {}),
+        avatarUrl: fromResponse?.avatarUrl ?? team?.avatarUrl ?? null,
+        type:
+          fromResponse?.type ??
+          team?.type ??
+          (prev?.id === assignedToId ? prev.type : null) ??
+          "HUMAN",
+      };
+    }
+  }
+
+  const departmentId =
+    conversation?.departmentId !== undefined
+      ? conversation.departmentId
+      : vars.departmentId;
+  if (departmentId !== undefined) {
+    fields.departmentId = departmentId;
+    if (conversation?.department !== undefined) {
+      fields.department = conversation.department;
+    } else if (departmentId == null || existing?.department?.id !== departmentId) {
+      // Departamento mudou e a resposta não descreve o novo: não deixa o
+      // objeto do anterior (nome, exigência de tabulação) no card.
+      fields.department = null;
+    }
+  }
+  return fields;
 }
 
 /**
@@ -103,15 +164,14 @@ export function useTransferConversation() {
         toast.success("Conversa transferida");
       }
 
-      if (vars.assignedToId !== undefined) {
-        applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
-          assignedToId: vars.assignedToId,
-          assignedTo:
-            vars.assignedToId == null
-              ? null
-              : { id: vars.assignedToId, name: "", type: "HUMAN" },
-        });
-      }
+      applyConversationFieldsToInboxCaches(
+        qc,
+        vars.conversationId,
+        transferredCardFields(qc, vars, {
+          ...data.conversation,
+          id: vars.conversationId,
+        }),
+      );
       qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],

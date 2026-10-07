@@ -915,7 +915,9 @@ export default function InboxV2ClientPage({
                 <TransferPopover
                   variant="composer"
                   conversationId={conversationApiId}
-                  currentAssigneeId={activeRow.assignedTo?.id ?? null}
+                  currentAssigneeId={
+                    activeRow.assignedToId ?? activeRow.assignedTo?.id ?? null
+                  }
                   currentDepartmentId={
                     activeRow.departmentId ?? activeRow.department?.id ?? null
                   }
@@ -950,7 +952,7 @@ export default function InboxV2ClientPage({
         contactAsideView={contactAsideView}
         firstDeal={firstDealState}
         conversationId={conversationApiId}
-        conversationAssigneeId={activeRow?.assignedTo?.id ?? null}
+        conversationAssigneeId={activeRow?.assignedToId ?? activeRow?.assignedTo?.id ?? null}
         confirmDialog={confirmDialog}
         conversationTags={activeTags}
         contactId={activeContactId}
