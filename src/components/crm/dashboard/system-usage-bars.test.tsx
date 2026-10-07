@@ -15,7 +15,7 @@ const ROWS = [
 ];
 
 function names() {
-  return screen.getAllByRole("listitem").map((li) => li.querySelector("span span")?.textContent);
+  return screen.getAllByRole("listitem").map((li) => li.querySelector("p span")?.textContent);
 }
 
 describe("SystemUsageBars", () => {
@@ -27,11 +27,25 @@ describe("SystemUsageBars", () => {
     expect(names()).toEqual(["Camys", "Emanuel", "Marcelo"]);
   });
 
-  it("mostra média, escala em horas e alerta só para uso abaixo de 1h", () => {
+  it("mostra a média com rótulo, a diferença por pessoa e o alerta só abaixo de 1h", () => {
     render(<SystemUsageBars rows={ROWS} average={7200} formatValue={formatUsageHours} />);
-    expect(screen.getByText("Média 2h00")).toBeTruthy();
+    expect(screen.getByText("média 2h00")).toBeTruthy();
     expect(screen.getByText("4h42")).toBeTruthy();
-    expect(screen.getByText("5h")).toBeTruthy();
+    expect(screen.getByText("+2h42")).toBeTruthy();
+    expect(screen.getByText("−40min")).toBeTruthy();
     expect(screen.getAllByLabelText("Uso abaixo de 1h")).toHaveLength(1);
+  });
+
+  it("top 10 com 'Ver todos' quando há mais usuários", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: `u${i}`,
+      name: `Pessoa ${String(i).padStart(2, "0")}`,
+      seconds: (12 - i) * 1800,
+    }));
+    render(<SystemUsageBars rows={many} average={9000} formatValue={formatUsageHours} />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(10);
+    fireEvent.click(screen.getByRole("button", { name: "Ver todos (12)" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(12);
+    expect(screen.getByRole("button", { name: "Mostrar top 10" })).toBeTruthy();
   });
 });
