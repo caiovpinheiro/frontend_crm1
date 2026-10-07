@@ -69,6 +69,7 @@ import {
   createRemoteSliceSaver,
   loadRemoteDashboard,
   readDashboardUiState,
+  readHideInactiveAgents,
   readSavedActorUserIds,
   readSavedDepartmentIds,
   resolveDashboardSlice,
@@ -372,6 +373,7 @@ function ManagerHome({
   const [clock, setClock] = useState<"business" | "elapsed">("business");
   const [tabActorUserIds, setTabActorUserIds] = useState<string[]>([]);
   const [tabDepartmentIds, setTabDepartmentIds] = useState<string[]>([]);
+  const [hideInactiveAgents, setHideInactiveAgents] = useState(false);
   const uiScope = useDashboardStorageScope();
   const [uiHydrated, setUiHydrated] = useState(false);
   const uiSaverRef = useRef(createRemoteSliceSaver("ui"));
@@ -493,6 +495,7 @@ function ManagerHome({
         if (saved.clock === "business" || saved.clock === "elapsed") setClock(saved.clock);
         setTabActorUserIds(readSavedActorUserIds(saved));
         setTabDepartmentIds(readSavedDepartmentIds(saved));
+        setHideInactiveAgents(readHideInactiveAgents(saved));
       }
       if (picked.source === "remote" && saved) {
         writeDashboardUiState(keyPart, saved);
@@ -523,6 +526,7 @@ function ManagerHome({
       tabDepartmentIds,
       tabActorUserId: tabActorUserIds[0] ?? "",
       tabDepartmentId: tabDepartmentIds[0] ?? "",
+      hideInactiveAgents,
     };
     writeDashboardUiState(uiScope.keyPart, value);
     if (skipUiRemoteEcho.current) {
@@ -533,7 +537,15 @@ function ManagerHome({
       storageKey: scopedKey(DASHBOARD_UI_KEY_PREFIX, uiScope.keyPart),
       value,
     });
-  }, [uiHydrated, uiScope.keyPart, activeTab, clock, tabActorUserIds, tabDepartmentIds]);
+  }, [
+    uiHydrated,
+    uiScope.keyPart,
+    activeTab,
+    clock,
+    tabActorUserIds,
+    tabDepartmentIds,
+    hideInactiveAgents,
+  ]);
 
   // Chrome + widgets as soon as the saved tab hydrates. Painel/service
   // can take minutes — widgets already skeleton; do not hold the page.
@@ -764,6 +776,8 @@ function ManagerHome({
                     patch({ pipelineIds: [id], pipelineId: id, stageIds: [] })
                   }
                 />,
+                hideInactiveAgents,
+                setHideInactiveAgents,
               );
             }}
           />
@@ -913,6 +927,8 @@ function renderDealWidget(
   pipelineIds?: string[],
   userIds?: string[],
   funnelPicker?: ReactNode,
+  hideInactiveAgents?: boolean,
+  onHideInactiveAgents?: (next: boolean) => void,
 ) {
   if (id === "usage") return null;
   if (query.error && !query.data) {
@@ -934,6 +950,8 @@ function renderDealWidget(
       pipelineIds={pipelineIds}
       userIds={userIds}
       funnelPicker={funnelPicker}
+      hideInactiveAgents={hideInactiveAgents}
+      onHideInactiveAgents={onHideInactiveAgents}
       onRetry={(section) => void query.retrySection(section)}
     />
   );

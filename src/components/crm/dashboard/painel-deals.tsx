@@ -54,6 +54,7 @@ import type {
   PainelFunnelStage,
   PainelKpi,
 } from "@/features/dashboard-v2/painel-api";
+import { isInactiveAgent, visibleAgents } from "@/features/dashboard-v2/agents-view";
 import {
   DEAL_KPI_GRID_CLASS,
   EXCEPTIONS_GRID_CLASS,
@@ -86,6 +87,8 @@ export function PainelDealWidget({
   pipelineIds,
   userIds,
   funnelPicker,
+  hideInactiveAgents = false,
+  onHideInactiveAgents,
   onRetry,
 }: {
   id: DealCoreWidgetId | "stages";
@@ -96,6 +99,9 @@ export function PainelDealWidget({
   pipelineIds?: string[];
   userIds?: string[];
   funnelPicker?: ReactNode;
+  /** "Ganhos por agente": ocultar quem não tem atividade (preferência persistida). */
+  hideInactiveAgents?: boolean;
+  onHideInactiveAgents?: (next: boolean) => void;
   onRetry: (section: string) => void;
 }) {
   if (!data) {
@@ -136,6 +142,8 @@ export function PainelDealWidget({
           block={data.agents}
           search={search}
           userIds={userIds}
+          hideInactive={hideInactiveAgents}
+          onHideInactive={onHideInactiveAgents}
           onRetry={() => onRetry("agents")}
         />
       );
@@ -456,19 +464,25 @@ function DealAgents({
   block,
   search,
   userIds,
+  hideInactive,
+  onHideInactive,
   onRetry,
 }: {
   block: PainelDealsResult["agents"];
   search: string;
   userIds?: string[];
+  hideInactive: boolean;
+  onHideInactive?: (next: boolean) => void;
   onRetry: () => void;
 }) {
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
-  const rows = block.data.filter((r) => {
+  const scoped = block.data.filter((r) => {
     if (userIds?.length && !userIds.includes(r.id)) return false;
     return textMatchesQuery(r.name, search);
   });
-  if (rows.length === 0) {
+  const inactiveCount = scoped.filter(isInactiveAgent).length;
+  const rows = visibleAgents(scoped, hideInactive);
+  if (scoped.length === 0) {
     return (
       <PainelCard title="Ganhos por agente">
         <PainelEmpty
@@ -482,32 +496,57 @@ function DealAgents({
   return (
     <PainelCard
       title="Ganhos por agente"
-      subtitle="Ordenado por receita ganha · sem ranking por cor"
+      subtitle="Ordenado por receita ganha · em empate, por ativos hoje"
+      wrapAction
+      action={
+        onHideInactive && (inactiveCount > 0 || hideInactive) ? (
+          <button
+            type="button"
+            aria-pressed={hideInactive}
+            onClick={() => onHideInactive(!hideInactive)}
+            className="rounded-xl border border-border bg-card px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-pressed:border-primary aria-pressed:text-primary"
+          >
+            {hideInactive ? "Mostrar" : "Ocultar"} sem atividade ({inactiveCount})
+          </button>
+        ) : undefined
+      }
     >
-      <div className={LIST_CARD_HEAD_STATIC_CLASS + " grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))]"}>
-        <ListColumnLabel>Agente</ListColumnLabel>
-        <ListColumnLabel align="right">Receita ganha</ListColumnLabel>
-        <ListColumnLabel align="right">Ganhos</ListColumnLabel>
-        <ListColumnLabel align="right">Conversão</ListColumnLabel>
-        <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
-        <ListColumnLabel align="right">Ativos hoje</ListColumnLabel>
-      </div>
-      <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2 max-h-[320px] overflow-y-auto pr-1")}>
-        {rows.map((row) => (
-          <AgentRow key={row.id} row={row} />
-        ))}
-      </ul>
+      {rows.length === 0 ? (
+        <PainelEmpty
+          embedded
+          title="Nenhum agente com atividade"
+          description="Todos os agentes do recorte estão sem atividade. Use “Mostrar sem atividade” para vê-los."
+        />
+      ) : (
+        <>
+          <div className={LIST_CARD_HEAD_STATIC_CLASS + " grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))]"}>
+            <ListColumnLabel>Agente</ListColumnLabel>
+            <ListColumnLabel align="right">Receita ganha</ListColumnLabel>
+            <ListColumnLabel align="right">Ganhos</ListColumnLabel>
+            <ListColumnLabel align="right">Conversão</ListColumnLabel>
+            <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
+            <ListColumnLabel align="right">Ativos hoje</ListColumnLabel>
+          </div>
+          <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2 max-h-[320px] overflow-y-auto pr-1")}>
+            {rows.map((row) => (
+              <AgentRow key={row.id} row={row} />
+            ))}
+          </ul>
+        </>
+      )}
     </PainelCard>
   );
 }
 
 function AgentRow({ row }: { row: PainelAgentRow }) {
+  const inactive = isInactiveAgent(row);
   return (
     <li
+      data-agent-inactive={inactive ? "true" : undefined}
       className={cn(
         LIST_CARD_ROW_CLASS,
         "grid grid-cols-1 items-center gap-2 lg:grid-cols-[minmax(0,1.4fr)_repeat(5,minmax(0,1fr))] lg:gap-4",
-        row.zeroActivity && "opacity-70",
+        inactive && "text-muted-foreground",
       )}
     >
       <span className="truncate font-semibold" title={row.name}>
