@@ -3,36 +3,25 @@
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 
-import { cn } from "@/lib/utils";
+import { LegendSwatch, RankBarList } from "@/components/crm/dashboard/rank-bar-list";
+import { SegmentedToggle } from "@/components/crm/dashboard/segmented-toggle";
+import { MEASURE_COLOR, isBelowAverage } from "@/features/dashboard-v2/measure-colors";
+import {
+  LOW_USAGE_SECONDS,
+  sortUsage,
+  usageDelta,
+  type UsageRowInput,
+  type UsageSort,
+} from "@/features/dashboard-v2/usage-stats";
 
-export type SystemUsageBarRow = {
-  id: string;
-  name: string;
-  seconds: number;
-};
+export type SystemUsageBarRow = UsageRowInput;
 
-type SortMode = "time" | "name";
+const TOP_N = 10;
 
-/** Abaixo disso a linha ganha o alerta de uso baixo. */
-const LOW_USAGE_SECONDS = 3600;
-
-const ROW_GRID_CLASS =
-  "grid grid-cols-[7.5rem_minmax(0,1fr)_3rem] items-center gap-2.5 sm:grid-cols-[9.5rem_minmax(0,1fr)_3rem]";
-
-/** Escala em horas cheias (passo de 1h até 8h, 2h acima disso). */
-function usageScale(maxSeconds: number) {
-  const maxHours = Math.max(1, Math.ceil(maxSeconds / 3600));
-  const step = maxHours > 8 ? 2 : 1;
-  const topHours = Math.ceil(maxHours / step) * step;
-  const ticks: number[] = [];
-  for (let h = 0; h <= topHours; h += step) ticks.push(h);
-  return { maxSeconds: topHours * 3600, ticks };
-}
-
-function pct(value: number, max: number) {
-  return `${Math.max(0, Math.min(100, (value / max) * 100))}%`;
-}
-
+/**
+ * Uso do sistema por usuário (violeta = tempo): barras ordenadas, linha da média
+ * com rótulo, diferença para a média em cada linha e tom claro abaixo dela.
+ */
 export function SystemUsageBars({
   rows,
   average,
@@ -42,139 +31,79 @@ export function SystemUsageBars({
   average: number;
   formatValue: (seconds: number) => string;
 }) {
-  const [sort, setSort] = useState<SortMode>("time");
-
-  const sorted = useMemo(() => {
-    const copy = [...rows];
-    if (sort === "name") {
-      copy.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-    } else {
-      copy.sort((a, b) => b.seconds - a.seconds);
-    }
-    return copy;
-  }, [rows, sort]);
-
-  const scale = usageScale(Math.max(0, ...rows.map((row) => row.seconds)));
-  const avgLeft = pct(average, scale.maxSeconds);
+  const [sort, setSort] = useState<UsageSort>("time");
+  const sorted = useMemo(() => sortUsage(rows, sort), [rows, sort]);
+  const color = MEASURE_COLOR.time;
+  const max = Math.max(1, ...rows.map((row) => row.seconds));
   const showAverage = average > 0;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-sm bg-primary" />
-            Na média ou acima
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="size-2.5 rounded-sm bg-muted-foreground/35" />
-            Abaixo da média
-          </span>
-          {showAverage ? (
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 border-t border-dashed border-muted-foreground" />
-              Média {formatValue(average)}
-            </span>
-          ) : null}
-        </div>
-        <div
-          role="group"
-          aria-label="Ordenar usuários"
-          className="inline-flex items-center gap-0.5 rounded-full border border-border bg-card p-0.5"
-        >
-          {(
-            [
-              ["time", "Tempo"],
-              ["name", "A–Z"],
-            ] as const
-          ).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              aria-pressed={sort === mode}
-              onClick={() => setSort(mode)}
-              className={cn(
-                "h-6 rounded-full px-2.5 text-[11px] font-semibold transition-colors",
-                sort === mode
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+    <div className="flex flex-col gap-2.5">
+      <div className="flex justify-end">
+        <SegmentedToggle
+          label="Ordenar usuários"
+          value={sort}
+          onChange={setSort}
+          options={[
+            { value: "time", label: "Tempo" },
+            { value: "name", label: "A–Z" },
+          ]}
+        />
       </div>
-
-      <div className={cn(ROW_GRID_CLASS, "h-4")} aria-hidden="true">
-        <span />
-        <div className="relative h-full text-[10px] tabular-nums text-muted-foreground">
-          {scale.ticks.map((hours, index) => (
+      <RankBarList
+        variant="rank"
+        ariaLabel="Tempo de uso do sistema por usuário"
+        color={color}
+        max={max}
+        limit={sort === "time" ? TOP_N : undefined}
+        reference={showAverage ? { value: average } : null}
+        trackHeader={({ referencePct }) =>
+          referencePct != null ? (
             <span
-              key={hours}
-              className={cn(
-                "absolute top-0",
-                index === 0
-                  ? "translate-x-0"
-                  : index === scale.ticks.length - 1
-                    ? "-translate-x-full"
-                    : "-translate-x-1/2",
-              )}
-              style={{ left: pct(hours * 3600, scale.maxSeconds) }}
+              className="absolute -translate-x-1/2 whitespace-nowrap font-semibold text-foreground"
+              style={{ left: `${referencePct}%` }}
             >
-              {hours}h
+              média {formatValue(average)}
             </span>
-          ))}
-        </div>
-        <span />
-      </div>
-
-      <ul className="flex flex-col">
-        {sorted.map((row) => {
-          const aboveAverage = row.seconds >= average;
-          const low = row.seconds < LOW_USAGE_SECONDS;
-          return (
-            <li
-              key={row.id}
-              className={cn(ROW_GRID_CLASS, "h-7")}
-              title={`${row.name}: ${formatValue(row.seconds)}`}
-            >
-              <span className="flex min-w-0 items-center gap-1">
-                <span className="truncate text-[13px] font-medium text-foreground">
-                  {row.name}
-                </span>
-                {low ? (
-                  <IconAlertTriangle
-                    className="size-3.5 shrink-0 text-warning"
-                    aria-label="Uso abaixo de 1h"
-                  />
-                ) : null}
-              </span>
-              <div className="relative h-full">
-                <div className="absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className={cn(
-                      "h-full rounded-full",
-                      aboveAverage ? "bg-primary" : "bg-muted-foreground/35",
-                    )}
-                    style={{ width: pct(row.seconds, scale.maxSeconds) }}
-                  />
-                </div>
-                {showAverage ? (
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-y-0 border-l border-dashed border-muted-foreground"
-                    style={{ left: avgLeft }}
-                  />
-                ) : null}
-              </div>
-              <span className="text-right text-[12px] font-semibold tabular-nums text-muted-foreground">
-                {formatValue(row.seconds)}
-              </span>
-            </li>
-          );
+          ) : null
+        }
+        rows={sorted.map((row) => {
+          const delta = usageDelta(row.seconds, average);
+          const deltaText =
+            delta.kind === "on"
+              ? "na média"
+              : `${delta.kind === "below" ? "−" : "+"}${formatValue(delta.seconds)}`;
+          return {
+            id: row.id,
+            label: row.name,
+            value: row.seconds,
+            soft: isBelowAverage(row.seconds, average),
+            display: formatValue(row.seconds),
+            displayDetail: deltaText,
+            badge:
+              row.seconds < LOW_USAGE_SECONDS ? (
+                <IconAlertTriangle
+                  className="size-3.5 shrink-0 text-warning"
+                  aria-label="Uso abaixo de 1h"
+                />
+              ) : null,
+            tip: [
+              row.name,
+              `${formatValue(row.seconds)} ativos hoje`,
+              delta.kind === "on"
+                ? "Na média"
+                : `${formatValue(delta.seconds)} ${delta.kind === "below" ? "abaixo" : "acima"} da média`,
+            ],
+          };
         })}
-      </ul>
+        footer={
+          <>
+            <span className="tabular-nums">{rows.length} usuários com sessão hoje</span>
+            <LegendSwatch color={color} label="Na média ou acima" />
+            <LegendSwatch color={color} tone="soft" label="Abaixo da média" />
+          </>
+        }
+      />
     </div>
   );
 }

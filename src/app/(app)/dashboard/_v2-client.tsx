@@ -625,10 +625,7 @@ function ManagerHome({
             render={(id) => {
               if (id === "usage") {
                 return (
-                  <SystemUsageCard
-                    rows={usageRows}
-                    chartType={grid.usageChartType}
-                  />
+                  <SystemUsageCard rows={usageRows} />
                 );
               }
               if (isStageWidgetId(id)) {
@@ -739,7 +736,7 @@ function ManagerHome({
             stages={funnelStages.map((s) => ({ id: s.id, name: s.name }))}
             presentIds={grid.widgetIds}
             presets={DEAL_CORE_WIDGET_IDS.map((id) => ({ id, label: DEAL_LABELS[id] ?? id }))}
-            onAddPreset={(id, chartType) => grid.restoreWidget(id, chartType)}
+            onAddPreset={(id) => grid.restoreWidget(id)}
             onAddStage={(stageId) => grid.restoreWidget(`stage:${stageId}`)}
             onCreate={grid.addCard}
           />

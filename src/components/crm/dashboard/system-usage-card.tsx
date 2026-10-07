@@ -1,28 +1,21 @@
 "use client";
 
-import { CategoricalChart } from "@/components/crm/dashboard/categorical-chart";
 import { PainelCard, PainelEmpty } from "@/components/crm/dashboard/painel-block";
+import { StatList } from "@/components/crm/dashboard/stat-list";
 import { SystemUsageBars } from "@/components/crm/dashboard/system-usage-bars";
-import {
-  DEFAULT_USAGE_CHART_TYPE,
-  resolveChartType,
-  type DashboardChartType,
-} from "@/features/dashboard-v2/chart-types";
 import { formatUsageHours } from "@/features/dashboard-v2/format";
+import { usageSummary } from "@/features/dashboard-v2/usage-stats";
 import type { SystemUsageAggregateRow } from "@/features/system-usage/types";
 
-export function SystemUsageCard({
-  rows,
-  chartType = DEFAULT_USAGE_CHART_TYPE,
-}: {
-  rows: SystemUsageAggregateRow[];
-  chartType?: DashboardChartType;
-}) {
-  const type = resolveChartType(chartType, DEFAULT_USAGE_CHART_TYPE);
-
+/**
+ * Sempre em barras. O `chartType` que ficou salvo no layout remoto de quem já
+ * escolheu outro estilo é tolerado (lido e ignorado): o seletor de estilo
+ * continua nos cards personalizados.
+ */
+export function SystemUsageCard({ rows }: { rows: SystemUsageAggregateRow[] }) {
   if (rows.length === 0) {
     return (
-      <PainelCard title="Uso do sistema hoje" subtitle="Tempo ativo de todos os usuários">
+      <PainelCard title="Uso do sistema hoje" subtitle="Tempo ativo por usuário">
         <PainelEmpty
           embedded
           title="Sem uso hoje"
@@ -32,65 +25,33 @@ export function SystemUsageCard({
     );
   }
 
-  const total = rows.reduce((sum, row) => sum + row.totalSeconds, 0);
-  const avg = Math.round(total / rows.length);
-  const aboveAverage = rows.filter((row) => row.totalSeconds >= avg).length;
+  const bars = rows.map((row) => ({
+    id: row.userId,
+    name: row.userName ?? "Usuário",
+    seconds: row.totalSeconds,
+  }));
+  const { total, average, active, atOrAbove } = usageSummary(bars);
 
   return (
     <PainelCard
       title="Uso do sistema hoje"
-      subtitle="Todos os usuários · sem corte"
+      subtitle="Tempo ativo por usuário"
       className="flex flex-col"
-      action={
-        <div className="flex items-center gap-3 text-right">
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground">
-              Total
-            </p>
-            <p className="text-sm font-bold tabular-nums">{formatUsageHours(total)}</p>
-          </div>
-          <div className="h-8 w-px bg-border" />
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground">
-              Média
-            </p>
-            <p className="text-sm font-bold tabular-nums">{formatUsageHours(avg)}</p>
-          </div>
-          <div className="h-8 w-px bg-border" />
-          <div title="Usuários na média ou acima">
-            <p className="text-[10px] font-semibold text-muted-foreground">
-              Na média
-            </p>
-            <p className="text-sm font-bold tabular-nums">
-              {aboveAverage}/{rows.length}
-            </p>
-          </div>
-        </div>
-      }
     >
-      <div data-dashboard-no-drag className="flex flex-col gap-3">
-        {type === "bar" || type === "dot" ? (
-          <SystemUsageBars
-            rows={rows.map((row) => ({
-              id: row.userId,
-              name: row.userName ?? "Usuário",
-              seconds: row.totalSeconds,
-            }))}
-            average={avg}
-            formatValue={formatUsageHours}
-          />
-        ) : (
-          <CategoricalChart
-            type={type}
-            rows={rows.map((row) => ({
-              id: row.userId,
-              name: row.userName ?? "Usuário",
-              value: row.totalSeconds,
-            }))}
-            formatValue={formatUsageHours}
-            average={avg}
-          />
-        )}
+      <div data-dashboard-no-drag className="flex flex-col">
+        <StatList
+          ariaLabel="Totais do uso do sistema"
+          items={[
+            { label: "Total", value: formatUsageHours(total) },
+            { label: "Média por usuário", value: formatUsageHours(average) },
+            {
+              label: "Usuários ativos",
+              value: active,
+              hint: `${atOrAbove} na média ou acima`,
+            },
+          ]}
+        />
+        <SystemUsageBars rows={bars} average={average} formatValue={formatUsageHours} />
       </div>
     </PainelCard>
   );
