@@ -39,6 +39,7 @@ import {
 } from "@/components/crm/column-resizer";
 import { useIsDesktop } from "@/hooks/use-media-query";
 import { useStableCallback } from "@/hooks/use-stable-callback";
+import { useViewerScopeSync } from "@/hooks/use-viewer-scope-sync";
 
 import { toChatContact, toContactAside } from "@/features/inbox-v2/adapters";
 import {
@@ -308,6 +309,9 @@ export default function InboxV2ClientPage({
     // Mensagem recebida com a conversa aberta: marca como lida (visto azul).
     onOpenConversationInbound: handleOpenConversationInbound,
   });
+  // Escopo "só as minhas": o cache da lista tira a conversa transferida a
+  // outro agente por evento, sem refetch.
+  useViewerScopeSync(canFetchInbox);
   // SSE fora (ou parado) com a aba visível: lista + contadores a cada 90s.
   useInboxSafetyPoll(canFetchInbox && tabHydrated && filtersHydrated);
 

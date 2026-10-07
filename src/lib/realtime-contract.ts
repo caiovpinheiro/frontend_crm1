@@ -93,8 +93,30 @@ export type ConversationUpdatedEvent<TCard = unknown> = {
   closedAt?: string | null;
   followUpAt?: string | null;
   assignedToId?: string | null;
-  assignedTo?: { type?: string | null } | null;
+  /**
+   * Responsável. `type` (HUMAN/AI) decide a aba; `id`/`name`/`avatarUrl` vêm
+   * em atribuição/transferência (backend novo) — backend antigo manda só `type`.
+   */
+  assignedTo?: {
+    type?: string | null;
+    id?: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+  /** Departamento atual (`null` = sem departamento). Atribuição/transferência. */
+  departmentId?: string | null;
+  /** Responsável antes da troca (`null` = estava sem). Atribuição/transferência. */
+  previousAssignedToId?: string | null;
   unreadCount?: number;
+  /** ISO da última mensagem de chat. */
+  lastMessageAt?: string | null;
+  /** Prévia da última mensagem, quando o publicador a tem (aditivo). */
+  lastMessagePreview?: {
+    content?: string | null;
+    messageType?: string | null;
+    mediaUrl?: string | null;
+    direction?: string | null;
+  } | null;
   whatsappCallConsentStatus?: string;
   card?: TCard;
   cardOmitted?: "hidden" | "budget";
