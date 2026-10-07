@@ -300,7 +300,13 @@ export type DashboardUiState = {
   tabDepartmentId?: string;
   tabActorUserIds?: string[];
   tabDepartmentIds?: string[];
+  /** Negócios › "Ganhos por agente": ocultar agentes sem atividade. */
+  hideInactiveAgents?: boolean;
 };
+
+export function readHideInactiveAgents(saved: DashboardUiState): boolean {
+  return saved.hideInactiveAgents === true;
+}
 
 function asSavedIds(list: unknown, legacy?: unknown): string[] {
   if (Array.isArray(list)) {
