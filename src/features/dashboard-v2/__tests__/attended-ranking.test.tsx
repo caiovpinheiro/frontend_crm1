@@ -2,6 +2,7 @@
 /**
  * D3 — estado vazio coerente do "Ranking de atendimentos" (há atendimentos no
  * período, mas nenhum com atendente).
+ * D4 — o que o número "sem encerramento" quer dizer.
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +11,8 @@ import { TeamRankingsWidget } from "@/components/crm/dashboard/painel-team";
 import type { PainelTeamRanking, PainelTeamRankRow } from "@/features/dashboard-v2/painel-api";
 import {
   attendedEmptyTitle,
+  attendedParts,
+  attendedRowText,
   unassignedCount,
 } from "@/features/dashboard-v2/team-rankings";
 
@@ -81,5 +84,25 @@ describe("D3 — ranking de atendimentos vazio", () => {
     expect(attendedEmptyTitle({ total: 1, attributed: 0, filtered: false })).toBe(
       "Nenhum atendimento com atendente no período (1 sem atendente)",
     );
+  });
+});
+
+describe("D4 — 'em aberto' do ranking de atendimentos", () => {
+  it("não chama de 'em aberto' o que é attended − encerradas no período", () => {
+    mount([row("b", "Breno", 227, 5)], { periodTotal: 300 });
+    // 227 atendimentos, 5 encerradas no período, 222 sem encerramento no período
+    expect(screen.getAllByText(/222 sem encerr\./).length).toBeGreaterThan(0);
+    expect(screen.getByText(/2,2% encerradas no período/)).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/em aberto/i);
+    expect(document.body.textContent).toContain("Encerradas no período");
+    expect(document.body.textContent).toContain("Total (sem encerramento no período)");
+  });
+
+  it("o balão explica as duas partes", () => {
+    const text = attendedRowText(attendedParts(227, 5));
+    expect(text.tipLines).toEqual([
+      "5 encerradas no período",
+      "222 sem encerramento no período",
+    ]);
   });
 });

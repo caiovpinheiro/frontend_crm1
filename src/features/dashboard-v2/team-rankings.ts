@@ -143,6 +143,31 @@ export function attendedEmptyTitle(opts: {
   return "Não há atendimentos no período";
 }
 
+/**
+ * O que o número "em aberto" do ranking é: `attended − encerradas`, onde
+ * `attended` = conversas INICIADAS no período que passaram pelo atendente e
+ * `finished` = conversas ENCERRADAS no período com ele como responsável. As duas
+ * bases são diferentes (data de início × data de encerramento), então a diferença
+ * é "sem encerramento no período" — NÃO é o estoque atual de conversas abertas.
+ */
+export const ATTENDED_OPEN_LABEL = "sem encerramento no período";
+
+/** Textos de uma linha do ranking de atendimentos (barra, 2ª linha e balão). */
+export function attendedRowText(parts: AttendedParts): {
+  detail: string;
+  displayDetail: string;
+  tipLines: string[];
+} {
+  return {
+    detail: `${parts.closedPct.toLocaleString("pt-BR")}% encerradas no período`,
+    displayDetail: `${formatNumber(parts.open)} sem encerr.`,
+    tipLines: [
+      `${formatNumber(parts.closed)} encerradas no período`,
+      `${formatNumber(parts.open)} ${ATTENDED_OPEN_LABEL}`,
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Ranking de TMA: eixo, diferença para a média da equipe, estados.
 
