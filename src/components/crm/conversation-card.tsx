@@ -353,7 +353,10 @@ export const ConversationCard = memo(function ConversationCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate font-display text-[13px] font-bold text-[var(--text-primary)]">
+            <span
+              title={conversation.name}
+              className="truncate font-display text-[13px] font-bold text-[var(--text-primary)]"
+            >
               {conversation.name}
             </span>
             <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
