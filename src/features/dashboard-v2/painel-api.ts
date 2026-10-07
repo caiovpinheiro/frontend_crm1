@@ -10,6 +10,7 @@ import {
   mockPainelAgora,
   mockPainelDeals,
   mockPainelService,
+  mockPainelTeam,
 } from "./mock-painel";
 
 export type PainelDelta = { value: number; hidden: boolean };
@@ -283,6 +284,31 @@ function asIdList(value: unknown): string[] {
     : [];
 }
 
+/**
+ * Filtros como o backend os recebe (o que `filterQuery` envia). É a chave das
+ * queries do painel: o filtro de usuário do Negócios (`userIds`) é aplicado
+ * no cliente e não vai na URL, então trocá-lo não pode refazer o GET.
+ */
+export type PainelRequestFilters = Pick<
+  DashboardFiltersState,
+  "period" | "startDate" | "endDate" | "pipelineIds" | "stageIds" | "tagIds" | "ownerIds" | "sources"
+>;
+
+export function requestFilters(filters: DashboardFiltersState): PainelRequestFilters {
+  const stored = asIdList(filters.pipelineIds);
+  const period = filters.period ?? "today";
+  const custom = period === "custom" && filters.startDate && filters.endDate;
+  return {
+    period,
+    ...(custom ? { startDate: filters.startDate, endDate: filters.endDate } : {}),
+    pipelineIds: stored.length ? stored : filters.pipelineId ? [filters.pipelineId] : [],
+    stageIds: asIdList(filters.stageIds),
+    tagIds: asIdList(filters.tagIds),
+    ownerIds: asIdList(filters.ownerIds),
+    sources: asIdList(filters.sources),
+  };
+}
+
 function filterQuery(filters: DashboardFiltersState, fieldIds?: string[]): URLSearchParams {
   const sp = new URLSearchParams();
   sp.set("period", filters.period ?? "today");
@@ -400,5 +426,111 @@ export async function fetchPainelInsights(
     "Erro ao carregar os cards",
     20_000,
     signal,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Equipe (GET /api/painel/team): respeita período + departamentos + atendentes.
+// Só ADMIN/MANAGER (403 para os demais).
+
+export type PainelDeptHourRow = {
+  key: string;
+  label: string;
+  total: number;
+  /** 24 posições (0h–23h). */
+  hours: number[];
+};
+
+export type PainelDeptHour = {
+  rows: PainelDeptHourRow[];
+  /** Soma por hora de todos os departamentos. */
+  totals: number[];
+  max: number;
+  total: number;
+  empty: boolean;
+};
+
+export type PainelTeamRankRow = {
+  id: string;
+  name: string;
+  /** Conversas iniciadas no período que passaram pelo atendente. */
+  attended: number;
+  /** Conversas encerradas no período com o atendente responsável. */
+  finished: number;
+  serviceMeanMs: number | null;
+  serviceMedianMs: number | null;
+  serviceSample: number;
+};
+
+export type PainelTransferNode = { id: string; name: string };
+
+export type PainelTransferFlow = {
+  from: PainelTransferNode;
+  to: PainelTransferNode;
+  count: number;
+  conversations: number;
+};
+
+export type PainelTransferSet = {
+  flows: PainelTransferFlow[];
+  total: number;
+  conversations: number;
+  empty: boolean;
+};
+
+export type PainelTransfers = {
+  people: PainelTransferSet;
+  departments: PainelTransferSet;
+};
+
+export type PainelTeamRanking = { rows: PainelTeamRankRow[]; capped: boolean };
+
+export type PainelTeamResult = {
+  deptHour: PainelBlock<PainelDeptHour>;
+  ranking: PainelBlock<PainelTeamRanking>;
+  transfers: PainelBlock<PainelTransfers>;
+  /** O período pedido passava de 90 dias e foi cortado pelo início. */
+  rangeClamped?: boolean;
+  /** Início efetivo (ISO) do período usado nas consultas. */
+  effectiveFrom?: string;
+};
+
+export type PainelTeamSection = "deptHour" | "ranking" | "transfers";
+
+export type PainelTeamScope = {
+  departmentIds: string[];
+  userIds: string[];
+};
+
+export async function fetchPainelTeam(params: {
+  filters: Pick<DashboardFiltersState, "period" | "startDate" | "endDate">;
+  clock: "business" | "elapsed";
+  scope: PainelTeamScope;
+  /** Só estes blocos (CSV em `section`); vazio = todos. */
+  sections?: readonly PainelTeamSection[];
+  signal?: AbortSignal;
+}): Promise<PainelTeamResult> {
+  if (isPageMockMode()) {
+    return Promise.resolve(
+      mockPainelTeam(params.filters, params.clock, params.scope, params.sections),
+    );
+  }
+  const sp = new URLSearchParams();
+  sp.set("period", params.filters.period ?? "today");
+  if (params.filters.period === "custom" && params.filters.startDate && params.filters.endDate) {
+    sp.set("startDate", params.filters.startDate);
+    sp.set("endDate", params.filters.endDate);
+  }
+  sp.set("clock", params.clock);
+  if (params.scope.departmentIds.length) {
+    sp.set("departmentIds", params.scope.departmentIds.join(","));
+  }
+  if (params.scope.userIds.length) sp.set("userIds", params.scope.userIds.join(","));
+  if (params.sections?.length) sp.set("section", params.sections.join(","));
+  return getJson<PainelTeamResult>(
+    `/api/painel/team?${sp.toString()}`,
+    "Erro ao carregar a equipe",
+    SERVICE_HEAVY_TIMEOUT_MS,
+    params.signal,
   );
 }

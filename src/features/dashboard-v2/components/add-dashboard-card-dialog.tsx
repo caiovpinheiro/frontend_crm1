@@ -17,7 +17,6 @@ import {
 import { EVENT_CONFIG } from "@/components/crm/feed/event-config";
 import {
   DEFAULT_CARD_CHART_TYPE,
-  DEFAULT_USAGE_CHART_TYPE,
   type DashboardChartType,
 } from "@/features/dashboard-v2/chart-types";
 import { ChartTypePicker } from "@/features/dashboard-v2/components/chart-type-picker";
@@ -85,7 +84,7 @@ export function AddDashboardCardDialog({
   stages: { id: string; name: string }[];
   presentIds: string[];
   presets: { id: string; label: string }[];
-  onAddPreset: (id: string, chartType?: DashboardChartType) => void;
+  onAddPreset: (id: string) => void;
   onAddStage: (stageId: string) => void;
   onCreate: (card: NegociosCustomCard) => void;
   presetsOnly?: boolean;
@@ -116,20 +115,18 @@ export function AddDashboardCardDialog({
   const selectedPreset = presets.find((p) => p.id === presetId);
   const presetPresent = Boolean(presetId && present.has(presetId));
   const stagePresent = Boolean(stageId && present.has(stageWidgetId(stageId)));
-  const showChartType =
-    mode === "dynamic"
-      ? kind !== "stage"
-      : presetId === "usage";
+  // O "Uso do sistema" é sempre em barras: o estilo só vale para cards personalizados.
+  const showChartType = mode === "dynamic" && kind !== "stage";
 
   function reset() {
     setTitle("");
-    setChartType(mode === "preset" && presetId === "usage" ? DEFAULT_USAGE_CHART_TYPE : DEFAULT_CARD_CHART_TYPE);
+    setChartType(DEFAULT_CARD_CHART_TYPE);
   }
 
   function submit() {
     if (mode === "preset") {
       if (!presetId || present.has(presetId)) return;
-      onAddPreset(presetId, presetId === "usage" ? chartType : undefined);
+      onAddPreset(presetId);
       reset();
       onOpenChange(false);
       return;
@@ -273,10 +270,7 @@ export function AddDashboardCardDialog({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => {
-                    setPresetId(item.id);
-                    if (item.id === "usage") setChartType(DEFAULT_USAGE_CHART_TYPE);
-                  }}
+                  onClick={() => setPresetId(item.id)}
                   className={cn(
                     "flex items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm font-semibold",
                     selected
