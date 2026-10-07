@@ -30,6 +30,8 @@ import { filterOptionsQuery } from "@/components/pipeline/kanban-filters/use-fil
 import { fetchSystemUsageSummary } from "@/features/system-usage/api";
 import type { SystemUsageSummaryResponse } from "@/features/system-usage/types";
 import { useActivityStats } from "@/features/activity-feed/use-activity-stats";
+import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
+import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
@@ -459,6 +461,20 @@ function pickDefined<T extends Record<string, { ok: boolean; error?: string }>>(
     }
   }
   return out;
+}
+
+/**
+ * Departamentos e usuários que alimentam os filtros da aba Atendimentos. Mudam
+ * raramente: ficam frescos por 5 min. Com a validade curta padrão (30–60 s) e o
+ * `enabled` ligando/desligando a cada troca de aba, voltar para Atendimentos
+ * refazia `GET /api/settings/departments` e `GET /api/users` toda vez.
+ */
+export const DASHBOARD_REFERENCE_STALE_MS = 5 * 60_000;
+
+export function useDashboardReferenceData(enabled = true) {
+  const departments = useDepartments(enabled, { staleTime: DASHBOARD_REFERENCE_STALE_MS });
+  const users = useTeamUsersQuery(enabled, { staleTime: DASHBOARD_REFERENCE_STALE_MS });
+  return { departments, users };
 }
 
 export function useDashboardMe(enabled = true) {

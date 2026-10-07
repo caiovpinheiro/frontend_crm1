@@ -202,15 +202,26 @@ export async function fetchRemoteDashboardMeta<T>(): Promise<T | null> {
   return loaded.meta as T;
 }
 
+/** O backend já tem exatamente estes slices (última leitura/gravação desta sessão). */
+function isAlreadyRemote(meta: Record<string, unknown>): boolean {
+  if (!cachedRemote?.ok) return false;
+  const known = cachedRemote.meta;
+  return Object.entries(meta).every(
+    ([key, value]) => JSON.stringify(known[key]) === JSON.stringify(value),
+  );
+}
+
 /**
  * PATCH parcial. `false` em 4xx/5xx ou rede — o caller não trata isso como salvo.
- * Não envia organizationId nem userId.
+ * Não envia organizationId nem userId. Slice igual ao que o backend já tem (ex.:
+ * filtros da URL iguais aos salvos) não gera chamada.
  */
 export async function patchRemoteDashboardMeta(
   meta: Record<string, unknown>,
   extra?: DashboardPatchExtra,
   opts?: { keepalive?: boolean },
 ): Promise<boolean> {
+  if (!extra && isAlreadyRemote(meta)) return true;
   const body = buildDashboardPatchBody(meta, extra);
   try {
     const res = await fetch(apiUrl("/api/dashboard/layout"), {
