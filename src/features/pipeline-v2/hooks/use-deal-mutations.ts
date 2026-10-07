@@ -7,6 +7,7 @@ import {
   addDealTag,
   createDeal,
   deleteDeal,
+  duplicateDeal,
   getDealTimeline,
   listTags,
   moveDeal,
@@ -620,6 +621,23 @@ export function useCreateDeal(pipelineId: string | null, _status: StatusFilter =
       toast.success("Negocio criado");
     },
     onError: (err) => toast.error(err.message || "Falha ao criar negocio"),
+  });
+}
+
+export function useDuplicateDeal() {
+  const qc = useQueryClient();
+  return useMutation<
+    BoardDealDto,
+    Error,
+    { dealId: string; pipelineId: string; stageId: string }
+  >({
+    mutationFn: ({ dealId, pipelineId, stageId }) =>
+      duplicateDeal(dealId, { pipelineId, stageId }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ predicate: boardsOfPipeline(vars.pipelineId) });
+      toast.success("Negócio duplicado");
+    },
+    onError: (err) => toast.error(err.message || "Falha ao duplicar negócio"),
   });
 }
 

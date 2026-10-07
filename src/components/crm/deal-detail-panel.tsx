@@ -256,6 +256,21 @@ interface DealDetailPanelProps {
    * por contas/fontes diferentes.
    */
   connection?: ConnectionRef | null
+  /**
+   * Outros negócios do mesmo contato. Com 2 ou mais, o hero empilha
+   * como na caixa de entrada: os demais ficam numa faixa e o aberto
+   * é o card inteiro.
+   */
+  siblingDeals?: {
+    id: string
+    number?: number | null
+    title?: string | null
+    stageName?: string | null
+    stageColor?: string | null
+    pipelineName?: string | null
+    status?: string | null
+  }[]
+  onSelectDeal?: (dealId: string, number?: number | null) => void
 }
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ size?: number }>; count?: number }[] = [
@@ -317,6 +332,8 @@ export function DealDetailPanel({
   stageDropdownSlot,
   funnelSegments,
   connection,
+  siblingDeals,
+  onSelectDeal,
 }: DealDetailPanelProps) {
   // Retrocompatibilidade: split slots sobrepõem o legado fieldConfigSlot
   const resolvedContactConfig = contactFieldConfigSlot ?? fieldConfigSlot ?? null;
@@ -831,6 +848,58 @@ export function DealDetailPanel({
                 contact-aside do inbox (fundo brand + anel de progresso).
                 Pill "Negócio" removida (redundante, pedido do operador). */}
             <div className={cn("shrink-0 px-3", crmOnly ? "pt-1.5" : "pt-2")}>
+              {(siblingDeals?.length ?? 0) >= 2 && (
+                <div className="mb-1.5">
+                  <p className="px-1 pt-0.5 font-display text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+                    {siblingDeals!.length} negócios — toque para expandir
+                  </p>
+                  {siblingDeals!
+                    .filter((item) => item.id !== deal.id)
+                    .map((item) => {
+                      const lost = item.status === "LOST"
+                      const won = item.status === "WON"
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => onSelectDeal?.(item.id, item.number)}
+                          className="mt-1 flex w-full items-center gap-2 rounded-lg border border-white/10 bg-[#2e3b6e] px-3 py-2 text-left text-white shadow-[var(--glass-shadow-sm)] transition-colors hover:bg-[#35457a]"
+                        >
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: item.stageColor || "#f59e0b" }}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-[12px] font-semibold">
+                            {item.number != null && (
+                              <span className="mr-1.5 font-mono text-[11px] font-normal text-slate-300">
+                                #{item.number}
+                              </span>
+                            )}
+                            <span className="uppercase tracking-wide">
+                              {item.stageName ?? "Sem estágio"}
+                            </span>
+                            {item.pipelineName && (
+                              <span className="ml-1.5 font-normal normal-case text-slate-400">
+                                · {item.pipelineName}
+                              </span>
+                            )}
+                          </span>
+                          {lost && (
+                            <span className="shrink-0 rounded-full bg-orange-500/20 px-1.5 py-px text-[9px] font-bold uppercase text-orange-200">
+                              Perdido
+                            </span>
+                          )}
+                          {won && (
+                            <span className="shrink-0 rounded-full bg-emerald-500/20 px-1.5 py-px text-[9px] font-bold uppercase text-emerald-200">
+                              Ganho
+                            </span>
+                          )}
+                          <IconChevronDown size={14} className="shrink-0 text-slate-300" />
+                        </button>
+                      )
+                    })}
+                </div>
+              )}
               {/* ── Hero header (ref. Stitch): card escuro #2e3b6e, edge-to-edge
                   no topo do container via margens negativas, cantos inferiores
                   grandes (rounded-b-3xl) e sombra. ── */}
