@@ -226,7 +226,7 @@ export function DashboardSearchFilterBar({
                 {
                   id: "users",
                   label: "Usuário",
-                  hint: "Quem registrou a tabulação",
+                  hint: "Tabulações e gráficos da equipe",
                   icon: IconUser,
                   count: actorUserIds.length ? 1 : 0,
                   body: chipList(
@@ -239,7 +239,7 @@ export function DashboardSearchFilterBar({
                 {
                   id: "depts",
                   label: "Departamento",
-                  hint: "Departamento da tabulação",
+                  hint: "Tabulações e gráficos da equipe",
                   icon: IconBuilding,
                   count: departmentIds.length ? 1 : 0,
                   body: chipList(
