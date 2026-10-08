@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { useCan } from "@/hooks/use-my-permissions";
 import { apiUrl } from "@/lib/api";
 import type { InventoryPoolView } from "./types";
 
@@ -9,8 +10,14 @@ import type { InventoryPoolView } from "./types";
  * Badge compacto de disponibilidade de alocação de um produto.
  * Soma o saldo de todos os pools. Não renderiza nada se o produto não usa
  * alocação consumível (sem pools) ou se o usuário não tem `inventory:view`.
+ *
+ * A rota `GET /api/products/:id/inventory` exige `inventory:view` e responde
+ * 403 para quem não tem. Sem a permissão (já carregada pelo bootstrap /
+ * `effective-permissions`) a query fica desligada: nada de uma chamada
+ * negada por produto exibido, a cada remontagem.
  */
 export function AvailabilityBadge({ productId }: { productId: string }) {
+  const canViewInventory = useCan("inventory:view");
   const { data } = useQuery({
     queryKey: ["availability-badge", productId],
     queryFn: async () => {
@@ -18,6 +25,7 @@ export function AvailabilityBadge({ productId }: { productId: string }) {
       if (!res.ok) return null;
       return (await res.json()) as { pools: InventoryPoolView[] };
     },
+    enabled: canViewInventory,
     staleTime: 30_000,
   });
 
