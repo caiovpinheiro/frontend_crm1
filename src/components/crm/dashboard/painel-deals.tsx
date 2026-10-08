@@ -238,6 +238,15 @@ function DealFunnel({
     : "/pipeline";
   const wonCount = kpis.ok ? (kpis.data.negociosGanhos.value ?? 0) : 0;
   const wonValue = kpis.ok ? (kpis.data.receitaGanha.value ?? 0) : 0;
+  const lostStage = funnel.lostStage;
+  // Coluna Perdido do Kanban, quando a etapa vem no payload do funil.
+  const lostStageId = single
+    ? funnel.stages.find((s) => /^perdid/.test(s.name.trim().toLowerCase()))?.id
+    : undefined;
+  const stageHref = (stageId: string) =>
+    single
+      ? `/pipeline?${new URLSearchParams({ pipeline: single, stage: stageId }).toString()}`
+      : "/pipeline";
 
   if (funnel.empty) {
     return (
@@ -282,16 +291,17 @@ function DealFunnel({
         entered: stage.entered ?? stage.count,
         lost: stage.lost ?? 0,
         passThrough: stage.passThrough,
-        href: single
-          ? `/pipeline?${new URLSearchParams({ pipeline: single, stage: stage.id }).toString()}`
-          : "/pipeline",
+        href: stageHref(stage.id),
       }))}
       summary={{
         wonCount,
         wonValue,
-        lostCount: 0,
-        lostValue: 0,
+        lostCount: lostStage?.count ?? 0,
+        lostValue: lostStage?.value ?? 0,
+        lostIsStock: lostStage != null,
+        lostSentInPeriod: lostStage?.sentInPeriod,
         href: pipelineHref,
+        lostHref: lostStage && lostStageId ? stageHref(lostStageId) : undefined,
       }}
       pipelineHref={pipelineHref}
       period={period}
