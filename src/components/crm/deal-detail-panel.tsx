@@ -23,6 +23,7 @@ import {
   IconGripVertical,
   IconLayoutList,
   IconPencil,
+  IconPlus,
   IconMessageCircle,
   IconChecklist,
   IconNote,
@@ -358,6 +359,7 @@ export function DealDetailPanel({
   const [trackedOverrides, setTrackedOverrides] = useState<TrackedAttribution>({})
   // Modo edição para campos personalizados do negócio
   const [dealCustomEditMode, setDealCustomEditMode] = useState(false)
+  const [extensionOpen, setExtensionOpen] = useState(false)
 
   // Ao trocar de lead, limpa os overrides locais (fieldValues/dealNative).
   // Esses estados são keyed pelo ID da DEFINIÇÃO do campo (o mesmo em todos
@@ -367,6 +369,7 @@ export function DealDetailPanel({
     setFieldValues({})
     setDealNative({})
     setTrackedOverrides({})
+    setExtensionOpen(false)
   }, [deal?.id])
   const [sectionOrder, reorderSections] = useSectionOrder<SidebarSection>(
     SIDEBAR_STORAGE_KEY,
@@ -1511,13 +1514,19 @@ export function DealDetailPanel({
                                           </div>
                                         )
                                       })()}
+                                      <ExtensionOpenButton
+                                        open={extensionOpen}
+                                        onToggle={() => setExtensionOpen((open) => !open)}
+                                      />
                                     </FieldCard>
-                                    <CardExtensionBlock
-                                      key={deal.id}
-                                      dealId={deal.id}
-                                      compactTitle={crmOnly}
-                                      plain={viewMode !== "compact"}
-                                    />
+                                    {extensionOpen && (
+                                      <CardExtensionBlock
+                                        key={deal.id}
+                                        dealId={deal.id}
+                                        compactTitle={crmOnly}
+                                        plain={viewMode !== "compact"}
+                                      />
+                                    )}
                                     </>
                                   )}
                                 </div>
@@ -1790,6 +1799,35 @@ type ExtensionDef = {
 type ExtensionValue = {
   fieldId: string
   value: string | null
+}
+
+function ExtensionOpenButton({
+  open,
+  onToggle,
+}: {
+  open: boolean
+  onToggle: () => void
+}) {
+  const { data: fields = [] } = useQuery({
+    queryKey: ["custom-fields-card-extension"],
+    queryFn: () => fetchJsonList<{ id: string }>("/api/custom-fields/card-extension"),
+    staleTime: 30_000,
+  })
+  if (fields.length === 0) return null
+  return (
+    <div className="flex justify-end px-3 pb-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={open ? "Fechar extensão" : "Abrir extensão"}
+        title={open ? "Fechar extensão" : "Abrir extensão"}
+        className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+      >
+        <IconPlus size={14} />
+      </button>
+    </div>
+  )
 }
 
 async function fetchJsonList<T>(path: string): Promise<T[]> {
