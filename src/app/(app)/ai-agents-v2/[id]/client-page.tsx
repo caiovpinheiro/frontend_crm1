@@ -133,6 +133,8 @@ type Catalogs = {
   users: Array<{ id: string; name: string; type: string }>;
   aiAgents: Array<{ id: string; name: string }>;
   messageTemplates: Array<{ id: string; name: string }>;
+  /** Flows publicados (aba Flows das mensagens). */
+  messageFlows?: Array<{ id: string; name: string }>;
   knowledgeDocs: Array<{ id: string; name: string; title?: string }>;
   channels: Array<{ id: string; name: string }>;
   pipelines: Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>;
@@ -387,6 +389,7 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
   },
   allowedKnowledgeDocIds: [],
   allowedMessageModelIds: [],
+  allowedFlowIds: [],
   productPolicy: {
     enabled: false,
     maxItems: 3,
@@ -3908,6 +3911,7 @@ function StepMessagesProducts({
 }) {
   const pp = getPath(config, "productPolicy", {}) as Record<string, unknown>;
   const allowedModels = (config.allowedMessageModelIds as string[]) ?? [];
+  const allowedFlows = (config.allowedFlowIds as string[]) ?? [];
 
   const allowedProductIds = (pp.allowedProductIds as string[]) ?? [];
   const productOptions = catalogs.products.map((p) => ({ value: p.id, label: p.name }));
@@ -3954,6 +3958,20 @@ function StepMessagesProducts({
             </SelectContent>
           </Select>
         </Field>
+      </SectionCard>
+
+      <SectionCard
+        title="Flows que ele pode enviar"
+        description="Formulários publicados na organização (aba Flows das mensagens). Ele só manda os que estiverem ligados, quando o cliente precisar preencher aquele formulário."
+      >
+        <SearchableToggleList
+          items={(catalogs.messageFlows ?? []).map((f) => ({ value: f.id, label: f.name }))}
+          selected={allowedFlows}
+          onChange={(v) => onChange("allowedFlowIds", v)}
+          searchPlaceholder="Buscar flow…"
+          emptyLabel="Nenhum flow publicado na organização."
+          onLabel="Liberados"
+        />
       </SectionCard>
 
       <SectionCard title="Catálogo" description="Se ele pode falar dos produtos e serviços cadastrados no CRM.">

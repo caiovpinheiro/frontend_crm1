@@ -11,6 +11,7 @@ export type NameCatalogs = {
   users?: Array<{ id: string; name: string }>;
   aiAgents?: Array<{ id: string; name: string }>;
   messageTemplates?: Array<{ id: string; name: string }>;
+  messageFlows?: Array<{ id: string; name: string }>;
   knowledgeDocs?: Array<{ id: string; name: string }>;
   channels?: Array<{ id: string; name: string }>;
   contactCustomFields?: Array<{ id: string; name: string }>;
@@ -44,7 +45,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "O que ele sabe",
-    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["derivedFields", "Informações montadas"], ["allowedMessageModelIds", "Mensagens prontas"], ["messageModelAdapt", "Adaptar mensagens prontas"], ["knowledgeSearch", "Trechos que ele lê"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"], ["includeLostDeals", "Usar o negócio perdido"]],
+    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["derivedFields", "Informações montadas"], ["allowedMessageModelIds", "Mensagens prontas"], ["allowedFlowIds", "Flows"], ["messageModelAdapt", "Adaptar mensagens prontas"], ["knowledgeSearch", "Trechos que ele lê"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"], ["includeLostDeals", "Usar o negócio perdido"]],
   },
   {
     section: "Do que ele cuida",
@@ -293,6 +294,7 @@ function idCatalog(path: string, c: NameCatalogs): Array<{ id: string; name: str
   const last = path.split(".").pop() ?? "";
   if (last === "allowedKnowledgeDocIds") return c.knowledgeDocs ?? [];
   if (last === "allowedMessageModelIds") return c.messageTemplates ?? [];
+  if (last === "allowedFlowIds") return c.messageFlows ?? [];
   if (path === "channelIds") return c.channels ?? [];
   if (path === "model") return c.models ?? [];
   if (path === "contextFields.contact") return c.contactCustomFields ?? [];
