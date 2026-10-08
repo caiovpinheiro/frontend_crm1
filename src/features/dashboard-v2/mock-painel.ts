@@ -411,6 +411,12 @@ export function mockPainelDeals(
         count: novosCount,
         value: Math.round(stages[0]!.value * 0.55),
       },
+      // Estoque na etapa Perdido (hoje) + envios do período (= perdas por etapa).
+      lostStage: {
+        count: Math.max(1, Math.round(64 * scale)),
+        value: Math.round(486_000 * scale),
+        sentInPeriod: stages.reduce((sum, s) => sum + s.lost, 0),
+      },
     }),
     evolution: ok(evolution(dates, win.includesToday)),
     agents: ok(agents(band)),

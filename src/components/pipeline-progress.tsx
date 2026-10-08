@@ -38,8 +38,20 @@ export type PipelineProgressSummary = {
   wonValue: number;
   lostCount: number;
   lostValue: number;
+  /**
+   * `lostCount`/`lostValue` são o estoque de hoje nas etapas Perdido do
+   * funil (não as perdas do período). Ausente = comportamento antigo.
+   */
+  lostIsStock?: boolean;
+  /** Negócios movidos para Perdido dentro do período (só com `lostIsStock`). */
+  lostSentInPeriod?: number;
   href?: string;
+  /** Link de "Perdidos" (coluna Perdido no Kanban); ausente = `href`. */
+  lostHref?: string;
 };
+
+const LOST_STOCK_TITLE =
+  "Negócios que estão hoje nas etapas Perdido deste funil, inclusive os já encerrados que o Kanban esconde por padrão. '+N enviados' são os movidos para Perdido no período.";
 
 export type PipelineProgressCohort = {
   count: number;
@@ -278,6 +290,7 @@ function NovosColumn({
 }
 
 function SummaryColumn({ summary }: { summary: PipelineProgressSummary }) {
+  const sent = Math.max(0, summary.lostSentInPeriod ?? 0);
   return (
     <article className="pipeline-progress-col is-summary justify-between">
       <MetricLink href={summary.href}>
@@ -291,8 +304,11 @@ function SummaryColumn({ summary }: { summary: PipelineProgressSummary }) {
           {formatMoney(summary.wonValue)}
         </p>
       </MetricLink>
-      <MetricLink href={summary.href}>
-        <p className="font-display text-[11px] font-bold uppercase tracking-wide text-[var(--pipeline-text-muted)]">
+      <MetricLink href={summary.lostHref ?? summary.href}>
+        <p
+          className="font-display text-[11px] font-bold uppercase tracking-wide text-[var(--pipeline-text-muted)]"
+          title={summary.lostIsStock ? LOST_STOCK_TITLE : undefined}
+        >
           Perdidos
         </p>
         <p className="mt-2 font-display text-[22px] font-bold leading-none tabular-nums text-[var(--pipeline-danger)]">
@@ -301,6 +317,18 @@ function SummaryColumn({ summary }: { summary: PipelineProgressSummary }) {
         <p className="mt-1 font-body text-[12px] text-[var(--pipeline-text-secondary)]">
           {formatMoney(summary.lostValue)}
         </p>
+        {summary.lostIsStock ? (
+          <>
+            <p className="font-body text-[11px] text-[var(--pipeline-text-muted)]">
+              na etapa hoje
+            </p>
+            {sent > 0 ? (
+              <p className="font-body text-[11px] font-semibold tabular-nums text-[var(--pipeline-danger)]">
+                {`+${formatCount(sent)} ${sent === 1 ? "enviado" : "enviados"} no período`}
+              </p>
+            ) : null}
+          </>
+        ) : null}
       </MetricLink>
     </article>
   );
