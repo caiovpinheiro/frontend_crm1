@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch, parseApiResponse } from "@/lib/api";
+import { useCan } from "@/hooks/use-my-permissions";
 import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
 import type {
   InventoryMovement,
@@ -133,14 +134,19 @@ export function useStakeholderMutations(id: string | null) {
 }
 
 // ── Inventário ──────────────────────────────────────────────────────────────
+/**
+ * `GET /api/products/:id/inventory` exige `inventory:view` (403 sem ela).
+ * A query só liga com a permissão já carregada no cliente.
+ */
 export function useProductInventory(id: string | null) {
+  const canViewInventory = useCan("inventory:view");
   return useQuery({
     queryKey: ["product-inventory", id],
     queryFn: () =>
       jsonFetch<{ pools: InventoryPoolView[]; movements: InventoryMovement[] }>(
         `/api/products/${id}/inventory`,
       ),
-    enabled: !!id,
+    enabled: !!id && canViewInventory,
   });
 }
 
