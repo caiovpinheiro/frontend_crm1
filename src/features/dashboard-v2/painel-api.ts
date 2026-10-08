@@ -71,6 +71,13 @@ export type PainelFunnel = {
   stages: PainelFunnelStage[];
   empty: boolean;
   novos: { count: number; value: number };
+  /**
+   * Etapas "Perdido" do funil. `count`/`value`: negócios hoje nessas etapas,
+   * qualquer status (inclui os encerrados que o Kanban esconde por padrão).
+   * `sentInPeriod`: negócios distintos movidos para Perdido no período.
+   * Opcional: backends antigos não devolvem.
+   */
+  lostStage?: { count: number; value: number; sentInPeriod: number };
 };
 
 export type PainelCustomFieldCard = {
