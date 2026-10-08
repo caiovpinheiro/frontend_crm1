@@ -131,6 +131,15 @@ export interface Message {
     storedImageUrl?: string
     storedThumbnailUrl?: string
   } | null
+  sharedContacts?: Array<{
+    name: string
+    firstName?: string | null
+    lastName?: string | null
+    phones: Array<{ phone: string; waId?: string | null; type?: string | null }>
+    emails?: Array<{ email: string; type?: string | null }>
+    company?: string | null
+    title?: string | null
+  }> | null
   catalogOrder?: {
     catalogId: string
     text: string | null

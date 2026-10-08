@@ -86,11 +86,12 @@ import {
  */
 type NewMessagePayload = Omit<
   RealtimePayload<"new_message">,
-  "card" | "catalogOrder" | "referral"
+  "card" | "catalogOrder" | "referral" | "sharedContacts"
 > & {
   card?: ConversationListRow;
   catalogOrder?: InboxMessageDto["catalogOrder"];
   referral?: InboxMessageDto["referral"];
+  sharedContacts?: InboxMessageDto["sharedContacts"];
 };
 
 /**
@@ -619,6 +620,10 @@ function appendSseMessageToOpenChat(
         ? data.catalogOrder
         : undefined,
     referral: normalizeAdReferral(data.referral) ?? null,
+    sharedContacts:
+      data.sharedContacts && data.sharedContacts.length > 0
+        ? data.sharedContacts
+        : undefined,
   };
   qc.setQueryData<MessagesResponse>(messagesKey(activeId), (old) => {
     if (!old?.messages) return old;

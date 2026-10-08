@@ -684,6 +684,7 @@ export function toMessageBubble(
         : undefined,
     isFavorited: dto.favoritedByMe || undefined,
     referral: normalizeAdReferral(dto.referral),
+    sharedContacts: dto.sharedContacts?.length ? dto.sharedContacts : undefined,
     catalogOrder:
       dto.catalogOrder && Array.isArray(dto.catalogOrder.items)
         ? dto.catalogOrder

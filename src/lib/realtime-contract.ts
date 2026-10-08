@@ -42,6 +42,8 @@ export type NewMessageEvent<TCard = unknown> = {
   senderUserId?: string | null;
   assignedToId?: string | null;
   catalogOrder?: unknown;
+  /** Contatos compartilhados normalizados. Ausente em mensagem antiga. */
+  sharedContacts?: unknown;
   /** Referral do anúncio Meta desta mensagem inbound. */
   referral?: unknown;
   /** Linha da lista do inbox montada pelo barramento. */

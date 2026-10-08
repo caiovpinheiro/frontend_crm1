@@ -304,6 +304,23 @@ export interface ReactionDto {
   at?: string;
 }
 
+export type SharedContact = {
+  name: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phones: Array<{
+    phone: string;
+    waId?: string | null;
+    type?: string | null;
+  }>;
+  emails?: Array<{
+    email: string;
+    type?: string | null;
+  }>;
+  company?: string | null;
+  title?: string | null;
+};
+
 export interface InboxMessageDto {
   id: string;
   conversationId: string;
@@ -402,6 +419,7 @@ export interface InboxMessageDto {
     storedImageUrl?: string;
     storedThumbnailUrl?: string;
   } | null;
+  sharedContacts?: SharedContact[] | null;
   catalogOrder?: {
     catalogId: string;
     text: string | null;
