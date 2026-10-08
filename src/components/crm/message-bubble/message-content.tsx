@@ -17,6 +17,7 @@ import {
   resolveMediaUrl,
 } from "./media-helpers"
 import type { Message } from "./types"
+import { SharedContactCards } from "./shared-contact-card"
 
 /** Card compacto no lugar de preview preto/quebrado (vídeo/imagem). */
 function MediaFallback({
@@ -146,6 +147,14 @@ export function MessageContent({
   const content = message.content ?? ""
   // Legenda só aparece se for texto real (não o placeholder "[video]" etc.).
   const caption = isPlaceholderContent(content) ? "" : content
+  const contactType = String(message.messageType ?? "").toLowerCase()
+  if (
+    (contactType === "contact" || contactType === "contacts") &&
+    message.sharedContacts &&
+    message.sharedContacts.length > 0
+  ) {
+    return <SharedContactCards contacts={message.sharedContacts} />
+  }
 
   // ── Áudio / voz / PTT ──────────────────────────────────────────
   if (kind === "audio") {
