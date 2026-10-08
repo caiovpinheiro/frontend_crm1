@@ -93,6 +93,10 @@ interface DealListTableProps {
   selectedIds?: Set<string>;
   onSelectionChange?: (next: Set<string>) => void;
   view?: CardsTableView;
+  /** Última interação já ordenada no servidor, no recorte inteiro. */
+  lastInteractionSort?: SortDir;
+  onLastInteractionSort?: () => void;
+  onClearLastInteractionSort?: () => void;
 }
 
 /** "Hoje 12:48", "Ontem 12:48" ou "30/08/2026 12:48". */
@@ -152,6 +156,9 @@ export function DealListTable({
   selectedIds,
   onSelectionChange,
   view = "cards",
+  lastInteractionSort = null,
+  onLastInteractionSort,
+  onClearLastInteractionSort,
 }: DealListTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -176,15 +183,21 @@ export function DealListTable({
       statusTab === "todos"
         ? deals
         : deals.filter((d) => statusToTab[d.status] === statusTab);
+    if (lastInteractionSort) return base;
     const sorted = [...base].sort((a, b) => {
       const av = String(a[sortKey] ?? "");
       const bv = String(b[sortKey] ?? "");
       return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
     });
     return sorted;
-  }, [deals, statusTab, sortKey, sortDir]);
+  }, [deals, statusTab, sortKey, sortDir, lastInteractionSort]);
 
   const handleSort = (key: SortKey) => {
+    if (key === "lastInteractionAt" && onLastInteractionSort) {
+      onLastInteractionSort();
+      return;
+    }
+    if (lastInteractionSort) onClearLastInteractionSort?.();
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -193,7 +206,10 @@ export function DealListTable({
     }
   };
 
-  const sortFor = (key: SortKey): SortDir => (sortKey === key ? sortDir : null);
+  const sortFor = (key: SortKey): SortDir => {
+    if (lastInteractionSort) return key === "lastInteractionAt" ? lastInteractionSort : null;
+    return sortKey === key ? sortDir : null;
+  };
 
   const allChecked = filtered.length > 0 && filtered.every((d) => selected.has(d.id));
   const someChecked = filtered.some((d) => selected.has(d.id));

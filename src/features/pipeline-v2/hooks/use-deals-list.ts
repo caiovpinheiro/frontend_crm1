@@ -13,6 +13,7 @@ export function dealsListKey(params: {
   page: number;
   perPage: number;
   filtersKey?: string;
+  sort?: string;
 }) {
   return [
     "deals-list",
@@ -21,6 +22,7 @@ export function dealsListKey(params: {
     params.ownerId ?? "__any__",
     params.search ?? "",
     params.filtersKey ?? "",
+    params.sort ?? "",
     params.page,
     params.perPage,
   ] as const;
@@ -43,6 +45,7 @@ export function useDealsList(params: {
   perPage?: number;
   filters?: Record<string, unknown>;
   enabled?: boolean;
+  sort?: { field: "lastInteraction"; direction: "asc" | "desc" };
 }) {
   const page = params.page ?? 1;
   const perPage = params.perPage ?? 30;
@@ -50,6 +53,8 @@ export function useDealsList(params: {
     params.filters && Object.keys(params.filters).length > 0
       ? JSON.stringify(params.filters)
       : "";
+  const sortKey =
+    params.sort?.field === "lastInteraction" ? `lastInteraction:${params.sort.direction}` : "";
   return useQuery<DealListPage>({
     queryKey: dealsListKey({
       pipelineId: params.pipelineId,
@@ -57,6 +62,7 @@ export function useDealsList(params: {
       ownerId: params.ownerId,
       search: params.search,
       filtersKey,
+      sort: sortKey,
       page,
       perPage,
     }),
@@ -69,6 +75,8 @@ export function useDealsList(params: {
         filters: params.filters,
         page,
         perPage,
+        sort: params.sort?.field === "lastInteraction" ? "lastInteraction" : undefined,
+        direction: params.sort?.direction,
       }),
     enabled: isPreviewMode() ? true : (params.enabled ?? true),
     staleTime: 10_000,

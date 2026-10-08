@@ -65,6 +65,9 @@ interface FetchDealsListParams {
   perPage?: number;
   /** Filtros avançados (mesmo shape do kanban) — enviados como JSON em `filters`. */
   filters?: Record<string, unknown>;
+  /** Ordena o recorte inteiro no servidor. `asc` = mais antigo primeiro. */
+  sort?: "lastInteraction";
+  direction?: "asc" | "desc";
 }
 
 function buildQuery(params: FetchDealsListParams): string {
@@ -78,6 +81,10 @@ function buildQuery(params: FetchDealsListParams): string {
   if (params.perPage) sp.set("perPage", String(params.perPage));
   if (params.filters && Object.keys(params.filters).length > 0) {
     sp.set("filters", JSON.stringify(params.filters));
+  }
+  if (params.sort === "lastInteraction") {
+    sp.set("sort", "lastInteraction");
+    sp.set("direction", params.direction === "asc" ? "asc" : "desc");
   }
   const s = sp.toString();
   return s ? `?${s}` : "";

@@ -212,6 +212,8 @@ export default function V2PipelineListClientPage() {
   }, [filters]);
 
   const listSearch = normalizeSearchQuery(debounced);
+  const lastInteractionSort =
+    sortKey === "interaction_oldest" ? "asc" : sortKey === "interaction_newest" ? "desc" : null;
 
   const dealsQuery = useDealsList({
     pipelineId: pipelineId ?? undefined,
@@ -221,6 +223,9 @@ export default function V2PipelineListClientPage() {
     perPage,
     filters: isEmptyFilters(advancedForList) ? undefined : advancedForList,
     enabled: canFetch && !!pipelineId,
+    sort: lastInteractionSort
+      ? { field: "lastInteraction", direction: lastInteractionSort }
+      : undefined,
   });
 
   // Etapas vêm do GET /api/pipelines já carregado acima — a lista não
@@ -242,6 +247,10 @@ export default function V2PipelineListClientPage() {
     // (seleção acumula entre páginas para ações em massa).
     setSelectedIds(new Set());
   }, [pipelineId, statusTab, debounced, filters]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortKey]);
 
   const scopeContext = useMemo<BulkScopeContext | undefined>(() => {
     if (!pipelineId) return undefined;
@@ -437,6 +446,13 @@ export default function V2PipelineListClientPage() {
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
             view={view}
+            lastInteractionSort={lastInteractionSort}
+            onLastInteractionSort={() => {
+              setSortKey(
+                sortKey === "interaction_oldest" ? "interaction_newest" : "interaction_oldest",
+              );
+            }}
+            onClearLastInteractionSort={() => setSortKey("default")}
           />
         )}
 
