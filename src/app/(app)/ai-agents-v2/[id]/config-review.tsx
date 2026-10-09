@@ -45,7 +45,7 @@ type Suggestion = {
 type Run = {
   id: string;
   status: "running" | "done" | "error";
-  params: { model: string; includeTurns: boolean; days: number };
+  params: { model: string; includeTurns: boolean; days: number; scope?: "problemas" | "texto" };
   resumo: string | null;
   suggestions: Suggestion[];
   error: string | null;
@@ -55,6 +55,9 @@ type Run = {
   configHash: string | null;
   descartadas: number;
 };
+
+/** Dimensões da revisão do texto. Outras áreas (revisão com prova) ficam neutras. */
+const AREA_TONE: Record<string, Tone> = { Conflito: "rose", "Falta escrever": "violet", Direção: "sky", Qualidade: "slate" };
 
 const SEVERITY: Record<Suggestion["gravidade"], { label: string; tone: Tone }> = {
   alta: { label: "Alta", tone: "rose" },
@@ -100,6 +103,7 @@ export function ConfigReviewCard({
   const queryClient = useQueryClient();
   const { confirm, dialog } = useConfirm();
   const [model, setModel] = React.useState(() => (models.some((m) => m.id === defaultModel) ? defaultModel : models[0]?.id ?? ""));
+  const [scope, setScope] = React.useState<"problemas" | "texto">("problemas");
   const [includeTurns, setIncludeTurns] = React.useState(true);
   const [days, setDays] = React.useState<"7" | "15" | "30">("7");
   const [runId, setRunId] = React.useState<string | null>(null);
@@ -125,7 +129,7 @@ export function ConfigReviewCard({
   }
 
   const start = useMutation({
-    mutationFn: () => send<{ runId: string }>(`/api/ai-agents-v2/${agentId}/review`, { model, includeTurns, days: Number(days) }, "Erro ao iniciar a revisão."),
+    mutationFn: () => send<{ runId: string }>(`/api/ai-agents-v2/${agentId}/review`, { model, includeTurns, days: Number(days), scope }, "Erro ao iniciar a revisão."),
     onSuccess: (r) => {
       setRunId(r.runId);
       queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-review", agentId] });
@@ -200,9 +204,32 @@ export function ConfigReviewCard({
         <div className="min-w-0 flex-1">
           <h3 className="text-[15px] font-semibold leading-tight">Revisar com IA</h3>
           <p className="text-[13px] text-muted-foreground">
-            Um modelo lê as regras do agente e os atendimentos recentes e aponta problemas com prova. Você aplica ou recusa cada um — só no rascunho — e a próxima revisão não repete o que foi decidido.
+            {scope === "texto"
+              ? "Um modelo lê o que está escrito — regras, assuntos, atalhos, mensagens — e aponta o que falta escrever, onde a direção não está clara, o que pode ficar mais enxuto e o que se contradiz. Não precisa de atendimentos. Você aplica ou recusa cada sugestão, só no rascunho."
+              : "Um modelo lê as regras do agente e os atendimentos recentes e aponta problemas com prova. Você aplica ou recusa cada um — só no rascunho — e a próxima revisão não repete o que foi decidido."}
           </p>
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">O que revisar</span>
+        <Segmented
+          size="sm"
+          value={scope}
+          onChange={(v) => {
+            setScope(v);
+            setIncludeTurns(v === "problemas");
+          }}
+          options={[
+            { value: "problemas", label: "Problemas com prova" },
+            { value: "texto", label: "Texto da configuração" },
+          ]}
+        />
+        {scope === "texto" && (
+          <p className="text-xs text-muted-foreground">
+            Quatro dimensões: <strong>Falta escrever</strong> (situação sem instrução), <strong>Direção</strong> (não diz o que fazer), <strong>Qualidade</strong> (longo, repetido, jargão) e <strong>Conflito</strong> (regras que se contradizem). Avalia a escrita, não o negócio.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -319,7 +346,7 @@ export function ConfigReviewCard({
                         <span className="text-xs text-muted-foreground">{s.id}</span>
                         <span className="text-sm font-medium">{s.titulo}</span>
                         <Pill tone={sev.tone}>{sev.label}</Pill>
-                        {s.area && <Pill tone="slate">{s.area}</Pill>}
+                        {s.area && <Pill tone={AREA_TONE[s.area] ?? "slate"}>{s.area}</Pill>}
                         {s.aplicada && (
                           <Pill tone="emerald" icon={IconCheck}>
                             aplicada
