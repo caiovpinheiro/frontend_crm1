@@ -5902,6 +5902,7 @@ const SYSTEM_MESSAGES: Array<{ key: string; label: string; when: string; placeho
   { key: "confusionRephrase", label: "Cliente não entendeu (refaz a pergunta)", when: "O cliente mostra que não entendeu (“?”, “como assim”) e a última mensagem do agente tinha uma pergunta. {{pergunta}} vira essa pergunta.", placeholder: "Desculpa, acho que não fui claro. {{pergunta}}" },
   { key: "confusionAsk", label: "Cliente não entendeu (sem pergunta)", when: "O mesmo, quando a última mensagem do agente não tinha pergunta.", placeholder: "Desculpa, acho que não fui claro. O que ficou confuso? Me conta que eu explico de outro jeito." },
   { key: "optionsPrompt", label: "Texto acima das opções", when: "Quando a resposta é longa demais para ir junto da lista de opções.", placeholder: "Escolha uma opção:" },
+  { key: "deferralReply", label: "Cliente adiou (“chamo depois”)", when: "O cliente diz que vai falar depois ou que não pode agora. O agente responde isto, sem fecho nem botões, e encerra; a volta entra pela janela pós-encerramento.", placeholder: "Combinado! Quando puder, é só me chamar por aqui. 😊" },
   { key: "optionsButton", label: "Botão da lista de opções", when: "Botão que abre a lista (até 20 caracteres).", placeholder: "Ver opções", max: 20 },
 ];
 
