@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { IconDownload, IconExternalLink, IconX } from "@tabler/icons-react";
 
+import { imageDownloadName } from "@/lib/image-download-name";
 import { cn } from "@/lib/utils";
 
 /**
@@ -54,7 +55,11 @@ export function ImageLightbox({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = alt?.replace(/[^\w.-]+/g, "_") || "imagem";
+      a.download = imageDownloadName({
+        suggested: alt,
+        contentType: blob.type || res.headers.get("content-type"),
+        sourceUrl: src,
+      });
       document.body.appendChild(a);
       a.click();
       a.remove();

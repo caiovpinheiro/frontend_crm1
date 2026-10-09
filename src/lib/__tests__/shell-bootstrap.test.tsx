@@ -210,6 +210,9 @@ describe("helpers", () => {
     expect(n.departmentIds).toEqual(["a", "b"]);
     expect(n.config).toBeTruthy();
     expect(normalizeAlertConfigBlock({}).departmentIds).toEqual([]);
+    expect(normalizeAlertConfigBlock({}).tabAudience).toBeNull();
+    expect(normalizeAlertConfigBlock({ tabAudience: "department" }).tabAudience).toBe("department");
+    expect(normalizeAlertConfigBlock({ tabAudience: "xyz" }).tabAudience).toBeNull();
   });
 });
 
@@ -265,6 +268,7 @@ describe("abertura do shell", () => {
     expect(qc.getQueryData(k.alertConfig("u1"))).toEqual({
       config: p.alertConfig!.config,
       departmentIds: ["d1"],
+      tabAudience: null,
     });
     // Salas do chat NÃO são semeadas (formato completo vive na tela do chat).
     expect(qc.getQueryData(["team-chat-rooms"])).toBeUndefined();

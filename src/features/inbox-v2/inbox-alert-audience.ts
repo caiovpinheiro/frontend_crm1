@@ -54,6 +54,49 @@ type AudienceCard = Pick<ConversationListRow, "assignedToId" | "departmentId"> &
   assignedTo?: { type?: string | null } | null;
 };
 
+/**
+ * Quem recebe o aviso na aba do navegador (canal `tab`), escolhido pelo
+ * admin para a org (Configurações > Notificações):
+ * - `"owner"`      — só o responsável pela conversa;
+ * - `"department"` — também conversas dos departamentos do usuário, com
+ *                    ou sem responsável;
+ * - `"all"`        — qualquer conversa que o usuário vê.
+ * `null` = sem escolha: vale a coluna "Aba" da config por tipo.
+ * Espelha `lib/inbox-alert-config.ts` do backend.
+ */
+export type InboxTabAudience = "owner" | "department" | "all";
+export const INBOX_TAB_AUDIENCES: readonly InboxTabAudience[] = ["owner", "department", "all"];
+
+export function parseInboxTabAudience(raw: unknown): InboxTabAudience | null {
+  return typeof raw === "string" && (INBOX_TAB_AUDIENCES as readonly string[]).includes(raw)
+    ? (raw as InboxTabAudience)
+    : null;
+}
+
+/**
+ * Se a aba acende para esta conversa. Com público definido, ele decide
+ * sozinho; sem, vale `fallback` (coluna "Aba" do tipo da conversa).
+ * O card só chega a quem pode listar a conversa — "all" não amplia a
+ * visibilidade, só o aviso.
+ */
+export function inboxTabAlertFor(
+  audience: InboxTabAudience | null | undefined,
+  card: AudienceCard,
+  meId: string | null | undefined,
+  myDepartmentIds: readonly string[] | null | undefined,
+  fallback: boolean,
+): boolean {
+  if (!audience) return fallback;
+  if (!meId) return false;
+  if (card.assignedToId && card.assignedToId === meId) return true;
+  if (audience === "all") return true;
+  if (audience === "department") {
+    const dept = card.departmentId;
+    return Boolean(dept && myDepartmentIds?.includes(dept));
+  }
+  return false;
+}
+
 export function inboxAlertKind(
   card: AudienceCard,
   meId: string | null | undefined,

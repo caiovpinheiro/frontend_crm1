@@ -32,6 +32,7 @@ import {
 import {
   DEFAULT_INBOX_ALERT_CONFIG,
   inboxAlertKind,
+  inboxTabAlertFor,
   withInboxAlertDefaults,
   type InboxAlertConfig,
 } from "@/features/inbox-v2/inbox-alert-audience";
@@ -73,7 +74,11 @@ type NewMessageEnvelope = {
 async function fetchMyAlertConfigFromApi(): Promise<MyAlertConfig> {
   const res = await fetch(apiUrl("/api/agents/me/alert-config"));
   if (!res.ok) throw new Error(`alert-config ${res.status}`);
-  const data = (await res.json()) as { config?: InboxAlertConfig; departmentIds?: unknown };
+  const data = (await res.json()) as {
+    config?: InboxAlertConfig;
+    departmentIds?: unknown;
+    tabAudience?: unknown;
+  };
   return normalizeAlertConfigBlock(data);
 }
 
@@ -170,7 +175,19 @@ export function InboxMessageAlerts() {
       const alerts = alertsRef.current;
       const kind = inboxAlertKind(card, meRef.current, alerts?.departmentIds);
       if (!kind) return;
-      const channels = withInboxAlertDefaults(alerts?.config)[kind];
+      const kindChannels = withInboxAlertDefaults(alerts?.config)[kind];
+      // Aviso na aba: o público da org (responsável / departamento / todos),
+      // quando definido, substitui a coluna "Aba" do tipo da conversa.
+      const channels = {
+        ...kindChannels,
+        tab: inboxTabAlertFor(
+          alerts?.tabAudience,
+          card,
+          meRef.current,
+          alerts?.departmentIds,
+          kindChannels.tab,
+        ),
+      };
       if (!channels.sound && !channels.toast && !channels.native && !channels.tab) return;
 
       if (channels.sound) {

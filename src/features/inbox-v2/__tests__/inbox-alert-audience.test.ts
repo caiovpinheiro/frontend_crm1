@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_INBOX_ALERT_CONFIG,
   inboxAlertKind,
+  inboxTabAlertFor,
   withInboxAlertDefaults,
 } from "../inbox-alert-audience";
 
@@ -61,5 +62,38 @@ describe("inboxAlertKind", () => {
 
   it("sem usuário → nada", () => {
     expect(inboxAlertKind({ assignedToId: ME }, null, DEPTS)).toBeNull();
+  });
+});
+
+describe("inboxTabAlertFor", () => {
+  const mine = { assignedToId: ME, departmentId: "d_vendas" };
+  const deptOther = { assignedToId: "u_outro", departmentId: "d_vendas" };
+  const deptQueue = { assignedToId: null, departmentId: "d_vendas" };
+  const outside = { assignedToId: "u_outro", departmentId: "d_suporte" };
+
+  it("sem público definido → vale a coluna Aba do tipo", () => {
+    expect(inboxTabAlertFor(null, outside, ME, DEPTS, true)).toBe(true);
+    expect(inboxTabAlertFor(null, mine, ME, DEPTS, false)).toBe(false);
+  });
+
+  it("owner → só o responsável", () => {
+    expect(inboxTabAlertFor("owner", mine, ME, DEPTS, false)).toBe(true);
+    expect(inboxTabAlertFor("owner", deptOther, ME, DEPTS, true)).toBe(false);
+    expect(inboxTabAlertFor("owner", deptQueue, ME, DEPTS, true)).toBe(false);
+  });
+
+  it("department → responsável + conversas dos meus departamentos", () => {
+    expect(inboxTabAlertFor("department", mine, ME, DEPTS, false)).toBe(true);
+    expect(inboxTabAlertFor("department", deptOther, ME, DEPTS, false)).toBe(true);
+    expect(inboxTabAlertFor("department", deptQueue, ME, DEPTS, false)).toBe(true);
+    expect(inboxTabAlertFor("department", outside, ME, DEPTS, true)).toBe(false);
+  });
+
+  it("all → qualquer conversa visível", () => {
+    expect(inboxTabAlertFor("all", outside, ME, DEPTS, false)).toBe(true);
+  });
+
+  it("sem usuário → nunca", () => {
+    expect(inboxTabAlertFor("all", outside, null, DEPTS, true)).toBe(false);
   });
 });

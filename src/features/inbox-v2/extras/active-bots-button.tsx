@@ -104,6 +104,8 @@ type PanelRow = {
 interface ActiveBotsButtonProps {
   contactId: string | null;
   conversationId?: string | null;
+  /** Negócio aberto na tela, para o disparo manual não ficar sem card. */
+  dealId?: string | null;
   /**
    * `inline` = botão na barra do composer (ao lado do enviar).
    * Sem `inline` = overlay absoluto (uso legado).
@@ -182,7 +184,7 @@ function historyToItems(history: AutomationHistoryDto[]): AutomationHistoryItem[
 
 async function runAutomation(
   automationId: string,
-  payload: { contactId: string; conversationId?: string | null },
+  payload: { contactId: string; conversationId?: string | null; dealId?: string | null },
 ): Promise<{ automationName?: string }> {
   const res = await fetch(apiUrl(`/api/automations/${automationId}/run`), {
     method: "POST",
@@ -190,6 +192,7 @@ async function runAutomation(
     body: JSON.stringify({
       contactId: payload.contactId,
       conversationId: payload.conversationId ?? undefined,
+      dealId: payload.dealId ?? undefined,
     }),
   });
   const json = (await res.json().catch(() => ({}))) as {
@@ -205,6 +208,7 @@ async function runAutomation(
 export function ActiveBotsButton({
   contactId,
   conversationId = null,
+  dealId = null,
   inline,
   className,
 }: ActiveBotsButtonProps) {
@@ -252,6 +256,7 @@ export function ActiveBotsButton({
       const result = await runAutomation(row.automationId, {
         contactId,
         conversationId,
+        dealId,
       });
       toast.success(`Automação disparada: ${result.automationName ?? row.name}`);
       qc.invalidateQueries({ queryKey: contactActiveAutomationsKey(contactId) });
@@ -427,6 +432,7 @@ export function ActiveBotsButton({
         onClose={() => setPickerOpen(false)}
         conversationId={conversationId}
         contactId={contactId}
+        dealId={dealId}
       />
     </div>
   );
