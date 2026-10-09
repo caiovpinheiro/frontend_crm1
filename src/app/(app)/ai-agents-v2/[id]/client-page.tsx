@@ -2668,11 +2668,13 @@ type DerivedPart = {
   digitsOnly?: boolean;
   charset?: "all" | "digits" | "letters";
   letterCase?: "keep" | "upper" | "lower" | "capitalize";
+  /** Acentos do pedaço: manter ou tirar (É → E, ç → c). */
+  accents?: "keep" | "strip";
   text?: string;
 };
 type DerivedField = { id: string; label: string; parts: DerivedPart[]; mask?: string };
 
-/** Mesma regra do motor (lib/ai-v2/field-mask): caracteres → quantidade → maiúsculas. */
+/** Mesma regra do motor (lib/ai-v2/field-mask): caracteres → quantidade → acentos → maiúsculas. */
 function derivedPartPreview(raw: string, part: DerivedPart): string {
   let text = raw.trim();
   const charset = part.charset ?? (part.digitsOnly ? "digits" : "all");
@@ -2682,6 +2684,7 @@ function derivedPartPreview(raw: string, part: DerivedPart): string {
   const n = Math.max(0, Math.floor(part.count ?? 0));
   if (part.take === "first" && n > 0) text = chars.slice(0, n).join("");
   else if (part.take === "last" && n > 0) text = chars.slice(-n).join("");
+  if (part.accents === "strip") text = text.normalize("NFD").replace(/\p{M}/gu, "");
   if (part.letterCase === "upper") return text.toLocaleUpperCase("pt-BR");
   if (part.letterCase === "lower") return text.toLocaleLowerCase("pt-BR");
   if (part.letterCase === "capitalize") return text.charAt(0).toLocaleUpperCase("pt-BR") + text.slice(1).toLocaleLowerCase("pt-BR");
@@ -2698,6 +2701,10 @@ const PART_CASE = [
   { value: "capitalize", label: "Primeira maiúscula" },
   { value: "upper", label: "MAIÚSCULAS" },
   { value: "lower", label: "minúsculas" },
+];
+const PART_ACCENTS = [
+  { value: "keep", label: "com acentos" },
+  { value: "strip", label: "sem acentos (É → E)" },
 ];
 
 /** Uma informação montada: nome, partes em frase e exemplo ao vivo. */
@@ -2834,6 +2841,18 @@ function DerivedFieldCard({
                   </SelectTrigger>
                   <SelectContent>
                     {PART_CASE.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={part.accents ?? "keep"} onValueChange={(v) => patchPart(k, { accents: v as DerivedPart["accents"] })}>
+                  <SelectTrigger className={cn(selectCls, "min-w-[150px]")} aria-label="Acentos">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PART_ACCENTS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {o.label}
                       </SelectItem>
@@ -5655,6 +5674,7 @@ function StepOutputs({
             { path: "limits.maxCourtesyReplies", label: "Respostas a agradecimentos depois de encerrar", tooltip: "Quantas vezes ele responde a um obrigado depois que a conversa foi encerrada." },
             { path: "limits.nonsenseLimit", label: "Mensagens fora do assunto seguidas", tooltip: "Quantas mensagens fora do assunto (ou repetidas) ele aceita antes de agir." },
             { path: "limits.maxAiTransfers", label: "Vezes que pode passar para outro agente de IA", tooltip: "Limite de idas e voltas entre agentes de IA antes de ir para fila humana." },
+            { path: "limits.maxStalledExchanges", label: "Perguntas seguidas sem resolver", tooltip: "Quantas vezes seguidas ele pode responder só com outra pergunta (sem orientação, material ou dado novo) a uma resposta do cliente. Na seguinte, em vez de insistir, sai pela saída do assunto. 0 = desligado." },
           ].map((f) => (
             <Field key={f.path} label={f.label} tooltip={f.tooltip}>
               <Input
@@ -5673,6 +5693,18 @@ function StepOutputs({
               <SelectContent>
                 <SelectItem value="warn_and_silence">Avisar e parar de responder</SelectItem>
                 <SelectItem value="handoff">Passar para a equipe</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Ao passar das perguntas seguidas" tooltip="Sair pela saída do assunto (o departamento ou agente escolhido em “Para onde transferir” do assunto; sem destino no assunto, vale o padrão do agente) ou encerrar a conversa.">
+            <Select
+              value={(getPath(config, "limits.stalledExchangesAction", "handoff") as string) || "handoff"}
+              onValueChange={(v) => onChange("limits.stalledExchangesAction", v)}
+            >
+              <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="handoff">Sair pela saída do assunto</SelectItem>
+                <SelectItem value="close">Encerrar a conversa</SelectItem>
               </SelectContent>
             </Select>
           </Field>
