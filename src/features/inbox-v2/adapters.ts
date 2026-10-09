@@ -639,6 +639,10 @@ export function toMessageBubble(
       if (classified.kind === "draft") {
         return { kind: "draft" as const, isNote: undefined };
       }
+      // Resumo do atendimento: cartão privado (AISummaryCard).
+      if (classified.kind === "summary") {
+        return { kind: "summary" as const, isNote: undefined };
+      }
       return { kind: "message" as const, isNote: undefined };
     })(),
     // Badge de categoria do template (Marketing / Utility / Autenticação):

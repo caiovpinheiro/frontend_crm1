@@ -25,6 +25,7 @@ const PIPELINE_SSE_EVENTS: readonly RealtimeEventName[] = [
 const NON_CHAT_MESSAGE_TYPES = new Set([
   "note",
   "ai_draft",
+  "ai_summary",
   "whatsapp_call",
   "whatsapp_call_recording",
 ]);

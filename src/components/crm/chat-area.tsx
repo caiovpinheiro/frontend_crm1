@@ -27,6 +27,7 @@ import {
 import { SessionAlert } from "./session-alert"
 import { ConsentEventRow, SystemEventRow } from "@/features/inbox-v2/extras/chat-event-rows"
 import { AIDraftCard } from "@/features/inbox-v2/extras/ai-draft-card"
+import { AISummaryCard } from "@/features/inbox-v2/extras/ai-summary-card"
 import { ForwardDialog } from "@/features/inbox-v2/extras/forward-dialog"
 import { ConversationSearchBar, isFindShortcut, useConversationSearch } from "./conversation-search"
 import {
@@ -1164,9 +1165,10 @@ export function ChatArea({
             const isSystemRow = message.kind === "system"
             const isConsentRow = message.kind === "consent"
             const isDraftCard = message.kind === "draft"
+            const isSummaryCard = message.kind === "summary"
             const isNoteBubble = message.isNote === true
             const lane: "in" | "out" | "other" =
-              isEvent || isSystemRow || isConsentRow || isDraftCard || isNoteBubble
+              isEvent || isSystemRow || isConsentRow || isDraftCard || isSummaryCard || isNoteBubble
                 ? "other"
                 : message.type === "outgoing"
                   ? "out"
@@ -1218,6 +1220,12 @@ export function ChatArea({
                       time={message.time}
                       senderName={message.senderName ?? null}
                       conversationId={conversationId ?? null}
+                    />
+                  ) : isSummaryCard ? (
+                    <AISummaryCard
+                      content={message.content}
+                      time={message.time}
+                      senderName={message.senderName ?? null}
                     />
                   ) : (
                     <MessageBubble
