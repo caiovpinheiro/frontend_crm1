@@ -4437,6 +4437,74 @@ function ThemeRecognitionSettings({ config, onChange }: { config: Record<string,
   );
 }
 
+const SUMMARY_LEVELS: Array<{ id: "minimal" | "standard" | "detailed"; title: string; description: string; recommended?: boolean }> = [
+  { id: "minimal", title: "Mínimo", description: "Uma linha: motivo → resultado · pendência." },
+  { id: "standard", title: "Padrão", description: "Cinco itens, uma frase cada: motivo, o que foi feito, pendência, resultado, próximo passo.", recommended: true },
+  { id: "detailed", title: "Detalhado", description: "Os cinco itens, mais os dados que o cliente informou e os horários das mensagens-chave." },
+];
+
+/** "Começo e fim › Resumir o atendimento". */
+function SummarySettings({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
+  const summary = (getPath(config, "closure.summary", {}) ?? {}) as Record<string, unknown>;
+  const enabled = !!summary.enabled;
+  const verbosity = (typeof summary.verbosity === "string" ? summary.verbosity : "standard") as "minimal" | "standard" | "detailed";
+  const everyTurn = !!summary.everyTurn;
+  const set = (patch: Record<string, unknown>) => onChange("closure.summary", { verbosity: "standard", everyTurn: false, ...summary, ...patch });
+  return (
+    <SectionCard
+      title="Resumir o atendimento"
+      description="Ao encerrar ou transferir, o agente escreve um resumo do que aconteceu. Ele aparece no chat como um cartão que só a equipe vê, e é lido pelo próximo agente ou pessoa que assumir a conversa, mesmo dias depois. O cliente não recebe nada."
+    >
+      <label className="flex cursor-pointer items-center gap-3">
+        <Switch checked={enabled} onCheckedChange={(v) => set({ enabled: v })} aria-label="Resumir o atendimento" />
+        <span className="text-sm">Resumir ao encerrar ou transferir</span>
+      </label>
+      {enabled && (
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <InfoLabel label="Nível de detalhe" />
+            <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Nível de detalhe do resumo">
+              {SUMMARY_LEVELS.map((level) => {
+                const active = verbosity === level.id;
+                return (
+                  <button
+                    key={level.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => set({ verbosity: level.id })}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition-colors",
+                      active ? "border-[var(--color-brand-primary)] ring-1 ring-[var(--color-brand-primary)]" : "border-border hover:bg-muted/40",
+                    )}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {level.title}
+                      {level.recommended && (
+                        <span className="rounded-full bg-[var(--color-brand-primary)]/10 px-2 py-0.5 text-[11px] font-normal text-[var(--color-brand-primary)]">recomendado</span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{level.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <label className="flex cursor-pointer items-start gap-3">
+            <Switch checked={everyTurn} onCheckedChange={(v) => set({ everyTurn: v })} aria-label="Atualizar o resumo a cada resposta" />
+            <span className="text-sm">
+              Atualizar a cada resposta
+              <span className="block text-xs text-muted-foreground">
+                Mantém um resumo corrente da conversa só para o motor, sem cartão no chat. Útil em conversas longas; custa uma chamada a mais por resposta.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 /** "Começo e fim › Cliente sem responder". */
 function InactivitySettings({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
   const inactivity = (getPath(config, "inactivity", {}) ?? {}) as Record<string, unknown>;
@@ -5882,6 +5950,7 @@ function StepClosure({
       </SectionCard>
 
       <InactivitySettings config={config} onChange={onChange} />
+      <SummarySettings config={config} onChange={onChange} />
       <TabulationSettings config={config} catalogs={catalogs} onChange={onChange} />
 
       <AdvancedOptions count={5}>

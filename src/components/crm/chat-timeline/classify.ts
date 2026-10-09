@@ -19,6 +19,8 @@ const SYSTEM_ACTORS = new Set([
 ]);
 
 const DRAFT_TYPES = new Set(["ai_draft"]);
+/** Resumo do atendimento gravado pelo agente de IA ao encerrar/transferir. */
+const SUMMARY_TYPES = new Set(["ai_summary"]);
 
 export function isEventMessageType(
   messageType: string | null | undefined,
@@ -282,6 +284,10 @@ export function classifyTimelineItem(
   // no lugar da bolha — o canônico não pode ficar cego para ele.
   if (DRAFT_TYPES.has(mt)) {
     return { kind: "draft" };
+  }
+  // Resumo privado: cartão fechado por padrão, só a equipe vê.
+  if (SUMMARY_TYPES.has(mt)) {
+    return { kind: "summary" };
   }
   if (
     mt === "ticket-separator" ||

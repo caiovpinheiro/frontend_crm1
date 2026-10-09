@@ -62,3 +62,14 @@ describe("focusTextChange", () => {
     expect(r.from.length).toBeLessThan(200);
   });
 });
+
+describe("buildPublishDiff — resumo do atendimento", () => {
+  it("ligar o resumo e mudar o nível aparecem com os rótulos da tela", () => {
+    const before = { closure: { summary: { enabled: false, verbosity: "standard", everyTurn: false } } };
+    const after = { closure: { summary: { enabled: true, verbosity: "detailed", everyTurn: false } } };
+    const out = buildPublishDiff(before, after, catalogs);
+    const comeco = out.find((s) => s.section === "Começo e fim da conversa")!;
+    expect(comeco.lines).toContainEqual({ label: "Resumir o atendimento", from: "Não", to: "Sim" });
+    expect(comeco.lines).toContainEqual({ label: "Nível de detalhe do resumo", from: "Padrão", to: "Detalhado" });
+  });
+});

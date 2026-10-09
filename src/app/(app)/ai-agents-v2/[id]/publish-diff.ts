@@ -92,6 +92,10 @@ const PATH_LABEL: Record<string, string> = {
   "handoff.whileQueued": "Cliente escreve na fila",
   "handoff.queuedMessage": "Aviso de fila",
   "fallback.confusion.action": "Cliente não entendeu",
+  "closure.summary": "Resumo do atendimento",
+  "closure.summary.enabled": "Resumir o atendimento",
+  "closure.summary.verbosity": "Nível de detalhe do resumo",
+  "closure.summary.everyTurn": "Atualizar o resumo a cada resposta",
   "closure.shortReplyMessage": "Resposta curtinha depois de encerrar",
   "closure.postCloseMessages.courtesy": "Depois de encerrar: resposta ao agradecimento",
   "closure.postCloseMessages.new_demand": "Depois de encerrar: resposta ao pedido novo",
@@ -212,6 +216,7 @@ const VALUE_LABEL: Record<string, Record<string, string>> = {
   "sentiment.threshold": { any: "Qualquer sinal de insatisfação", dissatisfied: "Cliente insatisfeito", angry: "Cliente bravo" },
   "sentiment.action": { handoff: "Passar para a equipe", notify_and_continue: "Continuar atendendo", log_only: "Só registrar no rastro" },
   "limits.nonsenseAction": { warn_and_silence: "Avisar e parar de responder", handoff: "Passar para a equipe" },
+  "closure.summary.verbosity": { minimal: "Mínimo", standard: "Padrão", detailed: "Detalhado" },
 };
 
 /** Valores comuns a vários campos (ações de mídia, comportamento após encerrar). */

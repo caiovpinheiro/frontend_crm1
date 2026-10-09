@@ -24,7 +24,8 @@ export type TimelineItemKind =
   | "event"
   | "system"
   | "consent"
-  | "draft";
+  | "draft"
+  | "summary";
 
 /** Veredito da resposta de consentimento de ligação (Meta Calling API). */
 export type ConsentVerdict =
