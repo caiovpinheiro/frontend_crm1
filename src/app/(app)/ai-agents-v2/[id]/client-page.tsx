@@ -99,6 +99,8 @@ import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
 import { RulesExportMenu } from "./rules-export-menu";
 import { ConfigReviewCard } from "./config-review";
+import { ConfigValidation, PublishBlockedDialog, RoutingMap, useConfigValidation } from "./config-validation";
+import type { ValidationFinding } from "./config-validation-target";
 import { ListenHomeCard, ListenTeam } from "./listen-team";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -548,12 +550,24 @@ async function saveDraft(id: string, config: Record<string, unknown>, expectedDr
   return parseApiResponse<AgentDetail>(res, "Erro ao salvar rascunho.");
 }
 
-async function publishAgent(id: string, comment?: string): Promise<{ versionNumber: number }> {
-  const res = await apiFetch(`/api/ai-agents-v2/${id}/publish`, {
+/** O servidor barrou a publicação pelos validadores da configuração (409). */
+class PublishBlockedError extends Error {
+  readonly code = "CONFIG_BLOCKED";
+  constructor(readonly findings: ValidationFinding[]) {
+    super("A configuração tem problemas que bloqueiam a publicação.");
+  }
+}
+
+async function publishAgent(id: string, comment?: string, force?: boolean): Promise<{ versionNumber: number }> {
+  const res = await apiFetch(`/api/ai-agents-v2/${id}/publish${force ? "?force=1" : ""}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ comment }),
   });
+  if (res.status === 409) {
+    const body = (await res.json().catch(() => null)) as { code?: string; findings?: ValidationFinding[] } | null;
+    if (body?.code === "CONFIG_BLOCKED") throw new PublishBlockedError(body.findings ?? []);
+  }
   return parseApiResponse<{ versionNumber: number }>(res, "Erro ao publicar agente.");
 }
 
@@ -846,7 +860,7 @@ function DestinationPicker({
 // Página: seções no menu lateral + teste sempre ao lado
 // ─────────────────────────────────────────────────────────────────────────────
 
-type SectionId = "inicio" | "quem" | "sabe" | "cuida" | "comeco" | "equipe" | "publicacao" | "testes" | "relatorio";
+type SectionId = "inicio" | "quem" | "sabe" | "cuida" | "comeco" | "equipe" | "validacao" | "publicacao" | "testes" | "relatorio";
 
 const SECTIONS: Array<{
   id: SectionId;
@@ -888,6 +902,15 @@ const SECTIONS: Array<{
     tone: "rose",
     intro: "Para quem ele passa a conversa, em que horários atende e quando para de responder.",
     icon: IconUsers,
+  },
+  {
+    id: "validacao",
+    title: "Validação",
+    nav: "Validação",
+    group: "live",
+    tone: "emerald",
+    intro: "O que está errado ou arriscado na configuração, conferido a cada salvamento, e para onde cada assunto manda a conversa.",
+    icon: IconChecklist,
   },
   { id: "publicacao", title: "Publicação", nav: "Publicação", group: "live", tone: "teal", intro: "Onde ele atende, para quem, com qual modelo e qual versão.", icon: IconRocket },
   {
@@ -1103,7 +1126,7 @@ export default function AIAgentV2EditPage() {
   }, [dirty, saving]);
 
   const publishMutation = useMutation({
-    mutationFn: async (comment?: string) => publishAgent(id, comment || undefined),
+    mutationFn: async (args: { comment?: string; force?: boolean }) => publishAgent(id, args.comment || undefined, args.force),
   });
   const [publishInfo, setPublishInfo] = React.useState<{
     next: number;
@@ -1111,6 +1134,11 @@ export default function AIAgentV2EditPage() {
     changes: DiffSection[];
     realClients: boolean;
   } | null>(null);
+  // Publicação barrada pelos validadores: achados que bloqueiam + o comentário
+  // digitado, para "publicar mesmo assim" (`force=1`) sem pedir de novo.
+  const [publishBlocked, setPublishBlocked] = React.useState<{ findings: ValidationFinding[]; comment: string; first: boolean } | null>(null);
+  // Validadores rodam a cada salvamento do rascunho (a chave muda com `savedAt`).
+  const validationQuery = useConfigValidation(id, savedAt ? savedAt.getTime() : null);
 
   const validateKeyMutation = useMutation({
     mutationFn: async () => {
@@ -1175,17 +1203,32 @@ export default function AIAgentV2EditPage() {
     });
   };
 
-  const confirmPublish = async (comment: string) => {
-    if (!publishInfo) return;
-    const first = publishInfo.first;
-    const res = await publishMutation.mutateAsync(comment);
+  const runPublish = async (comment: string, first: boolean, force: boolean) => {
+    let res: { versionNumber: number };
+    try {
+      res = await publishMutation.mutateAsync({ comment, force });
+    } catch (err) {
+      if (err instanceof PublishBlockedError) {
+        setPublishInfo(null);
+        setPublishBlocked({ findings: err.findings, comment, first });
+        return;
+      }
+      throw err;
+    }
     setPublishInfo(null);
+    setPublishBlocked(null);
     // A primeira publicação liga o agente no servidor; o salvamento
     // automático não pode desligá-lo de volta com o estado antigo.
     if (first) setActive(true);
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2", id] });
     queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-versions", id] });
+    queryClient.invalidateQueries({ queryKey: ["ai-agents-v2-routing-map"] });
     await confirm({ title: "Publicado", description: `A versão ${res.versionNumber} já está valendo no WhatsApp.` });
+  };
+
+  const confirmPublish = async (comment: string) => {
+    if (!publishInfo) return;
+    await runPublish(comment, publishInfo.first, false);
   };
 
   const reloadAfterRestore = () => {
@@ -1216,6 +1259,7 @@ export default function AIAgentV2EditPage() {
   const catalogs = catalogsQuery.data ?? ({} as Catalogs);
   const meta = agentQuery.data;
   const pending = pendingBySection(config, hasKey);
+  if ((validationQuery.data?.blocking ?? 0) > 0) pending.validacao = ["A configuração tem problemas que bloqueiam a publicação"];
   const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
   const lastVersion = meta.lastVersionNumber;
   const changedSincePublish = Boolean(meta.hasUnpublishedChanges) || dirty;
@@ -1310,6 +1354,16 @@ export default function AIAgentV2EditPage() {
             publishing={publishMutation.isPending}
             onCancel={() => setPublishInfo(null)}
             onConfirm={confirmPublish}
+          />
+        )}
+        {publishBlocked && (
+          <PublishBlockedDialog
+            findings={publishBlocked.findings}
+            config={config}
+            publishing={publishMutation.isPending}
+            onCancel={() => setPublishBlocked(null)}
+            onForce={() => void runPublish(publishBlocked.comment, publishBlocked.first, true)}
+            onGoTo={openTarget}
           />
         )}
         <div className="p-2 sm:p-4">
@@ -1560,6 +1614,12 @@ export default function AIAgentV2EditPage() {
                 )}
                 {section === "publicacao" && (
                   <VersionHistory agentId={id} lastVersion={lastVersion} onRestored={reloadAfterRestore} />
+                )}
+                {section === "validacao" && (
+                  <div className="space-y-4">
+                    <ConfigValidation config={config} query={validationQuery} onGoTo={openTarget} />
+                    <RoutingMap currentAgentId={id} />
+                  </div>
                 )}
                 {section === "relatorio" && (<div className="space-y-4"><EngineAudit agentId={id} /><ActionsReport agentId={id} /></div>)}
                 {section === "testes" && (
