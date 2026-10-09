@@ -19,6 +19,7 @@ import {
   ZoomOut,
 } from "lucide-react";
 
+import { imageDownloadName } from "@/lib/image-download-name";
 import { cn } from "@/lib/utils";
 
 import { Avatar } from "./avatar";
@@ -128,7 +129,11 @@ export function TeamChatImageViewer({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = current.name?.replace(/[^\w.-]+/g, "_") || "imagem";
+      a.download = imageDownloadName({
+        suggested: current.name,
+        contentType: blob.type || res.headers.get("content-type"),
+        sourceUrl: current.url,
+      });
       document.body.appendChild(a);
       a.click();
       a.remove();
