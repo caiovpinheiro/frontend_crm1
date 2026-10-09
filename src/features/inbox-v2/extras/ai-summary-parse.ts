@@ -9,6 +9,7 @@ export const SUMMARY_LABELS = [
   "O que foi feito",
   "Pendência",
   "Resultado",
+  "Tabulação",
   "Próximo passo",
   "Dados coletados",
   "Mensagens-chave",
