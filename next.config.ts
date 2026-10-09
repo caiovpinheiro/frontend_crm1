@@ -93,8 +93,8 @@ function securityHeaders(): { key: string; value: string }[] {
   }
   // CSP: NÃO enviar Content-Security-Policy nem Report-Only nesta etapa.
   // Next.js 15 (inline scripts do App Router), Serwist (`blob:` worker),
-  // SSE/WebSocket (`connect-src`), iframe de e-mail (srcDoc), cockpit e
-  // widgets de parceiro (`frame-src`) quebram com uma política estreita.
+  // SSE/WebSocket (`connect-src`), iframe de e-mail (srcDoc) e widgets de
+  // parceiro (`frame-src`) quebram com uma política estreita.
   // Rascunho Report-Only para homolog (nonces do Next quando estáveis;
   // sem unsafe-eval permanente):
   // default-src 'self';
