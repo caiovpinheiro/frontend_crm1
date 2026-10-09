@@ -91,6 +91,7 @@ import { CompareHuman } from "./compare-human";
 import { FeedbackHomeCard, FeedbackReport, type FeedbackTarget } from "./feedback-report";
 import { LearnFromConversations } from "./learn-conversations";
 import { ActionsReport } from "./actions-report";
+import { EngineAudit } from "./engine-audit";
 import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
@@ -1560,7 +1561,7 @@ export default function AIAgentV2EditPage() {
                 {section === "publicacao" && (
                   <VersionHistory agentId={id} lastVersion={lastVersion} onRestored={reloadAfterRestore} />
                 )}
-                {section === "relatorio" && <ActionsReport agentId={id} />}
+                {section === "relatorio" && (<div className="space-y-4"><EngineAudit agentId={id} /><ActionsReport agentId={id} /></div>)}
                 {section === "testes" && (
                   <Tabs value={testsTab} onValueChange={setTestsTab} className="space-y-4">
                     <TabsList className={TABS_LIST}>
