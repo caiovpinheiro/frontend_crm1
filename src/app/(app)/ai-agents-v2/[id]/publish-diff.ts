@@ -76,6 +76,7 @@ const PATH_LABEL: Record<string, string> = {
   "media.confirmUnderstanding": "Confirmar o que entendeu",
 
   "entry.openingEnabled": "Mandar boas-vindas",
+  "entry.onAiTransfer": "Ao receber conversa de outro agente de IA",
   "entry.openingMessage": "Mensagem de boas-vindas",
   "entry.confirmContact": "Confirmar os dados do cliente",
   "entry.confirmationFields": "Dados confirmados",

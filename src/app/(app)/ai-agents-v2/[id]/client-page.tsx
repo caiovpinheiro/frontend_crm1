@@ -4061,6 +4061,21 @@ function StepEntry({
             />
           </Field>
         )}
+        <Field
+          label="Ao receber uma conversa de outro agente de IA"
+          tooltip="Apresenta-se: o agente que transfere avisa (“vou te passar para…”) e este pode se apresentar. Transparente: o cliente não percebe a troca — quem transfere não avisa e este continua o atendimento como se fosse o mesmo assistente, sem se apresentar nem cumprimentar de novo."
+        >
+          <Select
+            value={((entry.onAiTransfer as string) ?? "present") || "present"}
+            onValueChange={(v) => onChange("entry.onAiTransfer", v)}
+          >
+            <SelectTrigger><SelectValue placeholder="Escolha…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="present">Apresenta-se normalmente</SelectItem>
+              <SelectItem value="continue">Transparente — segue sem se apresentar</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
       </SectionCard>
 
       <SectionCard title="Confirmar quem é o cliente" description="Antes de atender, ele pergunta se está falando com a pessoa do cadastro.">
