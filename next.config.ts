@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
 
+import { SW_PUBLIC_PRECACHE_PATTERNS } from "./src/lib/sw-precache";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -49,6 +51,8 @@ const withSerwist = withSerwistInit({
   cacheOnNavigation: false,
   reloadOnOnline: true,
   disable: process.env.NODE_ENV !== "production",
+  // Sem o vídeo do tutorial e os APKs no precache (ver `src/lib/sw-precache.ts`).
+  globPublicPatterns: SW_PUBLIC_PRECACHE_PATTERNS,
   exclude: [
     /\.map$/,
     /^manifest.*\.js$/,
@@ -257,6 +261,24 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders(),
+      },
+      // Binários pesados de `public/` (vídeo de tutorial, APK): o Next manda
+      // `max-age=0` por padrão. Os nomes são versionados (hash/versão no
+      // nome — `src/lib/__tests__/static-media-cache.test.ts` confere),
+      // então podem ficar 1 ano no cache do navegador/proxy.
+      {
+        source: "/tutorials/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
+        source: "/releases/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      // O player do tutorial tem nome fixo: revalida (vence a regra acima —
+      // no Next, a última regra que casa define o cabeçalho).
+      {
+        source: "/tutorials/:file(.+\\.html)",
+        headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }],
       },
     ];
   },
