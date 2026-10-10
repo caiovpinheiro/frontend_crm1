@@ -135,7 +135,6 @@ const PATH_LABEL: Record<string, string> = {
   "limits.silenceMinutes": "Minutos em silêncio",
   "limits.loopDetectionWindowMinutes": "Janela de repetição (min)",
   "limits.maxLoopCount": "Repetições",
-  "limits.maxAiTransfers": "Transferências entre agentes",
 
   "fallback.unknown.message": "Quando não souber: mensagem",
   "fallback.unknown.action": "Quando não souber: o que fazer",
