@@ -14,8 +14,10 @@ import {
   isSseMessageStubId,
   messagesKey,
 } from "./use-messages";
+import { scheduleThreadHydrate } from "./thread-hydrate";
 import { shouldSuppressInboxListRefresh } from "./use-conversation-actions";
 import { scheduledMessagesKey } from "./use-scheduled-messages";
+import { refreshInboxLists, scheduleInboxListRefresh } from "./inbox-list-refresh";
 import {
   conversationUpdatedLikelyOnTabs,
   inboxQueueTabFor,
@@ -372,9 +374,9 @@ function removeConversationFromInboxCaches(
   if (fromTab) patchInboxTabCounts(qc, fromTab, null);
 }
 
-/** Acima disso, 1 refetch das queries que já listam os ids é mais barato
- *  que N× GET /:id (ex.: assign em massa). */
-const CARD_SYNC_BURST_LIMIT = 8;
+/** Teto do `GET ?ids=` (`getConversationsByIds`). Acima disso, refresh
+ *  (1ª página) das listas que já mostram os ids (ex.: assign em massa). */
+const CARD_SYNC_BURST_LIMIT = 80;
 
 /** Burst de conversation_updated: não re-GET o mesmo id após 404. */
 const CONVERSATION_404_TTL_MS = 60_000;
@@ -574,29 +576,42 @@ function eventTouchesOpenConversation(
 function sseMessageAlreadyInThread(
   messages: InboxMessageDto[],
   stub: InboxMessageDto,
-): boolean {
+): InboxMessageDto | null {
   const stubTs = Date.parse(stub.createdAt);
-  return messages.some((m) => {
-    if (String(m.id) === stub.id) return true;
-    if (!(stub.content ?? "").trim()) return false;
-    if (m.direction !== stub.direction) return false;
-    if ((m.content ?? "") !== (stub.content ?? "")) return false;
-    if (!m.createdAt || !Number.isFinite(stubTs)) return true;
-    const dt = Math.abs(Date.parse(m.createdAt) - stubTs);
-    return !Number.isFinite(dt) || dt < 8_000;
-  });
+  return (
+    messages.find((m) => {
+      if (String(m.id) === stub.id) return true;
+      if (!(stub.content ?? "").trim()) return false;
+      if (m.direction !== stub.direction) return false;
+      if ((m.content ?? "") !== (stub.content ?? "")) return false;
+      if (!m.createdAt || !Number.isFinite(stubTs)) return true;
+      const dt = Math.abs(Date.parse(m.createdAt) - stubTs);
+      return !Number.isFinite(dt) || dt < 8_000;
+    }) ?? null
+  );
 }
+
+/**
+ * O que o `new_message` fez na conversa aberta:
+ *  - `stub`: bolha nova (stub `sse:`) — precisa do GET para id/mídia;
+ *  - `real`: a mensagem já está lá com o id real (eco do envio do agente);
+ *  - `none`: nada a pintar (timeline, sem direção, cache vazio) — só o GET.
+ */
+type OpenChatAppend =
+  | { kind: "stub"; stubId: string }
+  | { kind: "real" }
+  | { kind: "none" };
 
 /** Bolha imediata no chat aberto — mesmo payload que já patcha o card. */
 function appendSseMessageToOpenChat(
   qc: QueryClient,
   activeId: string,
   data: NewMessagePayload,
-): void {
-  if (isEventMessageType(data.messageType)) return;
+): OpenChatAppend {
+  if (isEventMessageType(data.messageType)) return { kind: "none" };
   const direction =
     data.direction === "in" || data.direction === "out" ? data.direction : null;
-  if (!direction) return;
+  if (!direction) return { kind: "none" };
   const ts =
     typeof data.timestamp === "string" && data.timestamp
       ? data.timestamp
@@ -625,9 +640,18 @@ function appendSseMessageToOpenChat(
         ? data.sharedContacts
         : undefined,
   };
+  let outcome: OpenChatAppend = { kind: "none" };
   qc.setQueryData<MessagesResponse>(messagesKey(activeId), (old) => {
     if (!old?.messages) return old;
-    if (sseMessageAlreadyInThread(old.messages, stub)) return old;
+    const present = sseMessageAlreadyInThread(old.messages, stub);
+    if (present) {
+      const presentId = String(present.id);
+      outcome = isSseMessageStubId(presentId)
+        ? { kind: "stub", stubId: presentId }
+        : { kind: "real" };
+      return old;
+    }
+    outcome = { kind: "stub", stubId: stub.id };
     return {
       ...old,
       messages: [...old.messages, stub],
@@ -641,6 +665,7 @@ function appendSseMessageToOpenChat(
           : old.session,
     };
   });
+  return outcome;
 }
 
 /**
@@ -793,10 +818,10 @@ function invalidateInboxQueriesTouching(
     );
     if (!hit) continue;
     anyHit = true;
-    qc.invalidateQueries({ queryKey, exact: true });
+    void refreshInboxLists(qc, { queryKey, exact: true });
   }
   if (!anyHit) {
-    qc.invalidateQueries({ queryKey: ["inbox-conversations", "entrada"] });
+    void refreshInboxLists(qc, { queryKey: ["inbox-conversations", "entrada"] });
   }
 }
 
@@ -940,7 +965,9 @@ function applyConversationRowToInboxCaches(
     }
 
     if (!found && belongs) {
-      qc.invalidateQueries({ queryKey, exact: true });
+      // Filtro opaco: não dá para saber onde o card entra. 1ª página da
+      // lista, com debounce (uma rajada de eventos = 1 GET), não todas.
+      scheduleInboxListRefresh(qc, queryKey);
     }
   }
 
@@ -956,6 +983,14 @@ export function useInboxRealtime(options: {
   /** Usuário logado — decide o patch do card e a aba (bip: `InboxMessageAlerts`). */
   currentUserId?: string | null;
   enabled?: boolean;
+  /**
+   * Mensagem RECEBIDA (`direction: "in"`) na conversa aberta. O host marca
+   * como lida (`POST /read` → contador zerado e visto azul na Meta): abrir a
+   * conversa só marca quando há não lidas, então é este aviso que cobre a
+   * mensagem que chega com ela já aberta. Chamado depois do patch do card
+   * (o `unreadCount` em cache já conta a mensagem).
+   */
+  onOpenConversationInbound?: (conversationId: string) => void;
 }) {
   const { activeConversationId, currentUserId = null, enabled = true } = options;
   const qc = useQueryClient();
@@ -963,6 +998,8 @@ export function useInboxRealtime(options: {
   activeRef.current = activeConversationId;
   const userIdRef = useRef(currentUserId);
   userIdRef.current = currentUserId;
+  const onOpenInboundRef = useRef(options.onOpenConversationInbound);
+  onOpenInboundRef.current = options.onOpenConversationInbound;
   const { registerActiveConversation } = useMessageToast();
 
   useEffect(() => {
@@ -980,10 +1017,9 @@ export function useInboxRealtime(options: {
     let alive = true;
 
     function refetchInboxAfterSseGap() {
-      qc.invalidateQueries({
-        queryKey: ["inbox-conversations"],
-        refetchType: "active",
-      });
+      // Só a 1ª página das listas montadas — refazer todas as páginas
+      // (× K filas) em cada reconexão era a rajada do N-FE-1.
+      void refreshInboxLists(qc);
       qc.invalidateQueries({
         queryKey: ["conversations", "tab-counts"],
         refetchType: "active",
@@ -991,16 +1027,21 @@ export function useInboxRealtime(options: {
       // O gap são ~5s cegos (use-sse.ts) e o stream não tem replay. Sem
       // isto a lista e o preview se curam aqui, mas a thread aberta só no
       // poll de 90s — é a mensagem que aparece no card e não na conversa.
+      // Conversas em cache (fechadas) também podem ter perdido mensagens
+      // no gap: marcadas como velhas, buscam ao reabrir (com a SSE
+      // conectada o `useMessages` não tem poll nem prazo curto).
+      qc.invalidateQueries({ queryKey: ["messages"], refetchType: "none" });
       const openId = activeRef.current;
       if (openId) {
         qc.refetchQueries({ queryKey: messagesKey(openId) });
-        // O banner de agendados só faz poll com o SSE fora; o que mudou
-        // durante o gap (`scheduled_message_updated` perdido) entra aqui.
-        qc.invalidateQueries({
-          queryKey: scheduledMessagesKey(openId),
-          refetchType: "active",
-        });
       }
+      // O banner de agendados só faz poll com o SSE fora; o que mudou
+      // durante o gap (`scheduled_message_updated` perdido) entra aqui: a
+      // aberta busca agora, as outras em cache ficam velhas para o reabrir.
+      qc.invalidateQueries({
+        queryKey: ["scheduled-messages"],
+        refetchType: "active",
+      });
     }
 
     // Chips do painel do dia (P1-8): o poll longo (3min) é safety-net; a
@@ -1110,17 +1151,25 @@ export function useInboxRealtime(options: {
                 true,
               );
             if (touchesOpen) {
-              // `hidden` chega sem texto/mídia: a bolha sai só do refetch.
+              // `hidden` chega sem texto/mídia: a bolha sai só do GET.
+              let appended: ReturnType<typeof appendSseMessageToOpenChat> = {
+                kind: "none",
+              };
               if (data.cardOmitted !== "hidden") {
                 try {
-                  appendSseMessageToOpenChat(qc, openId, data);
+                  appended = appendSseMessageToOpenChat(qc, openId, data);
                 } catch (e) {
                   logger.error("sse", "appendSseMessageToOpenChat failed", e);
                 }
               }
-              // Hidrata id/mídia; refetch imediato como fallback caso o
-              // setQueryData/merge tenham falhado ou a query esteja fresh.
-              qc.refetchQueries({ queryKey: messagesKey(openId) });
+              // Hidrata id/mídia com UM GET por rajada (`thread-hydrate.ts`).
+              // Eco do envio do próprio agente (bolha real já no cache, gravada
+              // pela resposta do POST): nenhum GET.
+              if (appended.kind === "stub") {
+                scheduleThreadHydrate(qc, openId, { stubId: appended.stubId });
+              } else if (appended.kind === "none") {
+                scheduleThreadHydrate(qc, openId, { force: true });
+              }
               if (openId !== data.conversationId) {
                 qc.invalidateQueries({
                   queryKey: messagesKey(data.conversationId),
@@ -1191,71 +1240,117 @@ export function useInboxRealtime(options: {
         } catch (e) {
           logger.error("sse", "new_message card patch failed", e);
         }
+
+        // Recebida na conversa aberta: o host marca como lida.
+        if (
+          data.direction === "in" &&
+          data.conversationId &&
+          data.conversationId === activeRef.current &&
+          !isEventMessageType(data.messageType)
+        ) {
+          try {
+            onOpenInboundRef.current?.(data.conversationId);
+          } catch (e) {
+            logger.error("sse", "onOpenConversationInbound failed", e);
+          }
+        }
       },
 
+      // Tick da bolha: patch no cache de qualquer conversa, nunca GET
+      // (F1). `failed` grava o motivo que o evento traz; só sem motivo a
+      // conversa ABERTA busca (o GET traduz o erro da Meta).
       message_status: (data) => {
         try {
-          if (data.conversationId) {
-            // Atualização otimista do tick (sent→delivered→read) sem
-            // esperar o refetch — evita atraso perceptível nos ticks azuis.
-            if (data.messageId && data.status) {
-              const mapped = ({
-                pending: "PENDING",
-                sent: "SENT",
-                delivered: "DELIVERED",
-                read: "READ",
-                failed: "FAILED",
-              } as Record<string, string>)[data.status.toLowerCase()];
-              if (mapped) {
-                const bubbleId = data.messageId;
-                const internalId = data.internalId;
-                qc.setQueryData(
-                  messagesKey(data.conversationId),
-                  (old: { messages?: Array<{ id: string; status?: string; sendStatus?: string | null }> } | undefined) => {
-                    if (!old?.messages) return old;
-                    return {
-                      ...old,
-                      messages: old.messages.map((m) =>
-                        m.id === bubbleId || (internalId != null && m.id === internalId)
-                          ? { ...m, status: mapped, sendStatus: data.status!.toLowerCase() }
-                          : m,
-                      ),
-                    };
-                  },
-                );
-              }
-            }
-            // Tick já atualizado de forma otimista acima. Refetch só em
-            // failed (precisa sendError completo); delivered/read não
-            // disparam GET messages — evita spam na conversa aberta.
-            const statusLc = (data.status ?? "").toLowerCase();
-            if (statusLc === "failed") {
-              if (data.conversationId === activeRef.current) {
-                void qc.refetchQueries({
-                  queryKey: messagesKey(data.conversationId),
+          if (!data.conversationId || !data.messageId || !data.status) return;
+          const statusLc = data.status.toLowerCase();
+          const mapped = ({
+            pending: "PENDING",
+            sent: "SENT",
+            delivered: "DELIVERED",
+            read: "READ",
+            failed: "FAILED",
+          } as Record<string, string>)[statusLc];
+          if (mapped) {
+            const bubbleId = data.messageId;
+            const internalId = data.internalId;
+            const error =
+              statusLc === "failed" && typeof data.error === "string" && data.error.trim()
+                ? data.error
+                : null;
+            qc.setQueryData<MessagesResponse>(
+              messagesKey(data.conversationId),
+              (old) => {
+                if (!old?.messages) return old;
+                let touched = false;
+                const messages = old.messages.map((m) => {
+                  const byInternal = internalId != null && m.id === internalId;
+                  if (m.id !== bubbleId && !byInternal) return m;
+                  touched = true;
+                  return {
+                    ...m,
+                    // Envio que entrou no cache pelo id interno (resposta
+                    // `pending`/fila) passa a usar o id da bolha, o mesmo
+                    // que o GET devolve — o merge não duplica a mensagem.
+                    ...(byInternal && bubbleId !== internalId ? { id: bubbleId } : {}),
+                    status: mapped as InboxMessageDto["status"],
+                    sendStatus: statusLc,
+                    ...(error ? { sendError: error } : {}),
+                  };
                 });
-              } else {
-                qc.invalidateQueries({
-                  queryKey: messagesKey(data.conversationId),
-                  refetchType: "none",
-                });
-              }
-            } else if (data.conversationId !== activeRef.current) {
-              qc.invalidateQueries({
-                queryKey: messagesKey(data.conversationId),
-                refetchType: "none",
-              });
+                return touched ? { ...old, messages } : old;
+              },
+            );
+            if (
+              statusLc === "failed" &&
+              !error &&
+              data.conversationId === activeRef.current
+            ) {
+              scheduleThreadHydrate(qc, data.conversationId, { force: true });
             }
-            // Leitura (ticks azuis): atualiza timeline do deal e feed /logs.
-            if (statusLc === "read") {
-              qc.invalidateQueries({ queryKey: ["deal-timeline-v2"] });
-              qc.invalidateQueries({ queryKey: ["deal-timeline"] });
-              qc.invalidateQueries({ queryKey: ["activity-feed"] });
-              qc.invalidateQueries({ queryKey: ["activity-feed-stats"] });
-            }
+          }
+          // Leitura (ticks azuis): atualiza timeline do deal e feed /logs.
+          if (statusLc === "read") {
+            qc.invalidateQueries({ queryKey: ["deal-timeline-v2"] });
+            qc.invalidateQueries({ queryKey: ["deal-timeline"] });
+            qc.invalidateQueries({ queryKey: ["activity-feed"] });
+            qc.invalidateQueries({ queryKey: ["activity-feed-stats"] });
           }
           // Delivery receipts não mudam a lista/counts — só ticks na bolha.
           // Evita cold-load storm quando o SSE despeja message_status em lote.
+        } catch {
+          /* ignore */
+        }
+      },
+
+      // Rascunho da IA aprovado (`message_updated`) ou descartado
+      // (`message_deleted`) por outro agente: sem eles o cache só mudava no
+      // poll, que agora não roda com a SSE conectada. Descartado sai do
+      // cache na hora; aprovado vira mensagem enviada — a aberta busca, as
+      // outras ficam velhas para o próximo abrir.
+      message_deleted: (data) => {
+        try {
+          if (!data.conversationId || !data.messageId) return;
+          const gone = data.messageId;
+          qc.setQueryData<MessagesResponse>(messagesKey(data.conversationId), (old) => {
+            if (!old?.messages?.some((m) => m.id === gone)) return old;
+            return { ...old, messages: old.messages.filter((m) => m.id !== gone) };
+          });
+        } catch {
+          /* ignore */
+        }
+      },
+
+      message_updated: (data) => {
+        try {
+          if (!data.conversationId) return;
+          if (data.conversationId === activeRef.current) {
+            scheduleThreadHydrate(qc, data.conversationId, { force: true });
+          } else {
+            qc.invalidateQueries({
+              queryKey: messagesKey(data.conversationId),
+              refetchType: "none",
+            });
+          }
         } catch {
           /* ignore */
         }
@@ -1333,14 +1428,9 @@ export function useInboxRealtime(options: {
         }
       },
 
-      // Só o próprio usuário: `useSystemPresenceSync` já patcha o cache
-      // pelo evento; o refetch aqui é a confirmação do meu status. Antes
-      // era 1 GET por mudança de status de qualquer agente da org (FE-4).
-      presence_update: (data) => {
-        const me = userIdRef.current;
-        if (!me || data?.userId !== me) return;
-        qc.invalidateQueries({ queryKey: ["my-agent-status", me] });
-      },
+      // `presence_update` (status de qualquer agente, inclusive o meu) é só
+      // patch em `useSystemPresenceSync`: o evento já traz o status — sem
+      // GET de confirmação (R3-FE-9, F2).
 
       // Agendamento criado/cancelado/enviado/falhou na conversa — o banner
       // (`useScheduledMessages`) refaz o GET só se a conversa está aberta

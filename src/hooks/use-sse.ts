@@ -46,6 +46,16 @@ export type SSEReconnectHandler = () => void;
  * gate de visibilidade no backend), e sessão expirada batia 401 a cada 5s
  * para sempre. Reabrir depois de um gap dispara `onReconnect`
  * (inbox/pipeline reidratam).
+ *
+ * Stream parado (N-MA-1): conexão meio-aberta (proxy, rede móvel, Safari)
+ * não dispara `onerror` — a aba ficaria "conectada" sem receber nada. A
+ * líder vigia a atividade (abertura, eventos e o batimento do servidor):
+ * sem nada por 2× o intervalo do batimento (`SSE_STALE_AFTER_MS`) marca
+ * a conexão como desconectada (as seguidoras sabem pelo `status`) e
+ * reconecta. O vigia só arma depois de ver UM batimento nomeado
+ * (`event: heartbeat`): o comentário `: heartbeat` que o backend manda
+ * hoje não chega ao JavaScript (o `EventSource` descarta comentários), e
+ * sem batimento visível um stream calmo seria confundido com um parado.
  */
 
 /**
@@ -65,6 +75,14 @@ export const DEFAULT_SSE_EVENTS: readonly string[] = [
 
 /** Último assinante saiu: tempo até fechar (a próxima tela reaproveita). */
 export const SSE_IDLE_CLOSE_MS = 30_000;
+
+/** Intervalo do batimento do servidor (`SSE_HEARTBEAT_MS` no backend). */
+export const SSE_SERVER_HEARTBEAT_MS = 25_000;
+/** Sem nenhuma atividade por este tempo, a conexão está parada. */
+export const SSE_STALE_AFTER_MS = 2 * SSE_SERVER_HEARTBEAT_MS;
+/** Evento nomeado do batimento do servidor (o comentário não é visível). */
+export const SSE_HEARTBEAT_EVENT = "heartbeat";
+const SSE_STALE_CHECK_MS = 5_000;
 
 const RECONNECT_BASE_MS = 5_000;
 const RECONNECT_MAX_MS = 60_000;
@@ -157,6 +175,11 @@ class SharedSSEConnection {
   private hold: { reason: SseHoldReason; until: number } | null = null;
   /** Sondagem HTTP em andamento (handshake recusado). */
   private probing = false;
+  /** Última atividade do stream (open, evento, batimento). */
+  private lastActivityAt = 0;
+  /** O servidor manda batimento nomeado: só então o vigia de stream parado arma. */
+  private heartbeatSupported = false;
+  private staleTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     readonly url: string,
@@ -367,9 +390,17 @@ class SharedSSEConnection {
     let opened = false;
     this.attachMissing(this.neededEvents());
     es.addEventListener(SSE_EVICTED_EVENT, (e) => this.onEvicted(es, e));
+    es.addEventListener(SSE_HEARTBEAT_EVENT, () => {
+      if (this.es !== es) return;
+      this.heartbeatSupported = true;
+      this.touch();
+    });
+    this.touch();
+    this.startStaleWatch();
     es.onopen = () => {
       opened = true;
       this.failures = 0;
+      this.touch();
       this.setOpen(true, true);
       this.afterOpen();
     };
@@ -378,6 +409,7 @@ class SharedSSEConnection {
       if (this.es !== es) return; // já tratado (despejo / teardown)
       if (this.everOpened) this.sawGap = true;
       this.es = null;
+      this.stopStaleWatch();
       this.attached.clear();
       this.setOpen(false, true);
       if (this.retryTimer || this.neededEvents().size === 0) return;
@@ -389,6 +421,40 @@ class SharedSSEConnection {
       this.scheduleRetry(sseReconnectDelayMs(this.failures));
       this.failures += 1;
     };
+  }
+
+  private touch(): void {
+    this.lastActivityAt = Date.now();
+  }
+
+  private startStaleWatch(): void {
+    if (this.staleTimer) return;
+    this.staleTimer = setInterval(() => this.checkStale(), SSE_STALE_CHECK_MS);
+  }
+
+  private stopStaleWatch(): void {
+    if (!this.staleTimer) return;
+    clearInterval(this.staleTimer);
+    this.staleTimer = null;
+  }
+
+  /**
+   * Líder: nada (evento ou batimento) há `SSE_STALE_AFTER_MS` — o stream
+   * parou sem `onerror`. Fecha, avisa as seguidoras e reconecta (backoff).
+   */
+  checkStale(): void {
+    const es = this.es;
+    if (!es || !this.heartbeatSupported) return;
+    if (Date.now() - this.lastActivityAt < SSE_STALE_AFTER_MS) return;
+    es.close();
+    this.es = null;
+    this.stopStaleWatch();
+    this.attached.clear();
+    if (this.everOpened) this.sawGap = true;
+    this.setOpen(false, true);
+    if (this.retryTimer || this.neededEvents().size === 0 || !this.isLeader()) return;
+    this.scheduleRetry(sseReconnectDelayMs(this.failures));
+    this.failures += 1;
   }
 
   private scheduleRetry(delayMs: number): void {
@@ -456,6 +522,7 @@ class SharedSSEConnection {
     }
     es.close();
     this.es = null;
+    this.stopStaleWatch();
     this.attached.clear();
     if (this.everOpened) this.sawGap = true;
     const delay = this.holdDelay(Math.max(SSE_EVICTED_MIN_RETRY_MS, retryAfterMs));
@@ -469,6 +536,8 @@ class SharedSSEConnection {
    * (timer estrangulado em segundo plano, ou 401 sem timer), tenta de novo.
    */
   onUserActive(): void {
+    // Timers estrangulados em segundo plano: confere o stream na volta.
+    this.checkStale();
     if (!this.hold || Date.now() < this.hold.until) return;
     this.hold = null;
     if (this.retryTimer) {
@@ -480,6 +549,7 @@ class SharedSSEConnection {
 
   private teardown(): void {
     this.cancelIdleClose();
+    this.stopStaleWatch();
     this.es?.close();
     this.es = null;
     this.attached.clear();
@@ -517,6 +587,7 @@ class SharedSSEConnection {
   }
 
   private readonly dispatch = (e: Event): void => {
+    this.touch();
     let data: unknown;
     try {
       data = JSON.parse((e as MessageEvent).data as string);

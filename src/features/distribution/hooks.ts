@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { refreshInboxLists } from "@/features/inbox-v2/hooks/inbox-list-refresh";
 
 import { subscribeSSEEvents } from "@/hooks/use-sse";
 
@@ -390,7 +391,7 @@ export function useExecuteDistribution() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: DISTRIBUTION_RESPONSIBLES_KEY });
       void qc.invalidateQueries({ queryKey: DISTRIBUTION_PENDING_KEY });
-      void qc.invalidateQueries({ queryKey: ["inbox-conversations"] });
+      void refreshInboxLists(qc);
     },
   });
 }
