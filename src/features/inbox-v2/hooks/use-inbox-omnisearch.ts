@@ -189,7 +189,15 @@ export function useInboxOmnisearch(search: string, enabled = true) {
 
   const deals = useQuery({
     queryKey: ["inbox-omnisearch", "deals", query],
-    queryFn: () => fetchDealsList({ search: query, page: 1, perPage: FETCH_LIMIT }),
+    // Só os primeiros resultados aparecem: sem COUNT e cancelável.
+    queryFn: ({ signal }) =>
+      fetchDealsList({
+        search: query,
+        page: 1,
+        perPage: FETCH_LIMIT,
+        withTotal: false,
+        signal,
+      }),
     enabled: ready,
     staleTime: 15_000,
   });

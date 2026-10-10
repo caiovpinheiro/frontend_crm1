@@ -9,3 +9,4 @@ export * from "./use-pipeline-loss-reasons";
 export * from "./use-deals-list";
 export * from "./use-deal-custom-fields";
 export * from "./use-entity-viewers";
+export * from "./use-kanban-board";

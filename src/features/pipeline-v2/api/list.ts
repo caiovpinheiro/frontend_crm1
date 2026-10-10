@@ -50,9 +50,15 @@ export interface DealListItemDto {
 
 export interface DealListPage {
   items: DealListItemDto[];
-  total: number;
+  /**
+   * Total do recorte. `null` quando o servidor não contou (`withTotal:
+   * false` no backend novo, fora da última página) — use `hasMore`.
+   */
+  total: number | null;
   page: number;
   perPage: number;
+  /** Existe página seguinte. Backend atual não manda: sai do `total`. */
+  hasMore: boolean;
 }
 
 interface FetchDealsListParams {
@@ -65,9 +71,19 @@ interface FetchDealsListParams {
   perPage?: number;
   /** Filtros avançados (mesmo shape do kanban) — enviados como JSON em `filters`. */
   filters?: Record<string, unknown>;
-  /** Ordena o recorte inteiro no servidor. `asc` = mais antigo primeiro. */
+  /**
+   * `false` = quem chama não mostra o total: o backend novo pula o
+   * `COUNT(*)` (`withTotal=0`) e responde `hasMore`. O backend atual ignora
+   * o parâmetro e continua mandando `total`.
+   */
+  withTotal?: boolean;
+  /**
+   * `lastInteraction` ordena o recorte inteiro no servidor e só então
+   * pagina. `asc` = mais antigo primeiro; `desc` = mais novo primeiro.
+   */
   sort?: "lastInteraction";
   direction?: "asc" | "desc";
+  signal?: AbortSignal;
 }
 
 function buildQuery(params: FetchDealsListParams): string {
@@ -82,6 +98,7 @@ function buildQuery(params: FetchDealsListParams): string {
   if (params.filters && Object.keys(params.filters).length > 0) {
     sp.set("filters", JSON.stringify(params.filters));
   }
+  if (params.withTotal === false) sp.set("withTotal", "0");
   if (params.sort === "lastInteraction") {
     sp.set("sort", "lastInteraction");
     sp.set("direction", params.direction === "asc" ? "asc" : "desc");
@@ -91,13 +108,40 @@ function buildQuery(params: FetchDealsListParams): string {
 }
 
 /**
+ * Aceita a resposta atual (`total` numérico, sem `hasMore`) e a nova
+ * (`hasMore` sempre; `total` numérico ou `null`). Sem `hasMore`, ele sai do
+ * total; sem os dois, página cheia = pode haver mais.
+ */
+export function normalizeDealListPage(
+  raw: unknown,
+  params: Pick<FetchDealsListParams, "page" | "perPage">,
+): DealListPage {
+  const data = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const items = Array.isArray(data.items) ? (data.items as DealListItemDto[]) : [];
+  const page = typeof data.page === "number" ? data.page : (params.page ?? 1);
+  const perPage = typeof data.perPage === "number" ? data.perPage : (params.perPage ?? 20);
+  const total =
+    typeof data.total === "number" && Number.isFinite(data.total) ? data.total : null;
+  const hasMore =
+    typeof data.hasMore === "boolean"
+      ? data.hasMore
+      : total !== null
+        ? page * perPage < total
+        : items.length >= perPage;
+  return { items, total, page, perPage, hasMore };
+}
+
+/**
  * GET /api/deals?pipelineId&stageId&status&search&page&perPage
  *
  * Trata corpo vazio (sessão não reconhecida) como erro legível em
  * vez de devolver objeto vazio que estouraria nos componentes.
  */
 export async function fetchDealsList(params: FetchDealsListParams = {}): Promise<DealListPage> {
-  const res = await fetch(apiUrl(`/api/deals${buildQuery(params)}`));
+  const res = await fetch(
+    apiUrl(`/api/deals${buildQuery(params)}`),
+    params.signal ? { signal: params.signal } : undefined,
+  );
   const text = await res.text();
   if (!res.ok) {
     let message = "Erro ao carregar negócios";
@@ -113,7 +157,7 @@ export async function fetchDealsList(params: FetchDealsListParams = {}): Promise
     throw new Error("Sessão expirada ou backend indisponível. Recarregue e faça login.");
   }
   try {
-    return JSON.parse(text) as DealListPage;
+    return normalizeDealListPage(JSON.parse(text), params);
   } catch {
     throw new Error("Sessão não reconhecida pelo backend. Recarregue e faça login.");
   }

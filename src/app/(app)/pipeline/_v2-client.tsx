@@ -33,7 +33,6 @@ import {
   writePipelineViewPreference,
 } from "@/lib/pipeline-view-preference";
 import {
-  SEARCH_DEBOUNCE_MS,
   normalizeSearchQuery,
 } from "@/lib/search-query";
 
@@ -75,13 +74,9 @@ import { pageActionsMenuTriggerClass } from "@/components/crm/page-toolbar";
 import { avatarInitials } from "@/features/inbox-v2/adapters";
 import { useContactSidebar } from "@/features/inbox-v2/hooks";
 import {
-  useBoard,
-  useBoardFiltered,
-  useBoardLoadMore,
   useStableBoardStages,
-  BOARD_PAGE_SIZE,
-  BOARD_LOAD_MORE_PAGE_SIZE,
   useDealDetail,
+  useKanbanBoard,
   useEntityViewers,
   useMoveDeal,
   usePipelineRealtime,
@@ -91,6 +86,8 @@ import {
   useTeamUsers,
   type MoveVars,
 } from "@/features/pipeline-v2/hooks";
+import { boardColumnLoadMore } from "@/features/pipeline-v2/board-column-paging";
+import { useBoardTotalChip } from "@/features/pipeline-v2/board-total-chip";
 import { DealViewersStack } from "@/components/crm/deal-viewers-stack";
 import { dealDetailKey } from "@/features/pipeline-v2/hooks/use-deal-detail";
 import { stableDealIdForEffects } from "@/features/pipeline-v2/deal-deep-link-gate";
@@ -98,7 +95,7 @@ import {
   filtersForVisibleStages,
   visibleBoardStages,
 } from "@/features/pipeline-v2/stage-visibility";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
 import { createContact } from "@/features/directory-v2/api";
@@ -140,12 +137,14 @@ import { ContactTagsPopover } from "@/features/inbox-v2/extras/contact-tags-popo
 import { CountUpNumber } from "@/components/crm/count-up";
 import { PipelineSearchFilterBar } from "@/components/pipeline/kanban-filters/v2/search-filter-bar";
 import { PipelinePeriodCalendar } from "@/components/pipeline/kanban-filters/pipeline-period-calendar";
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
+import {
+  filtersNeedOptions,
+  useFilterOptions,
+} from "@/components/pipeline/kanban-filters/use-filter-options";
 import { useKanbanFilters } from "@/components/pipeline/kanban-filters/use-kanban-filters";
 import { usePipelineSearchSort } from "@/components/pipeline/kanban-filters/use-pipeline-search-sort";
 import {
   isEmptyFilters,
-  hasServerSideFilters,
   type AdvancedDealFilters,
 } from "@/components/pipeline/kanban-filters/types";
 
@@ -236,7 +235,13 @@ export default function KanbanV2ClientPage({
     null,
   );
   const canChangeStage = useCan("deal:change_stage");
-  const { filters, setFilters, patch: patchFilters, clear: clearFilters } = useKanbanFilters();
+  const {
+    filters,
+    setFilters,
+    patch: patchFilters,
+    clear: clearFilters,
+    hydrated: filtersHydrated,
+  } = useKanbanFilters();
   // Busca (`?q=`) e ordenação (`?sort=`) na URL — link copiável reproduz a
   // visão. Ordenação: `created_*`/`interaction_*` são delegados ao backend
   // (ver `boardSort`), porque ordenar só os deals já carregados (100/coluna)
@@ -259,21 +264,6 @@ export default function KanbanV2ClientPage({
   // URL `?pipeline=<number>` + LS interno; nunca CUID/slug na query.
   const { pipelineId, setPipelineId } = usePipelineUrlSync(pipelines);
 
-  // Board aceita number público (`?pipeline=8`) — não espera a lista
-  // resolver o CUID. Quando o funil selecionado tem `number`, a key
-  // permanece o mesmo dígito e não refetcha.
-  const boardLookupId = useMemo(() => {
-    const selectedNumber = pipelines?.find((p) => p.id === pipelineId)?.number;
-    if (typeof selectedNumber === "number" && Number.isFinite(selectedNumber)) {
-      return String(selectedNumber);
-    }
-    if (typeof window !== "undefined") {
-      const urlKey = new URL(window.location.href).searchParams.get("pipeline");
-      if (urlKey && /^\d+$/.test(urlKey)) return urlKey;
-    }
-    return pipelineId;
-  }, [pipelines, pipelineId]);
-
   const boardSort = useMemo<BoardSortParam | undefined>(() => {
     if (sortKey === "created_newest") return { field: "createdAt", direction: "desc" };
     if (sortKey === "created_oldest") return { field: "createdAt", direction: "asc" };
@@ -287,51 +277,36 @@ export default function KanbanV2ClientPage({
   // tags, datas, etc.). Quando há qualquer critério ativo, trocamos pelo
   // POST /board com `filters` — mesma engine do backend usada na edição em massa.
   const rawSearch = (filters.search ?? search).trim();
-  const [debouncedSearch, setDebouncedSearch] = useState(rawSearch);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(rawSearch), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [rawSearch]);
 
-  const mergedFilters = useMemo(() => {
+  // O que a tela mostra agora. O board só pede ao servidor depois do
+  // debounce (`useKanbanBoard` → `mergedFilters`): digitar na busca ou
+  // marcar vários critérios seguidos vira um POST só.
+  const liveFilters = useMemo(() => {
     const f: AdvancedDealFilters = { ...filters };
     // Só UI (colunas Ganho/Perdido) — não vai ao servidor.
     delete f.showAllStages;
-    const q = normalizeSearchQuery(debouncedSearch);
+    const q = normalizeSearchQuery(rawSearch);
     if (q) f.search = q;
     else delete f.search;
     return f;
-  }, [filters, debouncedSearch]);
+  }, [filters, rawSearch]);
 
-  const hasServerBoard = hasServerSideFilters(mergedFilters);
-
-  // "Carregar mais" por coluna. Com cursor (etapa com `nextCursor`) os
-  // próximos cards são anexados ao cache, sem refazer o board; sem cursor
-  // (backend antigo) soma extras em `legacyOffsets` e o board volta a vir
-  // do POST /board com offset — ver `useBoardLoadMore`. Usa o MESMO id do
-  // `useBoard` (`boardLookupId`): a query é localizada pela chave.
-  const boardLoadMore = useBoardLoadMore({
-    pipelineId: boardLookupId,
+  // Board paginado, filtrado (POST) e "carregar mais" por coluna — todos
+  // pela chave do CUID do funil (ver `useKanbanBoard`).
+  const {
+    appliedFilters: mergedFilters,
+    hasServerBoard,
+    boardLoadMore,
+    boardNormal,
+    boardFiltered,
+  } = useKanbanBoard({
+    pipelineId,
     status,
     sort: boardSort,
-    pageSize: BOARD_LOAD_MORE_PAGE_SIZE,
-    firstPageSize: BOARD_PAGE_SIZE,
-  });
-
-  const boardNormal = useBoard({
-    pipelineId: boardLookupId,
-    status,
-    sort: boardSort,
-    enabled: canFetch && !hasServerBoard,
-    perStage: BOARD_PAGE_SIZE,
-    offsetByStage: boardLoadMore.legacyOffsets,
-  });
-  const boardFiltered = useBoardFiltered({
-    pipelineId: boardLookupId,
-    status,
-    filters: mergedFilters,
-    sort: boardSort,
-    enabled: canFetch && hasServerBoard,
+    filters: liveFilters,
+    // Só depois de ler os filtros da URL: a 1ª requisição já sai filtrada
+    // (antes: GET sem filtro no 1º render + POST filtrado logo depois).
+    enabled: canFetch && filtersHydrated,
   });
   const board = hasServerBoard ? boardFiltered.data ?? [] : boardNormal.data ?? [];
   // Board + etapas fora do filtro (GET /api/pipelines): com filtro de etapa o
@@ -539,15 +514,11 @@ export default function KanbanV2ClientPage({
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
 
-  // Options de filtro: só quando o modal abre ou já há filtro ativo.
-  const filterOptionsQuery = useQuery({
-    queryKey: ["kanban-filter-options"],
-    queryFn: fetchFilterOptions,
-    enabled: canFetch && (filterPanelOpen || !isEmptyFilters(filters)),
-    staleTime: 5 * 60_000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-  });
+  // Opções de filtro: só ao abrir o painel (ou com filtro por campo
+  // personalizado, cujo chip precisa do rótulo) — não na montagem.
+  const filterOptionsQuery = useFilterOptions(
+    canFetch && (filterPanelOpen || filtersNeedOptions(filters)),
+  );
   const filterOptions = filterOptionsQuery.data ?? null;
   const filterOptionsLoading = filterOptionsQuery.isLoading;
 
@@ -726,6 +697,13 @@ export default function KanbanV2ClientPage({
   const totalsPending = hasServerBoard
     ? boardFiltered.isPending
     : boardNormal.isPending;
+  // "Contando…" só sem total nenhum; com cache, o anterior fica na tela.
+  const totalChip = useBoardTotalChip({
+    pending: totalsPending,
+    total: filteredTotal,
+    pipelineId,
+    status,
+  });
 
   // Contexto para "selecionar todos que batem no filtro" na edição em massa.
   // Permite editar além dos ~100 cards carregados por coluna: o servidor
@@ -775,7 +753,7 @@ export default function KanbanV2ClientPage({
   const resetBoardLoadMore = boardLoadMore.reset;
   useEffect(() => {
     resetBoardLoadMore();
-  }, [pipelineId, status, sortKey, hasServerBoard, resetBoardLoadMore]);
+  }, [pipelineId, status, sortKey, hasServerBoard, mergedFilters, resetBoardLoadMore]);
 
   const loadMoreColumns = boardLoadMore.loadMore;
   const handleLoadMoreColumn = useCallback(
@@ -1043,12 +1021,12 @@ export default function KanbanV2ClientPage({
   // spinner (query idle/`refetchOnMount: false` não tem isError).
   const pipelinesPending =
     sessionStatus === "loading" ||
-    (canFetch && !boardLookupId && !pipelinesEmpty && !pipelinesQuery.isError);
+    (canFetch && !pipelineId && !pipelinesEmpty && !pipelinesQuery.isError);
   const pipelinesStuck = useStuckTimeout(pipelinesPending);
   const waitingForPipeline = pipelinesPending && !pipelinesStuck;
 
   const boardPending =
-    !!boardLookupId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
+    !!pipelineId && columns.length === 0 && !boardQuery.isError && !boardQuery.data;
   const boardStuck = useStuckTimeout(boardPending);
   const waitingForBoard = boardPending && !boardStuck;
 
@@ -1059,10 +1037,10 @@ export default function KanbanV2ClientPage({
     !boardQuery.isError;
 
   useLayoutEffect(() => {
-    if (!boardLookupId || !canFetch) return;
+    if (!pipelineId || !canFetch || !filtersHydrated) return;
     if (boardIdleUnfetched) void boardQuery.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardLookupId, canFetch, boardIdleUnfetched]);
+  }, [pipelineId, canFetch, filtersHydrated, boardIdleUnfetched]);
 
   function handleDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
@@ -1116,8 +1094,13 @@ export default function KanbanV2ClientPage({
                 )}
                 aria-live="polite"
               >
-                {totalsPending ? (
+                {totalChip.counting ? (
                   "Contando…"
+                ) : totalsPending && totalChip.value != null ? (
+                  <>
+                    <CountUpNumber value={totalChip.value} className="tabular-nums" />
+                    {totalChip.value === 1 ? "negócio" : "negócios"}
+                  </>
                 ) : isFiltering &&
                   pipelineTotalUnfiltered != null &&
                   pipelineTotalUnfiltered !== filteredTotal ? (
@@ -1224,10 +1207,10 @@ export default function KanbanV2ClientPage({
             className="kanban-board-hscroll flex min-h-0 min-w-0 flex-1 gap-3.5 overflow-x-auto overflow-y-hidden"
           >
             {columns.map((col) => {
-              const rawStage = boardNormal.data?.find((s) => s.id === col.stageId);
-              const remaining = Math.max(
-                0,
-                (rawStage?.totalCount ?? 0) - (rawStage?.deals.length ?? 0),
+              // Etapa do board que está na tela (paginado ou filtrado): o
+              // restante sai do total do servidor, não da lista carregada.
+              const columnMore = boardColumnLoadMore(
+                board.find((s) => s.id === col.stageId),
               );
               return (
               <DroppableColumn
@@ -1253,9 +1236,9 @@ export default function KanbanV2ClientPage({
                 }
                 canChangeStage={canChangeStage}
                 loadMore={
-                  !hasServerBoard && rawStage?.hasMore && remaining > 0
+                  columnMore
                     ? {
-                        remaining,
+                        remaining: columnMore.remaining,
                         loading: boardLoadMore.loadingStageIds.has(col.stageId),
                         onClick: () => handleLoadMoreColumn(col.stageId),
                       }

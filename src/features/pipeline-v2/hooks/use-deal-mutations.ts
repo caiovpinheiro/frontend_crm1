@@ -23,7 +23,7 @@ import {
   type TeamUser,
   type UpdateDealPayload,
 } from "../api";
-import { boardKey } from "./use-board";
+import { boardKey, boardsOfPipeline, findCachedBoardStage } from "./use-board";
 import { dealDetailKey } from "./use-deal-detail";
 import { applyDealMoved } from "./use-pipeline-realtime";
 
@@ -127,7 +127,6 @@ export function reconcileMovedDealFromHttp(
  */
 export function useMoveDeal(pipelineId: string | null, status: StatusFilter = "OPEN") {
   const qc = useQueryClient();
-  const key = boardKey(pipelineId, status);
 
   // Bug 18/jul/26 — a aside do deal (Pipeline + Inbox) mostrava o toast
   // "Fase atualizada" mas continuava exibindo a fase antiga ate F5. Causa:
@@ -190,10 +189,12 @@ export function useMoveDeal(pipelineId: string | null, status: StatusFilter = "O
       // o "fim da coluna destino" a partir do cache atual. Para moves
       // cross-pipeline, o board do funil destino pode nao estar
       // carregado — usamos posicao 0 como fallback (backend clampa).
+      // A etapa é procurada em qualquer board do funil em cache (com ou sem
+      // ordenação, paginado ou filtrado): a chave exata sem `sort` não
+      // achava o board ordenado e caía em 0.
       let pos = vars.toIndex;
       if (pos == null) {
-        const board = qc.getQueryData<BoardStageDto[]>(key);
-        const target = board?.find((s) => s.id === vars.toStageId);
+        const target = findCachedBoardStage(qc, pipelineId, status, vars.toStageId);
         if (target) {
           const hasSelf = target.deals.some((d) => d.id === vars.dealId);
           pos = Math.max(0, target.deals.length - (hasSelf ? 1 : 0));
@@ -400,15 +401,16 @@ interface SetStatusVars {
   lostReason?: string;
 }
 
-export function useSetDealStatus(pipelineId: string | null, status: StatusFilter = "OPEN") {
+export function useSetDealStatus(pipelineId: string | null, _status: StatusFilter = "OPEN") {
   const qc = useQueryClient();
-  const key = boardKey(pipelineId, status);
 
   return useMutation<{ deal: BoardDealDto }, Error, SetStatusVars>({
     mutationFn: (vars) =>
       setDealStatus(vars.dealId, { status: vars.status, lostReason: vars.lostReason }),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: key });
+      // Ganhar/perder muda o card de coluna (e de status): todos os boards
+      // do funil — Kanban (OPEN) e Flow (ALL), com ou sem filtro.
+      qc.invalidateQueries({ predicate: boardsOfPipeline(pipelineId) });
       qc.invalidateQueries({ queryKey: dealDetailKey(vars.dealId) });
       const label =
         vars.status === "WON" ? "Negocio marcado como ganho" :
@@ -609,26 +611,24 @@ export function useRemoveDealTag(_pipelineId: string | null, _status: StatusFilt
 // create / delete deal
 // ─────────────────────────────────────────────────────────────────
 
-export function useCreateDeal(pipelineId: string | null, status: StatusFilter = "OPEN") {
+export function useCreateDeal(pipelineId: string | null, _status: StatusFilter = "OPEN") {
   const qc = useQueryClient();
-  const key = boardKey(pipelineId, status);
   return useMutation<{ deal: BoardDealDto }, Error, CreateDealPayload>({
     mutationFn: (payload) => createDeal(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ predicate: boardsOfPipeline(pipelineId) });
       toast.success("Negocio criado");
     },
     onError: (err) => toast.error(err.message || "Falha ao criar negocio"),
   });
 }
 
-export function useDeleteDeal(pipelineId: string | null, status: StatusFilter = "OPEN") {
+export function useDeleteDeal(pipelineId: string | null, _status: StatusFilter = "OPEN") {
   const qc = useQueryClient();
-  const key = boardKey(pipelineId, status);
   return useMutation<void, Error, { dealId: string }>({
     mutationFn: ({ dealId }) => deleteDeal(dealId),
     onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ predicate: boardsOfPipeline(pipelineId) });
       qc.invalidateQueries({ queryKey: dealDetailKey(vars.dealId) });
       toast.success("Negocio excluido");
     },

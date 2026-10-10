@@ -90,7 +90,12 @@ export async function getBoard(
     params.set("sort", sort.field);
     params.set("direction", sort.direction);
   }
-  if (perStage) params.set("perStage", String(perStage));
+  if (perStage) {
+    params.set("perStage", String(perStage));
+    // Nome novo do mesmo parâmetro (backend com `limit` por etapa). O
+    // backend atual ignora; o novo pode ler qualquer um dos dois.
+    params.set("limit", String(perStage));
+  }
   const q = params.toString();
   const res = await fetch(
     apiUrl(`/api/pipelines/${pipelineId}/board${q ? `?${q}` : ""}`),
@@ -141,7 +146,11 @@ export async function getBoardFiltered(
     body.sort = opts.sort.field;
     body.direction = opts.sort.direction;
   }
-  if (opts.perStage) body.perStage = opts.perStage;
+  if (opts.perStage) {
+    body.perStage = opts.perStage;
+    // Idem GET: `limit` é o nome novo do tamanho da página por etapa.
+    body.limit = opts.perStage;
+  }
   if (opts.offsetByStage && Object.keys(opts.offsetByStage).length > 0) {
     body.offsetByStage = opts.offsetByStage;
   }

@@ -17,9 +17,13 @@ import {
   clearBoardPaging,
   disableBoardCursor,
   isBoardCursorDisabled,
+  rememberBoardColumnPages,
   setBoardColumnLoaded,
   stageCanLoadByCursor,
 } from "../board-column-paging";
+import { canonicalFiltersKey } from "@/components/pipeline/kanban-filters/canonical";
+import type { AdvancedDealFilters } from "@/components/pipeline/kanban-filters/types";
+
 import { BOARD_LOAD_MORE_PAGE_SIZE, boardKey } from "./use-board";
 
 const NO_STAGES: ReadonlySet<string> = new Set();
@@ -48,6 +52,10 @@ function stageHasMore(stage: BoardStageDto): boolean {
  *
  * `pipelineId` é o MESMO valor passado ao `useBoard` (a query é localizada
  * pela chave).
+ *
+ * Board filtrado (POST /board): passe `queryKey` (a chave do
+ * `useBoardFiltered`) e os `filters` do board — o cursor só vale com o
+ * mesmo recorte que o gerou.
  */
 export function useBoardLoadMore(params: {
   pipelineId: string | null;
@@ -57,6 +65,10 @@ export function useBoardLoadMore(params: {
   pageSize?: number;
   /** `perStage` da 1ª página do board, para o modo antigo. Padrão: `pageSize`. */
   firstPageSize?: number;
+  /** Chave da query do board quando não é o paginado (`boardKey`). */
+  queryKey?: readonly unknown[];
+  /** Filtros do board que deu o cursor (board filtrado). */
+  filters?: AdvancedDealFilters;
 }) {
   const qc = useQueryClient();
   const pipelineId = params.pipelineId;
@@ -70,11 +82,20 @@ export function useBoardLoadMore(params: {
     () => (sortField && sortDirection ? { field: sortField, direction: sortDirection } : undefined),
     [sortField, sortDirection],
   );
-  const queryKey = useMemo(
-    () => boardKey(pipelineId ?? "pl-1", status, sort),
-    [pipelineId, status, sort],
+  // A chave chega como array novo a cada render: a identidade estável sai
+  // do hash (só strings/números — ida e volta por JSON preserva).
+  const keyHash = boardPagingKey(
+    params.queryKey ?? boardKey(pipelineId ?? "pl-1", status, sort),
   );
-  const keyHash = boardPagingKey(queryKey);
+  const queryKey = useMemo(() => JSON.parse(keyHash) as readonly unknown[], [keyHash]);
+  const filtersKey = params.filters ? canonicalFiltersKey(params.filters) : "";
+  const filters = useMemo(
+    () =>
+      filtersKey && filtersKey !== "{}"
+        ? (JSON.parse(filtersKey) as AdvancedDealFilters)
+        : undefined,
+    [filtersKey],
+  );
 
   const [legacyOffsets, setLegacyOffsets] = useState<Record<string, number>>({});
   const [loadingStageIds, setLoadingStageIds] = useState<ReadonlySet<string>>(NO_STAGES);
@@ -159,15 +180,21 @@ export function useBoardLoadMore(params: {
       if (byCursor.length > 0) {
         for (const id of cursorIds) inFlight.current.add(id);
         try {
+          const columns = byCursor.map((s) => ({
+            stageId: s.id,
+            cursor: s.nextCursor,
+            limit: pageSize,
+          }));
+          const requestedAt = Date.now();
           const pages = await getBoardColumns(pipelineId, {
             status,
+            filters,
             sort,
-            columns: byCursor.map((s) => ({
-              stageId: s.id,
-              cursor: s.nextCursor,
-              limit: pageSize,
-            })),
+            columns,
           });
+          // Um refetch do board já em voo reaproveita esta página em vez de
+          // pedir o mesmo cursor de novo (`reloadBoardExpansions`).
+          rememberBoardColumnPages(qc, keyHash, columns, pages, requestedAt);
           const next = qc.setQueryData<BoardStageDto[]>(queryKey, (old) =>
             appendBoardColumnPages(old, pages),
           );
@@ -211,7 +238,18 @@ export function useBoardLoadMore(params: {
         return next;
       });
     },
-    [qc, queryKey, keyHash, pipelineId, status, sort, pageSize, firstPageSize, markLoading],
+    [
+      qc,
+      queryKey,
+      keyHash,
+      pipelineId,
+      status,
+      sort,
+      filters,
+      pageSize,
+      firstPageSize,
+      markLoading,
+    ],
   );
 
   // Junta os pedidos do mesmo instante. Macrotask (não microtask): as

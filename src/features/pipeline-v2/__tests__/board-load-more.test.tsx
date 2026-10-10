@@ -341,6 +341,52 @@ describe("useBoardLoadMore — cursor", () => {
     expect(api.getBoardFiltered).not.toHaveBeenCalled();
   });
 
+  it("'carregar mais' que termina com o refetch do board em voo: a página é reaproveitada (1 POST por cursor)", async () => {
+    api.getBoard.mockResolvedValueOnce(cursorBoard());
+    const { qc, view, cached } = setupHooks();
+    await waitFor(() => expect(view.result.current.board.data).toBeDefined());
+
+    // Refetch do board em voo (voltar ao paginado ao tirar o filtro, intervalo,
+    // invalidação)…
+    let resolveBoard!: (board: BoardStageDto[]) => void;
+    api.getBoard.mockImplementationOnce(
+      () =>
+        new Promise<BoardStageDto[]>((resolve) => {
+          resolveBoard = resolve;
+        }),
+    );
+    const refetch = qc.invalidateQueries({ queryKey: KEY });
+
+    // …e, enquanto isso, a sentinela pede a próxima página pelo cursor da
+    // 1ª página em cache.
+    api.getBoardColumns.mockResolvedValue([columnPage("s1", [deal("c"), deal("d")])]);
+    await act(async () => {
+      await view.result.current.more.loadMore(["s1"]);
+    });
+    expect(ids(cached()[0])).toEqual(["a", "b", "c", "d"]);
+    expect(api.getBoardColumns).toHaveBeenCalledTimes(1);
+
+    // O board volta igual (mesma 1ª página, mesmo cursor): a expansão que
+    // acabou de chegar vale — nada de pedir o mesmo cursor de novo.
+    await act(async () => {
+      resolveBoard(cursorBoard());
+      await refetch;
+    });
+    await waitFor(() => expect(ids(cached()[0])).toEqual(["a", "b", "c", "d"]));
+    expect(api.getBoardColumns).toHaveBeenCalledTimes(1);
+    expect(cached()[0]).toMatchObject({ nextCursor: "CUR-2", hasMore: true, loadedCount: 4 });
+
+    // Refetch posterior (mutação/SSE): a expansão é recarregada de verdade.
+    api.getBoard.mockResolvedValueOnce(cursorBoard());
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: KEY });
+    });
+    await waitFor(() => expect(api.getBoardColumns).toHaveBeenCalledTimes(2));
+    expect(api.getBoardColumns.mock.calls[1]![1].columns).toEqual([
+      { stageId: "s1", cursor: "CUR-1", limit: 2 },
+    ]);
+  });
+
   it("reset (troca de funil/ordenação) esquece as expansões: o refetch volta à 1ª página", async () => {
     api.getBoard.mockResolvedValue(cursorBoard());
     api.getBoardColumns.mockResolvedValueOnce([columnPage("s1", [deal("c"), deal("d")])]);
