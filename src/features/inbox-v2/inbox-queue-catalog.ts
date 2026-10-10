@@ -11,6 +11,8 @@ export type InboxQueueGroupId =
 export type InboxQueueItem = {
   id: InboxTab;
   label: string;
+  /** Rótulo curto para o gatilho quando a lista está estreita. */
+  shortLabel?: string;
   description: string;
   title?: string;
   group: InboxQueueGroupId;
@@ -22,6 +24,7 @@ export const INBOX_QUEUE_ITEMS: readonly InboxQueueItem[] = [
   {
     id: "todos",
     label: "Todas as conversas",
+    shortLabel: "Todas",
     description: "Visão completa de todas as filas",
     group: "pin",
     groupLabel: null,
@@ -127,6 +130,18 @@ export function inboxQueueTriggerLabel(
   if (selected.length === 0) return "Filas";
   if (selected.length === 1) return selected[0]?.label ?? "Filas";
   return `${selected.length} Filas`;
+}
+
+/**
+ * Rótulo curto do gatilho (lista estreita): só há quando uma única fila está
+ * selecionada e ela define `shortLabel`.
+ */
+export function inboxQueueTriggerShortLabel(
+  selectedIds: readonly string[],
+  items: readonly InboxQueueItem[] = INBOX_QUEUE_ITEMS,
+): string | undefined {
+  const selected = catalogSelected(selectedIds, items);
+  return selected.length === 1 ? selected[0]?.shortLabel : undefined;
 }
 
 /** Soma das contagens das filas do catálogo (badge / select-all). */

@@ -41,6 +41,7 @@ import {
   INBOX_QUEUE_ITEMS,
   inboxQueueSelectedCount,
   inboxQueueTriggerLabel,
+  inboxQueueTriggerShortLabel,
 } from "@/features/inbox-v2/inbox-queue-catalog"
 import { AppLoading } from "@/components/crm/app-loading"
 import { InputGlass } from "./input-glass"
@@ -586,6 +587,7 @@ export function ConversationColumn({
     selectedQueueIds,
     INBOX_QUEUE_ITEMS,
   )
+  const currentTabShortLabel = inboxQueueTriggerShortLabel(selectedQueueIds)
   const selectedQueueSum = inboxQueueSelectedCount(selectedQueueIds, queueCounts)
   // 1 fila: badge daquela fila. 2+: "N Filas" + soma das parcelas — nunca list.total.
   const currentTabCount = selectedQueueSum
@@ -704,7 +706,17 @@ export function ConversationColumn({
               <Copy className="h-3.5 w-3.5" aria-hidden />
             </span>
             <span className="min-w-0 truncate text-sm font-semibold text-foreground">
-              {currentTabLabel}
+              {currentTabShortLabel ? (
+                <>
+                  {/* Lista estreita: rótulo curto; a partir de ~340 px o completo cabe. */}
+                  <span className="@max-[340px]:hidden">{currentTabLabel}</span>
+                  <span className="hidden @max-[340px]:inline">
+                    {currentTabShortLabel}
+                  </span>
+                </>
+              ) : (
+                currentTabLabel
+              )}
             </span>
             {currentTabCount != null && (
               <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">

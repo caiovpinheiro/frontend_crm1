@@ -963,6 +963,16 @@
      44×44pt (iOS) / 48×48dp (Android). Aplicar em botões/ícones
      que são alvo de toque em mobile. */
   .touch-target { min-width: 44px; min-height: 44px; }
+
+  /* Alvo de toque de 40×40 só em ponteiro "grosso" (dedo) ou abaixo de `md`.
+     No desktop com mouse não muda nada (o ícone mantém o tamanho do desenho).
+     Para ícones pequenos use junto `inline-flex items-center justify-center`. */
+  @media (pointer: coarse), (max-width: 767.98px) {
+    .touch-target-40 { min-width: 40px; min-height: 40px; }
+    /* Elemento posicionado (absolute) de 20px que cresce para 40px: a margem
+       negativa mantém o centro (e o desenho) onde estava. */
+    .touch-target-40-bleed { margin: -10px; }
+  }
 }
 
 @keyframes slide-in {

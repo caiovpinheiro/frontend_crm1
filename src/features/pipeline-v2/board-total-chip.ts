@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import type { BoardStageDto, StatusFilter } from "./api";
@@ -66,15 +66,16 @@ export function useBoardTotalChip(input: {
   status: StatusFilter;
 }): BoardTotalChip {
   const qc = useQueryClient();
-  const lastKnownRef = useRef<number | null>(null);
-  const chip = resolveBoardTotalChip({
+  // Último total mostrado nesta tela. "Ajuste de estado durante o render"
+  // (padrão do React) em vez de ref: ler/gravar ref no render é desaconselhado.
+  const [lastKnown, setLastKnown] = useState<number | null>(null);
+  if (!input.pending && lastKnown !== input.total) setLastKnown(input.total);
+  return resolveBoardTotalChip({
     pending: input.pending,
     total: input.total,
-    lastKnown: lastKnownRef.current,
+    lastKnown,
     cachedTotal: input.pending
       ? cachedBoardTotal(qc, input.pipelineId, input.status)
       : null,
   });
-  if (!input.pending) lastKnownRef.current = input.total;
-  return chip;
 }

@@ -240,7 +240,10 @@ export function DealListTable({
       case "dealTitle":
         return (
           <div className="min-w-0 leading-tight">
-            <span className="block truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+            <span
+              title={d.dealTitle}
+              className="block truncate font-display text-[14px] font-bold text-[var(--text-primary)]"
+            >
               {d.dealTitle}
             </span>
           </div>
@@ -253,7 +256,10 @@ export function DealListTable({
               channel={d.channel ?? null}
               size={AVATAR_SIZE.md}
             />
-            <span className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]">
+            <span
+              title={d.contactName}
+              className="truncate font-display text-[14px] font-bold text-[var(--text-primary)]"
+            >
               {d.contactName}
             </span>
           </div>
@@ -272,7 +278,10 @@ export function DealListTable({
         );
       case "ownerName":
         return (
-          <span className="truncate font-display text-[13px] text-[var(--text-muted)]">
+          <span
+            title={d.ownerName ?? undefined}
+            className="truncate font-display text-[13px] text-[var(--text-muted)]"
+          >
             {d.ownerName ?? "—"}
           </span>
         );
@@ -309,6 +318,7 @@ export function DealListTable({
           indeterminate={!allChecked && someChecked}
           onChange={toggleAll}
           aria-label="Selecionar todos"
+          touchTarget
         />
       </span>
       {columns.map((col) => {
@@ -383,6 +393,7 @@ export function DealListTable({
                     checked={isChecked}
                     onChange={() => toggleOne(d.id)}
                     aria-label={`Selecionar ${d.dealTitle}`}
+                    touchTarget
                   />
                 </span>
               </DataRow>

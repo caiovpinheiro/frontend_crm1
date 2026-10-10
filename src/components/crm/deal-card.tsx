@@ -237,19 +237,21 @@ export const DealCard = memo(function DealCard({ deal, onClick, tagsSlot, tagsAd
             evita abrir o deal ou iniciar o drag. */}
         {showCheckbox ? (
           <label
-            className="absolute left-2 top-2 z-20 flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-sm backdrop-blur-md"
+            className="touch-target-40 touch-target-40-bleed absolute left-2 top-2 z-20 flex h-5 w-5 cursor-pointer items-center justify-center"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleSelect() }}
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onTouchStart={(e) => e.stopPropagation()}
           >
-            <input
-              type="checkbox"
-              checked={!!isSelected}
-              readOnly
-              tabIndex={-1}
-              className="pointer-events-none h-3.5 w-3.5 cursor-pointer accent-[var(--brand-primary)]"
-            />
+            <span className="flex h-5 w-5 items-center justify-center rounded-md border border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-sm backdrop-blur-md">
+              <input
+                type="checkbox"
+                checked={!!isSelected}
+                readOnly
+                tabIndex={-1}
+                className="pointer-events-none h-3.5 w-3.5 cursor-pointer accent-[var(--brand-primary)]"
+              />
+            </span>
           </label>
         ) : null}
 
@@ -270,10 +272,16 @@ export const DealCard = memo(function DealCard({ deal, onClick, tagsSlot, tagsAd
           size={AVATAR_SIZE.sm}
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-[13px] font-bold text-[var(--text-primary)]">
+          <div
+            title={deal.name}
+            className="truncate font-display text-[13px] font-bold text-[var(--text-primary)]"
+          >
             {deal.name}
           </div>
-          <div className="mt-px truncate text-[11px] text-[var(--text-muted)]">
+          <div
+            title={deal.subtitle || undefined}
+            className="mt-px truncate text-[11px] text-[var(--text-muted)]"
+          >
             {deal.subtitle}
           </div>
         </div>

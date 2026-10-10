@@ -2032,7 +2032,7 @@ function CardMoveDropdown({
           onClick={handleOpen}
           // Espelha o botão de transferência de conversa (inbox): pílula
           // ciano sólida, para a ação não passar despercebida no rodapé.
-          className="flex size-7 items-center justify-center rounded-full bg-cyan-500 text-white shadow-[0_2px_8px_rgba(6,182,212,0.35)] transition-all hover:bg-cyan-600 disabled:cursor-wait disabled:opacity-50"
+          className="touch-target-40 flex size-7 items-center justify-center rounded-full bg-cyan-500 text-white shadow-[0_2px_8px_rgba(6,182,212,0.35)] transition-all hover:bg-cyan-600 disabled:cursor-wait disabled:opacity-50"
         >
           <IconArrowsExchange size={15} stroke={2.2} />
         </button>
