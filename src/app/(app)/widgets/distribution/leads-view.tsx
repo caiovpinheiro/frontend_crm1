@@ -3,7 +3,8 @@
 /**
  * Visualização "Distribuição por Leads" — mesmo DNA visual da Distribuição
  * Inteligente: KPIs canônicos, toggle em LIST_CARD_ROW, lista DataView /
- * cards por linha. Sem fila de espera.
+ * cards por linha. Sem elegível (peso 0), o lead espera e sai quando algum
+ * consultor ACTIVE fica com peso maior que 0.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -679,8 +680,9 @@ export function LeadsDistributionView({
                 <h2 className="text-sm font-bold text-foreground">Consultores</h2>
                 <p className="mt-0.5 text-pretty text-xs leading-snug text-muted-foreground">
                   Status e peso valem só para novos recebimentos. Peso 0–5 = quantas
-                  das 5 posições entram no rodízio. Sem fila de espera: sem elegível, a
-                  automação segue a saída “Sem agente”.
+                  das 5 posições entram no rodízio. Peso 0 não recebe: o lead
+                  espera e é distribuído quando algum ativo ficar com peso
+                  maior que zero.
                 </p>
               </div>
             </div>

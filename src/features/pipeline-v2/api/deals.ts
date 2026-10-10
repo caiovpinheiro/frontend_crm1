@@ -163,6 +163,9 @@ export interface DealTimelineEvent {
   id: string;
   type: string;
   createdAt: string;
+  /** Valor novo do evento. Em LEAD_DISTRIBUTED é o nome de quem recebeu. */
+  newValue?: string | null;
+  entityLabel?: string | null;
   user?: { id?: string; name?: string | null; avatarUrl?: string | null } | null;
   meta?: Record<string, unknown> | null;
 }

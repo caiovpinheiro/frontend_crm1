@@ -650,6 +650,8 @@ export function eventDescription(ev: FeedEvent): string {
       const reason = String(m.reason ?? "");
       if (reason === "NO_ELIGIBLE_RESPONSIBLE")
         return "Sem responsável disponível — na fila de espera";
+      if (reason === "NO_ELIGIBLE_PARTICIPANT")
+        return "Sem consultor no rodízio — na fila de espera";
       if (reason === "NO_DEPARTMENT")
         return "Sem departamento habilitado — na fila de espera";
       return "Não distribuído — na fila de espera";
