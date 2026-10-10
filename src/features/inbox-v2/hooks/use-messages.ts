@@ -648,7 +648,7 @@ export function useFavoriteMessagesList(
  * Nome do evento global disparado quando um envio reabre uma conversa
  * encerrada como NOVO ticket. O `_v2-client` escuta e troca o chat ativo.
  * (Evento em vez de prop-drilling: os botões de anexo/áudio ficam 3 níveis
- * abaixo do orquestrador.)
+ * abaixo do coordenador.)
  */
 export const CONVERSATION_REOPENED_EVENT = "inbox:conversation-reopened";
 

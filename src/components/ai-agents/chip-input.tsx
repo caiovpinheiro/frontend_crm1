@@ -6,7 +6,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-/** Aceita `"Acolhimento"` e `{ name: "Acolhimento" }` — cache de outra aba
+/** Aceita `"Suporte"` e `{ name: "Suporte" }` — cache de outra aba
  * pode entregar o objeto, e isso não pode virar "[object Object]" nem
  * quebrar o render no meio do filtro. */
 function asName(raw: unknown): string {
