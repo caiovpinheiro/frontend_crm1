@@ -35,7 +35,6 @@ import {
   useDepartmentOptions,
   useUserOptions,
 } from "@/components/automations/editor-data"
-import { isTabulationArchetype } from "@/lib/ai-agents/archetypes"
 import { FlowConditionConfig } from "./flow-condition-config"
 import { FlowRoundRobinConfig } from "./flow-round-robin-config"
 import { cn } from "@/lib/utils"
@@ -297,7 +296,7 @@ function AssignOwnerFields({
   cfg: NodeConfig
   onChange: (patch: Partial<NodeConfig>) => void
   users: { value: string; label: string }[]
-  agents: { userId: string; name: string; active?: boolean; archetype?: string }[]
+  agents: { userId: string; name: string; active?: boolean }[]
   departments: { value: string; label: string }[]
   loading: boolean
 }) {
@@ -312,12 +311,7 @@ function AssignOwnerFields({
   const selected = cfg.departmentId
     ? `${DEPT_PREFIX}${cfg.departmentId}`
     : (cfg.userId ?? "")
-  const assignableAgents = agents.filter(
-    (a) =>
-      a.active !== false &&
-      a.userId &&
-      (!isTabulationArchetype(a.archetype) || a.userId === selected),
-  )
+  const assignableAgents = agents.filter((a) => a.active !== false && a.userId)
 
   return (
     <section className="space-y-3">

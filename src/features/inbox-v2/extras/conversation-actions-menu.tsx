@@ -29,14 +29,13 @@ import { useExecuteDistribution } from "@/features/distribution/hooks";
 import { applyDistributionToast } from "@/features/distribution/outcome-toast";
 import { apiUrl } from "@/lib/api";
 import { useHideChatEvents } from "@/components/crm/chat-timeline";
-import {
-  shouldBlockReturnToAi,
-  type AiHandoffDeal,
-} from "@/lib/ai-agents/block-return-to-ai";
-import {
-  normalizeInboxPolicy,
-  type InboxPolicy,
-} from "@/lib/ai-agents/steering";
+
+type AiHandoffDeal = {
+  pipelineId?: string | null;
+  stageId?: string | null;
+  pipelineName?: string | null;
+  stageName?: string | null;
+};
 import { useSendToChat } from "@/features/team-chat/send-to-chat-dialog";
 import { messagesKey } from "@/features/inbox-v2/hooks/use-messages";
 import type { MessagesResponse } from "@/features/inbox-v2/api/types";
@@ -154,48 +153,19 @@ export function ConversationActionsMenu({
 
   const aiAgentsQuery = useQuery({
     queryKey: ["inbox-ai-agents-active"],
-    queryFn: async (): Promise<{
-      agents: Array<{ userId: string; name: string }>;
-      policy: InboxPolicy | null;
-    }> => {
-      const res = await fetch(apiUrl("/api/ai-agents"), {
-        credentials: "include",
-      });
-      if (!res.ok) return { agents: [], policy: null };
-      const raw = (await res.json()) as unknown;
-      const list = Array.isArray(raw) ? raw : [];
-      const agents = (
-        list as Array<{
-          id?: string;
-          userId?: string;
-          name?: string;
-          active?: boolean;
-        }>
-      )
-        .filter((a) => a.active !== false && typeof a.userId === "string")
-        .map((a) => ({
-          id: typeof a.id === "string" ? a.id : "",
-          userId: a.userId as string,
-          name: a.name ?? "Agente IA",
-        }));
-      const firstId = agents.find((a) => a.id)?.id;
-      if (!firstId) return { agents, policy: null };
-      const detailRes = await fetch(apiUrl(`/api/ai-agents/${firstId}`), {
-        credentials: "include",
-      });
-      if (!detailRes.ok) return { agents, policy: null };
-      const detail = (await detailRes.json()) as { inboxPolicy?: unknown };
-      return { agents, policy: normalizeInboxPolicy(detail.inboxPolicy) };
+    queryFn: async (): Promise<{ agents: Array<{ userId: string; name: string }> }> => {
+      const res = await fetch(apiUrl("/api/ai-agents-v2"), { credentials: "include" });
+      if (!res.ok) return { agents: [] };
+      const raw = (await res.json()) as { agents?: unknown } | null;
+      const list = Array.isArray(raw?.agents) ? (raw.agents as Array<{ userId?: string; name?: string; active?: boolean }>) : [];
+      return {
+        agents: list
+          .filter((a) => a.active !== false && typeof a.userId === "string" && a.userId)
+          .map((a) => ({ userId: a.userId as string, name: a.name ?? "Agente IA" })),
+      };
     },
     enabled: open && !isAiAssignee,
     staleTime: 5 * 60_000,
-  });
-  const blockReturnToAi = shouldBlockReturnToAi({
-    deals: aiHandoffContext?.deals ?? [],
-    departmentName: aiHandoffContext?.departmentName,
-    scope: aiAgentsQuery.data?.policy?.scope,
-    acolhimentoAliases:
-      aiAgentsQuery.data?.policy?.departmentAliases.acolhimento,
   });
 
   useEffect(() => {
@@ -305,12 +275,6 @@ export function ConversationActionsMenu({
 
   function handleReturnToAi() {
     if (!conversationId) return;
-    if (blockReturnToAi) {
-      toast.error(
-        "IA bloqueada neste funil, etapa ou departamento. Use um consultor humano.",
-      );
-      return;
-    }
     const agent = aiAgentsQuery.data?.agents[0];
     if (!agent?.userId) {
       toast.error("Nenhum agente IA ativo encontrado.");
@@ -373,20 +337,6 @@ export function ConversationActionsMenu({
                 />
               )}
               <span>Assumir conversa</span>
-            </button>
-          ) : blockReturnToAi ? (
-            <button
-              type="button"
-              disabled
-              title="IA bloqueada pelo escopo do agente neste funil/etapa/departamento"
-              className="flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2.5 text-left text-[13px] font-medium text-[var(--text-muted)] opacity-60"
-            >
-              <IconRobot
-                size={16}
-                className="shrink-0 text-[var(--text-muted)]"
-                stroke={2}
-              />
-              <span>IA indisponível neste funil</span>
             </button>
           ) : (
             <button
