@@ -439,7 +439,6 @@ const DEFAULT_CONFIG: Record<string, unknown> = {
     silenceMinutes: 30,
     loopDetectionWindowMinutes: 60,
     maxLoopCount: 3,
-    maxAiTransfers: 3,
   },
   fallback: {
     unknown: { message: "", action: "handoff" },
@@ -5749,7 +5748,6 @@ function StepOutputs({
           {[
             { path: "limits.maxCourtesyReplies", label: "Respostas a agradecimentos depois de encerrar", tooltip: "Quantas vezes ele responde a um obrigado depois que a conversa foi encerrada." },
             { path: "limits.nonsenseLimit", label: "Mensagens fora do assunto seguidas", tooltip: "Quantas mensagens fora do assunto (ou repetidas) ele aceita antes de agir." },
-            { path: "limits.maxAiTransfers", label: "Vezes que pode passar para outro agente de IA", tooltip: "Limite de idas e voltas entre agentes de IA antes de ir para fila humana." },
             { path: "limits.maxStalledExchanges", label: "Perguntas seguidas sem resolver", tooltip: "Quantas vezes seguidas ele pode responder só com outra pergunta (sem orientação, material ou dado novo) a uma resposta do cliente. Na seguinte, em vez de insistir, sai pela saída do assunto. 0 = desligado." },
           ].map((f) => (
             <Field key={f.path} label={f.label} tooltip={f.tooltip}>
