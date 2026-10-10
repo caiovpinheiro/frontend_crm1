@@ -101,6 +101,7 @@ import { fetchBoardDealIds, updateDeal } from "@/features/pipeline-v2/api";
 import { createContact } from "@/features/directory-v2/api";
 import { personNameFromDealTitle, sanitizeContactName } from "@/lib/display-name";
 import { useCan, useMyPermissions } from "@/hooks/use-my-permissions";
+import { useViewerScopeSync } from "@/hooks/use-viewer-scope-sync";
 import { useStuckTimeout } from "@/hooks/use-stuck-timeout";
 import { RequirePermission } from "@/components/auth/require-permission";
 import { BulkActionsBar } from "@/components/pipeline/bulk-actions-bar";
@@ -314,6 +315,8 @@ export default function KanbanV2ClientPage({
   const moveStages = usePipelineMoveStages(pipelineId, board);
 
   usePipelineRealtime(canFetch);
+  // "Só os meus": o board tira o negócio de outro responsável por evento.
+  useViewerScopeSync(canFetch);
 
   const moveDeal = useMoveDeal(pipelineId, status);
 
@@ -1299,6 +1302,16 @@ export default function KanbanV2ClientPage({
         isOpen={!!activeDealId}
         onClose={() => setActiveDeal(null)}
         deal={dealDetailVm ?? undefined}
+        siblingDeals={(dealContact?.deals ?? []).map((item) => ({
+          id: item.id,
+          number: (item as { number?: number | null }).number ?? null,
+          title: item.title,
+          stageName: item.stageName ?? null,
+          stageColor: (item as { stageColor?: string | null }).stageColor ?? null,
+          pipelineName: (item as { pipelineName?: string | null }).pipelineName ?? null,
+          status: item.status ?? null,
+        }))}
+        onSelectDeal={(id, number) => setActiveDeal(id, number ?? null)}
         chatSlot={
           ensuring ? (
             <ConversationThreadSkeleton />

@@ -12,11 +12,13 @@ import {
   IconCircleX,
   IconCircleCheck,
   IconRefresh,
+  IconCopy,
 } from "@tabler/icons-react";
 import { TooltipGlass } from "@/components/crm/tooltip-glass";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 import { LossReasonDialog } from "@/components/pipeline/loss-reason-dialog";
+import { DuplicateDealDialog } from "@/features/pipeline-v2/extras/duplicate-deal-dialog";
 import {
   useDeleteDeal,
   usePipelineLossReasons,
@@ -44,6 +46,7 @@ export function DealActionsMenu({
 }: DealActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [lostDialogOpen, setLostDialogOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
@@ -156,6 +159,19 @@ export function DealActionsMenu({
             </button>
           )}
 
+          <button
+            type="button"
+            disabled={!dealId}
+            onClick={() => {
+              setOpen(false);
+              setDuplicateOpen(true);
+            }}
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left font-display text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--color-primary-soft)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+          >
+            <IconCopy size={15} strokeWidth={2} />
+            Duplicar negócio
+          </button>
+
           {/* Separator */}
           <div className="mx-3 my-1.5 h-px bg-slate-100" />
 
@@ -194,6 +210,11 @@ export function DealActionsMenu({
       {dialog}
 
       {/* Tabulação do motivo da perda (catálogo + "Outro") */}
+      <DuplicateDealDialog
+        open={duplicateOpen}
+        onOpenChange={setDuplicateOpen}
+        dealId={dealId}
+      />
       <LossReasonDialog
         open={lostDialogOpen}
         onOpenChange={setLostDialogOpen}

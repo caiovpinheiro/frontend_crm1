@@ -24,7 +24,8 @@ import {
   applyInboxConversationRow,
   findCachedConversationRow,
 } from "./apply-outbound-inbox-card";
-import { messagesKey } from "./use-messages";
+import { scheduleThreadHydrate } from "./thread-hydrate";
+import { findTeamUserById } from "./team-user-cache";
 
 /** Atribuir conversa (assign) — comportamento otimista. */
 export function useAssignConversation() {
@@ -47,13 +48,74 @@ export function useAssignConversation() {
             ? null
             : { id: vars.assignedToId, name: "", type: "HUMAN" },
       });
-      qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
+      // 1 GET de mensagens (junta com o do evento SSE da linha do chat).
+      scheduleThreadHydrate(qc, vars.conversationId, { force: true, immediate: true });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
       });
     },
     onError: (err) => toast.error(err.message || "Falha ao atribuir"),
   });
+}
+
+/**
+ * Estado final da transferência para o card (lista + cache da conversa).
+ * A resposta do POST já traz o responsável COM nome e o departamento — inclusive
+ * o que a distribuição escolheu ao transferir só para um departamento —, então
+ * ela manda; o pedido (`vars`) só vale quando a resposta não diz. Sem objeto do
+ * responsável, o nome vem da equipe em cache (nunca grava nome vazio).
+ */
+function transferredCardFields(
+  qc: QueryClient,
+  vars: { assignedToId?: string | null; departmentId?: string | null },
+  conversation: Partial<ConversationListRow> | null | undefined,
+): Partial<ConversationListRow> {
+  const fields: Partial<ConversationListRow> = {};
+  const existing = findCachedConversationRow(qc, conversation?.id ?? "");
+
+  const assignedToId =
+    conversation?.assignedToId !== undefined
+      ? conversation.assignedToId
+      : vars.assignedToId;
+  if (assignedToId !== undefined) {
+    fields.assignedToId = assignedToId;
+    if (assignedToId == null) {
+      fields.assignedTo = null;
+    } else {
+      const fromResponse =
+        conversation?.assignedTo?.id === assignedToId ? conversation.assignedTo : null;
+      const prev = existing?.assignedTo;
+      const team = findTeamUserById(qc, assignedToId);
+      const name = fromResponse?.name || team?.name || "";
+      fields.assignedTo = {
+        id: assignedToId,
+        name,
+        ...(fromResponse?.email ? { email: fromResponse.email } : {}),
+        avatarUrl: fromResponse?.avatarUrl ?? team?.avatarUrl ?? null,
+        type:
+          fromResponse?.type ??
+          team?.type ??
+          (prev?.id === assignedToId ? prev.type : null) ??
+          "HUMAN",
+      };
+    }
+  }
+
+  const departmentId =
+    conversation?.departmentId !== undefined
+      ? conversation.departmentId
+      : vars.departmentId;
+  if (departmentId !== undefined) {
+    fields.departmentId = departmentId;
+    if (conversation?.department !== undefined) {
+      fields.department = conversation.department;
+    } else if (departmentId == null || existing?.department?.id !== departmentId) {
+      // Departamento mudou e a resposta não descreve o novo: não deixa o
+      // objeto do anterior (nome, exigência de tabulação) no card.
+      fields.department = null;
+    }
+  }
+  return fields;
 }
 
 /**
@@ -103,16 +165,16 @@ export function useTransferConversation() {
         toast.success("Conversa transferida");
       }
 
-      if (vars.assignedToId !== undefined) {
-        applyConversationFieldsToInboxCaches(qc, vars.conversationId, {
-          assignedToId: vars.assignedToId,
-          assignedTo:
-            vars.assignedToId == null
-              ? null
-              : { id: vars.assignedToId, name: "", type: "HUMAN" },
-        });
-      }
-      qc.invalidateQueries({ queryKey: messagesKey(vars.conversationId) });
+      applyConversationFieldsToInboxCaches(
+        qc,
+        vars.conversationId,
+        transferredCardFields(qc, vars, {
+          ...data.conversation,
+          id: vars.conversationId,
+        }),
+      );
+      // 1 GET de mensagens (junta com o do evento SSE da linha do chat).
+      scheduleThreadHydrate(qc, vars.conversationId, { force: true, immediate: true });
       qc.invalidateQueries({
         queryKey: ["conversation-timeline", vars.conversationId],
       });
@@ -340,6 +402,52 @@ export function shouldSuppressInboxListRefresh(conversationId?: string | null) {
   return conversationId === suppressInboxListRefreshId;
 }
 
+/** `POST /read` em voo por conversa — a abertura não manda o segundo por cima. */
+const readInFlight = new Set<string>();
+
+type ListUnreadCache =
+  | { pages?: Array<{ items?: Array<{ id: string; number?: number | null; unreadCount?: number }> }> }
+  | undefined;
+
+/**
+ * Zera o contador da conversa em TODO cache que o guard lê: páginas da lista
+ * e a cópia individual (`["inbox-conversation", id|número]`) — que os patches
+ * de evento/mutação mantêm e `findCachedConversationRow` prefere. Zerar só a
+ * lista deixava a cópia com as não lidas antigas: o "voltar à conversa" achava
+ * que ainda havia o que marcar e mandava outro POST.
+ */
+function zeroConversationUnread(qc: QueryClient, conversationId: string): void {
+  const want = String(conversationId);
+  qc.setQueriesData<ListUnreadCache>(
+    { queryKey: ["inbox-conversations"] },
+    (old) => {
+      if (!old?.pages) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          items: page.items?.map((item) =>
+            String(item.id) === want || (item.number != null && String(item.number) === want)
+              ? { ...item, unreadCount: 0 }
+              : item,
+          ),
+        })),
+      };
+    },
+  );
+  const known = findCachedConversationRow(qc, want);
+  const keys = new Set<string>([want]);
+  if (known) {
+    keys.add(String(known.id));
+    if (known.number != null) keys.add(String(known.number));
+  }
+  for (const key of keys) {
+    qc.setQueryData<ConversationListRow | undefined>(["inbox-conversation", key], (old) =>
+      old && (old.unreadCount ?? 0) !== 0 ? { ...old, unreadCount: 0 } : old,
+    );
+  }
+}
+
 /** Marcar conversa como lida (swipe / ao abrir). */
 export function useMarkConversationRead() {
   const qc = useQueryClient();
@@ -349,26 +457,25 @@ export function useMarkConversationRead() {
     string,
     { previous: Array<[unknown, unknown]> }
   >({
-    mutationFn: (conversationId) => markConversationRead(conversationId),
+    mutationFn: async (conversationId) => {
+      readInFlight.add(conversationId);
+      try {
+        await markConversationRead(conversationId);
+      } finally {
+        readInFlight.delete(conversationId);
+      }
+    },
     onMutate: async (conversationId) => {
       noteInboxConversationOpened(conversationId);
+      const previous = [
+        ...qc.getQueriesData({ queryKey: ["inbox-conversations"] }),
+        ...qc.getQueriesData({ queryKey: ["inbox-conversation"] }),
+      ];
+      // Zera JÁ (síncrono): dois gatilhos no mesmo tick não mandam dois POST.
+      zeroConversationUnread(qc, conversationId);
       await qc.cancelQueries({ queryKey: ["inbox-conversations"] });
-      const previous = qc.getQueriesData({ queryKey: ["inbox-conversations"] });
-      qc.setQueriesData(
-        { queryKey: ["inbox-conversations"] },
-        (old: { pages?: Array<{ items?: Array<{ id: string; unreadCount?: number }> }> } | undefined) => {
-          if (!old?.pages) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              items: page.items?.map((item) =>
-                item.id === conversationId ? { ...item, unreadCount: 0 } : item,
-              ),
-            })),
-          };
-        },
-      );
+      // O cancelamento pode devolver a lista ao estado de antes do fetch em voo.
+      zeroConversationUnread(qc, conversationId);
       return { previous };
     },
     onError: (_err, _id, ctx) => {
@@ -412,6 +519,7 @@ export function useMarkConversationReadIfUnread() {
       options?: MutateOptions<void, Error, string, { previous: Array<[unknown, unknown]> }>,
     ): boolean => {
       if (cachedConversationUnread(qc, conversationId) === 0) return false;
+      if (readInFlight.has(conversationId)) return false;
       mutate(conversationId, options);
       return true;
     },

@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { apiUrl } from "@/lib/api"
 import {
   DragDropContext,
   Droppable,
@@ -21,6 +23,7 @@ import {
   IconGripVertical,
   IconLayoutList,
   IconPencil,
+  IconPlus,
   IconMessageCircle,
   IconChecklist,
   IconNote,
@@ -256,6 +259,21 @@ interface DealDetailPanelProps {
    * por contas/fontes diferentes.
    */
   connection?: ConnectionRef | null
+  /**
+   * Outros negócios do mesmo contato. Com 2 ou mais, o hero empilha
+   * como na caixa de entrada: os demais ficam numa faixa e o aberto
+   * é o card inteiro.
+   */
+  siblingDeals?: {
+    id: string
+    number?: number | null
+    title?: string | null
+    stageName?: string | null
+    stageColor?: string | null
+    pipelineName?: string | null
+    status?: string | null
+  }[]
+  onSelectDeal?: (dealId: string, number?: number | null) => void
 }
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ size?: number }>; count?: number }[] = [
@@ -317,6 +335,8 @@ export function DealDetailPanel({
   stageDropdownSlot,
   funnelSegments,
   connection,
+  siblingDeals,
+  onSelectDeal,
 }: DealDetailPanelProps) {
   // Retrocompatibilidade: split slots sobrepõem o legado fieldConfigSlot
   const resolvedContactConfig = contactFieldConfigSlot ?? fieldConfigSlot ?? null;
@@ -339,6 +359,7 @@ export function DealDetailPanel({
   const [trackedOverrides, setTrackedOverrides] = useState<TrackedAttribution>({})
   // Modo edição para campos personalizados do negócio
   const [dealCustomEditMode, setDealCustomEditMode] = useState(false)
+  const [extensionOpen, setExtensionOpen] = useState(false)
 
   // Ao trocar de lead, limpa os overrides locais (fieldValues/dealNative).
   // Esses estados são keyed pelo ID da DEFINIÇÃO do campo (o mesmo em todos
@@ -348,6 +369,7 @@ export function DealDetailPanel({
     setFieldValues({})
     setDealNative({})
     setTrackedOverrides({})
+    setExtensionOpen(false)
   }, [deal?.id])
   const [sectionOrder, reorderSections] = useSectionOrder<SidebarSection>(
     SIDEBAR_STORAGE_KEY,
@@ -831,6 +853,58 @@ export function DealDetailPanel({
                 contact-aside do inbox (fundo brand + anel de progresso).
                 Pill "Negócio" removida (redundante, pedido do operador). */}
             <div className={cn("shrink-0 px-3", crmOnly ? "pt-1.5" : "pt-2")}>
+              {(siblingDeals?.length ?? 0) >= 2 && (
+                <div className="mb-1.5">
+                  <p className="px-1 pt-0.5 font-display text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
+                    {siblingDeals!.length} negócios — toque para expandir
+                  </p>
+                  {siblingDeals!
+                    .filter((item) => item.id !== deal.id)
+                    .map((item) => {
+                      const lost = item.status === "LOST"
+                      const won = item.status === "WON"
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => onSelectDeal?.(item.id, item.number)}
+                          className="mt-1 flex w-full items-center gap-2 rounded-lg border border-white/10 bg-[#2e3b6e] px-3 py-2 text-left text-white shadow-[var(--glass-shadow-sm)] transition-colors hover:bg-[#35457a]"
+                        >
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: item.stageColor || "#f59e0b" }}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-[12px] font-semibold">
+                            {item.number != null && (
+                              <span className="mr-1.5 font-mono text-[11px] font-normal text-slate-300">
+                                #{item.number}
+                              </span>
+                            )}
+                            <span className="uppercase tracking-wide">
+                              {item.stageName ?? "Sem estágio"}
+                            </span>
+                            {item.pipelineName && (
+                              <span className="ml-1.5 font-normal normal-case text-slate-400">
+                                · {item.pipelineName}
+                              </span>
+                            )}
+                          </span>
+                          {lost && (
+                            <span className="shrink-0 rounded-full bg-orange-500/20 px-1.5 py-px text-[9px] font-bold uppercase text-orange-200">
+                              Perdido
+                            </span>
+                          )}
+                          {won && (
+                            <span className="shrink-0 rounded-full bg-emerald-500/20 px-1.5 py-px text-[9px] font-bold uppercase text-emerald-200">
+                              Ganho
+                            </span>
+                          )}
+                          <IconChevronDown size={14} className="shrink-0 text-slate-300" />
+                        </button>
+                      )
+                    })}
+                </div>
+              )}
               {/* ── Hero header (ref. Stitch): card escuro #2e3b6e, edge-to-edge
                   no topo do container via margens negativas, cantos inferiores
                   grandes (rounded-b-3xl) e sombra. ── */}
@@ -1236,6 +1310,7 @@ export function DealDetailPanel({
                                   )}
 
                                   {sectionId === "campos" && (
+                                    <>
                                     <FieldCard
                                       title="Negócio"
                                       compactTitle={crmOnly}
@@ -1439,7 +1514,20 @@ export function DealDetailPanel({
                                           </div>
                                         )
                                       })()}
+                                      <ExtensionOpenButton
+                                        open={extensionOpen}
+                                        onToggle={() => setExtensionOpen((open) => !open)}
+                                      />
                                     </FieldCard>
+                                    {extensionOpen && (
+                                      <CardExtensionBlock
+                                        key={deal.id}
+                                        dealId={deal.id}
+                                        compactTitle={crmOnly}
+                                        plain={viewMode !== "compact"}
+                                      />
+                                    )}
+                                    </>
                                   )}
                                 </div>
                               )}
@@ -1699,6 +1787,132 @@ function HighlightBadge({
 
 /** Cartão que agrupa uma lista densa de FieldRow (estilo Kommo).
  *  Quando `dragHandleProps` é fornecido, exibe alça de arraste no header. */
+type ExtensionDef = {
+  id: string
+  label: string
+  entity: string
+  type: string
+  options: string[]
+  highlightRules?: unknown[] | null
+}
+
+type ExtensionValue = {
+  fieldId: string
+  value: string | null
+}
+
+function ExtensionOpenButton({
+  open,
+  onToggle,
+}: {
+  open: boolean
+  onToggle: () => void
+}) {
+  const { data: fields = [] } = useQuery({
+    queryKey: ["custom-fields-card-extension"],
+    queryFn: () => fetchJsonList<{ id: string }>("/api/custom-fields/card-extension"),
+    staleTime: 30_000,
+  })
+  if (fields.length === 0) return null
+  return (
+    <div className="flex justify-end px-3 pb-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={open ? "Fechar extensão" : "Abrir extensão"}
+        title={open ? "Fechar extensão" : "Abrir extensão"}
+        className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+      >
+        <IconPlus size={14} />
+      </button>
+    </div>
+  )
+}
+
+async function fetchJsonList<T>(path: string): Promise<T[]> {
+  const res = await fetch(apiUrl(path))
+  if (!res.ok) return []
+  const data = await res.json()
+  return Array.isArray(data) ? (data as T[]) : []
+}
+
+function CardExtensionBlock({
+  dealId,
+  compactTitle,
+  plain,
+}: {
+  dealId: string
+  compactTitle?: boolean
+  plain?: boolean
+}) {
+  const [overrides, setOverrides] = useState<Record<string, string>>({})
+  const { data: fields = [] } = useQuery({
+    queryKey: ["custom-fields-card-extension"],
+    queryFn: () => fetchJsonList<ExtensionDef>("/api/custom-fields/card-extension"),
+    staleTime: 30_000,
+  })
+  const { data: stored = [] } = useQuery({
+    queryKey: ["deal-card-extension", dealId],
+    queryFn: () => fetchJsonList<ExtensionValue>(`/api/deals/${dealId}/card-extension`),
+    enabled: fields.length > 0,
+  })
+
+  if (fields.length === 0) return null
+
+  const valueById = new Map(stored.map((row) => [row.fieldId, row.value]))
+
+  return (
+    <div className="mt-3">
+      <FieldCard title="Extensão" compactTitle={compactTitle} plain={plain}>
+        <div className={plain ? "px-0 pb-2" : "px-4"}>
+          {fields.map((field, index) => {
+            const currentValue = overrides[field.id] ?? valueById.get(field.id) ?? null
+            const hl = resolveHighlight(currentValue, field.highlightRules)
+            return (
+              <div
+                key={field.id}
+                className={cn(
+                  "flex min-w-0 max-w-full items-center justify-between gap-2 py-2 text-sm",
+                  index > 0 && "border-t border-slate-50",
+                )}
+              >
+                <span className="w-[38%] shrink-0 text-[12px] font-medium leading-tight text-slate-500">
+                  {field.label}
+                </span>
+                <div className="min-w-0 max-w-full flex-1">
+                  {hl ? (
+                    <HighlightBadge
+                      severity={hl.severity as "danger" | "success" | "warning" | "info"}
+                      label={hl.label}
+                    />
+                  ) : (
+                    <InlineFieldEditor
+                      fieldId={field.id}
+                      fieldType={field.type || "TEXT"}
+                      fieldOptions={field.options ?? []}
+                      value={currentValue}
+                      entityType="deal"
+                      entityId={dealId}
+                      savePath={`/api/deals/${dealId}/card-extension`}
+                      invalidateKeys={[["deal-card-extension", dealId]]}
+                      onSaved={(value) =>
+                        setOverrides((prev) => ({ ...prev, [field.id]: value }))
+                      }
+                      textClassName="font-display text-[12px] font-semibold text-[var(--text-primary)]"
+                      placeholder="+ Adicionar"
+                    />
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </FieldCard>
+    </div>
+  )
+}
+
 function FieldCard({
   title,
   titleMeta,
@@ -1742,6 +1956,8 @@ function FieldCard({
           <span className="flex min-w-0 flex-1 items-center gap-1.5 text-slate-600">
             {title === "Contato" ? (
               <IconUser size={16} className="shrink-0 text-orange-500" />
+            ) : title === "Extensão" ? (
+              <IconLayoutList size={16} className="shrink-0 text-[var(--brand-primary)]" />
             ) : (
               <IconBriefcase size={16} className="shrink-0 text-[var(--brand-primary)]" />
             )}

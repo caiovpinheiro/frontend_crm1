@@ -80,7 +80,75 @@ export function collapseInboxCardRows(
   return [...byGroup.values()];
 }
 
-/** Merge de patch SSE/outbound: não apaga channelId com `undefined`. */
+/**
+ * Responsável do card depois do merge. `patch.assignedTo` ausente só herda o
+ * objeto anterior quando o responsável NÃO mudou: com outro `assignedToId`,
+ * herdar pintava o card com o nome de quem não atende mais (e o diálogo
+ * "Transferir conversa" marcava o antigo como "(atual)").
+ */
+function mergedAssignedTo(
+  prev: ConversationListRow,
+  patch: ConversationListRow,
+): ConversationListRow["assignedTo"] {
+  if (patch.assignedToId === null) return null;
+  if (patch.assignedTo) return patch.assignedTo;
+  if (
+    patch.assignedToId !== undefined &&
+    patch.assignedToId !== prev.assignedTo?.id
+  ) {
+    return null;
+  }
+  return prev.assignedTo;
+}
+
+/** Prévia sem nada para mostrar (sem texto, tipo nem mídia). */
+function isBlankPreview(
+  p: { content?: string | null; messageType?: string | null; mediaUrl?: string | null } | null | undefined,
+): boolean {
+  if (!p) return true;
+  return !p.content?.trim() && !p.messageType && !p.mediaUrl;
+}
+
+/**
+ * Campos da última mensagem e contador que um patch sem eles não pode zerar.
+ * Evento de transferência/atribuição e snapshot do barramento trazem
+ * `null`/vazio nesses campos quando o publicador não os conhece — e o spread
+ * simples apagava a prévia e a hora do item da lista até a próxima mensagem.
+ * Um valor presente (inclusive `unreadCount: 0`) continua valendo.
+ */
+function keepLastMessageFields(
+  prev: ConversationListRow,
+  patch: ConversationListRow,
+): Partial<ConversationListRow> {
+  const keep: Partial<ConversationListRow> = {};
+  if (patch.lastMessagePreview == null || isBlankPreview(patch.lastMessagePreview)) {
+    if (prev.lastMessagePreview != null) keep.lastMessagePreview = prev.lastMessagePreview;
+  }
+  if (patch.lastMessage == null || !patch.lastMessage.preview?.trim()) {
+    if (prev.lastMessage != null) keep.lastMessage = prev.lastMessage;
+  }
+  if (patch.lastInboundPreview == null || isBlankPreview(patch.lastInboundPreview)) {
+    if (prev.lastInboundPreview != null) keep.lastInboundPreview = prev.lastInboundPreview;
+  }
+  if (patch.lastMessageAt == null && prev.lastMessageAt != null) {
+    keep.lastMessageAt = prev.lastMessageAt;
+  }
+  if (patch.lastMessageDirection == null && prev.lastMessageDirection != null) {
+    keep.lastMessageDirection = prev.lastMessageDirection;
+  }
+  if (patch.lastInboundAt == null && prev.lastInboundAt != null) {
+    keep.lastInboundAt = prev.lastInboundAt;
+  }
+  if (patch.unreadCount == null && prev.unreadCount != null) {
+    keep.unreadCount = prev.unreadCount;
+  }
+  return keep;
+}
+
+/**
+ * Merge de patch SSE/outbound: não apaga channelId com `undefined` nem a
+ * prévia/hora/não lidas com `null`/vazio (ver `keepLastMessageFields`).
+ */
 export function mergeInboxCardRow(
   prev: ConversationListRow,
   patch: ConversationListRow,
@@ -88,11 +156,9 @@ export function mergeInboxCardRow(
   return {
     ...prev,
     ...patch,
+    ...keepLastMessageFields(prev, patch),
     channelId: patch.channelId ?? prev.channelId ?? null,
     contact: patch.contact ?? prev.contact,
-    assignedTo:
-      patch.assignedToId === null
-        ? null
-        : (patch.assignedTo ?? prev.assignedTo),
+    assignedTo: mergedAssignedTo(prev, patch),
   };
 }

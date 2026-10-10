@@ -81,7 +81,7 @@ type CustomFieldItem = {
 };
 
 type EntityTab = "deal" | "contact";
-type PageMode = "fields" | "groups";
+type PageMode = "fields" | "groups" | "extension";
 
 const TYPES = [
   { value: "TEXT", label: "Texto" },
@@ -337,25 +337,28 @@ function CustomFieldsPage() {
           items={[
             { value: "fields", label: "Campos" },
             { value: "groups", label: "Grupos" },
+            { value: "extension", label: "Extensão" },
           ]}
           value={mode}
           onChange={(v) => setMode(v as PageMode)}
           size="compact"
           aria-label="Modo de exibição"
         />
-        <PageSegmentedControl
-          items={[
-            { value: "deal", label: "Negócio" },
-            { value: "contact", label: "Contato" },
-          ]}
-          value={activeEntity}
-          onChange={(v) => {
-            setActiveEntity(v as EntityTab);
-            resetFilters();
-          }}
-          size="compact"
-          aria-label="Entidade dos campos"
-        />
+        {mode !== "extension" ? (
+          <PageSegmentedControl
+            items={[
+              { value: "deal", label: "Negócio" },
+              { value: "contact", label: "Contato" },
+            ]}
+            value={activeEntity}
+            onChange={(v) => {
+              setActiveEntity(v as EntityTab);
+              resetFilters();
+            }}
+            size="compact"
+            aria-label="Entidade dos campos"
+          />
+        ) : null}
         <PageActionsMenu
           aria-label="Ações de campos personalizados"
           items={[
@@ -380,6 +383,10 @@ function CustomFieldsPage() {
 
   if (mode === "groups") {
     return <CustomFieldGroupsManager entity={activeEntity} />;
+  }
+
+  if (mode === "extension") {
+    return <CardExtensionManager />;
   }
 
   return (
@@ -681,6 +688,196 @@ function CustomFieldsPage() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Extensão de card ──────────────────────────────────────────────────────────
+
+type ExtensionField = {
+  id: string;
+  label: string;
+  entity: string;
+  type: string;
+  options: string[];
+};
+
+const TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  TYPES.map((item) => [item.value, item.label]),
+);
+
+async function fetchExtension(): Promise<ExtensionField[]> {
+  const res = await fetch(apiUrl("/api/custom-fields/card-extension"));
+  const data = res.ok ? await res.json() : [];
+  return Array.isArray(data) ? data : [];
+}
+
+async function saveExtension(fieldIds: string[]): Promise<ExtensionField[]> {
+  const res = await fetch(apiUrl("/api/custom-fields/card-extension"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fieldIds }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { message?: string })?.message ?? "Erro ao salvar a extensão");
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+function CardExtensionManager() {
+  const queryClient = useQueryClient();
+  const { data: selected = [], isLoading: loadingSelected } = useQuery({
+    queryKey: ["custom-fields-card-extension"],
+    queryFn: fetchExtension,
+  });
+  const { data: dealFields = [], isLoading: loadingDeal } = useQuery({
+    queryKey: ["custom-fields", "deal"],
+    queryFn: () => fetchFields("deal"),
+  });
+  const { data: contactFields = [], isLoading: loadingContact } = useQuery({
+    queryKey: ["custom-fields", "contact"],
+    queryFn: () => fetchFields("contact"),
+  });
+
+  const catalog = React.useMemo(() => {
+    const rows = [...dealFields, ...contactFields].filter(
+      (field) => field.entity === "deal" || field.entity === "contact",
+    );
+    rows.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    return rows;
+  }, [dealFields, contactFields]);
+
+  const selectedIds = selected.map((field) => field.id);
+  const selectedSet = new Set(selectedIds);
+  const rest = catalog.filter((field) => !selectedSet.has(field.id));
+
+  const save = useMutation({
+    mutationFn: saveExtension,
+    onSuccess: (fields) => {
+      queryClient.setQueryData(["custom-fields-card-extension"], fields);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  function toggle(id: string) {
+    if (save.isPending) return;
+    const next = selectedSet.has(id)
+      ? selectedIds.filter((item) => item !== id)
+      : [...selectedIds, id];
+    save.mutate(next);
+  }
+
+  function onDragEnd(result: DropResult) {
+    if (!result.destination || result.destination.index === result.source.index) return;
+    const next = Array.from(selectedIds);
+    const [moved] = next.splice(result.source.index, 1);
+    if (!moved) return;
+    next.splice(result.destination.index, 0, moved);
+    save.mutate(next);
+  }
+
+  if (loadingSelected || loadingDeal || loadingContact) {
+    return <AppLoading variant="inline" className="min-h-0 flex-1" />;
+  }
+
+  return (
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-3">
+      <p className="text-[13px] text-[var(--text-muted)]">
+        Marque campos que já existem. Eles aparecem num segundo card na conversa do negócio, nesta ordem. O que for preenchido ali fica só nesse card, separado do card de cima.
+      </p>
+      <DragDropContext onDragEnd={onDragEnd}>
+        <Droppable droppableId="card-extension">
+          {(provided) => (
+            <div ref={provided.innerRef} {...provided.droppableProps} className="flex flex-col gap-1.5">
+              {selected.map((field, index) => (
+                <Draggable key={field.id} draggableId={field.id} index={index}>
+                  {(drag) => (
+                    <div
+                      ref={drag.innerRef}
+                      {...drag.draggableProps}
+                      className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--glass-border-subtle)] bg-white px-3 py-2"
+                    >
+                      <span
+                        {...drag.dragHandleProps}
+                        className="cursor-grab text-[var(--text-muted)]"
+                        aria-label={`Arrastar ${field.label}`}
+                      >
+                        <IconGripVertical size={16} />
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggle(field.id)}
+                        aria-pressed
+                        aria-label={`Tirar ${field.label} da extensão`}
+                        className="flex size-5 items-center justify-center rounded border border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white"
+                      >
+                        <IconCheck size={12} />
+                      </button>
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text-primary)]">
+                        {field.label}
+                      </span>
+                      <span className="text-[11px] text-[var(--text-muted)]">
+                        {TYPE_LABEL[field.type] ?? field.type}
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-px text-[10px] font-semibold",
+                          field.entity === "deal"
+                            ? "bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]"
+                            : "bg-orange-500/15 text-orange-600",
+                        )}
+                      >
+                        {field.entity === "deal" ? "Negócio" : "Contato"}
+                      </span>
+                    </div>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
+      {rest.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          {rest.map((field) => (
+            <div
+              key={field.id}
+              className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-transparent px-3 py-2 hover:bg-[var(--glass-bg-overlay)]"
+            >
+              <span className="size-4" />
+              <button
+                type="button"
+                onClick={() => toggle(field.id)}
+                aria-pressed={false}
+                aria-label={`Incluir ${field.label} na extensão`}
+                className="flex size-5 items-center justify-center rounded border border-[var(--glass-border)] bg-white"
+              />
+              <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-secondary)]">
+                {field.label}
+              </span>
+              <span className="text-[11px] text-[var(--text-muted)]">
+                {TYPE_LABEL[field.type] ?? field.type}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-px text-[10px] font-semibold",
+                  field.entity === "deal"
+                    ? "bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]"
+                    : "bg-orange-500/15 text-orange-600",
+                )}
+              >
+                {field.entity === "deal" ? "Negócio" : "Contato"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {catalog.length === 0 ? (
+        <p className="text-[13px] text-[var(--text-muted)]">Nenhum campo cadastrado.</p>
+      ) : null}
     </div>
   );
 }

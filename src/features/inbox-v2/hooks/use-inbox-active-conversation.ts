@@ -9,6 +9,7 @@ import {
   pickVisibleInboxTab,
   rowBelongsToAnyInboxTab,
 } from "../inbox-queue-tab";
+import { useCachedConversationRow } from "./use-cached-conversation-row";
 import { useConversationById } from "./use-conversations";
 import {
   inboxConversationApiId,
@@ -43,18 +44,25 @@ export function useInboxActiveConversation(params: {
   const [stickyRow, setStickyRow] = useState<ConversationListRow | null>(null);
   const [pinnedFromSearch, setPinnedFromSearch] = useState<ConversationListRow | null>(null);
 
+  // O snapshot fixado é o da hora em que a conversa foi aberta pela busca/
+  // deep-link: a cópia VIVA (lista, senão o cache individual que os eventos e
+  // as mutações mantêm) é a que vale — com o fixado, a prévia, o responsável e
+  // o "(atual)" do diálogo de transferência ficavam parados na abertura.
+  const pinnedLive = useCachedConversationRow(pinnedFromSearch?.id);
   const displayRows = useMemo(() => {
     if (!pinnedFromSearch) return rows;
     const rest = rows.filter((r) => r.id !== pinnedFromSearch.id);
-    return [pinnedFromSearch, ...rest];
-  }, [rows, pinnedFromSearch]);
+    const live =
+      rows.find((r) => r.id === pinnedFromSearch.id) ?? pinnedLive ?? pinnedFromSearch;
+    return [live, ...rest];
+  }, [rows, pinnedFromSearch, pinnedLive]);
 
   // Conversa ativa presente na lista carregada da aba/filtro atual?
   const foundActiveRow = useMemo(
     () =>
       activeId
-        ? displayRows.find((r) => matchesConversationUrlRef(r, activeId)) ??
-          rows.find((r) => matchesConversationUrlRef(r, activeId)) ??
+        ? rows.find((r) => matchesConversationUrlRef(r, activeId)) ??
+          displayRows.find((r) => matchesConversationUrlRef(r, activeId)) ??
           null
         : null,
     [displayRows, rows, activeId],
@@ -142,7 +150,16 @@ export function useInboxActiveConversation(params: {
         : null),
   );
 
-  const activeRow = stickyRow;
+  // Cópia viva da conversa aberta: continua atualizada por evento/mutação mesmo
+  // depois de sair da lista (transferida, encerrada). O snapshot "sticky" só
+  // segura a conversa enquanto o cache não a tem.
+  const liveRow = useCachedConversationRow(
+    stickyRow && matchesConversationUrlRef(stickyRow, activeId) ? stickyRow.id : activeId,
+  );
+  const activeRow =
+    liveRow && activeId && matchesConversationUrlRef(liveRow, activeId)
+      ? liveRow
+      : stickyRow;
   const { closeActiveConversation } = useInboxUrlSync(
     activeId,
     setActiveId,

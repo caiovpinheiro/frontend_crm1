@@ -140,6 +140,61 @@ describe("marcar como lida ao abrir", () => {
   });
 });
 
+describe("1 POST /read por abertura (QA 07/10: 2 POST em 3 s)", () => {
+  it("o cache individual da conversa (`inbox-conversation`) também zera: reabrir depois não manda POST", async () => {
+    const qc = makeClient();
+    // O patch de SSE/mutação mantém essa cópia; o guard lia ELA (com 2 não lidas)
+    // enquanto o optimista só zerava a lista — o "voltar" mandava o 2º POST.
+    qc.setQueryData(["inbox-conversation", "A"], row("A", 2));
+    qc.setQueryData(["inbox-conversation", "7"], { ...row("A", 2), number: 7 });
+    const view = renderHook(() => useMarkConversationReadIfUnread(), { wrapper: wrapperFor(qc) });
+
+    act(() => {
+      view.result.current("A");
+    });
+    await waitFor(() => expect(api.markConversationRead).toHaveBeenCalledTimes(1));
+    expect(qc.getQueryData<ConversationListRow>(["inbox-conversation", "A"])?.unreadCount).toBe(0);
+
+    act(() => {
+      view.result.current("A");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(api.markConversationRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("dois gatilhos de abertura no mesmo tick (lista + host do chat): 1 POST", async () => {
+    const qc = makeClient();
+    const view = renderHook(() => useMarkConversationReadIfUnread(), { wrapper: wrapperFor(qc) });
+
+    act(() => {
+      view.result.current("A");
+      view.result.current("A");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(api.markConversationRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("falha no POST devolve o contador e libera nova tentativa", async () => {
+    const qc = makeClient();
+    api.markConversationRead.mockRejectedValueOnce(new Error("500"));
+    const view = renderHook(() => useMarkConversationReadIfUnread(), { wrapper: wrapperFor(qc) });
+
+    act(() => {
+      view.result.current("A");
+    });
+    await waitFor(() => expect(unreadOf(qc, "A")).toBe(2));
+
+    act(() => {
+      view.result.current("A");
+    });
+    await waitFor(() => expect(api.markConversationRead).toHaveBeenCalledTimes(2));
+  });
+});
+
 describe("new_message na conversa aberta", () => {
   function mountRealtime(qc: QueryClient, activeConversationId: string) {
     const onOpenConversationInbound = vi.fn();
