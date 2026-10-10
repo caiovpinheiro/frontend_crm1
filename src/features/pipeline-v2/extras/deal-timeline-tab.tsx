@@ -105,6 +105,8 @@ function describe(ev: DealTimelineEvent): string {
     id: ev.id,
     type: ev.type,
     occurredAt: ev.createdAt,
+    newValue: ev.newValue,
+    entityLabel: ev.entityLabel,
     meta: ev.meta ?? {},
   } as FeedEvent);
 }
