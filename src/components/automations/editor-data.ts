@@ -150,7 +150,6 @@ export type RawAiAgent = {
   userId: string
   name: string
   active?: boolean
-  archetype?: string
 }
 
 /** Agentes IA ativos. `by="userId"` para ações que transferem o atendimento. */
@@ -158,7 +157,15 @@ export function useAiAgentOptions(by: "id" | "userId" = "id") {
   const q = useQuery({
     queryKey: ["editor-ai-agents"],
     staleTime: STALE,
-    queryFn: async (): Promise<RawAiAgent[]> => asArray(await getJson("/api/ai-agents")) as RawAiAgent[],
+    queryFn: async (): Promise<RawAiAgent[]> => {
+      const raw = (await getJson("/api/ai-agents-v2")) as { agents?: unknown } | null
+      return (asArray(raw?.agents) as Array<{ id: string; userId: string; name: string; active?: boolean }>).map((a) => ({
+        id: a.id,
+        userId: a.userId,
+        name: a.name,
+        active: a.active,
+      }))
+    },
   })
   const records = q.data ?? []
   const options: Opt[] = records
