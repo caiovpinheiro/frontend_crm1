@@ -49,6 +49,8 @@ import { StatusPill } from "@/components/crm/status-pill"
 import { SwitchGlass } from "@/components/crm/switch-glass"
 import { TabsGlass } from "@/components/crm/tabs-glass"
 import { TooltipGlass } from "@/components/crm/tooltip-glass"
+import { TabulationTopWidget } from "@/app/(app)/settings/tabulations/tabulations-dashboard"
+import { MOCK_TABULATION_ROWS } from "@/features/dashboard-v2/mock-tabulations"
 
 // ---------------------------------------------------------------------------
 // Helpers de layout
@@ -726,6 +728,11 @@ export function ShowcaseClient() {
                 }
               />
             </div>
+          </Block>
+
+          {/* TabulationTopWidget */}
+          <Block title="TabulationTopWidget" usage="Principais tabulações: cor por departamento, barra de participação, chips que filtram e lista por volume com o caminho na 2ª linha. Dados de exemplo.">
+            <TabulationTopWidget rows={MOCK_TABULATION_ROWS} onToggleDepartment={() => {}} />
           </Block>
 
           {/* SessionAlert */}

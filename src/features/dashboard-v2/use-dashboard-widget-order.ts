@@ -13,15 +13,6 @@ import {
   writeJson,
 } from "@/features/dashboard-v2/dashboard-persist";
 
-export const DEAL_WIDGET_IDS = [
-  "kpis",
-  "funnel",
-  "evolution",
-  "agents",
-  "sources",
-  "exceptions",
-] as const;
-
 export const SERVICE_WIDGET_IDS = [
   "agora",
   "volume",
@@ -32,6 +23,9 @@ export const SERVICE_WIDGET_IDS = [
   "attendants",
   "channels",
   "exceptions",
+  "deptHour",
+  "teamRankings",
+  "transfers",
 ] as const;
 
 export const TABULATION_WIDGET_IDS = ["kpis", "top", "byUser", "log"] as const;
@@ -49,7 +43,6 @@ export const OPERATOR_WIDGET_IDS = [
   "stalled",
 ] as const;
 
-export type DealWidgetId = (typeof DEAL_WIDGET_IDS)[number];
 export type ServiceWidgetId = (typeof SERVICE_WIDGET_IDS)[number];
 export type TabulationWidgetId = (typeof TABULATION_WIDGET_IDS)[number];
 export type ServiceBoardWidgetId = (typeof SERVICE_BOARD_WIDGET_IDS)[number];

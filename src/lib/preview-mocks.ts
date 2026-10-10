@@ -11,7 +11,7 @@
  *  - /api/contacts, /api/companies, /api/activities
  *  - /api/pipelines, /api/stages, /api/deals, /api/board
  *  - /api/automations, /api/automations/:id
- *  - /api/analytics/deals-overview, /api/analytics/service-overview
+ *  - /api/analytics/deals-overview
  *  - /api/tags, /api/channels, /api/quick-replies, /api/whatsapp-template-configs
  *  - /api/inbox/agent-capacity, /api/inbox/daily-stats
  *  - /api/settings/self-assign, /api/settings/permissions, /api/settings/departments
@@ -718,71 +718,6 @@ const WA_TEMPLATES = [
 ];
 
 /* ── Analytics: Dashboard ── */
-const SERVICE_OVERVIEW = {
-  summary: {
-    total:          { value: "1.284", delta: 12  },
-    firstResponse:  { value: "2m 14s", delta: -8  },
-    resolutionTime: { value: "18m 30s", delta: -5  },
-    resolutionRate: { value: "92%",    delta: 3   },
-  },
-  volumeByDay: [
-    { day: "Seg", recebidas: 184, enviadas: 220 },
-    { day: "Ter", recebidas: 201, enviadas: 245 },
-    { day: "Qua", recebidas: 195, enviadas: 230 },
-    { day: "Qui", recebidas: 220, enviadas: 268 },
-    { day: "Sex", recebidas: 178, enviadas: 215 },
-    { day: "Sab", recebidas:  82, enviadas:  95 },
-    { day: "Dom", recebidas:  45, enviadas:  50 },
-  ],
-  responseTimeSeries: Array.from({ length: 24 }, (_, h) => ({
-    hour: `${String(h).padStart(2, "0")}h`,
-    resposta: Math.max(20, 60 + Math.floor(Math.sin(h / 3) * 40)),
-    primeira: Math.max(10, 30 + Math.floor(Math.cos(h / 4) * 20)),
-  })),
-  byConnection: [
-    { name: "WhatsApp Vendas",  value: 645, color: "#22c55e" },
-    { name: "WhatsApp Suporte", value: 412, color: "#3b82f6" },
-    { name: "Instagram DMs",    value: 227, color: "#a855f7" },
-  ],
-  byAttendant: [
-    { name: "Gestor Demo",  value: 412, color: "#3b82f6" },
-    { name: "Agente Demo A",   value: 388, color: "#a855f7" },
-    { name: "Agente Demo B",  value: 295, color: "#22c55e" },
-    { name: "Agente Demo C",    value: 189, color: "#f59e0b" },
-  ],
-  byPlatform: {
-    rows: [
-      { dia: "01/05", whatsapp: 180, instagram: 45 },
-      { dia: "08/05", whatsapp: 210, instagram: 52 },
-      { dia: "15/05", whatsapp: 235, instagram: 60 },
-      { dia: "22/05", whatsapp: 198, instagram: 48 },
-      { dia: "29/05", whatsapp: 245, instagram: 67 },
-    ],
-    platforms: [
-      { key: "whatsapp",  label: "WhatsApp",  color: "#22c55e" },
-      { key: "instagram", label: "Instagram", color: "#a855f7" },
-    ],
-  },
-  heatmap: {
-    cells: Array.from({ length: 7 * 24 }, (_, i) => ({
-      x: i % 24,
-      y: Math.floor(i / 24),
-      value: Math.floor(
-        Math.abs(Math.sin((i % 24) / 4) * 80) +
-        (i % 24 >= 8 && i % 24 <= 18 ? 20 : 0)
-      ),
-    })),
-    xLabels: Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}h`),
-    yLabels: ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
-  },
-  attendantRanking: [
-    { id: "u-demo-gestor", name: "Gestor Demo",  attended: 412, avgResponse: "1m 50s", resolution: 94 },
-    { id: "u-demo-agente-a", name: "Agente Demo A",   attended: 388, avgResponse: "2m 10s", resolution: 91 },
-    { id: "u-demo-agente-b",  name: "Agente Demo B",  attended: 295, avgResponse: "2m 35s", resolution: 89 },
-    { id: "u-demo-agente-c",  name: "Agente Demo C",    attended: 189, avgResponse: "3m 05s", resolution: 86 },
-  ],
-};
-
 const DEALS_OVERVIEW = {
   stages: [
     { id: "st-1", name: "Novo lead",   color: "#3b82f6", count: 18, value: 245000, entered: 32, exited: 14, lost: 4,  won: 0  },
@@ -1591,10 +1526,6 @@ const ROUTES: { test: (url: URL, method: string) => boolean; handler: MockHandle
   {
     test: (u) => u.pathname === "/api/analytics/deals-overview",
     handler: () => DEALS_OVERVIEW,
-  },
-  {
-    test: (u) => u.pathname === "/api/analytics/service-overview",
-    handler: () => SERVICE_OVERVIEW,
   },
 
   /* ── Misc ── */

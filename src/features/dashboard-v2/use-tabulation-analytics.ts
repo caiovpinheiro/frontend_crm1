@@ -4,9 +4,16 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api";
+import { isPageMockMode } from "@/lib/page-mock-mode";
+
+import { mockTabulationAnalytics } from "./mock-tabulations";
+import type { TabulationActor } from "./tabulation-view";
 
 export type TabulationAnalyticsResponse = {
   total: number;
+  /** Total de eventos do log paginado (backend novo); `total` passa a contar conversas. */
+  eventsTotal?: number;
+  rangeClamped?: boolean;
   page: number;
   perPage: number;
   distinctTabulations: number;
@@ -27,6 +34,8 @@ export type TabulationAnalyticsResponse = {
     conversationId: string | null;
     contactName: string | null;
     actorName: string | null;
+    /** Aditivo do backend: quem tabulou (automação/IA/sistema/usuário). */
+    actor?: TabulationActor | null;
     tabulationPath: string | null;
     tabulationNumber?: number | null;
     departmentName: string | null;
@@ -63,8 +72,18 @@ export function useTabulationAnalytics({
   }, [rangeStamp, fromIso, toIso, queryClient]);
 
   return useQuery({
-    queryKey: ["tabulation-analytics", fromIso, toIso, actorUserIds, departmentIds, tabulationIds, page],
+    queryKey: [
+      "tabulation-analytics",
+      fromIso,
+      toIso,
+      actorUserIds,
+      departmentIds,
+      tabulationIds,
+      page,
+      isPageMockMode() ? "mock" : "live",
+    ],
     queryFn: async ({ signal }): Promise<TabulationAnalyticsResponse> => {
+      if (isPageMockMode()) return mockTabulationAnalytics(page);
       const sp = new URLSearchParams();
       if (fromIso) sp.set("from", fromIso);
       if (toIso) sp.set("to", toIso);

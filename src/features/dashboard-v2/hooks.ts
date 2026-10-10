@@ -4,36 +4,41 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  fetchDashboard,
   fetchDashboardMe,
-  fetchServiceOverview,
-  type DashboardData,
   type DashboardFiltersState,
   type DashboardMeData,
-  type DashboardPeriod,
-  type PipelineOption,
-  type ServiceOverview,
 } from "./api";
 import {
   fetchPainelAgora,
   fetchPainelDeals,
   fetchPainelInsights,
   fetchPainelService,
+  fetchPainelTeam,
+  requestFilters,
   type PainelAgora,
   type PainelDealsResult,
   type PainelInsights,
+  type PainelRequestFilters,
   type PainelServiceResult,
+  type PainelTeamResult,
+  type PainelTeamScope,
+  type PainelTeamSection,
 } from "./painel-api";
 
-import { fetchFilterOptions } from "@/components/pipeline/kanban-filters/api";
 import type { FilterOptionsResponse } from "@/components/pipeline/kanban-filters/types";
+import { filterOptionsQuery } from "@/components/pipeline/kanban-filters/use-filter-options";
 import { fetchSystemUsageSummary } from "@/features/system-usage/api";
 import type { SystemUsageSummaryResponse } from "@/features/system-usage/types";
 import { useActivityStats } from "@/features/activity-feed/use-activity-stats";
+import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
+import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { isPageMockMode } from "@/lib/page-mock-mode";
 import { isPreviewMode } from "@/lib/preview-mode";
 import { useDocumentVisible } from "@/hooks/use-document-visible";
-import { usePipelinesQuery } from "@/features/shared/queries/pipelines";
+import {
+  usePipelinesQuery,
+  type PipelineListItemDto,
+} from "@/features/shared/queries/pipelines";
 import {
   mockEventCard,
   mockFilterOptions,
@@ -41,35 +46,32 @@ import {
 } from "./mock-painel";
 import type { PainelCustomFieldCard, PainelEventCard } from "./painel-api";
 import type { NegociosCustomCard } from "./use-negocios-grid";
-import { todayRangeISO } from "./use-dashboard-filters";
+import { todayRangeISO, type DashboardPipelineOption } from "./use-dashboard-filters";
+import {
+  isBlockPending,
+  isBlockUnavailable,
+  isSectionKnownUnavailable,
+  normalizeRequestedBlocks,
+  rememberUnavailableSections,
+  unavailableBlock,
+  useUnavailableSections,
+} from "./service-availability";
+import {
+  SERVICE_HEAVY_SECTIONS,
+  SERVICE_REST_SECTIONS,
+  growSections,
+  splitServiceWaves,
+  type ServiceSection,
+} from "./visible-sections";
 
-export function useServiceOverview(params: {
-  period: DashboardPeriod;
-  enabled?: boolean;
-}) {
-  return useQuery<ServiceOverview>({
-    queryKey: ["dashboard-v2", "service", params.period],
-    queryFn: () => fetchServiceOverview({ period: params.period }),
-    enabled: isPreviewMode() ? true : (params.enabled ?? true),
-    staleTime: 30_000,
-  });
-}
-
+/**
+ * Lista de funis (com etapas) — a query compartilhada do shell
+ * (`GET /api/pipelines`). É daqui que o `?pipeline=7` da URL vira CUID e
+ * que o painel de filtros lista funis/etapas; não depende das opções de
+ * filtro (`useDashboardFilterOptions`), que só são buscadas ao abrir o painel.
+ */
 export function usePipelineOptions(enabled = true) {
-  return usePipelinesQuery<PipelineOption>(enabled);
-}
-
-export function useDashboard(
-  filters: DashboardFiltersState,
-  enabled = true,
-) {
-  return useQuery<DashboardData>({
-    queryKey: ["dashboard-v2", "commercial", filters],
-    queryFn: () => fetchDashboard(filters),
-    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 30_000,
-    placeholderData: (prev) => prev,
-  });
+  return usePipelinesQuery<PipelineListItemDto & DashboardPipelineOption>(enabled);
 }
 
 const DEAL_LIVE_SECTIONS = [
@@ -106,13 +108,23 @@ function emptyServiceResult(): PainelServiceResult {
   };
 }
 
-/** Volume alone first so KPIs paint without waiting for heatmap SQL. */
-const SERVICE_VOLUME_SECTION = "volume";
-const SERVICE_HEAVY_SECTIONS = "tempo,byDepartment,attendants,channels";
+/**
+ * Lista que só cresce enquanto o componente vive: esconder um widget não troca a
+ * chave da query (não refaz o GET); mostrar um novo acrescenta o bloco dele.
+ */
+function useGrowingList<T extends string>(next: readonly T[] | undefined): T[] | undefined {
+  const [seen, setSeen] = useState<T[]>([]);
+  const grown = next ? growSections(seen, next) : undefined;
+  // Atualização durante o render (padrão do React para estado derivado de props).
+  if (grown && grown !== seen) setSeen(grown);
+  return grown;
+}
 
 export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
   const queryClient = useQueryClient();
-  const queryKey = ["painel", "deals", filters] as const;
+  // Chave só com o que vai na URL: o filtro de usuário é aplicado no cliente.
+  const reqFilters = useMemo(() => requestFilters(filters), [filters]);
+  const queryKey = ["painel", "deals", reqFilters] as const;
   const live = isPreviewMode() || isPageMockMode() ? true : enabled;
 
   useEffect(() => {
@@ -176,18 +188,17 @@ export function usePainelAgora(
 }
 
 function servicePeriodStamp(
-  filters: DashboardFiltersState,
+  filters: Pick<DashboardFiltersState, "period" | "startDate" | "endDate">,
   clock: "business" | "elapsed",
 ) {
   return `${filters.period}|${filters.startDate ?? ""}|${filters.endDate ?? ""}|${clock}`;
 }
 
-const SERVICE_REST_SECTIONS = ["heatmap", "connections", "exceptions"] as const;
 const REST_ARM_MS = 2_000;
 const HEAVY_ARM_MS = 6_000;
 
 function isHeavyServiceSection(section: string) {
-  return SERVICE_HEAVY_SECTIONS.split(",").some((key) => section.split(",").includes(key));
+  return SERVICE_HEAVY_SECTIONS.some((key) => section.split(",").includes(key));
 }
 
 function isRestServiceSection(section: string) {
@@ -217,12 +228,33 @@ async function fetchServiceWaves(
   const acc = emptyServiceResult();
   for (const section of waves) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    const keys = section
+      .split(",")
+      .map((key) => key.trim())
+      .filter(Boolean);
+    // Seção que já voltou sem réplica nesta sessão não é pedida de novo.
+    const live = keys.filter((key) => !isSectionKnownUnavailable(key));
+    for (const key of keys) {
+      if (!live.includes(key)) Object.assign(acc, { [key]: unavailableBlock() });
+    }
+    if (live.length === 0) {
+      onPartial({ ...acc });
+      continue;
+    }
     try {
-      Object.assign(acc, pickDefined(await fetchPainelService({ filters, clock, section, signal })));
+      const response = await fetchPainelService({
+        filters,
+        clock,
+        section: live.join(","),
+        signal,
+      });
+      const { blocks, unavailable } = normalizeRequestedBlocks(live, response);
+      if (unavailable.length) rememberUnavailableSections(unavailable);
+      Object.assign(acc, pickDefined(response), blocks);
     } catch (e) {
       if (signal.aborted) throw e;
       const error = e instanceof Error ? e.message : "Falha ao carregar este bloco.";
-      for (const key of section.split(",")) {
+      for (const key of live) {
         Object.assign(acc, { [key]: { ok: false, error } });
       }
     }
@@ -236,15 +268,29 @@ export function usePainelService(
   clock: "business" | "elapsed",
   enabled = true,
   mode: "full" | "light" = "full",
+  /**
+   * Seções que os widgets visíveis leem (ver `serviceSectionsFor`). Sem isto
+   * (cards da aba Negócios) vale o modo: `full` = tudo, `light` = só o volume.
+   */
+  sections?: readonly ServiceSection[],
 ) {
   const queryClient = useQueryClient();
-  const volumeKey = ["painel", "service", filters, clock, "volume"] as const;
-  const restKey = ["painel", "service", filters, clock, "rest"] as const;
-  const heavyKey = ["painel", "service", filters, clock, "heavy"] as const;
+  const reqFilters = useMemo(() => requestFilters(filters), [filters]);
+  const grown = useGrowingList(sections);
+  const waves = useMemo(
+    () => splitServiceWaves(grown ?? ["volume", ...SERVICE_REST_SECTIONS, ...SERVICE_HEAVY_SECTIONS]),
+    [grown],
+  );
+  const wantVolume = waves.volume.length > 0;
+  const restSections = mode === "full" ? waves.rest : [];
+  const heavySections = mode === "full" ? waves.heavy : [];
+  const restCsv = restSections.join(",");
+  const heavyCsv = heavySections.join(",");
+  const volumeKey = ["painel", "service", reqFilters, clock, "volume"] as const;
+  const restKey = ["painel", "service", reqFilters, clock, "rest", restCsv] as const;
+  const heavyKey = ["painel", "service", reqFilters, clock, "heavy", heavyCsv] as const;
   const live = isPreviewMode() || isPageMockMode() ? true : enabled;
-  const stamp = servicePeriodStamp(filters, clock);
-  const wantCharts = mode === "full";
-  const wantHeavy = mode === "full";
+  const stamp = servicePeriodStamp(reqFilters, clock);
 
   useEffect(() => {
     if (!live) return;
@@ -252,7 +298,7 @@ export function usePainelService(
       predicate: (q) => {
         const key = q.queryKey;
         if (key[0] !== "painel" || key[1] !== "service") return false;
-        const f = key[2] as DashboardFiltersState | undefined;
+        const f = key[2] as PainelRequestFilters | undefined;
         const c = key[3] as "business" | "elapsed" | undefined;
         if (!f || !c) return false;
         return servicePeriodStamp(f, c) !== stamp;
@@ -277,34 +323,33 @@ export function usePainelService(
   const volume = useQuery<PainelServiceResult>({
     queryKey: volumeKey,
     queryFn: ({ signal }) =>
-      fetchServiceWaves(
-        filters,
-        clock,
-        [SERVICE_VOLUME_SECTION],
-        signal,
-        (acc) => queryClient.setQueryData<PainelServiceResult>(volumeKey, acc),
+      fetchServiceWaves(filters, clock, ["volume"], signal, (acc) =>
+        queryClient.setQueryData<PainelServiceResult>(volumeKey, acc),
       ),
-    enabled: live,
+    enabled: live && wantVolume,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
   });
 
-  const volumeOk = volume.data?.volume?.ok === true;
-  const restArmed = useArmedAfter(live && wantCharts && volumeOk, REST_ARM_MS);
-  const heavyArmed = useArmedAfter(live && wantHeavy && volumeOk, HEAVY_ARM_MS);
+  // Sem o widget de volume na tela, as ondas seguintes não esperam por ele.
+  const volumeOk =
+    !wantVolume ||
+    volume.data?.volume?.ok === true ||
+    // Volume indisponível não pode travar as ondas seguintes.
+    isBlockUnavailable(volume.data?.volume);
+  const restArmed = useArmedAfter(live && restSections.length > 0 && volumeOk, REST_ARM_MS);
+  const heavyArmed = useArmedAfter(live && heavySections.length > 0 && volumeOk, HEAVY_ARM_MS);
 
+  // Cada onda é um único GET com as seções visíveis dela em CSV (o backend roda
+  // os blocos em paralelo e responde `ok:false` por bloco em caso de erro).
   const rest = useQuery<PainelServiceResult>({
     queryKey: restKey,
     queryFn: ({ signal }) =>
-      fetchServiceWaves(
-        filters,
-        clock,
-        [...SERVICE_REST_SECTIONS],
-        signal,
-        (acc) => queryClient.setQueryData<PainelServiceResult>(restKey, acc),
+      fetchServiceWaves(filters, clock, [restCsv], signal, (acc) =>
+        queryClient.setQueryData<PainelServiceResult>(restKey, acc),
       ),
-    enabled: restArmed,
+    enabled: restArmed && restSections.length > 0,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
@@ -312,27 +357,33 @@ export function usePainelService(
   const heavy = useQuery<PainelServiceResult>({
     queryKey: heavyKey,
     queryFn: ({ signal }) =>
-      fetchServiceWaves(
-        filters,
-        clock,
-        [SERVICE_HEAVY_SECTIONS],
-        signal,
-        (acc) => queryClient.setQueryData<PainelServiceResult>(heavyKey, acc),
+      fetchServiceWaves(filters, clock, [heavyCsv], signal, (acc) =>
+        queryClient.setQueryData<PainelServiceResult>(heavyKey, acc),
       ),
-    enabled: heavyArmed,
+    enabled: heavyArmed && heavySections.length > 0,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
 
+  const unavailableKeys = useUnavailableSections();
   const data = useMemo(() => {
     if (!volume.data && !rest.data && !heavy.data) return undefined;
-    return {
+    const merged: PainelServiceResult = {
       ...emptyServiceResult(),
       ...pickDefined(volume.data ?? emptyServiceResult()),
       ...pickDefined(rest.data ?? emptyServiceResult()),
       ...pickDefined(heavy.data ?? emptyServiceResult()),
     };
-  }, [volume.data, rest.data, heavy.data]);
+    // Seção já conhecida como indisponível, ainda sem resposta nesta chave
+    // (ex.: trocou o período): aparece como indisponível, não como esqueleto.
+    for (const key of unavailableKeys) {
+      const block = merged[key as keyof PainelServiceResult];
+      if (block && isBlockPending(block)) {
+        Object.assign(merged, { [key]: unavailableBlock() });
+      }
+    }
+    return merged;
+  }, [volume.data, rest.data, heavy.data, unavailableKeys]);
 
   async function retrySection(section: string) {
     const next = await fetchPainelService({ filters, clock, section });
@@ -349,15 +400,55 @@ export function usePainelService(
   return {
     ...volume,
     data,
+    /** Volume pedido e já respondido com sucesso (âncora para escalonar outras buscas). */
+    volumeReady: volumeOk,
     isFetching: volume.isFetching || rest.isFetching || heavy.isFetching,
     refetch: async () => {
       const result = await volume.refetch();
-      if (wantCharts) await rest.refetch();
-      if (wantHeavy) await heavy.refetch();
+      if (restSections.length) await rest.refetch();
+      if (heavySections.length) await heavy.refetch();
       return result;
     },
     retrySection,
   };
+}
+
+/**
+ * Equipe da aba Atendimentos (departamento × hora, rankings e transferências).
+ * `sections` = blocos dos widgets visíveis; vira `section=` do GET. A chave só
+ * leva período/escopo e, se o ranking estiver visível, o relógio: trocar funil
+ * ou etapa não refaz o GET, e esconder um widget também não.
+ */
+export function usePainelTeam(
+  filters: Pick<DashboardFiltersState, "period" | "startDate" | "endDate">,
+  clock: "business" | "elapsed",
+  scope: PainelTeamScope,
+  enabled = true,
+  sections: readonly PainelTeamSection[] = ["deptHour", "ranking", "transfers"],
+) {
+  const grown = useGrowingList(sections) ?? [];
+  const period = `${filters.period}|${filters.startDate ?? ""}|${filters.endDate ?? ""}`;
+  const deptKey = [...scope.departmentIds].sort().join(",");
+  const userKey = [...scope.userIds].sort().join(",");
+  const wantsRanking = grown.includes("ranking");
+  const live = isPreviewMode() || isPageMockMode() ? true : enabled;
+  return useQuery<PainelTeamResult>({
+    queryKey: [
+      "painel",
+      "team",
+      period,
+      wantsRanking ? clock : "-",
+      deptKey,
+      userKey,
+      grown.join(","),
+    ],
+    queryFn: ({ signal }) =>
+      fetchPainelTeam({ filters, clock, scope, sections: grown, signal }),
+    enabled: live && grown.length > 0,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
+  });
 }
 
 function pickDefined<T extends Record<string, { ok: boolean; error?: string }>>(
@@ -372,6 +463,20 @@ function pickDefined<T extends Record<string, { ok: boolean; error?: string }>>(
   return out;
 }
 
+/**
+ * Departamentos e usuários que alimentam os filtros da aba Atendimentos. Mudam
+ * raramente: ficam frescos por 5 min. Com a validade curta padrão (30–60 s) e o
+ * `enabled` ligando/desligando a cada troca de aba, voltar para Atendimentos
+ * refazia `GET /api/settings/departments` e `GET /api/users` toda vez.
+ */
+export const DASHBOARD_REFERENCE_STALE_MS = 5 * 60_000;
+
+export function useDashboardReferenceData(enabled = true) {
+  const departments = useDepartments(enabled, { staleTime: DASHBOARD_REFERENCE_STALE_MS });
+  const users = useTeamUsersQuery(enabled, { staleTime: DASHBOARD_REFERENCE_STALE_MS });
+  return { departments, users };
+}
+
 export function useDashboardMe(enabled = true) {
   const visible = useDocumentVisible();
   return useQuery<DashboardMeData>({
@@ -384,13 +489,24 @@ export function useDashboardMe(enabled = true) {
   });
 }
 
+/**
+ * Opções do painel de filtros (tags, usuários, origens, campos). Mesma
+ * chave e validade (10 min) do Kanban/Flow/Lista — a rota é cara e só
+ * serve dentro do painel: `enabled` deve ser "painel aberto" (ou o diálogo
+ * que precisa dos campos personalizados), nunca a montagem da página.
+ */
 export function useDashboardFilterOptions(enabled = true) {
-  return useQuery<FilterOptionsResponse>({
-    queryKey: ["dashboard-filter-options", isPageMockMode() ? "mock" : "live"],
-    queryFn: () => (isPageMockMode() ? mockFilterOptions() : fetchFilterOptions()),
-    enabled: isPreviewMode() || isPageMockMode() ? true : enabled,
-    staleTime: 5 * 60_000,
-  });
+  const mock = isPageMockMode();
+  return useQuery<FilterOptionsResponse>(
+    mock
+      ? {
+          queryKey: ["dashboard-filter-options", "mock"],
+          queryFn: () => mockFilterOptions(),
+          enabled: true,
+          staleTime: 5 * 60_000,
+        }
+      : { ...filterOptionsQuery, enabled: isPreviewMode() ? true : enabled },
+  );
 }
 
 export function useSystemUsageToday(enabled = true) {
@@ -411,8 +527,9 @@ export function usePainelCustomFields(
   fieldIds: string[],
   enabled = true,
 ) {
+  const reqFilters = useMemo(() => requestFilters(filters), [filters]);
   return useQuery<PainelCustomFieldCard[]>({
-    queryKey: ["painel", "custom-fields", filters, fieldIds],
+    queryKey: ["painel", "custom-fields", reqFilters, fieldIds],
     queryFn: async ({ signal }) => {
       const data = await fetchPainelDeals(filters, "customFields", fieldIds, signal);
       if (!data.customFields?.ok) return [];
@@ -499,8 +616,9 @@ export function usePainelInsights(
     ),
   ];
   const active = inboundOwners || stageIds.length > 0 || taskGroups.length > 0;
+  const reqFilters = useMemo(() => requestFilters(filters), [filters]);
   return useQuery<PainelInsights>({
-    queryKey: ["painel", "insights", filters, inboundOwners, stageIds, taskGroups],
+    queryKey: ["painel", "insights", reqFilters, inboundOwners, stageIds, taskGroups],
     queryFn: ({ signal }) =>
       fetchPainelInsights(filters, { inboundOwners, stageIds, taskGroups }, signal),
     enabled: (isPreviewMode() || isPageMockMode() ? false : enabled) && active,

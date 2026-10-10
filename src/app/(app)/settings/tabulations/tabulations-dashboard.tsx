@@ -25,12 +25,24 @@ import { DropdownGlass } from "@/components/crm/dropdown-glass";
 import { FilterCategoryColumn, FilterColumnsModal } from "@/components/crm/filter-columns-modal";
 import { EmptyState } from "@/components/crm/empty-state";
 import { ButtonGlass } from "@/components/crm/button-glass";
+import { TipScope, tipText } from "@/components/crm/dashboard/chart-tip";
 import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import { useTeamUsersQuery } from "@/features/shared/queries/team-users";
 import { useDepartments } from "@/features/conversations-settings/hooks/use-departments";
+import { TABULATION_KPI_GRID_CLASS } from "@/features/dashboard-v2/layout-classes";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
-import { textMatchesQuery } from "@/features/dashboard-v2/format";
+import { formatNumber, textMatchesQuery } from "@/features/dashboard-v2/format";
+import { MEASURE_COLOR, tint } from "@/features/dashboard-v2/measure-colors";
+import { shareLabel } from "@/features/dashboard-v2/team-rankings";
+import {
+  NO_DEPARTMENT_NAME,
+  deptKey,
+  splitTabulationPath,
+  summarizeTabulations,
+  tabulationActorLabel,
+  tabulationDetail,
+} from "@/features/dashboard-v2/tabulation-view";
 import { SortableWidgetStack } from "@/features/dashboard-v2/components/sortable-widget-stack";
 import {
   TABULATION_WIDGET_IDS,
@@ -92,7 +104,8 @@ export function TabulationKpiWidget({
     <KpiStrip
       aria-label="Indicadores de tabulações"
       cardMinWidth={168}
-      gridClassName="grid grid-cols-2 gap-2.5 xl:grid-cols-4"
+      className="@container min-w-0"
+      gridClassName={TABULATION_KPI_GRID_CLASS}
     >
       <KpiCard
         label="Tabulações no período"
@@ -111,6 +124,7 @@ export function TabulationKpiWidget({
       />
       <KpiCard
         label="Top motivo"
+        wrapValue
         value={data?.byTabulation[0]?.name ?? loadingValue}
         hint={
           data?.byTabulation[0]
@@ -125,6 +139,12 @@ export function TabulationKpiWidget({
   );
 }
 
+const TOP_LIMIT = 8;
+
+type TabulationRow = TabulationAnalyticsResponse["byTabulation"][number];
+
+const NEUTRAL_BAR = "var(--muted-foreground)";
+
 export function TabulationTopWidget({
   rows,
   departmentId,
@@ -138,9 +158,26 @@ export function TabulationTopWidget({
   onToggleDepartment: (id: string) => void;
 }) {
   const selectedDeptIds = departmentIds ?? (departmentId ? [departmentId] : []);
+  const summary = useMemo(() => summarizeTabulations(rows), [rows]);
+  const sortedRows = useMemo(() => [...rows].sort((a, b) => b.count - a.count), [rows]);
+  const { total, colored, others, colorByDept } = summary;
+  const selectedNames = summary.depts
+    .filter((d) => selectedDeptIds.includes(d.id))
+    .map((d) => d.name);
+
+  const rowColor = (row: TabulationRow) => colorByDept.get(deptKey(row)) ?? null;
+
   return (
     <GlassCard className="min-w-0 overflow-hidden p-4">
-      <h3 className="mb-3 text-[13px] font-semibold text-foreground">Principais tabulações</h3>
+      <div className="mb-3 min-w-0">
+        <h3 className="text-[13px] font-semibold text-foreground">Principais tabulações</h3>
+        {total > 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            {formatNumber(total)} tabulações no período · {rows.length}{" "}
+            {rows.length === 1 ? "motivo" : "motivos"} · cor por departamento
+          </p>
+        ) : null}
+      </div>
       {!rows.length ? (
         <EmptyState
           icon={<IconChartBar size={22} />}
@@ -149,38 +186,125 @@ export function TabulationTopWidget({
           className="py-6"
         />
       ) : (
-        <RankBarList
-          rows={rows.map((row) => ({
-            id: row.tabulationId,
-            label: row.number != null ? `${row.path} (#${row.number})` : row.path,
-            title: row.departmentName ? `${row.path} / ${row.departmentName}` : row.path,
-            value: row.count,
-            labelExtra:
-              row.departmentId && row.departmentName ? (
+        <TipScope>
+          <div
+            role="img"
+            aria-label={`Participação por departamento: ${summary.depts
+              .map((d) => `${d.name} ${shareLabel(d.count, total)}`)
+              .join(", ")}`}
+            className="mb-2.5 flex h-3.5 gap-0.5"
+          >
+            {colored.map((dept) => (
+              <div
+                key={dept.id}
+                data-tip={tipText(
+                  dept.name,
+                  `${formatNumber(dept.count)} tabulações · ${shareLabel(dept.count, total)}`,
+                )}
+                className="min-w-1 rounded-xs transition-opacity"
+                style={{
+                  width: `${(dept.count / total) * 100}%`,
+                  background: dept.color!,
+                  opacity: selectedDeptIds.length && !selectedDeptIds.includes(dept.id) ? 0.3 : 1,
+                }}
+              />
+            ))}
+            {others.count > 0 ? (
+              <div
+                data-tip={tipText(
+                  `Outros departamentos (${others.count})`,
+                  `${formatNumber(others.total)} tabulações · ${shareLabel(others.total, total)}`,
+                )}
+                className="min-w-1 rounded-xs"
+                style={{
+                  width: `${(others.total / total) * 100}%`,
+                  background: tint(NEUTRAL_BAR, 45),
+                }}
+              />
+            ) : null}
+          </div>
+
+          <div className="mb-3.5 flex flex-wrap gap-1.5">
+            {colored.map((dept) => {
+              const active = selectedDeptIds.includes(dept.id);
+              const off = selectedDeptIds.length > 0 && !active;
+              return (
                 <button
+                  key={dept.id}
                   type="button"
-                  aria-pressed={selectedDeptIds.includes(row.departmentId)}
-                  aria-label={
-                    selectedDeptIds.includes(row.departmentId)
-                      ? `Limpar filtro de ${row.departmentName}`
-                      : `Filtrar por ${row.departmentName}`
-                  }
-                  title={
-                    selectedDeptIds.includes(row.departmentId)
-                      ? `Limpar filtro de ${row.departmentName}`
-                      : `Filtrar por ${row.departmentName}`
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleDepartment(row.departmentId as string);
-                  }}
-                  className="mt-0.5 truncate text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  aria-pressed={active}
+                  title={active ? `Limpar filtro de ${dept.name}` : `Filtrar por ${dept.name}`}
+                  onClick={() => onToggleDepartment(dept.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border bg-transparent px-2.5 py-1 text-xs text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    active ? "border-foreground font-semibold" : "border-border",
+                    off && "opacity-45",
+                  )}
                 >
-                  {row.departmentName}
+                  <i
+                    aria-hidden
+                    className="size-[9px] rounded-xs"
+                    style={{ background: dept.color! }}
+                  />
+                  {dept.name}
+                  <span className="tabular-nums text-muted-foreground">
+                    {formatNumber(dept.count)} · {shareLabel(dept.count, total)}
+                  </span>
                 </button>
-              ) : undefined,
-          }))}
-        />
+              );
+            })}
+            {others.count > 0 ? (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground"
+                title="Use o filtro Departamento do cabeçalho para ver estes"
+              >
+                <i
+                  aria-hidden
+                  className="size-[9px] rounded-xs"
+                  style={{ background: tint(NEUTRAL_BAR, 45) }}
+                />
+                Outros ({others.count})
+                <span className="tabular-nums">
+                  {formatNumber(others.total)} · {shareLabel(others.total, total)}
+                </span>
+              </span>
+            ) : null}
+          </div>
+
+          <RankBarList
+            variant="rank"
+            ariaLabel="Principais tabulações por volume"
+            limit={TOP_LIMIT}
+            max={sortedRows[0]?.count}
+            rows={sortedRows.map((row) => {
+              const color = rowColor(row);
+              const { leaf } = splitTabulationPath(row);
+              const fullLabel = row.number != null ? `${row.path} (#${row.number})` : row.path;
+              return {
+                id: row.tabulationId,
+                label: leaf,
+                title: fullLabel,
+                value: row.count,
+                color: color ?? tint(NEUTRAL_BAR, 45),
+                detail: tabulationDetail(row, color) || undefined,
+                display: formatNumber(row.count),
+                displayDetail: shareLabel(row.count, total),
+                tip: [
+                  fullLabel,
+                  row.departmentName ?? NO_DEPARTMENT_NAME,
+                  `${formatNumber(row.count)} tabulações · ${shareLabel(row.count, total)} do total`,
+                ],
+              };
+            })}
+            footer={
+              selectedNames.length ? (
+                <span>
+                  Filtrado: {selectedNames.join(", ")} · clique no chip de novo para limpar
+                </span>
+              ) : null
+            }
+          />
+        </TipScope>
       )}
     </GlassCard>
   );
@@ -203,11 +327,15 @@ export function TabulationByUserWidget({
         />
       ) : (
         <RankBarList
+          variant="rank"
+          ariaLabel="Tabulações por usuário"
+          color={MEASURE_COLOR.conversations}
+          limit={10}
           rows={rows.map((row) => ({
             id: row.userId,
             label: row.name,
-            title: row.name,
             value: row.count,
+            display: formatNumber(row.count),
           }))}
         />
       )}
@@ -230,12 +358,14 @@ export function TabulationLogWidget({
   isLoading: boolean;
   onPage: (next: number) => void;
 }) {
+  // Backend novo: `total` conta conversas e `eventsTotal` conta eventos do log.
+  const logTotal = data ? (data.eventsTotal ?? data.total) : 0;
   return (
     <GlassCard className="overflow-hidden p-0">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <h3 className="text-[13px] font-semibold text-foreground">Log de tabulações</h3>
         <span className="text-[11px] text-muted-foreground">
-          {data ? `${data.total} registro(s)` : "—"}
+          {data ? `${logTotal} registro(s)` : "—"}
         </span>
       </div>
       {isLoading ? (
@@ -269,7 +399,7 @@ export function TabulationLogWidget({
                   <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
                     {format(parseISO(row.occurredAt), "dd/MM/yy HH:mm", { locale: ptBR })}
                   </td>
-                  <td className="px-4 py-2">{row.actorName ?? "—"}</td>
+                  <td className="px-4 py-2">{tabulationActorLabel(row)}</td>
                   <td className="px-4 py-2">{row.contactName ?? "—"}</td>
                   <td
                     className="max-w-[280px] truncate px-4 py-2"
@@ -289,7 +419,7 @@ export function TabulationLogWidget({
           </table>
         </div>
       )}
-      {data && data.total > data.perPage ? (
+      {data && logTotal > data.perPage ? (
         <div className="flex items-center justify-between border-t border-border px-4 py-2">
           <button
             type="button"
@@ -464,7 +594,7 @@ export function TabulationsDashboard({
   const data = analyticsQuery.data;
   const totalPages = useMemo(() => {
     if (!data) return 1;
-    return Math.max(1, Math.ceil(data.total / data.perPage));
+    return Math.max(1, Math.ceil((data.eventsTotal ?? data.total) / data.perPage));
   }, [data]);
 
   const loadingValue = analyticsQuery.isLoading ? "…" : "—";

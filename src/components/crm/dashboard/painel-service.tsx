@@ -21,6 +21,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -38,6 +39,7 @@ import {
   ListColumnLabel,
   SortableHeader,
 } from "@/components/crm/sortable-header";
+import { RankBarList } from "@/components/crm/dashboard/rank-bar-list";
 import {
   PainelAgoraSkeleton,
   PainelBlockError,
@@ -50,6 +52,19 @@ import {
   formatNumber,
   textMatchesQuery,
 } from "@/features/dashboard-v2/format";
+import { analyzeOutliers, outlierNote } from "@/features/dashboard-v2/outlier-axis";
+import { withClock, type DashboardClock } from "@/features/dashboard-v2/clock-label";
+import {
+  AGORA_GRID_CLASS,
+  AGORA_WAIT_CLASS,
+  EXCEPTIONS_GRID_CLASS,
+  KPI_CONTAINER_CLASS,
+  PERIOD_KPI_GRID_CLASS,
+} from "@/features/dashboard-v2/layout-classes";
+import {
+  isBlockPending as blockPending,
+  isBlockUnavailable,
+} from "@/features/dashboard-v2/service-availability";
 import type {
   PainelAgora,
   PainelAttendantRow,
@@ -61,23 +76,23 @@ import type {
   PainelServiceResult,
   PainelTimeStat,
 } from "@/features/dashboard-v2/painel-api";
+import type { TeamWidgetId } from "@/components/crm/dashboard/painel-team";
 import type { ServiceWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
 import { cn } from "@/lib/utils";
-
-function blockPending<T>(block: PainelBlock<T> | undefined): boolean {
-  return !block || (block.ok === false && block.error === "omitido");
-}
 
 /** Pares 2-col: um skeleton enquanto os dois lados carregam; sem esticar card vazio. */
 function ServicePair({
   pending,
   empty,
   emptyTitle,
+  solo,
   children,
 }: {
   pending?: boolean;
   empty?: boolean;
   emptyTitle?: string;
+  /** Um dos lados está indisponível: o outro ocupa a linha inteira. */
+  solo?: boolean;
   children: ReactNode;
 }) {
   if (pending) return <PainelSkeleton className="min-h-[72px]" />;
@@ -89,7 +104,14 @@ function ServicePair({
     );
   }
   return (
-    <div className="grid grid-cols-1 items-start gap-1.5 lg:grid-cols-2">{children}</div>
+    <div
+      className={cn(
+        "grid grid-cols-1 items-start gap-1.5",
+        !solo && "lg:grid-cols-2",
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -113,10 +135,13 @@ function formatAsOf(iso: string) {
 export function PainelAgoraWidget({
   data,
   error,
+  clock,
   onRetry,
 }: {
   data: PainelAgora | undefined;
   error: unknown;
+  /** Relógio global: "Maior espera atual" muda com ele. */
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (error && !data) {
@@ -129,9 +154,10 @@ export function PainelAgoraWidget({
   return (
     <PainelCard
       title="Agora"
-      subtitle={`agora · atualizado às ${formatAsOf(data.asOf)}`}
+      subtitle={withClock(`agora · atualizado às ${formatAsOf(data.asOf)}`, clock)}
     >
-      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-6">
+      <div className={KPI_CONTAINER_CLASS}>
+      <div className={AGORA_GRID_CLASS}>
         <KpiCard
           icon={<Inbox className="size-5" />}
           label="Aguardando resposta"
@@ -146,7 +172,8 @@ export function PainelAgoraWidget({
         />
         <div
           className={cn(
-            "rounded-xl border p-4 lg:col-span-3",
+            "min-w-0 rounded-xl border p-4",
+            AGORA_WAIT_CLASS,
             wait.overSla
               ? "border-destructive/40 bg-destructive/5"
               : "border-border bg-card",
@@ -163,7 +190,10 @@ export function PainelAgoraWidget({
           >
             {wait.ms > 0 ? formatDurationMs(wait.ms) : "—"}
           </p>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p
+            className="mt-1 truncate text-sm text-muted-foreground"
+            title={`${wait.contactName ?? "Ninguém aguardando"}${wait.agentName ? ` · ${wait.agentName}` : ""}`}
+          >
             {wait.contactName ?? "Ninguém aguardando"}
             {wait.agentName ? ` · ${wait.agentName}` : ""}
           </p>
@@ -176,6 +206,7 @@ export function PainelAgoraWidget({
           tone="success"
         />
       </div>
+      </div>
     </PainelCard>
   );
 }
@@ -185,14 +216,13 @@ export function PainelServiceWidget({
   data,
   search,
   clock,
-  onClock,
   onRetry,
 }: {
-  id: Exclude<ServiceWidgetId, "agora">;
+  id: Exclude<ServiceWidgetId, "agora" | TeamWidgetId>;
   data: PainelServiceResult | undefined;
   search: string;
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  /** Relógio global (vem do cabeçalho); aqui só vira rótulo dos cards que o usam. */
+  clock: DashboardClock;
   onRetry: (section: string) => void;
 }) {
   if (!data) return <PainelSkeleton className="min-h-[72px]" />;
@@ -211,12 +241,7 @@ export function PainelServiceWidget({
       );
     case "tempo":
       return (
-        <ServiceTempo
-          block={data.tempo}
-          clock={clock}
-          onClock={onClock}
-          onRetry={() => onRetry("tempo")}
-        />
+        <ServiceTempo block={data.tempo} clock={clock} onRetry={() => onRetry("tempo")} />
       );
     case "summaries":
       return (
@@ -238,6 +263,7 @@ export function PainelServiceWidget({
           dept={data.byDepartment}
           attendants={data.attendants}
           search={search}
+          clock={clock}
           onRetryDept={() => onRetry("byDepartment")}
           onRetryAttendants={() => onRetry("attendants")}
         />
@@ -247,6 +273,7 @@ export function PainelServiceWidget({
         <ServiceChannels
           block={data.channels}
           search={search}
+          clock={clock}
           onRetry={() => onRetry("channels")}
         />
       );
@@ -265,6 +292,7 @@ function ServiceVolume({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const v = block.data;
   if (v.empty) {
@@ -284,7 +312,8 @@ function ServiceVolume({
   }));
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-4">
+      <div className={KPI_CONTAINER_CLASS}>
+      <div className={PERIOD_KPI_GRID_CLASS}>
         <KpiCard
           icon={<Inbox className="size-5" />}
           label="Total de atendimentos"
@@ -318,6 +347,7 @@ function ServiceVolume({
           tone="orange"
         />
       </div>
+      </div>
       <PainelCard
         title="Iniciadas vs finalizadas"
         subtitle={
@@ -327,39 +357,121 @@ function ServiceVolume({
         }
         info="Acúmulo aparece quando iniciadas superam finalizadas por vários dias. Mensagens e volume respeitam o calendário — diferente do bloco Agora."
       >
-        <div className="h-[168px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={32} />
-              <Tooltip />
-              <Bar dataKey="started" name="Iniciadas" fill="var(--color-primary)" radius={[4, 4, 0, 0]}>
-                {chartData.map((d) => (
-                  <Cell
-                    key={d.date}
-                    fill="var(--color-primary)"
-                    fillOpacity={d.incomplete ? 0.45 : 1}
-                  />
-                ))}
-              </Bar>
-              <Bar dataKey="finished" name="Finalizadas" fill="var(--color-success)" radius={[4, 4, 0, 0]}>
-                {chartData.map((d) => (
-                  <Cell
-                    key={`${d.date}-f`}
-                    fill="var(--color-success)"
-                    fillOpacity={d.incomplete ? 0.45 : 1}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        {chartData.some((d) => d.incomplete) ? (
-          <p className="mt-2 text-xs text-muted-foreground">O dia de hoje está incompleto.</p>
-        ) : null}
+        <VolumeDayChart chartData={chartData} />
       </PainelCard>
     </div>
+  );
+}
+
+type VolumeDay = {
+  date: string;
+  label: string;
+  started: number;
+  finished: number;
+  incomplete: boolean;
+};
+
+/** Rótulo com o valor real nas barras recortadas (dia atípico). */
+function clippedValueLabel(outliers: ReadonlySet<number>, cap: number, active: boolean) {
+  return function ClippedValueLabel(props: {
+    x?: unknown;
+    y?: unknown;
+    width?: unknown;
+    value?: unknown;
+    index?: number;
+  }) {
+    const value = Number(props.value);
+    if (!active || !outliers.has(props.index ?? -1) || !(value > cap)) return null;
+    return (
+      <text
+        x={Number(props.x) + Number(props.width) / 2}
+        y={Math.max(Number(props.y), 10)}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fill="var(--foreground)"
+        style={{ paintOrder: "stroke", stroke: "var(--card)", strokeWidth: 3 }}
+      >
+        {formatNumber(value)}
+      </text>
+    );
+  };
+}
+
+/**
+ * Iniciadas × finalizadas por dia. Um dia atípico (>10× a mediana, ex.: importação)
+ * recorta o eixo para os demais dias não ficarem invisíveis; o valor real fica
+ * escrito na barra e no balão, e dá para alternar para a escala completa.
+ */
+function VolumeDayChart({ chartData }: { chartData: VolumeDay[] }) {
+  const [fullScale, setFullScale] = useState(false);
+  const analysis = useMemo(
+    () => analyzeOutliers([chartData.map((d) => d.started), chartData.map((d) => d.finished)]),
+    [chartData],
+  );
+  const clipped = analysis.hasOutlier && !fullScale;
+  const outliers = useMemo(() => new Set(analysis.outlierIndexes), [analysis]);
+  const note = outlierNote(
+    analysis,
+    chartData.map((d) => ({ date: d.date, values: [d.started, d.finished] })),
+  );
+  const valueLabel = clippedValueLabel(outliers, analysis.cap, clipped);
+  return (
+    <>
+      <div className="h-[168px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} barGap={4}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 11 }}
+              width={32}
+              domain={clipped ? [0, analysis.cap] : [0, "auto"]}
+              allowDataOverflow={clipped}
+            />
+            <Tooltip />
+            <Bar dataKey="started" name="Iniciadas" fill="var(--color-primary)" radius={[4, 4, 0, 0]}>
+              {chartData.map((d) => (
+                <Cell
+                  key={d.date}
+                  fill="var(--color-primary)"
+                  fillOpacity={d.incomplete ? 0.45 : 1}
+                />
+              ))}
+              <LabelList dataKey="started" content={valueLabel} />
+            </Bar>
+            <Bar dataKey="finished" name="Finalizadas" fill="var(--color-success)" radius={[4, 4, 0, 0]}>
+              {chartData.map((d) => (
+                <Cell
+                  key={`${d.date}-f`}
+                  fill="var(--color-success)"
+                  fillOpacity={d.incomplete ? 0.45 : 1}
+                />
+              ))}
+              <LabelList dataKey="finished" content={valueLabel} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      {note ? (
+        <p className="mt-2 text-xs text-muted-foreground" data-outlier-note>
+          {note}{" "}
+          <button
+            type="button"
+            aria-pressed={fullScale}
+            onClick={() => setFullScale((v) => !v)}
+            className="rounded-sm font-semibold text-foreground underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {fullScale ? "Recortar o dia atípico" : "Ver escala completa"}
+          </button>
+        </p>
+      ) : null}
+      {chartData.some((d) => d.incomplete) ? (
+        <p className="mt-2 text-xs text-muted-foreground">O dia de hoje está incompleto.</p>
+      ) : null}
+    </>
   );
 }
 
@@ -386,49 +498,23 @@ function TimeKpi({
 function ServiceTempo({
   block,
   clock,
-  onClock,
   onRetry,
 }: {
   block: PainelServiceResult["tempo"];
-  clock: "business" | "elapsed";
-  onClock: (next: "business" | "elapsed") => void;
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const t = block.data;
   return (
     <PainelCard
       title="Tempo de resposta"
-      subtitle="Mediana em destaque · média ao lado. Primeira resposta = até a primeira mensagem humana."
-      action={
-        <div className="flex rounded-xl border border-border bg-card p-0.5 text-xs">
-          <button
-            type="button"
-            className={cn(
-              "rounded-lg px-2.5 py-1",
-              clock === "business"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground",
-            )}
-            onClick={() => onClock("business")}
-          >
-            Comercial
-          </button>
-          <button
-            type="button"
-            className={cn(
-              "rounded-lg px-2.5 py-1",
-              clock === "elapsed"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground",
-            )}
-            onClick={() => onClock("elapsed")}
-          >
-            Corrido
-          </button>
-        </div>
-      }
+      subtitle={withClock(
+        "Mediana em destaque · média ao lado. Primeira resposta = até a primeira mensagem humana.",
+        clock,
+      )}
     >
       {t.empty ? (
         <PainelEmpty
@@ -661,33 +747,23 @@ function RankList({
   subtitle: string;
   rows: { key: string; label: string; color?: string; started: number }[];
 }) {
-  const max = Math.max(1, ...rows.map((r) => r.started));
   return (
     <PainelCard title={title} subtitle={subtitle}>
       {rows.length === 0 ? (
         <PainelEmpty embedded title="Não há dados no período" />
       ) : (
-        <ul className="flex flex-col gap-2.5">
-          {rows.map((row) => (
-            <li key={row.key} className="min-w-0">
-              <div className="mb-1 flex items-baseline justify-between gap-3">
-                <span className="truncate text-sm font-semibold">{row.label}</span>
-                <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
-                  {formatNumber(row.started)}
-                </span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.round((row.started / max) * 100)}%`,
-                    background: row.color ?? "var(--color-primary)",
-                  }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+        <RankBarList
+          variant="rank"
+          ariaLabel={title}
+          limit={10}
+          rows={rows.map((row) => ({
+            id: row.key,
+            label: row.label,
+            color: row.color,
+            value: row.started,
+            display: formatNumber(row.started),
+          }))}
+        />
       )}
     </PainelCard>
   );
@@ -717,6 +793,9 @@ function ServiceDeptAndHour({
 
   const deptPending = blockPending(byDepartment);
   const heatPending = blockPending(heatmap);
+  const deptGone = isBlockUnavailable(byDepartment);
+  const heatGone = isBlockUnavailable(heatmap);
+  if (deptGone && heatGone) return null;
   const bothEmpty =
     byDepartment.ok &&
     byDepartment.data.empty &&
@@ -724,8 +803,12 @@ function ServiceDeptAndHour({
     (!h || h.empty);
 
   return (
-    <ServicePair pending={deptPending && heatPending} empty={bothEmpty}>
-      {deptPending ? (
+    <ServicePair
+      pending={deptPending && heatPending}
+      empty={bothEmpty}
+      solo={deptGone || heatGone}
+    >
+      {deptGone ? null : deptPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !byDepartment.ok ? (
         <PainelBlockError message={byDepartment.error} onRetry={onRetryDept} />
@@ -740,7 +823,7 @@ function ServiceDeptAndHour({
           variant="stack"
         />
       )}
-      {heatPending ? (
+      {heatGone ? null : heatPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !heatmap.ok ? (
         <PainelBlockError message={heatmap.error} onRetry={onRetryHeatmap} />
@@ -819,14 +902,21 @@ function ServiceSummaries({
 }) {
   const deptPending = blockPending(dept);
   const attPending = blockPending(attendants);
+  const deptGone = isBlockUnavailable(dept);
+  const attGone = isBlockUnavailable(attendants);
+  if (deptGone && attGone) return null;
   const bothEmpty =
     dept.ok &&
     attendants.ok &&
     dept.data.summaries.length === 0 &&
     attendants.data.rows.length === 0;
   return (
-    <ServicePair pending={deptPending && attPending} empty={bothEmpty}>
-      {deptPending ? (
+    <ServicePair
+      pending={deptPending && attPending}
+      empty={bothEmpty}
+      solo={deptGone || attGone}
+    >
+      {deptGone ? null : deptPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
@@ -837,7 +927,7 @@ function ServiceSummaries({
           rows={dept.data.summaries.filter((r) => textMatchesQuery(r.label, search))}
         />
       )}
-      {attPending ? (
+      {attGone ? null : attPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
@@ -867,6 +957,7 @@ function ServiceConnections({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const c = block.data;
   return (
@@ -912,32 +1003,41 @@ function ServiceTables({
   dept,
   attendants,
   search,
+  clock,
   onRetryDept,
   onRetryAttendants,
 }: {
   dept: PainelServiceResult["byDepartment"];
   attendants: PainelServiceResult["attendants"];
   search: string;
+  clock: DashboardClock;
   onRetryDept: () => void;
   onRetryAttendants: () => void;
 }) {
   const deptPending = blockPending(dept);
   const attPending = blockPending(attendants);
+  const deptGone = isBlockUnavailable(dept);
+  const attGone = isBlockUnavailable(attendants);
+  if (deptGone && attGone) return null;
   const bothEmpty =
     dept.ok &&
     attendants.ok &&
     dept.data.table.length === 0 &&
     attendants.data.rows.length === 0;
   return (
-    <ServicePair pending={deptPending && attPending} empty={bothEmpty}>
-      {deptPending ? (
+    <ServicePair
+      pending={deptPending && attPending}
+      empty={bothEmpty}
+      solo={deptGone || attGone}
+    >
+      {deptGone ? null : deptPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !dept.ok ? (
         <PainelBlockError message={dept.error} onRetry={onRetryDept} />
       ) : (
-        <DeptMetricsTable rows={dept.data.table} search={search} />
+        <DeptMetricsTable rows={dept.data.table} search={search} clock={clock} />
       )}
-      {attPending ? (
+      {attGone ? null : attPending ? (
         <PainelSkeleton className="min-h-[72px]" />
       ) : !attendants.ok ? (
         <PainelBlockError message={attendants.error} onRetry={onRetryAttendants} />
@@ -946,6 +1046,7 @@ function ServiceTables({
           rows={attendants.data.rows}
           search={search}
           attribution={attendants.data.attribution}
+          clock={clock}
         />
       )}
     </ServicePair>
@@ -958,9 +1059,11 @@ const TABLE_COLS =
 function DeptMetricsTable({
   rows,
   search,
+  clock,
 }: {
   rows: PainelDeptTableRow[];
   search: string;
+  clock: DashboardClock;
 }) {
   const [sort, setSort] = useState<TableSort>("finished");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -973,7 +1076,7 @@ function DeptMetricsTable({
   return (
     <PainelCard
       title="Departamentos"
-      subtitle="Finalizados, em aberto e tempos médios no período"
+      subtitle={withClock("Finalizados, em aberto e tempos médios no período", clock)}
     >
       {list.length === 0 ? (
         <PainelEmpty embedded title="Não há dados no período" />
@@ -1000,7 +1103,9 @@ function DeptMetricsTable({
                 "lg:gap-3",
               )}
             >
-              <span className="truncate font-semibold">{row.label}</span>
+              <span className="truncate font-semibold" title={row.label}>
+                {row.label}
+              </span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.finished)}</span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.stillOpen)}</span>
               <span className="text-sm tabular-nums lg:text-right">
@@ -1024,10 +1129,12 @@ function AttendantMetricsTable({
   rows,
   search,
   attribution,
+  clock,
 }: {
   rows: PainelAttendantRow[];
   search: string;
   attribution: string;
+  clock: DashboardClock;
 }) {
   const [sort, setSort] = useState<TableSort>("finished");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -1041,7 +1148,7 @@ function AttendantMetricsTable({
   }, [rows, search, sort, dir]);
 
   return (
-    <PainelCard title="Atendentes" subtitle={attribution}>
+    <PainelCard title="Atendentes" subtitle={withClock(attribution, clock)}>
       {list.length === 0 ? (
         <PainelEmpty
           embedded
@@ -1071,7 +1178,9 @@ function AttendantMetricsTable({
                 "lg:gap-3",
               )}
             >
-              <span className="truncate font-semibold">{row.name}</span>
+              <span className="truncate font-semibold" title={row.name}>
+                {row.name}
+              </span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.finished)}</span>
               <span className="text-sm tabular-nums lg:text-right">{formatNumber(row.stillOpen)}</span>
               <span className="text-sm tabular-nums lg:text-right">
@@ -1163,13 +1272,16 @@ function MetricsTable({
 function ServiceChannels({
   block,
   search,
+  clock,
   onRetry,
 }: {
   block: PainelServiceResult["channels"];
   search: string;
+  clock: DashboardClock;
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   const channels = block.data.channels.filter((r) => textMatchesQuery(r.label, search));
   const motivos = block.data.motivos.filter((r) => textMatchesQuery(r.label, search));
@@ -1181,11 +1293,13 @@ function ServiceChannels({
         title="Por canal"
         emptyTitle="Não há dados no período"
         rows={channels}
+        clock={clock}
       />
       <ShortList
         title="Por motivo"
         emptyTitle="Não há tabulações no período"
         rows={motivos}
+        clock={clock}
       />
     </ServicePair>
   );
@@ -1195,13 +1309,15 @@ function ShortList({
   title,
   emptyTitle,
   rows,
+  clock,
 }: {
   title: string;
   emptyTitle: string;
   rows: { key: string; label: string; count: number; firstResponseMedianMs: number | null }[];
+  clock: DashboardClock;
 }) {
   return (
-    <PainelCard title={title} subtitle="Volume e mediana de primeira resposta">
+    <PainelCard title={title} subtitle={withClock("Volume e mediana de primeira resposta", clock)}>
       {rows.length === 0 ? (
         <PainelEmpty embedded title={emptyTitle} />
       ) : (
@@ -1211,7 +1327,9 @@ function ShortList({
               key={row.key}
               className="flex items-baseline justify-between gap-3 rounded-xl border border-border bg-card px-4 py-2.5"
             >
-              <span className="min-w-0 truncate font-semibold">{row.label}</span>
+              <span className="min-w-0 truncate font-semibold" title={row.label}>
+                {row.label}
+              </span>
               <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
                 {formatNumber(row.count)} · {formatDurationMs(row.firstResponseMedianMs)}
               </span>
@@ -1238,10 +1356,12 @@ function ServiceExceptions({
   onRetry: () => void;
 }) {
   if (blockPending(block)) return <PainelSkeleton className="min-h-[72px]" />;
+  if (isBlockUnavailable(block)) return null;
   if (!block.ok) return <PainelBlockError message={block.error} onRetry={onRetry} />;
   return (
     <PainelCard title="Exceções" subtitle="Clique para abrir a inbox filtrada">
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={KPI_CONTAINER_CLASS}>
+      <div className={EXCEPTIONS_GRID_CLASS}>
         {block.data.map((row) => {
           const copy = SERVICE_EX_COPY[row.key];
           return (
@@ -1262,6 +1382,7 @@ function ServiceExceptions({
             </Link>
           );
         })}
+      </div>
       </div>
     </PainelCard>
   );

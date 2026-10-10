@@ -24,6 +24,10 @@ import type {
   PainelHeatmap,
   PainelServiceResult,
   PainelSourceRow,
+  PainelTeamResult,
+  PainelTeamScope,
+  PainelTeamSection,
+  PainelTransferSet,
   PainelVolume,
 } from "./painel-api";
 
@@ -100,7 +104,9 @@ function weekdayMon0(ymd: string): number {
   return (js + 6) % 7;
 }
 
-function periodWindow(filters: DashboardFiltersState): {
+function periodWindow(
+  filters: Pick<DashboardFiltersState, "period" | "startDate" | "endDate">,
+): {
   from: string;
   to: string;
   includesToday: boolean;
@@ -404,6 +410,12 @@ export function mockPainelDeals(
       novos: {
         count: novosCount,
         value: Math.round(stages[0]!.value * 0.55),
+      },
+      // Estoque na etapa Perdido (hoje) + envios do período (= perdas por etapa).
+      lostStage: {
+        count: Math.max(1, Math.round(64 * scale)),
+        value: Math.round(486_000 * scale),
+        sentInPeriod: stages.reduce((sum, s) => sum + s.lost, 0),
       },
     }),
     evolution: ok(evolution(dates, win.includesToday)),
@@ -909,5 +921,119 @@ export function mockPainelService(
     attendants: attendants(band, clock),
     channels: channels(band),
     exceptions: serviceExceptions(),
+  };
+}
+
+/** Equipe (`GET /api/painel/team`): departamento × hora, rankings e transferências. */
+export function mockPainelTeam(
+  filters: Pick<DashboardFiltersState, "period" | "startDate" | "endDate">,
+  clock: "business" | "elapsed",
+  scope: PainelTeamScope,
+  sections?: readonly PainelTeamSection[],
+): PainelTeamResult {
+  const win = periodWindow(filters);
+  const days = Math.max(1, eachDay(win.from, win.to).length);
+  // Curva de demanda: picos às 10h e às 15h, quase nada de madrugada.
+  const curve = Array.from({ length: 24 }, (_, h) => {
+    if (h < 7 || h > 22) return h === 23 || h === 6 ? 0.15 : 0;
+    return Math.exp(-((h - 10) ** 2) / 6) + 0.85 * Math.exp(-((h - 15) ** 2) / 5) + 0.12;
+  });
+  const deptWeight: Record<string, number> = {
+    atendimento: 5.2,
+    acolhimento: 2.6,
+    retencao: 1.4,
+    __none__: 0.4,
+  };
+  // IDs reais de filtro não batem com as chaves do mock: usa a quantidade.
+  const pick = <T,>(all: readonly T[], ids: string[], key: (t: T) => string): T[] => {
+    if (!ids.length) return [...all];
+    const hit = all.filter((t) => ids.includes(key(t)));
+    return hit.length ? hit : all.slice(0, Math.min(ids.length, all.length));
+  };
+  const depts = pick(MOCK_DEPTS, scope.departmentIds, (d) => d.key);
+  const userShare = scope.userIds.length ? Math.min(1, scope.userIds.length / MOCK_USERS.length) : 1;
+  const rows = depts.map((d, di) => {
+    const hours = curve.map((c, h) =>
+      Math.round(c * deptWeight[d.key]! * days * userShare * (1 + ((h + di) % 3) * 0.08)),
+    );
+    return { key: d.key, label: d.label, total: hours.reduce((a, b) => a + b, 0), hours };
+  });
+  const totals = Array.from({ length: 24 }, (_, h) => rows.reduce((acc, r) => acc + r.hours[h]!, 0));
+  const total = totals.reduce((a, b) => a + b, 0);
+  const max = Math.max(0, ...rows.flatMap((r) => r.hours));
+
+  const users = pick(MOCK_USERS, scope.userIds, (u) => u.id);
+  const deptScale = depts.reduce((acc, d) => acc + deptWeight[d.key]!, 0) / 9.6;
+  const clockScale = clock === "business" ? 0.55 : 1;
+  const ranking = users.map((u, i) => {
+    const attended = Math.round((42 - i * 3.1) * days * 0.35 * deptScale);
+    const finished = Math.round(attended * (0.78 + (i % 4) * 0.05));
+    const meanMin = (18 + ((i * 37) % 95)) * clockScale;
+    return {
+      id: u.id,
+      name: u.name,
+      attended,
+      finished,
+      serviceMeanMs: finished ? Math.round(meanMin * 60_000) : null,
+      serviceMedianMs: finished ? Math.round(meanMin * 0.7 * 60_000) : null,
+      serviceSample: finished,
+    };
+  });
+
+  const clamped = days > 90;
+  // Como o backend: bloco que não foi pedido volta `omitido`.
+  const want = new Set<PainelTeamSection>(
+    sections?.length ? sections : ["deptHour", "ranking", "transfers"],
+  );
+  const omitted = { ok: false as const, error: "omitido" };
+  return {
+    deptHour: want.has("deptHour") ? ok({ rows, totals, max, total, empty: total === 0 }) : omitted,
+    ranking: want.has("ranking")
+      ? ok({ rows: ranking.filter((r) => r.attended || r.finished), capped: false })
+      : omitted,
+    transfers: want.has("transfers")
+      ? ok({
+          people: mockTransferSet(
+            users.map((u) => ({ id: u.id, name: u.name })),
+            days * deptScale,
+            7,
+          ),
+          departments: mockTransferSet(
+            depts.map((d) => ({ id: d.key, name: d.label })),
+            days * userShare * 1.6,
+            3,
+          ),
+        })
+      : omitted,
+    rangeClamped: clamped,
+    effectiveFrom: clamped ? addDaysYmd(win.to, -89) : win.from,
+  };
+}
+
+/** Rotas determinísticas: poucos "hubs" concentram o volume, com cauda longa e rotas de ida e volta. */
+function mockTransferSet(
+  nodes: { id: string; name: string }[],
+  scale: number,
+  seed: number,
+): PainelTransferSet {
+  const flows: PainelTransferSet["flows"] = [];
+  nodes.forEach((from, i) => {
+    nodes.forEach((to, j) => {
+      if (i === j) return;
+      const affinity = ((i * 7 + j * 3 + seed) % 11) / 11;
+      if (affinity < 0.45) return;
+      const weight = (affinity * 4) / (1 + i * 0.35) / (1 + Math.abs(i - j) * 0.25);
+      const count = Math.round(weight * scale * 0.35);
+      if (count <= 0) return;
+      flows.push({ from, to, count, conversations: Math.max(1, Math.round(count * 0.86)) });
+    });
+  });
+  flows.sort((a, b) => b.count - a.count);
+  const total = flows.reduce((acc, f) => acc + f.count, 0);
+  return {
+    flows,
+    total,
+    conversations: Math.round(total * 0.8),
+    empty: total === 0,
   };
 }

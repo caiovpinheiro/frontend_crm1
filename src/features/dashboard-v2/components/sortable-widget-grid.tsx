@@ -11,6 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useIsDesktop } from "@/hooks/use-media-query";
+import {
+  FLUID_GRID_BREAKPOINT,
+  FLUID_GRID_CLASS,
+  fluidOrder,
+  fluidSpanClass,
+} from "@/features/dashboard-v2/fluid-grid";
 import {
   armSuppressClickAfterDrag,
   DASHBOARD_DRAG_THRESHOLD_PX,
@@ -127,6 +134,8 @@ export function SortableWidgetGrid({
   onRemove?: (id: string) => void;
 }) {
   const { confirm, dialog: confirmDialog } = useConfirm();
+  // Abaixo do desktop não há grid em pixels: grade CSS fluida (ver fluid-grid.ts).
+  const isDesktop = useIsDesktop();
   const { width, containerRef, mounted } = useContainerWidth();
   const visibleLayout = useMemo(
     () => compactNegociosLayout(layout.filter((item) => item.i !== "stages")),
@@ -269,21 +278,20 @@ export function SortableWidgetGrid({
     );
   }
 
-  if (disabled) {
+  if (disabled || !isDesktop) {
     return (
       <>
-        <div className="grid grid-cols-1 gap-1.5 xl:grid-cols-12">
-          {ids.map((id) => {
+        <div
+          className={cn("negocios-grid-fluid min-w-0", FLUID_GRID_CLASS)}
+          data-fluid-grid={`<${FLUID_GRID_BREAKPOINT}`}
+        >
+          {fluidOrder(visibleLayout).map((id) => {
             const item = visibleLayout.find((entry) => entry.i === id);
-            const span = item?.w ?? 12;
             return (
               <div
                 key={id}
-                className={cn(
-                  "flex min-w-0 items-start",
-                  organizing ? "gap-1" : null,
-                )}
-                style={{ gridColumn: `span ${span} / span ${span}` }}
+                data-widget-id={id}
+                className={cn("min-w-0", fluidSpanClass(item?.w ?? 12))}
               >
                 {widgetCell(id)}
               </div>

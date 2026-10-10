@@ -20,7 +20,25 @@ export function FunnelPipelinePicker({
       <p className="shrink-0 px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
         Funil de vendas
       </p>
-      <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-2">
+      {/* Celular: a lista vira um select (a lista de 196 px espremia o funil). */}
+      <div className="px-3 pb-1 md:hidden">
+        <select
+          aria-label="Funil de vendas"
+          value={selectedId ?? ""}
+          onChange={(e) => onSelect(e.target.value)}
+          disabled={pipelines.length === 0}
+          className="h-9 w-full rounded-xl border border-border bg-card px-3 text-[13px] font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          {pipelines.length === 0 ? <option value="">Nenhum funil</option> : null}
+          {selectedId ? null : <option value="">Selecione um funil</option>}
+          {pipelines.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <ul className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-2 max-md:hidden">
         {pipelines.length === 0 ? (
           <li className="px-2 py-3 text-[12px] text-muted-foreground">
             Nenhum funil

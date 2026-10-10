@@ -245,6 +245,16 @@
 
   --shadow-indigo-glow: 0 6px 20px -4px color-mix(in oklch, var(--primary) 28%, transparent);
   --shadow-brand: 0 4px 14px color-mix(in oklch, var(--primary) 22%, transparent);
+
+  /* Gráficos do dashboard: cor pelo que se mede.
+     tempo = violeta · conversas = azul da marca · transferências = turquesa ·
+     departamento (Tabulações) = 3 categóricas. */
+  --measure-time: oklch(0.5 0.2 305);
+  --measure-conversations: var(--primary);
+  --measure-transfers: oklch(0.56 0.105 200);
+  --dept-1: #2f66f2;
+  --dept-2: #eb6834;
+  --dept-3: #1baf7a;
 }
 
 .dark,
@@ -291,6 +301,12 @@
   --avatar-4-foreground: oklch(0.24 0.06 55);
   --avatar-5: oklch(0.64 0.16 27);
   --avatar-5-foreground: oklch(0.99 0.01 27);
+
+  --measure-time: oklch(0.74 0.14 305);
+  --measure-transfers: oklch(0.76 0.11 200);
+  --dept-1: #5585f5;
+  --dept-2: #d95926;
+  --dept-3: #199e70;
 
   --color-bg-card: var(--card);
   --dropdown-solid-bg: var(--card);
