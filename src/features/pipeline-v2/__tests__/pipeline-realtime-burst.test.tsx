@@ -3,11 +3,13 @@
  * KF3 — eventos de mensagem × refetch do board.
  *
  * `new_message` de um contato cujo card está na página carregada só faz
- * patch no card. Evento COM escopo (`pipelineIds`) nunca refaz o board:
- * card fora do cache está além da página, fora do filtro ou é negócio novo
- * (que entra pelo `deal_moved` de criação). Com o refetch por escopo e piso
- * de 10 s, uma organização movimentada recarregava o board de toda aba
- * visível a cada 10 s (produção, 10/10: 4–6 cargas por minuto por aba).
+ * patch no card. Evento COM escopo (`pipelineIds`) não refaz o board na
+ * ordem manual/por criação: card fora do cache está além da página, fora do
+ * filtro ou é negócio novo (que entra pelo `deal_moved` de criação). Com o
+ * refetch por escopo e piso de 10 s, uma organização movimentada recarregava
+ * o board de toda aba visível a cada 10 s (produção, 10/10: 4–6 cargas por
+ * minuto por aba). Exceção: board "mais recentes" (Flow) — ver o bloco
+ * próprio abaixo.
  *
  * Evento SEM escopo (backend antigo) e card fora da página: o board
  * paginado é refeito, no máximo 1 vez a cada `BOARD_REFRESH_MIN_INTERVAL_MS`
@@ -83,7 +85,7 @@ function setVisibility(next: "visible" | "hidden") {
 }
 
 /** Board do funil p1 aberto (query ativa, `queryFn` contado = GETs). */
-async function setup() {
+async function setup(boardKey: readonly unknown[] = P1_KEY) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: 600_000, gcTime: 600_000 } },
   });
@@ -96,7 +98,7 @@ async function setup() {
   const view = renderHook(
     () => {
       usePipelineRealtime(true);
-      return useQuery({ queryKey: P1_KEY, queryFn: fetchBoard });
+      return useQuery({ queryKey: boardKey, queryFn: fetchBoard });
     },
     { wrapper },
   );
@@ -260,6 +262,87 @@ describe("cargas do board por minuto (20 mensagens em 1 min)", () => {
         : { contactId: `contact-fora-${i}`, pipelineIds: ["p1"], dealIds: [`d-${i}`] },
     );
     expect(loads).toBe(0);
+  });
+});
+
+/**
+ * Flow (status ALL, `lastInteraction:desc`, 10 por etapa) e Kanban "mais
+ * recentes": quem responde e está além da página carregada sobe para o topo
+ * da coluna no servidor. Evento com escopo do funil e card fora do cache →
+ * uma recarga do board, no máximo 1 a cada 30 s por funil.
+ */
+describe("board 'mais recentes': quem responde fora da página sobe", () => {
+  const FLOW_KEY = ["pipeline-board", "p1", "ALL", "lastInteraction:desc"] as const;
+
+  async function perMinute(
+    key: readonly unknown[],
+    build: (i: number) => Record<string, unknown>,
+  ) {
+    const { fetchBoard } = await setup(key);
+    for (let i = 0; i < 20; i += 1) {
+      await act(async () => {
+        sse.handler?.("new_message", message(build(i)));
+        await vi.advanceTimersByTimeAsync(3_000);
+      });
+    }
+    return fetchBoard.mock.calls.length - 1;
+  }
+
+  const fora = (i: number) => ({
+    contactId: `contact-fora-${i}`,
+    pipelineIds: ["p1"],
+    dealIds: [`deal-fora-${i}`],
+  });
+
+  it("lead fora da página: sobe em 800 ms; rajada = no máximo 1 recarga a cada 30 s", async () => {
+    const { fetchBoard } = await setup(FLOW_KEY);
+
+    await act(async () => {
+      sse.handler?.("new_message", message(fora(0)));
+      await vi.advanceTimersByTimeAsync(BOARD_REFRESH_DEBOUNCE_MS + 50);
+    });
+    expect(fetchBoard).toHaveBeenCalledTimes(2);
+
+    // Mais 19 em 19 s: nada antes de os 30 s fecharem; depois, 1 só.
+    await burst(19, (i) => fora(i + 1));
+    expect(fetchBoard).toHaveBeenCalledTimes(2);
+    await advance(BOARD_REFRESH_MIN_INTERVAL_MS);
+    expect(fetchBoard).toHaveBeenCalledTimes(3);
+    await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 3);
+    expect(fetchBoard).toHaveBeenCalledTimes(3);
+  });
+
+  it("20 mensagens em 1 min de leads fora da página: 2 cargas", async () => {
+    expect(await perMinute(FLOW_KEY, fora)).toBe(2);
+  });
+
+  it("card já em cache: só patch, 0 recargas", async () => {
+    expect(
+      await perMinute(FLOW_KEY, (i) => ({
+        contactId: i % 2 === 0 ? "contact-a" : "contact-b",
+        pipelineIds: ["p1"],
+        dealIds: [i % 2 === 0 ? "deal-a1" : "deal-b1"],
+      })),
+    ).toBe(0);
+  });
+
+  it("evento de outro funil: 0 recargas", async () => {
+    expect(
+      await perMinute(FLOW_KEY, (i) => ({ ...fora(i), pipelineIds: ["p2"] })),
+    ).toBe(0);
+  });
+
+  it("ordenação por criação, mais antigas ou manual: 0 recargas", async () => {
+    for (const sort of ["createdAt:desc", "lastInteraction:asc", undefined]) {
+      cleanup();
+      const key = sort ? ["pipeline-board", "p1", "ALL", sort] : ["pipeline-board", "p1", "ALL"];
+      expect(await perMinute(key, fora)).toBe(0);
+    }
+  });
+
+  it("aba oculta: 0 recargas", async () => {
+    act(() => setVisibility("hidden"));
+    expect(await perMinute(FLOW_KEY, fora)).toBe(0);
   });
 });
 

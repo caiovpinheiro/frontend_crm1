@@ -195,16 +195,17 @@ type BoardMessagePatch = {
 
 /**
  * Núcleo do patch. Com `scope` (evento trouxe `dealIds`), o card também
- * casa pelo id do negócio. Devolve se algum card em cache casou.
+ * casa pelo id do negócio. Devolve se algum card em cache casou e as
+ * chaves dos boards em que nenhum card casou.
  */
 function patchBoardMessage(
   qc: QueryClient,
   data: BoardMessagePatch,
   scope: BoardScope | null,
-): { found: boolean } {
+): { found: boolean; missed: (readonly unknown[])[] } {
   const contactId = data.contactId || undefined;
   const dealIds = scope?.dealIds?.length ? new Set(scope.dealIds) : null;
-  if (!contactId && !dealIds) return { found: false };
+  if (!contactId && !dealIds) return { found: false, missed: [] };
   const direction =
     data.direction === "in" || data.direction === "out" ? data.direction : null;
   const ts =
@@ -224,10 +225,12 @@ function patchBoardMessage(
   });
 
   let found = false;
+  const missed: (readonly unknown[])[] = [];
   for (const [queryKey, data_] of boards) {
     if (!Array.isArray(data_)) continue;
     const spec = boardSortSpec(queryKey);
     let touched = false;
+    let matched = false;
     const next = data_.map((stage) => {
       let stageTouched = false;
       const changedIds = new Set<string>();
@@ -241,6 +244,7 @@ function patchBoardMessage(
         });
         if (!folded.matched) return deal;
         found = true;
+        matched = true;
         if (!folded.changed) return deal;
         stageTouched = true;
         touched = true;
@@ -257,8 +261,9 @@ function patchBoardMessage(
       return { ...stage, deals: ordered };
     });
     if (touched) qc.setQueryData(queryKey, next);
+    if (!matched) missed.push(queryKey);
   }
-  return { found };
+  return { found, missed };
 }
 
 /**
@@ -297,15 +302,30 @@ function reorderByActivity(
 export type BoardRefreshRequest = null | "all" | string[];
 
 /**
+ * Board paginado ordenado por "mais recentes" (`lastInteraction:desc`) — o
+ * Flow e o Kanban "mais recentes". Nele, quem recebe mensagem vai para o
+ * topo da coluna no servidor, mesmo estando além da página carregada.
+ */
+function isRecentActivityPagedBoard(key: readonly unknown[]): boolean {
+  if (!isPagedBoardQueryKey(key)) return false;
+  const spec = boardSortSpec(key);
+  return spec.field === "lastInteraction" && spec.direction === "desc";
+}
+
+/**
  * Aplica um `new_message` nos boards em cache e diz o que precisa ser
  * refeito. Puro em relação ao React: só lê/escreve no `QueryClient`.
  *
- * Com escopo (`pipelineIds`/`dealIds` no evento): só o patch dos cards do
- * contato/negócios do evento que já estão em cache — NUNCA pede recarga.
- * Card que não está no cache está além da página carregada, fora do filtro
- * ativo ou é um negócio novo; nenhum desses é motivo para refazer o board
- * (o negócio novo chega pelo `deal_moved` de criação). Pedir recarga aqui
- * fazia toda aba visível refazer o board no piso do agendador, sem parar.
+ * Com escopo (`pipelineIds`/`dealIds` no evento): patch dos cards do
+ * contato/negócios do evento que já estão em cache. Recarga só quando o
+ * card do escopo não está num board PAGINADO ordenado por "mais recentes"
+ * (`lastInteraction:desc`) de um funil do escopo: ali o negócio sobe para o
+ * topo da coluna no servidor e só entra na página refazendo o board (sai
+ * pelo agendador: piso de `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e nada
+ * com a aba oculta). Nas outras ordenações e nos boards filtrado/busca o
+ * card fora do cache continua sem recarga: além da página ele não muda de
+ * lugar na janela, e fora do filtro não deve aparecer; negócio novo chega
+ * pelo `deal_moved` de criação.
  * Sem escopo (backend antigo): comportamento anterior.
  */
 export function applyBoardNewMessage(
@@ -316,8 +336,15 @@ export function applyBoardNewMessage(
 
   const scope = readBoardScope(payload);
   if (scope) {
-    patchBoardMessage(qc, payload, scope);
-    return null;
+    const { missed } = patchBoardMessage(qc, payload, scope);
+    const inScope = new Set(scope.pipelineIds);
+    const refresh = new Set<string>();
+    for (const key of missed) {
+      if (!isRecentActivityPagedBoard(key)) continue;
+      const pipelineId = boardPipelineId(key);
+      if (pipelineId && inScope.has(pipelineId)) refresh.add(pipelineId);
+    }
+    return refresh.size > 0 ? [...refresh] : null;
   }
 
   // Payload sem contactId (legado): fallback à invalidação debounced do
@@ -334,11 +361,12 @@ export const BOARD_REFRESH_DEBOUNCE_MS = 800;
 
 /**
  * Intervalo mínimo entre dois refetches do board do MESMO funil causados
- * por eventos. Hoje só sobra o `new_message` SEM escopo (backend antigo):
- * o evento não traz o card do negócio (etapa, posição), então card fora da
- * página carregada só entra refazendo o board; sem teto, um funil
- * movimentado refazia o board a cada mensagem. Com 10 s, numa organização
- * movimentada toda aba visível recarregava o board a cada 10 s.
+ * por eventos: `new_message` SEM escopo (backend antigo) e, com escopo, o
+ * card fora da página num board "mais recentes". O evento não traz o card
+ * do negócio (etapa, posição), então card fora da página carregada só entra
+ * refazendo o board; sem teto, um funil movimentado refazia o board a cada
+ * mensagem. Com 10 s, numa organização movimentada toda aba visível
+ * recarregava o board a cada 10 s.
  */
 export const BOARD_REFRESH_MIN_INTERVAL_MS = 30_000;
 
@@ -776,9 +804,11 @@ export function applyDealMovedToBoards(
  * e os ticks enviado/entregue/lido no `DealCard`.
  *
  * - `new_message` → patch in-place do card (a fila do Flow reordena).
- *   Com `pipelineIds`/`dealIds` no evento: só os cards em cache, nunca
- *   recarga do board. Sem esses campos (backend antigo): contato fora da
- *   página dispara um refetch do board paginado. Ver `applyBoardNewMessage`.
+ *   Com `pipelineIds`/`dealIds` no evento: patch dos cards em cache; card
+ *   fora da página só refaz o board paginado "mais recentes" do funil (o
+ *   Flow, o Kanban "mais recentes"). Sem esses campos (backend antigo):
+ *   contato fora da página dispara um refetch do board paginado. Ver
+ *   `applyBoardNewMessage`.
  *   O refetch é coalescido: no máximo um a cada
  *   `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e só com a aba visível
  *   (`createBoardRefreshScheduler`).
