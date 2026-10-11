@@ -9,6 +9,7 @@ import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import { foldActivityOntoDeal } from "@/features/pipeline-v2/board-live-activity";
 import { messageActivityTimestamp } from "@/lib/message-activity-sort";
 import { dealHiddenFromViewer, getInboxViewerScope } from "@/features/inbox-v2/inbox-viewer-scope";
+import type { AdvancedDealFilters } from "@/components/pipeline/kanban-filters/types";
 import {
   readBoardScope,
   type BoardScope,
@@ -370,13 +371,6 @@ export const BOARD_REFRESH_DEBOUNCE_MS = 800;
  */
 export const BOARD_REFRESH_MIN_INTERVAL_MS = 30_000;
 
-/**
- * Board FILTRADO que recebeu um negócio criado (`deal_moved` sem origem):
- * o card entra na hora, mas o cliente não sabe se ele casa com o filtro.
- * Uma recarga adiada deste tanto confirma — e junta as criações da janela.
- */
-export const BOARD_CREATED_FILTERED_REFRESH_MS = 30_000;
-
 /** Pedido sem escopo (`"all"`): refaz todo board paginado em cache. */
 const ALL_BOARDS = "*";
 
@@ -393,16 +387,13 @@ function documentVisible(): boolean {
  *   funil parado continua saindo em `delayMs`);
  * - com a aba oculta não refaz nada: o pendente sai quando a aba volta.
  *
- * Por padrão não inclui o POST filtrado/busca: quem não está no filtro não
- * pode refazer essa query (no Flow a tela ficava em refresh o tempo todo).
- * `isTarget` troca as queries alvo (o board filtrado que recebeu um negócio
- * criado usa uma instância própria, com atraso longo).
+ * Não inclui o POST filtrado/busca: quem não está no filtro não pode refazer
+ * essa query (no Flow a tela ficava em refresh o tempo todo).
  */
 export function createBoardRefreshScheduler(
   qc: QueryClient,
   delayMs = BOARD_REFRESH_DEBOUNCE_MS,
   minIntervalMs = BOARD_REFRESH_MIN_INTERVAL_MS,
-  isTarget: (key: readonly unknown[]) => boolean = isPagedBoardQueryKey,
 ) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   /** Funis (ou `ALL_BOARDS`) à espera de refetch. */
@@ -476,7 +467,7 @@ export function createBoardRefreshScheduler(
       }
       qc.invalidateQueries({
         predicate: (q) => {
-          if (!isTarget(q.queryKey)) return false;
+          if (!isPagedBoardQueryKey(q.queryKey)) return false;
           if (all) return true;
           const pipelineId = boardPipelineId(q.queryKey);
           return pipelineId != null && ready.has(pipelineId);
@@ -682,21 +673,133 @@ function isDealCreatedEvent(payload: RealtimePayload<"deal_moved">): boolean {
   return payload.created === true || payload.fromStageId == null;
 }
 
-export type DealMovedResult = {
-  /** Algum board em cache mudou. */
-  wrote: boolean;
-  /**
-   * Funis cujo board FILTRADO recebeu o negócio criado sem saber se ele
-   * casa com o filtro — pedem uma recarga adiada.
-   */
-  filteredRefresh: string[];
+/**
+ * Critérios do filtro avançado que o cliente confere com o card do
+ * `deal_moved` de criação. `showAllStages` é só UI; `valueFrom`/`valueTo` a
+ * tela aplica sobre o board já carregado; `logic` só vale para campos
+ * personalizados (que não estão aqui).
+ */
+const CARD_CHECKABLE_FILTERS: ReadonlySet<string> = new Set<keyof AdvancedDealFilters>([
+  "pipelineId",
+  "stageIds",
+  "statuses",
+  "ownerIds",
+  "withoutOwner",
+  "tagIds",
+  "tagMode",
+  "withoutTags",
+  "logic",
+  "showAllStages",
+  "valueFrom",
+  "valueTo",
+]);
+
+/** O que o evento de criação diz do negócio. `undefined` = não informado. */
+type CreatedDealFacts = {
+  pipelineId: string;
+  stageId: string;
+  status: string | undefined;
+  ownerId: string | null | undefined;
+  tagIds: string[] | undefined;
 };
+
+function createdDealFacts(
+  payload: RealtimePayload<"deal_moved">,
+  card: Partial<BoardDealDto>,
+  pipelineId: string,
+  stageId: string,
+): CreatedDealFacts {
+  let ownerId: string | null | undefined;
+  if (payload.ownerId !== undefined) ownerId = payload.ownerId;
+  else if (card.owner !== undefined) ownerId = card.owner?.id ?? null;
+  return {
+    pipelineId,
+    stageId,
+    status: typeof card.status === "string" ? card.status : undefined,
+    ownerId,
+    tagIds: Array.isArray(card.tags) ? card.tags.map((tag) => tag.id) : undefined,
+  };
+}
+
+function nonEmptyList(value: unknown): unknown[] | null {
+  return Array.isArray(value) && value.length > 0 ? value : null;
+}
+
+/**
+ * O board FILTRADO (`["pipeline-board-filtered", pid, status, filtros, ...]`)
+ * aceita o negócio criado? Só quando o filtro canônico (`key[3]`) tem apenas
+ * critérios que o card do evento permite conferir (funil, etapa, status,
+ * responsável, tags) e o card casa com todos. Busca por texto, campos
+ * personalizados, origem, direção da mensagem, datas etc.: o cliente não
+ * sabe — `false`. Dado ausente no evento (sem `ownerId`/`tags`) também.
+ * Espelha `buildDealWhereFromFilters` do backend (critérios em AND).
+ */
+function filteredBoardAcceptsCreated(
+  key: readonly unknown[],
+  facts: CreatedDealFacts,
+): boolean {
+  const raw = key[3];
+  if (typeof raw !== "string") return false;
+  let filters: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+    filters = parsed as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  if (Object.keys(filters).some((name) => !CARD_CHECKABLE_FILTERS.has(name))) return false;
+
+  if (filters.pipelineId != null && filters.pipelineId !== facts.pipelineId) return false;
+
+  const stageIds = nonEmptyList(filters.stageIds);
+  if (stageIds && !stageIds.includes(facts.stageId)) return false;
+
+  const statuses = nonEmptyList(filters.statuses);
+  if (statuses && (facts.status === undefined || !statuses.includes(facts.status))) return false;
+
+  const ownerIds = nonEmptyList(filters.ownerIds);
+  if (filters.withoutOwner === true) {
+    if (facts.ownerId !== null) return false;
+  } else if (ownerIds) {
+    if (facts.ownerId === undefined || !ownerIds.includes(facts.ownerId)) return false;
+  }
+
+  const tagIds = nonEmptyList(filters.tagIds);
+  if (filters.withoutTags === true) {
+    if (!facts.tagIds || facts.tagIds.length > 0) return false;
+  } else if (tagIds) {
+    const cardTags = facts.tagIds;
+    if (!cardTags) return false;
+    const has = (id: unknown) => typeof id === "string" && cardTags.includes(id);
+    const mode = filters.tagMode ?? "any";
+    if (mode === "any") {
+      if (!tagIds.some(has)) return false;
+    } else if (mode === "all") {
+      if (!tagIds.every(has)) return false;
+    } else if (mode === "none") {
+      if (tagIds.some(has)) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * Aplica `deal_moved` nos boards já em cache. Não cria query, não invalida
  * e não refaz o GET: remove da origem, insere no destino pela `position`
  * (ou pelo sort daquela cache). Idempotente — evento repetido ou o eco do
  * otimista local não duplica o card.
+ *
+ * Negócio criado (`isDealCreatedEvent`, com `card`, ainda fora de qualquer
+ * cache): entra no board paginado do funil destino como um move (o chip de
+ * total da etapa sobe junto). No board FILTRADO desse funil só entra quando
+ * o filtro tem apenas critérios que o card permite conferir (responsável,
+ * etapa, status, tags) e o card casa (`filteredBoardAcceptsCreated`) — sem
+ * recarga. Com qualquer outro critério (busca, campos personalizados,
+ * origem, direção da mensagem…) não entra nem agenda recarga: aparece na
+ * próxima ação/recarga do usuário.
  *
  * Devolve false quando nada foi escrito (evento incompleto, atrasado,
  * board fora do escopo ou já no lugar).
@@ -705,29 +808,11 @@ export function applyDealMoved(
   qc: QueryClient,
   payload: RealtimePayload<"deal_moved">,
 ): boolean {
-  return applyDealMovedToBoards(qc, payload).wrote;
-}
-
-/**
- * `applyDealMoved` com o pedido de recarga do board filtrado.
- *
- * Negócio criado (`isDealCreatedEvent`, com `card`, ainda fora de qualquer
- * cache): entra no board paginado do funil destino como um move (o chip de
- * total da etapa sobe junto) e também no board FILTRADO desse funil — o
- * cliente não avalia o filtro, então o card entra e o funil vai em
- * `filteredRefresh` para uma recarga adiada confirmar. Busca por texto não
- * recebe card novo.
- */
-export function applyDealMovedToBoards(
-  qc: QueryClient,
-  payload: RealtimePayload<"deal_moved">,
-): DealMovedResult {
-  const none: DealMovedResult = { wrote: false, filteredRefresh: [] };
   const dealId = payload.dealId;
   const toStageId = payload.toStageId;
   const toPipelineId = payload.toPipelineId;
-  if (!dealId || !toStageId || !toPipelineId) return none;
-  if (typeof payload.position !== "number" || !Number.isFinite(payload.position)) return none;
+  if (!dealId || !toStageId || !toPipelineId) return false;
+  if (typeof payload.position !== "number" || !Number.isFinite(payload.position)) return false;
   const position = payload.position;
   const updatedAt = typeof payload.updatedAt === "string" ? payload.updatedAt : "";
   const fromPipelineId = payload.fromPipelineId ?? null;
@@ -750,7 +835,7 @@ export function applyDealMovedToBoards(
       }
     }
   }
-  if (updatedAt && newest && newest > updatedAt) return none;
+  if (updatedAt && newest && newest > updatedAt) return false;
 
   // Quem só vê os próprios negócios e o evento diz que o dono é outro: o card
   // sai de onde estiver e NÃO entra no destino (o evento vai para a org toda).
@@ -763,9 +848,9 @@ export function applyDealMovedToBoards(
   );
   // Negócio novo que nenhum board em cache tem ainda.
   const created = !existing && !!card && isDealCreatedEvent(payload);
+  const facts = created && card ? createdDealFacts(payload, card, toPipelineId, toStageId) : null;
 
   let wrote = false;
-  const filteredRefresh = new Set<string>();
   for (const [queryKey, data] of boards) {
     if (!Array.isArray(data)) continue;
     const pipelineId = boardPipelineId(queryKey);
@@ -774,11 +859,16 @@ export function applyDealMovedToBoards(
     // Busca/filtro só se o card já está nessa cache. Inserir aqui mostraria
     // um negócio que não bate no critério. O board paginado é quem recebe
     // o card que entrou de outro funil. Exceção: negócio criado entra no
-    // filtrado do funil destino (com recarga adiada para conferir o filtro)
-    // — sem isso, com filtro ativo, o lead novo só aparecia na recarga.
+    // filtrado do funil destino quando o filtro só tem critérios que o card
+    // permite conferir e ele casa — sem recarga. Os demais filtros (busca
+    // por texto inclusa) não recebem o card novo.
     const paged = queryKey[0] === "pipeline-board";
     const filteredCreate =
-      created && inScope && pipelineId === toPipelineId && isFilteredBoardQueryKey(queryKey);
+      !!facts &&
+      inScope &&
+      pipelineId === toPipelineId &&
+      isFilteredBoardQueryKey(queryKey) &&
+      filteredBoardAcceptsCreated(queryKey, facts);
     if (!contains && !(paged && inScope) && !filteredCreate) continue;
 
     const accepts = boardAcceptsStatus(queryKey, deal?.status);
@@ -792,9 +882,8 @@ export function applyDealMovedToBoards(
     if (samePlacement(data, next)) continue;
     qc.setQueryData(queryKey, next);
     wrote = true;
-    if (filteredCreate && !contains && pipelineId) filteredRefresh.add(pipelineId);
   }
-  return { wrote, filteredRefresh: [...filteredRefresh] };
+  return wrote;
 }
 
 /**
@@ -819,33 +908,20 @@ export function applyDealMovedToBoards(
  * - `deal_moved` → tira o card da etapa de origem e coloca na de destino
  *   pela `position`, só nas caches daqueles funis. Sem `invalidateQueries`.
  *   Negócio criado (sem origem) entra pelo mesmo caminho; no board
- *   filtrado, com uma recarga adiada (`BOARD_CREATED_FILTERED_REFRESH_MS`).
+ *   filtrado, só se o card casa com um filtro que o cliente confere.
  */
 export function usePipelineRealtime(enabled = true) {
   const qc = useQueryClient();
   const refreshRef = useRef<ReturnType<typeof createBoardRefreshScheduler> | null>(
     null,
   );
-  const filteredRefreshRef = useRef<ReturnType<typeof createBoardRefreshScheduler> | null>(
-    null,
-  );
 
   useEffect(() => {
     const scheduler = createBoardRefreshScheduler(qc);
-    // Board filtrado que ganhou um negócio criado: confere o filtro depois.
-    const filteredScheduler = createBoardRefreshScheduler(
-      qc,
-      BOARD_CREATED_FILTERED_REFRESH_MS,
-      BOARD_REFRESH_MIN_INTERVAL_MS,
-      isFilteredBoardQueryKey,
-    );
     refreshRef.current = scheduler;
-    filteredRefreshRef.current = filteredScheduler;
     return () => {
       scheduler.cancel();
-      filteredScheduler.cancel();
       refreshRef.current = null;
-      filteredRefreshRef.current = null;
     };
   }, [qc]);
 
@@ -874,11 +950,7 @@ export function usePipelineRealtime(enabled = true) {
       }
 
       if (event === "deal_moved") {
-        const { filteredRefresh } = applyDealMovedToBoards(
-          qc,
-          (data ?? {}) as RealtimePayload<"deal_moved">,
-        );
-        if (filteredRefresh.length > 0) filteredRefreshRef.current?.schedule(filteredRefresh);
+        applyDealMoved(qc, (data ?? {}) as RealtimePayload<"deal_moved">);
         return;
       }
 

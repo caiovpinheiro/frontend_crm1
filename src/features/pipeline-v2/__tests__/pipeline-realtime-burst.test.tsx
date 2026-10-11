@@ -32,7 +32,6 @@ vi.mock("@/hooks/use-sse", () => ({
 
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import {
-  BOARD_CREATED_FILTERED_REFRESH_MS,
   BOARD_REFRESH_DEBOUNCE_MS,
   BOARD_REFRESH_MIN_INTERVAL_MS,
   createBoardRefreshScheduler,
@@ -389,11 +388,19 @@ describe("negócio criado (deal_moved sem origem) no board aberto", () => {
     expect(fetchBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("board filtrado: o card entra na hora e 1 recarga confere o filtro 30 s depois", async () => {
+  /** Board filtrado aberto (query ativa, `queryFn` contado = POSTs). */
+  async function filteredSetup(filters: Record<string, unknown>) {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: 600_000, gcTime: 600_000 } },
     });
-    const filteredKey = ["pipeline-board-filtered", "p1", "OPEN", '{"tagIds":["t1"]}', "default", 50];
+    const filteredKey = [
+      "pipeline-board-filtered",
+      "p1",
+      "OPEN",
+      JSON.stringify(filters),
+      "default",
+      50,
+    ];
     const fetchFiltered = vi.fn(async () => boardOf([deal("deal-a1", "contact-a")]));
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
@@ -407,25 +414,63 @@ describe("negócio criado (deal_moved sem origem) no board aberto", () => {
     );
     await advance(0);
     expect(fetchFiltered).toHaveBeenCalledTimes(1);
+    const ids = () => qc.getQueryData<BoardStageDto[]>(filteredKey)![0]!.deals.map((d) => d.id);
+    return { fetchFiltered, ids };
+  }
 
-    // Três leads novos em 3 s: entram já; uma recarga só, 30 s depois do 1º.
+  /** Três leads novos em 3 s, cada um montado por `build`. */
+  async function threeCreated(build: (id: string) => Record<string, unknown>) {
     for (const id of ["n1", "n2", "n3"]) {
       await act(async () => {
-        sse.handler?.(
-          "deal_moved",
-          created({ dealId: id, fromStageId: null, card: { id, title: id, status: "OPEN" } }),
-        );
+        sse.handler?.("deal_moved", created({ dealId: id, fromStageId: null, ...build(id) }));
         await vi.advanceTimersByTimeAsync(1_000);
       });
     }
-    const board = qc.getQueryData<BoardStageDto[]>(filteredKey)!;
-    expect(board[0]!.deals.map((d) => d.id)).toEqual(expect.arrayContaining(["n1", "n2", "n3"]));
-    expect(fetchFiltered).toHaveBeenCalledTimes(1);
-
-    await advance(BOARD_CREATED_FILTERED_REFRESH_MS - 3_000);
-    expect(fetchFiltered).toHaveBeenCalledTimes(2);
     await advance(BOARD_REFRESH_MIN_INTERVAL_MS * 3);
-    expect(fetchFiltered).toHaveBeenCalledTimes(2);
+  }
+
+  it("busca 'maria' + criação de 'João': o card não entra e nenhum POST", async () => {
+    const { fetchFiltered, ids } = await filteredSetup({ search: "maria" });
+
+    await threeCreated((id) => ({ card: { id, title: "João", status: "OPEN" } }));
+
+    expect(ids()).toEqual(["deal-a1"]);
+    expect(fetchFiltered).toHaveBeenCalledTimes(1);
+  });
+
+  it("filtro por responsável X + negócios criados do X: entram na hora, nenhum POST", async () => {
+    const { fetchFiltered, ids } = await filteredSetup({ ownerIds: ["u-x"] });
+
+    await threeCreated((id) => ({
+      ownerId: "u-x",
+      card: { id, title: id, status: "OPEN", owner: { id: "u-x", name: "X" } },
+    }));
+
+    expect(ids()).toEqual(expect.arrayContaining(["deal-a1", "n1", "n2", "n3"]));
+    expect(fetchFiltered).toHaveBeenCalledTimes(1);
+  });
+
+  it("filtro por responsável X + negócio criado do Y: não entra, nenhum POST", async () => {
+    const { fetchFiltered, ids } = await filteredSetup({ ownerIds: ["u-x"] });
+
+    await threeCreated((id) => ({
+      ownerId: "u-y",
+      card: { id, title: id, status: "OPEN", owner: { id: "u-y", name: "Y" } },
+    }));
+
+    expect(ids()).toEqual(["deal-a1"]);
+    expect(fetchFiltered).toHaveBeenCalledTimes(1);
+  });
+
+  it("filtro por campo personalizado: não entra, nenhum POST", async () => {
+    const { fetchFiltered, ids } = await filteredSetup({
+      dealCustomFields: [{ name: "cidade", operator: "eq", value: "SP" }],
+    });
+
+    await threeCreated((id) => ({ card: { id, title: id, status: "OPEN" } }));
+
+    expect(ids()).toEqual(["deal-a1"]);
+    expect(fetchFiltered).toHaveBeenCalledTimes(1);
   });
 
   it("forma alternativa (fromStageId ausente + created: true): mesmo resultado", async () => {

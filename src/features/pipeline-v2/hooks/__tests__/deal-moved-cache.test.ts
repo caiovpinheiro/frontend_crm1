@@ -6,10 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { toDealCard } from "@/features/pipeline-v2/adapters";
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
-import {
-  applyDealMoved,
-  applyDealMovedToBoards,
-} from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
+import { applyDealMoved } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import type { RealtimePayload } from "@/lib/realtime-contract";
 
 const T0 = "2026-10-05T10:00:00.000Z";
@@ -392,7 +389,6 @@ describe("applyDealMoved", () => {
         card,
         ...extra,
       });
-    const filteredKey = ["pipeline-board-filtered", "p1", "OPEN", '{"tagIds":["t1"]}', "default", 50] as const;
     const searchKey = ["pipeline-board-search", "p1", "OPEN", "ana", "default", 200] as const;
 
     function boards(qc: QueryClient) {
@@ -468,38 +464,114 @@ describe("applyDealMoved", () => {
       expect((once as BoardStageDto[])[1].totalCount).toBe(41);
     });
 
-    it("board filtrado do funil recebe o card e pede recarga adiada; busca não recebe", () => {
+    const filteredBy = (filters: Record<string, unknown>) =>
+      ["pipeline-board-filtered", "p1", "OPEN", JSON.stringify(filters), "default", 50] as const;
+
+    /** Board filtrado em cache com `filters`; devolve os ids da etapa s-b depois do evento. */
+    function filteredAfter(
+      filters: Record<string, unknown>,
+      event: RealtimePayload<"deal_moved">,
+    ): { ids: string[]; same: boolean } {
       const qc = new QueryClient();
       boards(qc);
+      const key = filteredBy(filters);
       const filtered = [stage("s-a", []), stage("s-b", [deal("b1", 1)])];
+      qc.setQueryData(key, filtered);
+      applyDealMoved(qc, event);
+      const after = qc.getQueryData<BoardStageDto[]>(key)!;
+      return { ids: after[1].deals.map((d) => d.id), same: after === filtered };
+    }
+
+    const owned = (ownerId: string | null) =>
+      created({
+        ownerId,
+        card: {
+          ...card,
+          owner: ownerId ? { id: ownerId, name: ownerId } : null,
+          tags: [{ id: "t1", name: "Quente", color: "#f00" }],
+        },
+      });
+
+    it("busca por texto no board filtrado: o card novo não entra (João não aparece em 'maria')", () => {
+      const result = filteredAfter(
+        { search: "maria" },
+        created({ card: { ...card, title: "João", contact: { id: "c-novo", name: "João", email: null } } }),
+      );
+      expect(result.same).toBe(true);
+      expect(result.ids).toEqual(["b1"]);
+    });
+
+    it("busca (chave própria) também não recebe o card novo", () => {
+      const qc = new QueryClient();
+      boards(qc);
       const search = [stage("s-a", []), stage("s-b", [deal("ana", 0)])];
-      qc.setQueryData(filteredKey, filtered);
       qc.setQueryData(searchKey, search);
 
-      const result = applyDealMovedToBoards(qc, created());
-
-      expect(result.wrote).toBe(true);
-      expect(result.filteredRefresh).toEqual(["p1"]);
-      expect(qc.getQueryData<BoardStageDto[]>(filteredKey)![1].deals.map((d) => d.id)).toEqual([
-        "b1",
-        "novo",
-      ]);
+      applyDealMoved(qc, created());
       expect(qc.getQueryData(searchKey)).toBe(search);
     });
 
-    it("move comum (com origem) não entra no board filtrado nem pede recarga", () => {
-      const qc = new QueryClient();
-      boards(qc);
-      const filtered = [stage("s-a", []), stage("s-b", [])];
-      qc.setQueryData(filteredKey, filtered);
+    it("filtro por responsável X + negócio criado do X: entra na hora", () => {
+      expect(filteredAfter({ ownerIds: ["u-x"] }, owned("u-x")).ids).toEqual(["b1", "novo"]);
+    });
 
-      const result = applyDealMovedToBoards(
-        qc,
-        created({ fromStageId: "s-x", fromPipelineId: "p9" }),
+    it("filtro por responsável X + negócio criado do Y: não entra", () => {
+      expect(filteredAfter({ ownerIds: ["u-x"] }, owned("u-y")).same).toBe(true);
+    });
+
+    it("dono vem do `ownerId` do evento ou, sem ele, do `card.owner`; sem nenhum, não entra", () => {
+      const fromCard = owned("u-x");
+      delete fromCard.ownerId;
+      expect(filteredAfter({ ownerIds: ["u-x"] }, fromCard).ids).toEqual(["b1", "novo"]);
+
+      const unknown = created({ card: { ...card } });
+      delete unknown.ownerId;
+      expect(filteredAfter({ ownerIds: ["u-x"] }, unknown).same).toBe(true);
+    });
+
+    it("sem responsável: `withoutOwner` e `ownerIds: [null]` casam com dono nulo", () => {
+      expect(filteredAfter({ withoutOwner: true }, owned(null)).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ ownerIds: [null, "u-x"] }, owned(null)).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ withoutOwner: true }, owned("u-x")).same).toBe(true);
+    });
+
+    it("etapa, status e tags conferidos com o card", () => {
+      expect(filteredAfter({ stageIds: ["s-b"], ownerIds: ["u-x"] }, owned("u-x")).ids).toEqual([
+        "b1",
+        "novo",
+      ]);
+      expect(filteredAfter({ stageIds: ["s-a"] }, owned("u-x")).same).toBe(true);
+      expect(filteredAfter({ statuses: ["OPEN"] }, owned("u-x")).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ statuses: ["WON"] }, owned("u-x")).same).toBe(true);
+      expect(filteredAfter({ tagIds: ["t1"] }, owned("u-x")).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ tagIds: ["t1", "t2"], tagMode: "all" }, owned("u-x")).same).toBe(true);
+      expect(filteredAfter({ tagIds: ["t2"], tagMode: "none" }, owned("u-x")).ids).toEqual([
+        "b1",
+        "novo",
+      ]);
+      expect(filteredAfter({ withoutTags: true }, owned("u-x")).same).toBe(true);
+      // Card sem `tags` no evento: o cliente não sabe — não entra.
+      expect(filteredAfter({ tagIds: ["t1"] }, created()).same).toBe(true);
+    });
+
+    it("filtro por campo personalizado, origem ou direção da mensagem: não entra", () => {
+      for (const filters of [
+        { dealCustomFields: [{ name: "cidade", operator: "eq", value: "SP" }] },
+        { ownerIds: ["u-x"], contactCustomFields: [{ name: "plano", operator: "filled" }] },
+        { sources: ["Instagram"] },
+        { lastMessageDirection: "in" },
+        { ownerIds: ["u-x"], createdAt: { from: "2026-10-01" } },
+      ]) {
+        expect(filteredAfter(filters, owned("u-x")).same).toBe(true);
+      }
+    });
+
+    it("move comum (com origem) não entra no board filtrado", () => {
+      const result = filteredAfter(
+        { ownerIds: ["u-x"] },
+        { ...owned("u-x"), fromStageId: "s-x", fromPipelineId: "p9" },
       );
-
-      expect(result.filteredRefresh).toEqual([]);
-      expect(qc.getQueryData(filteredKey)).toBe(filtered);
+      expect(result.same).toBe(true);
     });
 
     it("sem card (lote acima do teto, ou usuário que não vê o negócio): nada entra", () => {
@@ -508,7 +580,7 @@ describe("applyDealMoved", () => {
       const event = created();
       delete event.card;
 
-      expect(applyDealMovedToBoards(qc, event)).toEqual({ wrote: false, filteredRefresh: [] });
+      expect(applyDealMoved(qc, event)).toBe(false);
       expect(qc.getQueryData(["pipeline-board", "p1", "OPEN"])).toBe(paged);
     });
 
