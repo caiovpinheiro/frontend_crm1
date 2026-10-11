@@ -498,7 +498,7 @@ function invalidateAllBoards(qc: ReturnType<typeof useQueryClient>) {
 /**
  * Cancela refetches em voo em TODOS os caches de board.
  *
- * Bug 25/jul/26 — o `useBoard` mantém `refetchInterval: 30_000` (poll).
+ * Bug 25/jul/26 — o `useBoard` mantém um poll (`refetchInterval`, hoje 120 s).
  * Se um refetch periódico (ou de invalidação concorrente de outra mutação)
  * estiver em voo no exato momento em que o usuário clica numa tag, sua
  * resposta stale (pré-mutação) aterrissa DEPOIS do patch otimista e
