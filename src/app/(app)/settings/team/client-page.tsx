@@ -72,7 +72,11 @@ import {
   SettingsV2Shell,
   useSettingsHeaderSlots,
 } from "../_v2-shell";
-import { TelephonyToggle } from "@/features/telephony/telephony-toggle";
+import {
+  TelephonyToggle,
+  userListCarriesTelephony,
+  type TelephonyStatus,
+} from "@/features/telephony/telephony-toggle";
 import { EditUserDialog } from "./edit-user-dialog";
 
 type UserRole = "ADMIN" | "MANAGER" | "MEMBER";
@@ -87,6 +91,8 @@ type UserRow = {
   avatarUrl?: string | null;
   phone?: string | null;
   assignedRoles?: AssignedRole[];
+  /** Status da telefonia (backend novo; null = sem telefonia/sem permissão). */
+  telephony?: TelephonyStatus | null;
 };
 
 type CrmPermissionDraft = Record<CrmActionKey, boolean>;
@@ -247,6 +253,9 @@ function TeamContent() {
     isError,
     error,
   } = useTeamUsersQuery<UserRow>(status !== "unauthenticated");
+  // Backend novo manda `telephony` em cada usuário: sem busca por linha.
+  // Sem o campo na lista inteira (backend antigo): cada linha busca.
+  const listHasTelephony = React.useMemo(() => userListCarriesTelephony(users), [users]);
 
   // ─── Derivados: busca client-side ──────────────────────────────────────
   const term = search.trim().toLowerCase();
@@ -849,7 +858,10 @@ function TeamContent() {
                 {/* Telefonia */}
                 <div className="flex items-center">
                   {isAdmin ? (
-                    <TelephonyToggle userId={u.id} />
+                    <TelephonyToggle
+                      userId={u.id}
+                      telephony={listHasTelephony ? (u.telephony ?? null) : undefined}
+                    />
                   ) : (
                     <span className="font-body text-[12px] text-[var(--text-muted)]">—</span>
                   )}

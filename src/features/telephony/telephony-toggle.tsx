@@ -3,19 +3,44 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconLoader2 } from "@tabler/icons-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { TEAM_USERS_QUERY_PREFIX } from "@/features/shared/queries/team-users";
 import { cn } from "@/lib/utils";
+
+/** Formato de `GET /api/users/:id/telephony` (e do `telephony` em `GET /api/users`). */
+export interface TelephonyStatus {
+  telephonyEnabled: boolean;
+  provisioningStep: string;
+  provisioningError: string | null;
+  provisionedAt: string | null;
+}
 
 interface TelephonyToggleProps {
   userId: string;
   /** Só o switch (+ retry se falhou). Sem labels Ativo/Falhou ao lado. */
   compact?: boolean;
+  /**
+   * Status que já veio na lista (`GET /api/users`, campo `telephony`):
+   *  - objeto: usa este, sem buscar;
+   *  - `null`: sem telefonia, sem buscar;
+   *  - `undefined` (backend antigo, lista sem o campo): busca
+   *    `GET /api/users/:id/telephony` como antes.
+   */
+  telephony?: TelephonyStatus | null;
 }
 
-interface TelephonyStatus {
-  telephonyEnabled: boolean;
-  provisioningStep: string;
-  provisioningError: string | null;
-  provisionedAt: string | null;
+const NO_TELEPHONY: TelephonyStatus = {
+  telephonyEnabled: false,
+  provisioningStep: "IDLE",
+  provisioningError: null,
+  provisionedAt: null,
+};
+
+/**
+ * A lista de `GET /api/users` traz o campo `telephony`? Se NENHUM usuário
+ * tem a chave, é o backend antigo: cada linha busca o próprio status.
+ */
+export function userListCarriesTelephony(users: readonly object[]): boolean {
+  return users.some((u) => Object.prototype.hasOwnProperty.call(u, "telephony"));
 }
 
 async function fetchStatus(userId: string): Promise<TelephonyStatus> {
@@ -37,28 +62,35 @@ async function patchTelephony(userId: string, enabled: boolean) {
   return res.json();
 }
 
-export function TelephonyToggle({ userId, compact = false }: TelephonyToggleProps) {
+export function TelephonyToggle({ userId, compact = false, telephony }: TelephonyToggleProps) {
   const queryClient = useQueryClient();
   const { confirm, dialog } = useConfirm();
+  const fromList = telephony !== undefined;
 
-  const { data: status, isLoading } = useQuery({
+  // Só busca por linha quando a lista não trouxe o status (backend antigo).
+  const { data: fetched, isLoading } = useQuery({
     queryKey: ["telephony-status", userId],
     queryFn: () => fetchStatus(userId),
+    enabled: !fromList,
   });
+  const status = fromList ? (telephony ?? NO_TELEPHONY) : fetched;
+
+  const invalidate = () => {
+    if (fromList) {
+      // O status vem da lista: ela é que precisa recarregar.
+      void queryClient.invalidateQueries({ queryKey: TEAM_USERS_QUERY_PREFIX });
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ["telephony-status", userId] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["sip-extensions"] });
+  };
 
   const mutation = useMutation({
     mutationFn: (enabled: boolean) => patchTelephony(userId, enabled),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["telephony-status", userId] });
-      queryClient.invalidateQueries({ queryKey: ["sip-extensions"] });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["telephony-status", userId] });
-      queryClient.invalidateQueries({ queryKey: ["sip-extensions"] });
-    },
+    onSettled: invalidate,
   });
 
-  if (isLoading) {
+  if (!fromList && isLoading) {
     return <IconLoader2 size={14} className="animate-spin text-[var(--text-muted)]" />;
   }
 
