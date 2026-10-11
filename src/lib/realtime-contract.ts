@@ -257,6 +257,11 @@ export type TeamChatEvent = {
  */
 export type DealMovedCard = {
   id: string;
+  /**
+   * Número sequencial do negócio na org (o `#49338` do card). Aditivo:
+   * backend antigo não manda — o card cai no prefixo do id.
+   */
+  number?: number | null;
   title: string;
   value?: number | string;
   status?: string;
