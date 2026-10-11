@@ -240,6 +240,97 @@ describe("applyBoardNewMessage — evento com escopo do board", () => {
   });
 });
 
+describe("applyBoardNewMessage — ordenação por última interação", () => {
+  const T1 = "2026-10-01T09:00:00.000Z";
+  const T2 = "2026-10-01T09:30:00.000Z";
+  const T3 = "2026-10-01T11:00:00.000Z";
+
+  function withLast(id: string, contactId: string, createdAt: string): BoardDealDto {
+    return {
+      ...deal(id, contactId),
+      lastMessage: { id: `m-${id}`, content: "antes", createdAt, direction: "in" },
+    };
+  }
+
+  function sorted(direction: "asc" | "desc") {
+    const qc = new QueryClient({ defaultOptions: { queries: { structuralSharing: false } } });
+    const key = ["pipeline-board", "p1", "OPEN", `lastInteraction:${direction}`] as const;
+    const recent = [withLast("d3", "c3", T3), withLast("d2", "c2", T2), withLast("d1", "c1", T1)];
+    qc.setQueryData(key, [
+      stage("s1", direction === "desc" ? recent : [...recent].reverse()),
+      stage("s2", [withLast("outro", "c9", T1)]),
+    ]);
+    return { qc, key };
+  }
+
+  const ids = (qc: QueryClient, key: readonly unknown[]) =>
+    qc.getQueryData<BoardStageDto[]>(key)![0].deals.map((d) => d.id);
+
+  it("mais recentes primeiro: o card que recebeu mensagem sobe para o topo, sem GET", () => {
+    const { qc, key } = sorted("desc");
+    const before = qc.getQueryData<BoardStageDto[]>(key)!;
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+
+    const request = applyBoardNewMessage(
+      qc,
+      inbound({ contactId: "c1", pipelineIds: ["p1"], dealIds: ["d1"] }),
+    );
+
+    expect(request).toBeNull();
+    expect(ids(qc, key)).toEqual(["d1", "d3", "d2"]);
+    const after = qc.getQueryData<BoardStageDto[]>(key)!;
+    expect(after[0].deals[0].lastMessage).toMatchObject({ content: "oi", createdAt: T_NEW });
+    expect(after[0].deals[1]).toBe(before[0].deals[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("mais antigas primeiro: o card vai para o fim da parte carregada", () => {
+    const { qc, key } = sorted("asc");
+
+    applyBoardNewMessage(qc, inbound({ contactId: "c1", pipelineIds: ["p1"], dealIds: ["d1"] }));
+
+    expect(ids(qc, key)).toEqual(["d2", "d3", "d1"]);
+  });
+
+  it("backend antigo (sem escopo) e envio local também reordenam", () => {
+    const { qc, key } = sorted("desc");
+
+    expect(applyBoardNewMessage(qc, inbound({ contactId: "c2" }))).toBeNull();
+    expect(ids(qc, key)).toEqual(["d2", "d3", "d1"]);
+
+    patchBoardLastMessage(qc, {
+      contactId: "c1",
+      direction: "out",
+      content: "resposta",
+      timestamp: "2026-10-01T13:00:00.000Z",
+    });
+    expect(ids(qc, key)).toEqual(["d1", "d2", "d3"]);
+  });
+
+  it("evento mais antigo que a prévia do card não move nada", () => {
+    const { qc, key } = sorted("desc");
+    const before = qc.getQueryData(key);
+
+    applyBoardNewMessage(
+      qc,
+      inbound({ contactId: "c1", timestamp: "2026-10-01T08:00:00.000Z", pipelineIds: ["p1"] }),
+    );
+
+    expect(qc.getQueryData(key)).toBe(before);
+  });
+
+  it("ordem manual (padrão): só a prévia muda, o card fica onde está", () => {
+    const { qc, p1 } = setup();
+
+    applyBoardNewMessage(qc, inbound({ contactId: "contact-b", pipelineIds: ["p1"] }));
+
+    const next = board(qc, "p1");
+    expect(next[0].deals.map((d) => d.id)).toEqual(["deal-a1", "deal-b1"]);
+    expect(next[0].deals[0]).toBe(p1[0].deals[0]);
+  });
+});
+
 describe("applyBoardNewMessage — sem escopo (backend antigo): comportamento anterior", () => {
   it("contato na página: patch pelo contactId, sem refetch", () => {
     const { qc, p1 } = setup();
