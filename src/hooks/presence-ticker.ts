@@ -2,6 +2,11 @@
 
 import { apiUrl } from "@/lib/api";
 import { PRESENCE_PING_MIN_GAP_MS } from "@/lib/presence-ping-gate";
+import {
+  handleUnauthorized,
+  isSessionEnded,
+  watchSessionEndInOtherTabs,
+} from "@/lib/session-revoked";
 
 import { isSingleLeaderEnabled } from "./sse-single-leader";
 import {
@@ -35,7 +40,17 @@ import {
  *
  * O backend não tem rota única ping+activity: são duas chamadas no mesmo
  * tique. Com a rota combinada, troca-se só `ping`/`activity` no env.
- * Falhas são silenciadas — presença é best-effort.
+ * Falhas são silenciadas — presença é best-effort —, com duas exceções:
+ *  - 401 (com ou sem `code`): a sessão acabou. O tique PARA de vez — sem
+ *    retry nem backoff — e o logout sai pelo caminho único de
+ *    `lib/session-revoked.ts` (uma vez por navegador). Antes o 401 era
+ *    ignorado e cada navegador seguia pingando a cada 90 s para sempre.
+ *    Só não para durante a renovação da própria sessão (troca de senha).
+ *  - 429 (`{ retryAfterMs }` / `Retry-After`): o próximo tique não sai
+ *    antes do prazo pedido; as interações não enviadas voltam à fila.
+ *
+ * O ping leva `x-tab-id` (id da aba no `tab-coordinator`): o backend
+ * limita o ping por usuário e aba.
  */
 
 /** Cadência do tique (sweeper do backend: offline após 300 s sem ping). */
@@ -49,11 +64,26 @@ export const ACTIVITY_SESSION_IDLE_MS = 5 * 60_000;
 /** Instante (ms) do último tique deste navegador. */
 export const PRESENCE_LAST_TICK_STORAGE_KEY = "bwipo:presence:last-tick";
 
+/** Resposta de ping/activity que importa ao tique (sem valor = sucesso). */
+export type PresenceCallResult = {
+  status: number;
+  /** 429: espera pedida pelo backend (`retryAfterMs` ou `Retry-After`). */
+  retryAfterMs?: number;
+};
+
 export interface PresenceTickerEnv {
   /** `null` = aba isolada (sem coordenação): é a líder de si mesma. */
   tabs: TabCoordinator | null;
-  ping: () => Promise<unknown>;
-  activity: (interactionCount: number) => Promise<unknown>;
+  ping: () => Promise<PresenceCallResult | void>;
+  activity: (interactionCount: number) => Promise<PresenceCallResult | void>;
+  /**
+   * 401 em ping/activity. Devolve `true` quando a sessão acabou (o tique
+   * para de vez); `false` = 401 esperado (renovação da sessão em
+   * andamento), segue a cadência. Sem o callback, qualquer 401 para.
+   */
+  onUnauthorized?: () => boolean;
+  /** A sessão já acabou (logout nesta ou em outra aba): não chama a API. */
+  isSessionEnded?: () => boolean;
   /** Último tique do navegador (qualquer aba). */
   readLastTick?: () => number | null;
   writeLastTick?: (at: number) => void;
@@ -73,6 +103,10 @@ export class PresenceTicker {
   private forwardTimer: ReturnType<typeof setTimeout> | null = null;
   private inFlight = false;
   private destroyed = false;
+  /** 401: o tique parou de vez (sessão encerrada). */
+  private halted = false;
+  /** 429: nenhum tique antes deste instante. */
+  private holdUntil = Number.NEGATIVE_INFINITY;
   private wasLeader = false;
   private readonly offs: Array<() => void> = [];
 
@@ -101,9 +135,18 @@ export class PresenceTicker {
     return shared != null && shared > this.lastTickAt ? shared : this.lastTickAt;
   }
 
+  /** O tique parou por 401 (sessão encerrada)? */
+  get stopped(): boolean {
+    return this.halted;
+  }
+
+  private get dead(): boolean {
+    return this.destroyed || this.halted;
+  }
+
   /** Reconcilia com o papel da aba. */
   sync(): void {
-    if (this.destroyed) return;
+    if (this.dead) return;
     if (this.isLeader()) {
       if (this.wasLeader) return;
       this.wasLeader = true;
@@ -117,7 +160,7 @@ export class PresenceTicker {
 
   /** Uma interação real nesta aba (clique, digitação, troca de rota…). */
   record(count = 1): void {
-    if (this.destroyed || count <= 0) return;
+    if (this.dead || count <= 0) return;
     if (!this.env.isVisible()) return;
     this.pending += count;
     if (this.isLeader()) {
@@ -128,7 +171,7 @@ export class PresenceTicker {
   }
 
   private receive(count: unknown): void {
-    if (this.destroyed || !this.isLeader()) return;
+    if (this.dead || !this.isLeader()) return;
     const n = Number(count);
     if (!Number.isFinite(n) || n <= 0) return;
     this.pending += Math.floor(n);
@@ -142,7 +185,12 @@ export class PresenceTicker {
   }
 
   private requestTick(reason: TickReason): void {
-    if (this.destroyed || !this.isLeader()) return;
+    if (this.dead || !this.isLeader()) return;
+    if (Date.now() < this.holdUntil) {
+      // 429: nada sai antes do prazo do backend.
+      this.scheduleNext(this.holdUntil);
+      return;
+    }
     const since = Date.now() - this.lastTick();
     if (reason === "visible") {
       // Só recupera tique atrasado (timer estrangulado em segundo plano).
@@ -160,7 +208,7 @@ export class PresenceTicker {
   }
 
   private scheduleNext(at: number, replace = false): void {
-    if (this.destroyed) return;
+    if (this.dead) return;
     if (!replace && this.nextTimer && this.nextAt <= at) return;
     this.clearNext();
     this.nextAt = at;
@@ -178,7 +226,11 @@ export class PresenceTicker {
   }
 
   private async tick(): Promise<void> {
-    if (this.inFlight || this.destroyed) return;
+    if (this.inFlight || this.dead) return;
+    if (this.env.isSessionEnded?.()) {
+      this.halt();
+      return;
+    }
     this.inFlight = true;
     const at = Date.now();
     this.lastTickAt = at;
@@ -188,14 +240,45 @@ export class PresenceTicker {
     if (count > 0) this.lastActivitySentAt = at;
     // A cadência recomeça deste tique.
     this.scheduleNext(at + PRESENCE_TICK_MS, true);
+    let results: Array<PresenceCallResult | void> = [];
     try {
-      await Promise.allSettled([
+      const settled = await Promise.allSettled([
         this.env.ping(),
         count > 0 ? this.env.activity(count) : Promise.resolve(),
       ]);
+      results = settled.map((r) => (r.status === "fulfilled" ? r.value : undefined));
     } finally {
       this.inFlight = false;
     }
+    if (this.dead) return;
+    const [pingResult, activityResult] = results;
+    if (pingResult?.status === 401 || activityResult?.status === 401) {
+      this.onUnauthorizedResponse();
+      return;
+    }
+    if (activityResult?.status === 429) this.pending += count; // não se perde
+    const waitMs = Math.max(retryAfterOf(pingResult), retryAfterOf(activityResult));
+    if (waitMs > 0) {
+      this.holdUntil = Date.now() + waitMs;
+      // A cadência normal segue valendo quando é mais longa que o prazo.
+      if (this.holdUntil > this.nextAt) this.scheduleNext(this.holdUntil, true);
+    }
+  }
+
+  private onUnauthorizedResponse(): void {
+    const ended = this.env.onUnauthorized ? this.env.onUnauthorized() : true;
+    if (ended) this.halt();
+  }
+
+  /** Sessão encerrada: para tudo, sem retry nem flush (daria 401 de novo). */
+  private halt(): void {
+    if (this.halted) return;
+    this.halted = true;
+    this.pending = 0;
+    this.clearNext();
+    if (this.forwardTimer) clearTimeout(this.forwardTimer);
+    this.forwardTimer = null;
+    while (this.offs.length) this.offs.pop()?.();
   }
 
   private scheduleForward(): void {
@@ -209,6 +292,7 @@ export class PresenceTicker {
   private forward(): void {
     if (this.forwardTimer) clearTimeout(this.forwardTimer);
     this.forwardTimer = null;
+    if (this.dead) return;
     const count = this.pending;
     if (count <= 0) return;
     if (this.isLeader()) {
@@ -230,7 +314,7 @@ export class PresenceTicker {
 
   private flushPending(asLeader: boolean): void {
     const count = this.pending;
-    if (count <= 0) return;
+    if (count <= 0 || this.halted) return;
     this.pending = 0;
     if (asLeader) {
       void this.env.activity(count).catch(() => undefined);
@@ -250,32 +334,85 @@ export class PresenceTicker {
   }
 }
 
+function retryAfterOf(result: PresenceCallResult | void): number {
+  if (result?.status !== 429) return 0;
+  const ms = result.retryAfterMs;
+  // 429 sem prazo legível: uma janela inteira.
+  return typeof ms === "number" && Number.isFinite(ms) && ms > 0 ? ms : PRESENCE_TICK_MS;
+}
+
 // ── Ambiente do navegador ────────────────────────────────────────────
 
-async function postPing(): Promise<void> {
-  await fetch(apiUrl("/api/agents/me/ping"), {
+/** Cabeçalho com o id da aba: o backend limita o ping por usuário e aba. */
+export const PRESENCE_TAB_ID_HEADER = "x-tab-id";
+
+let isolatedTabId: string | null = null;
+
+/** Id estável desta aba: o do `tab-coordinator` ou, sem coordenação, um por carga. */
+export function presenceTabId(tabs: TabCoordinator | null): string {
+  if (tabs) return tabs.tabId;
+  isolatedTabId ??=
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`;
+  return isolatedTabId;
+}
+
+/**
+ * Status e, num 429, o prazo: `retryAfterMs` do corpo ou `Retry-After`
+ * (segundos; nem sempre legível por CORS).
+ */
+export async function readPresenceResponse(res: Response): Promise<PresenceCallResult> {
+  const result: PresenceCallResult = { status: res.status };
+  if (res.status !== 429) return result;
+  try {
+    const body = (await res.json()) as { retryAfterMs?: unknown };
+    if (typeof body.retryAfterMs === "number" && body.retryAfterMs > 0) {
+      result.retryAfterMs = body.retryAfterMs;
+      return result;
+    }
+  } catch {
+    /* corpo não-JSON */
+  }
+  const seconds = Number(res.headers.get("Retry-After"));
+  if (Number.isFinite(seconds) && seconds > 0) result.retryAfterMs = Math.round(seconds * 1_000);
+  return result;
+}
+
+export async function postPresencePing(
+  tabId: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<PresenceCallResult> {
+  const res = await fetchImpl(apiUrl("/api/agents/me/ping"), {
     method: "POST",
     credentials: "include",
     keepalive: true,
+    headers: { [PRESENCE_TAB_ID_HEADER]: tabId },
   });
+  return readPresenceResponse(res);
 }
 
-async function postActivity(interactionCount: number): Promise<void> {
-  await fetch(apiUrl("/api/agents/me/activity"), {
+async function postActivity(interactionCount: number): Promise<PresenceCallResult> {
+  const res = await fetch(apiUrl("/api/agents/me/activity"), {
     method: "POST",
     keepalive: true,
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ interactionCount }),
   });
+  return readPresenceResponse(res);
 }
 
 export function browserPresenceTickerEnv(): PresenceTickerEnv {
   const tabs = isSingleLeaderEnabled() ? tabCoordinatorFor("crm") : null;
+  const tabId = presenceTabId(tabs);
   return {
     tabs,
-    ping: postPing,
+    ping: () => postPresencePing(tabId),
     activity: postActivity,
+    // Qualquer 401 encerra; só a renovação da própria sessão não.
+    onUnauthorized: () => handleUnauthorized() !== "renewal",
+    isSessionEnded,
     // Sem coordenação cada aba é líder de si mesma: o instante compartilhado
     // faria uma aba calar a outra (e a contagem dela não sairia).
     readLastTick: tabs
@@ -323,6 +460,8 @@ let holders = 0;
 export function acquirePresenceTicker(): () => void {
   if (typeof window === "undefined") return () => {};
   holders += 1;
+  // Logout disparado por outra aba: esta para e vai ao login também.
+  watchSessionEndInOtherTabs();
   ticker ??= new PresenceTicker(browserPresenceTickerEnv());
   let released = false;
   return () => {

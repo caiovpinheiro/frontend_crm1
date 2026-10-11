@@ -1,7 +1,11 @@
 "use client";
 
 import { apiUrl } from "@/lib/api";
-import { handleSessionRevoked } from "@/lib/session-revoked";
+import {
+  handleUnauthorized,
+  isSessionEnded,
+  watchSessionEndInOtherTabs,
+} from "@/lib/session-revoked";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import { isSingleLeaderEnabled } from "./sse-single-leader";
@@ -105,8 +109,12 @@ export function sseReconnectDelayMs(attempt: number, random = Math.random): numb
  *    seguidoras ficam sem SSE até a líder voltar (os polls de fallback
  *    cobrem).
  *  - por organização: handshake recusado com 429 + `Retry-After`.
- * Sessão revogada/expirada: handshake recusado com 401 — não reconecta em
- * loop; só confere de novo quando o usuário volta à aba (≥ 60s depois).
+ * Sessão revogada/expirada: handshake recusado com 401 (com ou sem
+ * `code`) — a conexão PARA de vez, sem retry nem backoff (nem com o
+ * usuário voltando à aba), e o logout sai pelo caminho único de
+ * `lib/session-revoked.ts`. Só durante a renovação da própria sessão
+ * (troca de senha) o 401 é esperado: aí confere de novo quando o usuário
+ * volta à aba (≥ 60s depois).
  */
 export const SSE_EVICTED_EVENT = "sse_connection_evicted";
 export const SSE_EVICTED_MIN_RETRY_MS = 60_000;
@@ -115,7 +123,7 @@ export const SSE_ORG_LIMIT_DEFAULT_RETRY_MS = 35_000;
 export const SSE_UNAUTHORIZED_RECHECK_MS = 60_000;
 const HOLD_JITTER = 0.3;
 
-export type SseHoldReason = "evicted" | "unauthorized";
+export type SseHoldReason = "evicted" | "unauthorized" | "session-ended";
 
 /** Resultado da sondagem HTTP depois de um handshake recusado. */
 export type SseProbeResult = {
@@ -147,8 +155,15 @@ export interface SseEnv {
   probe?: (url: string) => Promise<SseProbeResult | null>;
   /** Usuário voltou à aba (foco / ficou visível) — devolve o unsubscribe. */
   onUserActive?: (fn: () => void) => () => void;
-  /** 401 com `code: "SESSION_REVOKED"` no handshake. */
-  onSessionRevoked?: () => void;
+  /**
+   * 401 no handshake (com ou sem `code`). Devolve `true` quando a sessão
+   * acabou (a conexão para de vez); `false` = 401 esperado (renovação da
+   * sessão em andamento): confere de novo quando o usuário volta à aba.
+   * Sem o callback, qualquer 401 para de vez.
+   */
+  onUnauthorized?: (code?: string) => boolean;
+  /** A sessão já acabou (logout nesta ou em outra aba): não conecta. */
+  isSessionEnded?: () => boolean;
   random?: () => number;
 }
 
@@ -368,9 +383,13 @@ class SharedSSEConnection {
   private connect(): void {
     if (this.es || this.probing) return;
     if (!this.isLeader() || this.neededEvents().size === 0) return;
+    if (this.env.isSessionEnded?.()) {
+      this.hold = { reason: "session-ended", until: Number.POSITIVE_INFINITY };
+    }
     if (this.hold) {
-      // 401: só o usuário voltando à aba libera (`onUserActive`).
-      if (this.hold.reason === "unauthorized") return;
+      // Sessão encerrada: nunca mais. 401 esperado (renovação): só o
+      // usuário voltando à aba libera (`onUserActive`).
+      if (this.hold.reason !== "evicted") return;
       const remaining = this.hold.until - Date.now();
       if (remaining > 0) {
         if (!this.retryTimer) this.scheduleRetry(remaining);
@@ -488,11 +507,11 @@ class SharedSSEConnection {
     if (!this.isLeader() || this.neededEvents().size === 0) return;
 
     if (result?.status === 401) {
-      this.hold = {
-        reason: "unauthorized",
-        until: Date.now() + SSE_UNAUTHORIZED_RECHECK_MS,
-      };
-      if (result.code === "SESSION_REVOKED") this.env.onSessionRevoked?.();
+      // Qualquer 401 (o backend antigo não manda `code`): sem retry.
+      const ended = this.env.onUnauthorized ? this.env.onUnauthorized(result.code) : true;
+      this.hold = ended
+        ? { reason: "session-ended", until: Number.POSITIVE_INFINITY }
+        : { reason: "unauthorized", until: Date.now() + SSE_UNAUTHORIZED_RECHECK_MS };
       return;
     }
     if (result?.status === 429) {
@@ -741,6 +760,8 @@ let defaultBridge: SseTabBridge | null = null;
 
 function bridge(): SseTabBridge {
   if (!defaultBridge) {
+    // Logout disparado por outra aba: esta para e vai ao login também.
+    watchSessionEndInOtherTabs();
     defaultBridge = new SseTabBridge({
       // O DOM tipa `onopen`/`onerror` com `Event`; aqui os handlers o ignoram.
       createEventSource: (url) =>
@@ -748,9 +769,9 @@ function bridge(): SseTabBridge {
       tabs: defaultSseTabs(),
       probe: (url) => probeSseHandshake(url),
       onUserActive: onBrowserUserActive,
-      onSessionRevoked: () => {
-        handleSessionRevoked();
-      },
+      // Qualquer 401 encerra; só a renovação da própria sessão não.
+      onUnauthorized: () => handleUnauthorized() !== "renewal",
+      isSessionEnded,
     });
   }
   return defaultBridge;

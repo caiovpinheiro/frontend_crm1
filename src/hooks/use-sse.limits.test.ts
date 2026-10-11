@@ -2,8 +2,8 @@
  * Teto de conexões do backend e sessão revogada, vistos pelo barramento:
  *  - `sse_connection_evicted` (teto por usuário): fecha, NÃO reconecta na
  *    hora (senão vira rodízio), a liderança não muda;
- *  - 429 + `Retry-After` (teto da org) e 401 (`SESSION_REVOKED`) no
- *    handshake, lidos por sondagem — o `EventSource` não expõe status.
+ *  - 429 + `Retry-After` (teto da org) e 401 (com ou sem `SESSION_REVOKED`)
+ *    no handshake, lidos por sondagem — o `EventSource` não expõe status.
  * E a chave de desligar da líder entre abas (os dois modos).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -189,13 +189,13 @@ describe("handshake recusado: 429 (teto da org) e 401 (sessão)", () => {
     expect(a.tab.eventSources).toHaveLength(2);
   });
 
-  it("401 SESSION_REVOKED: avisa uma vez e não reconecta em loop; só confere de novo quando o usuário volta (≥ 60s)", async () => {
+  it("401 SESSION_REVOKED: chama o logout uma vez e NUNCA reconecta (nem com o usuário voltando à aba)", async () => {
     const probe = vi.fn(async (): Promise<SseProbeResult | null> => ({
       status: 401,
       code: "SESSION_REVOKED",
     }));
-    const onSessionRevoked = vi.fn();
-    const a = abrirAba(hub, "a", { extras: { probe, onSessionRevoked } });
+    const onUnauthorized = vi.fn(() => true);
+    const a = abrirAba(hub, "a", { extras: { probe, onUnauthorized } });
     const b = abrirAba(hub, "b");
     a.subscribe(["new_message"]);
     b.subscribe(["new_message"]);
@@ -203,37 +203,80 @@ describe("handshake recusado: 429 (teto da org) e 401 (sessão)", () => {
     a.tab.es.fail();
     await tick();
 
-    expect(onSessionRevoked).toHaveBeenCalledTimes(1);
-    expect(a.bridge.connection(URL).holdReason).toBe("unauthorized");
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).toHaveBeenCalledWith("SESSION_REVOKED");
+    expect(a.bridge.connection(URL).holdReason).toBe("session-ended");
 
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    a.tab.userActive();
+    a.tab.userActive();
     await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(a.tab.eventSources).toHaveLength(1);
     expect(b.tab.eventSources).toHaveLength(0); // a liderança não roda
     expect(probe).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("401 SEM código (backend antigo, reason no_session) também para de vez e chama o logout", async () => {
+    const probe = vi.fn(async (): Promise<SseProbeResult | null> => ({ status: 401 }));
+    const onUnauthorized = vi.fn(() => true);
+    const a = abrirAba(hub, "a", { isolada: true, extras: { probe, onUnauthorized } });
+    a.subscribe(["new_message"]);
+    a.tab.es.fail();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    a.tab.userActive();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(a.tab.eventSources).toHaveLength(1);
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).toHaveBeenCalledWith(undefined);
+  });
+
+  it("reconexão: conexão aberta cai e o handshake seguinte leva 401 — para, sem backoff", async () => {
+    const respostas: Array<SseProbeResult | null> = [{ status: 401 }];
+    const probe = vi.fn(async () => respostas.shift() ?? null);
+    const onUnauthorized = vi.fn(() => true);
+    const a = abrirAba(hub, "a", { isolada: true, extras: { probe, onUnauthorized } });
+    a.subscribe(["new_message"]);
+    a.tab.es.open();
+    a.tab.es.fail(); // queda (deploy): backoff normal de 5s
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(a.tab.eventSources).toHaveLength(2);
+    a.tab.es.fail(); // reconexão recusada sem abrir
+    await tick();
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(a.tab.eventSources).toHaveLength(2);
+  });
+
+  it("401 durante a renovação da própria sessão (onUnauthorized → false): só confere de novo quando o usuário volta (≥ 60s)", async () => {
+    const probe = vi.fn(async (): Promise<SseProbeResult | null> => ({ status: 401 }));
+    const onUnauthorized = vi.fn(() => false);
+    const a = abrirAba(hub, "a", { isolada: true, extras: { probe, onUnauthorized } });
+    a.subscribe(["new_message"]);
+    a.tab.es.fail();
+    await tick();
+    expect(a.bridge.connection(URL).holdReason).toBe("unauthorized");
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(a.tab.eventSources).toHaveLength(1);
 
     a.tab.userActive();
     await tick();
     expect(a.tab.eventSources).toHaveLength(2); // uma conferida, por ação do usuário
-    a.tab.es.fail();
-    await tick();
-    expect(onSessionRevoked).toHaveBeenCalledTimes(2);
-
-    // Foco repetido dentro de 60s não gera tentativa nova.
-    a.tab.userActive();
     a.tab.userActive();
     await tick();
     expect(a.tab.eventSources).toHaveLength(2);
   });
 
-  it("401 sem código (sessão expirada) também para, sem disparar o signOut", async () => {
-    const probe = vi.fn(async (): Promise<SseProbeResult | null> => ({ status: 401 }));
-    const onSessionRevoked = vi.fn();
-    const a = abrirAba(hub, "a", { isolada: true, extras: { probe, onSessionRevoked } });
+  it("sessão encerrada (logout nesta ou em outra aba): não abre conexão", async () => {
+    let ended = false;
+    const a = abrirAba(hub, "a", { isolada: true, extras: { isSessionEnded: () => ended } });
     a.subscribe(["new_message"]);
+    a.tab.es.open();
+    ended = true;
     a.tab.es.fail();
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
     expect(a.tab.eventSources).toHaveLength(1);
-    expect(onSessionRevoked).not.toHaveBeenCalled();
+    expect(a.bridge.connection(URL).holdReason).toBe("session-ended");
   });
 
   it("queda de conexão ABERTA (deploy) não sonda: backoff normal de 5s", async () => {
