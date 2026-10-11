@@ -13,9 +13,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const h = vi.hoisted(() => ({ role: "ADMIN" }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { id: "admin-1", role: "ADMIN" } },
+    data: { user: { id: "admin-1", role: h.role } },
     status: "authenticated",
   }),
 }));
@@ -105,6 +106,7 @@ class FakeResizeObserver {
 
 beforeEach(() => {
   calls = [];
+  h.role = "ADMIN";
   vi.stubGlobal("ResizeObserver", FakeResizeObserver);
   window.localStorage.clear();
   window.localStorage.setItem("crm:list-view", "tabela");
@@ -132,7 +134,18 @@ describe("Equipe: telefonia sem N+1", () => {
     expect(checked).toHaveLength(9); // i = 0, 3, …, 24 ativos; null = sem telefonia
   });
 
-  it("backend antigo (nenhum usuário com `telephony`): cada linha busca como antes", async () => {
+  it("não-admin (lista sem `telephony`): nenhuma busca por linha (a rota daria 403)", async () => {
+    h.role = "MEMBER";
+    mockApi(users(25, () => "absent"));
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Pessoa 24")).toBeTruthy());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(calls.filter((p) => p.endsWith("/telephony"))).toHaveLength(0);
+    expect(screen.queryAllByRole("switch", { name: "Telefonia" })).toHaveLength(0);
+    expect(calls.length).toBeLessThanOrEqual(2);
+  });
+
+  it("ADMIN e lista sem `telephony` (backend antigo ou falha no servidor): cada linha busca como antes", async () => {
     mockApi(users(25, () => "absent"));
     renderPage();
     await waitFor(() =>

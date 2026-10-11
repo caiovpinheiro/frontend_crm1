@@ -254,7 +254,10 @@ function TeamContent() {
     error,
   } = useTeamUsersQuery<UserRow>(status !== "unauthenticated");
   // Backend novo manda `telephony` em cada usuário: sem busca por linha.
-  // Sem o campo na lista inteira (backend antigo): cada linha busca.
+  // Sem o campo na lista inteira (backend antigo, ou falha da consulta de
+  // telefonia no servidor): cada linha busca — só para ADMIN, o único que
+  // vê a coluna (não-admin recebe a lista sem o campo e a rota por
+  // usuário daria 403; a célula mostra "—" sem buscar).
   const listHasTelephony = React.useMemo(() => userListCarriesTelephony(users), [users]);
 
   // ─── Derivados: busca client-side ──────────────────────────────────────
