@@ -5834,6 +5834,25 @@ function StepTeam({
       </SectionCard>
 
       <SectionCard
+        title="Quando o cliente pede uma pessoa e já diz o assunto"
+        description="Ex.: “quero falar com um atendente, não consigo emitir a segunda via”. Pedido sem assunto continua igual: o agente pergunta uma vez o que a pessoa precisa e transfere na mensagem seguinte."
+      >
+        <Segmented
+          value={(handoff.humanRequestWithSubject as string) === "transfer" ? "transfer" : "answer_first"}
+          onChange={(v) => onChange("handoff.humanRequestWithSubject", v)}
+          options={[
+            { value: "answer_first", label: "Tentar resolver antes" },
+            { value: "transfer", label: "Transferir direto" },
+          ]}
+        />
+        <p className="text-xs text-muted-foreground">
+          {(handoff.humanRequestWithSubject as string) === "transfer"
+            ? "Transfere na hora, sem responder o assunto. O assunto vai no resumo para a equipe."
+            : "Responde o assunto e oferece passar para a equipe se não resolver (texto “Oferta de atendente” em Mensagens automáticas). Se o cliente pedir de novo ou disser que não resolveu, transfere."}
+        </p>
+      </SectionCard>
+
+      <SectionCard
         title="Se o cliente escrever enquanto espera na fila"
         description="Depois de transferir, a conversa espera um atendente. Se o cliente escrever de novo e ninguém da equipe tiver assumido, a conversa volta para o agente."
       >
@@ -5968,6 +5987,7 @@ const SYSTEM_MESSAGES: Array<{ key: string; label: string; when: string; placeho
   { key: "mediaResentAfterFailure", label: "Reenvio depois de falha", when: "Igual, quando o primeiro envio falhou. {{Anexo}} com inicial maiúscula.", placeholder: "{{Anexo}} não saiu da primeira vez. Estou reenviando agora 👇 Se não chegar, me avisa que eu chamo alguém da equipe." },
   { key: "mediaCannotSend", label: "Anexo não sai", when: "O envio falhou de novo; a conversa vai para a equipe.", placeholder: "Não estou conseguindo enviar {{anexo}} por aqui. Vou chamar alguém da equipe para te mandar por outro caminho." },
   { key: "mediaNotArriving", label: "Anexo não chega", when: "Já foi enviado duas vezes e o cliente segue sem receber; a conversa vai para a equipe.", placeholder: "Já enviei {{anexo}} duas vezes e ele não está chegando aí. Vou chamar alguém da equipe para te mandar por outro caminho." },
+  { key: "humanRequestOffer", label: "Oferta de atendente", when: "O cliente pediu uma pessoa e disse o assunto; o agente respondeu e oferece a equipe se não resolver (opção “Tentar resolver antes”).", placeholder: "Se isso não resolver, me avise por aqui que eu te passo para alguém da equipe." },
   { key: "humanRequestAsk", label: "Pedido de atendente sem assunto", when: "O cliente pede uma pessoa sem dizer o assunto; a transferência vem na mensagem seguinte.", placeholder: "Claro! Antes de te passar para a equipe, me conta em uma frase o que você precisa, para eu encaminhar certo." },
   { key: "returnPromiseHandoff", label: "Promessa de retorno", when: "O modelo escreveu “vou verificar e te retorno” sem transferir: a frase é trocada por esta e a conversa vai para a equipe.", placeholder: "Preciso passar isso para um atendente da equipe que vai te ajudar agora." },
   { key: "loopWarning", label: "Mensagem repetida", when: "O cliente manda a mesma mensagem várias vezes seguidas.", placeholder: "Recebi a mesma mensagem algumas vezes. Se precisar de algo diferente, me conta com outras palavras." },
