@@ -8,8 +8,11 @@
  *       · keydown em campo (input/textarea/select/contenteditable) com
  *         tecla que altera conteúdo (letra/número/Enter/Backspace/Delete/Space);
  *       · change/submit;
- *       · mudança de rota (usePathname).
- *   - NUNCA usar mousemove, scroll ou hover.
+ *       · mudança de rota (usePathname);
+ *       · rolagem do usuário (wheel/touchmove) e volta da aba ao foco,
+ *         no máximo 1 a cada 5 s (`use-system-activity.ts`).
+ *   - NUNCA usar mousemove, hover nem o evento `scroll` (dispara também
+ *     em rolagem programática).
  *   - NUNCA coletar conteúdo digitado, seletor ou identificador do alvo.
  */
 

@@ -2,8 +2,8 @@
 /**
  * `POST /api/agents/me/activity` é o sinal de ATIVIDADE REAL do backend
  * (expiração da sessão por 12 h de inatividade; ping não conta). Só sai
- * quando houve interação real — clique, tecla ou troca de rota — desde o
- * último envio; janela sem interação não manda nada (nem 0 pulsos). O
+ * quando houve interação real — clique, tecla, troca de rota, rolagem ou
+ * volta ao foco — desde o último envio; janela sem interação não manda nada (nem 0 pulsos). O
  * ping segue a cadência de 90 s.
  */
 import { act, cleanup, renderHook } from "@testing-library/react";
@@ -16,6 +16,7 @@ vi.mock("@/hooks/sse-single-leader", () => ({ isSingleLeaderEnabled: () => false
 
 import { PRESENCE_TICK_MS } from "@/hooks/presence-ticker";
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat";
+import { __resetSessionIdleForTests } from "@/lib/session-idle";
 import { __resetSessionRevokedForTests } from "@/lib/session-revoked";
 
 import { useSystemActivity } from "./use-system-activity";
@@ -60,6 +61,7 @@ beforeEach(() => {
   calls = [];
   nav.pathname = "/inbox";
   __resetSessionRevokedForTests();
+  __resetSessionIdleForTests();
   window.localStorage.clear();
   window.history.replaceState(null, "", "/inbox");
   vi.stubGlobal("fetch", fetchMock);
@@ -82,10 +84,9 @@ describe("activity só com interação real", () => {
     expect(pings()).toHaveLength(2);
     expect(activity()).toHaveLength(0);
 
-    // Alternar abas/foco não é interação; 10 min parado continua sem activity.
+    // O ping não é interação; 10 min parado continua sem activity.
+    // (A volta ao foco conta desde 11/10 — `use-system-activity.idle.test.ts`.)
     for (let i = 0; i < 10; i += 1) {
-      window.dispatchEvent(new Event("focus"));
-      document.dispatchEvent(new Event("visibilitychange"));
       await advance(60_000);
     }
     expect(activity()).toHaveLength(0);
