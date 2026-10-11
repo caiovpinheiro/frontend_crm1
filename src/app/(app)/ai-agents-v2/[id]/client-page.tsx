@@ -96,6 +96,7 @@ import { ReplyQuality } from "./reply-quality";
 import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
+import { NoticesStep } from "./notices-step";
 import { TextListEditor } from "./text-list-editor";
 import { MaterialAttachments } from "./material-attachments";
 import { RulesExportMenu } from "./rules-export-menu";
@@ -1493,6 +1494,7 @@ export default function AIAgentV2EditPage() {
                     <TabsList className={cn("flex", TABS_LIST)}>
                       <TabsTrigger value="materiais" className={TABS_TRIGGER}>Materiais</TabsTrigger>
                       <TabsTrigger value="calendario" className={TABS_TRIGGER}>Calendário</TabsTrigger>
+                      <TabsTrigger value="avisos" className={TABS_TRIGGER}>Avisos temporários</TabsTrigger>
                       <TabsTrigger value="dados" className={TABS_TRIGGER}>Dados do cliente e da empresa</TabsTrigger>
                       <TabsTrigger value="prontas" className={TABS_TRIGGER}>Mensagens prontas e catálogo</TabsTrigger>
                       <TabsTrigger value="aprender" className={TABS_TRIGGER}>Aprender com conversas</TabsTrigger>
@@ -1503,6 +1505,9 @@ export default function AIAgentV2EditPage() {
                     </TabsContent>
                     <TabsContent value="calendario">
                       <CalendarStep agentId={id} config={config} onChange={updateConfig} />
+                    </TabsContent>
+                    <TabsContent value="avisos">
+                      <NoticesStep config={config} onChange={updateConfig} />
                     </TabsContent>
                     <TabsContent value="dados">
                       <StepContext config={config} catalogs={catalogs} onChange={updateConfig} />
