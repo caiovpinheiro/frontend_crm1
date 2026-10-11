@@ -30,9 +30,10 @@ import {
  *  - um tique a cada `PRESENCE_TICK_MS` manda o ping e, se houve uso, o
  *    activity com a contagem agregada de TODAS as abas (as seguidoras
  *    repassam à líder pelo canal, no máximo a cada `ACTIVITY_FORWARD_MS`);
- *  - dois tiques nunca saem a menos de `PRESENCE_MIN_GAP_MS` (45 s) — nem
- *    na troca de líder ou F5: o instante do último tique é do navegador
- *    (`localStorage`), não da aba;
+ *  - dois tiques nunca saem a menos de `PRESENCE_MIN_GAP_MS` (45 s); na
+ *    troca de líder ou F5 a nova líder segue a cadência — próximo tique
+ *    90 s depois do último do navegador: o instante do último tique é do
+ *    navegador (`localStorage`), não da aba;
  *  - a 1ª interação depois de 5 min sem activity antecipa o tique (abre a
  *    sessão de uso no backend sem esperar a janela), respeitando os 45 s;
  *    a cadência recomeça desse tique;
@@ -58,6 +59,11 @@ import {
  * abas) — e o 200 devolve `sessionIdleMs`. A cada tique, ANTES do ping, a
  * líder confere localmente: parado além do limite → logout pelo caminho
  * único (sem ping). O 401 `reason: "idle"` do backend cai no 401 comum.
+ *
+ * Um ping por navegador: só a líder tica, e o instante do último tique e o
+ * prazo de um 429 (`retryAfterMs`, teto por usuário) ficam no
+ * `localStorage` — a líder que assume (a anterior fechou ou travou) segue
+ * a cadência do navegador e respeita o 429 que a outra recebeu.
  */
 
 /** Cadência do tique (sweeper do backend: offline após 300 s sem ping). */
@@ -70,6 +76,8 @@ export const ACTIVITY_FORWARD_MS = 5_000;
 export const ACTIVITY_SESSION_IDLE_MS = 5 * 60_000;
 /** Instante (ms) do último tique deste navegador. */
 export const PRESENCE_LAST_TICK_STORAGE_KEY = "bwipo:presence:last-tick";
+/** 429 do ping/activity: nenhum tique do navegador antes deste instante (ms). */
+export const PRESENCE_HOLD_UNTIL_STORAGE_KEY = "bwipo:presence:hold-until";
 
 /** Resposta de ping/activity que importa ao tique (sem valor = sucesso). */
 export type PresenceCallResult = {
@@ -109,6 +117,9 @@ export interface PresenceTickerEnv {
   /** Último tique do navegador (qualquer aba). */
   readLastTick?: () => number | null;
   writeLastTick?: (at: number) => void;
+  /** Prazo de um 429 recebido por qualquer aba do navegador. */
+  readHoldUntil?: () => number | null;
+  writeHoldUntil?: (at: number) => void;
   /** Sem `idle`: não há checagem de ociosidade nem `lastInteractionAt`. */
   idle?: PresenceIdleEnv;
   isVisible: () => boolean;
@@ -157,6 +168,12 @@ export class PresenceTicker {
   private lastTick(): number {
     const shared = this.env.readLastTick?.() ?? null;
     return shared != null && shared > this.lastTickAt ? shared : this.lastTickAt;
+  }
+
+  /** Prazo de 429 conhecido: desta aba ou de outra (troca de líder). */
+  private holdUntilAt(): number {
+    const shared = this.env.readHoldUntil?.() ?? null;
+    return shared != null && shared > this.holdUntil ? shared : this.holdUntil;
   }
 
   /** O tique parou por 401 (sessão encerrada)? */
@@ -210,9 +227,10 @@ export class PresenceTicker {
 
   private requestTick(reason: TickReason): void {
     if (this.dead || !this.isLeader()) return;
-    if (Date.now() < this.holdUntil) {
+    const holdUntil = this.holdUntilAt();
+    if (Date.now() < holdUntil) {
       // 429: nada sai antes do prazo do backend.
-      this.scheduleNext(this.holdUntil);
+      this.scheduleNext(holdUntil);
       return;
     }
     const since = Date.now() - this.lastTick();
@@ -221,7 +239,10 @@ export class PresenceTicker {
       if (since >= PRESENCE_TICK_MS) void this.tick();
       return;
     }
-    if (since >= PRESENCE_MIN_GAP_MS) {
+    // Troca de líder / F5: segue a cadência do navegador (1 ping por
+    // ciclo), em vez de pingar já com o último tique a 45–90 s.
+    const minGap = reason === "lead" ? PRESENCE_TICK_MS : PRESENCE_MIN_GAP_MS;
+    if (since >= minGap) {
       void this.tick();
       return;
     }
@@ -292,6 +313,7 @@ export class PresenceTicker {
     const waitMs = Math.max(retryAfterOf(pingResult), retryAfterOf(activityResult));
     if (waitMs > 0) {
       this.holdUntil = Date.now() + waitMs;
+      this.env.writeHoldUntil?.(this.holdUntil);
       // A cadência normal segue valendo quando é mais longa que o prazo.
       if (this.holdUntil > this.nextAt) this.scheduleNext(this.holdUntil, true);
     }
@@ -494,6 +516,9 @@ export function browserPresenceTickerEnv(): PresenceTickerEnv {
     writeLastTick: tabs
       ? (at) => writeStoredNumber(PRESENCE_LAST_TICK_STORAGE_KEY, at)
       : undefined,
+    // O 429 é do usuário (teto por usuário), não da aba: vale para todas.
+    readHoldUntil: () => readStoredNumber(PRESENCE_HOLD_UNTIL_STORAGE_KEY),
+    writeHoldUntil: (at) => writeStoredNumber(PRESENCE_HOLD_UNTIL_STORAGE_KEY, at),
     idle: browserIdleEnv(),
     isVisible: () =>
       typeof document === "undefined" || document.visibilityState === "visible",
