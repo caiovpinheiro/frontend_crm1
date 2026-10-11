@@ -45,7 +45,7 @@ export const CHANGE_GROUPS: Array<{ section: string; keys: Array<[string, string
   },
   {
     section: "O que ele sabe",
-    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["derivedFields", "Informações montadas"], ["allowedMessageModelIds", "Mensagens prontas"], ["allowedFlowIds", "Flows"], ["messageModelAdapt", "Adaptar mensagens prontas"], ["knowledgeSearch", "Trechos que ele lê"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"], ["includeLostDeals", "Usar o negócio perdido"]],
+    keys: [["allowedKnowledgeDocIds", "Materiais em uso"], ["calendar", "Calendário"], ["notices", "Avisos temporários"], ["contextFields", "Dados do cliente"], ["variables", "Informações da empresa"], ["derivedFields", "Informações montadas"], ["allowedMessageModelIds", "Mensagens prontas"], ["allowedFlowIds", "Flows"], ["messageModelAdapt", "Adaptar mensagens prontas"], ["knowledgeSearch", "Trechos que ele lê"], ["productPolicy", "Catálogo"], ["dealSelection", "Negócio usado"], ["includeLostDeals", "Usar o negócio perdido"]],
   },
   {
     section: "Do que ele cuida",
