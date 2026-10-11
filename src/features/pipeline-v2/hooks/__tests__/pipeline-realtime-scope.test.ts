@@ -3,7 +3,7 @@
  *
  * - Evento de outro funil não toca o board aberto (nem patch, nem refetch).
  * - Evento com `dealIds` atualiza só os cards afetados.
- * - Card do escopo fora da página carregada refaz só o funil dele.
+ * - Card do escopo fora da página carregada não refaz board nenhum.
  * - Sem os campos (backend antigo) vale o comportamento anterior.
  *
  * Node, sem React: `applyBoardNewMessage` e `createBoardRefreshScheduler`
@@ -103,8 +103,8 @@ describe("applyBoardNewMessage — evento com escopo do board", () => {
       inbound({ contactId: "contact-z", pipelineIds: ["p9"], dealIds: ["deal-z9"] }),
     );
 
-    // p9 não está em cache: o pedido de refetch não casa com query nenhuma.
-    expect(request).toEqual(["p9"]);
+    // Evento com escopo nunca pede recarga.
+    expect(request).toBeNull();
     expect(setSpy).not.toHaveBeenCalled();
     expect(board(qc, "p1")).toBe(p1);
 
@@ -185,46 +185,48 @@ describe("applyBoardNewMessage — evento com escopo do board", () => {
     expect(board(qc, "p1")[0].deals[0].lastMessage).toMatchObject({ content: "oi" });
   });
 
-  it("card do escopo fora da página carregada: refaz só o board paginado daquele funil", () => {
+  it("card do escopo fora da página carregada (ou do filtro): nada é refeito", () => {
     const { qc, p1, p2 } = setup();
     qc.setQueryData(filteredKey("p2"), p2);
     qc.setQueryData(searchKey("p2"), p2);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
 
+    // Card além da página carregada, fora do filtro ou negócio fechado que o
+    // backend ainda põe no escopo: nenhum deles é motivo para refazer o board.
     const request = applyBoardNewMessage(
       qc,
       inbound({ contactId: "contact-z", pipelineIds: ["p2"], dealIds: ["deal-z2"] }),
     );
-    expect(request).toEqual(["p2"]);
+    expect(request).toBeNull();
     expect(board(qc, "p1")).toBe(p1);
+    expect(board(qc, "p2")).toBe(p2);
 
     vi.useFakeTimers();
     try {
       const scheduler = createBoardRefreshScheduler(qc);
       scheduler.schedule(request);
-      vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS - 1);
-      expect(invalidated(qc, pagedKey("p2"))).toBe(false);
-      vi.advanceTimersByTime(1);
+      vi.advanceTimersByTime(BOARD_REFRESH_DEBOUNCE_MS * 100);
     } finally {
       vi.useRealTimers();
     }
 
-    expect(invalidated(qc, pagedKey("p2"))).toBe(true);
-    expect(invalidated(qc, pagedKey("p1"))).toBe(false);
-    // Filtro/busca não são refeitos por mensagem de quem está fora deles.
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidated(qc, pagedKey("p2"))).toBe(false);
     expect(invalidated(qc, filteredKey("p2"))).toBe(false);
     expect(invalidated(qc, searchKey("p2"))).toBe(false);
   });
 
-  it("contato com negócio em dois funis: patch no que está na página, refetch só no outro", () => {
-    const { qc } = setup();
+  it("contato com negócio em dois funis: patch no que está na página, o outro não é refeito", () => {
+    const { qc, p2 } = setup();
 
     const request = applyBoardNewMessage(
       qc,
       inbound({ pipelineIds: ["p1", "p2"], dealIds: ["deal-a1", "deal-a2"] }),
     );
 
-    expect(request).toEqual(["p2"]);
+    expect(request).toBeNull();
     expect(board(qc, "p1")[0].deals[0].lastMessage).toMatchObject({ content: "oi" });
+    expect(board(qc, "p2")).toBe(p2);
   });
 
   it("nota interna / rascunho da IA não mexem no board, com ou sem escopo", () => {

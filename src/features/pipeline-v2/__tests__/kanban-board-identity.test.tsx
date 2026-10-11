@@ -41,6 +41,7 @@ import {
 } from "@/features/pipeline-v2/hooks/use-deal-mutations";
 import {
   applyBoardNewMessage,
+  applyDealMoved,
   createBoardRefreshScheduler,
 } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import type { RealtimePayload } from "@/lib/realtime-contract";
@@ -135,23 +136,44 @@ describe("Kanban: identidade do funil no board (N-FE-7)", () => {
     expect(api.getBoard.mock.calls[0]![0]).toBe(CUID);
   });
 
-  it("SSE com escopo (`pipelineIds` = CUID) refaz o board do Kanban", async () => {
+  it("pedido de recarga pelo CUID do funil refaz o board do Kanban", async () => {
     const { qc, view } = setup();
     await boardLoaded(view);
     expect(api.getBoard).toHaveBeenCalledTimes(1);
 
     const scheduler = createBoardRefreshScheduler(qc, 0);
-    // Contato fora da página carregada, no funil do Kanban.
-    const request = applyBoardNewMessage(qc, {
-      contactId: "ct-fora",
-      direction: "in",
-      content: "oi",
-      pipelineIds: [CUID],
-    } as unknown as RealtimePayload<"new_message">);
-    expect(request).toEqual([CUID]);
-    act(() => scheduler.schedule(request));
+    act(() => scheduler.schedule([CUID]));
 
     await waitFor(() => expect(api.getBoard).toHaveBeenCalledTimes(2));
+  });
+
+  it("negócio criado (`deal_moved` com `toPipelineId` = CUID) entra no board do Kanban sem GET", async () => {
+    const { qc, view } = setup();
+    await boardLoaded(view);
+
+    act(() => {
+      applyDealMoved(qc, {
+        organizationId: "org-1",
+        dealId: "novo",
+        fromPipelineId: null,
+        fromStageId: null,
+        toPipelineId: CUID,
+        toStageId: "s2",
+        position: 5,
+        ownerId: null,
+        card: { id: "novo", title: "Lead novo", status: "OPEN" },
+      });
+    });
+
+    await waitFor(() =>
+      expect(view.result.current.kanban.boardNormal.data?.[1]?.deals.map((d) => d.id)).toEqual([
+        "x",
+        "y",
+        "novo",
+      ]),
+    );
+    expect(view.result.current.kanban.boardNormal.data?.[1]?.totalCount).toBe(3);
+    expect(api.getBoard).toHaveBeenCalledTimes(1);
   });
 
   it("SSE de outro funil não refaz o board do Kanban", async () => {
