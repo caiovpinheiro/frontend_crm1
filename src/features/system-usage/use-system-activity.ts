@@ -28,6 +28,13 @@ import {
  * máximo um por janela de 90 s (a 1ª interação depois de 5 min parado
  * antecipa o envio para abrir a sessão). Troca de rota só conta — não é
  * mais um POST próprio. Falha silenciosa; sem retry automático.
+ *
+ * O activity é o sinal de ATIVIDADE REAL do backend (expiração da sessão
+ * por 12 h de inatividade — o ping não conta): janela sem nenhuma destas
+ * interações não manda activity algum (nem com 0 pulsos). Foco, troca de
+ * aba, scroll e movimento do mouse não contam. O painel de uso do sistema
+ * só depende destes pulsos agregados (sessão de uso fecha 5 min após o
+ * último), não de pulsos por tempo.
  */
 export function useSystemActivity(enabled = true) {
   const pathname = usePathname();
