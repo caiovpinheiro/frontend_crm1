@@ -90,6 +90,7 @@ const PATH_LABEL: Record<string, string> = {
   "handoff.defaultDestination": "Destino padrão",
   "handoff.message": "Mensagem ao transferir",
   "handoff.humanRequestKeywords": "Palavras que pedem atendente",
+  "handoff.humanRequestWithSubject": "Pedido de pessoa com assunto",
   "handoff.whileQueued": "Cliente escreve na fila",
   "handoff.queuedMessage": "Aviso de fila",
   "fallback.confusion.action": "Cliente não entendeu",
