@@ -311,6 +311,7 @@ export class FakeTab {
       Partial<Pick<PresenceTickerEnv, "onUnauthorized" | "isSessionEnded" | "idle">>,
   ): PresenceTickerEnv {
     const key = "bwipo:presence:last-tick";
+    const holdKey = "bwipo:presence:hold-until";
     return {
       tabs,
       ping: io.ping,
@@ -324,6 +325,13 @@ export class FakeTab {
       },
       writeLastTick: (at) => {
         this.hub.storage.set(key, String(at));
+      },
+      readHoldUntil: () => {
+        const raw = this.hub.storage.get(holdKey);
+        return raw ? Number(raw) : null;
+      },
+      writeHoldUntil: (at) => {
+        this.hub.storage.set(holdKey, String(at));
       },
       isVisible: () => !this.hidden,
       onVisibilityChange: (fn) => {
