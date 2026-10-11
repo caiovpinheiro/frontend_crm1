@@ -4,6 +4,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
+import { toDealCard } from "@/features/pipeline-v2/adapters";
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import { applyDealMoved } from "@/features/pipeline-v2/hooks/use-pipeline-realtime";
 import type { RealtimePayload } from "@/lib/realtime-contract";
@@ -366,6 +367,231 @@ describe("applyDealMoved", () => {
     expect(dest.map((d) => d.id)).toEqual(["new", "d1", "old"]);
     expect(dest[0]).toBe(newer);
     expect(dest[2]).toBe(older);
+  });
+
+  describe("negócio criado (sem origem)", () => {
+    const card = {
+      id: "novo",
+      title: "Lead novo",
+      status: "OPEN",
+      position: 1.5,
+      contact: { id: "c-novo", name: "Ana", email: null },
+    };
+    const created = (extra: Partial<RealtimePayload<"deal_moved">> = {}) =>
+      moved({
+        dealId: "novo",
+        fromPipelineId: null,
+        toPipelineId: "p1",
+        fromStageId: null,
+        toStageId: "s-b",
+        position: 1.5,
+        ownerId: null,
+        card,
+        ...extra,
+      });
+    const searchKey = ["pipeline-board-search", "p1", "OPEN", "ana", "default", 200] as const;
+
+    function boards(qc: QueryClient) {
+      const paged = [stage("s-a", [deal("a", 0)]), stage("s-b", [deal("b1", 1), deal("b2", 2)], { totalCount: 40 })];
+      qc.setQueryData(["pipeline-board", "p1", "OPEN"], paged);
+      return paged;
+    }
+
+    it("fromStageId null: entra na etapa certa pela position, o total da etapa sobe, sem GET", () => {
+      const qc = new QueryClient({ defaultOptions: { queries: { structuralSharing: false } } });
+      const paged = boards(qc);
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+      const refetch = vi.spyOn(qc, "refetchQueries");
+
+      expect(applyDealMoved(qc, created())).toBe(true);
+
+      const after = qc.getQueryData<BoardStageDto[]>(["pipeline-board", "p1", "OPEN"])!;
+      expect(after[0]).toBe(paged[0]);
+      expect(after[1].deals.map((d) => d.id)).toEqual(["b1", "novo", "b2"]);
+      expect(after[1].deals[1]).toMatchObject({ title: "Lead novo", status: "OPEN", position: 1.5 });
+      expect(after[1].totalCount).toBe(41);
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(refetch).not.toHaveBeenCalled();
+    });
+
+    it("card com número: o negócio inserido mostra #número, não o prefixo do id", () => {
+      const qc = new QueryClient();
+      boards(qc);
+
+      applyDealMoved(qc, created({ card: { ...card, id: "cmv3abc", number: 49338 }, dealId: "cmv3abc" }));
+
+      const inserted = qc
+        .getQueryData<BoardStageDto[]>(["pipeline-board", "p1", "OPEN"])![1]
+        .deals.find((d) => d.id === "cmv3abc")!;
+      expect(inserted.number).toBe(49338);
+      expect(toDealCard(inserted).dealNumber).toBe("#49338");
+    });
+
+    it("card sem número (backend antigo) ou com número nulo: mantém o prefixo do id", () => {
+      for (const extra of [{}, { number: null }]) {
+        const qc = new QueryClient();
+        boards(qc);
+
+        applyDealMoved(qc, created({ card: { ...card, id: "cmv3abc", ...extra }, dealId: "cmv3abc" }));
+
+        const inserted = qc
+          .getQueryData<BoardStageDto[]>(["pipeline-board", "p1", "OPEN"])![1]
+          .deals.find((d) => d.id === "cmv3abc")!;
+        expect(inserted.number).toBeUndefined();
+        expect(toDealCard(inserted).dealNumber).toBe("#cmv3");
+      }
+    });
+
+    it("forma alternativa: fromStageId ausente + created: true", () => {
+      const qc = new QueryClient();
+      boards(qc);
+      const event = created();
+      delete event.fromStageId;
+      delete event.fromPipelineId;
+
+      expect(applyDealMoved(qc, { ...event, created: true })).toBe(true);
+      const after = qc.getQueryData<BoardStageDto[]>(["pipeline-board", "p1", "OPEN"])!;
+      expect(after[1].deals.map((d) => d.id)).toEqual(["b1", "novo", "b2"]);
+    });
+
+    it("evento repetido não duplica nem soma o total duas vezes", () => {
+      const qc = new QueryClient();
+      boards(qc);
+      applyDealMoved(qc, created());
+      const once = qc.getQueryData(["pipeline-board", "p1", "OPEN"]);
+      expect(applyDealMoved(qc, created())).toBe(false);
+      expect(qc.getQueryData(["pipeline-board", "p1", "OPEN"])).toBe(once);
+      expect((once as BoardStageDto[])[1].totalCount).toBe(41);
+    });
+
+    const filteredBy = (filters: Record<string, unknown>) =>
+      ["pipeline-board-filtered", "p1", "OPEN", JSON.stringify(filters), "default", 50] as const;
+
+    /** Board filtrado em cache com `filters`; devolve os ids da etapa s-b depois do evento. */
+    function filteredAfter(
+      filters: Record<string, unknown>,
+      event: RealtimePayload<"deal_moved">,
+    ): { ids: string[]; same: boolean } {
+      const qc = new QueryClient();
+      boards(qc);
+      const key = filteredBy(filters);
+      const filtered = [stage("s-a", []), stage("s-b", [deal("b1", 1)])];
+      qc.setQueryData(key, filtered);
+      applyDealMoved(qc, event);
+      const after = qc.getQueryData<BoardStageDto[]>(key)!;
+      return { ids: after[1].deals.map((d) => d.id), same: after === filtered };
+    }
+
+    const owned = (ownerId: string | null) =>
+      created({
+        ownerId,
+        card: {
+          ...card,
+          owner: ownerId ? { id: ownerId, name: ownerId } : null,
+          tags: [{ id: "t1", name: "Quente", color: "#f00" }],
+        },
+      });
+
+    it("busca por texto no board filtrado: o card novo não entra (João não aparece em 'maria')", () => {
+      const result = filteredAfter(
+        { search: "maria" },
+        created({ card: { ...card, title: "João", contact: { id: "c-novo", name: "João", email: null } } }),
+      );
+      expect(result.same).toBe(true);
+      expect(result.ids).toEqual(["b1"]);
+    });
+
+    it("busca (chave própria) também não recebe o card novo", () => {
+      const qc = new QueryClient();
+      boards(qc);
+      const search = [stage("s-a", []), stage("s-b", [deal("ana", 0)])];
+      qc.setQueryData(searchKey, search);
+
+      applyDealMoved(qc, created());
+      expect(qc.getQueryData(searchKey)).toBe(search);
+    });
+
+    it("filtro por responsável X + negócio criado do X: entra na hora", () => {
+      expect(filteredAfter({ ownerIds: ["u-x"] }, owned("u-x")).ids).toEqual(["b1", "novo"]);
+    });
+
+    it("filtro por responsável X + negócio criado do Y: não entra", () => {
+      expect(filteredAfter({ ownerIds: ["u-x"] }, owned("u-y")).same).toBe(true);
+    });
+
+    it("dono vem do `ownerId` do evento ou, sem ele, do `card.owner`; sem nenhum, não entra", () => {
+      const fromCard = owned("u-x");
+      delete fromCard.ownerId;
+      expect(filteredAfter({ ownerIds: ["u-x"] }, fromCard).ids).toEqual(["b1", "novo"]);
+
+      const unknown = created({ card: { ...card } });
+      delete unknown.ownerId;
+      expect(filteredAfter({ ownerIds: ["u-x"] }, unknown).same).toBe(true);
+    });
+
+    it("sem responsável: `withoutOwner` e `ownerIds: [null]` casam com dono nulo", () => {
+      expect(filteredAfter({ withoutOwner: true }, owned(null)).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ ownerIds: [null, "u-x"] }, owned(null)).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ withoutOwner: true }, owned("u-x")).same).toBe(true);
+    });
+
+    it("etapa, status e tags conferidos com o card", () => {
+      expect(filteredAfter({ stageIds: ["s-b"], ownerIds: ["u-x"] }, owned("u-x")).ids).toEqual([
+        "b1",
+        "novo",
+      ]);
+      expect(filteredAfter({ stageIds: ["s-a"] }, owned("u-x")).same).toBe(true);
+      expect(filteredAfter({ statuses: ["OPEN"] }, owned("u-x")).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ statuses: ["WON"] }, owned("u-x")).same).toBe(true);
+      expect(filteredAfter({ tagIds: ["t1"] }, owned("u-x")).ids).toEqual(["b1", "novo"]);
+      expect(filteredAfter({ tagIds: ["t1", "t2"], tagMode: "all" }, owned("u-x")).same).toBe(true);
+      expect(filteredAfter({ tagIds: ["t2"], tagMode: "none" }, owned("u-x")).ids).toEqual([
+        "b1",
+        "novo",
+      ]);
+      expect(filteredAfter({ withoutTags: true }, owned("u-x")).same).toBe(true);
+      // Card sem `tags` no evento: o cliente não sabe — não entra.
+      expect(filteredAfter({ tagIds: ["t1"] }, created()).same).toBe(true);
+    });
+
+    it("filtro por campo personalizado, origem ou direção da mensagem: não entra", () => {
+      for (const filters of [
+        { dealCustomFields: [{ name: "cidade", operator: "eq", value: "SP" }] },
+        { ownerIds: ["u-x"], contactCustomFields: [{ name: "plano", operator: "filled" }] },
+        { sources: ["Instagram"] },
+        { lastMessageDirection: "in" },
+        { ownerIds: ["u-x"], createdAt: { from: "2026-10-01" } },
+      ]) {
+        expect(filteredAfter(filters, owned("u-x")).same).toBe(true);
+      }
+    });
+
+    it("move comum (com origem) não entra no board filtrado", () => {
+      const result = filteredAfter(
+        { ownerIds: ["u-x"] },
+        { ...owned("u-x"), fromStageId: "s-x", fromPipelineId: "p9" },
+      );
+      expect(result.same).toBe(true);
+    });
+
+    it("sem card (lote acima do teto, ou usuário que não vê o negócio): nada entra", () => {
+      const qc = new QueryClient();
+      const paged = boards(qc);
+      const event = created();
+      delete event.card;
+
+      expect(applyDealMoved(qc, event)).toBe(false);
+      expect(qc.getQueryData(["pipeline-board", "p1", "OPEN"])).toBe(paged);
+    });
+
+    it("board de WON não recebe o negócio criado aberto", () => {
+      const qc = new QueryClient();
+      const won = [stage("s-a", []), stage("s-b", [])];
+      qc.setQueryData(["pipeline-board", "p1", "WON"], won);
+
+      applyDealMoved(qc, created());
+      expect(qc.getQueryData(["pipeline-board", "p1", "WON"])).toBe(won);
+    });
   });
 
   it("automação (mesmo deal_moved): a outra sessão atualiza sem GET e sem duplicar", () => {

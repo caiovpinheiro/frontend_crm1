@@ -214,7 +214,7 @@ export function useBoard(params: {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     // [jul/26] Mantém o quadro anterior VISÍVEL enquanto refaz o fetch
-    // (troca de funil/ordenação, refetch de 60s, invalidação pós-move).
+    // (troca de funil/ordenação, poll de 120 s, invalidação pós-move).
     // Evita o "flash" de tela vazia/"Carregando..." — a query mais cara do
     // app leva ~1-2s, então sem isso o board pisca em branco a cada refetch.
     placeholderData: (prev) => prev,

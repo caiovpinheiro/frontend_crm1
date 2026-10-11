@@ -7,7 +7,9 @@ import { useSSE } from "@/hooks/use-sse";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import { foldActivityOntoDeal } from "@/features/pipeline-v2/board-live-activity";
+import { messageActivityTimestamp } from "@/lib/message-activity-sort";
 import { dealHiddenFromViewer, getInboxViewerScope } from "@/features/inbox-v2/inbox-viewer-scope";
+import type { AdvancedDealFilters } from "@/components/pipeline/kanban-filters/types";
 import {
   readBoardScope,
   type BoardScope,
@@ -52,6 +54,11 @@ function isBoardQueryKey(key: readonly unknown[]): boolean {
  */
 function isPagedBoardQueryKey(key: readonly unknown[]): boolean {
   return key[0] === "pipeline-board";
+}
+
+/** Board filtrado (POST com critérios) — `["pipeline-board-filtered", ...]`. */
+function isFilteredBoardQueryKey(key: readonly unknown[]): boolean {
+  return key[0] === "pipeline-board-filtered";
 }
 
 /** `["pipeline-board*", pipelineId, status, ...]` — as três variantes. */
@@ -189,19 +196,17 @@ type BoardMessagePatch = {
 
 /**
  * Núcleo do patch. Com `scope` (evento trouxe `dealIds`), o card também
- * casa pelo id do negócio. Devolve em quais funis algum card casou —
- * `usePipelineRealtime` usa isso para refazer só o board do funil em que
- * o card está fora da página carregada.
+ * casa pelo id do negócio. Devolve se algum card em cache casou e as
+ * chaves dos boards em que nenhum card casou.
  */
 function patchBoardMessage(
   qc: QueryClient,
   data: BoardMessagePatch,
   scope: BoardScope | null,
-): { found: boolean; matchedPipelineIds: Set<string> } {
-  const matchedPipelineIds = new Set<string>();
+): { found: boolean; missed: (readonly unknown[])[] } {
   const contactId = data.contactId || undefined;
   const dealIds = scope?.dealIds?.length ? new Set(scope.dealIds) : null;
-  if (!contactId && !dealIds) return { found: false, matchedPipelineIds };
+  if (!contactId && !dealIds) return { found: false, missed: [] };
   const direction =
     data.direction === "in" || data.direction === "out" ? data.direction : null;
   const ts =
@@ -221,11 +226,15 @@ function patchBoardMessage(
   });
 
   let found = false;
+  const missed: (readonly unknown[])[] = [];
   for (const [queryKey, data_] of boards) {
     if (!Array.isArray(data_)) continue;
+    const spec = boardSortSpec(queryKey);
     let touched = false;
+    let matched = false;
     const next = data_.map((stage) => {
       let stageTouched = false;
+      const changedIds = new Set<string>();
       const deals = stage.deals.map((deal) => {
         const folded = foldActivityOntoDeal(deal, {
           contactId,
@@ -236,37 +245,89 @@ function patchBoardMessage(
         });
         if (!folded.matched) return deal;
         found = true;
-        const pipelineId = boardPipelineId(queryKey);
-        if (pipelineId) matchedPipelineIds.add(pipelineId);
+        matched = true;
         if (!folded.changed) return deal;
         stageTouched = true;
         touched = true;
+        changedIds.add(deal.id);
         return folded.deal;
       });
-      return stageTouched ? { ...stage, deals } : stage;
+      if (!stageTouched) return stage;
+      // Board ordenado por última interação: o card que recebeu a mensagem
+      // muda de lugar na coluna (no servidor ele já mudou) — sem GET.
+      const ordered =
+        spec.field === "lastInteraction"
+          ? reorderByActivity(deals, changedIds, spec.direction)
+          : deals;
+      return { ...stage, deals: ordered };
     });
     if (touched) qc.setQueryData(queryKey, next);
+    if (!matched) missed.push(queryKey);
   }
-  return { found, matchedPipelineIds };
+  return { found, missed };
 }
 
 /**
- * O que um `new_message` pede ao board, além do patch in-place:
+ * Reposiciona na coluna os cards de `movedIds` pela última interação
+ * (`lastMessage.createdAt`); os demais mantêm a ordem que vieram do
+ * servidor. `desc` = mais recente no topo; `asc` = mais recente no fim da
+ * parte carregada da coluna.
+ */
+function reorderByActivity(
+  deals: BoardDealDto[],
+  movedIds: ReadonlySet<string>,
+  direction: "asc" | "desc",
+): BoardDealDto[] {
+  if (movedIds.size === 0) return deals;
+  const rest = deals.filter((deal) => !movedIds.has(deal.id));
+  const moved = deals.filter((deal) => movedIds.has(deal.id));
+  const ts = (deal: BoardDealDto) => messageActivityTimestamp(deal.lastMessage?.createdAt);
+  for (const deal of moved) {
+    const at = ts(deal);
+    let index = rest.findIndex((other) =>
+      direction === "desc" ? at > ts(other) : at < ts(other),
+    );
+    if (index === -1) index = rest.length;
+    rest.splice(index, 0, deal);
+  }
+  return rest;
+}
+
+/**
+ * O que um evento pede ao board, além do patch in-place:
  * - `null`: nada a refazer;
- * - `"all"`: refazer todo board paginado em cache (evento sem escopo —
+ * - `"all"`: refazer todo board em cache do agendador (evento sem escopo —
  *   backend antigo — e card fora da página, ou sem `contactId`);
- * - lista de funis: refazer só o board paginado desses funis.
+ * - lista de funis: refazer só o board desses funis.
  */
 export type BoardRefreshRequest = null | "all" | string[];
+
+/**
+ * Board paginado ordenado por "mais recentes" (`lastInteraction:desc`) — o
+ * Flow e o Kanban "mais recentes". Nele, quem recebe mensagem vai para o
+ * topo da coluna no servidor, mesmo estando além da página carregada.
+ */
+function isRecentActivityPagedBoard(key: readonly unknown[]): boolean {
+  if (!isPagedBoardQueryKey(key)) return false;
+  const spec = boardSortSpec(key);
+  return spec.field === "lastInteraction" && spec.direction === "desc";
+}
 
 /**
  * Aplica um `new_message` nos boards em cache e diz o que precisa ser
  * refeito. Puro em relação ao React: só lê/escreve no `QueryClient`.
  *
- * Com escopo (`pipelineIds`/`dealIds` no evento): mexe só nos cards do
- * contato/negócios do evento; funil fora de `pipelineIds` não é tocado
- * nem refeito; funil do escopo cujo card não está na página carregada é
- * refeito sozinho. Sem escopo: comportamento anterior.
+ * Com escopo (`pipelineIds`/`dealIds` no evento): patch dos cards do
+ * contato/negócios do evento que já estão em cache. Recarga só quando o
+ * card do escopo não está num board PAGINADO ordenado por "mais recentes"
+ * (`lastInteraction:desc`) de um funil do escopo: ali o negócio sobe para o
+ * topo da coluna no servidor e só entra na página refazendo o board (sai
+ * pelo agendador: piso de `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e nada
+ * com a aba oculta). Nas outras ordenações e nos boards filtrado/busca o
+ * card fora do cache continua sem recarga: além da página ele não muda de
+ * lugar na janela, e fora do filtro não deve aparecer; negócio novo chega
+ * pelo `deal_moved` de criação.
+ * Sem escopo (backend antigo): comportamento anterior.
  */
 export function applyBoardNewMessage(
   qc: QueryClient,
@@ -276,9 +337,15 @@ export function applyBoardNewMessage(
 
   const scope = readBoardScope(payload);
   if (scope) {
-    const { matchedPipelineIds } = patchBoardMessage(qc, payload, scope);
-    const missing = scope.pipelineIds.filter((id) => !matchedPipelineIds.has(id));
-    return missing.length > 0 ? missing : null;
+    const { missed } = patchBoardMessage(qc, payload, scope);
+    const inScope = new Set(scope.pipelineIds);
+    const refresh = new Set<string>();
+    for (const key of missed) {
+      if (!isRecentActivityPagedBoard(key)) continue;
+      const pipelineId = boardPipelineId(key);
+      if (pipelineId && inScope.has(pipelineId)) refresh.add(pipelineId);
+    }
+    return refresh.size > 0 ? [...refresh] : null;
   }
 
   // Payload sem contactId (legado): fallback à invalidação debounced do
@@ -295,12 +362,14 @@ export const BOARD_REFRESH_DEBOUNCE_MS = 800;
 
 /**
  * Intervalo mínimo entre dois refetches do board do MESMO funil causados
- * por eventos. O evento de mensagem não traz o card do negócio (etapa,
- * posição), então card fora da página carregada só entra refazendo o
- * board; sem teto, um funil movimentado refazia o board a cada mensagem
- * (uma por segundo = um GET por segundo).
+ * por eventos: `new_message` SEM escopo (backend antigo) e, com escopo, o
+ * card fora da página num board "mais recentes". O evento não traz o card
+ * do negócio (etapa, posição), então card fora da página carregada só entra
+ * refazendo o board; sem teto, um funil movimentado refazia o board a cada
+ * mensagem. Com 10 s, numa organização movimentada toda aba visível
+ * recarregava o board a cada 10 s.
  */
-export const BOARD_REFRESH_MIN_INTERVAL_MS = 10_000;
+export const BOARD_REFRESH_MIN_INTERVAL_MS = 30_000;
 
 /** Pedido sem escopo (`"all"`): refaz todo board paginado em cache. */
 const ALL_BOARDS = "*";
@@ -318,8 +387,8 @@ function documentVisible(): boolean {
  *   funil parado continua saindo em `delayMs`);
  * - com a aba oculta não refaz nada: o pendente sai quando a aba volta.
  *
- * Não inclui o POST filtrado/busca: quem não está no filtro não pode
- * refazer essa query (no Flow a tela ficava em refresh o tempo todo).
+ * Não inclui o POST filtrado/busca: quem não está no filtro não pode refazer
+ * essa query (no Flow a tela ficava em refresh o tempo todo).
  */
 export function createBoardRefreshScheduler(
   qc: QueryClient,
@@ -471,6 +540,12 @@ function isDealCard(value: unknown): value is Partial<BoardDealDto> & { id: stri
   return typeof row.id === "string" && row.id.length > 0 && typeof row.title === "string" && row.title.length > 0;
 }
 
+/** `card.number` do evento; ausente/nulo (backend antigo) = sem número. */
+function cardNumber(card: { number?: unknown } | null): number | undefined {
+  const value = card?.number;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function dealFromCard(
   card: Partial<BoardDealDto> & { id: string; title: string },
   position: number,
@@ -478,6 +553,7 @@ function dealFromCard(
 ): BoardDealDto {
   return {
     id: card.id,
+    number: cardNumber(card),
     title: card.title,
     value: card.value ?? 0,
     status: card.status ?? "OPEN",
@@ -508,6 +584,7 @@ function movedDeal(
   if (existing) {
     return {
       ...existing,
+      number: existing.number ?? cardNumber(card),
       position,
       updatedAt: updatedAt || existing.updatedAt,
       status: card?.status ?? existing.status,
@@ -589,10 +666,140 @@ function samePlacement(before: BoardStageDto[], after: BoardStageDto[]): boolean
 }
 
 /**
+ * `deal_moved` de negócio criado: sem etapa de origem (`fromStageId` nulo
+ * ou ausente) ou com `created: true`. Backend antigo sempre manda a origem.
+ */
+function isDealCreatedEvent(payload: RealtimePayload<"deal_moved">): boolean {
+  return payload.created === true || payload.fromStageId == null;
+}
+
+/**
+ * Critérios do filtro avançado que o cliente confere com o card do
+ * `deal_moved` de criação. `showAllStages` é só UI; `valueFrom`/`valueTo` a
+ * tela aplica sobre o board já carregado; `logic` só vale para campos
+ * personalizados (que não estão aqui).
+ */
+const CARD_CHECKABLE_FILTERS: ReadonlySet<string> = new Set<keyof AdvancedDealFilters>([
+  "pipelineId",
+  "stageIds",
+  "statuses",
+  "ownerIds",
+  "withoutOwner",
+  "tagIds",
+  "tagMode",
+  "withoutTags",
+  "logic",
+  "showAllStages",
+  "valueFrom",
+  "valueTo",
+]);
+
+/** O que o evento de criação diz do negócio. `undefined` = não informado. */
+type CreatedDealFacts = {
+  pipelineId: string;
+  stageId: string;
+  status: string | undefined;
+  ownerId: string | null | undefined;
+  tagIds: string[] | undefined;
+};
+
+function createdDealFacts(
+  payload: RealtimePayload<"deal_moved">,
+  card: Partial<BoardDealDto>,
+  pipelineId: string,
+  stageId: string,
+): CreatedDealFacts {
+  let ownerId: string | null | undefined;
+  if (payload.ownerId !== undefined) ownerId = payload.ownerId;
+  else if (card.owner !== undefined) ownerId = card.owner?.id ?? null;
+  return {
+    pipelineId,
+    stageId,
+    status: typeof card.status === "string" ? card.status : undefined,
+    ownerId,
+    tagIds: Array.isArray(card.tags) ? card.tags.map((tag) => tag.id) : undefined,
+  };
+}
+
+function nonEmptyList(value: unknown): unknown[] | null {
+  return Array.isArray(value) && value.length > 0 ? value : null;
+}
+
+/**
+ * O board FILTRADO (`["pipeline-board-filtered", pid, status, filtros, ...]`)
+ * aceita o negócio criado? Só quando o filtro canônico (`key[3]`) tem apenas
+ * critérios que o card do evento permite conferir (funil, etapa, status,
+ * responsável, tags) e o card casa com todos. Busca por texto, campos
+ * personalizados, origem, direção da mensagem, datas etc.: o cliente não
+ * sabe — `false`. Dado ausente no evento (sem `ownerId`/`tags`) também.
+ * Espelha `buildDealWhereFromFilters` do backend (critérios em AND).
+ */
+function filteredBoardAcceptsCreated(
+  key: readonly unknown[],
+  facts: CreatedDealFacts,
+): boolean {
+  const raw = key[3];
+  if (typeof raw !== "string") return false;
+  let filters: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+    filters = parsed as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  if (Object.keys(filters).some((name) => !CARD_CHECKABLE_FILTERS.has(name))) return false;
+
+  if (filters.pipelineId != null && filters.pipelineId !== facts.pipelineId) return false;
+
+  const stageIds = nonEmptyList(filters.stageIds);
+  if (stageIds && !stageIds.includes(facts.stageId)) return false;
+
+  const statuses = nonEmptyList(filters.statuses);
+  if (statuses && (facts.status === undefined || !statuses.includes(facts.status))) return false;
+
+  const ownerIds = nonEmptyList(filters.ownerIds);
+  if (filters.withoutOwner === true) {
+    if (facts.ownerId !== null) return false;
+  } else if (ownerIds) {
+    if (facts.ownerId === undefined || !ownerIds.includes(facts.ownerId)) return false;
+  }
+
+  const tagIds = nonEmptyList(filters.tagIds);
+  if (filters.withoutTags === true) {
+    if (!facts.tagIds || facts.tagIds.length > 0) return false;
+  } else if (tagIds) {
+    const cardTags = facts.tagIds;
+    if (!cardTags) return false;
+    const has = (id: unknown) => typeof id === "string" && cardTags.includes(id);
+    const mode = filters.tagMode ?? "any";
+    if (mode === "any") {
+      if (!tagIds.some(has)) return false;
+    } else if (mode === "all") {
+      if (!tagIds.every(has)) return false;
+    } else if (mode === "none") {
+      if (tagIds.some(has)) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Aplica `deal_moved` nos boards já em cache. Não cria query, não invalida
  * e não refaz o GET: remove da origem, insere no destino pela `position`
  * (ou pelo sort daquela cache). Idempotente — evento repetido ou o eco do
  * otimista local não duplica o card.
+ *
+ * Negócio criado (`isDealCreatedEvent`, com `card`, ainda fora de qualquer
+ * cache): entra no board paginado do funil destino como um move (o chip de
+ * total da etapa sobe junto). No board FILTRADO desse funil só entra quando
+ * o filtro tem apenas critérios que o card permite conferir (responsável,
+ * etapa, status, tags) e o card casa (`filteredBoardAcceptsCreated`) — sem
+ * recarga. Com qualquer outro critério (busca, campos personalizados,
+ * origem, direção da mensagem…) não entra nem agenda recarga: aparece na
+ * próxima ação/recarga do usuário.
  *
  * Devolve false quando nada foi escrito (evento incompleto, atrasado,
  * board fora do escopo ou já no lugar).
@@ -639,6 +846,9 @@ export function applyDealMoved(
   const affected = new Set(
     [fromPipelineId, toPipelineId].filter((id): id is string => typeof id === "string" && id.length > 0),
   );
+  // Negócio novo que nenhum board em cache tem ainda.
+  const created = !existing && !!card && isDealCreatedEvent(payload);
+  const facts = created && card ? createdDealFacts(payload, card, toPipelineId, toStageId) : null;
 
   let wrote = false;
   for (const [queryKey, data] of boards) {
@@ -648,9 +858,18 @@ export function applyDealMoved(
     const inScope = pipelineId != null && affected.has(pipelineId);
     // Busca/filtro só se o card já está nessa cache. Inserir aqui mostraria
     // um negócio que não bate no critério. O board paginado é quem recebe
-    // o card que entrou de outro funil.
+    // o card que entrou de outro funil. Exceção: negócio criado entra no
+    // filtrado do funil destino quando o filtro só tem critérios que o card
+    // permite conferir e ele casa — sem recarga. Os demais filtros (busca
+    // por texto inclusa) não recebem o card novo.
     const paged = queryKey[0] === "pipeline-board";
-    if (!contains && !(paged && inScope)) continue;
+    const filteredCreate =
+      !!facts &&
+      inScope &&
+      pipelineId === toPipelineId &&
+      isFilteredBoardQueryKey(queryKey) &&
+      filteredBoardAcceptsCreated(queryKey, facts);
+    if (!contains && !(paged && inScope) && !filteredCreate) continue;
 
     const accepts = boardAcceptsStatus(queryKey, deal?.status);
     const next = relocateDeal(
@@ -668,24 +887,29 @@ export function applyDealMoved(
 }
 
 /**
- * Mantém os cards do Kanban/Flow em dia sem esperar o polling de 30s.
+ * Mantém os cards do Kanban/Flow em dia sem esperar o polling de 120 s
+ * (`refetchInterval` do `useBoard`).
  *
  * O board carrega `lastMessage`, que define o rodapé "aguardando resposta"
  * e os ticks enviado/entregue/lido no `DealCard`.
  *
  * - `new_message` → patch in-place do card (a fila do Flow reordena).
- *   Com `pipelineIds`/`dealIds` no evento: só os cards e o funil
- *   afetados; funil que não está no evento não é tocado. Sem esses
- *   campos (backend antigo): contato fora da página dispara um refetch
- *   do board paginado. Ver `applyBoardNewMessage`. O refetch é coalescido:
- *   no máximo um a cada `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e só com
- *   a aba visível (`createBoardRefreshScheduler`).
+ *   Com `pipelineIds`/`dealIds` no evento: patch dos cards em cache; card
+ *   fora da página só refaz o board paginado "mais recentes" do funil (o
+ *   Flow, o Kanban "mais recentes"). Sem esses campos (backend antigo):
+ *   contato fora da página dispara um refetch do board paginado. Ver
+ *   `applyBoardNewMessage`.
+ *   O refetch é coalescido: no máximo um a cada
+ *   `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e só com a aba visível
+ *   (`createBoardRefreshScheduler`).
  * - `conversation_updated` → ignora (ticket assign/status/consent não
- *   muda estágio do deal; poll 60s + mutations locais cobrem o board).
+ *   muda estágio do deal; poll de 120 s + mutations locais cobrem o board).
  * - `message_status` → patch otimista do `sendStatus` (ticks), sem
  *   recompute do board.
  * - `deal_moved` → tira o card da etapa de origem e coloca na de destino
  *   pela `position`, só nas caches daqueles funis. Sem `invalidateQueries`.
+ *   Negócio criado (sem origem) entra pelo mesmo caminho; no board
+ *   filtrado, só se o card casa com um filtro que o cliente confere.
  */
 export function usePipelineRealtime(enabled = true) {
   const qc = useQueryClient();
