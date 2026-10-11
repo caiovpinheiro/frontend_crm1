@@ -92,6 +92,7 @@ import { FeedbackHomeCard, FeedbackReport, type FeedbackTarget } from "./feedbac
 import { LearnFromConversations } from "./learn-conversations";
 import { ActionsReport } from "./actions-report";
 import { EngineAudit } from "./engine-audit";
+import { ReplyQuality } from "./reply-quality";
 import { IconChip, Pill, SURFACE, Segmented, TABS_LIST, TABS_TRIGGER, type Tone } from "./ui";
 import { buildPublishDiff, type DiffLine, type DiffSection } from "./publish-diff";
 import { CalendarStep } from "./calendar-step";
@@ -1620,7 +1621,7 @@ export default function AIAgentV2EditPage() {
                     <RoutingMap currentAgentId={id} />
                   </div>
                 )}
-                {section === "relatorio" && (<div className="space-y-4"><EngineAudit agentId={id} /><ActionsReport agentId={id} /></div>)}
+                {section === "relatorio" && (<div className="space-y-4"><EngineAudit agentId={id} /><ReplyQuality agentId={id} /><ActionsReport agentId={id} /></div>)}
                 {section === "testes" && (
                   <Tabs value={testsTab} onValueChange={setTestsTab} className="space-y-4">
                     <TabsList className={TABS_LIST}>
