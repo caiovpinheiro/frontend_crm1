@@ -16,9 +16,13 @@
  * ────────────────────────────────
  * `pipelineIds`: funis onde o contato da mensagem tem negócio — só esses
  * boards mudam; lista vazia = nenhum. `dealIds`: os cards afetados (pode
- * faltar quando a lista é grande). Sem `pipelineIds` (backend antigo, ou
- * o servidor não conseguiu resolver) o cliente usa o caminho antigo: casa
- * o card pelo `contactId` e, se não acha, refaz o board paginado.
+ * faltar quando a lista é grande). Com escopo o cliente só atualiza os
+ * cards que já estão em cache e nunca refaz o board por causa da mensagem:
+ * card fora da página ou do filtro não é motivo para recarregar, e negócio
+ * novo entra pelo `deal_moved` de criação. Sem `pipelineIds` (backend
+ * antigo, ou o servidor não conseguiu resolver) o cliente usa o caminho
+ * antigo: casa o card pelo `contactId` e, se não acha, refaz o board
+ * paginado (no máximo um a cada 30 s por funil).
  * O servidor resolve o escopo de um cache de até 60 s: um negócio criado
  * há menos tempo pode não estar na lista — por isso o cliente continua
  * casando o card também pelo contato.
@@ -277,14 +281,25 @@ export type DealMovedCard = {
   tags?: Array<{ id: string; name: string; color: string }>;
 };
 
-/** Negócio já commitado em outra etapa/posição. `position` é a fração do banco. */
+/**
+ * Negócio já commitado em outra etapa/posição. `position` é a fração do banco.
+ *
+ * Negócio CRIADO (backend novo): sai o mesmo evento, sem origem —
+ * `fromStageId`/`fromPipelineId` nulos ou ausentes (ou `created: true`) —
+ * com `card`. Quem tem o board do funil destino em cache insere o card sem
+ * refazer o board. Backend antigo não publica nada na criação.
+ */
 export type DealMovedEvent = {
   organizationId: string;
   dealId: string;
-  fromPipelineId: string;
+  /** `null`/ausente = negócio criado (não veio de outro funil). */
+  fromPipelineId?: string | null;
   toPipelineId: string;
-  fromStageId: string;
+  /** `null`/ausente = negócio criado (não veio de outra etapa). */
+  fromStageId?: string | null;
   toStageId: string;
+  /** Marca explícita de criação, alternativa a `fromStageId: null`. Aditivo. */
+  created?: boolean;
   position: number;
   updatedAt: string;
   /**

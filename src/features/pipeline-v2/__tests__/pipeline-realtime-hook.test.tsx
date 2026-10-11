@@ -208,16 +208,28 @@ describe("usePipelineRealtime", () => {
     expect(after[0].deals[1]).toBe(before[0].deals[1]);
   });
 
-  it("card do funil aberto fora da página: um GET do board, debounced", async () => {
+  it("card do funil aberto fora da página (evento com escopo): nenhum GET do board", async () => {
     const { fetchBoard } = await setup();
 
-    // Três mensagens na mesma janela de 800 ms.
     await act(async () => {
       for (let i = 0; i < 3; i += 1) {
         sse.handler?.(
           "new_message",
           message({ contactId: "contact-z", pipelineIds: ["p1"], dealIds: ["deal-z1"] }),
         );
+      }
+      await vi.advanceTimersByTimeAsync(BOARD_REFRESH_DEBOUNCE_MS * 100);
+    });
+
+    expect(fetchBoard).toHaveBeenCalledTimes(1);
+  });
+
+  it("fallback: três mensagens sem escopo na janela de 800 ms = um GET, debounced", async () => {
+    const { fetchBoard } = await setup();
+
+    await act(async () => {
+      for (let i = 0; i < 3; i += 1) {
+        sse.handler?.("new_message", message({ contactId: "contact-z" }));
       }
       await vi.advanceTimersByTimeAsync(BOARD_REFRESH_DEBOUNCE_MS + 50);
     });
