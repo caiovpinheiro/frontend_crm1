@@ -3,7 +3,9 @@
  *
  * - Evento de outro funil não toca o board aberto (nem patch, nem refetch).
  * - Evento com `dealIds` atualiza só os cards afetados.
- * - Card do escopo fora da página carregada não refaz board nenhum.
+ * - Card do escopo fora da página carregada não refaz board nenhum — exceto
+ *   o board paginado "mais recentes" (`lastInteraction:desc`) do funil, onde
+ *   quem recebe mensagem sobe para o topo no servidor.
  * - Sem os campos (backend antigo) vale o comportamento anterior.
  *
  * Node, sem React: `applyBoardNewMessage` e `createBoardRefreshScheduler`
@@ -328,6 +330,80 @@ describe("applyBoardNewMessage — ordenação por última interação", () => {
     const next = board(qc, "p1");
     expect(next[0].deals.map((d) => d.id)).toEqual(["deal-a1", "deal-b1"]);
     expect(next[0].deals[0]).toBe(p1[0].deals[0]);
+  });
+});
+
+describe("applyBoardNewMessage — board 'mais recentes' (Flow / Kanban)", () => {
+  const recentKey = (pipelineId: string, sort = "lastInteraction:desc") =>
+    ["pipeline-board", pipelineId, "ALL", sort] as const;
+
+  function withRecent(sort?: string) {
+    const { qc } = setup();
+    const data = [stage("p1-s1", [deal("deal-a1", "contact-a")])];
+    qc.setQueryData(recentKey("p1", sort), data);
+    return { qc, data };
+  }
+
+  it("lead do funil fora da página: pede a recarga do funil", () => {
+    const { qc } = withRecent();
+
+    expect(
+      applyBoardNewMessage(
+        qc,
+        inbound({ contactId: "contact-z", pipelineIds: ["p1", "p9"], dealIds: ["deal-z1"] }),
+      ),
+    ).toEqual(["p1"]);
+  });
+
+  it("card já na página: só o patch, sem recarga", () => {
+    const { qc } = withRecent();
+
+    expect(
+      applyBoardNewMessage(qc, inbound({ pipelineIds: ["p1"], dealIds: ["deal-a1"] })),
+    ).toBeNull();
+    expect(
+      qc.getQueryData<BoardStageDto[]>(recentKey("p1"))![0].deals[0].lastMessage,
+    ).toMatchObject({ content: "oi" });
+  });
+
+  it("funil fora do escopo do evento: sem recarga", () => {
+    const { qc } = withRecent();
+
+    expect(
+      applyBoardNewMessage(
+        qc,
+        inbound({ contactId: "contact-z", pipelineIds: ["p2"], dealIds: ["deal-z2"] }),
+      ),
+    ).toBeNull();
+  });
+
+  it("outras ordenações (criação, mais antigas): sem recarga", () => {
+    for (const sort of ["createdAt:desc", "createdAt:asc", "lastInteraction:asc"]) {
+      const { qc } = withRecent(sort);
+      expect(
+        applyBoardNewMessage(
+          qc,
+          inbound({ contactId: "contact-z", pipelineIds: ["p1"], dealIds: ["deal-z1"] }),
+        ),
+      ).toBeNull();
+    }
+  });
+
+  it("board filtrado ou busca 'mais recentes': sem recarga", () => {
+    const qc = new QueryClient();
+    const data = [stage("p1-s1", [])];
+    qc.setQueryData(
+      ["pipeline-board-filtered", "p1", "ALL", '{"tagIds":["t1"]}', "lastInteraction:desc", 50],
+      data,
+    );
+    qc.setQueryData(["pipeline-board-search", "p1", "ALL", "ana", "lastInteraction:desc", 200], data);
+
+    expect(
+      applyBoardNewMessage(
+        qc,
+        inbound({ contactId: "contact-z", pipelineIds: ["p1"], dealIds: ["deal-z1"] }),
+      ),
+    ).toBeNull();
   });
 });
 
