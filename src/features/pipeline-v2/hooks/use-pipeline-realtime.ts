@@ -887,7 +887,8 @@ export function applyDealMoved(
 }
 
 /**
- * Mantém os cards do Kanban/Flow em dia sem esperar o polling de 30s.
+ * Mantém os cards do Kanban/Flow em dia sem esperar o polling de 120 s
+ * (`refetchInterval` do `useBoard`).
  *
  * O board carrega `lastMessage`, que define o rodapé "aguardando resposta"
  * e os ticks enviado/entregue/lido no `DealCard`.
@@ -902,7 +903,7 @@ export function applyDealMoved(
  *   `BOARD_REFRESH_MIN_INTERVAL_MS` por funil e só com a aba visível
  *   (`createBoardRefreshScheduler`).
  * - `conversation_updated` → ignora (ticket assign/status/consent não
- *   muda estágio do deal; poll 60s + mutations locais cobrem o board).
+ *   muda estágio do deal; poll de 120 s + mutations locais cobrem o board).
  * - `message_status` → patch otimista do `sendStatus` (ticks), sem
  *   recompute do board.
  * - `deal_moved` → tira o card da etapa de origem e coloca na de destino
