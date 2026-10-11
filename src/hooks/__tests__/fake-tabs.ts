@@ -280,13 +280,16 @@ export class FakeTab {
 
   presenceTickerEnv(
     tabs: TabCoordinator | null,
-    io: Pick<PresenceTickerEnv, "ping" | "activity">,
+    io: Pick<PresenceTickerEnv, "ping" | "activity"> &
+      Partial<Pick<PresenceTickerEnv, "onUnauthorized" | "isSessionEnded">>,
   ): PresenceTickerEnv {
     const key = "bwipo:presence:last-tick";
     return {
       tabs,
       ping: io.ping,
       activity: io.activity,
+      onUnauthorized: io.onUnauthorized,
+      isSessionEnded: io.isSessionEnded,
       readLastTick: () => {
         const raw = this.hub.storage.get(key);
         return raw ? Number(raw) : null;

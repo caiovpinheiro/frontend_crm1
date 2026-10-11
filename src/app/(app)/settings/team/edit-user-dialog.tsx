@@ -21,6 +21,8 @@ import { FormDialog } from "@/components/ui/form-dialog";
 import { TEAM_USERS_QUERY_PREFIX } from "@/features/shared/queries/team-users";
 import { cn } from "@/lib/utils";
 
+import { RevokeUserSessionsButton } from "./revoke-user-sessions-button";
+
 const PRESET_AVATARS = Array.from(
   { length: 25 },
   (_, i) => `/avatars/presets/preset-${String(i + 1).padStart(2, "0")}.png`,
@@ -333,6 +335,8 @@ export function EditUserDialog({
               triggerClassName="w-full"
             />
           </div>
+
+          {user ? <RevokeUserSessionsButton userId={user.id} userName={user.name} /> : null}
         </div>
       </FormDialog>
 
