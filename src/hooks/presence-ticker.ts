@@ -2,6 +2,7 @@
 
 import { apiUrl } from "@/lib/api";
 import { PRESENCE_PING_MIN_GAP_MS } from "@/lib/presence-ping-gate";
+import { endIdleSession, notePageOpen, sessionIdleClock } from "@/lib/session-idle";
 import {
   handleUnauthorized,
   isSessionEnded,
@@ -51,6 +52,12 @@ import {
  *
  * O ping leva `x-tab-id` (id da aba no `tab-coordinator`): o backend
  * limita o ping por usuário e aba.
+ *
+ * Ociosidade (`lib/session-idle.ts`): o ping leva no corpo
+ * `lastInteractionAt` — a última interação humana do NAVEGADOR (todas as
+ * abas) — e o 200 devolve `sessionIdleMs`. A cada tique, ANTES do ping, a
+ * líder confere localmente: parado além do limite → logout pelo caminho
+ * único (sem ping). O 401 `reason: "idle"` do backend cai no 401 comum.
  */
 
 /** Cadência do tique (sweeper do backend: offline após 300 s sem ping). */
@@ -69,12 +76,27 @@ export type PresenceCallResult = {
   status: number;
   /** 429: espera pedida pelo backend (`retryAfterMs` ou `Retry-After`). */
   retryAfterMs?: number;
+  /** 200 do ping: limite de ociosidade da sessão (ms). Ausente = backend antigo. */
+  sessionIdleMs?: number;
 };
+
+/** Ociosidade da sessão (`lib/session-idle.ts`), vista pelo tique. */
+export interface PresenceIdleEnv {
+  /** Última interação humana do navegador (vai no corpo do ping). */
+  lastInteractionAt: () => number | null;
+  /** Parado além do limite? Conferido antes de cada ping. */
+  isExpired: () => boolean;
+  /** Limite do último 200 do ping (`undefined` = padrão de 12 h). */
+  setLimitMs: (ms: number | undefined) => void;
+  /** Logout por ociosidade. `true` = sessão encerrada (o tique para). */
+  onExpired: () => boolean;
+}
 
 export interface PresenceTickerEnv {
   /** `null` = aba isolada (sem coordenação): é a líder de si mesma. */
   tabs: TabCoordinator | null;
-  ping: () => Promise<PresenceCallResult | void>;
+  /** `lastInteractionAt`: última interação humana do navegador (`null` = sem registro). */
+  ping: (lastInteractionAt: number | null) => Promise<PresenceCallResult | void>;
   activity: (interactionCount: number) => Promise<PresenceCallResult | void>;
   /**
    * 401 em ping/activity. Devolve `true` quando a sessão acabou (o tique
@@ -87,6 +109,8 @@ export interface PresenceTickerEnv {
   /** Último tique do navegador (qualquer aba). */
   readLastTick?: () => number | null;
   writeLastTick?: (at: number) => void;
+  /** Sem `idle`: não há checagem de ociosidade nem `lastInteractionAt`. */
+  idle?: PresenceIdleEnv;
   isVisible: () => boolean;
   onVisibilityChange: (fn: () => void) => () => void;
 }
@@ -231,6 +255,11 @@ export class PresenceTicker {
       this.halt();
       return;
     }
+    // Parado além do limite: logout sem ping (o backend recusaria).
+    if (this.env.idle?.isExpired() && this.env.idle.onExpired()) {
+      this.halt();
+      return;
+    }
     this.inFlight = true;
     const at = Date.now();
     this.lastTickAt = at;
@@ -243,7 +272,7 @@ export class PresenceTicker {
     let results: Array<PresenceCallResult | void> = [];
     try {
       const settled = await Promise.allSettled([
-        this.env.ping(),
+        this.env.ping(this.env.idle?.lastInteractionAt() ?? null),
         count > 0 ? this.env.activity(count) : Promise.resolve(),
       ]);
       results = settled.map((r) => (r.status === "fulfilled" ? r.value : undefined));
@@ -255,6 +284,9 @@ export class PresenceTicker {
     if (pingResult?.status === 401 || activityResult?.status === 401) {
       this.onUnauthorizedResponse();
       return;
+    }
+    if (pingResult && pingResult.status >= 200 && pingResult.status < 300) {
+      this.env.idle?.setLimitMs(pingResult.sessionIdleMs);
     }
     if (activityResult?.status === 429) this.pending += count; // não se perde
     const waitMs = Math.max(retryAfterOf(pingResult), retryAfterOf(activityResult));
@@ -364,6 +396,17 @@ export function presenceTabId(tabs: TabCoordinator | null): string {
  */
 export async function readPresenceResponse(res: Response): Promise<PresenceCallResult> {
   const result: PresenceCallResult = { status: res.status };
+  if (res.ok) {
+    // 200 do ping: limite de ociosidade (ausente no backend antigo).
+    try {
+      const body = (await res.json()) as { sessionIdleMs?: unknown } | null;
+      const ms = body?.sessionIdleMs;
+      if (typeof ms === "number" && Number.isFinite(ms) && ms > 0) result.sessionIdleMs = ms;
+    } catch {
+      /* corpo vazio/não-JSON */
+    }
+    return result;
+  }
   if (res.status !== 429) return result;
   try {
     const body = (await res.json()) as { retryAfterMs?: unknown };
@@ -382,12 +425,15 @@ export async function readPresenceResponse(res: Response): Promise<PresenceCallR
 export async function postPresencePing(
   tabId: string,
   fetchImpl: typeof fetch = fetch,
+  lastInteractionAt: number | null = null,
 ): Promise<PresenceCallResult> {
   const res = await fetchImpl(apiUrl("/api/agents/me/ping"), {
     method: "POST",
     credentials: "include",
     keepalive: true,
-    headers: { [PRESENCE_TAB_ID_HEADER]: tabId },
+    headers: { [PRESENCE_TAB_ID_HEADER]: tabId, "Content-Type": "application/json" },
+    // Sem registro de interação (storage bloqueado e nada nesta aba): `{}`.
+    body: JSON.stringify(lastInteractionAt != null ? { lastInteractionAt } : {}),
   });
   return readPresenceResponse(res);
 }
@@ -403,38 +449,52 @@ async function postActivity(interactionCount: number): Promise<PresenceCallResul
   return readPresenceResponse(res);
 }
 
+function readStoredNumber(key: string): number | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    const at = raw ? Number(raw) : NaN;
+    return Number.isFinite(at) ? at : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredNumber(key: string, at: number): void {
+  try {
+    window.localStorage.setItem(key, String(at));
+  } catch {
+    /* storage bloqueado: só o estado desta aba */
+  }
+}
+
+function browserIdleEnv(): PresenceIdleEnv | undefined {
+  const clock = sessionIdleClock();
+  if (!clock) return undefined;
+  return {
+    lastInteractionAt: () => clock.lastInteractionAt(),
+    isExpired: () => clock.isIdleExpired(),
+    setLimitMs: (ms) => clock.setIdleLimitMs(ms),
+    onExpired: endIdleSession,
+  };
+}
+
 export function browserPresenceTickerEnv(): PresenceTickerEnv {
   const tabs = isSingleLeaderEnabled() ? tabCoordinatorFor("crm") : null;
   const tabId = presenceTabId(tabs);
   return {
     tabs,
-    ping: () => postPresencePing(tabId),
+    ping: (lastInteractionAt) => postPresencePing(tabId, fetch, lastInteractionAt),
     activity: postActivity,
     // Qualquer 401 encerra; só a renovação da própria sessão não.
     onUnauthorized: () => handleUnauthorized() !== "renewal",
     isSessionEnded,
     // Sem coordenação cada aba é líder de si mesma: o instante compartilhado
     // faria uma aba calar a outra (e a contagem dela não sairia).
-    readLastTick: tabs
-      ? () => {
-          try {
-            const raw = window.localStorage.getItem(PRESENCE_LAST_TICK_STORAGE_KEY);
-            const at = raw ? Number(raw) : NaN;
-            return Number.isFinite(at) ? at : null;
-          } catch {
-            return null;
-          }
-        }
-      : undefined,
+    readLastTick: tabs ? () => readStoredNumber(PRESENCE_LAST_TICK_STORAGE_KEY) : undefined,
     writeLastTick: tabs
-      ? (at) => {
-          try {
-            window.localStorage.setItem(PRESENCE_LAST_TICK_STORAGE_KEY, String(at));
-          } catch {
-            /* storage bloqueado: só o gap desta aba */
-          }
-        }
+      ? (at) => writeStoredNumber(PRESENCE_LAST_TICK_STORAGE_KEY, at)
       : undefined,
+    idle: browserIdleEnv(),
     isVisible: () =>
       typeof document === "undefined" || document.visibilityState === "visible",
     onVisibilityChange: (fn) => {
@@ -462,6 +522,8 @@ export function acquirePresenceTicker(): () => void {
   holders += 1;
   // Logout disparado por outra aba: esta para e vai ao login também.
   watchSessionEndInOtherTabs();
+  // Antes do 1º tique (que confere a ociosidade): abrir a página conta.
+  notePageOpen();
   ticker ??= new PresenceTicker(browserPresenceTickerEnv());
   let released = false;
   return () => {
