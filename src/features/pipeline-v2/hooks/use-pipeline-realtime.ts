@@ -7,6 +7,7 @@ import { useSSE } from "@/hooks/use-sse";
 import { isEventMessageType } from "@/components/crm/chat-timeline";
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import { foldActivityOntoDeal } from "@/features/pipeline-v2/board-live-activity";
+import { messageActivityTimestamp } from "@/lib/message-activity-sort";
 import { dealHiddenFromViewer, getInboxViewerScope } from "@/features/inbox-v2/inbox-viewer-scope";
 import {
   readBoardScope,
@@ -225,9 +226,11 @@ function patchBoardMessage(
   let found = false;
   for (const [queryKey, data_] of boards) {
     if (!Array.isArray(data_)) continue;
+    const spec = boardSortSpec(queryKey);
     let touched = false;
     const next = data_.map((stage) => {
       let stageTouched = false;
+      const changedIds = new Set<string>();
       const deals = stage.deals.map((deal) => {
         const folded = foldActivityOntoDeal(deal, {
           contactId,
@@ -241,13 +244,47 @@ function patchBoardMessage(
         if (!folded.changed) return deal;
         stageTouched = true;
         touched = true;
+        changedIds.add(deal.id);
         return folded.deal;
       });
-      return stageTouched ? { ...stage, deals } : stage;
+      if (!stageTouched) return stage;
+      // Board ordenado por última interação: o card que recebeu a mensagem
+      // muda de lugar na coluna (no servidor ele já mudou) — sem GET.
+      const ordered =
+        spec.field === "lastInteraction"
+          ? reorderByActivity(deals, changedIds, spec.direction)
+          : deals;
+      return { ...stage, deals: ordered };
     });
     if (touched) qc.setQueryData(queryKey, next);
   }
   return { found };
+}
+
+/**
+ * Reposiciona na coluna os cards de `movedIds` pela última interação
+ * (`lastMessage.createdAt`); os demais mantêm a ordem que vieram do
+ * servidor. `desc` = mais recente no topo; `asc` = mais recente no fim da
+ * parte carregada da coluna.
+ */
+function reorderByActivity(
+  deals: BoardDealDto[],
+  movedIds: ReadonlySet<string>,
+  direction: "asc" | "desc",
+): BoardDealDto[] {
+  if (movedIds.size === 0) return deals;
+  const rest = deals.filter((deal) => !movedIds.has(deal.id));
+  const moved = deals.filter((deal) => movedIds.has(deal.id));
+  const ts = (deal: BoardDealDto) => messageActivityTimestamp(deal.lastMessage?.createdAt);
+  for (const deal of moved) {
+    const at = ts(deal);
+    let index = rest.findIndex((other) =>
+      direction === "desc" ? at > ts(other) : at < ts(other),
+    );
+    if (index === -1) index = rest.length;
+    rest.splice(index, 0, deal);
+  }
+  return rest;
 }
 
 /**
