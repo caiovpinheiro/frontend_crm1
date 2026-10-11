@@ -521,6 +521,12 @@ function isDealCard(value: unknown): value is Partial<BoardDealDto> & { id: stri
   return typeof row.id === "string" && row.id.length > 0 && typeof row.title === "string" && row.title.length > 0;
 }
 
+/** `card.number` do evento; ausente/nulo (backend antigo) = sem número. */
+function cardNumber(card: { number?: unknown } | null): number | undefined {
+  const value = card?.number;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function dealFromCard(
   card: Partial<BoardDealDto> & { id: string; title: string },
   position: number,
@@ -528,6 +534,7 @@ function dealFromCard(
 ): BoardDealDto {
   return {
     id: card.id,
+    number: cardNumber(card),
     title: card.title,
     value: card.value ?? 0,
     status: card.status ?? "OPEN",
@@ -558,6 +565,7 @@ function movedDeal(
   if (existing) {
     return {
       ...existing,
+      number: existing.number ?? cardNumber(card),
       position,
       updatedAt: updatedAt || existing.updatedAt,
       status: card?.status ?? existing.status,

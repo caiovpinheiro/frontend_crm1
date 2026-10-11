@@ -4,6 +4,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
+import { toDealCard } from "@/features/pipeline-v2/adapters";
 import type { BoardDealDto, BoardStageDto } from "@/features/pipeline-v2/api";
 import {
   applyDealMoved,
@@ -415,6 +416,34 @@ describe("applyDealMoved", () => {
       expect(after[1].totalCount).toBe(41);
       expect(invalidate).not.toHaveBeenCalled();
       expect(refetch).not.toHaveBeenCalled();
+    });
+
+    it("card com número: o negócio inserido mostra #número, não o prefixo do id", () => {
+      const qc = new QueryClient();
+      boards(qc);
+
+      applyDealMoved(qc, created({ card: { ...card, id: "cmv3abc", number: 49338 }, dealId: "cmv3abc" }));
+
+      const inserted = qc
+        .getQueryData<BoardStageDto[]>(["pipeline-board", "p1", "OPEN"])![1]
+        .deals.find((d) => d.id === "cmv3abc")!;
+      expect(inserted.number).toBe(49338);
+      expect(toDealCard(inserted).dealNumber).toBe("#49338");
+    });
+
+    it("card sem número (backend antigo) ou com número nulo: mantém o prefixo do id", () => {
+      for (const extra of [{}, { number: null }]) {
+        const qc = new QueryClient();
+        boards(qc);
+
+        applyDealMoved(qc, created({ card: { ...card, id: "cmv3abc", ...extra }, dealId: "cmv3abc" }));
+
+        const inserted = qc
+          .getQueryData<BoardStageDto[]>(["pipeline-board", "p1", "OPEN"])![1]
+          .deals.find((d) => d.id === "cmv3abc")!;
+        expect(inserted.number).toBeUndefined();
+        expect(toDealCard(inserted).dealNumber).toBe("#cmv3");
+      }
     });
 
     it("forma alternativa: fromStageId ausente + created: true", () => {
