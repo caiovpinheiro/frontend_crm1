@@ -24,10 +24,13 @@ vi.mock("@/hooks/sse-single-leader", () => ({ isSingleLeaderEnabled: () => false
 import { PRESENCE_TICK_MS } from "@/hooks/presence-ticker";
 import { usePresenceHeartbeat } from "@/hooks/use-presence-heartbeat";
 import {
+  AUTO_RELOAD_STORAGE_KEY,
   LAST_INTERACTION_STORAGE_KEY,
   __resetSessionIdleForTests,
+  markAutoReload,
   sessionIdleClock,
 } from "@/lib/session-idle";
+import { reloadOnceForStaleChunk } from "@/lib/stale-chunk-error";
 import { __resetSessionRevokedForTests, isSessionEnded } from "@/lib/session-revoked";
 
 import { useSystemActivity } from "./use-system-activity";
@@ -92,6 +95,7 @@ beforeEach(() => {
   __resetSessionRevokedForTests();
   __resetSessionIdleForTests();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   window.history.replaceState(null, "", "/inbox");
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -201,5 +205,70 @@ describe("ociosidade no navegador", () => {
     await advance(4 * PRESENCE_TICK_MS);
     await flush();
     expect(h.signOutToLogin).not.toHaveBeenCalled();
+  });
+});
+
+describe("recarga automática não é interação", () => {
+  const HORA = 60 * 60_000;
+
+  it("recarga automática com a última interação há 13 h → logout, sem ping e sem activity", async () => {
+    window.localStorage.setItem(LAST_INTERACTION_STORAGE_KEY, String(T0 - 13 * HORA));
+    markAutoReload(); // a página anterior marcou antes do location.reload()
+    mount();
+    await flush();
+    await advance(PRESENCE_TICK_MS);
+    await flush();
+    expect(h.signOutToLogin).toHaveBeenCalledTimes(1);
+    expect(sessionIdleClock()?.lastInteractionAt()).toBe(T0 - 13 * HORA);
+    expect(activity()).toHaveLength(0);
+    expect(pings()).toHaveLength(0);
+    expect(window.sessionStorage.getItem(AUTO_RELOAD_STORAGE_KEY)).toBeNull(); // consumida
+  });
+
+  it("recarga automática com interação recente → não conta (lastInteractionAt inalterado), sem activity", async () => {
+    const recente = T0 - 10 * 60_000;
+    window.localStorage.setItem(LAST_INTERACTION_STORAGE_KEY, String(recente));
+    pingReply = { status: 200, body: { ok: true, sessionIdleMs: 12 * HORA } };
+    markAutoReload();
+    mount();
+    await flush();
+    expect(h.signOutToLogin).not.toHaveBeenCalled();
+    expect(sessionIdleClock()?.lastInteractionAt()).toBe(recente);
+    expect(window.localStorage.getItem(LAST_INTERACTION_STORAGE_KEY)).toBe(String(recente));
+    expect(pings()[0].body).toEqual({ lastInteractionAt: recente });
+    await advance(PRESENCE_TICK_MS);
+    expect(activity()).toHaveLength(0);
+  });
+
+  it("abertura manual (sem a marca) conta — mesmo com storage de 13 h atrás (login no apex)", async () => {
+    window.localStorage.setItem(LAST_INTERACTION_STORAGE_KEY, String(T0 - 13 * HORA));
+    mount();
+    await flush();
+    expect(h.signOutToLogin).not.toHaveBeenCalled();
+    expect(sessionIdleClock()?.lastInteractionAt()).toBe(T0);
+    expect(pings()[0].body).toEqual({ lastInteractionAt: T0 });
+    // Abrir a página só renova a última interação: não vira activity.
+    await advance(PRESENCE_TICK_MS);
+    expect(activity()).toHaveLength(0);
+  });
+
+  it("marca velha (o reload marcado não aconteceu) não vale: abertura conta", async () => {
+    window.sessionStorage.setItem(AUTO_RELOAD_STORAGE_KEY, String(T0 - 5 * 60_000));
+    mount();
+    await flush();
+    expect(sessionIdleClock()?.lastInteractionAt()).toBe(T0);
+  });
+
+  it("os caminhos automáticos marcam: `online` (reload do Serwist) e chunk velho", async () => {
+    mount();
+    await flush();
+    expect(window.sessionStorage.getItem(AUTO_RELOAD_STORAGE_KEY)).toBeNull();
+    window.dispatchEvent(new Event("online"));
+    expect(window.sessionStorage.getItem(AUTO_RELOAD_STORAGE_KEY)).toBe(String(T0));
+
+    window.sessionStorage.clear();
+    // jsdom não navega (só avisa "not implemented"); importa a marca.
+    reloadOnceForStaleChunk({ name: "ChunkLoadError", message: "Loading chunk 12 failed" });
+    expect(window.sessionStorage.getItem(AUTO_RELOAD_STORAGE_KEY)).toBe(String(T0));
   });
 });

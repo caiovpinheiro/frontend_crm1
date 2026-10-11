@@ -2,7 +2,12 @@
 
 import { apiUrl } from "@/lib/api";
 import { PRESENCE_PING_MIN_GAP_MS } from "@/lib/presence-ping-gate";
-import { endIdleSession, notePageOpen, sessionIdleClock } from "@/lib/session-idle";
+import {
+  endIdleSession,
+  notePageOpen,
+  sessionIdleClock,
+  watchOnlineAutoReload,
+} from "@/lib/session-idle";
 import {
   handleUnauthorized,
   isSessionEnded,
@@ -547,7 +552,10 @@ export function acquirePresenceTicker(): () => void {
   holders += 1;
   // Logout disparado por outra aba: esta para e vai ao login também.
   watchSessionEndInOtherTabs();
-  // Antes do 1º tique (que confere a ociosidade): abrir a página conta.
+  // Recarga do Serwist no `online` é automática: marca antes.
+  watchOnlineAutoReload();
+  // Antes do 1º tique (que confere a ociosidade): abrir a página conta —
+  // menos numa recarga automática, que só confere o limite.
   notePageOpen();
   ticker ??= new PresenceTicker(browserPresenceTickerEnv());
   let released = false;
