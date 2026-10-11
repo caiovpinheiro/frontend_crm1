@@ -11,9 +11,10 @@
  *    uma aba mantém todas vivas, e a líder (que pinga) manda o valor do
  *    navegador inteiro;
  *  - contam só interações humanas — clique, tecla, rolagem, troca de rota,
- *    a aba voltar ao primeiro plano/foco e a abertura da página
+ *    a aba voltar ao primeiro plano/foco e a abertura MANUAL da página
  *    (`features/system-usage/use-system-activity.ts`). Ping, SSE, refetch,
- *    polling e timers NÃO chamam `mark`;
+ *    polling, timers e recargas AUTOMÁTICAS (`markAutoReload`) NÃO chamam
+ *    `mark`;
  *  - checagem local, para não depender do 401: a cada tique do ping
  *    (`hooks/presence-ticker.ts`) e ANTES de registrar cada interação. Se
  *    `agora - lastInteractionAt > sessionIdleMs`, sai pelo
@@ -37,6 +38,14 @@ export const SESSION_IDLE_MS_STORAGE_KEY = "crm:session-idle-ms";
 export const DEFAULT_SESSION_IDLE_MS = 12 * 60 * 60_000;
 /** No máximo uma gravação da última interação no storage a cada 5 s. */
 export const LAST_INTERACTION_WRITE_MS = 5_000;
+/**
+ * Marca de recarga AUTOMÁTICA desta aba (`sessionStorage`, instante em ms).
+ * Gravada antes do `location.reload()` que não veio do usuário; a página
+ * nova a consome em `notePageOpen`.
+ */
+export const AUTO_RELOAD_STORAGE_KEY = "crm:auto-reload";
+/** Marca mais velha que isto não vale (o reload marcado não aconteceu). */
+export const AUTO_RELOAD_TTL_MS = 60_000;
 
 export interface SessionIdleStorage {
   get(key: string): string | null;
@@ -185,22 +194,86 @@ export function __resetSessionIdleForTests(): void {
   clock?.destroy();
   clock = null;
   pageOpenNoted = false;
+  stopOnlineWatch?.();
+  stopOnlineWatch = null;
 }
 
 /**
- * Abertura (ou recarga) desta página: conta como interação — é navegação —
- * e SEM checagem antes. Uma vez por página. Vale também com a aba em
- * segundo plano (entrar e trocar de aba antes do shell montar).
- *
- * Por que sem checagem: o login pode acontecer em outro host (apex →
- * `{slug}.bwipo.com`), cujo storage guarda a última interação da sessão
- * ANTERIOR. Checar aqui deslogaria logo depois de entrar. Quem ficou
- * parado com a página aberta sai pelo tique ou pela checagem antes da
- * próxima interação (inclusive a volta ao foco).
+ * Antes de um `location.reload()` AUTOMÁTICO (sem ação do usuário): a
+ * página que abrir não conta como interação. Sem isso uma aba esquecida
+ * seria "renovada" a cada recarga automática e nunca expiraria.
  */
-export function notePageOpen(c: SessionIdleClock | null = sessionIdleClock()): void {
+export function markAutoReload(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(AUTO_RELOAD_STORAGE_KEY, String(Date.now()));
+  } catch {
+    /* storage bloqueado: a recarga conta como abertura manual */
+  }
+}
+
+/** Consome a marca de recarga automática (vale só se recente). */
+function takeAutoReloadMark(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.sessionStorage.getItem(AUTO_RELOAD_STORAGE_KEY);
+    if (raw === null) return false;
+    window.sessionStorage.removeItem(AUTO_RELOAD_STORAGE_KEY);
+    const age = Date.now() - Number(raw);
+    return Number.isFinite(age) && age >= 0 && age < AUTO_RELOAD_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+let stopOnlineWatch: (() => void) | null = null;
+
+/**
+ * O Serwist (`reloadOnOnline: true` em `next.config.ts`) recarrega a
+ * página no evento `online` — ex.: notebook que acorda e reconecta. Essa
+ * recarga é automática: marca antes. O `location.reload()` não interrompe
+ * o despacho do evento, então a ordem entre os dois listeners não importa.
+ * Idempotente.
+ */
+export function watchOnlineAutoReload(): () => void {
+  if (typeof window === "undefined") return () => {};
+  if (stopOnlineWatch) return stopOnlineWatch;
+  const onOnline = () => markAutoReload();
+  window.addEventListener("online", onOnline);
+  const off = () => {
+    window.removeEventListener("online", onOnline);
+    if (stopOnlineWatch === off) stopOnlineWatch = null;
+  };
+  stopOnlineWatch = off;
+  return off;
+}
+
+/**
+ * Abertura desta página. Uma vez por página. Só marca a última interação
+ * (não vai para o `interactionCount` do activity).
+ *
+ * - Abertura MANUAL (navegação, F5 do usuário): conta como interação e
+ *   SEM checagem antes — vale também com a aba em segundo plano. Por que
+ *   sem checagem: o login pode acontecer em outro host (apex →
+ *   `{slug}.bwipo.com`), cujo storage guarda a última interação da sessão
+ *   ANTERIOR; checar aqui deslogaria logo depois de entrar.
+ * - Recarga AUTOMÁTICA (marca de `markAutoReload`: chunk velho depois de
+ *   deploy, `online` do Serwist): NÃO conta, e faz a checagem normal —
+ *   parado além do limite → logout.
+ *
+ * Quem ficou parado com a página aberta sai pelo tique ou pela checagem
+ * antes da próxima interação (inclusive a volta ao foco).
+ */
+export function notePageOpen(
+  c: SessionIdleClock | null = sessionIdleClock(),
+  onExpired: () => unknown = endIdleSession,
+): void {
   if (pageOpenNoted || !c) return;
   pageOpenNoted = true;
+  if (takeAutoReloadMark()) {
+    if (!isSessionEnded() && c.isIdleExpired()) onExpired();
+    return;
+  }
   c.mark();
 }
 
