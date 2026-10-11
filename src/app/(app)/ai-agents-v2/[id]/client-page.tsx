@@ -5895,7 +5895,7 @@ function StepTeam({
             </Field>
             <Field
               label="Aviso fora do horário"
-              hint="Vai junto da transferência e do aviso de fila fora do expediente. {{horario}} vira os dias e horários acima. Vazio: “Nossa equipe atende {{horario}}. Sua mensagem fica registrada e seguimos com você no próximo horário.”"
+              hint="Vai junto da transferência e do aviso de fila fora do expediente. {{horario}} vira os dias e horários abaixo; {{retorno}} vira quando a equipe volta (“na terça-feira, 13/10, às 08:00”), já pulando feriado e pausa. Vazio: “Nossa equipe atende {{horario}}. Sua mensagem fica registrada e seguimos com você {{retorno}}.”"
             >
               <Textarea value={(bh.offHoursMessage as string) ?? ""} onChange={(e) => onChange("businessHours.offHoursMessage", e.target.value)} />
             </Field>
@@ -5967,6 +5967,23 @@ function StepTeam({
                 <IconPlus className="size-4" /> Adicionar dia
               </Button>
             </div>
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Switch
+                checked={!!bh.holidaysClosed}
+                onCheckedChange={(v) => onChange("businessHours.holidaysClosed", v)}
+                id="bh-holidays"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="bh-holidays">Feriados nacionais sem expediente</Label>
+                <p className="text-xs text-muted-foreground">
+                  Ano-Novo, Carnaval, Sexta-feira Santa, Tiradentes, Dia do Trabalho, Corpus Christi, Independência, Nossa Senhora Aparecida, Finados, Proclamação da República, Consciência Negra e Natal. No feriado a equipe fica fora; o aviso diz o feriado e o próximo dia com equipe.
+                </p>
+              </div>
+            </div>
+            <TeamClosuresEditor
+              closures={(bh.closures as Array<Record<string, unknown>>) ?? []}
+              onChange={(next) => onChange("businessHours.closures", next)}
+            />
           </>
         )}
       </SectionCard>
@@ -6005,6 +6022,63 @@ const SYSTEM_MESSAGES: Array<{ key: string; label: string; when: string; placeho
   { key: "deferralReply", label: "Cliente adiou (“chamo depois”)", when: "O cliente diz que vai falar depois ou que não pode agora. O agente responde isto, sem fecho nem botões, e encerra; a volta entra pela janela pós-encerramento.", placeholder: "Combinado! Quando puder, é só me chamar por aqui. 😊" },
   { key: "optionsButton", label: "Botão da lista de opções", when: "Botão que abre a lista (até 20 caracteres).", placeholder: "Ver opções", max: 20 },
 ];
+
+const newClosureId = () => `pausa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
+/**
+ * Pausas da equipe (treinamento, convenção, evento): no período a equipe
+ * fica fora do horário mesmo em dia útil; o agente continua respondendo e o
+ * aviso de transferência/fila diz o motivo e quando a equipe volta.
+ */
+function TeamClosuresEditor({ closures, onChange }: { closures: Array<Record<string, unknown>>; onChange: (next: Array<Record<string, unknown>>) => void }) {
+  const update = (i: number, patch: Record<string, unknown>) => {
+    const next = closures.slice();
+    next[i] = { ...next[i], ...patch };
+    onChange(next);
+  };
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div className="space-y-0.5">
+        <Label>Pausas da equipe</Label>
+        <p className="text-xs text-muted-foreground">
+          Treinamento, convenção, evento interno: período em que ninguém da equipe atende. O agente segue respondendo; ao transferir ou avisar a fila, diz o motivo e quando a equipe volta. Fora do período, vale o horário normal.
+        </p>
+      </div>
+      {closures.map((c, i) => {
+        const startsAt = (c.startsAt as string) ?? "";
+        const endsAt = (c.endsAt as string) ?? "";
+        const inverted = !!startsAt && !!endsAt && endsAt <= startsAt;
+        return (
+          <div key={(c.id as string) ?? i} className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                className="h-9 min-w-48 flex-1"
+                placeholder="Motivo (ex.: treinamento da equipe)"
+                value={(c.label as string) ?? ""}
+                onChange={(e) => update(i, { label: e.target.value })}
+              />
+              <Input type="datetime-local" className="h-9 w-auto" value={startsAt} onChange={(e) => update(i, { startsAt: e.target.value })} aria-label="Início da pausa" />
+              <span className="text-sm">até</span>
+              <Input type="datetime-local" className="h-9 w-auto" value={endsAt} onChange={(e) => update(i, { endsAt: e.target.value })} aria-label="Fim da pausa" />
+              <Button variant="ghost" size="icon" aria-label="Remover pausa" onClick={() => onChange(closures.filter((_, j) => j !== i))}>
+                <IconTrash className="size-4" />
+              </Button>
+            </div>
+            {inverted && <p className="text-xs text-destructive">O fim está antes do início.</p>}
+            {(!startsAt || !endsAt) && <p className="text-xs text-muted-foreground">Sem início e fim, a pausa não vale.</p>}
+          </div>
+        );
+      })}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onChange([...closures, { id: newClosureId(), label: "", startsAt: "", endsAt: "" }])}
+      >
+        <IconPlus className="size-4" /> Adicionar pausa
+      </Button>
+    </div>
+  );
+}
 
 function SystemMessagesCard({ config, onChange }: { config: Record<string, unknown>; onChange: (path: string, value: unknown) => void }) {
   const values = (getPath(config, "systemMessages", {}) as Record<string, string> | null) ?? {};

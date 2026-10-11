@@ -154,6 +154,9 @@ const PATH_LABEL: Record<string, string> = {
 
   "businessHours.timezone": "Fuso horário",
   "businessHours.weekdays": "Dias e horários",
+  "businessHours.offHoursMessage": "Aviso fora do horário",
+  "businessHours.holidaysClosed": "Feriados nacionais sem expediente",
+  "businessHours.closures": "Pausas da equipe",
 
   "productPolicy.enabled": "Usar o catálogo",
   "productPolicy.maxItems": "Máximo de itens",
@@ -341,6 +344,10 @@ function itemName(path: string, v: unknown, c: NameCatalogs): string {
     return `${d(v.start)}${v.end && v.end !== v.start ? ` a ${d(v.end)}` : ""} · ${String(v.title ?? "")}`;
   }
   if (path === "businessHours.weekdays") return `${WEEKDAYS[Number(v.day)] ?? v.day} ${v.start ?? ""}–${v.end ?? ""}`;
+  if (path === "businessHours.closures") {
+    const dt = (s: unknown) => (typeof s === "string" && s.length >= 16 ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : "");
+    return `${String(v.label ?? "") || "pausa"} · ${dt(v.startsAt)} a ${dt(v.endsAt)}`;
+  }
   if (path === "variables") return `${String(v.key ?? "")}: ${clip(String(v.value ?? ""), 80)}`;
   if (path.endsWith("conditions")) {
     const vals = Array.isArray(v.values) ? (v.values as unknown[]).join(", ") : "";
