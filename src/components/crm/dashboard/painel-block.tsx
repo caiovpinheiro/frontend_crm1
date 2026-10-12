@@ -58,6 +58,23 @@ export function PainelCard({
   );
 }
 
+/**
+ * Ícone (?) com explicação no `title` (passar o mouse) e o mesmo texto para
+ * leitor de tela. Mesmo desenho do `info` do `PainelCard`.
+ */
+export function InfoHint({ text, className }: { text: string; className?: string }) {
+  return (
+    <span
+      data-info-hint=""
+      title={text}
+      className={cn("inline-flex shrink-0 cursor-help text-muted-foreground", className)}
+    >
+      <CircleHelp className="size-3.5" aria-hidden="true" />
+      <span className="sr-only">{text}</span>
+    </span>
+  );
+}
+
 export function PainelSkeleton({ className }: { className?: string }) {
   return (
     <div
