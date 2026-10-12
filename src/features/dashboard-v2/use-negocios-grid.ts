@@ -134,6 +134,10 @@ export function parseStageWidgetId(id: string): string | null {
   return isStageWidgetId(id) ? id.slice(STAGE_WIDGET_PREFIX.length) : null;
 }
 
+/**
+ * Linhas para caber `px` (layout): o react-grid-layout desenha
+ * rowHeight·h + marginY·(h − 1), então h = ceil((px + marginY) / (rowHeight + marginY)).
+ */
 export function gridRowsForPx(px: number, minH = 2): number {
   const unit = DASHBOARD_GRID_ROW_HEIGHT + DASHBOARD_GRID_MARGIN[1];
   return Math.max(minH, Math.ceil((px + DASHBOARD_GRID_MARGIN[1]) / unit));
