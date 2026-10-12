@@ -54,10 +54,27 @@ export function fitLayoutToContent(
 }
 
 /**
- * Altura natural (px) de cada `[data-grid-measure]` dentro de `root`: o
- * contêiner do card deixa de ser flex-1 por um instante e passa a ter a altura
- * do próprio conteúdo. Leitura síncrona — o navegador não pinta o estado
- * intermediário.
+ * Altura do elemento em px de LAYOUT (os mesmos da grade). O
+ * `getBoundingClientRect` vem depois de transforms: com um ancestral em
+ * `scale` (ex.: viewport emulado e reduzido para caber, zoom por transform)
+ * ele devolve ~7% a menos, a conversão em linhas ficava curta e o card
+ * transbordava a célula, invadindo o de baixo. Desfaz a escala pela largura
+ * (rect.width / offsetWidth) e nunca fica abaixo de `scrollHeight` /
+ * `offsetHeight`, que não sofrem transform.
+ */
+export function layoutHeightPx(el: HTMLElement): number {
+  const rect = el.getBoundingClientRect();
+  const scale = el.offsetWidth > 0 && rect.width > 0 ? rect.width / el.offsetWidth : 1;
+  const fromRect = rect.height / scale;
+  return Math.max(fromRect, el.scrollHeight, el.offsetHeight);
+}
+
+/**
+ * Altura natural (px de layout) de cada `[data-grid-measure]` dentro de
+ * `root`: o contêiner do card deixa de ser flex-1 por um instante e passa a
+ * ter a altura do card inteiro (borda e padding inclusos; `flow-root` segura
+ * margens dos filhos, que de outro modo vazariam para fora da medida).
+ * Leitura síncrona — o navegador não pinta o estado intermediário.
  */
 export function measureNaturalHeights(root: HTMLElement | null): Map<string, number> {
   const out = new Map<string, number>();
@@ -69,8 +86,8 @@ export function measureNaturalHeights(root: HTMLElement | null): Map<string, num
     const previous = el.style.cssText;
     el.style.flex = "none";
     el.style.height = "auto";
-    el.style.display = "block";
-    const height = el.getBoundingClientRect().height;
+    el.style.display = "flow-root";
+    const height = layoutHeightPx(el);
     el.style.cssText = previous;
     out.set(id, height);
   });
