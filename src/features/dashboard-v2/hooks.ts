@@ -49,7 +49,6 @@ import type { NegociosCustomCard } from "./use-negocios-grid";
 import { todayRangeISO, type DashboardPipelineOption } from "./use-dashboard-filters";
 import {
   isBlockPending,
-  isBlockUnavailable,
   isSectionKnownUnavailable,
   normalizeRequestedBlocks,
   rememberUnavailableSections,
@@ -57,10 +56,13 @@ import {
   useUnavailableSections,
 } from "./service-availability";
 import {
+  DEAL_SECTIONS,
   SERVICE_HEAVY_SECTIONS,
   SERVICE_REST_SECTIONS,
+  eventCardsNeedActivityStats,
   growSections,
   splitServiceWaves,
+  type DealSection,
   type ServiceSection,
 } from "./visible-sections";
 
@@ -73,15 +75,6 @@ import {
 export function usePipelineOptions(enabled = true) {
   return usePipelinesQuery<PipelineListItemDto & DashboardPipelineOption>(enabled);
 }
-
-const DEAL_LIVE_SECTIONS = [
-  "kpis",
-  "funnel",
-  "evolution",
-  "agents",
-  "sources",
-  "exceptions",
-] as const;
 
 function emptyDealsResult(): PainelDealsResult {
   return {
@@ -120,12 +113,25 @@ function useGrowingList<T extends string>(next: readonly T[] | undefined): T[] |
   return grown;
 }
 
-export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
+export function usePainelDeals(
+  filters: DashboardFiltersState,
+  enabled = true,
+  /**
+   * Seções dos widgets visíveis da grade (ver `dealSectionsFor`); sem isto,
+   * todas. Lista que só cresce: esconder um widget não refaz o GET, mostrar um
+   * novo pede de novo com a seção dele.
+   */
+  sections?: readonly DealSection[],
+) {
   const queryClient = useQueryClient();
   // Chave só com o que vai na URL: o filtro de usuário é aplicado no cliente.
   const reqFilters = useMemo(() => requestFilters(filters), [filters]);
-  const queryKey = ["painel", "deals", reqFilters] as const;
-  const live = isPreviewMode() || isPageMockMode() ? true : enabled;
+  const grown = useGrowingList(sections);
+  // Ordem fixa (a de DEAL_SECTIONS): a chave não muda com a ordem da grade.
+  const sectionCsv = DEAL_SECTIONS.filter((s) => (grown ?? DEAL_SECTIONS).includes(s)).join(",");
+  const queryKey = ["painel", "deals", reqFilters, sectionCsv] as const;
+  const live =
+    isPreviewMode() || isPageMockMode() ? true : enabled && sectionCsv.length > 0;
 
   useEffect(() => {
     if (live) return;
@@ -134,18 +140,13 @@ export function usePainelDeals(filters: DashboardFiltersState, enabled = true) {
 
   const query = useQuery<PainelDealsResult>({
     queryKey,
-    // Uma chamada com todas as seções: o backend aceita CSV em `section`
-    // (`parseDealSections`) e roda os blocos em paralelo, devolvendo
+    // Uma chamada com as seções dos widgets visíveis: o backend aceita CSV em
+    // `section` (`parseDealSections`) e roda os blocos em paralelo, devolvendo
     // `ok:false` por bloco em caso de erro. Antes eram 6 GETs simultâneos
     // que, pelo proxy do Next, se serializavam e refaziam auth/escopo/
     // período seis vezes.
     queryFn: async ({ signal }) => {
-      const part = await fetchPainelDeals(
-        filters,
-        DEAL_LIVE_SECTIONS.join(","),
-        undefined,
-        signal,
-      );
+      const part = await fetchPainelDeals(filters, sectionCsv, undefined, signal);
       return { ...emptyDealsResult(), ...pickDefined(part) };
     },
     enabled: live,
@@ -194,28 +195,12 @@ function servicePeriodStamp(
   return `${filters.period}|${filters.startDate ?? ""}|${filters.endDate ?? ""}|${clock}`;
 }
 
-const REST_ARM_MS = 2_000;
-const HEAVY_ARM_MS = 6_000;
-
 function isHeavyServiceSection(section: string) {
   return SERVICE_HEAVY_SECTIONS.some((key) => section.split(",").includes(key));
 }
 
 function isRestServiceSection(section: string) {
   return SERVICE_REST_SECTIONS.some((key) => section.split(",").includes(key));
-}
-
-function useArmedAfter(ok: boolean, delayMs: number) {
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!ok) {
-      setArmed(false);
-      return;
-    }
-    const id = window.setTimeout(() => setArmed(true), delayMs);
-    return () => window.clearTimeout(id);
-  }, [ok, delayMs]);
-  return armed;
 }
 
 async function fetchServiceWaves(
@@ -273,6 +258,12 @@ export function usePainelService(
    * (cards da aba Negócios) vale o modo: `full` = tudo, `light` = só o volume.
    */
   sections?: readonly ServiceSection[],
+  /**
+   * Seções dos widgets que já entraram na tela (ou estão perto dela). Cada
+   * grupo (volume, leves, pesadas) sai quando alguma seção dele é pedida aqui —
+   * na hora, sem temporizador. Sem isto, todos os grupos saem na abertura.
+   */
+  wanted?: readonly ServiceSection[],
 ) {
   const queryClient = useQueryClient();
   const reqFilters = useMemo(() => requestFilters(filters), [filters]);
@@ -306,8 +297,10 @@ export function usePainelService(
     });
   }, [live, stamp, queryClient]);
 
+  // Só a instância "full" cria os grupos leve/pesado: a instância "light" (cards
+  // de Negócios) desligada não pode cancelar o que a aba Atendimentos pediu.
   useEffect(() => {
-    if (live) return;
+    if (live || mode !== "full") return;
     void queryClient.cancelQueries({
       predicate: (q) => {
         const key = q.queryKey;
@@ -318,7 +311,10 @@ export function usePainelService(
         );
       },
     });
-  }, [live, queryClient]);
+  }, [live, mode, queryClient]);
+
+  const wants = (group: readonly ServiceSection[]) =>
+    group.length > 0 && (!wanted || group.some((s) => wanted.includes(s)));
 
   const volume = useQuery<PainelServiceResult>({
     queryKey: volumeKey,
@@ -326,30 +322,23 @@ export function usePainelService(
       fetchServiceWaves(filters, clock, ["volume"], signal, (acc) =>
         queryClient.setQueryData<PainelServiceResult>(volumeKey, acc),
       ),
-    enabled: live && wantVolume,
+    enabled: live && wantVolume && wants(waves.volume),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
   });
 
-  // Sem o widget de volume na tela, as ondas seguintes não esperam por ele.
-  const volumeOk =
-    !wantVolume ||
-    volume.data?.volume?.ok === true ||
-    // Volume indisponível não pode travar as ondas seguintes.
-    isBlockUnavailable(volume.data?.volume);
-  const restArmed = useArmedAfter(live && restSections.length > 0 && volumeOk, REST_ARM_MS);
-  const heavyArmed = useArmedAfter(live && heavySections.length > 0 && volumeOk, HEAVY_ARM_MS);
-
-  // Cada onda é um único GET com as seções visíveis dela em CSV (o backend roda
-  // os blocos em paralelo e responde `ok:false` por bloco em caso de erro).
+  // Cada grupo é um único GET com as seções visíveis dele em CSV (o backend roda
+  // os blocos em paralelo e responde `ok:false` por bloco em caso de erro). Os
+  // grupos saem em paralelo: antes leves e pesadas esperavam o volume e mais
+  // 2 s / 6 s fixos (e nunca saíam se o volume falhasse).
   const rest = useQuery<PainelServiceResult>({
     queryKey: restKey,
     queryFn: ({ signal }) =>
       fetchServiceWaves(filters, clock, [restCsv], signal, (acc) =>
         queryClient.setQueryData<PainelServiceResult>(restKey, acc),
       ),
-    enabled: restArmed && restSections.length > 0,
+    enabled: live && wants(restSections),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
@@ -360,7 +349,7 @@ export function usePainelService(
       fetchServiceWaves(filters, clock, [heavyCsv], signal, (acc) =>
         queryClient.setQueryData<PainelServiceResult>(heavyKey, acc),
       ),
-    enabled: heavyArmed && heavySections.length > 0,
+    enabled: live && wants(heavySections),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
@@ -400,8 +389,6 @@ export function usePainelService(
   return {
     ...volume,
     data,
-    /** Volume pedido e já respondido com sucesso (âncora para escalonar outras buscas). */
-    volumeReady: volumeOk,
     isFetching: volume.isFetching || rest.isFetching || heavy.isFetching,
     refetch: async () => {
       const result = await volume.refetch();
@@ -540,17 +527,26 @@ export function usePainelCustomFields(
   });
 }
 
+/**
+ * Valores dos cards de evento da grade de Negócios. `cards` = só os visíveis.
+ *  - mensagens recebidas/respondidas e fila: volume de `/api/painel/service`;
+ *  - demais tipos (eventos do log): `/api/activity-feed/stats` com o PERÍODO do
+ *    filtro do dashboard (`period`, + `startDate`/`endDate` se `custom` — be
+ *    #182). Sem card desses na tela, sem GET: antes saía sempre que havia
+ *    qualquer card de evento (inclusive os de mensagens, que nem usavam o
+ *    resultado), sem período — 30 dias, ~1,8 s.
+ */
 export function usePainelEventCards(
   filters: DashboardFiltersState,
   cards: NegociosCustomCard[],
   enabled = true,
 ) {
   const eventCards = cards.filter((c) => c.type === "event");
-  const period = {
-    dateFrom: undefined as string | undefined,
-    dateTo: undefined as string | undefined,
-  };
-  const stats = useActivityStats(enabled && eventCards.length > 0, period);
+  const stats = useActivityStats(enabled && eventCardsNeedActivityStats(eventCards), {
+    period: filters.period ?? "today",
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+  });
   const service = usePainelService(
     filters,
     "business",

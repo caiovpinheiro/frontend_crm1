@@ -44,15 +44,34 @@ export type ActivityStats = {
   hourly?: ActivityStatsHourPoint[];
 };
 
-export function useActivityStats(
-  enabled: boolean = true,
-  range?: { dateFrom?: string; dateTo?: string },
-) {
+/**
+ * `dateFrom`/`dateTo` (aba Estatísticas de Logs) ou `period` (+ `startDate`/
+ * `endDate` quando `custom`), o mesmo período de `/api/painel/*` — usado pelos
+ * cards do Dashboard. Sem nenhum, o backend usa 30 dias.
+ */
+export type ActivityStatsRange = {
+  dateFrom?: string;
+  dateTo?: string;
+  period?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+export function useActivityStats(enabled: boolean = true, range?: ActivityStatsRange) {
   const dateFrom = range?.dateFrom;
   const dateTo = range?.dateTo;
+  const period = range?.period;
+  const custom = period === "custom";
+  const startDate = custom ? range?.startDate : undefined;
+  const endDate = custom ? range?.endDate : undefined;
 
   return useQuery<ActivityStats>({
-    queryKey: ["activity-feed-stats", dateFrom ?? null, dateTo ?? null],
+    queryKey: [
+      "activity-feed-stats",
+      dateFrom ?? null,
+      dateTo ?? null,
+      ...(period ? [period, startDate ?? null, endDate ?? null] : []),
+    ],
     enabled,
     queryFn: async () => {
       if (isPageMockMode()) {
@@ -62,6 +81,9 @@ export function useActivityStats(
         const sp = new URLSearchParams();
         if (dateFrom) sp.set("dateFrom", dateFrom);
         if (dateTo) sp.set("dateTo", dateTo);
+        if (period) sp.set("period", period);
+        if (startDate) sp.set("startDate", startDate);
+        if (endDate) sp.set("endDate", endDate);
         const qs = sp.toString();
         const res = await fetch(
           apiUrl(`/api/activity-feed/stats${qs ? `?${qs}` : ""}`),
@@ -72,7 +94,7 @@ export function useActivityStats(
         if (
           shouldAutoDemoEmpty({
             realCount: data.totals.total,
-            hasFilters: Boolean(dateFrom || dateTo),
+            hasFilters: Boolean(dateFrom || dateTo || period),
             isLoading: false,
           })
         ) {
