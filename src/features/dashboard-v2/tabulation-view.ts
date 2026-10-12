@@ -130,3 +130,55 @@ export function tabulationDetail(
   if (!prefix) return dept;
   return color == null && dept ? `${prefix} · ${dept}` : prefix;
 }
+
+/** `byUser` de /api/analytics/tabulations vem truncado no top 20 do backend. */
+export const TABULATION_BY_USER_LIMIT = 20;
+
+const AUTOMATED_ACTOR_LABEL: Record<Exclude<TabulationActor["kind"], "user">, string> = {
+  ai_agent: "IA",
+  automation: "Automação",
+  system: "Sistema",
+};
+
+/**
+ * KPI "Quem tabulou": pessoas (`distinctUsers` conta só quem tem usuário) e,
+ * separadas, as tabulações sem pessoa (IA, automação, sistema). Antes o card
+ * dizia "Agentes que tabularam 0" quando as 16 tabulações eram da IA.
+ *
+ *  - `automated`: total − soma de `byUser` (mesma base no backend: a tabulação
+ *    mais recente de cada conversa). `null` quando `byUser` pode estar truncado.
+ *  - `kinds`: quais atores automáticos aparecem no log (página atual) — o
+ *    payload não traz a contagem por tipo de ator.
+ */
+export function tabulationWhoSummary(data: {
+  total: number;
+  distinctUsers: number;
+  byUser: { count: number }[];
+  items: { actor?: TabulationActor | null }[];
+}): { people: number; automated: number | null; kinds: string[] } {
+  const humanSum = data.byUser.reduce((acc, row) => acc + row.count, 0);
+  const automated =
+    data.byUser.length < TABULATION_BY_USER_LIMIT ? Math.max(0, data.total - humanSum) : null;
+  const kinds: string[] = [];
+  for (const kind of ["ai_agent", "automation", "system"] as const) {
+    if (data.items.some((item) => item.actor?.kind === kind)) {
+      kinds.push(AUTOMATED_ACTOR_LABEL[kind]);
+    }
+  }
+  return { people: data.distinctUsers, automated, kinds };
+}
+
+/** Texto do KPI: "0 pessoas" + "+ 16 pela IA" / "+ 16 automáticas" / "+ IA". */
+export function tabulationWhoText(summary: {
+  people: number;
+  automated: number | null;
+  kinds: string[];
+}): { value: string; hint?: string } {
+  const value = `${summary.people} ${summary.people === 1 ? "pessoa" : "pessoas"}`;
+  const who = summary.kinds.join(" / ");
+  if (summary.automated != null && summary.automated > 0) {
+    return { value, hint: who ? `+ ${summary.automated} por ${who}` : `+ ${summary.automated} automáticas` };
+  }
+  if (summary.automated == null && who) return { value, hint: `+ ${who}` };
+  return { value };
+}

@@ -924,7 +924,7 @@ function renderTabBoardWidget(
   id: string,
   query: ReturnType<typeof useTabulationAnalytics>,
   search: string,
-  _actorUserIds: string[],
+  actorUserIds: string[],
   departmentIds: string[],
   setDepartmentIds: (ids: string[]) => void,
   page: number,
@@ -966,7 +966,9 @@ function renderTabBoardWidget(
       />
     );
   }
-  if (id === "byUser") return <TabulationByUserWidget rows={byUser} />;
+  if (id === "byUser") {
+    return <TabulationByUserWidget rows={byUser} filtered={actorUserIds.length > 0} />;
+  }
   if (id === "log") {
     return (
       <TabulationLogWidget

@@ -98,7 +98,9 @@ export function SystemUsageBars({
         })}
         footer={
           <>
-            <span className="tabular-nums">{rows.length} usuários com sessão hoje</span>
+            <span className="tabular-nums">
+              {rows.length} {rows.length === 1 ? "usuário" : "usuários"} com sessão hoje
+            </span>
             <LegendSwatch color={color} label="Na média ou acima" />
             <LegendSwatch color={color} tone="soft" label="Abaixo da média" />
           </>

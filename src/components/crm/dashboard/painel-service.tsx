@@ -75,6 +75,7 @@ import type {
   PainelSeriesMeta,
   PainelServiceResult,
   PainelTimeStat,
+  PainelVolume,
 } from "@/features/dashboard-v2/painel-api";
 import type { TeamWidgetId } from "@/components/crm/dashboard/painel-team";
 import type { ServiceWidgetId } from "@/features/dashboard-v2/use-dashboard-widget-order";
@@ -323,14 +324,7 @@ function ServiceVolume({
           hint={deltaHint(v.started.delta)}
           tone="brand"
         />
-        <KpiCard
-          icon={<CheckCircle2 className="size-5" />}
-          label="Atendimentos finalizados"
-          badge="período"
-          value={formatNumber(v.finished.value)}
-          hint={deltaHint(v.finished.delta)}
-          tone="success"
-        />
+        <FinishedKpi volume={v} />
         <KpiCard
           icon={<MessageCircle className="size-5" />}
           label="Em aberto — Iniciados"
@@ -360,6 +354,53 @@ function ServiceVolume({
       >
         <VolumeDayChart chartData={chartData} />
       </PainelCard>
+    </div>
+  );
+}
+
+/**
+ * "Atendimentos finalizados" conta também conversas abertas ANTES do período e
+ * finalizadas nele (`partition.finishedCarryover`), então os 4 cards não são
+ * uma partição (ex.: 14 total × 6 + 0 + 10 = 16). O card mostra a quebra.
+ */
+export function finishedCarryoverText(
+  partition: PainelVolume["partition"],
+): { short: string; tip: string } | null {
+  if (!partition || partition.finishedCarryover <= 0) return null;
+  const n = partition.finishedCarryover;
+  return {
+    short: `${formatNumber(n)} ${n === 1 ? "aberto" : "abertos"} antes do período`,
+    tip:
+      `${formatNumber(partition.finishedFromStarted)} iniciados no período e ` +
+      `${formatNumber(n)} ${n === 1 ? "aberto" : "abertos"} antes dele foram finalizados no período. ` +
+      "Por isso finalizados + em aberto pode passar do total de atendimentos.",
+  };
+}
+
+function FinishedKpi({ volume }: { volume: PainelVolume }) {
+  const carry = finishedCarryoverText(volume.partition);
+  return (
+    <div className="min-w-0" title={carry?.tip} data-finished-carryover={carry ? "" : undefined}>
+      <KpiCard
+        icon={<CheckCircle2 className="size-5" />}
+        label="Atendimentos finalizados"
+        badge="período"
+        value={
+          carry ? (
+            <>
+              {formatNumber(volume.finished.value)}
+              <span className="ml-1.5 text-xs font-medium text-muted-foreground">
+                · {carry.short}
+              </span>
+            </>
+          ) : (
+            formatNumber(volume.finished.value)
+          )
+        }
+        hint={deltaHint(volume.finished.delta)}
+        tone="success"
+        className="h-full"
+      />
     </div>
   );
 }

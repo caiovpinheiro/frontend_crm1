@@ -171,6 +171,18 @@ export type PainelVolume = {
   stillOpen: { value: number; delta: PainelDelta };
   openStarted: { value: number; delta: PainelDelta };
   openWaiting: { value: number; delta: PainelDelta };
+  /**
+   * Aditivo do backend: como `started` e `finished` se decompõem.
+   * `finished = finishedFromStarted + finishedCarryover` (carryover = conversas
+   * abertas ANTES do período e finalizadas dentro dele).
+   */
+  partition?: {
+    resolved: number;
+    open: number;
+    other: number;
+    finishedFromStarted: number;
+    finishedCarryover: number;
+  };
   messagesIn: number;
   messagesOut: number;
   byDay: { date: string; started: number; finished: number; incomplete: boolean }[];
