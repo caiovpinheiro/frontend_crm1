@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  dealSectionsFor,
+  eventCardsNeedActivityStats,
   growSections,
   serviceSectionsFor,
   splitServiceWaves,
@@ -65,5 +67,37 @@ describe("growSections", () => {
   it("mostrar um novo widget acrescenta o bloco, ordenado", () => {
     expect(growSections(["ranking"], ["transfers", "ranking"])).toEqual(["ranking", "transfers"]);
     expect(growSections([], ["transfers", "deptHour"])).toEqual(["deptHour", "transfers"]);
+  });
+});
+
+describe("dealSectionsFor (aba Negócios)", () => {
+  it("layout da auditoria: funil + uso + evolução + cards → kpis, funil, evolução", () => {
+    expect(
+      dealSectionsFor(["funnel", "usage", "card:in", "card:out", "evolution"]),
+    ).toEqual(["kpis", "funnel", "evolution"]);
+  });
+
+  it("cards de etapa leem o funil; ordem fixa independe da grade", () => {
+    expect(dealSectionsFor(["stage:s1"])).toEqual(["funnel"]);
+    expect(dealSectionsFor(["exceptions", "agents", "kpis"])).toEqual([
+      "kpis",
+      "agents",
+      "exceptions",
+    ]);
+    expect(dealSectionsFor(["usage"])).toEqual([]);
+  });
+});
+
+describe("eventCardsNeedActivityStats", () => {
+  it("cards de mensagens/fila/tempo não precisam de activity-feed/stats", () => {
+    expect(
+      eventCardsNeedActivityStats([{ eventType: "messages_in" }, { eventType: "messages_out" }]),
+    ).toBe(false);
+    expect(eventCardsNeedActivityStats([{ eventType: "queue" }])).toBe(false);
+    expect(eventCardsNeedActivityStats([])).toBe(false);
+  });
+
+  it("card de evento do log precisa", () => {
+    expect(eventCardsNeedActivityStats([{ eventType: "DEAL_CREATED" }])).toBe(true);
   });
 });
