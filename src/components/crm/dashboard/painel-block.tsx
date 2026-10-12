@@ -95,12 +95,14 @@ export function PainelKpiSkeleton() {
   );
 }
 
+/** Mesmo desenho do "Agora": 3 cards numa linha e a espera embaixo. */
 export function PainelAgoraSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
+    <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, i) => (
         <PainelSkeleton key={i} className="h-[72px]" />
       ))}
+      <PainelSkeleton className="col-span-full h-[104px]" />
     </div>
   );
 }
@@ -132,6 +134,40 @@ export function PainelBlockError({
         Tentar de novo
       </button>
     </div>
+  );
+}
+
+/**
+ * Estado vazio compacto: o card inteiro numa linha (~56 px) — título, a frase
+ * e, se houver, a ação do cabeçalho (ex.: "Ver por"). Antes, rankings,
+ * transferências e "Por usuário" vazios ocupavam 130–218 px para uma frase.
+ */
+export function PainelEmptyCard({
+  title,
+  message,
+  action,
+  className,
+}: {
+  title: string;
+  message: string;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      data-painel-empty-compact
+      className={cn(
+        CARD_SURFACE_CLASS,
+        "flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1.5 px-3.5 py-2.5",
+        className,
+      )}
+    >
+      <h3 className="shrink-0 text-[15px] font-bold text-foreground">{title}</h3>
+      <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground" title={message}>
+        {message}
+      </p>
+      {action ? <div className="ml-auto shrink-0">{action}</div> : null}
+    </section>
   );
 }
 

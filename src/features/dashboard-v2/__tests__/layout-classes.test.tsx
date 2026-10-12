@@ -35,21 +35,50 @@ describe("grades por largura do container", () => {
     expect(tokens(KPI_CONTAINER_CLASS)).toContain("@container");
   });
 
-  it("'Agora': 1 coluna no celular, 2, 3 (3+1 larga) e 6 só com folga", () => {
+  it("'Agora': 3 cards na linha (1 / 2 / 3 colunas) e a espera embaixo, largura toda", () => {
     const t = tokens(AGORA_GRID_CLASS);
     expect(t).toContain("grid-cols-1");
     expect(t).toContain("@[440px]:grid-cols-2");
     expect(t).toContain("@[700px]:grid-cols-3");
-    expect(t).toContain("@[1360px]:grid-cols-6");
-    // o card largo ocupa a linha toda até caber ao lado dos outros
-    expect(tokens(AGORA_WAIT_CLASS)).toEqual(["@[440px]:col-span-full", "@[1360px]:col-span-3"]);
+    expect(t.some((c) => c.includes("grid-cols-6"))).toBe(false);
+    expect(tokens(AGORA_WAIT_CLASS)).toEqual(["col-span-full"]);
   });
 
-  it("cards de período: uma coluna abaixo de 420 px", () => {
-    const t = tokens(PERIOD_KPI_GRID_CLASS);
-    expect(t).toContain("grid-cols-1");
-    expect(t).toContain("@[420px]:grid-cols-2");
-    expect(t).not.toContain("grid-cols-2");
+  it("'Agora': ordem aguardando → em atendimento → atendentes → maior espera", () => {
+    const agora: PainelAgora = {
+      asOf: "2026-10-07T13:00:00.000Z",
+      awaitingReply: 1,
+      inService: 2,
+      longestWait: {
+        ms: 0,
+        contactName: null,
+        agentName: null,
+        conversationId: null,
+        overSla: false,
+        slaMinutes: 60,
+      },
+      agents: { online: 3, total: 18 },
+    };
+    const { container } = render(
+      <PainelAgoraWidget data={agora} error={null} clock="business" onRetry={() => {}} />,
+    );
+    const grid = container.querySelector(`.${CSS.escape("@[700px]:grid-cols-3")}`)!;
+    const cells = [...grid.children].map((el) => el.textContent ?? "");
+    expect(cells).toHaveLength(4);
+    expect(cells[0]).toContain("Aguardando resposta");
+    expect(cells[1]).toContain("Em atendimento");
+    expect(cells[2]).toContain("Atendentes disponíveis");
+    expect(cells[3]).toContain("Maior espera atual");
+    expect((grid.children[3] as HTMLElement).className).toContain("col-span-full");
+  });
+
+  it("cards de período e de tabulações: 2×2 no celular, 4 com folga", () => {
+    for (const cls of [PERIOD_KPI_GRID_CLASS, TABULATION_KPI_GRID_CLASS]) {
+      const t = tokens(cls);
+      expect(t).toContain("grid-cols-2");
+      expect(t).not.toContain("grid-cols-1");
+      expect(t).toContain("@[1000px]:grid-cols-4");
+    }
   });
 
   it("indicadores de Negócios (5 cards): 2 colunas, 3+2 e depois 5", () => {
@@ -118,7 +147,7 @@ describe("grades por largura do container", () => {
     const { container } = render(
       <PainelServiceWidget id="volume" data={data} search="" clock="business" onRetry={() => {}} />,
     );
-    const grid = container.querySelector(`.${CSS.escape("@[420px]:grid-cols-2")}`);
+    const grid = container.querySelector(`.${CSS.escape("@[1000px]:grid-cols-4")}`);
     expect(grid?.parentElement?.className).toContain("@container");
   });
 });
@@ -176,7 +205,6 @@ describe("textos truncados", () => {
       items: [],
     } as unknown as TabulationAnalyticsResponse;
     render(<TabulationKpiWidget data={data} loadingValue="…" />);
-    // o KpiStrip renderiza as duas variações (mobile e grade): ambas com o title
     const values = screen.getAllByTitle("apenas um teste qualquer de motivo muito longo");
     expect(values.length).toBeGreaterThan(0);
     expect(values[0]!.className).toContain("line-clamp-2");

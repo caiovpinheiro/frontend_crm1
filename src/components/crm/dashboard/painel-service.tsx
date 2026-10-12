@@ -170,7 +170,15 @@ export function PainelAgoraWidget({
           value={formatNumber(data.inService)}
           tone="brand"
         />
+        <KpiCard
+          icon={<Users className="size-5" />}
+          label="Atendentes disponíveis"
+          value={`${data.agents.online}/${data.agents.total}`}
+          hint="online / total"
+          tone="success"
+        />
         <div
+          data-agora-wait
           className={cn(
             "min-w-0 rounded-xl border p-4",
             AGORA_WAIT_CLASS,
@@ -198,13 +206,6 @@ export function PainelAgoraWidget({
             {wait.agentName ? ` · ${wait.agentName}` : ""}
           </p>
         </div>
-        <KpiCard
-          icon={<Users className="size-5" />}
-          label="Atendentes disponíveis"
-          value={`${data.agents.online}/${data.agents.total}`}
-          hint="online / total"
-          tone="success"
-        />
       </div>
       </div>
     </PainelCard>

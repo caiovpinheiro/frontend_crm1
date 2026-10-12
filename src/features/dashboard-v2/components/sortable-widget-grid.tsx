@@ -18,6 +18,7 @@ import {
   fluidOrder,
   fluidSpanClass,
 } from "@/features/dashboard-v2/fluid-grid";
+import { fillRowGaps } from "@/features/dashboard-v2/grid-fill";
 import {
   armSuppressClickAfterDrag,
   DASHBOARD_DRAG_THRESHOLD_PX,
@@ -142,6 +143,12 @@ export function SortableWidgetGrid({
     [layout],
   );
   const ids = useMemo(() => visibleLayout.map((item) => item.i), [visibleLayout]);
+  // Só na exibição: cards crescem para as colunas vazias da linha (o salvo não
+  // muda; ao organizar, voltam às larguras reais).
+  const shownLayout = useMemo(
+    () => (organizing ? visibleLayout : fillRowGaps(visibleLayout, DASHBOARD_GRID_COLS)),
+    [organizing, visibleLayout],
+  );
   const layoutRef = useRef(layout);
   const interactingRef = useRef(false);
   const applyingRef = useRef(false);
@@ -249,6 +256,13 @@ export function SortableWidgetGrid({
     );
   }
 
+  /**
+   * `fillCell` (grade em pixels): o card ESTICA até a altura da célula — antes
+   * ficava com a altura do conteúdo (ex.: card de evento de 76 px numa célula
+   * de ~130 px, buraco de 58 px). A medida do auto-size passa a ser
+   * max(conteúdo, célula): conteúdo maior ainda faz a linha crescer; menor
+   * não encolhe a célula salva (o card preenche).
+   */
   function widgetCell(id: string, grip?: ReactNode, fillCell = false) {
     const rail = chrome(id, grip);
     return (
@@ -258,20 +272,26 @@ export function SortableWidgetGrid({
           fillCell ? "flex h-full min-h-0 flex-col overflow-hidden" : "h-fit",
         )}
       >
-        <div
-          className={cn(
-            "min-w-0",
-          )}
-        >
+        <div className={cn("min-w-0", fillCell && "flex min-h-0 flex-1 flex-col")}>
           <div
             data-grid-measure={id}
             className={cn(
-              "flex h-fit min-w-0 items-start",
+              "flex min-w-0",
+              fillCell ? "flex-1 items-stretch" : "h-fit items-start",
               organizing ? "gap-1" : null,
             )}
           >
             {rail}
-            <div className={cn("min-w-0", rail ? "flex-1" : "w-full")}>{render(id)}</div>
+            <div
+              data-grid-fill={fillCell ? "" : undefined}
+              className={cn(
+                "min-w-0",
+                rail ? "flex-1" : "w-full",
+                fillCell && "flex flex-col [&>*]:flex-1",
+              )}
+            >
+              {render(id)}
+            </div>
           </div>
         </div>
       </div>
@@ -311,7 +331,7 @@ export function SortableWidgetGrid({
       {mounted && width > 0 ? (
         <GridLayout
           width={width}
-          layout={visibleLayout}
+          layout={shownLayout}
           autoSize
           gridConfig={GRID_CONFIG}
           dragConfig={{
