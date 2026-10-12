@@ -35,6 +35,7 @@ import {
   ListColumnLabel,
 } from "@/components/crm/sortable-header";
 import {
+  InfoHint,
   PainelBlockError,
   PainelCard,
   PainelEmpty,
@@ -56,6 +57,7 @@ import type {
   PainelKpi,
 } from "@/features/dashboard-v2/painel-api";
 import { isInactiveAgent, visibleAgents } from "@/features/dashboard-v2/agents-view";
+import { DASHBOARD_HELP_TEXT } from "@/features/dashboard-v2/help-texts";
 import {
   funnelStageLookup,
   inflowRows,
@@ -558,7 +560,10 @@ function DealAgents({
         <ListColumnLabel align="right">Ganhos</ListColumnLabel>
         <ListColumnLabel align="right">Conversão</ListColumnLabel>
         <ListColumnLabel align="right">Ticket médio</ListColumnLabel>
-        <ListColumnLabel align="right">Ativos hoje</ListColumnLabel>
+        <ListColumnLabel align="right" className="gap-1">
+          Ativos hoje
+          <InfoHint text={DASHBOARD_HELP_TEXT.agentsOpenToday} />
+        </ListColumnLabel>
       </div>
       <ul className={cn(LIST_CARD_STACK_CLASS, "mt-2 max-h-[320px] overflow-y-auto pr-1")}>
         {rows.map((row) => (
